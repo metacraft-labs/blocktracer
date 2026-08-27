@@ -179,6 +179,11 @@ type
     blockIndexPaths*: seq[string]
     addrPaths*: seq[string]
     txstatePaths*: seq[string]
+    idx*: JsonNode      ## §2.9 `/idx/**` is "in root" — the search-index descriptor
+                        ## for this generation (nil => this generation emits no idx).
+    render*: JsonNode   ## the pre-rendered entry-page layer this generation carries
+                        ## (nil => data-only tree, no HTML entry pages). Both are
+                        ## optional layers the sealed root enumerates alongside `maps`.
 
   BlockDetail* = object
     ## `/d/{chain}/block/{blockHash}.json` — content-addressed, generation-independent.
@@ -341,6 +346,8 @@ proc toJson*(x: GenerationRoot): JsonNode =
   maps["addr"] = %x.addrPaths
   maps["txstate"] = %x.txstatePaths
   result["maps"] = maps
+  if x.idx != nil: result["idx"] = x.idx
+  if x.render != nil: result["render"] = x.render
 
 proc toJson*(x: BlockDetail): JsonNode =
   %*{"chain": x.chain, "hash": x.hash, "height": x.height,

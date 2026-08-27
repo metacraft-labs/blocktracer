@@ -68,6 +68,11 @@ direction, one source) is the additive way to add it without a second truth.
   (§4, §2.1);
 - **walkability** — every reference reachable from `current.json` resolves; a
   dangling reference is an error.
+- the **optional render + `/idx/**` layers** the generation root enumerates: when
+  `root.render` is present, every walked entity has an HTML entry page whose inlined
+  `#bt-data` matches the `/d` data plane and whose robots policy is correct; when
+  `root.idx` is present, every walked hash resolves in the global hash index and the
+  name shards decode, place their terms correctly and carry provenance (§ D4–D6).
 
 The `traceArtifactId` is *derived* (not stored in the overlay), exactly as the
 browser derives it: `H(executionInputId ‖ recorder pin ‖ profile ‖ traceSchema)`.
@@ -82,14 +87,6 @@ work:
 
 - **The IsoNim explorer UI / browser replay** (M5, M9, M0, M1). Nothing here
   renders a page or opens a trace in a browser.
-- **The `/idx/**` search indices and the richly pre-rendered HTML entry pages**
-  (`/{chain}/tx/…`, `/block/…`, `/address/…`). This slice emits the `/d/**` data
-  plane, the generation-scoped derived maps (`height`, `blocks`, `addr`) that the
-  crawler walks, and `/t/**`, but **not** the `/idx/{chain}/names/**` and
-  `/idx/hash/**` search shards (their binary format is Search-And-Routing §5, real
-  work of M7/M9) nor the HTML entry pages (the render layer, M5/M9). The contract
-  validator does not require `/idx/**`, so the demo tree is still contract-conformant
-  and fully walkable from `current.json`; these remain open M5c deliverables.
 - **The publisher / CDN delivery** (M8). The generator writes a *local* tree that
   is a valid publishing input (`current.json`, sealed generation root, immutable
   objects); it does not upload, compute deltas, or set cache headers.
@@ -160,3 +157,91 @@ JSON field names. `traceSelectionVersion` is taken verbatim from that §2.3b sen
 whole generation from one object. This is the most defensible reading of a genuinely
 silent point; if the real pipeline (M7) needs different names, that is an additive
 contract change under the Publishing-And-Caching §6.1 rule, not a re-interpretation.
+
+## `/idx/**` and entry-page decisions (M5c completion, 2026-08-27)
+
+M5c was accepted `in-progress` precisely because the `/idx/**` search indices and the
+pre-rendered HTML entry pages were missing. They are now built. The spec fixes their
+*logical content*, sharding keys and URL structure but does not pin every byte or
+field; the readings below are the most defensible ones and are cited. The on-wire
+formats live in one place each — `src/blocktracer/contract/searchidx.nim` (the two
+`.bin` codecs) and `src/blocktracer/contract/entrypage.nim` (the inlined-data island)
+— so producer and validator cannot drift (§2.9).
+
+### D4 — The global hash index `/idx/hash/{version}/{prefix}.bin`
+
+**Decision.** A binary shard per occupied hash prefix. The shard key is the leading
+`prefixLen` hex chars of the 0x-stripped hash (`prefixLen = 2` for the demo). Each
+shard is a self-describing little-endian structure: magic `BThx`, format byte,
+`prefixLen`, stored-hash width, a per-shard chain dictionary, then entries sorted by
+hash bytes, each `[hash][chainIdx u8][kind u8]` with `kind ∈ {tx, block, address}`. A
+hash claimed by several `(chain, kind)` pairs gets one entry each. The demo stores the
+**full** hash for an exact, collision-free answer; the production builder truncates to
+the arithmetically-chosen width. The index `version` is `"1"`, independent of the
+contract version.
+
+**Spec basis.** Search-And-Routing §5: the path `/idx/hash/{version}/{prefix}.bin`,
+"sharded by a leading slice of the hash," "an **exact map** from hash to `(chain,
+entity kind)`," "immutable and version-addressed," and §5.1's per-`(chain, kind)`
+collision entries are all encoded directly. §5.3's "~8 bytes an entry — a truncated
+hash plus a chain and kind" motivates the chain dictionary (one byte per entry for the
+chain) and is why truncation is a builder policy, not a contract fact — so storing the
+full hash in the demo is a conformant, stricter choice. The spec says shard depth
+"should be recomputed rather than fixed" (§5.3); `prefixLen` is therefore **recorded
+in the generation root** (see D6) rather than hard-coded into the path, which is the
+one point §5 leaves implicit and which a client must know to compute the shard path.
+
+### D5 — Name shards `/idx/{chain}/names/{shard}.bin` + `meta.json`
+
+**Decision.** `meta.json` (JSON, as the §2 path table shows) records `indexVersion`,
+`chain`, `hashFunction` (`sha1-low32`), `shardBits`, `shardCount`, `entryCount`,
+`termCount` and the shard path list. A term is normalised (lowercased, whitespace
+collapsed) and its hash's low `shardBits` bits select the shard (`shardBits = 1` for
+the demo → two shards). A shard `.bin` (magic `BTnx`) maps each term to postings of
+`(kind, id, displayName, provenance, weight)`. The demo's corpus is a small **curated
+label set** it also publishes at `/d/{chain}/labels/0.json`, plus the chain's own
+route — because the demo has no verified-contract pipeline to draw names from.
+
+**Spec basis.** Search-And-Routing §6: the two paths, "`meta.json` — shard count, hash
+function, entry count," "terms are normalised, hashed, and the low bits select a
+shard," and "each shard maps term → postings of `(kind, id, displayName, weight)`" are
+encoded verbatim. §6 lists exactly what is indexed — "verified contract names, token
+names and symbols, curated labels … and the site's own routes" and **not**
+transactions/blocks/addresses without names — which is why the corpus is labels + the
+chain route, not the entities (those are resolved by §3–§5). §6.2 requires "every name
+carries its provenance" and "curated labels outrank self-declared names," so each
+posting carries `provenance` and the weight reflects it (the §8 `curatedProvenance`
+term). The exact byte layout is unspecified; the simple self-describing encoding here
+is a faithful demo stand-in for the packed production format, swappable behind the
+`searchidx.nim` seam.
+
+### D6 — Entry pages, and the root's enumeration of the render + idx layers
+
+**Decision.** Each entity gets a pre-rendered HTML file at its route
+(`/{chain}/tx/{txHash}/index.html`, `…/block/{blockHash}/…`, `…/address/{address}/…`,
+and `/index.html` for home). Every page carries `<title>`, `<meta description>`,
+`<link rel="canonical">`, a `<meta robots>` policy, a semantic `<main>` summary, and
+the entity's data **inlined** in a `<script type="application/json" id="bt-data">`
+island with `<`, `>`, `&` escaped. Ordinary entities are `noindex,follow` (class N1);
+the home page is `index,follow` (class I0). The sealed generation root **enumerates
+these optional layers**: `root.render` (present ⇒ entry pages required and complete)
+and `root.idx` (present ⇒ the search indices required, with `hash.prefixLen`/`version`
+and the `names` meta path). A tree that omits both is still a valid data plane.
+
+**Spec basis.** Static-Site-Architecture §2 fixes the routes
+(`/{chain}/tx/{txHash}` etc. — "entry page — metadata + inlined data") and §3.1/§4 the
+"one request to first paint … the entity's data is inlined into its own entry page …
+a materialised view of one of them, not a second source of truth." Rendering-And-
+Delivery §4.2 fixes the page's contents (the metadata block and the escaped
+`#bt-data` island); the validator's "inlined data == /d object" check enforces the
+"materialised view, not a second source of truth" property directly. SEO-And-Crawl-
+Budget §5 fixes the robots classes: N1 "ordinary transactions, blocks and addresses →
+`noindex,follow`," I0 "home, docs, chains → `index,follow`" — and note that `noindex`
+"governs `<meta robots>`, not whether the page exists," which is why every N1 entity is
+still fully pre-rendered. Enumerating the layers in the root follows the §2.9 registry,
+where `/idx/**` is marked "in root" and entry pages are `release`-class route objects;
+making the root name them is the additive, defensible way to let one sealed object
+describe a whole generation's layers, consistent with D3's `maps` reasoning. The
+`index.html` clean-URL convention (a directory index per route) is the standard static-
+host mapping of the extensionless spec routes and is future-compatible with the
+`/{chain}/tx/{hash}/debug` sub-route (Page-Descriptions §1).

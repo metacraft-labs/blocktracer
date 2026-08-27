@@ -6,6 +6,10 @@ nimcache/
 /blocktracer-validate
 *.exe
 
+# Compiled test binaries (`nim c -r tests/foo.nim` drops a `tests/foo` next to it)
+/tests/tcontract
+/tests/tmutcheck
+
 # Generated output trees
 /demo-site/
 /out/
