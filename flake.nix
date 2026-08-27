@@ -35,29 +35,45 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
-      in {
-        devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [ nim nimble just python3 ];
 
-          # Provide isonim + nim-everywhere from the pinned flake inputs.
-          # client/src/config.nims adds these (+ "/src") to the Nim search path;
-          # tokens.nim reads the design system from DESIGN_SYSTEM_SRC. So, from
-          # the client dir, `just export` / `just test` build hermetically inside
-          # `nix develop` without any sibling checkout.
+        # isonim + nim-everywhere + the design system from the pinned flake
+        # inputs. client/src/config.nims adds isonim + nim-everywhere (+ "/src")
+        # to the Nim search path; tokens.nim reads the design system from
+        # DESIGN_SYSTEM_SRC. So a build is hermetic inside `nix develop` without
+        # any sibling checkout. Shared by every dev shell below (mkShell turns
+        # these into env vars).
+        srcEnv = {
           ISONIM_SRC = isonim;
           NIM_EVERYWHERE_SRC = nim-everywhere;
           DESIGN_SYSTEM_SRC = codetracer-design-system;
+        };
 
+        # CI dev shell — the execution environment CI runs project commands in
+        # (`nix develop .#ci --command <cmd>`): the build toolchain PLUS wrangler
+        # for the Cloudflare Pages deploy. We do NOT preinstall software on the
+        # runners; the flake defines the environment, and the deploy command runs
+        # inside it (wrangler pinned by flake.lock). Kept minimal on purpose.
+        ci = pkgs.mkShell (srcEnv // {
+          buildInputs = with pkgs; [ nim nimble just python3 wrangler ];
+        });
+      in {
+        # The larger, interactive default shell includes the ci shell (so a local
+        # `nix develop` has the exact CI toolchain plus any interactive extras).
+        devShells.ci = ci;
+        devShells.default = pkgs.mkShell (srcEnv // {
+          inputsFrom = [ ci ];
           shellHook = ''
-            echo "blocktracer dev shell"
+            echo "blocktracer dev shell (includes .#ci)"
             echo "  (cd client && just export)  — render the explorer over the demo data tree -> client/dist/"
             echo "  (cd client && just test)    — static-export round-trip test"
             echo "  (cd client && just preview) — export, then serve dist/ on :8080"
+            echo "  nix build .#default          — build the full deployable site -> result/"
+            echo "  wrangler …                   — Cloudflare Pages deploy (CI uses .#ci)"
             echo ""
             echo "isonim + nim-everywhere from pinned flake inputs (ISONIM_SRC / NIM_EVERYWHERE_SRC);"
             echo "design-system tokens from DESIGN_SYSTEM_SRC — no sibling checkout required."
           '';
-        };
+        });
 
         # Static-site build: the IsoNim client rendered over the demo data tree.
         # Hermetic — isonim + nim-everywhere + the design system all come from the

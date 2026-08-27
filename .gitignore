@@ -25,5 +25,11 @@ nimcache/
 /result
 /result-*
 
+# Cloudflare Pages deploy: wrangler's local cache/logs and the staged publish
+# dir (`cp -rL result site`) the deploy workflow uploads.
+/.wrangler/
+/site/
+/wrangler-deploy.log
+
 # Editor / OS
 .DS_Store

@@ -1,0 +1,28 @@
+# Cloudflare Pages config for metacraft-labs/blocktracer (PRODUCTION project).
+#
+# CI deploys with `wrangler pages deploy site` (run inside the flake `.#ci`
+# shell) and passes --project-name / --branch + the publish dir explicitly; the
+# caller (.github/workflows/deploy.yml) selects the per-environment project.
+# wrangler still reads this file from the repo root, so it must be a VALID Pages
+# config. Pages projects do NOT support a `[build]` table — the build runs in
+# the workflow via `nix build .#default`, not through wrangler.
+#
+# ENVIRONMENTS ARE SEPARATE PAGES PROJECTS (a project custom domain always
+# serves the project's PRODUCTION deployment, so each environment needs its own
+# project + production branch + custom domain):
+#
+#   blocktracer          production branch `live`
+#   blocktracer-staging  production branch `staging`
+#   blocktracer-dev      production branch `dev`
+#                        (+ native PR previews: *.blocktracer-dev.pages.dev)
+#
+# This Pages deploy hosts the demo/static explorer. It is independent of the R2
+# delta-publisher go-live path (DEPLOY.md) that serves blocktracer.org.
+
+name = "blocktracer"
+compatibility_date = "2024-06-01"
+
+# Build output uploaded to Pages. CI stages the flake package's `result/` into a
+# clean, writable `site/` (`cp -rL result site`) — the complete site: index.html
+# + the /d data tree + /idx + /t + /aztec entry pages + /registry + assets.
+pages_build_output_dir = "site"

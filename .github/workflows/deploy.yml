@@ -1,0 +1,52 @@
+name: Deploy
+
+# Thin caller for metacraft-labs/blocktracer. Maps each branch / PR onto its OWN
+# Cloudflare Pages PROJECT (one project per environment — the model that makes
+# custom subdomains actually serve their branch; see the header of
+# deploy-cloudflare-pages.yml):
+#
+#   live    -> project blocktracer          (production branch `live`)
+#   staging -> project blocktracer-staging   (production branch `staging`)
+#   dev     -> project blocktracer-dev       (production branch `dev`)
+#   PR      -> project blocktracer-dev        -> native preview alias
+#              <head-ref>.blocktracer-dev.pages.dev
+#
+# Each project's production branch is configured on the project itself (via
+# wrangler at creation time by the parent/operator), so deploying
+# `live`/`staging`/`dev` to its matching project publishes a PRODUCTION
+# deployment; a PR (any non-`dev` branch) deployed to the dev project is a
+# preview.
+#
+# This is the Cloudflare PAGES (demo/static explorer) deploy — separate from the
+# R2 delta-publisher go-live path documented in DEPLOY.md. The existing
+# ci.yml (Nim conformance tests) is untouched.
+
+on:
+  push:
+    branches: [live, staging, dev]
+  pull_request:
+
+# One in-flight deploy per branch/PR; cancel superseded runs.
+concurrency:
+  group: deploy-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy-cloudflare-pages.yml
+    permissions:
+      contents: read
+      deployments: write
+      pull-requests: write
+    with:
+      # Branch -> per-environment Pages project. Pushes to live/staging go to
+      # their own project; dev pushes and all PRs go to the dev project (PRs
+      # land as native previews there).
+      project-name: >-
+        ${{ (github.event_name == 'push' && github.ref_name == 'live') && 'blocktracer'
+         || (github.event_name == 'push' && github.ref_name == 'staging') && 'blocktracer-staging'
+         || 'blocktracer-dev' }}
+      flake-target: default
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
