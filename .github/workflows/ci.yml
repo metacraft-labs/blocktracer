@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nim
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: "2.2.x"
+
+      - name: Conformance test suite
+        run: nimble test -y
+
+      - name: Demo generator emits a contract-conformant tree
+        run: |
+          nim c -r --hints:off src/blocktracer_demo_gen.nim --out:demo-site
+          nim c -r --hints:off src/blocktracer_validate.nim demo-site
+
+      - name: Determinism — regenerate and diff
+        run: |
+          nim c -r --hints:off src/blocktracer_demo_gen.nim --out:demo-site-2
+          diff -r demo-site demo-site-2
