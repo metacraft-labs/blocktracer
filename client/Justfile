@@ -1,0 +1,25 @@
+# BlockTracer IsoNim client — workspace commands.
+# Mirrors the reprobuild-web-site / codetracer-web-site static-site Justfile.
+
+# Export the combined static site to dist/: the demo data plane (/d /idx /t
+# /registry + entry pages) with the rendered explorer views (home, chain, block
+# list, block detail, tx detail) written over it at clean URLs, plus fonts,
+# sitemap.xml and robots.txt.
+export:
+    nim c -r --mm:orc -d:isServer -d:release src/static_export.nim
+
+# Run the static-export round-trip test: compile + run the real exporter into a
+# temp dir, then assert the three view types render for the demo entities and
+# reference real /d demo data, and that the design-system token layer resolved.
+test:
+    nim c -r --mm:orc --hints:off tests/test_static_export.nim
+
+# Build and preview the static site locally on :8080.
+preview: export
+    cd dist && python3 -m http.server 8080
+
+# Remove build artifacts.
+clean:
+    rm -rf dist nimcache
+    find . -name nimcache -type d -exec rm -rf {} +
+    rm -f src/static_export tests/test_static_export
