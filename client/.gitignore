@@ -1,0 +1,11 @@
+nimcache/
+build/
+dist/
+result
+result-*
+.direnv/
+.env
+
+# Compiled Nim binaries (no extension, left by nim c -r)
+src/static_export
+tests/test_static_export

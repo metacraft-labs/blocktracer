@@ -4,6 +4,9 @@ nimcache/
 /blocktracer_validate
 /blocktracer-demo-gen
 /blocktracer-validate
+# `nim c -r src/foo.nim` drops the compiled binary next to its source, under src/
+/src/blocktracer_demo_gen
+/src/blocktracer_validate
 *.exe
 
 # Compiled test binaries (`nim c -r tests/foo.nim` drops a `tests/foo` next to it)
@@ -13,6 +16,10 @@ nimcache/
 # Generated output trees
 /demo-site/
 /out/
+
+# Nix build result symlinks (`nix build` at the repo root)
+/result
+/result-*
 
 # Editor / OS
 .DS_Store
