@@ -19,7 +19,7 @@
 ## (Trace-Artifacts.md §8) — and it recomputes container hashes only structurally.
 
 import std/[json, os, strutils, sets, tables]
-import ./contract/[model, version, ids]
+import ./contract/[model, version, ids, searchidx, entrypage]
 
 type
   Validator* = object
@@ -27,6 +27,12 @@ type
     errors*: seq[string]
     visited: HashSet[string]      ## files reached during the walk
     registry: Table[string, JsonNode]  ## chain -> registry entry
+    # Entities reached during the current generation's walk, so the render layer
+    # (entry pages) and the /idx/** search indices can be checked for completeness:
+    # every walked entity MUST have a page and MUST be resolvable in the hash index.
+    walkedTx: seq[string]
+    walkedBlock: seq[string]
+    walkedAddr: seq[string]
 
 const
   outcomeOveralls = ["succeeded", "reverted", "partial", "failedWithEffects"]
@@ -156,6 +162,7 @@ proc checkExecTrace(v: var Validator, ctx: string, t: JsonNode,
     v.checkContainerAndManifest(tid, txHash, chain, execInputId)
 
 proc checkTransaction(v: var Validator, chain, txHash, gen, tsv: string) =
+  v.walkedTx.add txHash
   let sh = hexShard(txHash)
   # --- immutable TransactionFacts (§2.3) ---
   let frel = "d" / chain / "tx" / sh / txHash & ".json"
@@ -201,7 +208,158 @@ proc checkTransaction(v: var Validator, chain, txHash, gen, tsv: string) =
     else:
       v.err(orel, "overlay must carry either 'trace' or 'executions'")
 
+# ---------------------------------------------------------------------------
+# Optional render + search-index layers (Static-Site-Architecture §2, §4;
+# Search-And-Routing §5, §6). The sealed generation root ENUMERATES whichever of
+# these layers a generation carries (§2.9: entry pages are "route" objects, `/idx/**`
+# is "in root"). When declared, they must be present and complete: every entity the
+# validator walked must have an entry page and must resolve in the hash index. A
+# data-only tree (no `render`/`idx` in root) is still contract-valid — the layers are
+# additive, `may decline` for old clients (§2.9).
+# ---------------------------------------------------------------------------
+
+proc loadBytes(v: var Validator, rel: string): tuple[data: string, ok: bool] =
+  let p = v.root / rel
+  v.visited.incl rel
+  if not fileExists(p):
+    v.err(rel, "declared in generation root but missing")
+    return ("", false)
+  (readFile(p), true)
+
+proc checkEntryPage(v: var Validator, htmlRel, canonicalPath, robots,
+                    wantKind, wantId: string): JsonNode =
+  ## Shared entry-page conformance: the page exists, carries the right metadata, and
+  ## inlines a `#bt-data` island whose JSON identifies the entity (§4.2). Returns the
+  ## parsed inlined data (or nil) so the caller can cross-check it against the data
+  ## plane — an entry page is a materialised view, never a second source of truth (§3.1).
+  let (html, ok) = v.loadBytes(htmlRel)
+  if not ok: return nil
+  if ("<link rel=\"canonical\" href=\"" & siteBase & canonicalPath & "\">") notin html:
+    v.err(htmlRel, "missing/incorrect canonical link for " & canonicalPath)
+  if ("<meta name=\"robots\" content=\"" & robots & "\">") notin html:
+    v.err(htmlRel, "missing/incorrect robots policy (expected '" & robots & "')")
+  let (payload, found) = extractInlineData(html)
+  if not found:
+    v.err(htmlRel, "no inlined #bt-data island (§4.2)")
+    return nil
+  # The payload must be intact JSON after unescaping — the escaping of <, >, & must
+  # round-trip (a `</script>` breakout would corrupt it here).
+  var data: JsonNode
+  try: data = parseJson(payload)
+  except CatchableError as e:
+    v.err(htmlRel, "inlined data is not valid JSON: " & e.msg)
+    return nil
+  if data{"kind"}.getStr != wantKind:
+    v.err(htmlRel, "inlined data.kind '" & data{"kind"}.getStr &
+          "' != expected '" & wantKind & "'")
+  if wantId.len > 0 and data{wantKind & "Hash"}.getStr("") != wantId and
+     data{"address"}.getStr("") != wantId and data{"txHash"}.getStr("") != wantId and
+     data{"blockHash"}.getStr("") != wantId:
+    v.err(htmlRel, "inlined data does not identify entity " & wantId)
+  data
+
+proc checkRenderLayer(v: var Validator, chain: string, root: JsonNode) =
+  let render = root{"render"}
+  if render == nil: return   # data-only tree — entry pages not required
+  # Home (Page-Descriptions §2) — the one page that is index,follow (§5 class I0).
+  let homeRel = render{"home"}.getStr("index.html")
+  let home = v.checkEntryPage(homeRel, "/", "index,follow", "home", "")
+  if home != nil:
+    var listed = false
+    let chains = home{"chains"}
+    if chains != nil:
+      for c in chains:
+        if c.getStr == chain: listed = true
+    if not listed:
+      v.err(homeRel, "home page does not list chain '" & chain & "'")
+  if not render{"entryPages"}.getBool(false): return
+  # Every walked transaction, block and address is an ordinary addressable entity
+  # (§5 class N1, noindex,follow) and MUST have a per-entity page inlining its data.
+  for tx in v.walkedTx:
+    let rel = chain / "tx" / tx / "index.html"
+    let d = v.checkEntryPage(rel, "/" & chain & "/tx/" & tx, "noindex,follow", "tx", tx)
+    if d != nil:
+      let onDisk = v.loadJson("d" / chain / "tx" / hexShard(tx) / tx & ".json")
+      if onDisk != nil and d{"facts"} != onDisk:
+        v.err(rel, "inlined tx facts differ from the /d data plane (not a view)")
+  for bh in v.walkedBlock:
+    let rel = chain / "block" / bh / "index.html"
+    let d = v.checkEntryPage(rel, "/" & chain & "/block/" & bh, "noindex,follow", "block", bh)
+    if d != nil:
+      let onDisk = v.loadJson("d" / chain / "block" / bh & ".json")
+      if onDisk != nil and d{"block"} != onDisk:
+        v.err(rel, "inlined block detail differs from the /d data plane (not a view)")
+  for a in v.walkedAddr:
+    discard v.checkEntryPage(chain / "address" / a / "index.html",
+      "/" & chain & "/address/" & a, "noindex,follow", "address", a)
+
+proc assertHashResolves(v: var Validator, shards: Table[string, string],
+                        prefixLen: int, hexHash, chain: string, kind: int) =
+  let prefix = hashPrefix(hexHash, prefixLen)
+  if prefix notin shards:
+    v.err("idx/hash", "no shard covers " & hkName(kind) & " " & hexHash)
+    return
+  var hit = false
+  for e in lookupHash(shards[prefix], hexHash):
+    if e.chain == chain and e.kind == kind: hit = true
+  if not hit:
+    v.err("idx/hash", "hash index does not resolve " & hkName(kind) & " " &
+          hexHash & " on chain " & chain)
+
+proc checkSearchIndices(v: var Validator, chain: string, root: JsonNode) =
+  let idx = root{"idx"}
+  if idx == nil: return   # no search indices in this generation
+  # --- §5 the global hash index ---
+  let hi = idx{"hash"}
+  if hi == nil:
+    v.err("idx", "root.idx missing 'hash' descriptor")
+  else:
+    let ver = hi{"version"}.getStr("1")
+    let prefixLen = hi{"prefixLen"}.getInt(2)
+    var shards = initTable[string, string]()
+    for pn in hi{"shards"}:
+      let prefix = pn.getStr
+      let (data, ok) = v.loadBytes("idx" / "hash" / ver / prefix & ".bin")
+      if not ok: continue
+      let dec = decodeHashShard(data)
+      if dec.err.len > 0:
+        v.err("idx/hash/" & ver / prefix & ".bin", "malformed shard: " & dec.err)
+        continue
+      if dec.prefixLen != prefixLen:
+        v.err("idx/hash/" & ver / prefix & ".bin",
+              "shard prefixLen " & $dec.prefixLen & " != root's " & $prefixLen)
+      shards[prefix] = data
+    # Coverage: the index must actually index the demo's dataset (§5).
+    for h in v.walkedTx: v.assertHashResolves(shards, prefixLen, h, chain, hkTx)
+    for h in v.walkedBlock: v.assertHashResolves(shards, prefixLen, h, chain, hkBlock)
+    for h in v.walkedAddr: v.assertHashResolves(shards, prefixLen, h, chain, hkAddress)
+  # --- §6 name shards ---
+  for mp in idx{"names"}:
+    let meta = v.loadJson(mp.getStr)
+    if meta == nil: continue
+    for f in ["shardBits", "shardCount", "shards"]: discard v.need(meta, mp.getStr, f)
+    let shardBits = meta{"shardBits"}.getInt(0)
+    for sp in meta{"shards"}:
+      let (data, ok) = v.loadBytes(sp.getStr)
+      if not ok: continue
+      let dec = decodeNameShard(data)
+      if dec.err.len > 0:
+        v.err(sp.getStr, "malformed name shard: " & dec.err); continue
+      if dec.shardBits != shardBits:
+        v.err(sp.getStr, "shard shardBits disagrees with meta.json")
+      for t in dec.terms:
+        # Every term must hash into the shard it was placed in (§6 sharding rule).
+        if shardOf(t.term, shardBits) != dec.shardNo:
+          v.err(sp.getStr, "term '" & t.term & "' does not hash to this shard")
+        for p in t.postings:
+          if p.kind.len == 0 or p.id.len == 0:
+            v.err(sp.getStr, "posting for '" & t.term & "' missing kind/id")
+          if p.provenance notin [provCurated, provSelfDeclared]:
+            v.err(sp.getStr, "posting for '" & t.term &
+                  "' has no valid provenance (§6.2)")
+
 proc checkGeneration(v: var Validator, chain, gen: string) =
+  v.walkedTx = @[]; v.walkedBlock = @[]; v.walkedAddr = @[]
   let rrel = "d" / chain / "g" / gen / "root.json"
   let root = v.loadJson(rrel)
   if root == nil: return
@@ -223,6 +381,7 @@ proc checkGeneration(v: var Validator, chain, gen: string) =
     let bi = v.loadJson(p.getStr)
     if bi == nil: continue
     for bh in bi{"blocks"}:
+      v.walkedBlock.add bh.getStr
       let brel = "d" / chain / "block" / bh.getStr & ".json"
       let bd = v.loadJson(brel)
       if bd == nil: continue
@@ -232,7 +391,11 @@ proc checkGeneration(v: var Validator, chain, gen: string) =
   for p in maps{"addr"}:
     let al = v.loadJson(p.getStr)
     if al == nil: continue
+    if "address" in al: v.walkedAddr.add al{"address"}.getStr
     for sp in al{"segments"}: discard v.loadJson(sp.getStr)
+  # Optional render + search-index layers the sealed root enumerates (§2.9).
+  v.checkRenderLayer(chain, root)
+  v.checkSearchIndices(chain, root)
 
 proc validateTree*(root: string): seq[string] =
   ## Validate a published tree rooted at `root`. Returns the list of conformance

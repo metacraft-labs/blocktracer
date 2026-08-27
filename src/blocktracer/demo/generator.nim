@@ -22,8 +22,9 @@
 ## still validates. Swapping in a real spaceship `.ct` is a one-line change in
 ## `traceFixturePath` plus per-execution `recorder`/`execution` metadata.
 
-import std/[json, os, strutils, sha1]
-import ../contract/[model, version, ids]
+import std/[json, os, strutils, sha1, algorithm, tables]
+import ../contract/[model, version, ids, searchidx]
+import ./entrypages
 
 type
   DemoConfig* = object
@@ -45,6 +46,19 @@ proc writeJson(cfg: DemoConfig, rel: string, node: JsonNode) =
   # `pretty` with a trailing newline; stable field order => byte-identical output.
   writeFile(p, node.pretty & "\n")
 
+proc writeText(cfg: DemoConfig, rel, body: string) =
+  ## Write a rendered artifact (an HTML entry page) verbatim. `body` is already the
+  ## complete file content, so output stays byte-identical across runs.
+  let p = cfg.outDir / rel
+  createDir parentDir(p)
+  writeFile(p, body)
+
+proc writeBinary(cfg: DemoConfig, rel, bytes: string) =
+  ## Write a binary index shard (`.bin`) verbatim.
+  let p = cfg.outDir / rel
+  createDir parentDir(p)
+  writeFile(p, bytes)
+
 # The Aztec recorder pin, as it would appear in the chain registry. The real
 # values come from M5a; these are deterministic stand-ins.
 const
@@ -55,6 +69,12 @@ const
   profileName = "default"
   gen = "1"
   tsv = "1"
+  # Search-index parameters (Search-And-Routing §5.3, §6). Version-addressed and
+  # independent of the contract version; the depths are small for the demo's tiny
+  # dataset and are recomputable for the real pipeline (documented D4/D5).
+  hashIdxVersion = "1"
+  hashPrefixLen = 2      ## hex chars of the hash that select a hash-index shard
+  nameShardBits = 1      ## low bits of the term hash that select a name shard (2 shards)
 
 proc recorderRef(): RecorderRef =
   RecorderRef(id: recorderId, build: recorderBuildHash(recorderId, recorderVersion),
@@ -263,21 +283,36 @@ proc generate*(cfg: DemoConfig): int =
       if t.height == height: bt.add t.hash
     blocks.add (bh, height, parent, bt)
 
+  # Hash-index entries (§5): every hash-addressable entity that has an entry page —
+  # blocks, transactions and the demo address — so the global hash → (chain, kind)
+  # map resolves each of them without knowing the chain up front.
+  var hashEntries: seq[HashEntry]
+
   # Block details (content-addressed) + tx facts + txstate + overlays + artifacts.
+  # Each block/transaction also gets its pre-rendered HTML entry page (§2, §4.2).
   var addrSegs: seq[tuple[address, seg: string, fromB, toB: int, txs: seq[string]]]
   for b in blocks:
     let bd = BlockDetail(chain: chain, hash: b.hash, height: b.height,
                          parentHash: b.parent, transactions: b.txs)
-    cfg.writeJson("d" / chain / "block" / b.hash & ".json", bd.toJson)
+    let bdJson = bd.toJson
+    cfg.writeJson("d" / chain / "block" / b.hash & ".json", bdJson)
+    cfg.writeText(chain / "block" / b.hash / "index.html",
+                  renderBlockPage(chain, b.hash, bdJson))
+    hashEntries.add HashEntry(hexHash: b.hash, chain: chain, kind: hkBlock)
   for t in txs:
     let sh = hexShard(t.hash)
-    cfg.writeJson("d" / chain / "tx" / sh / t.hash & ".json", t.facts.toJson)
+    let factsJson = t.facts.toJson
+    cfg.writeJson("d" / chain / "tx" / sh / t.hash & ".json", factsJson)
     var st = t.txstate
     st["tx"] = %t.hash
     cfg.writeJson("d" / chain / "g" / gen / "txstate" / sh / t.hash & ".json", st)
-    cfg.writeJson("d" / chain / "ts" / tsv / sh / t.hash & ".json", t.overlay.toJson)
+    let ovJson = t.overlay.toJson
+    cfg.writeJson("d" / chain / "ts" / tsv / sh / t.hash & ".json", ovJson)
     for a in t.artifacts:
       cfg.writeArtifact(t.hash, a.execInputId, a.vs, a.strength, a.oracle)
+    cfg.writeText(chain / "tx" / t.hash / "index.html",
+                  renderTxPage(chain, t.hash, factsJson, st, ovJson))
+    hashEntries.add HashEntry(hexHash: t.hash, chain: chain, kind: hkTx)
 
   # One demo address with a single block-range segment referencing the fee payers.
   let demoAddr = synthAddr(seed, "feepayer", 0)
@@ -289,6 +324,7 @@ proc generate*(cfg: DemoConfig): int =
       %*{"chain": chain, "address": demoAddr, "fromBlock": 100, "toBlock": 102,
          "transactions": segTxs})
     addrSegs.add (demoAddr, seg, 100, 102, segTxs)
+  hashEntries.add HashEntry(hexHash: demoAddr, chain: chain, kind: hkAddress)
 
   # Generation-scoped derived maps.
   let heightRel = "d" / chain / "g" / gen / "height" / "0.json"
@@ -304,9 +340,14 @@ proc generate*(cfg: DemoConfig): int =
   var addrRels: seq[string]
   for a in addrSegs:
     let rel = "d" / chain / "g" / gen / "addr" / hexShard(a.address) / a.address & ".json"
-    cfg.writeJson(rel, %*{"chain": chain, "address": a.address,
-      "segments": [("d" / chain / "seg" / hexShard(a.address) / a.address / a.seg & ".json")]})
+    let addrList = %*{"chain": chain, "address": a.address,
+      "segments": [("d" / chain / "seg" / hexShard(a.address) / a.address / a.seg & ".json")]}
+    cfg.writeJson(rel, addrList)
     addrRels.add rel
+    let segJson = %*{"chain": chain, "address": a.address, "fromBlock": a.fromB,
+                     "toBlock": a.toB, "transactions": a.txs}
+    cfg.writeText(chain / "address" / a.address / "index.html",
+                  renderAddressPage(chain, a.address, addrList, @[segJson]))
 
   var txstateRels: seq[string]
   for t in txs:
@@ -317,11 +358,88 @@ proc generate*(cfg: DemoConfig): int =
     "counters": {"blocks": blocks.len, "transactions": txs.len},
     "coverageMode": "selective", "stale": false})
 
+  # ---- /idx/** search indices (Search-And-Routing §5, §6) ------------------
+  # (1) The global hash index: shard the (chain, kind) claims by a leading hex slice
+  # of the hash, so the client computes the shard path and resolves any hash in one
+  # fetch without knowing the chain (§5). Emit one `.bin` per occupied prefix.
+  var byPrefix = initTable[string, seq[HashEntry]]()
+  for e in hashEntries:
+    byPrefix.mgetOrPut(hashPrefix(e.hexHash, hashPrefixLen), @[]).add e
+  var hashShardPrefixes: seq[string]
+  for p in byPrefix.keys: hashShardPrefixes.add p
+  hashShardPrefixes.sort()
+  for p in hashShardPrefixes:
+    cfg.writeBinary("idx" / "hash" / hashIdxVersion / p & ".bin",
+                    encodeHashShard(byPrefix[p], hashPrefixLen))
+
+  # (2) Name shards: a small CURATED label corpus (§6). The demo has no verified-
+  # contract pipeline, so it publishes a labels object (§2.1a) and indexes it — the
+  # honest, provenance-bearing source the real index is also built from (§6.2).
+  let c0 = synthAddr(seed, "contract", 0)
+  let c1 = synthAddr(seed, "contract", 1)
+  let c2 = synthAddr(seed, "contract", 2)
+  let labels = %*{"chain": chain, "labels": [
+    {"id": c0, "kind": "token", "name": "Demo Token", "symbol": "DEMO",
+     "provenance": provCurated},
+    {"id": c1, "kind": "contract", "name": "Demo Router", "provenance": provCurated},
+    {"id": c2, "kind": "contract", "name": "Demo Vault", "provenance": provCurated},
+    {"id": demoAddr, "kind": "address", "name": "demo-payer.eth",
+     "provenance": provSelfDeclared}]}
+  cfg.writeJson("d" / chain / "labels" / "0.json", labels)
+
+  # Flatten labels → (term, posting). A curated label outranks a self-declared one
+  # (§6.2, §8): weight carries the provenance bonus.
+  var flat: seq[NameTerm]
+  proc addTerm(term: string, p: Posting) =
+    let n = normTerm(term)
+    if n.len == 0: return
+    for i in 0 ..< flat.len:
+      if flat[i].term == n: flat[i].postings.add p; return
+    flat.add NameTerm(term: n, postings: @[p])
+  # The chain's own route is indexed (§6: "the site's own routes").
+  addTerm(chain, Posting(kind: "route", id: "/" & chain, displayName: chain,
+    provenance: provCurated, weight: 100))
+  for lab in labels["labels"]:
+    let name = lab["name"].getStr
+    let prov = lab["provenance"].getStr
+    let w = if prov == provCurated: 100 else: 40
+    let post = Posting(kind: lab["kind"].getStr, id: lab["id"].getStr,
+      displayName: name, provenance: prov, weight: w)
+    addTerm(name, post)
+    if "symbol" in lab: addTerm(lab["symbol"].getStr, post)
+
+  # Route terms to shards by the low bits of the term hash (§6).
+  var byShard = initTable[int, seq[NameTerm]]()
+  for t in flat:
+    byShard.mgetOrPut(shardOf(t.term, nameShardBits), @[]).add t
+  var shardRels: seq[string]
+  for s in 0 ..< (1 shl nameShardBits):
+    let rel = "idx" / chain / "names" / $s & ".bin"
+    let terms = if s in byShard: byShard[s] else: @[]
+    cfg.writeBinary(rel, encodeNameShard(s, nameShardBits, terms))
+    shardRels.add rel
+  let namesMetaRel = "idx" / chain / "names" / "meta.json"
+  cfg.writeJson(namesMetaRel, %*{"indexVersion": hashIdxVersion, "chain": chain,
+    "hashFunction": "sha1-low32", "shardBits": nameShardBits,
+    "shardCount": (1 shl nameShardBits), "entryCount": labels["labels"].len,
+    "termCount": flat.len, "shards": shardRels})
+
+  # (3) The home page (Page-Descriptions §2) — the one demo page that is index,follow.
+  cfg.writeText("index.html", renderHomePage(@[chain]))
+
+  # The idx + render layer descriptors the sealed root enumerates (§2.9: `/idx/**`
+  # is "in root"). Their presence tells the validator to require these layers whole.
+  let idxJson = %*{
+    "hash": {"version": hashIdxVersion, "prefixLen": hashPrefixLen,
+             "shards": hashShardPrefixes},
+    "names": [namesMetaRel]}
+  let renderJson = %*{"home": "index.html", "entryPages": true}
+
   # The sealed, immutable generation root — every derived map is reachable here.
   let root = GenerationRoot(contractVersion: ContractVersion, chain: chain,
     generation: gen, traceSelectionVersion: tsv, summaryPath: summaryRel,
     heightPaths: @[heightRel], blockIndexPaths: @[blocksRel], addrPaths: addrRels,
-    txstatePaths: txstateRels)
+    txstatePaths: txstateRels, idx: idxJson, render: renderJson)
   cfg.writeJson("d" / chain / "g" / gen / "root.json", root.toJson)
 
   # The one mutable object per chain: the pointer.

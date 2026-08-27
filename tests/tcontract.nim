@@ -9,9 +9,14 @@
 ##   - M5b test_both_producers_satisfy_one_contract (demo + a hand-built EVM tree)
 
 import std/[unittest, os, json, strutils, algorithm, sha1]
-import ../src/blocktracer/contract/[model, version, ids]
+import ../src/blocktracer/contract/[model, version, ids, searchidx, entrypage]
 import ../src/blocktracer/validator
 import ../src/blocktracer/demo/generator
+
+proc synthHash(seed, kind: string, n: int): string =
+  "0x" & toLowerAscii($secureHash(seed & "|" & kind & "|" & $n))[0 .. 39]
+proc synthAddr(seed, kind: string, n: int): string =
+  "0x" & toLowerAscii($secureHash(seed & "|addr|" & kind & "|" & $n))[0 .. 39]
 
 const fixture = currentSourcePath().parentDir.parentDir / "fixtures" / "trace" / "minimal_trace.ct"
 
@@ -170,6 +175,127 @@ suite "M5b — the contract names no producer":
     if errs.len > 0:
       for e in errs: echo "  ERR ", e
     check errs.len == 0
+
+suite "M5c — /idx search indices and HTML entry pages":
+  let outDir = tmp("idx")
+  let seed = "idx-seed"
+  discard generate(DemoConfig(outDir: outDir, seed: seed, traceFixturePath: fixture))
+
+  test "the render + idx layers are emitted and declared in the generation root":
+    let root = parseFile(outDir / "d" / "aztec" / "g" / "1" / "root.json")
+    check "idx" in root and "render" in root
+    check fileExists(outDir / "index.html")
+    check fileExists(outDir / "idx" / "aztec" / "names" / "meta.json")
+    # at least one hash shard and one name shard exist
+    var hashShards, nameShards = 0
+    for p in walkDirRec(outDir / "idx" / "hash"):
+      if p.endsWith(".bin"): inc hashShards
+    for p in walkDirRec(outDir / "idx" / "aztec" / "names"):
+      if p.endsWith(".bin"): inc nameShards
+    check hashShards > 0 and nameShards == 2
+
+  test "the tx entry page inlines its data as a materialised view of /d":
+    let h = synthHash(seed, "tx", 0)
+    let page = outDir / "aztec" / "tx" / h / "index.html"
+    check fileExists(page)
+    let html = readFile(page)
+    check "content=\"noindex,follow\"" in html          # N1 addressable-only
+    check (siteBase & "/aztec/tx/" & h) in html          # canonical
+    let (payload, found) = extractInlineData(html)
+    check found
+    let data = parseJson(payload)
+    check data["kind"].getStr == "tx"
+    check data["txHash"].getStr == h
+    let onDisk = parseFile(outDir / "d" / "aztec" / "tx" / hexShard(h) / h & ".json")
+    check data["facts"] == onDisk                        # a view, not a second truth
+
+  test "the home page is the one index,follow page (§5 class I0)":
+    let html = readFile(outDir / "index.html")
+    check "content=\"index,follow\"" in html
+    check (siteBase & "/\">") in html or (siteBase & "/\"") in html
+
+  test "the hash index resolves every entity (tx, block, address)":
+    let root = parseFile(outDir / "d" / "aztec" / "g" / "1" / "root.json")
+    let hi = root["idx"]["hash"]
+    let ver = hi["version"].getStr
+    let pfx = hi["prefixLen"].getInt
+    proc resolves(hexHash: string, kind: int): bool =
+      let shard = outDir / "idx" / "hash" / ver / hashPrefix(hexHash, pfx) & ".bin"
+      if not fileExists(shard): return false
+      for e in lookupHash(readFile(shard), hexHash):
+        if e.chain == "aztec" and e.kind == kind: return true
+      false
+    check resolves(synthHash(seed, "tx", 0), hkTx)
+    check resolves(synthHash(seed, "block", 100), hkBlock)
+    check resolves(synthAddr(seed, "feepayer", 0), hkAddress)
+
+  test "name shards decode, place terms correctly, and carry provenance (§6.2)":
+    let meta = parseFile(outDir / "idx" / "aztec" / "names" / "meta.json")
+    let shardBits = meta["shardBits"].getInt
+    var sawCurated, sawSelf = false
+    for sp in meta["shards"]:
+      let dec = decodeNameShard(readFile(outDir / sp.getStr))
+      check dec.err.len == 0
+      for t in dec.terms:
+        check shardOf(t.term, shardBits) == dec.shardNo
+        for p in t.postings:
+          check p.provenance in [provCurated, provSelfDeclared]
+          if p.provenance == provCurated: sawCurated = true
+          if p.provenance == provSelfDeclared: sawSelf = true
+    check sawCurated and sawSelf    # curated names AND a self-declared one (adversarial corpus)
+
+suite "M5c — the new /idx + entry-page assertions bite":
+  proc freshIdx(name: string): string =
+    result = tmp(name)
+    discard generate(DemoConfig(outDir: result, seed: "bite", traceFixturePath: fixture))
+
+  test "removing the home page fails conformance":
+    let d = freshIdx("bite-home")
+    removeFile(d / "index.html")
+    check validateTree(d).len > 0
+
+  test "flipping a tx entry page to index,follow fails":
+    let d = freshIdx("bite-robots")
+    let h = synthHash("bite", "tx", 0)
+    let page = d / "aztec" / "tx" / h / "index.html"
+    writeFile(page, readFile(page).replace("noindex,follow", "index,follow"))
+    check validateTree(d).len > 0
+
+  test "tampering with a tx entry page's inlined data fails (view drift)":
+    let d = freshIdx("bite-view")
+    let h = synthHash("bite", "tx", 0)
+    let page = d / "aztec" / "tx" / h / "index.html"
+    # Corrupt the inlined outcome so the page disagrees with /d — the materialised
+    # view is no longer faithful.
+    writeFile(page, readFile(page).replace("\"succeeded\"", "\"reverted\""))
+    check validateTree(d).len > 0
+
+  test "deleting a declared hash-index shard fails":
+    let d = freshIdx("bite-hashdel")
+    let h = synthHash("bite", "tx", 0)
+    removeFile(d / "idx" / "hash" / "1" / hashPrefix(h, 2) & ".bin")
+    check validateTree(d).len > 0
+
+  test "corrupting a hash-index shard's bytes fails":
+    let d = freshIdx("bite-hashbytes")
+    var shard = ""
+    for p in walkDirRec(d / "idx" / "hash"):
+      if p.endsWith(".bin"): shard = p; break
+    writeFile(shard, "XXXX not a shard")
+    check validateTree(d).len > 0
+
+  test "corrupting a name shard's bytes fails":
+    let d = freshIdx("bite-namebytes")
+    writeFile(d / "idx" / "aztec" / "names" / "0.bin", "not a name shard")
+    check validateTree(d).len > 0
+
+  test "dropping shardBits from names meta.json fails":
+    let d = freshIdx("bite-meta")
+    let mp = d / "idx" / "aztec" / "names" / "meta.json"
+    var m = parseFile(mp)
+    m.delete("shardBits")
+    writeFile(mp, m.pretty & "\n")
+    check validateTree(d).len > 0
 
 suite "M5b — malformed trees fail conformance":
   proc freshDemo(name: string): string =
