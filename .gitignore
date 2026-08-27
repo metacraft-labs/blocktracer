@@ -2,15 +2,19 @@
 nimcache/
 /blocktracer_demo_gen
 /blocktracer_validate
+/blocktracer_publish
 /blocktracer-demo-gen
 /blocktracer-validate
+/blocktracer-publish
 # `nim c -r src/foo.nim` drops the compiled binary next to its source, under src/
 /src/blocktracer_demo_gen
 /src/blocktracer_validate
+/src/blocktracer_publish
 *.exe
 
 # Compiled test binaries (`nim c -r tests/foo.nim` drops a `tests/foo` next to it)
 /tests/tcontract
+/tests/tpublish
 /tests/tmutcheck
 
 # Generated output trees
