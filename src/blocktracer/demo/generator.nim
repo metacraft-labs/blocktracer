@@ -31,6 +31,16 @@ type
     outDir*: string
     seed*: string
     traceFixturePath*: string
+    generation*: string       ## generation label; "" => "1" (the M5c default).
+    extraBlocks*: seq[int]     ## heights appended after 102, each carrying one new
+                               ## public transaction. Empty => the byte-identical
+                               ## M5c generation-1 tree. This is what lets the M8
+                               ## publisher exercise a real incremental delta:
+                               ## `extraBlocks = @[103]` at `generation = "2"`
+                               ## regenerates the whole tree with block 103 added,
+                               ## every generation-1 object staying byte-identical
+                               ## (so key-existence skips it) and the pointer
+                               ## flipping to the sealed generation 2.
 
 proc synthHash(seed, kind: string, n: int): string =
   ## Deterministic 32-byte (0x + 40 hex) synthetic hash.
@@ -67,12 +77,13 @@ const
   recorderVersion = "0.0.0-demo"
   traceSchema = "ctfs/v4"
   profileName = "default"
-  gen = "1"
   tsv = "1"
   # Search-index parameters (Search-And-Routing §5.3, §6). Version-addressed and
   # independent of the contract version; the depths are small for the demo's tiny
   # dataset and are recomputable for the real pipeline (documented D4/D5).
-  hashIdxVersion = "1"
+  nameIdxVersion = "1"  ## the curated name corpus does not grow with new blocks,
+                        ## so its version is fixed; the hash index is versioned by
+                        ## generation instead (see `generate`).
   hashPrefixLen = 2      ## hex chars of the hash that select a hash-index shard
   nameShardBits = 1      ## low bits of the term hash that select a name shard (2 shards)
 
@@ -263,10 +274,37 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
         execInputId: demoExecutionInputId(chain, h, "public"),
         vs: vsUnchecked, strength: 0, oracle: "none", reconstructed: true)])
 
+  # --- Extra blocks (M8 incremental delta) ---
+  # Each appended height carries one plain public AVM call with a ready trace — the
+  # simplest new-block-arrives case. Their hashes derive from the height, so gen 1
+  # (empty extraBlocks) is untouched and each new block is deterministic. `n` keys
+  # the synthetic entities off the height so two extra blocks never collide.
+  for eb in cfg.extraBlocks:
+    let n = 100 + eb            # 100..102 are used above; eb>=103 => n>=203, distinct
+    let h = synthHash(seed, "tx", n)
+    let c = synthAddr(seed, "contract", n)
+    let bh = synthHash(seed, "block", eb)
+    var facts = mkPublicFacts(seed, h, bh, eb, 0, c)
+    var ov = TraceSelection(chain: chain, tx: h, hasSingle: true,
+      singleTrace: ExecTrace(availability: taReady, bytes: 36864, hasValidation: true,
+        validation: ValidationSummary(status: vsMatch, strength: 2)))
+    result.add DemoTx(hash: h, height: eb, index: 0, facts: facts,
+      txstate: txstateJson(true, "finalized"), overlay: ov,
+      artifacts: @[(selector: "public",
+        execInputId: demoExecutionInputId(chain, h, "public"),
+        vs: vsMatch, strength: 2, oracle: "avm-receipt-compare", reconstructed: false)])
+
 proc generate*(cfg: DemoConfig): int =
   ## Emit the full demo tree. Returns the number of top-level objects written
   ## (for the CLI's summary line).
   let seed = cfg.seed
+  # The generation label and the generation-versioned hash index. Both default to
+  # "1" (the M5c tree) and move together when a new generation is emitted, so a
+  # sealed generation's `/idx/hash/{gen}/**` is immutable at a distinct path rather
+  # than an in-place rewrite (Publishing-And-Caching §4: version in the path).
+  let gen = if cfg.generation.len > 0: cfg.generation else: "1"
+  let hashIdxVersion = gen
+  let heightList = @[100, 101, 102] & cfg.extraBlocks
   createDir cfg.outDir
   cfg.writeRegistry()
 
@@ -274,7 +312,7 @@ proc generate*(cfg: DemoConfig): int =
 
   # Group transactions by block.
   var blocks: seq[tuple[hash: string, height: int, parent: string, txs: seq[string]]]
-  for height in [100, 101, 102]:
+  for height in heightList:
     let bh = synthHash(seed, "block", height)
     let parent = if height == 100: synthHash(seed, "block", 99)
                  else: synthHash(seed, "block", height - 1)
@@ -319,11 +357,13 @@ proc generate*(cfg: DemoConfig): int =
   block:
     var segTxs: seq[string]
     for t in txs: segTxs.add t.hash
-    let seg = "100-102"
+    let loB = heightList[0]
+    let hiB = heightList[^1]
+    let seg = $loB & "-" & $hiB
     cfg.writeJson("d" / chain / "seg" / hexShard(demoAddr) / demoAddr / seg & ".json",
-      %*{"chain": chain, "address": demoAddr, "fromBlock": 100, "toBlock": 102,
+      %*{"chain": chain, "address": demoAddr, "fromBlock": loB, "toBlock": hiB,
          "transactions": segTxs})
-    addrSegs.add (demoAddr, seg, 100, 102, segTxs)
+    addrSegs.add (demoAddr, seg, loB, hiB, segTxs)
   hashEntries.add HashEntry(hexHash: demoAddr, chain: chain, kind: hkAddress)
 
   # Generation-scoped derived maps.
@@ -419,7 +459,7 @@ proc generate*(cfg: DemoConfig): int =
     cfg.writeBinary(rel, encodeNameShard(s, nameShardBits, terms))
     shardRels.add rel
   let namesMetaRel = "idx" / chain / "names" / "meta.json"
-  cfg.writeJson(namesMetaRel, %*{"indexVersion": hashIdxVersion, "chain": chain,
+  cfg.writeJson(namesMetaRel, %*{"indexVersion": nameIdxVersion, "chain": chain,
     "hashFunction": "sha1-low32", "shardBits": nameShardBits,
     "shardCount": (1 shl nameShardBits), "entryCount": labels["labels"].len,
     "termCount": flat.len, "shards": shardRels})
@@ -442,10 +482,12 @@ proc generate*(cfg: DemoConfig): int =
     txstatePaths: txstateRels, idx: idxJson, render: renderJson)
   cfg.writeJson("d" / chain / "g" / gen / "root.json", root.toJson)
 
-  # The one mutable object per chain: the pointer.
+  # The one mutable object per chain: the pointer. Its head advances to the tallest
+  # block in this generation, so a new generation flips it forward.
+  let headH = heightList[^1]
   cfg.writeJson("d" / chain / "current.json", %*{
     "chain": chain, "generation": gen, "traceSelectionVersion": tsv,
-    "head": {"height": 102, "hash": synthHash(seed, "block", 102)},
+    "head": {"height": headH, "hash": synthHash(seed, "block", headH)},
     "finalized": {"height": 100, "hash": synthHash(seed, "block", 100)}})
 
   txs.len
