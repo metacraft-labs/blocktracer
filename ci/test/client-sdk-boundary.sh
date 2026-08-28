@@ -482,19 +482,35 @@ external_specs_of() {
 # larger identifier, which is exactly how a chain concept actually arrives —
 # nobody adds a field called `chainid`. The tokens in both lists are compound
 # spellings already (`blocknumber`, `txhash`), so the false-positive risk is
-# small, and it is measured rather than assumed: substring-scanning every one
-# of the 191 `.nim` files under the Embed SDK's `src/frontend/viewmodel` at the
-# pinned commit, for every token in either list, produces ZERO non-comment
-# hits. Re-measured at `codetracer` `dev` 813510ad — after M2b added its
-# degraded-state model and two suites, which grew the facade's own closure from
-# 32 modules to 33 — and still zero. If a future measurement is not zero, the
-# answer is a more specific token, not a looser match: a whole-word rule misses
-# `DefaultChainId`, and `ci/test/client-sdk-boundary-test.sh` has a case that
-# goes red the moment this becomes `grep -w`. The LIST is identical in both
-# halves — what is banned is one
-# thing; how thoroughly it is found is not something the two can disagree
-# about, because a stricter search cannot admit anything the looser one
-# rejects.
+# small, and it is measured rather than assumed. What this guard actually scans
+# is the FACADE'S IMPORT CLOSURE, not the whole tree, and that closure has held
+# at 33 modules / 17 external specs with ZERO non-comment hits across every
+# token in either list at each pin so far: 32 modules before M2b, 33 at
+# `codetracer` `dev` 813510ad after it, and still 33 at 86719698 after M2a.
+#
+# The WIDER tree is a separate measurement, and as of 86719698 it is no longer
+# zero, so record what it is rather than let a stale claim rot: substring-
+# scanning all 194 `.nim` files under `src/frontend/viewmodel` finds
+# `BlockTracerPanes`, an exported const in `src/frontend/headless_app/
+# layout_model.nim` naming the five panes this repository renders, cited from
+# two of that tree's unit tests, plus a `"blockExplorer"` string used as the
+# deliberately-unrecognised pane name in a decode-failure fixture. Neither is
+# reachable from the facade — `headless_app/` is CONSUMER code over there,
+# carrying its own `.sdk-consumer` marker, and the dependency still runs one
+# way — so the guard is right to stay green. But it means "the word BlockTracer
+# does not occur in that tree" is no longer true, and a future widening of this
+# scan past the closure has to reckon with those hits first.
+#
+# None of that is a false positive of SUBSTRING matching: every hit above is a
+# genuine occurrence of the token, found where the rule does not reach, not a
+# short word swallowed by a longer identifier. If a future measurement inside
+# the closure is not zero, the answer is a more specific token, not a looser
+# match: a whole-word rule misses `DefaultChainId`, and
+# `ci/test/client-sdk-boundary-test.sh` has a case that goes red the moment
+# this becomes `grep -w`. The LIST is identical in both halves — what is banned
+# is one thing; how thoroughly it is found is not something the two can
+# disagree about, because a stricter search cannot admit anything the looser
+# one rejects.
 token_hits() {
 	local token="$1"
 	shift
