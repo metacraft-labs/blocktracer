@@ -40,6 +40,7 @@ import { fileURLToPath } from "node:url";
 import { VIEWS_BY_ID, SIZES, THEMES, imageName } from "./views.mjs";
 import { EXPECTATIONS_BY_ID } from "./expectations.mjs";
 import { ALL_LENSES } from "./review-prompt.mjs";
+import { readVerdict, evaluate as evaluateTier1 } from "./require-deterministic.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolvePath(HERE, "..", "..");
@@ -483,6 +484,34 @@ async function main(argv) {
   const fullResults = foundations ? scope.map((t) => gateTarget(t, L, model, { foundations: false })) : null;
   const fullPassing = fullResults ? fullResults.filter((r) => r.pass).length : null;
 
+  // ── G6, from the canary's own verdict ──────────────────────────────────
+  // VD.11's perceptual comparison must pass through require-deterministic.mjs
+  // BEFORE it believes a baseline, and this is where that shows up in the
+  // gate. When the canary has failed, the correct report is not "the
+  // comparison failed" — it is "the comparison cannot be believed", and the
+  // two are different claims: the first says a page changed, the second says
+  // nobody can tell.
+  const { path: tier1Path, status: tier1Status } = await readVerdict(
+    join(REPO_ROOT, "screenshots"),
+  );
+  const tier1Verdict = evaluateTier1(tier1Status);
+  const tier1 = {
+    condition: "G6 — a tier-1 determinism verdict from the pinned capture environment",
+    verdictFile: tier1Path,
+    enforced: tier1Verdict.usable,
+    code: tier1Verdict.code,
+    // The distinction VD.11 depends on. `canary-failed` means the harness
+    // stopped being deterministic, so every stored baseline is worthless;
+    // everything else means no tier-1 verdict is available yet.
+    baselinesUsable: tier1Verdict.usable,
+    baselineStatus: tier1Verdict.usable
+      ? "usable"
+      : tier1Verdict.code === "canary-failed"
+        ? "UNRELIABLE — the canary FAILED; every stored baseline is invalidated and a perceptual comparison must be reported as unreliable rather than run and believed"
+        : "UNRELIABLE — no tier-1 verdict is available",
+    why: tier1Verdict.reason,
+  };
+
   const verdict = {
     check: foundations ? "verify_foundations_round_reaches_bar" : "verify_gate_definition_is_machine_checkable",
     mode: foundations ? "foundations" : "full",
@@ -500,12 +529,13 @@ async function main(argv) {
         }
       : {}),
     // Stated on every run rather than left to be discovered: the tier-1
-    // determinism precondition is not part of this gate's arithmetic.
-    tier1: {
-      condition: "G6 — pinned-container determinism verdict",
-      enforced: false,
-      why: "VD.0's pinned capture container has never been built or run (no working Docker daemon), so no tier-1 verdict exists. `require-deterministic.mjs` refuses the host-only advisory verdict. G1–G5 are properties of the review ledger and do not depend on it; what is unavailable is any conclusion of the form 'this page did not change'.",
-    },
+    // determinism precondition is NOT part of this gate's arithmetic (G1–G5
+    // are properties of the review ledger and hold or fail on their own), but
+    // it decides whether any conclusion of the form "this page did not change"
+    // may be drawn at all. Read from the canary's own verdict file rather than
+    // asserted, so this line tracks reality instead of restating a status that
+    // was true when it was written.
+    tier1,
     ok,
   };
 
@@ -547,7 +577,14 @@ async function main(argv) {
     console.log("");
   }
 
-  console.log(`G6 (tier-1 determinism): NOT ENFORCED — ${verdict.tier1.why}\n`);
+  console.log(
+    tier1.enforced
+      ? `G6 (tier-1 determinism): ENFORCED — ${tier1.why}\n`
+      : `G6 (tier-1 determinism): NOT ENFORCED (${tier1.code})\n` +
+        `  baselines: ${tier1.baselineStatus}\n` +
+        `  ${tier1.why.replace(/\n/g, "\n  ")}\n` +
+        `  verdict file: ${tier1.verdictFile}\n`,
+  );
 
   if (foundations) {
     console.log(

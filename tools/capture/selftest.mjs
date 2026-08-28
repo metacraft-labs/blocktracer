@@ -2,7 +2,10 @@
 // VD.0 self-test — runs the milestone's four verifications end to end.
 //
 //   node tools/capture/selftest.mjs               # host run (canary is advisory)
-//   tools/capture/run-in-container.sh selftest    # pinned container (tier-1 verdict)
+//   nix run .#capture-env -- node tools/capture/selftest.mjs
+//                                                 # pinned environment; a tier-1
+//                                                 # verdict on Linux, still
+//                                                 # advisory on darwin
 //
 //   verify_capture_covers_named_view_list
 //   verify_canary_capture_is_byte_identical
@@ -107,8 +110,8 @@ async function main() {
       [
         `${status.imagesPerRun} image(s) x ${status.runs} runs, byte-identical: ${status.deterministic}`,
         status.advisory
-          ? "ADVISORY — not run in the pinned container, so this is not a tier-1 verdict"
-          : `pinned container: ${status.environment.container}`,
+          ? `ADVISORY — not a tier-1 verdict: ${(status.advisoryReasons ?? ["(no reason recorded)"]).join(" / ")}`
+          : `pinned environment: ${status.environment.pinned?.kind} ${status.environment.pinned?.id ?? ""}`,
         status.renderingPaths.uncovered.length
           ? `rendering paths not covered: ${status.renderingPaths.uncovered.map((p) => p.path).join("; ")}`
           : "every canary rendering path covered",
@@ -116,31 +119,107 @@ async function main() {
     );
 
     // ── verify_canary_failure_invalidates_the_baselines ───────────────────
-    // The gate must refuse in four distinct ways. Collapsing any of them into
+    // The gate must refuse in five distinct ways. Collapsing any of them into
     // "pass" is the failure mode this verification exists to catch.
     const now = new Date().toISOString();
+
+    // What check-canary.mjs writes on a genuine tier-1 pass. Everything below
+    // is this, with exactly one field spoiled, so each case isolates one
+    // condition instead of failing for several reasons at once.
+    const coherent = (over = {}) => ({
+      deterministic: true,
+      advisory: false,
+      baselinesUsable: true,
+      generatedAt: now,
+      runs: 2,
+      environment: {
+        platform: "linux",
+        arch: "x64",
+        pinned: { kind: "nix", verified: true, tier1Capable: true, id: "deadbeef", problems: [] },
+      },
+      ...over,
+    });
+
     const cases = [
       [null, "no-verdict", "no canary has run"],
       [
-        { deterministic: false, generatedAt: now, advisory: false, mismatches: [{ file: "x" }], runs: 2 },
+        { ...coherent(), deterministic: false, baselinesUsable: false, mismatches: [{ file: "x" }] },
         "canary-failed",
         "the canary failed",
       ],
       [
-        { deterministic: true, generatedAt: new Date(Date.now() - 72 * 3600_000).toISOString(), advisory: false, runs: 2 },
+        { ...coherent(), generatedAt: new Date(Date.now() - 72 * 3600_000).toISOString() },
         "stale-verdict",
         "the verdict is too old",
       ],
       [
-        { deterministic: true, generatedAt: now, advisory: true, runs: 2 },
+        { deterministic: true, generatedAt: now, advisory: true, baselinesUsable: false, runs: 2 },
         "advisory-verdict",
-        "the canary ran outside the pinned container",
+        "the canary ran outside the pinned capture environment",
+      ],
+      // The four incoherent shapes. Each is what a HAND-EDITED verdict looks
+      // like: a green field with nothing behind it. A reviewer fabricated
+      // exactly the first of these against VD.1's gate, so it is a case here
+      // rather than a hope.
+      [
+        { deterministic: true, advisory: false, baselinesUsable: true, generatedAt: now, runs: 2 },
+        "incoherent-verdict",
+        "a fabricated non-advisory verdict with no environment.pinned record",
       ],
       [
-        { deterministic: true, generatedAt: now, advisory: false, runs: 2, environment: { container: "pinned" } },
-        "ok",
-        "a clean container verdict is accepted",
+        { ...coherent(), environment: { container: "pinned" } },
+        "incoherent-verdict",
+        "a non-advisory verdict whose environment names no pinned record",
       ],
+      [
+        {
+          ...coherent(),
+          environment: {
+            pinned: { kind: "nix", verified: true, tier1Capable: false, id: "x", problems: [] },
+          },
+        },
+        "incoherent-verdict",
+        "a non-advisory verdict over an environment that is not tier-1 capable",
+      ],
+      [
+        {
+          ...coherent(),
+          environment: {
+            pinned: {
+              kind: "nix",
+              verified: false,
+              tier1Capable: true,
+              id: "x",
+              problems: ["FONTCONFIG_FILE does not match"],
+            },
+          },
+        },
+        "incoherent-verdict",
+        "a non-advisory verdict over an environment with unresolved problems",
+      ],
+      [{ ...coherent(), baselinesUsable: false }, "incoherent-verdict", "baselinesUsable disagrees with its own inputs"],
+      // The darwin caveat, end to end. Every input is pinned and verified and
+      // the capture IS byte-identical — and it is still refused, because the
+      // compositor is not something a derivation can fix.
+      [
+        {
+          deterministic: true,
+          advisory: true,
+          baselinesUsable: false,
+          generatedAt: now,
+          runs: 2,
+          advisoryReasons: ["darwin rasterises through the host compositor"],
+          environment: {
+            platform: "darwin",
+            arch: "arm64",
+            pinned: { kind: "nix", verified: true, tier1Capable: false, id: "deadbeef", problems: [] },
+          },
+        },
+        "advisory-verdict",
+        "a VERIFIED pinned environment on darwin is still not a tier-1 verdict",
+      ],
+      // And the one shape that IS accepted.
+      [coherent(), "ok", "a coherent pinned-Nix verdict on linux is accepted"],
     ];
     const gateProblems = [];
     for (const [st, expectedCode, label] of cases) {
@@ -173,7 +252,7 @@ async function main() {
       gateProblems.length === 0,
       gateProblems.length
         ? gateProblems.join("\n")
-        : "refuses on: no verdict, failed canary, stale verdict, advisory verdict; accepts a clean container verdict",
+        : `refuses on: no verdict, failed canary, stale verdict, advisory verdict, a VERIFIED pinned environment on darwin, and ${cases.filter(([, c]) => c === "incoherent-verdict").length} incoherent (hand-edited) shapes; accepts a coherent pinned-Nix verdict on linux`,
     );
 
     // ── Theme axis is captured independently ──────────────────────────────
