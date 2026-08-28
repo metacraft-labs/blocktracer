@@ -2,7 +2,7 @@
 
 version       = "0.0.1"
 author        = "Metacraft Labs"
-description    = "BlockTracer — static block explorer pipeline. M5b/M5c: the versioned data contract + Demo Data Generator; M8: the resumable, incremental delta publisher."
+description    = "BlockTracer — static block explorer. M5b/M5c: the versioned data contract + Demo Data Generator; M8: the resumable, incremental delta publisher; M12a: @blocktracer/client, the chain-aware Client SDK over the published tree."
 license        = "MIT"
 srcDir         = "src"
 installExt     = @["nim"]
@@ -19,9 +19,14 @@ requires "nim >= 2.0.0"
 
 # Tasks
 
-task test, "Run the conformance + publisher test suites":
+task test, "Run the conformance + publisher + Client SDK test suites":
   exec "nim c -r --hints:off tests/tcontract.nim"
   exec "nim c -r --hints:off tests/tpublish.nim"
+  # M12a: the consumer-side conformance suite for @blocktracer/client. It needs
+  # no debugger on the Nim path — the handoff to the CodeTracer Embed SDK is a
+  # separate suite (tests/tembedhandoff.nim, `just sdk-test-embed`), because the
+  # chain half compiling without one IS the layering.
+  exec "nim c -r --hints:off tests/tclientsdk.nim"
 
 task demo, "Generate a demo tree into ./demo-site and validate it":
   exec "nim c -r --hints:off src/blocktracer_demo_gen.nim --out:demo-site"
