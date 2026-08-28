@@ -175,3 +175,67 @@ jobs:
             }
             console.log(`ledger OK; gate ${g.passing}/${g.scope} passing (revision ${g.ledgerRevision})`);
           '
+
+  # M12 — BlockTracer's own ViewModel layer (Front-End-Architecture.md §3).
+  # Two halves, and the split is the layering rather than a convenience: the
+  # Tier-1 suite runs with NO debugger on the Nim path, and the seam suite runs
+  # with the real Embed SDK so the wire spellings the panes parse cannot drift
+  # from the ones this layer emits.
+  viewmodels:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the pinned Embed SDK
+        id: pin
+        run: grep -E '^[A-Z_]+=' ci/embed-sdk-pin.env >> "$GITHUB_OUTPUT"
+
+      - name: Check out the pinned IsoNim
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.pin.outputs.ISONIM_REPO }}
+          ref: ${{ steps.pin.outputs.ISONIM_REF }}
+          path: isonim
+          filter: blob:none
+
+      - name: Check out the pinned nim-everywhere
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.pin.outputs.NIM_EVERYWHERE_REPO }}
+          ref: ${{ steps.pin.outputs.NIM_EVERYWHERE_REF }}
+          path: nim-everywhere
+          filter: blob:none
+
+      - name: Check out the pinned CodeTracer Embed SDK
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.pin.outputs.CODETRACER_REPO }}
+          ref: ${{ steps.pin.outputs.CODETRACER_REF }}
+          path: codetracer
+          filter: blob:none
+          sparse-checkout: |
+            src/frontend
+            ci/test
+          sparse-checkout-cone-mode: false
+
+      - name: Install Nim
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: "2.2.x"
+
+      - name: Tier 1 — every §14 chain row, established from a mock chain
+        # No Embed SDK on the path: BlockTracer's own ViewModels are chain-aware
+        # and need no debugger to be tested, which is the same layering claim
+        # tests/tclientsdk.nim makes one layer down.
+        env:
+          ISONIM_SRC: ${{ github.workspace }}/isonim
+          NIM_EVERYWHERE_SRC: ${{ github.workspace }}/nim-everywhere
+        working-directory: client
+        run: nim c -r --mm:orc --hints:off tests/test_chain_viewmodels.nim
+
+      - name: The degraded-state seam, against the real Embed SDK
+        env:
+          CODETRACER_SRC: ${{ github.workspace }}/codetracer
+          ISONIM_SRC: ${{ github.workspace }}/isonim
+          NIM_EVERYWHERE_SRC: ${{ github.workspace }}/nim-everywhere
+        run: ci/test/viewmodel-seam-test.sh --require
