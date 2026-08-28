@@ -1,0 +1,44 @@
+[
+  {
+    "name": "shield",
+    "path": "src/main.nr",
+    "line": 1,
+    "kind": "module"
+  },
+  {
+    "name": "main",
+    "path": "src/main.nr",
+    "line": 12,
+    "kind": "function"
+  },
+  {
+    "name": "iterate_asteroids",
+    "path": "src/shield.nr",
+    "line": 1,
+    "kind": "function"
+  },
+  {
+    "name": "calculate_damage",
+    "path": "src/shield.nr",
+    "line": 22,
+    "kind": "function"
+  },
+  {
+    "name": "calculate_shield_regeneration",
+    "path": "src/shield.nr",
+    "line": 40,
+    "kind": "function"
+  },
+  {
+    "name": "calculate_remaining_shield_pct",
+    "path": "src/shield.nr",
+    "line": 48,
+    "kind": "function"
+  },
+  {
+    "name": "status_report",
+    "path": "src/shield.nr",
+    "line": 53,
+    "kind": "function"
+  }
+]
