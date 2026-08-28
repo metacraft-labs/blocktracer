@@ -22,22 +22,30 @@
 ##   * The cross-origin case is **explicit**, one `-d:` away, and recorded in
 ##     the built page so a reader can see which origin a given build trusts.
 ##
-## ## Why no domain is hardcoded
+## ## Which origin a cross-origin build should name
 ##
-## `https://web-codetracer.pages.dev` currently serves the bundle with the right
-## CORS headers (`access-control-allow-origin: *`, `Accept-Ranges` and
-## `Content-Range` exposed, so range requests work). `https://web.codetracer.com`
-## — the name one would reach for — currently serves a **different, authenticated
-## application**: `/worker.js` redirects to a login page and the wasm 404s.
-## Baking either into the source would be baking in a fact about DNS that is
-## being changed by somebody else while this is written. The deploy decides;
-## this module only makes the decision expressible.
+## `https://ide.codetracer.com` is the stable product domain for the in-browser
+## Cloud IDE. It is a custom domain on the **same** `web-codetracer` Cloudflare
+## Pages project as `https://web-codetracer.pages.dev`, so it serves the
+## identical bundle with the right CORS headers (`access-control-allow-origin:
+## *`, `Accept-Ranges` and `Content-Range` exposed, so range requests work) —
+## it is the origin a cross-origin build should name. `https://web.codetracer.com`
+## is deliberately NOT that host: it serves a **different, authenticated
+## application** (`/worker.js` redirects to a login page and the wasm 404s),
+## which is exactly why the IDE was given its own `ide.` name rather than a
+## rename that would have broken that app's consumers.
+##
+## Even so, no domain is baked into the source: a compile-time default that
+## reached any third-party origin would make every deployment of this repository
+## a client of a host its operator never named. The deploy decides
+## (`-d:replayEngineBase=https://ide.codetracer.com/`); this module only makes
+## the decision expressible.
 
 const ReplayEngineBase* {.strdefine: "replayEngineBase".} = "/replay-engine/"
   ## The URL prefix the engine's assets live under, with a trailing slash.
   ##
-  ## Override at build time:
-  ##   nim c -d:replayEngineBase=https://example.pages.dev/ …
+  ## Override at build time (the production IDE origin):
+  ##   nim c -d:replayEngineBase=https://ide.codetracer.com/ …
 
 func isCrossOrigin*(base: string): bool =
   ## Whether `base` names another origin.
