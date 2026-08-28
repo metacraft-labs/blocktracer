@@ -9,8 +9,7 @@ proc siteFooter*(): string =
     footer(class = "foot"):
       tdiv(class = "inner"):
         tdiv:
-          text "BlockTracer — the block explorer where you can step "
-          text "backwards through any transaction."
+          text "BlockTracer — the deepest view into every transaction."
         tdiv(class = "muted"):
           text "Rendered from demo data ("
           span(class = "mono"):

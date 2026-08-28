@@ -94,7 +94,7 @@ export const EXPECTATIONS = [
     spec: "Page-Descriptions §2",
     register: "explorer",
     mustShow: [
-      "A hero carrying one sentence of positioning — that this is the block explorer where you can step backwards through any transaction. One sentence, not a paragraph and not a tagline fragment.",
+      "A hero whose headline claims DEPTH — that this is the deepest view into every transaction — supported by one line naming what that depth is: stepping and rewinding instructions, the whole call trace at a glance, and tracing a value to its origin, across many chains, VMs and languages. A headline whose main claim is time-travel alone is WRONG: stepping backwards is table stakes in this category, and the positioning is depth plus breadth. One headline and one supporting line, not a paragraph and not a tagline fragment.",
       "A search field, visibly the primary input of the page and visibly focused (focus ring rendered — it is focused on load).",
       "A chain strip listing supported chains, each with a debug-tier badge (T0–T2). Chain names must be legible; a row of unlabelled logos is not the chain strip.",
       "A 'how it works' explanation in three parts — we index the chain · we replay every transaction · you step in both directions — readable as three parallel items, not one run of prose.",

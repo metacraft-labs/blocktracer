@@ -12,14 +12,14 @@ proc homePage*(infos: seq[ChainInfo]): string =
     section(class = "sec hero"):
       tdiv(class = "inner"):
         h1(class = "display"):
-          text "Step "
+          text "The "
           span(class = "accent"):
-            text "backwards"
-          text " through any transaction."
+            text "deepest"
+          text " view into every transaction."
         p(class = "lead sub"):
-          text "BlockTracer is a block explorer where every transaction can "
-          text "carry a full time-travel debugging trace. The browser reads "
-          text "static files and nothing else — no API, no database."
+          text "Step and rewind every instruction. See the full call trace "
+          text "at a glance. Trace any value to its origin — across many "
+          text "chains, VMs and languages."
         form(class = "search", action = "/search", `method` = "get"):
           input(name = "q", placeholder = "Paste a block, tx hash, or address")
           button(class = "btn primary", `type` = "submit"):

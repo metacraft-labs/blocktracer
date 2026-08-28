@@ -22,8 +22,8 @@ proc renderHome*(r: DataRoot): string =
   var infos: seq[ChainInfo]
   for c in chains(r): infos.add chainInfo(r, c)
   pageLayout(
-    "BlockTracer — step backwards through any transaction",
-    "The block explorer where you can step backwards through any transaction — rendered from static files, no API, no database.",
+    "BlockTracer — the deepest view into every transaction",
+    "The deepest view into every transaction. Step and rewind every instruction, see the full call trace at a glance, and trace any value to its origin — across many chains, VMs and languages.",
     homePg.homePage(infos),
     robots = "index,follow",
     canonical = SiteDomain & "/")
