@@ -42,7 +42,9 @@ const Chain = "aztec"
 let
   clientRoot = currentSourcePath().parentDir.parentDir     # <repo>/client
   repoRoot = clientRoot.parentDir
-  fixture = repoRoot / "fixtures" / "trace" / "minimal_trace.ct"
+  fixtureDir = repoRoot / "fixtures" / "trace" / "noir_space_ship"
+  fixture = fixtureDir / "zk_shields.ct"
+  fixtureSources = fixtureDir / "sources"
   workDir = getTempDir() / ("blocktracer-debug-route-test-" & $getCurrentProcessId())
 
 removeDir(workDir)
@@ -50,8 +52,15 @@ createDir(workDir)
 doAssert fileExists(fixture),
   "the trace fixture is missing: " & fixture &
   " — the demo generator cannot produce a tree, so nothing below would be a test"
+# `traceSourcesDir` matters here beyond completeness. M5c publishes the traced
+# program's sources as content-addressed bundles, and the debug route PREFERS a
+# published bundle over the fixture files vendored beside the client
+# (`withPublishedSources`). Generating without them would exercise only the
+# fallback and leave the ranking rule — the one the route actually takes in
+# production — asserted against nothing.
 discard generate(DemoConfig(outDir: workDir, seed: "debug-route-test",
-                            traceFixturePath: fixture))
+                            traceFixturePath: fixture,
+                            traceSourcesDir: fixtureSources))
 
 let root = newDataRoot(workDir)
 let routes = staticRoutes(root)
@@ -322,6 +331,25 @@ suite "M8a — the source pane renders real source, with stable line identity":
     check executed > 0
     check executed < nonBlank
 
+    # Stronger, and tied to the program on screen. The session sits at
+    # `src/shield.nr:32`, in the `else` of `if (shield_pct == 100)`. Both arms
+    # are on the path — iterations 0 and 1 run at 100% shields and take line 29
+    # — while line 35's clamp is never reached, because no iteration does more
+    # damage than the shield has left. A marker derived from anything but the
+    # control flow gets at least one of those three wrong.
+    var hit: Table[int, bool]
+    for ln in doc.lines: hit[ln.number] = ln.executed
+    check doc.path == "src/shield.nr"
+    check hit[32]                       # the current line
+    check hit[29]                       # the other arm, taken earlier
+    check not hit[35]                   # the clamp, never taken
+    check not hit[19]                   # after the loop, not reached yet
+    # A call site marked executed above an unmarked body is a contradiction a
+    # reader can see. Line 11 calls `calculate_shield_regeneration`; 42 is its
+    # first statement.
+    check hit[11] == hit[42]
+    check hit[11]
+
   test "the inline-annotation slot renders, so the overlays are additive":
     # Nothing ships annotations. The claim being made is that adding them later
     # needs no restructuring, and this is what makes the claim checkable now.
@@ -348,9 +376,22 @@ suite "M8a — the source pane renders real source, with stable line identity":
 
   test "a published source bundle outranks the client's fixture sources":
     # Trace-Artifacts §4: the manifest's recommendation is "the interpretation
-    # the page should use". The demo tree publishes no bundle yet, so the
-    # preference is exercised directly.
+    # the page should use". M5c publishes bundles for the traced program, so
+    # the ranking is the route's REAL path here, not only a direct call: the
+    # tree's bundle carries `Nargo.toml` and `Prover.toml` beside the two Noir
+    # files, and the fixture copies vendored beside the client do not.
     let s = sessionFor(readyTx)
+    var bundlePaths: seq[string]
+    for d in s.editor.documents: bundlePaths.add d.path
+    check "Prover.toml" in bundlePaths
+    check "src/shield.nr" in bundlePaths
+
+    # ...and the bundle supplied TEXT, not a session. The trace's markers and
+    # its position survived the substitution — the defect this asserts against
+    # is a pane that renders published source as code that never ran.
+    check s.editor.currentLine > 0
+    check activeDocument(s.editor).path == "src/shield.nr"
+
     var withBundle = s
     withPublishedSources(withBundle, %*{
       "language": "noir",
