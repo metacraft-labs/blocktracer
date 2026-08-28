@@ -127,12 +127,34 @@ const
   FixtureTotalSteps = 1315   ## the recorded trace's step count
 
 proc executedLines(): Table[string, seq[int]] =
-  ## The lines the fixture session has visited. Enumerated rather than
-  ## computed: a pane that highlighted "every non-blank line" would look
-  ## identical on a screenshot and be wrong on every real trace.
-  result["src/main.nr"] = @[12, 13, 15, 16, 20]
+  ## The lines the fixture session has visited by `FixtureStep`. Enumerated
+  ## rather than computed: a pane that highlighted "every non-blank line" would
+  ## look identical on a screenshot and be wrong on every real trace.
+  ##
+  ## Enumerated is not the same as invented, so this set is derived from the
+  ## program the same way `fixtureState` derives its numbers — by following the
+  ## control flow with the recorded inputs. The session sits at `src/shield.nr`
+  ## line 32 in iteration 2, so the set is everything reached up to there and
+  ## nothing after it:
+  ##
+  ##   * `main.nr` has reached only 12, 13 and the call on 15. Line 16's
+  ##     conditional has not been evaluated, and its `else` on line 20 never
+  ##     will be — the positive case survives with 1018 shield — so marking
+  ##     either would put a gutter dot on a branch the trace does not take.
+  ##
+  ##   * `shield.nr` line 29 (`damage = mass * 1`) IS visited: iterations 0 and
+  ##     1 both run at 100% shields, and only iteration 2 falls to the `else`
+  ##     on 31/32. Both arms of that conditional are on the path.
+  ##
+  ##   * `calculate_shield_regeneration` (40–46) is visited for the same
+  ##     reason: line 11 calls it in iterations 0 and 1, and line 44 is taken
+  ##     in iteration 0, where the regeneration would overflow the initial
+  ##     shield and is clamped. A call site marked executed above a body that
+  ##     is not is a contradiction a reader can see on the screenshot.
+  result["src/main.nr"] = @[12, 13, 15]
   result["src/shield.nr"] = @[1, 2, 4, 5, 6, 7, 9, 10, 11, 12, 14,
-                              22, 26, 27, 28, 31, 32, 34, 37,
+                              22, 26, 27, 28, 29, 31, 32, 34, 37,
+                              40, 42, 43, 44, 46,
                               48, 49, 50, 53, 54, 57, 58, 60, 61, 63, 64, 65, 66]
 
 proc fixtureEditor(): EditorPane =
@@ -375,12 +397,21 @@ proc withPublishedSources*(session: var DebugSessionView; bundle: JsonNode) =
   ## that resolves to no usable documents is ignored rather than allowed to
   ## empty the pane — refusing to display is for a MISMATCHED bundle, and this
   ## is not that.
+  ##
+  ## The bundle supplies TEXT, and only text. The executed-line set and the
+  ## position belong to the TRACE, so they are re-applied to the new documents
+  ## rather than lost with the old ones — a published bundle winning must
+  ## change where the source came from and nothing else about the frame. The
+  ## coordinates carry over because they are the same coordinates: the bundle's
+  ## layout under `src/` has to match the paths the container interns, or a
+  ## step resolves to no source line at all.
   if not session.hasFrame: return
   let docs = sourceDocumentsFromBundle(bundle)
   if docs.len == 0: return
-  session.editor.documents = docs
-  session.editor.activeIndex = 0
-  if documentIndex(session.editor, FixtureFile) >= 0:
-    var pane = session.editor
+  var pane = session.editor
+  pane.documents = docs
+  pane.activeIndex = 0
+  markExecuted(pane, executedLines())
+  if documentIndex(pane, FixtureFile) >= 0:
     focus(pane, FixtureFile, FixtureLine)
-    session.editor = pane
+  session.editor = pane

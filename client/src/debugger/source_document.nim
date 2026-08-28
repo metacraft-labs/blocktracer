@@ -80,6 +80,29 @@ func documentIndex*(pane: EditorPane; path: string): int =
   for i, d in pane.documents:
     if d.path == path: return i
 
+proc markExecuted*(pane: var EditorPane; executed: Table[string, seq[int]]) =
+  ## Apply the trace's executed-line set to whatever documents the pane holds,
+  ## keyed by the path the container interns.
+  ##
+  ## Separate from `newSourceDocument` because the set belongs to the **trace**
+  ## and not to the copy of the file being rendered. The same lines executed
+  ## whether the text arrived in a published source bundle or came from the
+  ## files vendored beside the client — the bundle's layout under `src/` has to
+  ## match the interned paths or a step resolves to no source line at all, so
+  ## the two are the same coordinates by construction.
+  ##
+  ## Without this, a pane whose documents were replaced by a bundle would
+  ## silently render a session that never ran: every gutter marker gone, and no
+  ## error anywhere, which is precisely the failure a marker computed from the
+  ## text rather than from the trace would also produce.
+  for i in 0 ..< pane.documents.len:
+    let hits = executed.getOrDefault(pane.documents[i].path, @[])
+    var hit = initTable[int, bool]()
+    for n in hits: hit[n] = true
+    for j in 0 ..< pane.documents[i].lines.len:
+      pane.documents[i].lines[j].executed =
+        hit.getOrDefault(pane.documents[i].lines[j].number, false)
+
 proc focus*(pane: var EditorPane; path: string; line: int) =
   ## Point the pane at a file and a line, marking that line current and
   ## clearing any previous current line — including one in another document,
