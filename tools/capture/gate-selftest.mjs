@@ -118,6 +118,16 @@ const CASES = [
     },
   },
   {
+    name: "SCHEMA — a `criterion` that is not a rubric id fails closed",
+    expect: "schema",
+    mutate: (L) => { L.reviews[0].findings[0].criterion = "A02"; return L; },
+  },
+  {
+    name: "SCHEMA — a lowercase `criterion` is not a rubric id either",
+    expect: "schema",
+    mutate: (L) => { L.reviews[0].findings[0].criterion = "a2"; return L; },
+  },
+  {
     name: "G3 — an unresolved P2 blocks",
     expect: "fail",
     condition: "G3",
@@ -386,6 +396,34 @@ const FOUNDATION_CASES = [
     mutate: (L) => { L.signOffs = []; return L; },
   },
   {
+    // The narrowing asks "is `criterion` in FOUNDATIONS_CRITERIA". A typo
+    // answers no — the same answer a content finding gives — so before VD.3 a
+    // misspelled `A02` silently moved a blocking foundations finding out of
+    // G3f's scope, and the excluded list then PRINTED it as "a presence
+    // failure", which nothing in the ledger supported. The field is validated
+    // against the closed A1-A10/B1-B10 enumeration, so the typo is now a
+    // SCHEMA failure and the narrowing cannot be widened by one.
+    name: "--foundations — a MISSPELLED criterion ('A02') is a schema failure, not a free exclusion",
+    expect: "schema",
+    problemMatches: /criterion 'A02' is not a rubric id/,
+    mutate: (L) => {
+      L.reviews[0].findings[0].criterion = "A02";
+      L.resolutions = L.resolutions.filter((r) => r.findingId !== L.reviews[0].findings[0].id);
+      return L;
+    },
+  },
+  {
+    name: "--foundations — a criterion outside both rubrics ('C1') is a schema failure",
+    expect: "schema",
+    problemMatches: /criterion 'C1' is not a rubric id/,
+    mutate: (L) => { L.reviews[1].findings[0].criterion = "C1"; return L; },
+  },
+  {
+    name: "--foundations — an EMPTY criterion string is treated as absent, not as a rubric id",
+    expect: "pass",
+    mutate: (L) => { L.reviews[1].findings[0].criterion = ""; return L; },
+  },
+  {
     name: "--foundations — a P1 resolved as 'waived' still blocks (a P1 can only be fixed)",
     expect: "fail",
     condition: "G3f",
@@ -467,6 +505,9 @@ async function main() {
       if (c.expect === "pass") {
         ok = r.status === 0 && r.parsed?.ok === true;
         why = ok ? "" : `exit ${r.status}, ok=${r.parsed?.ok}, failing=[${(r.parsed?.results?.[0]?.conditions ?? []).filter((x) => !x.ok).map((x) => x.id).join(", ")}]`;
+      } else if (c.expect === "schema") {
+        ok = r.status === 1 && (r.parsed?.schemaProblems ?? []).some((p) => !c.problemMatches || c.problemMatches.test(p.msg));
+        why = ok ? "" : `expected a schema problem${c.problemMatches ? ` matching ${c.problemMatches}` : ""}; exit ${r.status}, problems = ${JSON.stringify(r.parsed?.schemaProblems ?? [])}`;
       } else {
         const failed = (r.parsed?.results?.[0]?.conditions ?? []).filter((x) => !x.ok).map((x) => x.id);
         ok = r.status === 1 && r.parsed?.ok === false && failed.includes(c.condition);

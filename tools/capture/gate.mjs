@@ -79,6 +79,19 @@ export const FOUNDATIONS_CRITERIA = {
   B7: "numeric and code treatment — the same tokens, judged under the tool rubric",
 };
 
+// The rubric ids a finding may carry, as a closed set. `criterion` was
+// optional AND unvalidated, so a foundations finding whose criterion was
+// omitted, or misspelled `A02`, fell out of the G3f narrowing silently and was
+// then PRINTED as "a presence failure" — an inference the gate has no basis for.
+// The field stays optional, because a genuine presence failure has no rubric
+// criterion; what is no longer possible is a criterion that is not a criterion.
+// The enumeration is the union of FOUNDATIONS_CRITERIA and PAGE_CRITERIA, which
+// are exhaustive over both rubrics, and G0 below fails if they ever stop being.
+export const ALL_CRITERIA = Object.freeze([
+  ...Array.from({ length: 10 }, (_, i) => `A${i + 1}`),
+  ...Array.from({ length: 10 }, (_, i) => `B${i + 1}`),
+]);
+
 export const PAGE_CRITERIA = {
   A3: "measure and column structure — MIXED. The measure half is a token (--bt-measure-*) and is foundations; the column-structure half is a per-page layout decision. Excluded rather than split, because a criterion that is half in scope would let either half be argued into the other.",
   A6: "table quality — a component decision: which columns, in what order, with the primary action where",
@@ -172,7 +185,30 @@ function fail(problems, code, msg) {
   problems.push({ code, msg });
 }
 
+/** The two scope tables must together name every rubric id exactly once.
+ *  The narrowing's whole claim is that it is exhaustive — "every criterion is
+ *  named with a verdict, so a criterion cannot be quietly omitted and thereby
+ *  escape". That claim is now checked rather than asserted in a comment. */
+export function criteriaCoverage() {
+  const inF = Object.keys(FOUNDATIONS_CRITERIA);
+  const inP = Object.keys(PAGE_CRITERIA);
+  const both = inF.filter((k) => inP.includes(k));
+  const named = new Set([...inF, ...inP]);
+  const unnamed = ALL_CRITERIA.filter((k) => !named.has(k));
+  const unknown = [...named].filter((k) => !ALL_CRITERIA.includes(k));
+  return { both, unnamed, unknown, ok: both.length === 0 && unnamed.length === 0 && unknown.length === 0 };
+}
+
 function validateLedger(L, problems) {
+  const cov = criteriaCoverage();
+  if (!cov.ok) {
+    fail(problems, "SCHEMA",
+      `the foundations/page scope tables are not an exact partition of the rubric: ` +
+      [cov.unnamed.length ? `unassigned: ${cov.unnamed.join(", ")}` : "",
+       cov.both.length ? `in both tables: ${cov.both.join(", ")}` : "",
+       cov.unknown.length ? `not a rubric id: ${cov.unknown.join(", ")}` : ""].filter(Boolean).join("; ") +
+      ` — an unassigned criterion escapes the G3f narrowing without anyone deciding that it should`);
+  }
   const arr = (k) => (Array.isArray(L[k]) ? L[k] : (fail(problems, "SCHEMA", `ledger.${k} must be an array`), []));
 
   if (typeof L.ledgerRevision !== "string" || !L.ledgerRevision) {
@@ -218,6 +254,13 @@ function validateLedger(L, problems) {
       else seenFindingIds.add(f.id);
       if (!SEVERITIES.includes(f.severity)) fail(problems, "SCHEMA", `${fat}: severity must be P1|P2|P3, got '${f.severity}'`);
       if (!f.location) fail(problems, "SCHEMA", `${fat}: missing 'location' — a finding without one cannot be fixed or verified`);
+      // The narrowing at G3f asks "is this criterion in the foundations set".
+      // A typo answers no, which is the same answer a content finding gives,
+      // so a misspelling silently widens what the foundations gate ignores.
+      if (f.criterion !== undefined && f.criterion !== null && f.criterion !== "" &&
+          !ALL_CRITERIA.includes(f.criterion)) {
+        fail(problems, "SCHEMA", `${fat}: criterion '${f.criterion}' is not a rubric id (expect one of ${ALL_CRITERIA.join(", ")}) — a criterion the enumeration does not contain escapes the G3f narrowing exactly as a missing one does`);
+      }
     }
     if (r.reviewer === "ADV" && (r.findings ?? []).length > 1) {
       fail(problems, "INCONSISTENT", `${at}: the adversarial reviewer reported ${r.findings.length} findings; §8 allows exactly one`);
@@ -327,9 +370,12 @@ function gateTarget(target, L, model, opts = {}) {
   // ── G3: zero unresolved P1 and P2 ───────────────────────────────────────
   //
   // In FOUNDATIONS scope this becomes G3f and considers only findings whose
-  // `criterion` is in FOUNDATIONS_CRITERIA. A finding with NO criterion is a
-  // pure presence failure — a missing element is content by definition — and is
-  // out of scope, but it is counted and named rather than dropped.
+  // `criterion` is in FOUNDATIONS_CRITERIA. A finding with NO criterion is out
+  // of scope — but it is counted and named rather than dropped, and it is named
+  // as "no criterion recorded" rather than as a presence failure, which is a
+  // reading of the finding text that this script does not perform. The field is
+  // validated against the closed rubric enumeration above, so the narrowing
+  // cannot be widened by a typo.
   const allFindings = reviews.flatMap((r) => (r.findings ?? []).map((f) => ({ ...f, reviewer: r.reviewer })));
   const inScope = (f) => !foundations || (f.criterion && Object.hasOwn(FOUNDATIONS_CRITERIA, f.criterion));
   const findings = allFindings.filter(inScope);
@@ -374,7 +420,11 @@ function gateTarget(target, L, model, opts = {}) {
       ? `\n        SCOPE: ${Object.keys(FOUNDATIONS_CRITERIA).join(", ")}. Excluded from this verdict and NOT resolved by it: ` +
         `${outBlocking.length} blocking finding(s) outside the foundations criteria, ${outUnresolved.length} of them unresolved` +
         (outUnresolved.length
-          ? `:\n` + outUnresolved.map((f) => `        · ${f.severity} ${f.id} [${f.reviewer}] ${f.criterion ? `(${f.criterion}) ` : "(no criterion — a presence failure) "}${f.location}`).join("\n")
+          // "(no criterion)" and nothing more. The ledger's own prose argues
+          // that every criterion-less round-5 finding IS a presence failure,
+          // and that argument is made there, by a human reading them. The gate
+          // has no basis for the inference and must not print it as one.
+          ? `:\n` + outUnresolved.map((f) => `        · ${f.severity} ${f.id} [${f.reviewer}] ${f.criterion ? `(${f.criterion}) ` : "(no criterion recorded) "}${f.location}`).join("\n")
           : "")
       : ""),
   );
