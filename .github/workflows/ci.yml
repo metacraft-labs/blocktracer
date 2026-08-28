@@ -122,13 +122,13 @@ jobs:
   # seconds and report a stale brief or an ungated view without waiting on a
   # toolchain.
   #
-  # NOT here, and deliberately: the capture harness itself. `capture.mjs`
-  # needs the Nim static exporter AND a Playwright browser, and the tier-1
-  # canary needs the pinned container that has never been built (VD.0's
-  # outstanding task 1). Wiring capture into CI is VD.11's deliverable — "the
-  # harness wired in as a visual regression gate, built from the four-tier
-  # hierarchy rather than one mechanism" — and adding a half of it now would
-  # produce a green check that measures the runner.
+  # NOT here, and deliberately: the capture harness itself. `capture.mjs` needs
+  # the Nim static exporter, a Playwright browser and the pinned capture
+  # environment, none of which exist on a bare `setup-node` runner. That half
+  # now runs in `visual-design-canary` below, on a Nix runner. What stays here
+  # is everything that is a decision over the brief, the view list and the
+  # recorded ledger, so a stale brief or an ungated view is reported in seconds
+  # without waiting on a toolchain.
   visual-design:
     runs-on: ubuntu-latest
     steps:
@@ -205,6 +205,125 @@ jobs:
             }
             console.log(`ledger OK; gate ${g.passing}/${g.scope} passing (revision ${g.ledgerRevision})`);
           '
+
+  # VD.0 — the TIER-1 DETERMINISM CANARY, in the pinned capture environment.
+  #
+  # This is the job the tier-1 verdict comes from, and it is the only place one
+  # can come from. `visual-design` above runs on bare Node and cannot produce
+  # one; a developer's machine can run the canary but not conclude from it —
+  # darwin rasterises through the host compositor, which no derivation pins, so
+  # `check-canary.mjs` marks a darwin run `advisory` however pinned its inputs
+  # are. LINUX CI IS THE ENVIRONMENT THAT HAS TO REPRODUCE ITSELF, which is all
+  # tier 1 asks for (Methodologies/visual-design-iteration.md §"Tier 1").
+  #
+  # A Nix runner, not ubuntu-latest + setup-node: the whole point is that the
+  # browser build and the font set come from `tools/capture/capture-env.nix`
+  # rather than from whatever the runner image happens to ship. The
+  # `metacraft-labs/nixos-modules` setup + `eph-linux-x64` is the same pairing
+  # the Cloudflare Pages deploy uses.
+  #
+  # WHAT THIS JOB ESTABLISHES, precisely: that two consecutive captures of the
+  # canary set, in separate processes, inside the pinned environment, on
+  # x86_64-linux, are byte-identical — and therefore that a tier-2 perceptual
+  # baseline stored from this environment can be believed. It does NOT
+  # establish that a hash here matches a hash from a developer's machine, and
+  # nothing in the harness claims it does: the environment id in
+  # `screenshots/canary/status.json` records the system, so a comparison across
+  # two systems is visible as one rather than reported as a regression.
+  visual-design-canary:
+    runs-on: eph-linux-x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Nix
+        uses: metacraft-labs/nixos-modules/.github/setup-nix@main
+        with:
+          trusted-public-keys: ${{ vars.TRUSTED_PUBLIC_KEYS }}
+          substituters: ${{ vars.SUBSTITUTERS }}
+          nix-github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: What the pinned capture environment fixes
+        # Printed before anything is captured, so the run's log carries the
+        # exact browser bundle, font set, node and renderer-flag digest every
+        # hash below is conditional on — and the content-hash id that changes
+        # when any of them moves.
+        run: nix run .#capture-env -- --print-pin
+
+      - name: Install the pinned Playwright npm package
+        # The eph-* runners carry no node/npm, so npm comes from the flake.
+        # `npm ci` (lockfile-exact) and no browser download: the browsers come
+        # from the store, and lib/pinned-env.mjs FAILS the environment if the
+        # npm version and the bundle's version disagree.
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: nix develop .#capture --command npm --prefix tools/capture ci --no-audit --no-fund
+
+      - name: The pinned-environment detector's negative controls
+        # Every way of CLAIMING the environment without being in it: a bare
+        # `VD0_PINNED_ENV=nix`, a browsers path outside the store, a
+        # FONTCONFIG_FILE that quietly points at the host's, a Playwright
+        # version skewed against the bundle, a Chromium that would launch from
+        # somewhere else. Plus the positive control, and the darwin caveat.
+        # Runs BEFORE the canary: a detector that can be fooled makes the
+        # verdict below worthless.
+        run: nix run .#capture-env -- node tools/capture/env-selftest.mjs
+
+      - name: Build the site the capture is taken over
+        # In place, at client/dist, because that is the path every tool below
+        # defaults to. The exporter is a pure function of a fixed seed, so the
+        # bytes handed to the browser are fixed before the capture starts;
+        # capture.mjs records the tree digest so "the fixture changed" stays
+        # distinguishable from "the renderer changed".
+        run: |
+          nix develop .#ci --command bash -c \
+            'cd client && nim c -r --mm:orc -d:isServer -d:release --hints:off src/static_export.nim'
+
+      - name: Tier 1 — the determinism canary, byte-identical
+        # verify_canary_capture_is_byte_identical. Two captures of the canary
+        # set in two separate processes; the assertion is byte-identity, not a
+        # threshold, because at this scope anything less exact is not answering
+        # the question.
+        run: nix run .#capture-env -- node tools/capture/check-canary.mjs --no-build
+
+      - name: The tier-1 verdict is USABLE — not advisory, not incoherent
+        # verify_canary_failure_invalidates_the_baselines, from the other side.
+        # This step is what makes the job non-vacuous: it fails when the canary
+        # failed, when the verdict is advisory (which is what a run outside the
+        # pinned environment produces), when it is stale, and when its own
+        # fields contradict each other. If the pinned environment ever stops
+        # being in effect here, this goes red instead of the canary quietly
+        # becoming a host measurement.
+        run: node tools/capture/require-deterministic.mjs
+
+      - name: Full regeneration, and the named view list is covered
+        # verify_capture_covers_named_view_list + verify_full_regen_removes_stale_images.
+        # A full regeneration cleans first, so a renamed or deleted view leaves
+        # no stale image; check-coverage then decides both halves — every
+        # inventory entry named, and every image on disk corresponding to a
+        # named view.
+        run: |
+          nix run .#capture-env -- node tools/capture/capture.mjs --no-build
+          node tools/capture/check-coverage.mjs
+
+      - name: The VD.0 verifications, end to end
+        # selftest.mjs re-runs all four against a throwaway output directory,
+        # including the negative control that plants a stale image. In the
+        # pinned environment its canary section is a tier-1 verdict rather than
+        # the advisory one a developer sees.
+        run: nix run .#capture-env -- node tools/capture/selftest.mjs
+
+      - name: Keep the verdict and the manifest
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-design-canary
+          # The verdict and the manifests, not the 64 images: what a later run
+          # needs from this one is WHICH environment produced the hashes.
+          path: |
+            screenshots/canary/status.json
+            screenshots/manifest.json
+          retention-days: 30
 
   # M12 — BlockTracer's own ViewModel layer (Front-End-Architecture.md §3).
   # Two halves, and the split is the layering rather than a convenience: the
