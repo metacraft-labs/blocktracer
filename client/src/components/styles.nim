@@ -31,28 +31,51 @@
 ## checker fails if an allowlist entry stops matching anything — so the
 ## allowlist cannot rot into a blanket exemption.
 ##
+## ── How the findings below are cited ───────────────────────────────────────
+##
+## VD.2's review round REPLACED VD.1's and reused the finding ids, so the bare
+## `L1/1` / `L2/6` / `L2/7` this file used to carry still parsed and pointed at
+## different findings — and `L1/13` named nothing at all. Two forms are used
+## now, and check B4 of tools/design/check-tokens.mjs fails on either if it
+## stops resolving:
+##
+##   * `ledger@<revision>:<id>` — a finding in the CURRENT reviews/ledger.json.
+##     The revision is part of the citation, so a round that replaces its
+##     predecessor turns every stale citation red in one run.
+##   * a FILE PATH — evidence that outlived the round that produced it.
+##
 ## ── What VD.2 changed and why ──────────────────────────────────────────────
 ##
 ##  * **The primary button.** `.btn` now sets `background` unconditionally.
 ##    Previously it did not, so `<button class="btn ghost">` inherited the user
 ##    agent's `ButtonFace` (#efefef) while its `<a class="btn primary">`
 ##    siblings — being anchors — did not. Measured 1.04:1, in BOTH colour
-##    schemes (ledger `tx-detail/wide/light/L1/1`).
-##  * **One rhythm.** Row pitch, stack, group and section gaps are four
-##    distinct `--bt-rhythm-*` roles, each at least 1.75x the one below, so
-##    proximity groups. Previously a section boundary and a table row pitch
-##    were both 49px (ledger `L2/7`).
+##    schemes. VD.1's ledger is superseded, but the measurement survives
+##    verbatim in the control round of reviews/break-round-debug-affordance.json,
+##    where ADV and L2 independently report the primary action as a near-white
+##    label on a near-white fill against the UNBROKEN capture.
+##  * **One rhythm.** Stack, group and section gaps are distinct
+##    `--bt-rhythm-*` roles, each at least 1.75x the one below, so proximity
+##    groups; the row rung is the register's own `--bt-density-cell-y`.
+##    Previously a section boundary and a table row pitch were both 49px
+##    (VD.1 round 1; recorded in docs/DESIGN-DIVERGENCES-WEB.md §3.2).
 ##  * **One grid.** The nav uses the same `.inner` container as the body, so
-##    the brand and the search field align to the page beneath them (`L2/6`).
+##    the brand and the search field align to the page beneath them (VD.1
+##    round 1; the measurement is recorded in docs/DESIGN-DIVERGENCES-WEB.md
+##    row D-07).
 ##  * **A section-heading level.** `.sec-title` is a real 20px heading between
 ##    the 32px page title and 16px body; the mono uppercase kicker is a kicker
-##    again, never the heading itself (`L1/7`).
+##    again, never the heading itself (VD.1 round 1; the remaining VD.2
+##    findings on the heading scale are
+##    ledger@2026-08-28.3:tx-detail/wide/light/L1/8 and
+##    ledger@2026-08-28.3:tx-detail/wide/light/L1/10).
 ##  * **Mono means machine value.** Breadcrumbs, placeholders and grid labels
 ##    are the sans face; mono is reserved for hashes, addresses, selectors,
-##    amounts and code, so it marks "copyable identifier" again (`L1/8`), and
-##    every numeric column carries tabular figures (`L1/13`).
+##    amounts and code, so it marks "copyable identifier" again, and every
+##    numeric column carries tabular figures
+##    (ledger@2026-08-28.3:tx-detail/wide/light/L1/6).
 ##  * **A measure.** Running prose is capped at `--bt-measure-prose` instead of
-##    the full 1140px container (`L1/10`).
+##    the full 1140px container (VD.1 round 1; recorded as divergence row D-06).
 ##  * **Focus, hover and active** are one treatment, defined once, shared by
 ##    both registers (Design-System.md §2).
 

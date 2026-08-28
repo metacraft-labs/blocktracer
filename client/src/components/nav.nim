@@ -12,8 +12,11 @@ proc siteNav*(): string =
     nav(class = "nav", id = "nav"):
       # The header sits inside the SAME `.inner` container as every page body,
       # so the brand and the search field align to the content beneath them.
-      # VD.1 measured header content at x=24→1896 against a body column at
-      # x=390→1530: two unrelated grids (ledger tx-detail/wide/light/L2/6).
+      # The VD.1 round measured header content at x=24→1896 against a body
+      # column at x=390→1530: two unrelated grids. That round's ledger has been
+      # superseded by revision 2026-08-28.3, which reuses the same finding ids
+      # for different findings, so no id is cited here — the measurement is
+      # recorded in docs/DESIGN-DIVERGENCES-WEB.md row D-07.
       tdiv(class = "inner"):
         a(class = "brand", href = "/"):
           span(class = "sq")
