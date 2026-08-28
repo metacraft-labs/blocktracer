@@ -10,12 +10,22 @@
 //
 // Three constraints, all of them load-bearing:
 //
-//   1. A PINNED CONTAINER. Browser build, fonts and renderer flags fixed. An
-//      exact-hash check across heterogeneous runners measures the runner, not
-//      the product. Run this via tools/capture/run-in-container.sh. Run
-//      directly on a host it still works, but the verdict it writes is marked
-//      `advisory` and `require-deterministic.mjs` will not accept it as a
-//      tier-1 pass.
+//   1. A PINNED CAPTURE ENVIRONMENT. Browser build, fontconfig set and renderer
+//      flags fixed. An exact-hash check across heterogeneous runners measures
+//      the runner, not the product. Run this via
+//
+//        nix run .#capture-env -- node tools/capture/check-canary.mjs --no-build
+//
+//      (`just capture-canary-pinned`). Run directly on a host it still works,
+//      but the verdict it writes is marked `advisory` and
+//      `require-deterministic.mjs` will not accept it as a tier-1 pass.
+//
+//      The environment is DETECTED AND VERIFIED by lib/pinned-env.mjs, not
+//      declared: an exported variable is not enough, the store paths have to be
+//      the ones Playwright and fontconfig will actually use. And it is verified
+//      on Linux only — a Nix-pinned Chromium on darwin still rasterises through
+//      the host compositor, so a darwin run stays advisory however pinned the
+//      inputs are.
 //
 //   2. A HANDFUL OF VIEWS, covering the distinct rendering paths — dense text,
 //      a data table, a chart, one dark-theme view — and not the full corpus.
@@ -36,6 +46,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 
 import { CANARY, VIEWS_BY_ID, imageName } from "./views.mjs";
+import { describePinnedEnv, summarisePinnedEnv } from "./lib/pinned-env.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolvePath(HERE, "..", "..");
@@ -81,9 +92,26 @@ function runCapture(outDir, { dist, build }) {
   return r.stdout ?? "";
 }
 
+/**
+ * The strongest available check on the browser build: the executable Playwright
+ * would actually launch. Resolved without launching anything, and tolerated as
+ * `undefined` when the npm package is missing entirely — pinned-env.mjs reports
+ * that as its own problem rather than crashing here.
+ */
+async function resolveChromiumPath() {
+  try {
+    const { chromium } = await import("playwright");
+    return chromium.executablePath();
+  } catch {
+    return undefined;
+  }
+}
+
 async function main() {
   const opts = parseArgs(process.argv);
-  const inContainer = process.env.VD0_IN_CONTAINER === "1";
+  const pinnedEnv = describePinnedEnv({
+    chromiumExecutablePath: await resolveChromiumPath(),
+  });
   const canaryRoot = join(opts.out, "canary");
 
   // Rendering-path coverage: a canary entry whose view is pending is a
@@ -142,14 +170,34 @@ async function main() {
     generatedAt: new Date().toISOString(),
     deterministic,
     // A host run is not a tier-1 verdict. It is useful while iterating and it
-    // catches gross nondeterminism early, but the pinned container is what
+    // catches gross nondeterminism early, but the pinned environment is what
     // makes the assertion mean "the product", so an advisory verdict must not
     // be accepted as a tier-1 pass.
-    advisory: !inContainer,
+    //
+    // `tier1Capable` is false in three distinct situations and the reasons are
+    // carried, not collapsed: a bare host, a pinned-environment claim that did
+    // not verify, and a verified pinned environment on darwin — where the
+    // compositor is outside anything a derivation can fix.
+    advisory: !pinnedEnv.tier1Capable,
+    advisoryReasons: pinnedEnv.tier1Capable ? [] : [...pinnedEnv.why, ...pinnedEnv.problems],
     environment: {
-      inContainer,
+      pinned: {
+        kind: pinnedEnv.kind,
+        verified: pinnedEnv.verified,
+        tier1Capable: pinnedEnv.tier1Capable,
+        id: pinnedEnv.id,
+        why: pinnedEnv.why,
+        problems: pinnedEnv.problems,
+        details: pinnedEnv.details,
+      },
+      // Kept at the top level because a comparison is conditional on all four,
+      // and because two of them are what makes a darwin hash incomparable with
+      // a Linux one.
+      inContainer: pinnedEnv.kind === "container",
       container: process.env.VD0_CONTAINER_IMAGE ?? null,
       containerDigest: process.env.VD0_CONTAINER_DIGEST ?? null,
+      envId: pinnedEnv.id,
+      playwright: pinnedEnv.details.playwrightResolved,
       node: process.version,
       platform: process.platform,
       arch: process.arch,
@@ -172,7 +220,7 @@ async function main() {
     // Consumed by require-deterministic.mjs, and by VD.11's perceptual
     // comparison, which must report itself unreliable rather than run and be
     // believed when this is false.
-    baselinesUsable: deterministic && inContainer,
+    baselinesUsable: deterministic && pinnedEnv.tier1Capable,
   };
   await writeFile(join(canaryRoot, "status.json"), JSON.stringify(status, null, 2) + "\n");
 
@@ -182,7 +230,12 @@ async function main() {
     console.log("");
     console.log(`canary set:       ${CANARY.length} {view, size, theme} triple(s)`);
     console.log(`captured:         ${files.length} image(s) per run, ${opts.runs} runs`);
-    console.log(`pinned container: ${inContainer ? (process.env.VD0_CONTAINER_IMAGE ?? "yes") : "NO — this verdict is ADVISORY"}`);
+    console.log(`pinned env:       ${summarisePinnedEnv(pinnedEnv)}`);
+    console.log(`platform:         ${process.platform}/${process.arch}, node ${process.version}, playwright ${pinnedEnv.details.playwrightResolved ?? "?"}`);
+    if (pinnedEnv.problems.length) {
+      console.log(`\npinned-environment claim did NOT verify (${pinnedEnv.problems.length}):`);
+      for (const p of pinnedEnv.problems) console.log(`  ! ${p}`);
+    }
     if (uncoveredPaths.length) {
       console.log(`\nrendering paths NOT covered (${uncoveredPaths.length}):`);
       for (const c of uncoveredPaths) console.log(`  ${c.renderingPath}  ← view "${c.view}" is pending`);
@@ -192,12 +245,13 @@ async function main() {
       console.log(`  ${c.identical ? "=" : "≠"} ${c.file.padEnd(52)} ${c.hashes[0]?.slice(0, 16) ?? "-"}`);
     }
     console.log("");
-    if (deterministic) {
+    if (deterministic && pinnedEnv.tier1Capable) {
       console.log(
-        inContainer
-          ? "PASS — verify_canary_capture_is_byte_identical (pinned container)"
-          : "PASS (ADVISORY) — byte-identical on this host; not a tier-1 verdict without the pinned container",
+        `PASS — verify_canary_capture_is_byte_identical (pinned environment: ${pinnedEnv.kind} ${pinnedEnv.id ?? ""})`,
       );
+    } else if (deterministic) {
+      console.log("PASS (ADVISORY) — byte-identical, but NOT a tier-1 verdict:");
+      for (const w of [...pinnedEnv.why, ...pinnedEnv.problems]) console.log(`  ${w}`);
     } else {
       console.log(`FAIL — the capture harness is NOT deterministic (${mismatches.length} mismatch(es)):`);
       for (const m of mismatches) console.log(`  ${m.file}: ${m.reason ?? m.hashes.join(" vs ")}`);

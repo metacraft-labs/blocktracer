@@ -43,6 +43,7 @@ import {
   settlePage,
   SETTLE_BUDGET_MS,
 } from "./lib/determinism.mjs";
+import { describePinnedEnv } from "./lib/pinned-env.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolvePath(HERE, "..", "..");
@@ -498,10 +499,19 @@ async function describeEnvironment() {
     node: process.version,
     platform: process.platform,
     arch: process.arch,
-    // Set by run-in-container.sh so the manifest records the exact image.
+    // The retired container path's variables. Nothing sets them any more; they
+    // are still recorded so a manifest produced by an older checkout, or by a
+    // caller still exporting them, stays readable — and lib/pinned-env.mjs
+    // reports the claim as unverifiable rather than honouring it.
     container: process.env.VD0_CONTAINER_IMAGE ?? null,
     containerDigest: process.env.VD0_CONTAINER_DIGEST ?? null,
     inContainer: process.env.VD0_IN_CONTAINER === "1",
+    // VD.0's pinned capture environment (tools/capture/capture-env.nix). The
+    // id is a content hash over every pinned input — browser bundle, font set,
+    // renderer-flag file, node, system — so a manifest says which environment
+    // its images came out of, and two manifests with different ids are not
+    // comparable image-for-image.
+    pinnedEnv: describePinnedEnv(),
   };
 }
 
