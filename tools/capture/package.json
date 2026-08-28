@@ -1,0 +1,18 @@
+{
+  "name": "blocktracer-capture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "VD.0 visual-design capture harness — Playwright screenshots of every named BlockTracer view at every viewport and theme, reproducibly.",
+  "scripts": {
+    "capture": "node capture.mjs",
+    "list": "node capture.mjs --list",
+    "coverage": "node check-coverage.mjs",
+    "canary": "node check-canary.mjs",
+    "gate": "node require-deterministic.mjs",
+    "selftest": "node selftest.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.62.1"
+  }
+}

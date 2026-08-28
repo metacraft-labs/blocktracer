@@ -31,5 +31,13 @@ nimcache/
 /site/
 /wrangler-deploy.log
 
+# Visual-design capture harness (VD.0). The images are build output: they are
+# regenerated from a fixed seed and a pinned container, so committing them
+# would put megabytes of derived PNGs in history for no gain. The view list
+# and the manifest schema are the artefacts worth versioning, and they live in
+# tools/capture/.
+/screenshots/
+/tools/capture/node_modules/
+
 # Editor / OS
 .DS_Store
