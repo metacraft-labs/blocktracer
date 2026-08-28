@@ -14,7 +14,14 @@
 // dropped, and never captured against a 404 that would be mistaken for a
 // styled page. When the route lands, flipping `status` is the whole change.
 
-import { headBlock, nthBlock, nthTx, firstAddress } from "./lib/entities.mjs";
+import {
+  headBlock,
+  nthBlock,
+  nthTx,
+  firstAddress,
+  txWithAvailability,
+  txWithSplitExecutions,
+} from "./lib/entities.mjs";
 
 // ── Viewport set ───────────────────────────────────────────────────────────
 // Four sizes. deviceScaleFactor is pinned to 1 everywhere: a 2x capture is a
@@ -64,18 +71,37 @@ export const RANDOM_SEED = 0x5eed_10ce;
 //
 // `?t=` is a step identity inside the trace container (Debugger-Integration
 // §6.2), so the value below has to come from the pinned demo trace fixture.
-// It is a PLACEHOLDER until the /debug route exists; the mechanism (a single
-// constant, referenced by every debugger view) is what VD.0 delivers.
+//
+// The /debug route now serves a positioned session, and it positions itself:
+// `client/src/debugger/demo_session.nim` opens at step 128 of the recorded
+// `zk_shields` trace, inside `calculate_damage` on the third iteration of the
+// loop. So the mid-trace constant is that step, and it is the one every
+// debugger view pins.
+//
+// The route is STATIC, which has a consequence worth stating rather than
+// discovering: a query string cannot change what a static file server
+// returns, so `?t=` does not yet move the session. It is carried because a
+// capture URL must be the URL the product uses, and because the moment
+// hydration lands (WorkerBackendService, Debugger-Integration §2) the same URL
+// starts positioning the session for real. Where a view needs a DIFFERENT
+// session, it selects a different transaction — which is a real difference in
+// the published tree — rather than a different query parameter.
 export const DEBUG_TIME_COORDINATE = "1";
-
-// A second, deeper coordinate, for the views that must show a loaded session
-// mid-trace rather than at its first step.
 export const DEBUG_TIME_COORDINATE_MID = "128";
 
 const debugRoute = (txSel, { t = DEBUG_TIME_COORDINATE, extra = "" } = {}) => (ix) => {
   const tx = txSel(ix);
   return `/${ix.primaryChain}/tx/${tx.hash}/debug?t=${t}${extra}`;
 };
+
+/** The transaction the plain debugger views open: the first one in block order
+ *  whose trace is published, undisputed and natively recorded. Selected by
+ *  what the trace IS, not by position: the demo tree's first transaction in
+ *  block order is on-demand and the next is heuristically reconstructed, so
+ *  `nthTx(0)` would file the no-session state under the flagship view's name
+ *  and `nthTx(1)` would put a "Reconstructed" caveat badge on it. */
+const readyTx = txWithAvailability("ready", { reconstructed: false });
+const divergentTx = txWithAvailability("divergent");
 
 const PENDING_ROUTE = "route not yet served by the client";
 const PENDING_STATE = "state not yet modelled by the client ViewModel";
@@ -97,8 +123,7 @@ export const VIEWS = [
     description: "Home — the embedded pre-baked debugging session, reviewed as its own view (VD.3)",
     covers: ["home.live-demo"],
     register: "debugger",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: the embedded live demo is not built yet`,
+    status: "ready",
     route: () => "/",
     clip: "#live-demo",
   },
@@ -208,8 +233,14 @@ export const VIEWS = [
     covers: ["tx-detail.hydrated"],
     register: "debugger",
     status: "pending",
-    pendingReason: `${PENDING_STATE}: hydration is not implemented`,
-    route: (ix) => `/${ix.primaryChain}/tx/${nthTx(0)(ix).hash}`,
+    pendingReason:
+      "the transaction route serves the pre-rendered page and the debug route " +
+      "serves the session, but nothing hydrates one into the other: the client " +
+      "ships no JavaScript at all, and the SPA/hydration shell is the deferred " +
+      "half of Front-End-Architecture §2's layer 4. Capturing this view against " +
+      "the un-hydrated page would file the transaction page under the hydrated " +
+      "view's name",
+    route: (ix) => `/${ix.primaryChain}/tx/${txWithAvailability("ready", { reconstructed: false })(ix).hash}`,
   },
   {
     id: "tx-detail--decoded-input",
@@ -359,88 +390,108 @@ export const VIEWS = [
     description: "Full-viewport debugging session at the pinned time coordinate, slim explorer bar",
     covers: ["debugger"],
     register: "debugger",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /{chain}/tx/{hash}/debug is not rendered`,
+    status: "ready",
     sizes: DESKTOP_SIZES,
     fullPage: false,
-    route: debugRoute(nthTx(0)),
+    route: debugRoute(readyTx, { t: DEBUG_TIME_COORDINATE_MID }),
   },
   {
     id: "debugger--metadata-pane",
     description: "The transaction metadata pane inside the session (§7.1)",
     covers: ["debugger.metadata-pane"],
     register: "debugger",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /debug is not rendered`,
+    status: "ready",
     sizes: DESKTOP_SIZES,
     fullPage: false,
-    route: debugRoute(nthTx(0), { extra: "&pane=metadata" }),
+    // The split transaction: its private half is structurally absent and its
+    // public half is ready, so the pane's execution list has the §7.1
+    // private/public split to render rather than a single row.
+    route: debugRoute(txWithSplitExecutions, { t: DEBUG_TIME_COORDINATE_MID }),
+    clip: "#pane-metadata",
   },
   {
     id: "debugger--call-trace",
     description: "Call trace at realistic depth and width, including the cost column",
     covers: ["debugger.call-trace"],
     register: "debugger",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /debug is not rendered`,
+    status: "ready",
     sizes: DESKTOP_SIZES,
     fullPage: false,
-    route: debugRoute(nthTx(0), { t: DEBUG_TIME_COORDINATE_MID, extra: "&pane=calltrace" }),
+    route: debugRoute(readyTx, { t: DEBUG_TIME_COORDINATE_MID }),
+    clip: "#pane-calltrace",
   },
   {
     id: "debugger--event-log",
     description: "Event log with mixed calls, storage writes, events and a revert",
     covers: ["debugger.event-log"],
     register: "debugger",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /debug is not rendered`,
+    status: "ready",
     sizes: DESKTOP_SIZES,
     fullPage: false,
-    route: debugRoute(nthTx(0), { t: DEBUG_TIME_COORDINATE_MID, extra: "&pane=eventlog" }),
+    // The event log shares a tabbed region with the state pane and is the
+    // NON-default tab, so the URL carries the fragment that selects it. The
+    // tabs are `:target`-driven CSS, so this is the same mechanism a visitor
+    // uses — not a capture-only hook.
+    //
+    // A reverted transaction, because the pane's own requirement is that a
+    // call, a storage write, an event AND a revert are distinguishable in one
+    // stream, and only a reverted transaction contributes the fourth.
+    route: debugRoute(divergentTx, {
+      t: DEBUG_TIME_COORDINATE_MID,
+      extra: "#pane-eventlog",
+    }),
+    clip: "#pane-eventlog",
   },
   {
     id: "debugger--state-pane",
     description: "State pane with deeply nested values and long identifiers",
     covers: ["debugger.state-pane"],
     register: "debugger",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /debug is not rendered`,
+    status: "ready",
     sizes: DESKTOP_SIZES,
     fullPage: false,
-    route: debugRoute(nthTx(0), { t: DEBUG_TIME_COORDINATE_MID, extra: "&pane=state" }),
+    route: debugRoute(readyTx, { t: DEBUG_TIME_COORDINATE_MID }),
+    clip: "#pane-state",
   },
   {
     id: "debugger--source-pane",
     description: "Source pane, source-level session with the level boundary legible",
     covers: ["debugger.source-pane"],
     register: "debugger",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /debug is not rendered`,
+    status: "ready",
     sizes: DESKTOP_SIZES,
     fullPage: false,
-    route: debugRoute(nthTx(0), { t: DEBUG_TIME_COORDINATE_MID, extra: "&pane=source" }),
+    route: debugRoute(readyTx, { t: DEBUG_TIME_COORDINATE_MID }),
+    clip: "#pane-editor",
   },
   {
     id: "debugger--loading-phases",
     description: "Phased, honest loading — fetching, opening, positioning; never a spinner",
     covers: ["debugger.loading-phases"],
     register: "debugger",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /debug is not rendered`,
+    status: "ready",
     sizes: DESKTOP_SIZES,
     fullPage: false,
-    route: debugRoute(nthTx(0), { extra: "&phase=opening" }),
+    // The route's REAL state, not a staged one. Every statically exported page
+    // is `fetching`: the panes are populated from published data and the
+    // replay engine — 18 MB of wasm from `replay_engine.ReplayEngineBase` —
+    // has not been fetched, so the phase rail names `fetching` and the
+    // stepping toolbar renders visibly inert. `opening` and `positioning` are
+    // states only hydration passes through and are not capturable until
+    // WorkerBackendService lands; asking for them with a query parameter would
+    // be staging a screenshot, which is what this view exists to rule out.
+    route: debugRoute(readyTx, { t: DEBUG_TIME_COORDINATE_MID }),
+    clip: ".enginenotice",
   },
   {
     id: "debugger--narrow",
     description: "Reduced read-only narrow session — source + call trace + values, limitation stated",
     covers: ["debugger.narrow"],
     register: "debugger",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /debug is not rendered`,
+    status: "ready",
     sizes: NARROW_SIZES,
     fullPage: false,
-    route: debugRoute(nthTx(0)),
+    route: debugRoute(readyTx, { t: DEBUG_TIME_COORDINATE_MID }),
   },
   {
     id: "debugger--truncated",
@@ -448,19 +499,26 @@ export const VIEWS = [
     covers: ["degraded.trace-truncated"],
     register: "debugger",
     status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /debug is not rendered`,
+    pendingReason:
+      "the route renders the truncation banner from the manifest's " +
+      "`execution.truncated`, and no artifact the demo generator publishes " +
+      "sets it — the packaged `noir_space_ship` trace ran to completion. " +
+      "This needs a truncated artifact in the demo tree (M5c), not a change " +
+      "to the route",
     fullPage: false,
-    route: debugRoute(nthTx(0), { extra: "&state=truncated" }),
+    route: debugRoute(readyTx, { extra: "&state=truncated" }),
   },
   {
     id: "debugger--divergent",
     description: "Non-dismissible divergence banner above the debugger, naming the mismatch",
     covers: ["degraded.divergence"],
     register: "debugger",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /debug is not rendered`,
+    status: "ready",
     fullPage: false,
-    route: debugRoute(nthTx(0), { extra: "&state=divergent" }),
+    // A genuinely divergent transaction in the published tree, not a query
+    // parameter asking the page to pretend. `?state=` never decided this:
+    // §7.0's rule is that availability decides the landing.
+    route: debugRoute(divergentTx, { t: DEBUG_TIME_COORDINATE_MID }),
   },
 
   // ─────────────────── Degraded states on the transaction page ────────────

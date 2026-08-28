@@ -116,7 +116,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 <!-- BEGIN GENERATED: expectations — do not edit by hand -->
 <!-- regenerate with: node tools/capture/render-brief.mjs -->
 
-*62 named views, 62 blocks — generated from `tools/capture/expectations.mjs`. 8 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
+*62 named views, 62 blocks — generated from `tools/capture/expectations.mjs`. 18 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
 
 #### Explorer register — entry and navigation
 
@@ -930,7 +930,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | debugger — apply rubric B (§6) |
 | **Spec** | Page-Descriptions §2 (Live demo), Design-System §2 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: the embedded live demo is not built yet |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -958,7 +958,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | debugger — apply rubric B (§6) |
 | **Spec** | Page-Descriptions §7.0, §7.1 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — state not yet modelled by the client ViewModel: hydration is not implemented |
+| **Capture status** | `pending` — the transaction route serves the pre-rendered page and the debug route serves the session, but nothing hydrates one into the other: the client ships no JavaScript at all, and the SPA/hydration shell is the deferred half of Front-End-Architecture §2's layer 4. Capturing this view against the un-hydrated page would file the transaction page under the hydrated view's name |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -986,7 +986,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | debugger — apply rubric B (§6) |
 | **Spec** | Page-Descriptions §8, Debugger-Integration |
 | **Captured at** | wide · laptop × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /{chain}/tx/{hash}/debug is not rendered |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1022,7 +1022,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | debugger — apply rubric B (§6) |
 | **Spec** | Page-Descriptions §7.1 |
 | **Captured at** | wide · laptop × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /debug is not rendered |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1055,7 +1055,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | debugger — apply rubric B (§6) |
 | **Spec** | Page-Descriptions §8, Debugger-Integration, VD.5 |
 | **Captured at** | wide · laptop × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /debug is not rendered |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1089,7 +1089,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | debugger — apply rubric B (§6) |
 | **Spec** | Page-Descriptions §8, VD.5 |
 | **Captured at** | wide · laptop × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /debug is not rendered |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1123,7 +1123,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | debugger — apply rubric B (§6) |
 | **Spec** | Page-Descriptions §8, VD.5 |
 | **Captured at** | wide · laptop × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /debug is not rendered |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1157,7 +1157,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | debugger — apply rubric B (§6) |
 | **Spec** | Page-Descriptions §8, §14 (No verified source), VD.5 |
 | **Captured at** | wide · laptop × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /debug is not rendered |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1193,7 +1193,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | debugger — apply rubric B (§6) |
 | **Spec** | Page-Descriptions §8, Trace-Processing §3.2 |
 | **Captured at** | wide · laptop × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /debug is not rendered |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1226,7 +1226,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | debugger — apply rubric B (§6) |
 | **Spec** | Page-Descriptions §13 |
 | **Captured at** | tablet · mobile × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /debug is not rendered |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1260,7 +1260,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | debugger — apply rubric B (§6) |
 | **Spec** | Page-Descriptions §14 (Trace truncated) |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /debug is not rendered |
+| **Capture status** | `pending` — the route renders the truncation banner from the manifest's `execution.truncated`, and no artifact the demo generator publishes sets it — the packaged `noir_space_ship` trace ran to completion. This needs a truncated artifact in the demo tree (M5c), not a change to the route |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1293,7 +1293,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | debugger — apply rubric B (§6) |
 | **Spec** | Page-Descriptions §14 (Divergence detected), §8 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /debug is not rendered |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
