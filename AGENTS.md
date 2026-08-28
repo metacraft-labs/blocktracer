@@ -121,9 +121,9 @@ proc homePage*(infos: seq[ChainInfo]): string =
   ui:
     section(class = "sec hero"):
       tdiv(class = "inner"):
-        h1(class = "h1"):
+        h1(class = "display"):
           text "Step "
-          span(style = "color:var(--ct-color-brand-400)"):
+          span(class = "accent"):
             text "backwards"
           text " through any transaction."
         form(class = "search", action = "/search", `method` = "get"):
@@ -143,6 +143,38 @@ Do:
 Don't:
 - Don't hand-concatenate HTML or hardcode design values — use `tables.nim`
   helpers and `design_system/tokens.nim`.
+- **Don't write a raw colour, a raw pixel value, a brand primitive, or an
+  inline `style=` attribute in a page or component.** Layer 2 sees semantic
+  `var(--bt-*)` tokens and utility classes and nothing else. This is checked:
+  `node tools/design/check-tokens.mjs` (a step of the `visual-design` CI job)
+  fails on any of them, and `check-tokens-selftest.mjs` proves it by planting
+  each violation in the real source and restoring it.
+
+### The design tokens (VD.2)
+
+One source of truth: **`client/src/design_system/web.tokens.json`**, the *web
+lineage* of the CodeTracer design system. `tokens.nim` emits it as `--bt-*`
+custom properties — `:root` (light + theme-independent), a
+`prefers-color-scheme: dark` block, both `[data-theme]` overrides, and
+`[data-register="debugger"]`; `check-tokens.mjs` reads the same file, so the
+emitter and the linter cannot drift.
+
+Every leaf is either **`bkToken`** (a `{ref}` into the pinned
+`codetracer-design-system` brand/alias/mapped JSON) or **`bkLiteral`** (a value
+no lineage supplies), and a `bkLiteral` MUST name a row in
+`docs/DESIGN-DIVERGENCES-WEB.md` — `tokens.nim` raises at BUILD time if it does
+not, so an untracked literal never reaches a page.
+
+The primitive `--ct-*` ramp is deliberately no longer emitted. A brand
+primitive in a view is therefore undefined as well as forbidden.
+
+Adding a design value:
+
+1. Add the token to `web.tokens.json`, as a `{ref}` if the brand has one.
+2. If it is a literal, add `$extensions: {"bt.divergence": "D-nn"}` and the
+   matching row in `docs/DESIGN-DIVERGENCES-WEB.md`.
+3. `node tools/design/check-tokens.mjs --write-bindings` to refresh §4's table.
+4. `just design-verify`.
 - Don't push untrusted strings through `raw`.
 
 ## 4. Local testing & iteration

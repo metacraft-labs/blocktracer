@@ -137,6 +137,43 @@ review-break args="--list":
 review-selftest:
     node tools/capture/review-selftest.mjs
 
+# ── Foundations pass (VD.2) ─────────────────────────────────────────────────
+# The web-lineage token layer lives in client/src/design_system/web.tokens.json
+# and is emitted by tokens.nim. See docs/DESIGN-DIVERGENCES-WEB.md.
+
+# verify_no_raw_values_in_views, plus the Design-System.md §4.1 divergence rule.
+# --require-built turns the shipped-CSS cross-check from NOT RUN into a failure,
+# so the local run is strictly stronger than CI's bare-Node one.
+design-check:
+    node tools/design/check-tokens.mjs --require-built
+
+# The same checks without a build — exactly what the visual-design CI job runs.
+design-check-bare:
+    node tools/design/check-tokens.mjs
+
+# What each check decides, and why the allowlist is what it is.
+design-explain:
+    node tools/design/check-tokens.mjs --explain
+
+# Regenerate the implemented-binding table in the divergence document.
+design-bindings:
+    node tools/design/check-tokens.mjs --write-bindings
+
+# Proof that the token lint DECIDES: every rule driven against the real product
+# source carrying one deliberate violation, restored byte-identically after.
+design-selftest:
+    node tools/design/check-tokens-selftest.mjs
+
+# verify_foundations_round_reaches_bar — the gate narrowed to the foundations
+# criteria, with the FULL gate reported alongside it and never in place of it.
+review-gate-foundations args="":
+    node tools/capture/gate.mjs --foundations {{args}}
+
+# Every VD.2 design check, including the ones that need a build. Run
+# `cd client && just export` first — `design-check` passes --require-built and
+# fails, rather than skipping, when there is no dist/ to cross-check.
+design-verify: design-selftest design-check
+
 # Build the CLI binaries.
 build:
     nim c --hints:off -d:release -o:blocktracer-demo-gen src/blocktracer_demo_gen.nim

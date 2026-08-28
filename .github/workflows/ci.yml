@@ -144,9 +144,39 @@ jobs:
         # view added to views.mjs cannot land without its block.
         run: node tools/capture/check-brief.mjs
 
+      # ── VD.2 — the foundations pass ───────────────────────────────────────
+      # These need neither Nim nor a browser either: both are decisions over
+      # client/src/design_system/web.tokens.json and the Layer 2 sources. The
+      # ONE check that does need a build — D1/D2, the shipped-CSS cross-check —
+      # reports itself NOT RUN here rather than passing vacuously, and `just
+      # design-check` runs it with --require-built locally and in the deploy
+      # build, where a dist/ exists.
+      - name: No Layer 2 view references a raw value or a brand primitive
+        # verify_no_raw_values_in_views, plus the Design-System.md §4.1 rule:
+        # every bkLiteral names a divergence row and every row is backed by a
+        # literal. Also asserts the rhythm roles are separated (C3), which is
+        # the property that stops one spacing step doing two jobs again.
+        run: node tools/design/check-tokens.mjs
+
+      - name: The token lint DECIDES — every rule, against the real source
+        # A checker never seen to fail has not been demonstrated. This EDITS
+        # client/src/**, runs the real checker, asserts it goes red and names
+        # the planted value, then restores the file and verifies the SHA-256.
+        # The control — the unmodified tree passing — runs before and after.
+        run: node tools/design/check-tokens-selftest.mjs
+
+      - name: The working tree is unchanged by the self-test
+        # The self-test restores what it plants in a `finally` and checks the
+        # digest itself. This is the independent confirmation: if a restore
+        # ever failed, CI must not carry on against a mutated tree.
+        run: git diff --exit-code
+
       - name: The gate decides — every condition independently blocks
         # verify_gate_definition_is_machine_checkable. Synthetic ledgers, one
-        # per condition, plus the four fail-closed paths.
+        # per condition, plus the four fail-closed paths. Since VD.2 it also
+        # covers `--foundations`: that the narrowed gate still fails on a
+        # foundations defect, does NOT fail on a page-level one, reports the
+        # full gate alongside itself, and leaves G2/G4/G5 unrelaxed.
         run: node tools/capture/gate-selftest.mjs
 
       - name: The deliberate break is detected

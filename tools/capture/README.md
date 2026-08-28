@@ -228,6 +228,50 @@ just review-selftest                                    # all three VD.1 verific
 | `verify_deliberate_break_is_detected` | `break-check.mjs`, graded over the recorded round |
 | `verify_gate_definition_is_machine_checkable` | `gate.mjs`, proved by `gate-selftest.mjs` |
 
+## The foundations scope (VD.2)
+
+`gate.mjs --foundations` answers a narrower question than the full gate:
+*does this page pass on the FOUNDATIONS criteria alone, before page-specific
+work begins?* The narrowing is written down rather than argued each time, and
+it is enumerated EXHAUSTIVELY over both rubrics — every criterion A1–A10 and
+B1–B10 is named as either in scope or excluded, with a reason, so a criterion
+cannot escape by being forgotten. `gate-selftest.mjs` asserts the enumeration
+is exhaustive and disjoint.
+
+| | |
+| --- | --- |
+| **In scope** | A1, A2, A4, A5, A7, A10, B1, B2, B7 — the type scale, the spacing rhythm, colour roles, numeric/monospace treatment, focus/hover/active, and register density |
+| **Excluded** | A3, A6, A8, A9, B3–B6, B8–B10, and every finding with **no** criterion (a missing element is content) |
+| **Relaxed** | G1 → G1f: the §4 presence check must have been PERFORMED by every reviewer, not that it passed |
+| **Narrowed** | G3 → G3f: only findings carrying a foundations criterion |
+| **Unchanged** | G2 (six lenses), G4 (reference parity), G5 (human sign-off) |
+
+The full gate is always computed and printed alongside, never replaced by, the
+foundations verdict — so "foundations passed" cannot be read as "this page is
+done".
+
+```
+just review-gate-foundations                # the narrowed gate + the full one
+just review-gate-foundations "--json"       # both verdicts, machine-readable
+```
+
+## The token lint (VD.2)
+
+`verify_no_raw_values_in_views` lives in `tools/design/`, not here, because it
+is a property of the SOURCE rather than of a capture.
+
+```
+just design-check        # the lint, including the shipped-CSS cross-check
+just design-check-bare   # what CI runs: no build needed
+just design-selftest     # proof that it decides
+just design-explain      # what each check decides, and why
+```
+
+| VD.2 verification | Implemented by |
+| --- | --- |
+| `verify_no_raw_values_in_views` | `tools/design/check-tokens.mjs`, proved by `check-tokens-selftest.mjs` |
+| `verify_foundations_round_reaches_bar` | `gate.mjs --foundations` over `reviews/ledger.json` |
+
 ## Files
 
 | File | Role |
