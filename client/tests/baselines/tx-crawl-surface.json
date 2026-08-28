@@ -1,0 +1,31 @@
+{
+  "_why": [
+    "M8b deliverable 6: 'Robots class, canonical link and inlined data on the",
+    "transaction route are UNCHANGED — a crawler sees exactly what it saw",
+    "before.' Its verification asks for the assertion to be made 'against a",
+    "stored baseline so the SEO surface cannot regress silently'.",
+    "",
+    "This is that baseline. It is a stored FILE rather than a constant in the",
+    "test because the point is that changing the crawl surface has to be a",
+    "deliberate edit to a committed artefact that a reviewer sees in the diff —",
+    "a literal inside the assertion would move with the code that broke it.",
+    "",
+    "Recorded from the transaction route as it was BEFORE the debug route",
+    "existed: `noindex,follow`, canonical at the transaction's own URL, and the",
+    "chain-native payload rendered into the page (§7.2 section 8). The debug",
+    "route is `noindex` and canonicalises to the transaction — so this",
+    "milestone adds no second indexable copy of the same content, which is the",
+    "way a new route most easily damages an existing one."
+  ],
+  "recordedAt": "2026-08-29",
+  "recordedFrom": "client/src/ssr.nim renderTx, before /debug was served",
+
+  "txRobots": "noindex,follow",
+  "txMustContain": [
+    "class=\"raw\"",
+    "<h2 class=\"sec-title next\">Overview</h2>",
+    "<h2 class=\"sec-title next\">Decoded input</h2>"
+  ],
+
+  "debugRobots": "noindex,follow"
+}
