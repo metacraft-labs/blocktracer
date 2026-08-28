@@ -1,0 +1,245 @@
+{
+  "_comment": [
+    "VD.1 — verify_deliberate_break_is_detected. The RECORDED OUTCOME of a real",
+    "deliberate-break round, so the verification is re-gradeable rather than",
+    "asserted in prose:  node tools/capture/break-check.mjs --grade reviews/break-round-debug-affordance.json",
+    "",
+    "Method. `break-check.mjs --break debug-affordance` removed the Debug",
+    "affordance card from client/src/pages/tx.nim (24 lines: the button, its",
+    "availability badge, its explanatory note and the per-execution list), rebuilt",
+    "the site with the static exporter, captured tx-detail at wide/light into",
+    "screenshots/break/debug-affordance/, and restored the source. Six disposable",
+    "sub-agents were then given the prompts `review-prompt.mjs` generates — byte",
+    "identical to a normal review round. None was told that anything had been",
+    "removed, or that this was a test.",
+    "",
+    "The `reviews` array below holds their ledger blocks verbatim, trimmed only in",
+    "`findings` to the first finding of each (which is what the grading examines)",
+    "plus a count of what followed. The full reports are summarised in `_report`.",
+    "",
+    "The `control` array records the SAME prompts run against the UNBROKEN capture",
+    "screenshots/tx-detail__wide__light.png. Without it, 'every reviewer said the",
+    "Debug button was missing' would not be evidence that the expectation block",
+    "detects the break: a block strict enough to fail every capture would score",
+    "identically. The control reviewers located the element on the page and",
+    "described where it was, which is what makes the broken round's 'it does not",
+    "exist anywhere on the page' a discrimination rather than a reflex."
+  ],
+
+  "break": "debug-affordance",
+  "ranOn": "2026-08-28",
+  "image": "screenshots/break/debug-affordance/tx-detail__wide__light.png",
+  "unbrokenImage": "screenshots/tx-detail__wide__light.png",
+  "removedLines": 24,
+  "removedFrom": "client/src/pages/tx.nim",
+  "sourceRestored": true,
+
+  "reviews": [
+    {
+      "view": "tx-detail",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/break/debug-affordance/tx-detail__wide__light.png",
+      "reviewer": "L1",
+      "expectedElements": "missing",
+      "missing": [
+        "Debug as the PRIMARY button in the hero — absent from the entire page",
+        "The Debug button's state matched to trace availability, with a note explaining that state in words",
+        "Age in the hero",
+        "Finality badge in the hero",
+        "Copy affordance on the full hash",
+        "Overview grid: value, nonce, transaction type",
+        "The execution-trace line placed beside the Debug action that requests it"
+      ],
+      "rating": 3,
+      "findings": [
+        {
+          "id": "tx-detail/wide/light/L1/1",
+          "severity": "P1",
+          "location": "hero, right of the \"Transaction\" H1 and status chip",
+          "finding": "No Debug button exists anywhere on the page. The strongest control the design requires is absent, so the hero terminates at the H1 and the eye falls straight into the overview grid; there is no hero -> Debug -> overview path to read."
+        }
+      ],
+      "_furtherFindings": 8,
+      "_report": "Led with the missing Debug button, then two further P1s (hero age/finality/copy affordance; the trace line stranded with no Debug action beside it) and six P2/P3 typography findings — section eyebrows weaker than the grid labels they head, the monospace face spent on labels rather than values, a raw `feePayer` field name in a Capitalised label set."
+    },
+    {
+      "view": "tx-detail",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/break/debug-affordance/tx-detail__wide__light.png",
+      "reviewer": "L2",
+      "expectedElements": "missing",
+      "missing": [
+        "Debug as the PRIMARY button in the hero — no filled control exists anywhere on the page",
+        "The Debug button's state and the note explaining that state in words",
+        "Overview grid: value, nonce and transaction type rows",
+        "A separate events/logs section",
+        "A separate internal-calls section",
+        "A separate state-changes section",
+        "The receipt JSON in the raw section (only the transaction payload is present)",
+        "The 'Internal calls and state changes come from the execution trace.' line beside the Debug action that requests it — the line is present but there is no Debug action beside it"
+      ],
+      "rating": 3,
+      "findings": [
+        {
+          "id": "tx-detail/wide/light/L2/1",
+          "severity": "P1",
+          "location": "hero, below the hash at y198 — and the whole 1920x1227 frame",
+          "finding": "No Debug button exists. A scan for filled or accented rectangles across the entire capture returns only the header search field (x1682-1889, y16-48); every other element is text, a hairline-bordered panel, or a link. The page's strongest control is therefore a search box in the top-right corner, and the specified hero->Debug->overview eye path has no second step."
+        }
+      ],
+      "_furtherFindings": 9,
+      "_report": "Swept the full 1920x1227 frame for a filled control and found none outside the header search field. Then nine layout findings with pixel coordinates — section headings near-equidistant between the section they close and the one they open (19-20px below vs 23-25px above), a constant 5px label/value baseline offset, header inset 24px against a body column at x390."
+    },
+    {
+      "view": "tx-detail",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/break/debug-affordance/tx-detail__wide__light.png",
+      "reviewer": "L3",
+      "expectedElements": "missing",
+      "missing": [
+        "Debug button — absent from the entire page; no filled-accent element of any kind exists in the render",
+        "Hero copy affordance on the full hash",
+        "Hero age",
+        "Hero finality badge (finality appears only as uncoloured body text in the overview grid)",
+        "Overview grid: value, fee breakdown, nonce, transaction type",
+        "'supply an ABI' action for the unknown selector",
+        "Events/logs section as its own section",
+        "Internal-calls section as its own section",
+        "State-changes section as its own section",
+        "Raw section carries only a transaction object; no receipt JSON"
+      ],
+      "rating": 3,
+      "findings": [
+        {
+          "id": "tx-detail/wide/light/L3/1",
+          "severity": "P1",
+          "location": "hero, right of the H1 and below the hash (y 130-210); whole page",
+          "finding": "The Debug button is absent from the page. As a colour finding: the palette contains no filled-accent role at all. A full-image scan finds the longest contiguous saturated run to be 24 px (the kicker rules at x 390-414); every other accent pixel is 1px link text or a 10px kicker label. There is no accent surface, no button fill, no hover or focus treatment for one, so the palette provides nowhere for the product's primary action to live."
+        }
+      ],
+      "_furtherFindings": 11,
+      "_report": "Reached the missing button through the palette: no filled-accent role exists anywhere in the render. Independently re-derived the known VD.0 finding that the `light` capture renders a #101010 canvas, and sampled the whole neutral ramp — one grey (#919191) serving nav link, placeholder, label, prose, footer and the entire JSON payload."
+    },
+    {
+      "view": "tx-detail",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/break/debug-affordance/tx-detail__wide__light.png",
+      "reviewer": "L4",
+      "expectedElements": "missing",
+      "missing": [
+        "Debug primary button (hero and page-wide)",
+        "Debug button state matching trace availability, with a note explaining that state in words",
+        "Hero copy affordance on the full hash",
+        "Hero age",
+        "Hero finality badge",
+        "Overview grid: value",
+        "Overview grid: fee breakdown",
+        "Overview grid: nonce",
+        "Overview grid: resource limits and usage",
+        "Overview grid: transaction type",
+        "Events/logs section content or a statement of its own",
+        "Raw section: chain-native receipt JSON"
+      ],
+      "rating": 3,
+      "findings": [
+        {
+          "id": "tx-detail/wide/light/L4/1",
+          "severity": "P1",
+          "location": "hero, right of the 'Transaction' heading and beneath the hash at y≈193; and the whole page",
+          "finding": "There is no Debug button anywhere on the page. The hero carries only a status pill and a bare hash, so the product's primary action — required to be the visually strongest control here — is absent, and product rule 1 is violated."
+        }
+      ],
+      "_furtherFindings": 7,
+      "_report": "Led with the missing button, then judged the page markedly under-dense for 1920px: a 945px value column carrying four-character values, and three full-width dashed notice bands taking roughly a quarter of the page height."
+    },
+    {
+      "view": "tx-detail",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/break/debug-affordance/tx-detail__wide__light.png",
+      "reviewer": "L5",
+      "expectedElements": "missing",
+      "missing": [
+        "Debug button (primary control) in the hero",
+        "Debug button state + trace-availability note in words",
+        "copy affordance on the full hash",
+        "age in the hero",
+        "finality badge in the hero",
+        "overview: value",
+        "overview: nonce",
+        "overview: transaction type",
+        "events/logs section",
+        "internal-calls section",
+        "state-changes section",
+        "raw section: chain-native receipt JSON"
+      ],
+      "rating": 2,
+      "findings": [
+        {
+          "id": "tx-detail/wide/light/L5/1",
+          "severity": "P1",
+          "location": "hero, right of the 'Transaction' heading and beneath the hash at 0x27a6c250…",
+          "finding": "There is no Debug button anywhere on the page. The hero carries only the title, a 'Succeeded' badge and the hash; the product's rule-1 primary action is absent, as is the note describing trace availability. The page's defining feature is invisible on the page a competitor comparison lands on."
+        }
+      ],
+      "_furtherFindings": 8,
+      "_report": "Read the absence as a brand failure — the page a competitor comparison lands on carries no trace of the feature the product exists for. Also caught internal milestone identifiers ('M5/M9 — the WASM replay + ViewModels are a later slice') printed on a public page, and copy positioning the page as less than 'the full explorer'."
+    },
+    {
+      "view": "tx-detail",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/break/debug-affordance/tx-detail__wide__light.png",
+      "reviewer": "ADV",
+      "expectedElements": "missing",
+      "missing": [
+        "Debug as the PRIMARY button in the hero — no debug control anywhere on the page",
+        "The Debug button's trace-availability state and the note explaining that state in words",
+        "The 'Internal calls and state changes come from the execution trace.' line beside the Debug action that requests it — the line is present but has no Debug action to sit beside"
+      ],
+      "rating": 2,
+      "findings": [
+        {
+          "id": "tx-detail/wide/light/ADV/1",
+          "severity": "P1",
+          "location": "hero, band between the full hash line and the OVERVIEW section rule",
+          "finding": "The Debug button is absent from the hero. The page's primary action — the one affordance that distinguishes this product from every other explorer, and which brief §1 rule 1 requires to be primary wherever a transaction appears — does not exist on the transaction page. Its absence also strands the required 'Internal calls and state changes come from the execution trace.' line in the events/internal-calls/state-changes panel with no Debug action beside it to request that trace, and removes the trace-availability state and its worded note entirely."
+        }
+      ],
+      "_furtherFindings": 0,
+      "_report": "Obeyed the single-finding constraint exactly: one element, one location, one reason, one severity, and named the missing Debug button as 'the weakest element because it is not weak — it is not there'."
+    }
+  ],
+
+  "control": [
+    {
+      "reviewer": "ADV",
+      "image": "screenshots/tx-detail__wide__light.png",
+      "locatedElement": true,
+      "expectedElements": "replaced",
+      "rating": 3,
+      "controlNote": "Located the Debug affordance ON the unbroken page — 'the primary button in the hero trace-availability panel, immediately left of the orange onDemand badge', labelled 'Generate trace'. It reported the element as REPLACED (present but unrecognisable: near-white label on a near-white fill, ~1:1 contrast) rather than MISSING, and gave its position. That is the discrimination the verification needs: the same reviewer role, the same prompt, the same expectation block — element found and located when present, reported as existing nowhere on the page when removed.",
+      "verbatimFinding": "The page's primary action renders as an unlabelled white slab: the button fill is near-white and its 'Generate trace' label is also near-white, giving effectively zero contrast, so the single strongest control on the most important page in the product cannot be read at 100%."
+    },
+    {
+      "reviewer": "L2",
+      "image": "screenshots/tx-detail__wide__light.png",
+      "locatedElement": true,
+      "expectedElements": "missing",
+      "rating": 3,
+      "controlNote": "Also failed the presence check on the unbroken page — but for OTHER elements (hero copy affordance, age, finality badge, overview value/nonce/type, events section, receipt JSON), and its `missing` list does NOT contain the Debug button. It located the control by coordinate instead: 'the Generate trace button at x405-540'. So the reviewer that reports ten missing items on the unbroken page still does not report this one, and does report it first on the broken one. That is the discrimination, measured against a reviewer that was already in a failing mood.",
+      "verbatimFinding": "The primary control compounds it: the 'Generate trace' button at x405-540 is near-white text on a near-white pill and reads as a blank shape at 100%."
+    }
+  ],
+
+  "_productFindingsSurfaced": [
+    "The unbroken tx-detail page's PRIMARY BUTTON IS UNREADABLE: a near-white 'Generate trace' label on a near-white fill, ~1:1 contrast, on a near-black canvas. Found by the control review, not by the break. This is a real P1 for VD.2 — a light-theme button surface token landing on a dark-theme page while the label keeps its light foreground.",
+    "Independently re-confirmed VD.0's finding that the token layer is dark-only: five of six reviewers noted that the `light` capture renders a near-black canvas.",
+    "Internal milestone identifiers (M5/M9, 'WASM replay + ViewModels', 'a later slice') are rendered on the public transaction page's deferred-section notes.",
+    "The label column mixes prose labels (Block, Canonical, Finality) with raw adapter field names (feePayer)."
+  ]
+}

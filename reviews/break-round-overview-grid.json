@@ -1,0 +1,128 @@
+{
+  "_comment": [
+    "VD.1 — the SECOND deliberate break, run so the catalogue holds no untested",
+    "entry. Graded the same way:",
+    "  node tools/capture/break-check.mjs --grade reviews/break-round-overview-grid.json",
+    "",
+    "Why a second one. The first break removed the element the `tx-detail` block",
+    "names FIRST, which is the easiest case a block can face — a reviewer reading",
+    "top-down meets it immediately. This one removes a whole labelled data region",
+    "from the middle of the block (§7.2.2's overview grid, 27 lines), and it was",
+    "run with three reviewers rather than six.",
+    "",
+    "It is also the harder test in a second way. By the time it ran, the control",
+    "round had established that the unbroken page ALREADY fails its presence check",
+    "on ten other counts — a missing copy affordance, no age, no finality badge, no",
+    "events section, no receipt JSON. A reviewer with ten genuine complaints",
+    "available could reasonably have led with any of them. All three still led with",
+    "the removed grid, and two of the three (L1, L4) went on to report six and five",
+    "further findings after it. That is the discrimination the verification wants:",
+    "not 'the reviewer noticed something wrong' but 'the reviewer put THIS first'."
+  ],
+
+  "break": "overview-grid",
+  "ranOn": "2026-08-28",
+  "image": "screenshots/break/overview-grid/tx-detail__wide__light.png",
+  "unbrokenImage": "screenshots/tx-detail__wide__light.png",
+  "removedLines": 27,
+  "removedFrom": "client/src/pages/tx.nim",
+  "sourceRestored": true,
+  "reviewersRun": "ADV, L1, L4 — three of the six, not a full gated round",
+
+  "reviews": [
+    {
+      "view": "tx-detail",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/break/overview-grid/tx-detail__wide__light.png",
+      "reviewer": "ADV",
+      "expectedElements": "missing",
+      "missing": [
+        "Overview grid: from/to, value, fee breakdown, block and index, nonce, resource limits and usage, transaction type"
+      ],
+      "rating": 3,
+      "findings": [
+        {
+          "id": "tx-detail/wide/light/ADV/1",
+          "severity": "P1",
+          "location": "between the transaction hash line and the top edge of the trace/Debug card (approx. y 193–222), where the overview grid should sit",
+          "finding": "The overview grid is entirely absent — not empty, not deferred, not stated, simply not rendered. The page goes from the hash directly to the trace card, so from/to, value, fee breakdown, block and index, nonce, resource limits and usage, and transaction type are all unobtainable. The layout closes over the gap so the omission is invisible, which makes it worse than an empty panel: nothing on the page tells the reader that the transaction page's entire factual payload is missing."
+        }
+      ],
+      "_furtherFindings": 0,
+      "_report": "Held the single-finding constraint and made the strongest argument of the round: the absence is worse than an empty panel because the layout closes over the hole, so a skimming reviewer could conclude the page is complete. 'Broken information, not broken presentation — P1.'"
+    },
+    {
+      "view": "tx-detail",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/break/overview-grid/tx-detail__wide__light.png",
+      "reviewer": "L1",
+      "expectedElements": "missing",
+      "missing": [
+        "Overview grid: from/to, value, fee breakdown, block and index, nonce, resource limits and usage, transaction type",
+        "Debug button label — the control renders as an unlabelled blank pill",
+        "Hero age, finality badge, and a copy affordance on the full hash",
+        "A standalone events/logs section",
+        "Decoded-input parameters, or raw bytes with a 'supply an ABI' action",
+        "The chain-native receipt JSON in the raw section"
+      ],
+      "rating": 3,
+      "findings": [
+        {
+          "id": "tx-detail/wide/light/L1/1",
+          "severity": "P1",
+          "location": "between the hash line and the 'DECODED INPUT' heading — where the overview grid should be",
+          "finding": "The overview grid is absent entirely. No from/to, value, fee breakdown, block and index, nonce, resource limits and usage, or transaction type appears anywhere on the page, labelled or otherwise. The page goes straight from the hero card to the decoded-input section."
+        }
+      ],
+      "_furtherFindings": 11,
+      "_report": "Led with the removed grid despite having five further presence failures and six typography findings to choose from. Independently found the unreadable primary button ('a blank rounded pill with no text inside it') that the control round had already surfaced."
+    },
+    {
+      "view": "tx-detail",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/break/overview-grid/tx-detail__wide__light.png",
+      "reviewer": "L4",
+      "expectedElements": "missing",
+      "missing": [
+        "Overview grid: from/to, value, fee breakdown, block and index, nonce, resource limits and usage, transaction type — each labelled",
+        "Hero: copy affordance on the full hash",
+        "Hero: age",
+        "Hero: finality badge",
+        "An events/logs section as a distinct section"
+      ],
+      "rating": 2,
+      "findings": [
+        {
+          "id": "tx-detail/wide/light/L4/1",
+          "severity": "P1",
+          "location": "between the trace-availability card (ends y≈340) and the DECODED INPUT heading (y≈375)",
+          "finding": "The overview grid is absent in its entirety. None of from/to, value, fee breakdown, block and index, nonce, resource limits and usage, or transaction type appears anywhere on the page; the two sections abut with only a section gap between them. The densest, highest-value region of the transaction page carries zero information."
+        }
+      ],
+      "_furtherFindings": 8,
+      "_report": "Led with the removed grid, then read its absence through the density lens: four sections filling 870px of a 1080px viewport with no scroll, a 945px value column holding a 10-character selector. Also re-found the unreadable primary button independently."
+    }
+  ],
+
+  "control": [
+    {
+      "reviewer": "L2",
+      "image": "screenshots/tx-detail__wide__light.png",
+      "locatedElement": true,
+      "expectedElements": "missing",
+      "rating": 3,
+      "controlNote": "On the unbroken page the same reviewer LOCATED the overview grid by coordinate — 'overview grid, y396-692' — and reported it as present-but-incomplete: 'The grid carries only Block, Canonical, Finality, feePayer, Target and Cost. Value, nonce and transaction type are absent.' On the broken page all three reviewers report the grid as not rendered anywhere. Present-but-incomplete versus absent-entirely is exactly the distinction the expectation block has to support, and it is the distinction the reviewers drew unprompted.",
+      "verbatimFinding": "The grid carries only Block, Canonical, Finality, feePayer, Target and Cost. Value, nonce and transaction type are absent, and the fee breakdown is collapsed into one 'Cost / mana' usage row rather than broken down."
+    }
+  ],
+
+  "_productFindingsSurfaced": [
+    "Two reviewers who had never seen the control round independently re-found the unreadable primary button — L1 as 'a blank rounded pill with no text inside it', L4 as 'a near-white label on a near-white fill'. Three independent sightings across two rounds make it the highest-confidence P1 in the ledger.",
+    "The breadcrumb hash truncates mid-byte with asymmetric prefix/suffix lengths (5 and 4).",
+    "Status badges are set in monospace and 'onDemand' keeps its camelCase enum spelling, so an enum value reads as data rather than as a state.",
+    "Empty calldata renders as the literal '0x' in the same accent treatment as a real payload, giving an absence the weight of data."
+  ]
+}
