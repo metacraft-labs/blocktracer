@@ -15,7 +15,15 @@
     "chain-native payload rendered into the page (§7.2 section 8). The debug",
     "route is `noindex` and canonicalises to the transaction — so this",
     "milestone adds no second indexable copy of the same content, which is the",
-    "way a new route most easily damages an existing one."
+    "way a new route most easily damages an existing one.",
+    "",
+    "`debugInSitemap` is the half a robots meta tag does not cover. A sitemap",
+    "is a SUBMISSION, and SEO-And-Crawl-Budget.md §5's class table gives every",
+    "`noindex` class 'Sitemap: No' — so listing the debug route would spend",
+    "crawl capacity fetching the transaction's content a second time in order",
+    "to be told not to index it. `sitemapRoutes` is what keeps it out, and the",
+    "suite asserts the route is still RENDERED, so the two do not get fixed by",
+    "dropping the page."
   ],
   "recordedAt": "2026-08-29",
   "recordedFrom": "client/src/ssr.nim renderTx, before /debug was served",
@@ -27,5 +35,6 @@
     "<h2 class=\"sec-title next\">Decoded input</h2>"
   ],
 
-  "debugRobots": "noindex,follow"
+  "debugRobots": "noindex,follow",
+  "debugInSitemap": false
 }

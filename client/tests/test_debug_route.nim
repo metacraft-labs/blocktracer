@@ -666,6 +666,32 @@ suite "M8b — the crawl surface is unchanged":
            "/tx/" & readyTx & "\"") in html
     check baseline["debugRobots"].getStr.startsWith("noindex")
 
+  test "the debug route is rendered but NOT submitted to search engines":
+    # Rendered and submitted are different questions, and this is where they
+    # part company. SEO-And-Crawl-Budget.md §5 gives every `noindex` class
+    # "Sitemap: No", so a sitemap entry here would invite a crawler to fetch
+    # the transaction's content a second time in order to be told not to index
+    # it — the duplicate crawl surface M8b requires this milestone not to add.
+    let baseline = parseJson(readFile(
+      clientRoot / "tests" / "baselines" / "tx-crawl-surface.json"))
+    check not baseline["debugInSitemap"].getBool
+    let all = staticRoutes(root)
+    let submitted = sitemapRoutes(root)
+    var renderedDebug, submittedDebug = 0
+    for route in all:
+      if route.endsWith("/debug"): inc renderedDebug
+    for route in submitted:
+      if route.endsWith("/debug"): inc submittedDebug
+    # The subject exists: this is not passing over an empty route set.
+    check renderedDebug == txHashes.len
+    check renderedDebug > 0
+    check submittedDebug == 0
+    # …and nothing ELSE was dropped on the way, so the transaction route's own
+    # sitemap membership is exactly what it was.
+    check submitted.len == all.len - renderedDebug
+    for route in all:
+      if not route.endsWith("/debug"): check route in submitted
+
 suite "the embedded demo on the home page is the same session surface":
 
   test "the home page carries a real, positioned session — not a picture":

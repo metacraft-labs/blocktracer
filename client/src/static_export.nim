@@ -105,7 +105,11 @@ proc exportSite() =
 
   # Step 3: assets + crawl files.
   copyFonts()
-  generateSitemap(routes)
+  # `sitemapRoutes`, not `routes`: every route is RENDERED, and a `noindex`
+  # route is not SUBMITTED (SEO-And-Crawl-Budget.md §5). The debug route is the
+  # transaction's content at a second address, so a sitemap entry for it would
+  # invite a crawler to fetch a duplicate and be told not to index it.
+  generateSitemap(sitemapRoutes(root))
   generateRobots()
 
   let elapsed = epochTime() - startTime

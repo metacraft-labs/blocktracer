@@ -173,6 +173,29 @@ proc staticRoutes*(r: DataRoot): seq[string] =
         # and a 404 there would be a different, worse answer.
         result.add "/" & chain & "/tx/" & txh & "/debug"
 
+proc isSitemapRoute*(route: string): bool =
+  ## Whether a rendered route belongs in `sitemap.xml`.
+  ##
+  ## A route that is RENDERED and a route that is SUBMITTED are two different
+  ## questions, and the debug route is the first case where they part company.
+  ## SEO-And-Crawl-Budget.md §5's class table gives every `noindex` class
+  ## "Sitemap: No", for the reason §6 gives: a sitemap is a submission, and
+  ## submitting a URL that carries `noindex` spends crawl capacity to be told
+  ## not to index something.
+  ##
+  ## It matters here beyond tidiness. M8b's requirement is that the
+  ## transaction's crawl surface is UNCHANGED, and the debug route is the same
+  ## content at a second address — exactly the duplicate a sitemap entry would
+  ## invite a crawler to fetch and then discard. Its `<meta robots>` and its
+  ## canonical already say so; being absent from the sitemap is the same
+  ## statement made where a crawler reads it first.
+  not route.endsWith("/debug")
+
+proc sitemapRoutes*(r: DataRoot): seq[string] =
+  ## The subset of `staticRoutes` that is submitted to search engines.
+  for route in staticRoutes(r):
+    if isSitemapRoute(route): result.add route
+
 proc renderRoute*(r: DataRoot, path: string): tuple[status: int, body: string, contentType: string] =
   ## Dispatch one clean-URL path to its renderer.
   let p = path.strip(chars = {'/'})
