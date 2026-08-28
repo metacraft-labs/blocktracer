@@ -16,10 +16,16 @@ nimcache/
 /tests/tcontract
 /tests/tpublish
 /tests/tmutcheck
+/tests/tclientsdk
+/tests/tembedhandoff
 
-# Generated output trees
+# Generated output trees. `demo-site-2` is the determinism check's second
+# tree (`just demo-gen out=demo-site-2` in CI), which the first .gitignore
+# missed.
 /demo-site/
+/demo-site-2/
 /out/
+/published/
 
 # Nix build result symlinks (`nix build` at the repo root)
 /result
@@ -38,6 +44,9 @@ nimcache/
 # tools/capture/.
 /screenshots/
 /tools/capture/node_modules/
+
+# direnv's materialised profile (the .envrc itself IS versioned)
+/.direnv/
 
 # Editor / OS
 .DS_Store

@@ -34,6 +34,37 @@ The production **blocktracer.org** apex is served by a separate **Cloudflare R2
 delta-publisher** path (bucket bound to the `blocktracer.org` zone), documented
 in [`DEPLOY.md`](./DEPLOY.md) — not by the Pages projects above.
 
+## 1a. `@blocktracer/client` — the Client SDK (M12a)
+
+The chain-aware read layer lives in **`src/blocktracer_client.nim`** (the
+facade) plus `src/blocktracer_client/**` (private). It reads the published
+`/d/**` tree, pins a generation, resolves a transaction to a trace, parses and
+emits debug deep links, and resolves source bundles per code hash. Spec:
+[`../codetracer-specs/BlockTracer/Client-SDK.md`](../codetracer-specs/BlockTracer/Client-SDK.md).
+
+**Two layers, one direction.** The Client SDK depends on the CodeTracer **Embed
+SDK** (`codetracer_embed`, in the `codetracer` repo) and never the reverse. The
+dependency lives in exactly one module, `src/blocktracer_client_embed.nim`,
+which converts a `ResolvedTrace` into the Embed SDK's `TraceSource`. Everything
+else compiles with no debugger on the Nim path at all — that is the layering,
+not a comment about it.
+
+| Rule | Enforced by |
+|------|-------------|
+| A consumer imports only `blocktracer_client` (or `blocktracer_client_embed`) | `ci/test/client-sdk-boundary.sh` |
+| The SDK reaches no renderer, no producer, no socket, no identity | same |
+| The Embed SDK contains no chain concept and never imports this package | same, `--embed-root` / `$CODETRACER_SRC` |
+| Every rule above actually bites | `ci/test/client-sdk-boundary-test.sh` (synthetic trees with deliberate violations) |
+
+`client/` is a **declared consumer** (`client/.sdk-consumer`): `client/src/reader.nim`
+is now a presentation projection over the SDK, not a second reader.
+
+| Command | What it does |
+|---------|--------------|
+| `just sdk-test` | `tests/tclientsdk.nim` — the consumer-side conformance suite (no Embed SDK needed) |
+| `just sdk-boundary` | the bidirectional import lint plus its own self-test |
+| `just sdk-test-embed` | `tests/tembedhandoff.nim` against the real Embed SDK; needs `$CODETRACER_SRC` or a `../codetracer` checkout — pinned commit in `ci/embed-sdk-pin.env` |
+
 ## 2. isonim architecture
 
 **isonim** is a cross-platform reactive UI framework for Nim (signals / effects /
