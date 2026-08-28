@@ -413,14 +413,14 @@ const PLANTS = [
     // examined. `layout.nim` splices component strings through `raw`, so this
     // is a live path.
     rule: "A1", name: "GAP 2 — a raw colour inside a hand-built HTML fragment spliced through `raw`", file: HOME,
-    from: 'span(class = "accent"):\n            text "backwards"',
-    to: 'raw "<span style=\\"color:#ff0000\\">backwards</span>"',
+    from: 'span(class = "accent"):\n            text "deepest"',
+    to: 'raw "<span style=\\"color:#ff0000\\">deepest</span>"',
     names: "#ff0000",
   },
   {
     rule: "A7", name: "GAP 2b — the hand-built fragment ITSELF is rejected, colour or no colour", file: HOME,
-    from: 'span(class = "accent"):\n            text "backwards"',
-    to: 'raw "<span class=\\"accent\\">backwards</span>"',
+    from: 'span(class = "accent"):\n            text "deepest"',
+    to: 'raw "<span class=\\"accent\\">deepest</span>"',
     names: "<span",
   },
   {
@@ -459,15 +459,15 @@ const PLANTS = [
     // A colour split across a concatenation still leaves the colour as its own
     // string literal, and the VALUE context sees it.
     rule: "A1", name: "evasion — a colour assembled by concatenation is still a colour", file: HOME,
-    from: 'text "Step "', to: 'text "Step " & "#818cf8"',
+    from: 'text "The "', to: 'text "The " & "#818cf8"',
     names: "#818cf8",
   },
   {
     // The doc-comment escape hatch, checked from the other side: a violation
     // must not be hideable by making the checker's own tokeniser skip it.
     rule: "A1", name: "evasion — a colour in an ATTRIBUTE of a hand-built fragment", file: HOME,
-    from: 'span(class = "accent"):\n            text "backwards"',
-    to: 'raw "<span bgcolor=\\"#00ff00\\">backwards</span>"',
+    from: 'span(class = "accent"):\n            text "deepest"',
+    to: 'raw "<span bgcolor=\\"#00ff00\\">deepest</span>"',
     names: "#00ff00",
   },
   {
@@ -598,17 +598,17 @@ const PLANTS = [
     // it into styles.nim behind a class.
     rule: "A5", expectClean: true,
     name: "no false positive — an English note that opens with `Word:` is not an inline style",
-    file: HOME, from: 'text "backwards"', to: 'text "Note: the raw value is in wei"',
+    file: HOME, from: 'text "deepest"', to: 'text "Note: the raw value is in wei"',
   },
   {
     rule: "A1", expectClean: true,
     name: "no false positive — a colour WORD inside a sentence is prose, not a colour",
-    file: HOME, from: 'text "backwards"', to: 'text "Status: green means finalised"',
+    file: HOME, from: 'text "deepest"', to: 'text "Status: green means finalised"',
   },
   {
     rule: "A1", expectClean: true,
     name: "no false positive — the stated-safe control sentence stays clean",
-    file: HOME, from: 'text "backwards"', to: 'text "Paste a block, tx hash, or address"',
+    file: HOME, from: 'text "deepest"', to: 'text "Paste a block, tx hash, or address"',
   },
 
   // ── C3: the rhythm ladder, over the GAP the stylesheet actually renders ──
