@@ -20,23 +20,22 @@ proc blockPage*(chain: string, detail: BlockDetail, txs: seq[TxRow]): string =
           a(href = blocksUrl(chain)): text "blocks"
           span(class = "sep"): text "/"
           span: text truncHash(detail.hash)
-        tdiv(class = "eyebrow"): text "Block " & $detail.height
-        h1(class = "h2"): text "Block " & $detail.height
-        dl(class = "dl"):
+        tdiv(class = "eyebrow"): text "Block"
+        h1(class = "h1 tnum"): text "Block " & $detail.height
+        dl(class = "dl group"):
           dt: text "Chain"
           dd: text detail.chain
           dt: text "Hash"
           dd:
-            code: text detail.hash
+            span(class = "identifier"): text detail.hash
           dt: text "Height"
-          dd: text $detail.height
+          dd(class = "tnum"): text $detail.height
           dt: text "Parent"
           dd:
-            a(href = blockUrl(chain, detail.parentHash)):
-              code: text detail.parentHash
+            a(href = blockUrl(chain, detail.parentHash), class = "identifier"):
+              text detail.parentHash
           dt: text "Transactions"
-          dd: text $detail.transactions.len
+          dd(class = "tnum"): text $detail.transactions.len
 
-        tdiv(class = "eyebrow", style = "margin-top:var(--ct-space-2xl)"):
-          text "Transactions in this block"
+        h2(class = "sec-title next"): text "Transactions in this block"
         raw txTable(chain, txs)

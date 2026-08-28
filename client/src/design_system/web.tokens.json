@@ -1,0 +1,357 @@
+{
+  "$schema": "https://tr.designtokens.org/format/",
+  "$description": "BlockTracer web-lineage design tokens (VD.2 Foundations Pass). The WEB lineage of the CodeTracer design system (Design-System.md §1/§3). Every leaf is either a REFERENCE into codetracer-design-system's brand/alias/mapped DTCG files — binding kind bkToken — or a concrete value that no lineage supplies — binding kind bkLiteral, which MUST name a divergence row in docs/DESIGN-DIVERGENCES-WEB.md via $extensions['bt.divergence'] (Design-System.md §4.1). client/src/design_system/tokens.nim emits this file as --bt-* custom properties; tools/design/check-tokens.mjs is the CI rule.",
+
+  "base": {
+    "$description": "Theme-independent and register-independent. Emitted into :root once.",
+
+    "font": {
+      "sans": { "$type": "fontFamily", "$value": "{type.fontFamily.ui-primary}" },
+      "mono": {
+        "$type": "fontFamily", "$value": "{type.fontFamily.code-primary}",
+        "$description": "Machine values: hashes, addresses, selectors, amounts. Design-System.md §4.2 calls the mono face the product's texture and asks for an early decision; VD.2 settles it as the BRAND face, so the web lineage does NOT introduce a third mono."
+      },
+      "code": {
+        "$type": "fontFamily", "$value": "{type.fontFamily.code-primary}",
+        "$description": "Source code. Bound to the same family as font.mono today, but kept as a SEPARATE role so a later change to source rendering cannot silently move every hash on the site."
+      },
+      "sans-fallback": { "$type": "string", "$value": "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif", "$extensions": { "bt.divergence": "D-09" } },
+      "mono-fallback": { "$type": "string", "$value": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", "$extensions": { "bt.divergence": "D-09" } }
+    },
+
+    "type": {
+      "$description": "The type scale as ROLES, not sizes. Six text levels plus three data levels. Four heading levels are distinguishable by size AND weight — VD.1 finding L1/7 was that the scale ran 40px straight to body with no section-heading level between them.",
+
+      "display": {
+        "size": { "$type": "dimension", "$value": "{type.fontSize.4xl}" },
+        "weight": { "$type": "number", "$value": "700", "$extensions": { "bt.divergence": "D-03" } },
+        "line": { "$type": "number", "$value": "1.1", "$extensions": { "bt.divergence": "D-01" } },
+        "tracking": { "$type": "dimension", "$value": "-0.022em", "$extensions": { "bt.divergence": "D-02" } }
+      },
+      "h1": {
+        "size": { "$type": "dimension", "$value": "{type.fontSize.3xl}" },
+        "weight": { "$type": "number", "$value": "700", "$extensions": { "bt.divergence": "D-03" } },
+        "line": { "$type": "number", "$value": "1.15", "$extensions": { "bt.divergence": "D-01" } },
+        "tracking": { "$type": "dimension", "$value": "-0.02em", "$extensions": { "bt.divergence": "D-02" } }
+      },
+      "h2": {
+        "size": { "$type": "dimension", "$value": "{type.fontSize.xl}" },
+        "weight": { "$type": "number", "$value": "700", "$extensions": { "bt.divergence": "D-03" } },
+        "line": { "$type": "number", "$value": "1.25", "$extensions": { "bt.divergence": "D-01" } },
+        "tracking": { "$type": "dimension", "$value": "-0.015em", "$extensions": { "bt.divergence": "D-02" } }
+      },
+      "h3": {
+        "$description": "The section-heading level VD.1's L1/7 found missing. Larger than body AND heavier than it — the VD.2 round found that 20px/500 against 16px/400 body was 'barely a step', so the weight goes to the same 700 the other headings use and the level is carried by size alone against its neighbours.",
+        "size": { "$type": "dimension", "$value": "{type.fontSize.lg}" },
+        "weight": { "$type": "number", "$value": "700", "$extensions": { "bt.divergence": "D-03" } },
+        "line": { "$type": "number", "$value": "1.3", "$extensions": { "bt.divergence": "D-01" } },
+        "tracking": { "$type": "dimension", "$value": "-0.01em", "$extensions": { "bt.divergence": "D-02" } }
+      },
+      "body": {
+        "size": { "$type": "dimension", "$value": "{type.fontSize.md}" },
+        "weight": { "$type": "number", "$value": "400", "$extensions": { "bt.divergence": "D-03" } },
+        "line": { "$type": "number", "$value": "1.6", "$extensions": { "bt.divergence": "D-01" } }
+      },
+      "body-sm": {
+        "size": { "$type": "dimension", "$value": "{type.fontSize.sm}" },
+        "weight": { "$type": "number", "$value": "400", "$extensions": { "bt.divergence": "D-03" } },
+        "line": { "$type": "number", "$value": "1.55", "$extensions": { "bt.divergence": "D-01" } }
+      },
+      "caption": {
+        "size": { "$type": "dimension", "$value": "{type.fontSize.xs}" },
+        "weight": { "$type": "number", "$value": "400", "$extensions": { "bt.divergence": "D-03" } },
+        "line": { "$type": "number", "$value": "1.45", "$extensions": { "bt.divergence": "D-01" } }
+      },
+      "eyebrow": {
+        "$description": "A kicker ABOVE a heading, never a substitute for one. 12px so it is legible; uppercase tracking so it reads as a label; heavier than type.label so a page-kind marker and a field label are not one treatment.",
+        "size": { "$type": "dimension", "$value": "{type.fontSize.xs}" },
+        "weight": { "$type": "number", "$value": "700", "$extensions": { "bt.divergence": "D-03" } },
+        "line": { "$type": "number", "$value": "1.3", "$extensions": { "bt.divergence": "D-01" } },
+        "tracking": { "$type": "dimension", "$value": "0.14em", "$extensions": { "bt.divergence": "D-02" } }
+      },
+      "label": {
+        "$description": "Column headers and definition-list terms. SANS, not mono — VD.1 finding L1/8: mono used as a decorative label style stops marking 'this is a copyable identifier'.",
+        "size": { "$type": "dimension", "$value": "{type.fontSize.xs}" },
+        "weight": { "$type": "number", "$value": "500", "$extensions": { "bt.divergence": "D-03" } },
+        "line": { "$type": "number", "$value": "1.4", "$extensions": { "bt.divergence": "D-01" } },
+        "tracking": { "$type": "dimension", "$value": "0.06em", "$extensions": { "bt.divergence": "D-02" } }
+      },
+      "identifier": {
+        "$description": "Hashes and addresses inline. Mono, tabular, slightly tightened tracking so a 66-character hash is scannable.",
+        "size": { "$type": "dimension", "$value": "{type.fontSize.sm}" },
+        "weight": { "$type": "number", "$value": "400", "$extensions": { "bt.divergence": "D-03" } },
+        "line": { "$type": "number", "$value": "1.5", "$extensions": { "bt.divergence": "D-01" } },
+        "tracking": { "$type": "dimension", "$value": "-0.01em", "$extensions": { "bt.divergence": "D-02" } }
+      },
+      "identifier-lead": {
+        "$description": "The identifier a page is ABOUT — the hash in a transaction hero. Set one rung above the 14px data mono so the page's subject is not typographically identical to a row of its own metadata, and one rung BELOW the section headings: at 20px the mono mass outweighed 24px bold sans and the headings stopped winning the scale.",
+        "size": { "$type": "dimension", "$value": "{type.fontSize.md}" },
+        "weight": { "$type": "number", "$value": "400", "$extensions": { "bt.divergence": "D-03" } },
+        "line": { "$type": "number", "$value": "1.4", "$extensions": { "bt.divergence": "D-01" } },
+        "tracking": { "$type": "dimension", "$value": "-0.015em", "$extensions": { "bt.divergence": "D-02" } }
+      },
+      "numeric": {
+        "$description": "Amounts, heights, counts and costs. Mono + tabular figures so a column of block heights does not ripple (rubric A5).",
+        "size": { "$type": "dimension", "$value": "{type.fontSize.sm}" },
+        "weight": { "$type": "number", "$value": "400", "$extensions": { "bt.divergence": "D-03" } },
+        "line": { "$type": "number", "$value": "1.5", "$extensions": { "bt.divergence": "D-01" } }
+      },
+      "code": {
+        "size": { "$type": "dimension", "$value": "{type.fontSize.sm}" },
+        "weight": { "$type": "number", "$value": "400", "$extensions": { "bt.divergence": "D-03" } },
+        "line": { "$type": "number", "$value": "1.65", "$extensions": { "bt.divergence": "D-01" } }
+      }
+    },
+
+    "numeric": {
+      "$description": "How digits are rendered. No lineage has a token for OpenType feature settings, and this product is mostly digits.",
+      "features": { "$type": "string", "$value": "tabular-nums lining-nums", "$extensions": { "bt.divergence": "D-08" } }
+    },
+
+    "space": {
+      "$description": "ONE spacing scale, every step from the brand scale ramp. 2·4·8·12·16·24·32·48·60·100.",
+      "3xs": { "$type": "dimension", "$value": "{scale.200}" },
+      "2xs": { "$type": "dimension", "$value": "{scale.250}" },
+      "xs": { "$type": "dimension", "$value": "{scale.350}" },
+      "sm": { "$type": "dimension", "$value": "{scale.450}" },
+      "md": { "$type": "dimension", "$value": "{scale.550}" },
+      "lg": { "$type": "dimension", "$value": "{scale.650}" },
+      "xl": { "$type": "dimension", "$value": "{scale.750}" },
+      "2xl": { "$type": "dimension", "$value": "{scale.950}" },
+      "3xl": { "$type": "dimension", "$value": "{scale.1200}" },
+      "4xl": { "$type": "dimension", "$value": "{scale.1300}" }
+    },
+
+    "rhythm": {
+      "$description": "The four vertical rhythm ROLES, drawn from base.space. This is the deliverable-2 fix for VD.1 finding 3: previously one spacing step did two jobs — the 49px pitch between two rows inside a card equalled the 49px gap between two sections, so proximity carried no grouping information. Each role is at least 1.75x the one below it, and tools/design/check-tokens.mjs asserts that ordering.",
+      "row": { "$type": "dimension", "$value": "{scale.450}", "$description": "Vertical padding inside one row of a table or definition grid. 12px." },
+      "stack": { "$type": "dimension", "$value": "{scale.650}", "$description": "Between sibling elements inside one group. 24px." },
+      "group": { "$type": "dimension", "$value": "{scale.950}", "$description": "Between groups inside one section — a heading and the card it labels, a card and the next card. 48px." },
+      "section": { "$type": "dimension", "$value": "{scale.1300}", "$description": "Between two top-level sections. 100px — a boundary a reader can see without a rule." }
+    },
+
+    "radius": {
+      "xs": { "$type": "dimension", "$value": "{border.border radius.2xs}" },
+      "sm": { "$type": "dimension", "$value": "{border.border radius.xs}" },
+      "md": { "$type": "dimension", "$value": "{border.border radius.sm}" },
+      "lg": { "$type": "dimension", "$value": "{border.border radius.lg}" },
+      "xl": { "$type": "dimension", "$value": "{border.border radius.2xl}" },
+      "full": { "$type": "dimension", "$value": "{border.border radius.full}" }
+    },
+
+    "stroke": {
+      "hairline": { "$type": "dimension", "$value": "{border.border width.deafult}" },
+      "thick": { "$type": "dimension", "$value": "{border.border width.thick}" }
+    },
+
+    "focus": {
+      "$description": "One focus treatment for BOTH registers (Design-System.md §2: focus-ring treatment is a shared primitive). Colour is per-theme; geometry is not.",
+      "width": { "$type": "dimension", "$value": "{border.border width.thick}" },
+      "offset": { "$type": "dimension", "$value": "{scale.200}" }
+    },
+
+    "motion": {
+      "$description": "No lineage defines motion tokens. VD.9 owns motion; VD.2 only fixes the durations so hover/active states across both registers are the same speed rather than three hand-written values.",
+      "fast": { "$type": "duration", "$value": "120ms", "$extensions": { "bt.divergence": "D-04" } },
+      "base": { "$type": "duration", "$value": "180ms", "$extensions": { "bt.divergence": "D-04" } },
+      "slow": { "$type": "duration", "$value": "320ms", "$extensions": { "bt.divergence": "D-04" } },
+      "ease": { "$type": "cubicBezier", "$value": "cubic-bezier(.2,0,.2,1)", "$extensions": { "bt.divergence": "D-04" } }
+    },
+
+    "measure": {
+      "$description": "Line length. VD.1 finding L1/10: the page's only running prose ran the full 1140px container at ~130 characters per line, roughly twice a readable measure.",
+      "prose": { "$type": "dimension", "$value": "68ch", "$extensions": { "bt.divergence": "D-06" } },
+      "narrow": { "$type": "dimension", "$value": "44ch", "$extensions": { "bt.divergence": "D-06" } },
+      "title": { "$type": "dimension", "$value": "22ch", "$extensions": { "bt.divergence": "D-06" } }
+    },
+
+    "layout": {
+      "$description": "The page grid. VD.1 finding 5: header content ran x=24→1896 while body content ran x=390→1530 — the brand and the search field aligned to nothing beneath them. ONE container width, used by the header and the body alike.",
+      "container": { "$type": "dimension", "$value": "960px", "$extensions": { "bt.divergence": "D-07" } },
+      "gutter": { "$type": "dimension", "$value": "{scale.650}" },
+      "nav-height": { "$type": "dimension", "$value": "64px", "$extensions": { "bt.divergence": "D-07" } },
+      "label-column": { "$type": "dimension", "$value": "160px", "$extensions": { "bt.divergence": "D-07" } },
+      "search": { "$type": "dimension", "$value": "260px", "$extensions": { "bt.divergence": "D-07" } },
+      "prose": { "$type": "dimension", "$value": "700px", "$extensions": { "bt.divergence": "D-07" } },
+      "code-max-height": { "$type": "dimension", "$value": "480px", "$extensions": { "bt.divergence": "D-07" } }
+    }
+  },
+
+  "theme": {
+    "$description": "Colour roles. light and dark carry IDENTICAL key sets — check-tokens.mjs fails on any key present in one and absent in the other, so dark can never be built by inversion-with-omissions (VD.7's precondition).",
+
+    "light": {
+      "surface": {
+        "canvas": { "$type": "color", "$value": "{colors.base.white}" },
+        "raised": { "$type": "color", "$value": "{colors.base.white}" },
+        "sunken": { "$type": "color", "$value": "{colors.neutral.50}" },
+        "code": { "$type": "color", "$value": "{colors.graphite.50}" },
+        "hover": { "$type": "color", "$value": "{colors.neutral.50}" },
+        "selected": { "$type": "color", "$value": "{colors.brand.100}" },
+        "overlay": { "$type": "color", "$value": "{colors.base.white}" }
+      },
+      "text": {
+        "strong": { "$type": "color", "$value": "{colors.neutral.1000}" },
+        "default": { "$type": "color", "$value": "{colors.neutral.800}" },
+        "muted": { "$type": "color", "$value": "{colors.neutral.500}" },
+        "subtle": { "$type": "color", "$value": "{colors.neutral.450}" },
+        "disabled": { "$type": "color", "$value": "{colors.neutral.400}" },
+        "link": { "$type": "color", "$value": "{colors.brand.600}" },
+        "link-hover": { "$type": "color", "$value": "{colors.brand.700}" },
+        "code": { "$type": "color", "$value": "{colors.neutral.800}" },
+        "on-accent": { "$type": "color", "$value": "{colors.base.white}" }
+      },
+      "border": {
+        "strong": { "$type": "color", "$value": "{colors.neutral.350}" },
+        "default": { "$type": "color", "$value": "{colors.neutral.250}" },
+        "subtle": { "$type": "color", "$value": "{colors.neutral.150}" },
+        "accent": { "$type": "color", "$value": "{colors.brand.600}" }
+      },
+      "accent": {
+        "default": { "$type": "color", "$value": "{colors.brand.600}" },
+        "subtle": { "$type": "color", "$value": "{colors.brand.500}" }
+      },
+      "action": {
+        "bg": { "$type": "color", "$value": "{colors.brand.600}" },
+        "bg-hover": { "$type": "color", "$value": "{colors.brand.700}" },
+        "bg-active": { "$type": "color", "$value": "{colors.brand.800}" },
+        "fg": { "$type": "color", "$value": "{colors.base.white}" },
+        "ghost-bg": { "$type": "color", "$value": "{colors.base.white}" },
+        "ghost-bg-hover": { "$type": "color", "$value": "{colors.neutral.50}" },
+        "ghost-bg-active": { "$type": "color", "$value": "{colors.neutral.100}" },
+        "ghost-border": { "$type": "color", "$value": "{colors.neutral.150}" },
+        "ghost-border-hover": { "$type": "color", "$value": "{colors.brand.600}" },
+        "ghost-fg": { "$type": "color", "$value": "{colors.neutral.1000}" },
+        "disabled-bg": { "$type": "color", "$value": "{colors.neutral.100}" },
+        "disabled-border": { "$type": "color", "$value": "{colors.neutral.150}" },
+        "disabled-fg": { "$type": "color", "$value": "{colors.neutral.400}" }
+      },
+      "status": {
+        "success-fg": { "$type": "color", "$value": "{colors.success.800}" },
+        "success-border": { "$type": "color", "$value": "{colors.success.600}" },
+        "success-bg": { "$type": "color", "$value": "{colors.success.100}" },
+        "danger-fg": { "$type": "color", "$value": "{colors.error.800}" },
+        "danger-border": { "$type": "color", "$value": "{colors.error.600}" },
+        "danger-bg": { "$type": "color", "$value": "{colors.error.100}" },
+        "warning-fg": { "$type": "color", "$value": "{colors.warning.800}" },
+        "warning-border": { "$type": "color", "$value": "{colors.warning.600}" },
+        "warning-bg": { "$type": "color", "$value": "{colors.warning.100}" },
+        "info-fg": { "$type": "color", "$value": "{colors.information.800}" },
+        "info-border": { "$type": "color", "$value": "{colors.information.600}" },
+        "info-bg": { "$type": "color", "$value": "{colors.information.100}" },
+        "neutral-fg": { "$type": "color", "$value": "{colors.neutral.450}" },
+        "neutral-border": { "$type": "color", "$value": "{colors.neutral.150}" },
+        "neutral-bg": { "$type": "color", "$value": "{colors.neutral.50}" }
+      },
+      "focus": {
+        "ring": { "$type": "color", "$value": "{colors.ui.border.focus}" }
+      },
+      "elevation": {
+        "raised": { "$type": "shadow", "$value": "0 1px 2px rgba(16,16,16,.06), 0 2px 8px rgba(16,16,16,.05)", "$extensions": { "bt.divergence": "D-05" } },
+        "overlay": { "$type": "shadow", "$value": "0 8px 28px rgba(16,16,16,.14)", "$extensions": { "bt.divergence": "D-05" } }
+      }
+    },
+
+    "dark": {
+      "surface": {
+        "canvas": { "$type": "color", "$value": "{colors.neutral.1000}" },
+        "raised": { "$type": "color", "$value": "{colors.neutral.900}" },
+        "sunken": { "$type": "color", "$value": "{colors.neutral.950}" },
+        "code": { "$type": "color", "$value": "{colors.neutral.1000}" },
+        "hover": { "$type": "color", "$value": "{colors.neutral.850}" },
+        "selected": { "$type": "color", "$value": "{colors.brand.900}" },
+        "overlay": { "$type": "color", "$value": "{colors.neutral.850}" }
+      },
+      "text": {
+        "strong": { "$type": "color", "$value": "{colors.neutral.50}" },
+        "default": { "$type": "color", "$value": "{colors.neutral.100}" },
+        "muted": { "$type": "color", "$value": "{colors.neutral.250}" },
+        "subtle": { "$type": "color", "$value": "{colors.neutral.300}" },
+        "disabled": { "$type": "color", "$value": "{colors.neutral.400}" },
+        "link": { "$type": "color", "$value": "{colors.brand.400}" },
+        "link-hover": { "$type": "color", "$value": "{colors.brand.300}" },
+        "code": { "$type": "color", "$value": "{colors.neutral.100}" },
+        "on-accent": { "$type": "color", "$value": "{colors.base.white}" }
+      },
+      "border": {
+        "strong": { "$type": "color", "$value": "{colors.neutral.450}" },
+        "default": { "$type": "color", "$value": "{colors.neutral.600}" },
+        "subtle": { "$type": "color", "$value": "{colors.neutral.700}" },
+        "accent": { "$type": "color", "$value": "{colors.brand.500}" }
+      },
+      "accent": {
+        "default": { "$type": "color", "$value": "{colors.brand.400}" },
+        "subtle": { "$type": "color", "$value": "{colors.brand.300}" }
+      },
+      "action": {
+        "bg": { "$type": "color", "$value": "{colors.brand.600}" },
+        "bg-hover": { "$type": "color", "$value": "{colors.brand.500}" },
+        "bg-active": { "$type": "color", "$value": "{colors.brand.400}" },
+        "fg": { "$type": "color", "$value": "{colors.base.white}" },
+        "ghost-bg": { "$type": "color", "$value": "{colors.neutral.900}" },
+        "ghost-bg-hover": { "$type": "color", "$value": "{colors.neutral.850}" },
+        "ghost-bg-active": { "$type": "color", "$value": "{colors.neutral.800}" },
+        "ghost-border": { "$type": "color", "$value": "{colors.neutral.600}" },
+        "ghost-border-hover": { "$type": "color", "$value": "{colors.brand.500}" },
+        "ghost-fg": { "$type": "color", "$value": "{colors.neutral.50}" },
+        "disabled-bg": { "$type": "color", "$value": "{colors.neutral.850}" },
+        "disabled-border": { "$type": "color", "$value": "{colors.neutral.700}" },
+        "disabled-fg": { "$type": "color", "$value": "{colors.neutral.350}" }
+      },
+      "status": {
+        "success-fg": { "$type": "color", "$value": "{colors.success.400}" },
+        "success-border": { "$type": "color", "$value": "{colors.success.600}" },
+        "success-bg": { "$type": "color", "$value": "{colors.neutral.850}" },
+        "danger-fg": { "$type": "color", "$value": "{colors.error.400}" },
+        "danger-border": { "$type": "color", "$value": "{colors.error.600}" },
+        "danger-bg": { "$type": "color", "$value": "{colors.neutral.850}" },
+        "warning-fg": { "$type": "color", "$value": "{colors.warning.400}" },
+        "warning-border": { "$type": "color", "$value": "{colors.warning.600}" },
+        "warning-bg": { "$type": "color", "$value": "{colors.neutral.850}" },
+        "info-fg": { "$type": "color", "$value": "{colors.information.400}" },
+        "info-border": { "$type": "color", "$value": "{colors.information.600}" },
+        "info-bg": { "$type": "color", "$value": "{colors.neutral.850}" },
+        "neutral-fg": { "$type": "color", "$value": "{colors.neutral.300}" },
+        "neutral-border": { "$type": "color", "$value": "{colors.neutral.600}" },
+        "neutral-bg": { "$type": "color", "$value": "{colors.neutral.850}" }
+      },
+      "focus": {
+        "ring": { "$type": "color", "$value": "{colors.information.400}" }
+      },
+      "elevation": {
+        "raised": { "$type": "shadow", "$value": "0 1px 2px rgba(0,0,0,.55)", "$extensions": { "bt.divergence": "D-05" } },
+        "overlay": { "$type": "shadow", "$value": "0 10px 30px rgba(0,0,0,.62)", "$extensions": { "bt.divergence": "D-05" } }
+      }
+    }
+  },
+
+  "register": {
+    "$description": "Design-System.md §2: the two registers share type ratios, the spacing scale, radii, focus treatment, motion and the accent family. What differs is DENSITY, surface colour and default theme. Density is therefore a token group, not two component libraries — explorer and debugger carry identical key sets and check-tokens.mjs asserts that too.",
+
+    "explorer": {
+      "density": {
+        "cell-y": { "$type": "dimension", "$value": "{scale.350}" },
+        "cell-x": { "$type": "dimension", "$value": "{scale.650}" },
+        "control-y": { "$type": "dimension", "$value": "{scale.450}" },
+        "control-x": { "$type": "dimension", "$value": "{scale.650}" },
+        "card-pad": { "$type": "dimension", "$value": "{scale.750}" },
+        "line": { "$type": "number", "$value": "1.6", "$extensions": { "bt.divergence": "D-01" } },
+        "body-size": { "$type": "dimension", "$value": "{type.fontSize.md}" },
+        "data-size": { "$type": "dimension", "$value": "{type.fontSize.sm}" }
+      }
+    },
+
+    "debugger": {
+      "density": {
+        "cell-y": { "$type": "dimension", "$value": "{scale.250}" },
+        "cell-x": { "$type": "dimension", "$value": "{scale.350}" },
+        "control-y": { "$type": "dimension", "$value": "{scale.250}" },
+        "control-x": { "$type": "dimension", "$value": "{scale.450}" },
+        "card-pad": { "$type": "dimension", "$value": "{scale.450}" },
+        "line": { "$type": "number", "$value": "1.35", "$extensions": { "bt.divergence": "D-01" } },
+        "body-size": { "$type": "dimension", "$value": "{type.fontSize.sm}" },
+        "data-size": { "$type": "dimension", "$value": "{type.fontSize.xs}" }
+      }
+    }
+  }
+}

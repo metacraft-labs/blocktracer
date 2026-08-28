@@ -34,28 +34,35 @@ proc txPage*(chain: string, v: TxView): string =
 
         # ── Hero ──────────────────────────────────────────────
         tdiv(class = "eyebrow"): text "Transaction"
-        tdiv(style = "display:flex;gap:12px;align-items:center;flex-wrap:wrap"):
-          h1(class = "h2"): text "Transaction"
-          raw outcomeBadge(v.outcome)
-        p(class = "lead", style = "font-family:var(--ct-font-mono);font-size:var(--ct-text-sm)"):
+        tdiv(class = "titlerow"):
+          h1(class = "h1 identifier"): text truncHash(v.hash)
+          span(class = "badge lg " & outcomeClass(v.outcome)):
+            text outcomeLabel(v.outcome)
+        p(class = "identifier lead tight"):
           text v.hash
         if v.outcomeReason.len > 0:
-          p(class = "muted"): text "Revert reason: " & v.outcomeReason
+          p(class = "muted stack"): text "Revert reason: " & v.outcomeReason
 
         # ── Debug affordance (follows trace.availability) ─────
-        tdiv(class = "debugcard"):
+        tdiv(class = "debugcard group"):
           tdiv(class = "row"):
             case headline
             of taReady, taDivergent:
               a(class = "btn primary", href = txUrl(chain, v.hash) & "/debug"):
                 text availabilityLabel(headline)
             of taOnDemand:
-              button(class = "btn ghost"): text availabilityLabel(headline)
+              button(class = "btn primary"): text availabilityLabel(headline)
             of taAbsent, taUnsupported:
               button(class = "btn disabled"): text availabilityLabel(headline)
-            span(class = "badge " & availabilityClass(headline)):
-              text $headline
+            span(class = "badge coverage " & availabilityClass(headline)):
+              text availabilityState(headline)
           p(class = "note"): text availabilityNote(headline)
+          # Page-Descriptions §7.2 puts this line BESIDE the Debug action that
+          # requests it. VD.2's round measured it ~1000px below the button, in
+          # a different section (r2-L2/4, r2-L5/6): proximity was grouping the
+          # explanation with the wrong thing.
+          p(class = "note spec"):
+            text "Internal calls and state changes come from the execution trace."
           if v.executions.len > 1:
             ul(class = "execlist"):
               for e in v.executions:
@@ -67,61 +74,73 @@ proc txPage*(chain: string, v: TxView): string =
                     span(class = "reason"): text e.reason
 
         # ── Overview grid ─────────────────────────────────────
-        tdiv(class = "eyebrow", style = "margin-top:var(--ct-space-2xl)"):
-          text "Overview"
+        h2(class = "sec-title next"): text "Overview"
         dl(class = "dl"):
           dt: text "Block"
           dd:
-            a(href = blockUrl(chain, v.blockHash)):
-              text $v.height & " : " & $v.index
+            a(href = blockUrl(chain, v.blockHash), class = "identifier"):
+              text $v.height & ":" & $v.index
           dt: text "Canonical"
-          dd: text $v.canonical
+          dd:
+            span(class = "badge " & (if v.canonical: "muted" else: "bad")):
+              text yesNo(v.canonical)
           dt: text "Finality"
-          dd: text v.finality
+          dd:
+            span(class = "badge " & finalityClass(v.finality)):
+              text sentenceCase(v.finality)
           for role in v.roles:
-            dt: text role.role
+            dt: text roleLabel(role.role)
             dd:
-              code: text role.address
+              span(class = "identifier"): text role.address
           if v.payloadTarget.len > 0:
             dt: text "Target"
             dd:
-              code: text v.payloadTarget
+              span(class = "identifier"): text v.payloadTarget
           for c in v.cost:
             dt: text "Cost · " & c.name
             dd:
-              text c.used & " / " & c.limit & " " & c.unit
+              span(class = "identifier"): text c.used & " / " & c.limit
+              span(class = "muted"): text " " & c.unit
               if c.token.len > 0:
-                span(class = "muted"): text "  (" & c.token & ")"
+                span(class = "muted"): text " (" & c.token & ")"
 
         # ── Decoded input ─────────────────────────────────────
-        tdiv(class = "eyebrow", style = "margin-top:var(--ct-space-2xl)"):
-          text "Decoded input"
+        h2(class = "sec-title next"): text "Decoded input"
         dl(class = "dl"):
           dt: text "Selector"
           dd:
             if v.payloadSelector.len > 0:
-              code: text v.payloadSelector
+              span(class = "identifier"): text v.payloadSelector
             else:
               span(class = "muted"): text "—"
           dt: text "Raw"
           dd:
-            code: text (if v.payloadRaw.len > 0: v.payloadRaw else: "0x")
+            span(class = "identifier"): text (if v.payloadRaw.len > 0: v.payloadRaw else: "0x")
         tdiv(class = "stub"):
-          b: text "Deferred: "
-          text "ABI-decoded parameters. Unknown selectors show raw bytes with a "
-          text "\"supply an ABI\" action in the full explorer."
+          tdiv(class = "measure"):
+            text "This selector is not in any ABI BlockTracer holds, so the "
+            text "parameters are shown as raw bytes. Supplying an ABI decodes them."
 
         # ── Deferred trace-derived sections ───────────────────
-        tdiv(class = "eyebrow", style = "margin-top:var(--ct-space-2xl)"):
-          text "Events · internal calls · state changes"
+        h2(class = "sec-title next"): text "Events"
         tdiv(class = "stub"):
-          text "Internal calls and state changes come from the execution trace. "
-          b: text "Deferred: "
-          text "they appear here once this transaction has a recorded trace and "
-          text "the in-page debugger can replay it."
+          tdiv(class = "measure"):
+            text "Events come from the transaction receipt, not from a trace. "
+            text "They appear here once this chain's receipts are published."
+
+        h2(class = "sec-title sibling"): text "Internal calls"
+        tdiv(class = "stub"):
+          tdiv(class = "measure"):
+            text "Internal calls come from the execution trace. They appear here "
+            text "once this transaction has a recorded trace."
+
+        h2(class = "sec-title sibling"): text "State changes"
+        tdiv(class = "stub"):
+          tdiv(class = "measure"):
+            text "State changes come from the execution trace. They appear here "
+            text "once this transaction has a recorded trace."
 
         # ── Raw native payload ────────────────────────────────
         if v.native != nil and v.native.kind != JNull:
-          tdiv(class = "eyebrow", style = "margin-top:var(--ct-space-2xl)"):
-            text "Raw (chain-native)"
+          h2(class = "sec-title next"): text "Raw (chain-native)"
           pre(class = "raw"): text pretty(v.native)

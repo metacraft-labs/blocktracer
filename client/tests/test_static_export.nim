@@ -21,10 +21,15 @@
 ##   4. Transaction-detail view: the Aztec private/public split renders honestly
 ##      — the real `absent` reason string from the overlay, the real outcome, and
 ##      the real payload target all appear.
-##   5. The design-system token layer resolved into the emitted CSS (the
-##      "consume the design system" gate), and pages reference it via var(--ct-*).
+##   5. The web-lineage token layer resolved into the emitted CSS (the "consume
+##      the design system" gate), and pages reference it via var(--bt-*).
+##   6. VD.2's foundations reached the SHIPPED page rather than only the source:
+##      both themes, both `[data-theme]` overrides and the debugger register are
+##      present; every `var(--bt-*)` a page uses is declared; the primitive
+##      `--ct-*` ramp has not leaked back in; and the emitter refuses an
+##      untracked literal (Design-System.md §4.1, the build-time half).
 
-import std/[unittest, os, json, strutils, osproc]
+import std/[unittest, os, json, strutils, osproc, re, sets]
 
 import ../src/ssr
 import ../src/reader
@@ -33,6 +38,7 @@ import ../src/design_system/tokens
 const
   Chain = "aztec"
   BrandIndigo600 = "#4f46e5"  # colors.brand.600 → colors.indigo.600 in the pinned DS
+  # (no palette constant needed: the theme checks below are properties)
 
 proc shard(hash: string): string =
   let h = if hash.startsWith("0x"): hash[2 .. ^1] else: hash
@@ -142,7 +148,7 @@ suite "Block-list view renders real data":
 suite "Block-detail view renders real data":
   let html = readFile(dist / Chain / "block" / headHash / "index.html")
   test "it is the CLIENT render, not the generator's minimal entry page":
-    check "var(--ct-action)" in html          # inlined design-system token layer
+    check "var(--bt-action-bg)" in html       # inlined design-system token layer
     check "class=\"crumbs\"" in html           # explorer chrome
   test "the real parent hash and every real tx hash appear":
     check headHash in html
@@ -175,18 +181,137 @@ suite "Transaction-detail view renders real data (the Aztec split)":
     let html = readFile(dist / Chain / "tx" / other / "index.html")
     check absentReason notin html
 
-suite "Design-system token consumption gate":
-  test "emitTokensCss resolves the DTCG brand/alias/mapped chain":
-    let css = emitTokensCss()
+suite "Design-system token consumption gate (VD.2 web lineage)":
+  let css = emitTokensCss()
+
+  test "the web lineage resolves through alias to a brand primitive":
+    # --bt-action-bg = {colors.brand.600} → {colors.indigo.600} → #4f46e5.
+    # A three-hop resolution, so a broken alias layer cannot pass this.
     check css.startsWith(":root")
-    check ("--ct-color-brand-600: " & BrandIndigo600) in css
-    check "--ct-font-sans: 'Space Grotesk" in css
-    check "--ct-space-md:" in css
-  test "the home page inlines the token layer and references it via var(--ct-*)":
-    let html = readFile(dist / "index.html")
-    check ("--ct-color-brand-600: " & BrandIndigo600) in html
-    check "var(--ct-action)" in html
-    check "var(--ct-font-sans)" in html
-    check Chain in html                      # the chain strip lists the demo chain
+    check ("--bt-action-bg:" & BrandIndigo600) in css
+    check "--bt-font-sans:'Space Grotesk" in css
+    check "--bt-space-md:16px" in css
+
+  test "the four rhythm roles are separated, not one step doing two jobs":
+    # VD.1 measured a 49px row pitch against a 49px section boundary. The roles
+    # must resolve to strictly increasing, well-separated values.
+    check "--bt-rhythm-row:12px" in css
+    check "--bt-rhythm-stack:24px" in css
+    check "--bt-rhythm-group:48px" in css
+    check "--bt-rhythm-section:100px" in css
+
+  test "both themes exist independently — the light theme is not the dark one":
+    # Asserted as a PROPERTY rather than against two hard-coded hexes, so the
+    # palette can move without the test going stale — and so it cannot be
+    # satisfied by the dark-only :root block VD.0 found (24 of 32 light/dark
+    # captures were byte-identical because there was no light theme at all).
+    check "@media (prefers-color-scheme:dark)" in css
+    check "[data-theme=\"light\"]" in css
+    check "[data-theme=\"dark\"]" in css
+    var lightCanvas, darkCanvas: array[1, string]
+    let iLight = css.find(
+      re("""\[data-theme="light"\]\{[^}]*--bt-surface-canvas:(#[0-9a-f]{6})"""), lightCanvas)
+    let iDark = css.find(
+      re("""\[data-theme="dark"\]\{[^}]*--bt-surface-canvas:(#[0-9a-f]{6})"""), darkCanvas)
+    check iLight >= 0
+    check iDark >= 0
+    check lightCanvas[0] != darkCanvas[0]
+    # And the light one really is the light one: a theme axis wired to two
+    # identical or inverted values would pass a mere inequality check.
+    proc lumaOf(hex: string): int =
+      parseHexInt(hex[1 .. 2]) + parseHexInt(hex[3 .. 4]) + parseHexInt(hex[5 .. 6])
+    check lumaOf(lightCanvas[0]) > lumaOf(darkCanvas[0]) + 300
+    # The surface ladder is a real ladder, not one tone repeated. Asserted as a
+    # property for the same reason as the canvas: five roles, five distinct
+    # values, in EACH theme independently. The VD.2 round found one tone doing
+    # four jobs (input, label column, callout, code region) and this is the
+    # shape of that defect.
+    for themeSel in ["""\[data-theme="light"\]""", """\[data-theme="dark"\]"""]:
+      var seen = initHashSet[string]()
+      for role in ["canvas", "raised", "sunken", "code", "hover"]:
+        var m: array[1, string]
+        let i = css.find(re(themeSel & """\{[^}]*--bt-surface-""" & role &
+                            """:(#[0-9a-f]{6})"""), m)
+        check i >= 0
+        seen.incl m[0]
+      # canvas/raised legitimately coincide on a white light canvas, so the
+      # bar is "at least three distinct tones", not five.
+      check seen.len >= 3
+
+  test "the debugger register is a density parametrisation, not a second CSS":
+    check "[data-register=\"debugger\"]" in css
+    # A property, not two constants: the debugger's cell padding is STRICTLY
+    # tighter than the explorer's, whatever the two rungs happen to be. A
+    # register parametrisation that resolved to the same density in both would
+    # be two names for one thing.
+    var expY, dbgY: array[1, string]
+    check css.find(re("""^:root\{[^}]*--bt-density-cell-y:(\d+)px"""), expY) >= 0
+    check css.find(re("""\[data-register="debugger"\]\{[^}]*--bt-density-cell-y:(\d+)px"""), dbgY) >= 0
+    check parseInt(dbgY[0]) < parseInt(expY[0])
+
+  test "the primitive ramp is NOT emitted, so a Layer 2 reference to one breaks":
+    # VD.2 stopped emitting --ct-*. That is what makes the lint constructive:
+    # a brand primitive in a view is undefined as well as forbidden.
+    check "--ct-" notin css
+
+  test "the emitter carries a binding kind for every token":
+    let toks = loadWebTokens()
+    check toks.len > 100
+    var literals = 0
+    for t in toks:
+      case t.kind
+      of bkToken:
+        check t.counterpart.len > 0
+      of bkLiteral:
+        # Design-System.md §4.1, the build-time half: an untracked literal
+        # raises in loadWebTokens(), so reaching here means every one is named.
+        check t.divergence.len > 0
+        inc literals
+    check literals > 0
+
+suite "The foundations reached the SHIPPED page":
+  let html = readFile(dist / "index.html")
+  var style: array[1, string]
+  let hasStyle = html.find(re"(?s)<style>(.*?)</style>", style) >= 0
+  let shipped = if hasStyle: style[0] else: ""
+
+  test "the page carries an inlined <style> block":
+    check hasStyle
+    check shipped.len > 1000
+
+  test "every var(--bt-*) the page references is declared in the same page":
+    # The check that a token rename cannot half-land: a rule referring to a
+    # variable nothing declares renders as nothing at all, silently.
+    var declared = initHashSet[string]()
+    for m in shipped.findAll(re"--bt-[a-z0-9-]+\s*:"):
+      declared.incl m.strip(chars = {' ', ':'})
+    var dangling: seq[string]
+    for m in shipped.findAll(re"var\(--bt-[a-z0-9-]+"):
+      let name = m[4 .. ^1]
+      if name notin declared and name notin dangling:
+        dangling.add name
+    check dangling.len == 0
+    if dangling.len > 0:
+      echo "  dangling --bt-* references: ", dangling
+
+  test "both themes, both overrides and both registers shipped":
+    check "prefers-color-scheme:dark" in shipped
+    check "[data-theme=\"light\"]" in shipped
+    check "[data-theme=\"dark\"]" in shipped
+    check "[data-register=\"debugger\"]" in shipped
+    check "data-register=\"explorer\"" in html   # the element, not just the rule
+
+  test "no raw hex colour survives in the SHIPPED view rules":
+    # Token DECLARATIONS are hex by definition — that is what a resolved token
+    # is. What must not appear is a hex value in a rule BODY, which would mean
+    # a Layer 2 view wrote a colour rather than referencing a role. The
+    # declarations are stripped, and what is left is scanned.
+    let rulesOnly = shipped.replace(re"--bt-[a-z0-9-]+:[^;}]*", "")
+    var offenders: seq[string]
+    for m in rulesOnly.findAll(re"#[0-9a-fA-F]{3,8}\b"):
+      offenders.add m
+    check offenders.len == 0
+    if offenders.len > 0:
+      echo "  raw colours in shipped rule bodies: ", offenders
 
 removeDir(workDir)

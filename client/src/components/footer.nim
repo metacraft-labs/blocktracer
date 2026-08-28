@@ -13,6 +13,6 @@ proc siteFooter*(): string =
           text "backwards through any transaction."
         tdiv(class = "muted"):
           text "Rendered from demo data ("
-          code:
+          span(class = "mono"):
             text "blocktracer-demo-gen"
           text ") — no live chain, no account, no tracking."

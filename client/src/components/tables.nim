@@ -16,14 +16,16 @@ proc blocksTable*(chain: string, rows: seq[BlockRow]): string =
       table(class = "tbl"):
         thead:
           tr:
-            th: text "Height"
+            # A numeric column's HEADER is right-aligned too, so the header and
+            # the digits below it share an edge (rubric A6).
+            th(class = "num"): text "Height"
             th: text "Block hash"
-            th: text "Txs"
+            th(class = "num"): text "Txs"
             th: text "Parent"
         tbody:
           if rows.len == 0:
             tr:
-              td: text ""
+              td(class = "empty", colspan = "4"): text "No blocks."
           else:
             for b in rows:
               tr:
@@ -54,7 +56,7 @@ proc txTable*(chain: string, rows: seq[TxRow]): string =
           tr:
             th: text "Trace"
             th: text "Tx hash"
-            th: text "Block"
+            th(class = "num"): text "Block"
             th: text "From"
             th: text "To / target"
             th: text "Method"
@@ -62,7 +64,7 @@ proc txTable*(chain: string, rows: seq[TxRow]): string =
         tbody:
           if rows.len == 0:
             tr:
-              td(class = "empty"): text "No transactions."
+              td(class = "empty", colspan = "7"): text "No transactions."
           else:
             for t in rows:
               tr:
@@ -83,7 +85,7 @@ proc txTable*(chain: string, rows: seq[TxRow]): string =
                     span(class = "muted"): text "—"
                 td:
                   if t.methodSel.len > 0:
-                    code: text t.methodSel
+                    span(class = "mono"): text t.methodSel
                   else:
                     span(class = "muted"): text "—"
                 td: raw outcomeBadge(t.outcome)

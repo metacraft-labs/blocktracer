@@ -1,31 +1,52 @@
-## Design-system token bridge.
+## Design-system token bridge — the WEB lineage (Design-System.md §1/§3).
 ##
-## Reads the canonical Metacraft brand tokens straight from
-## `codetracer-design-system` (the W3C-DTCG `brand/`, `alias/`, `mapped/` JSON
-## — the single source of truth) and emits them as `--ct-*` CSS custom
-## properties. Every component's CSS resolves its colours, fonts, spacing and
-## radii from these variables (see components/styles.nim), so nothing is an
-## ad-hoc hex/px literal — that is the B-M1 "consume the design system, not
-## ad-hoc CSS" gate.
+## Two layers, one direction:
 ##
-## Resolution is genuine DTCG dereferencing: a token whose `$value` is a
-## reference like `{colors.indigo.600}` (or a chain alias→brand,
-## mapped→alias→brand) is followed across all three files until it lands on a
-## concrete hex / number. Numeric primitives (the `scale.N` ramp, in px) become
-## `<n>px`.
+##   codetracer-design-system/{brand,alias,mapped}/*.json     ← product lineage
+##            │  DTCG `{group.token}` alias resolution
+##            ▼
+##   client/src/design_system/web.tokens.json                 ← web lineage
+##            │  this module
+##            ▼
+##   :root{ --bt-* }  +  the dark block  +  [data-theme]  +  [data-register]
 ##
-## The design system is located identically whether it is a workspace sibling
-## (local dev) or a pinned Nix flake input (hermetic CI build):
+## `web.tokens.json` is the ONLY place a web-lineage design value is decided.
+## Every leaf in it is either
+##
+##   * **bkToken**   — `$value` is a `{ref}` into brand/alias/mapped, resolved
+##                     here across all three files, or
+##   * **bkLiteral** — a concrete value no lineage supplies, which MUST name a
+##                     divergence row in `docs/DESIGN-DIVERGENCES-WEB.md` via
+##                     `$extensions["bt.divergence"]`.
+##
+## That binding kind is what makes Design-System.md §4.1 enforceable, and
+## `tools/design/check-tokens.mjs` is the check. Nothing in
+## `components/styles.nim` or any page may reference a brand primitive or write
+## a raw colour or pixel value: Layer 2 sees `var(--bt-*)` and utility classes
+## and nothing else (`verify_no_raw_values_in_views`).
+##
+## VD.2 deliberately stopped emitting the old `--ct-*` primitive ramp. It was a
+## parallel vocabulary in which `var(--ct-color-brand-400)` in a page WORKED,
+## so the lint against brand primitives in Layer 2 was the only thing standing
+## between the product and a second, untracked design system. Now such a
+## reference is both linted AND undefined.
+##
+## ── Variable naming ────────────────────────────────────────────────────────
+## The JSON path becomes the variable name by dropping the group prefix and
+## joining the rest with `-`:
+##
+##   base.type.h1.size          → --bt-type-h1-size      (drop 1 segment)
+##   theme.light.surface.canvas → --bt-surface-canvas    (drop 2 segments)
+##   register.debugger.density.cell-y → --bt-density-cell-y (drop 2 segments)
+##
+## `tools/design/check-tokens.mjs` derives the same names from the same file,
+## so the checker and the emitter cannot drift: there is one source of truth.
+##
+## ── The design system is located identically in dev and in CI ──────────────
 ##   1. `DESIGN_SYSTEM_SRC` env var, when set (exported by flake.nix), else
-##   2. the `codetracer-design-system` checkout beside the blocktracer repo
-##      (absolute, derived from this module's own path so it is CWD-independent).
-##
-## This bridge is lifted verbatim from codetracer-web-site so the blocktracer
-## explorer consumes exactly the same DTCG token source of truth; only the
-## sibling-fallback path differs, because this client lives one level deeper
-## (blocktracer/client/…) than a top-level site repo.
+##   2. the `codetracer-design-system` checkout beside the blocktracer repo.
 
-import std/[os, json, strutils]
+import std/[os, json, strutils, tables, algorithm]
 
 proc designSystemDir*(): string =
   ## Absolute path to the codetracer-design-system source tree.
@@ -39,6 +60,10 @@ proc designSystemDir*(): string =
   let repoRoot = clientRoot.parentDir                                 # <repo>
   result = repoRoot.parentDir / "codetracer-design-system"
 
+proc webTokensPath*(): string =
+  ## The web-lineage DTCG file, beside this module.
+  currentSourcePath().parentDir / "web.tokens.json"
+
 # ── DTCG token loading + reference resolution ──────────────────────────────
 
 type TokenSpace = object
@@ -46,7 +71,7 @@ type TokenSpace = object
 
 proc loadTokenSpace(dsDir: string): TokenSpace =
   ## Load the three canonical DTCG files. Missing files are a hard, loud error:
-  ## the whole point of B-M1 is that these resolve.
+  ## the whole point of the gate is that these resolve.
   for rel in ["brand/brand.json", "alias/alias.json", "mapped/mapped.json"]:
     let path = dsDir / rel
     if not fileExists(path):
@@ -73,8 +98,14 @@ proc lookup(space: TokenSpace, path: string): JsonNode =
       return n
   nil
 
+proc numToStr(v: JsonNode): string =
+  case v.kind
+  of JInt: $v.getInt
+  of JFloat: formatFloat(v.getFloat, ffDecimal, 2).strip(chars = {'0'}).strip(chars = {'.'})
+  else: ""
+
 proc resolve(space: TokenSpace, path: string, seen: var seq[string]): string =
-  ## Resolve a token path to a concrete CSS value, following `{ref}` chains.
+  ## Resolve a token path to a concrete value, following `{ref}` chains.
   if path in seen:
     raise newException(ValueError, "cyclic token reference: " & path)
   seen.add path
@@ -90,97 +121,159 @@ proc resolve(space: TokenSpace, path: string, seen: var seq[string]): string =
     if s.startsWith("{") and s.endsWith("}"):
       return space.resolve(s[1 ..< ^1], seen)
     return s
-  of JInt:
-    return $v.getInt
-  of JFloat:
-    return formatFloat(v.getFloat, ffDecimal, 2).strip(chars = {'0'}).strip(chars = {'.'})
+  of JInt, JFloat:
+    return numToStr(v)
   else:
     raise newException(ValueError, "unsupported token value kind for " & path)
 
-proc color(space: TokenSpace, path: string): string =
-  var seen: seq[string]
-  space.resolve(path, seen)
+# ── The web lineage ────────────────────────────────────────────────────────
 
-proc px(space: TokenSpace, path: string): string =
-  var seen: seq[string]
-  space.resolve(path, seen) & "px"
+type
+  BindingKind* = enum
+    bkToken    ## `$value` was a `{ref}` into brand/alias/mapped
+    bkLiteral  ## a web-lineage-specific value; needs a divergence row
 
-proc fontStack(space: TokenSpace, path: string, fallbacks: string): string =
-  ## A DTCG font-family token → a real CSS font stack. The primary family name
-  ## comes verbatim from the token (so the linkage to the design system is
-  ## literal); fallbacks are appended for coverage.
-  var seen: seq[string]
-  let family = space.resolve(path, seen)
-  "'" & family & "', " & fallbacks
+  WebToken* = object
+    cssVar*: string       ## `--bt-…`
+    value*: string        ## the resolved CSS value
+    kind*: BindingKind
+    counterpart*: string  ## the brand path, for bkToken; "" for bkLiteral
+    divergence*: string   ## the divergence row id, for bkLiteral; "" otherwise
+    group*: string        ## `base` | `theme.light` | `theme.dark` | `register.*`
+
+const
+  ## `$type`s whose numeric resolved value is a px length. A DTCG dimension in
+  ## the brand ramp is a bare number (`scale.450 = 12`), so the unit is applied
+  ## here rather than being written into every reference.
+  DimensionTypes = ["dimension"]
+
+proc isRef(s: string): bool = s.startsWith("{") and s.endsWith("}")
+
+proc leafValue(space: TokenSpace, node: JsonNode, path: string,
+               kind: var BindingKind, counterpart: var string): string =
+  ## Resolve one web-lineage leaf, and report how it bound.
+  let v = node["$value"]
+  let ty = if "$type" in node: node["$type"].getStr else: ""
+  var raw: string
+  case v.kind
+  of JString:
+    let s = v.getStr
+    if s.isRef:
+      kind = bkToken
+      counterpart = s[1 ..< ^1]
+      var seen: seq[string]
+      raw = space.resolve(counterpart, seen)
+    else:
+      kind = bkLiteral
+      counterpart = ""
+      raw = s
+  of JInt, JFloat:
+    kind = bkLiteral
+    counterpart = ""
+    raw = numToStr(v)
+  else:
+    raise newException(ValueError, "unsupported $value kind at " & path)
+
+  # A resolved dimension that came back as a bare number is px.
+  if ty in DimensionTypes and raw.len > 0 and
+     raw.allCharsInSet({'0'..'9', '.', '-'}):
+    raw = raw & "px"
+  # A family name may contain spaces, so it is quoted here rather than in
+  # every rule that uses it. Fallback stacks are `$type: string` and are not.
+  if ty == "fontFamily":
+    raw = "'" & raw & "'"
+  raw
+
+proc cssVarName(path: seq[string]): string =
+  ## base.type.h1.size → --bt-type-h1-size ; theme.light.surface.canvas →
+  ## --bt-surface-canvas ; register.debugger.density.cell-y → --bt-density-cell-y
+  let drop = if path[0] == "base": 1 else: 2
+  "--bt-" & path[drop .. ^1].join("-")
+
+proc collect(space: TokenSpace, node: JsonNode, path: seq[string],
+             group: string, acc: var seq[WebToken]) =
+  if node.kind != JObject: return
+  if "$value" in node:
+    var kind: BindingKind
+    var counterpart: string
+    let value = leafValue(space, node, path.join("."), kind, counterpart)
+    var divergence = ""
+    if "$extensions" in node and "bt.divergence" in node["$extensions"]:
+      divergence = node["$extensions"]["bt.divergence"].getStr
+    if kind == bkLiteral and divergence.len == 0:
+      # Fail the BUILD, not just the lint: an untracked literal must never get
+      # as far as a rendered page (Design-System.md §4.1).
+      raise newException(ValueError,
+        "untracked web-lineage literal at " & path.join(".") & " = '" & value &
+        "'\nEvery bkLiteral needs $extensions[\"bt.divergence\"] naming a row " &
+        "in docs/DESIGN-DIVERGENCES-WEB.md")
+    acc.add WebToken(cssVar: cssVarName(path), value: value, kind: kind,
+                     counterpart: counterpart, divergence: divergence,
+                     group: group)
+    return
+  for k in node.keys:
+    if k.startsWith("$"): continue
+    collect(space, node[k], path & @[k], group, acc)
+
+proc loadWebTokens*(): seq[WebToken] =
+  ## Every `--bt-*` token, resolved, with its binding kind. This is what both
+  ## the CSS emitter and `client/tests/test_static_export.nim` read.
+  let space = loadTokenSpace(designSystemDir())
+  let web = parseJson(readFile(webTokensPath()))
+  for top in ["base", "theme", "register"]:
+    if top notin web:
+      raise newException(ValueError, "web.tokens.json is missing the '" & top & "' group")
+  collect(space, web["base"], @["base"], "base", result)
+  for sub in ["light", "dark"]:
+    if sub notin web["theme"]:
+      raise newException(ValueError, "web.tokens.json: theme." & sub & " is missing")
+    collect(space, web["theme"][sub], @["theme", sub], "theme." & sub, result)
+  for sub in ["explorer", "debugger"]:
+    if sub notin web["register"]:
+      raise newException(ValueError, "web.tokens.json: register." & sub & " is missing")
+    collect(space, web["register"][sub], @["register", sub], "register." & sub, result)
 
 # ── CSS emission ───────────────────────────────────────────────────────────
 
-proc buildTokensCss(space: TokenSpace): string =
-  ## Emit `:root{ --ct-*: … }` from resolved design-system tokens.
-  var vars: seq[(string, string)]
+proc declarations(toks: seq[WebToken], group: string): string =
+  var names: seq[string]
+  var byName = initTable[string, string]()
+  for t in toks:
+    if t.group == group:
+      names.add t.cssVar
+      byName[t.cssVar] = t.value
+  names.sort()
+  for n in names:
+    result.add n & ":" & byName[n] & ";"
 
-  # Brand + neutral colour ramps (semantic aliases → brand primitives).
-  for step in ["100", "200", "300", "400", "500", "600", "700", "800", "900"]:
-    vars.add ("--ct-color-brand-" & step, space.color("colors.brand." & step))
-  for step in ["50", "100", "150", "200", "250", "300", "350", "400", "450",
-               "500", "550", "600", "650", "700", "750", "800", "850", "900",
-               "950", "1000"]:
-    vars.add ("--ct-color-neutral-" & step, space.color("colors.neutral." & step))
-  for step in ["300", "400", "500", "600"]:
-    vars.add ("--ct-color-secondary-" & step, space.color("colors.secondary." & step))
+proc buildTokensCss(toks: seq[WebToken]): string =
+  ## Design-System.md §7: light and dark for both registers via
+  ## `prefers-color-scheme` PLUS an explicit `[data-theme]` override; the
+  ## explorer defaults to light, the debugger defaults to dark, and a user's
+  ## explicit choice overrides both.
+  let base = declarations(toks, "base")
+  let light = declarations(toks, "theme.light")
+  let dark = declarations(toks, "theme.dark")
+  let explorer = declarations(toks, "register.explorer")
+  let debugger = declarations(toks, "register.debugger")
 
-  # Semantic status colours.
-  vars.add ("--ct-color-success", space.color("colors.success.500"))
-  vars.add ("--ct-color-error", space.color("colors.error.500"))
-  vars.add ("--ct-color-warning", space.color("colors.warning.500"))
-  vars.add ("--ct-color-information", space.color("colors.information.500"))
-
-  # Mapped UI tokens (borders / dividers) — proof the mapped layer resolves.
-  vars.add ("--ct-border-primary", space.color("colors.ui.border.primary"))
-  vars.add ("--ct-border-action", space.color("colors.ui.border.action"))
-  vars.add ("--ct-border-focus", space.color("colors.ui.border.focus"))
-  vars.add ("--ct-divider-subtle", space.color("colors.ui.divider.subtle"))
-
-  # Convenience surface/text/action aliases for component authoring.
-  vars.add ("--ct-bg", space.color("colors.neutral.1000"))
-  vars.add ("--ct-bg-raised", space.color("colors.neutral.900"))
-  vars.add ("--ct-fg", space.color("colors.neutral.50"))
-  vars.add ("--ct-fg-muted", space.color("colors.neutral.300"))
-  vars.add ("--ct-action", space.color("colors.brand.600"))
-  vars.add ("--ct-action-hover", space.color("colors.brand.500"))
-  vars.add ("--ct-on-action", space.color("colors.base.white"))
-
-  # Typography.
-  vars.add ("--ct-font-sans",
-    space.fontStack("type.fontFamily.ui-primary",
-      "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"))
-  vars.add ("--ct-font-mono",
-    space.fontStack("type.fontFamily.code-primary",
-      "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"))
-
-  # Font-size ramp (px).
-  for name in ["2xs", "xs", "sm", "md", "lg", "xl", "2xl", "3xl", "4xl"]:
-    vars.add ("--ct-text-" & name, space.px("type.fontSize." & name))
-
-  # Spacing scale (px), from the alias padding ramp.
-  for name in ["3xs", "2xs", "xs", "sm", "md", "lg", "xl", "2xl", "3xl"]:
-    vars.add ("--ct-space-" & name, space.px("padding." & name))
-
-  # Border-radius scale (px).
-  for name in ["2xs", "xs", "sm", "md", "lg", "xl", "2xl"]:
-    vars.add ("--ct-radius-" & name, space.px("border.border radius." & name))
-
-  result = ":root{\n"
-  for (k, v) in vars:
-    result.add "  " & k & ": " & v & ";\n"
-  result.add "}\n"
+  # 1. Light is the explorer's default, and every theme-independent token.
+  result.add ":root{" & base & explorer & light & "}\n"
+  # 2. Dark when the user's OS asks for it and no explicit choice overrides.
+  result.add "@media (prefers-color-scheme:dark){:root:not([data-theme=\"light\"]){" & dark & "}}\n"
+  # 3. The explicit override, either direction. Wins over the media query.
+  result.add "[data-theme=\"light\"]{" & light & "}\n"
+  result.add "[data-theme=\"dark\"]{" & dark & "}\n"
+  # 4. The debugger register: dense, dark by default — but an explicit
+  #    [data-theme="light"] still wins, per §7.
+  result.add "[data-register=\"debugger\"]{" & debugger & dark & "}\n"
+  result.add "[data-register=\"debugger\"][data-theme=\"light\"]{" & light & "}\n"
 
 var cachedCss: string  ## Emitted CSS is stable per build; resolve once.
 
 proc emitTokensCss*(): string =
-  ## `:root{…}` with every `--ct-*` variable resolved from
-  ## codetracer-design-system. Cached after first call.
+  ## The full `--bt-*` layer: `:root`, the dark block, both `[data-theme]`
+  ## overrides and the debugger register. Cached after first call.
   if cachedCss.len == 0:
-    let space = loadTokenSpace(designSystemDir())
-    cachedCss = buildTokensCss(space)
+    cachedCss = buildTokensCss(loadWebTokens())
   cachedCss

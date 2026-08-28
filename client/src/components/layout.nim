@@ -3,11 +3,21 @@
 ## content (pre-rendered HTML inserted via `raw`), and the footer.
 ##
 ## The `<style>` block is assembled from three sources, in order:
-##   1. design_system/tokens.emitTokensCss() — `:root{ --ct-* }`, resolved from
-##      the codetracer-design-system DTCG JSON (the single source of truth).
+##   1. design_system/tokens.emitTokensCss() — the web-lineage `--bt-*` layer:
+##      `:root` (light + theme-independent), the `prefers-color-scheme: dark`
+##      block, both `[data-theme]` overrides, and the debugger register —
+##      resolved from client/src/design_system/web.tokens.json over the
+##      codetracer-design-system DTCG JSON.
 ##   2. styles.fontFaceCss — @font-face for the vendored brand faces.
-##   3. styles.globalCss — the component rules, all `var(--ct-*)`.
+##   3. styles.globalCss — the component rules, all `var(--bt-*)`.
 ## So every component's visual value traces back to the design system.
+##
+## `<html data-register="explorer">` is set explicitly rather than left to the
+## default. Design-System.md §2 makes the register a property of the surface —
+## explorer chrome is the web lineage, the debug route is the product lineage —
+## and the token layer keys its density and default theme off this attribute.
+## Writing it out means the debug route's `data-register="debugger"` is a change
+## of value rather than the introduction of a new mechanism.
 ##
 ## `robots` carries the SEO crawl class (SEO-And-Crawl-Budget.md §5): the home is
 ## `index,follow`; ordinary entity pages are `noindex,follow`, matching the
@@ -26,7 +36,7 @@ proc pageLayout*(title, description, content: string,
   let css = emitTokensCss() & fontFaceCss & globalCss
   "<!doctype html>\n" & renderToString(proc(): string =
     ui:
-      html(lang = "en"):
+      html(lang = "en", `data-register` = "explorer"):
         head:
           meta(charset = "utf-8")
           meta(name = "viewport", content = "width=device-width, initial-scale=1")

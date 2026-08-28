@@ -10,13 +10,18 @@ import isonim/dsl/ui
 proc siteNav*(): string =
   ui:
     nav(class = "nav", id = "nav"):
-      a(class = "brand", href = "/"):
-        span(class = "sq")
-        text "BlockTracer"
-      tdiv(class = "links"):
-        a(class = "opt", href = "/aztec/blocks"):
-          text "Blocks"
-        a(class = "opt", href = "/aztec"):
-          text "Chain"
-        form(action = "/search", `method` = "get"):
-          input(name = "q", placeholder = "block · tx · address")
+      # The header sits inside the SAME `.inner` container as every page body,
+      # so the brand and the search field align to the content beneath them.
+      # VD.1 measured header content at x=24→1896 against a body column at
+      # x=390→1530: two unrelated grids (ledger tx-detail/wide/light/L2/6).
+      tdiv(class = "inner"):
+        a(class = "brand", href = "/"):
+          span(class = "sq")
+          text "BlockTracer"
+        tdiv(class = "links"):
+          a(class = "opt", href = "/aztec/blocks"):
+            text "Blocks"
+          a(class = "opt", href = "/aztec"):
+            text "Chain"
+          form(action = "/search", `method` = "get"):
+            input(name = "q", placeholder = "block · tx · address")

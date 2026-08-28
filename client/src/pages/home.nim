@@ -11,9 +11,9 @@ proc homePage*(infos: seq[ChainInfo]): string =
   ui:
     section(class = "sec hero"):
       tdiv(class = "inner"):
-        h1(class = "h1"):
+        h1(class = "display"):
           text "Step "
-          span(style = "color:var(--ct-color-brand-400)"):
+          span(class = "accent"):
             text "backwards"
           text " through any transaction."
         p(class = "lead sub"):

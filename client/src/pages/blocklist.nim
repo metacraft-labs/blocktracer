@@ -19,13 +19,15 @@ proc blockListPage*(chain: string, info: ChainInfo, blocks: seq[BlockRow]): stri
           span(class = "sep"): text "/"
           span: text "blocks"
         tdiv(class = "eyebrow"): text "Blocks"
-        h1(class = "h2"): text chain & " blocks"
+        h1(class = "h1"): text chain & " blocks"
         p(class = "lead"):
           text "The chain's blocks, newest first, from generation "
-          code: text info.generation
+          span(class = "mono"): text info.generation
           text "."
-        raw blocksTable(chain, blocks)
+        tdiv(class = "group"):
+          raw blocksTable(chain, blocks)
         tdiv(class = "stub"):
-          b: text "Deferred: "
-          text "cursor pagination (backwards-walking by block number) and "
-          text "per-block gas/resource bars land with the explorer-breadth slice."
+          tdiv(class = "measure"):
+            b: text "Deferred: "
+            text "cursor pagination (backwards-walking by block number) and "
+            text "per-block gas/resource bars land with the explorer-breadth slice."

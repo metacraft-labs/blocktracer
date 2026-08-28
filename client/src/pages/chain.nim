@@ -17,7 +17,7 @@ proc chainPage*(chain: string, info: ChainInfo,
           span(class = "sep"): text "/"
           span: text chain
         tdiv(class = "eyebrow"): text "Chain overview"
-        h1(class = "h2"): text chain
+        h1(class = "h1"): text chain
         tdiv(class = "stats"):
           tdiv(class = "stat"):
             tdiv(class = "k"): text "Head"
@@ -35,12 +35,10 @@ proc chainPage*(chain: string, info: ChainInfo,
             tdiv(class = "k"): text "Coverage"
             tdiv(class = "v mono"): text info.coverageMode
 
-        tdiv(class = "eyebrow", style = "margin-top:var(--ct-space-2xl)"):
-          text "Latest blocks"
+        h2(class = "sec-title next"): text "Latest blocks"
         raw blocksTable(chain, blocks)
-        p(class = "muted", style = "margin-top:var(--ct-space-md)"):
+        p(class = "muted stack"):
           a(href = blocksUrl(chain)): text "All blocks →"
 
-        tdiv(class = "eyebrow", style = "margin-top:var(--ct-space-2xl)"):
-          text "Latest transactions"
+        h2(class = "sec-title next"): text "Latest transactions"
         raw txTable(chain, txs)

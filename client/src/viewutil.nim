@@ -48,8 +48,56 @@ proc availabilityClass*(a: TraceAvailability): string =
   case a
   of taReady: "ok"
   of taDivergent: "bad"
-  of taOnDemand: "warn"
+  of taOnDemand: "info"
   of taAbsent, taUnsupported: "muted"
+
+proc availabilityState*(a: TraceAvailability): string =
+  ## The badge beside the Debug action names the trace's STATE; the button
+  ## names the ACTION. Previously the badge rendered the serialised enum
+  ## (`onDemand`) — adapter vocabulary on an external-facing surface, and the
+  ## same class of leak VD.1 removed from the deferred-section copy.
+  case a
+  of taReady: "Trace ready"
+  of taOnDemand: "On demand"
+  of taUnsupported: "No recorder"
+  of taAbsent: "Not observable"
+  of taDivergent: "Divergent"
+
+proc roleLabel*(role: string): string =
+  ## An adapter's role name → the label column's own vocabulary. VD.1 finding 6
+  ## and VD.2's L1/6 and L5/7: `feePayer` sat beside `Block`, `Canonical` and
+  ## `Finality`, so one column carried two languages. Unknown roles fall through
+  ## verbatim rather than being hidden — a new chain family must show up as an
+  ## unstyled label to be noticed, not vanish.
+  case role
+  of "feePayer": "Fee payer"
+  of "from", "sender": "From"
+  of "to", "recipient": "To"
+  of "signer": "Signer"
+  of "proposer": "Proposer"
+  of "relayer": "Relayer"
+  else: role
+
+proc yesNo*(b: bool): string =
+  ## A boolean fact in the explorer register reads as a word, not as a literal.
+  if b: "Yes" else: "No"
+
+proc sentenceCase*(s: string): string =
+  ## An enum literal (`pending`, `finalized`) rendered as prose. Only the first
+  ## letter moves; the rest is left alone so a hyphenated or camelCase value is
+  ## still recognisably itself rather than silently rewritten.
+  if s.len == 0: s
+  else: (if s[0] in {'a'..'z'}: chr(ord(s[0]) - 32) else: s[0]) & s[1 .. ^1]
+
+proc finalityClass*(finality: string): string =
+  ## Finality is a status fact and gets the status vocabulary, so the page does
+  ## not present three members of one family in three different primitives
+  ## (VD.2 L3/7, L5/9).
+  case finality
+  of "finalized", "final", "irreversible": "ok"
+  of "pending", "unconfirmed": "muted"
+  of "reorged", "orphaned": "bad"
+  else: "muted"
 
 proc availabilityNote*(a: TraceAvailability): string =
   ## The one-line honest explanation the tx-detail hero shows beneath Debug.
@@ -59,7 +107,7 @@ proc availabilityNote*(a: TraceAvailability): string =
   of taDivergent:
     "A trace exists but the differential oracle disagreed with the chain; it opens with a divergence banner."
   of taOnDemand:
-    "No trace yet. Generating one runs the recorder in the pipeline (a signed-in job, not a page computation)."
+    "No trace has been recorded for this transaction yet. Generating one replays the transaction on our side and publishes the result — it needs an account, and nothing is computed in your browser."
   of taAbsent:
     "Structurally unobservable — there is no call structure to trace, so this is absent by nature, not a failed fetch."
   of taUnsupported:
