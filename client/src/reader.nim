@@ -180,3 +180,114 @@ proc txRow*(r: DataRoot, info: ChainInfo, hash: string): TxRow =
       break
   if result.fromAddr.len == 0 and v.roles.len > 0:
     result.fromAddr = v.roles[0].address
+
+# ── the trace behind a transaction, and the source behind the trace ────────
+#
+# Debugger-Integration.md §2's first two lines: "resolve trace status from the
+# transaction's data" and "attach a BlockSource". The debug route needs the
+# resolved artifact — where the container is, how big it is, what the manifest
+# says the execution contains — plus the source bundle the manifest recommends,
+# because Trace-Artifacts.md §2.5 is emphatic that the container carries
+# positions and interned paths and NO SOURCE TEXT. A viewer handed only
+# `trace.ct` steps correctly through code it cannot display.
+#
+# Resolution order is NOT re-decided here. `resolveSourceBundle` owns it
+# (manifest recommendation first, then the chain-wide `current.json` pointer),
+# which is the same function `viewmodel/source_bundle_vm.nim` delegates to and
+# for the same stated reason: a second copy of the order is a second thing to
+# keep in sync.
+
+type
+  TraceViewOutcome* = enum
+    tvReplayable = "replayable"     ## a container exists to open
+    tvPending = "pending"           ## derivable, not published (on demand)
+    tvNone = "none"                 ## absent, unsupported, or unresolvable
+
+  TraceView* = object
+    ## What the debug route needs about one execution's trace.
+    outcome*: TraceViewOutcome
+    availability*: TraceAvailability
+    reason*: string
+    selector*: string
+    containerPath*: string
+    containerBytes*: int
+    steps*, frames*: int
+    truncated*: bool
+    sourceLevel*: bool
+    reconstructed*: bool
+    languages*: seq[string]
+    validationStatus*: string
+    sourceBundle*: JsonNode        ## the recommended bundle's raw node, or nil
+    sourceBundleReason*: string    ## why there is none
+
+proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
+                selector = ""): TraceView =
+  ## Resolve the execution a Debug affordance would open, and the source
+  ## bundle that makes its positions legible.
+  ##
+  ## With no selector this follows `bestTrace` — "the strongest first, so a
+  ## transaction whose private half is absent and whose public half is ready
+  ## opens the public half". That is the behaviour §7.1's private/public split
+  ## needs: the route lands in the half that can be debugged, and the metadata
+  ## pane still states that the other half is structurally absent.
+  let tr = transaction(r.store, info.session, hash)
+  if tr.outcome != roFound:
+    raise newException(DataPlaneError, "transaction " & hash & ": " & tr.reason)
+  let traces = resolveTraces(r.store, info.session, tr.view,
+                             probeOnDemand = false)
+  var idx = -1
+  if selector.len > 0:
+    for i, t in traces:
+      if t.selector == selector: idx = i
+  else:
+    idx = bestTrace(traces)
+  if idx < 0:
+    return TraceView(outcome: tvNone,
+      reason: "no execution to open for " & hash &
+              (if selector.len > 0: " (selector '" & selector & "')" else: ""))
+
+  let t = traces[idx]
+  result.selector = t.selector
+  result.availability = t.availability
+  result.reason = t.reason
+  result.containerPath = t.containerPath
+  result.containerBytes = containerBytes(t)
+  result.reconstructed = t.reconstructed
+  result.outcome =
+    if isReplayable(t): tvReplayable
+    elif t.kind == trkOnDemand: tvPending
+    else: tvNone
+  if t.hasValidation: result.validationStatus = $t.validation.status
+  if t.hasManifest:
+    result.steps = t.manifest.execution.steps
+    result.frames = t.manifest.execution.frames
+    result.truncated = t.manifest.execution.truncated
+    result.sourceLevel = t.manifest.execution.sourceLevel
+    result.languages = t.manifest.execution.languages
+
+  # The source bundle the manifest recommends, for the first code hash the
+  # transaction executed. One hash covers the demo's single-contract
+  # transactions; a multi-contract transaction resolves the rest the same way,
+  # and the pane shows whichever documents resolved.
+  let hashes = codeHashes(tr.view.facts)
+  if hashes.len == 0:
+    result.sourceBundleReason = "this transaction executed no contract code"
+    return
+  let reference = resolveSourceBundle(r.store, info.slug, t.manifest,
+                                      t.hasManifest, hashes[0])
+  if reference.origin == bsNone:
+    result.sourceBundleReason = reference.reason
+    return
+  let fetched = fetchSourceBundle(r.store, reference)
+  case fetched.outcome
+  of boLoaded:
+    let raw = r.store.getJson(reference.path)
+    if raw.found and raw.error.len == 0:
+      result.sourceBundle = raw.node
+    else:
+      result.sourceBundleReason = raw.error
+  else:
+    # `boMismatched` in particular is REFUSED, never displayed: a bundle filed
+    # under a different code hash would attribute source to code that never
+    # ran (Source-Resolution.md §4).
+    result.sourceBundleReason = fetched.reason
