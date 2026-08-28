@@ -33,6 +33,14 @@ sdk-boundary:
 sdk-test-embed:
     ci/test/embed-handoff-test.sh --require
 
+# ── BlockTracer's own ViewModel layer (M12) ─────────────────────────────────
+# Front-End-Architecture.md §3's table. The Tier-1 half runs with no debugger
+# on the Nim path (`cd client && just test-viewmodels`); this is the other
+# half — the degraded-state seam, compiled against the real Embed SDK, so the
+# wire spellings the panes parse cannot drift from the ones this layer emits.
+viewmodel-seam:
+    ci/test/viewmodel-seam-test.sh --require
+
 # Generate a demo static tree into ./demo-site.
 demo-gen out="demo-site" seed="blocktracer-demo-0":
     nim c -r --hints:off src/blocktracer_demo_gen.nim --out:{{out}} --seed:{{seed}}
