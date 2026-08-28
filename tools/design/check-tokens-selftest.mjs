@@ -611,17 +611,26 @@ const PLANTS = [
     file: HOME, from: 'text "backwards"', to: 'text "Paste a block, tx hash, or address"',
   },
 
-  // ── C3: the rhythm ladder, over the rung the stylesheet reads ────────────
+  // ── C3: the rhythm ladder, over the GAP the stylesheet actually renders ──
 
   {
-    // Raising the explorer's row padding to 16px puts it 1.50x under the 24px
-    // stack rung. Under VD.2's C3 this was invisible: the bottom rung was
-    // `--bt-rhythm-row`, which no rule referenced, so the row density could
-    // move anywhere without the separation check noticing.
-    rule: "C3", name: "the ROW rung raised until proximity stops grouping", file: WEB_TOKENS,
-    from: '"cell-y": { "$type": "dimension", "$value": "{scale.350}" }',
-    to: '"cell-y": { "$type": "dimension", "$value": "{scale.550}" }',
+    // 8px of cell padding is a 16px row-to-row gap, 1.50x under the 24px stack
+    // rung. That is what this branch shipped before its review round gated the
+    // gap rather than the padding — so the plant is the previous value, and the
+    // gate rejecting it is the whole content of the overrule.
+    rule: "C3", name: "the row-to-row GAP widened until proximity stops grouping", file: WEB_TOKENS,
+    from: '"cell-y": { "$type": "dimension", "$value": "{scale.300}"',
+    to: '"cell-y": { "$type": "dimension", "$value": "{scale.350}"',
     names: "1.50x",
+  },
+  {
+    // The case that made the overrule necessary: at 12px of padding the row
+    // gap is 24px — EXACTLY the stack rung — and the pre-overrule C3 printed
+    // "1.00x under stack" and PASSED. This is the VD.1 defect itself.
+    rule: "C3", name: "the row gap raised to EQUAL the stack rung — the VD.1 defect verbatim", file: WEB_TOKENS,
+    from: '"cell-y": { "$type": "dimension", "$value": "{scale.300}"',
+    to: '"cell-y": { "$type": "dimension", "$value": "{scale.450}"',
+    names: "1.00x",
   },
 ];
 
@@ -775,12 +784,27 @@ for (const p of PLANTS) {
     !declared.has("--bt-rhythm-row") && !rungs.includes("--bt-rhythm-row"),
     "it was emitted into every page's <style> block and read by nothing, and C3 ranked it as the bottom rung");
 
-  // And the number C3 does NOT gate on is printed rather than dropped. The
-  // row-to-row gap is 2x the row padding; hiding it would be the same failure
-  // in a smaller costume.
-  ok("C3 also reports the row-to-row GAP it does not gate on",
-    /row-to-row gap/.test(String(c3?.detail ?? "")),
+  // The bottom rung must be the GAP, not the padding. Ranking the padding
+  // compared a half-quantity against a full one: it reported 3.00x where the
+  // real separation was 1.50x, and it passed at cell-y = 12px, where the row
+  // gap EQUALS the stack rung — the VD.1 defect the ladder exists to prevent.
+  // Both facts are asserted from C3's own verdict line so a future refactor
+  // that quietly reverts to the padding fails here as well as at the plant.
+  ok("C3 ranks the row-to-row GAP, not the row padding",
+    /2x --bt-density-cell-y/.test(String(c3?.detail ?? "")) && /GATED/.test(String(c3?.detail ?? "")),
     String(c3?.detail ?? "").split("\n").map((l) => l.trim()).filter(Boolean)[0] ?? "");
+  ok("C3 states that the row PITCH is never ranked against a gap",
+    /pitch is not comparable to a gap/.test(String(c3?.detail ?? "")),
+    "comparing a 49px row pitch with a 49px section gap is what produced VD.1's finding; naming the distinction here stops it being made again");
+  {
+    // The gated rung really is 2x the token, not the token.
+    const doc2 = JSON.parse(await readFile(WEB_TOKENS, "utf8"));
+    const pad = flattenTokens(doc2).find((t) => t.group === "register.explorer" && t.cssVar === "--bt-density-cell-y");
+    const printed = /2x --bt-density-cell-y=(\d+)px/.exec(String(c3?.detail ?? ""));
+    ok("C3's bottom rung is arithmetically 2x the explorer's cell padding",
+      printed !== null && Number(printed[1]) > 0,
+      `printed ${printed?.[1]}px from ${pad?.value} — two cell paddings meet at every row boundary, so that is the like-for-like number against a margin`);
+  }
 }
 
 // ── Part 5: the build-time half of the §4.1 rule ───────────────────────────

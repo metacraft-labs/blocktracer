@@ -20,7 +20,7 @@
     },
 
     "type": {
-      "$description": "The type scale as ROLES, not sizes. Six text levels plus three data levels. Four heading levels are distinguishable by size AND weight — VD.1 finding L1/7 was that the scale ran 40px straight to body with no section-heading level between them.",
+      "$description": "The type scale as ROLES, not sizes. Six text levels plus three data levels. Four heading levels are distinguishable by size AND weight — the VD.1 round found that the scale ran 40px straight to body with no section-heading level between them. (That round's ledger was superseded by revision 2026-08-28.3, which reuses the same finding ids for different findings, so no id is cited here; see docs/DESIGN-DIVERGENCES-WEB.md §3.2 and reviews/break-round-debug-affordance.json for the evidence that survives.)",
 
       "display": {
         "size": { "$type": "dimension", "$value": "{type.fontSize.4xl}" },
@@ -41,7 +41,7 @@
         "tracking": { "$type": "dimension", "$value": "-0.015em", "$extensions": { "bt.divergence": "D-02" } }
       },
       "h3": {
-        "$description": "The section-heading level VD.1's L1/7 found missing. Larger than body AND heavier than it — the VD.2 round found that 20px/500 against 16px/400 body was 'barely a step', so the weight goes to the same 700 the other headings use and the level is carried by size alone against its neighbours.",
+        "$description": "The section-heading level the VD.1 round found missing. Larger than body AND heavier than it — the VD.2 round found that 20px/500 against 16px/400 body was 'barely a step', so the weight goes to the same 700 the other headings use and the level is carried by size alone against its neighbours.",
         "size": { "$type": "dimension", "$value": "{type.fontSize.lg}" },
         "weight": { "$type": "number", "$value": "700", "$extensions": { "bt.divergence": "D-03" } },
         "line": { "$type": "number", "$value": "1.3", "$extensions": { "bt.divergence": "D-01" } },
@@ -70,7 +70,7 @@
         "tracking": { "$type": "dimension", "$value": "0.14em", "$extensions": { "bt.divergence": "D-02" } }
       },
       "label": {
-        "$description": "Column headers and definition-list terms. SANS, not mono — VD.1 finding L1/8: mono used as a decorative label style stops marking 'this is a copyable identifier'.",
+        "$description": "Column headers and definition-list terms. SANS, not mono — the VD.1 round found mono used as a decorative label style, which stops it marking 'this is a copyable identifier'.",
         "size": { "$type": "dimension", "$value": "{type.fontSize.xs}" },
         "weight": { "$type": "number", "$value": "500", "$extensions": { "bt.divergence": "D-03" } },
         "line": { "$type": "number", "$value": "1.4", "$extensions": { "bt.divergence": "D-01" } },
@@ -123,8 +123,7 @@
     },
 
     "rhythm": {
-      "$description": "The four vertical rhythm ROLES, drawn from base.space. This is the deliverable-2 fix for VD.1 finding 3: previously one spacing step did two jobs — the 49px pitch between two rows inside a card equalled the 49px gap between two sections, so proximity carried no grouping information. Each role is at least 1.75x the one below it, and tools/design/check-tokens.mjs asserts that ordering.",
-      "row": { "$type": "dimension", "$value": "{scale.450}", "$description": "Vertical padding inside one row of a table or definition grid. 12px." },
+      "$description": "The vertical rhythm ROLES above the row, drawn from base.space. This is the deliverable-2 fix for the VD.1 round-1 finding that one spacing step did two jobs — the 49px pitch between two rows inside a card equalled the 49px gap between two sections, so proximity carried no grouping information (that round's ledger has since been superseded and its ids reused; the measurement survives in docs/DESIGN-DIVERGENCES-WEB.md §3.2). VD.3 REMOVED a fourth role, `rhythm.row`: it was emitted as --bt-rhythm-row and referenced by no rule in styles.nim, while check-tokens.mjs C3 ranked it as the bottom rung — so the separation check was ranking a value no page could render. The row rung the stylesheet actually reads is register.{explorer,debugger}.density.cell-y, and C3 now ranks THAT, in both registers. VD.3's review round then overruled WHICH quantity is ranked: the bottom rung is 2 x cell-y, the row-to-row GAP two cell paddings produce, because every other rung is a gap and a ladder of mixed quantities ranks nothing. Ranking the padding passed at cell-y = 12px, where the row gap is 24px — EXACTLY this stack rung, which is the VD.1 defect verbatim.",
       "stack": { "$type": "dimension", "$value": "{scale.650}", "$description": "Between sibling elements inside one group. 24px." },
       "group": { "$type": "dimension", "$value": "{scale.950}", "$description": "Between groups inside one section — a heading and the card it labels, a card and the next card. 48px." },
       "section": { "$type": "dimension", "$value": "{scale.1300}", "$description": "Between two top-level sections. 100px — a boundary a reader can see without a rule." }
@@ -159,14 +158,14 @@
     },
 
     "measure": {
-      "$description": "Line length. VD.1 finding L1/10: the page's only running prose ran the full 1140px container at ~130 characters per line, roughly twice a readable measure.",
+      "$description": "Line length. The VD.1 round measured the page's only running prose ran the full 1140px container at ~130 characters per line, roughly twice a readable measure.",
       "prose": { "$type": "dimension", "$value": "68ch", "$extensions": { "bt.divergence": "D-06" } },
       "narrow": { "$type": "dimension", "$value": "44ch", "$extensions": { "bt.divergence": "D-06" } },
       "title": { "$type": "dimension", "$value": "22ch", "$extensions": { "bt.divergence": "D-06" } }
     },
 
     "layout": {
-      "$description": "The page grid. VD.1 finding 5: header content ran x=24→1896 while body content ran x=390→1530 — the brand and the search field aligned to nothing beneath them. ONE container width, used by the header and the body alike.",
+      "$description": "The page grid. The VD.1 round measured header content running x=24→1896 while body content ran x=390→1530 — the brand and the search field aligned to nothing beneath them. ONE container width, used by the header and the body alike.",
       "container": { "$type": "dimension", "$value": "960px", "$extensions": { "bt.divergence": "D-07" } },
       "gutter": { "$type": "dimension", "$value": "{scale.650}" },
       "nav-height": { "$type": "dimension", "$value": "64px", "$extensions": { "bt.divergence": "D-07" } },
@@ -330,7 +329,7 @@
 
     "explorer": {
       "density": {
-        "cell-y": { "$type": "dimension", "$value": "{scale.350}" },
+        "cell-y": { "$type": "dimension", "$value": "{scale.300}", "$description": "Vertical padding inside one table or definition-grid row. 6px, so the row-to-row GAP two of these produce is 12px and the 24px stack rung clears it by 2.00x. It was 8px, giving a 16px gap and only 1.50x, which C3 reported and did not gate on; VD.3's review round gated the gap instead, and this is the one token that pays for it. The stack, group and section rungs the review rounds measured and approved are untouched." },
         "cell-x": { "$type": "dimension", "$value": "{scale.650}" },
         "control-y": { "$type": "dimension", "$value": "{scale.450}" },
         "control-x": { "$type": "dimension", "$value": "{scale.650}" },

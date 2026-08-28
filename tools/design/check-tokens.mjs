@@ -983,13 +983,34 @@ async function run(opts) {
   // ranked, because a ladder that holds in one and collapses in the other is
   // the two-component-sets failure Design-System.md §2 forbids.
   //
-  // What the rung IS matters and is stated rather than assumed: the row rung is
-  // the PADDING inside a row, compared against the margins above it, which is
-  // the comparison the dead token was written to make (12px padding vs 24px
-  // stack). The row-to-row GAP that padding produces — two paddings meeting at
-  // a hairline, 2x cell-y — is reported beside the verdict, because it is a
-  // smaller number than the ladder suggests and hiding it here is how a check
-  // starts flattering the thing it measures.
+  // WHICH QUANTITY IS RANKED, and why it changed. VD.3 ranked the row PADDING
+  // (`cell-y`) against the margins above it, printed the row-to-row GAP that
+  // padding produces (2x cell-y) beside the verdict, and did not gate on it.
+  // That is overruled here, on evidence rather than on taste:
+  //
+  //   * A ladder only means something if every rung is the same KIND of
+  //     quantity. `cell-y` is a padding; stack, group and section are gaps.
+  //     Two paddings meet at every row boundary, so the like-for-like number is
+  //     2x cell-y — which VD.3's own comment says, and then does not use. The
+  //     gated ratio was a half-quantity against a full one, and the 3.00x it
+  //     reported was not a separation.
+  //   * It let the founding defect back in. With cell-y at `{scale.450}` = 12px
+  //     — an ordinary step of the brand ramp, one token away — the row-to-row
+  //     gap is 24px, EXACTLY the 24px stack rung. C3 printed "1.00x under
+  //     stack" and PASSED. That is verbatim the VD.1 defect this ladder exists
+  //     to prevent: one spacing step doing two jobs, so proximity carries no
+  //     grouping information. A check that accepts its own founding defect is
+  //     not a check.
+  //   * The stated reason for not gating — adjacent rows carry a hairline rule,
+  //     so proximity is not the only cue — is true and is not applied anywhere
+  //     else in this stylesheet: `.sec-title.next` puts a hairline across the
+  //     LARGEST gap in the system. A principle invoked only where the number
+  //     failed is not a principle.
+  //
+  // So the bottom rung is the GAP, and the padding and the row pitch are printed
+  // beside it as context. The pitch is printed because it is the number VD.1
+  // originally measured (49px) and it is NOT comparable to a gap — a pitch
+  // includes the line box — so naming it here stops it being compared again.
   if (!resolved) {
     add("C3", "the rhythm roles are strictly separated", false,
       `the design system is not readable at ${dsDir} (set DESIGN_SYSTEM_SRC), so the rhythm could not be resolved to numbers — this check does not pass by being unable to run`);
@@ -998,9 +1019,14 @@ async function run(opts) {
     const problems = [];
     const lines = [];
     let ok = true;
-    const rowOf = (reg) => px(resolved.get(`register.${reg}|--bt-density-cell-y`) ?? "");
+    const padOf = (reg) => px(resolved.get(`register.${reg}|--bt-density-cell-y`) ?? "");
     for (const reg of ["explorer", "debugger"]) {
-      const vals = [{ k: `--bt-density-cell-y (${reg})`, v: rowOf(reg) },
+      const pad = padOf(reg);
+      // The bottom rung: two cell paddings meeting at a hairline. The rung NAME
+      // is printed in full, because the self-test reads the names back out of
+      // this line and requires every one to be a token styles.nim actually
+      // references — the property VD.2's C3 lost.
+      const vals = [{ k: `2x --bt-density-cell-y (${reg})`, v: pad === null ? null : pad * 2 },
         ...upper.map((k) => ({ k, v: px(resolved.get(k) ?? "") }))];
       const missing = vals.filter((x) => x.v === null);
       if (missing.length) { ok = false; problems.push(...missing.map((x) => `${x.k} is not a px value`)); continue; }
@@ -1011,15 +1037,12 @@ async function run(opts) {
           problems.push(`${vals[i].k} (${vals[i].v}px) is only ${ratio.toFixed(2)}x ${vals[i - 1].k} (${vals[i - 1].v}px) — below the 1.75x separation, so proximity stops grouping`);
         }
       }
-      const gap = vals[0].v * 2;
-      // The rung NAMES are printed in full, not abbreviated: the self-test
-      // reads them back out of this line and requires every one to be a token
-      // styles.nim actually references, which is the property VD.2's C3 lost.
       lines.push(`${reg}: ` + vals.map((x) => `${x.k.replace(/ \(.*\)/, "")}=${x.v}px`).join(" < ") +
-        `  (row-to-row gap = 2x cell-y = ${gap}px, ${(vals[1].v / gap).toFixed(2)}x under stack — reported, NOT gated: adjacent rows carry a hairline rule as well as space, so proximity is not the only grouping cue there)`);
+        `  (bottom rung is the row-to-row GAP — two ${pad}px cell paddings meeting at a hairline — and is GATED. ` +
+        `The row PITCH those rows sit on is larger again because it includes the line box; a pitch is not comparable to a gap and is never ranked against one)`);
     }
     add("C3", "the rhythm roles are strictly separated", ok,
-      ok ? lines.join("\n        ") + "\n        each rung >= 1.75x the one below; every rung is a token styles.nim reads"
+      ok ? lines.join("\n        ") + "\n        each rung >= 1.75x the one below, in BOTH registers; every rung is a token styles.nim reads"
         : problems.join("; "));
   }
 
@@ -1149,12 +1172,16 @@ Design-System.md §4.1 — the divergence rule
 The token model's own invariants
   C1  theme.light and theme.dark carry identical key sets.
   C2  register.explorer and register.debugger carry identical key sets.
-  C3  cell-y < stack < group < section, each at least 1.75x the one below, in
-      BOTH registers. The bottom rung is --bt-density-cell-y, the row padding
-      styles.nim actually reads; the --bt-rhythm-row it replaced was emitted
-      and referenced by no rule. Resolved to NUMBERS through the design
-      system; if the design system is unreadable this check FAILS rather than
-      skipping.
+  C3  2x cell-y < stack < group < section, each at least 1.75x the one below,
+      in BOTH registers. The bottom rung is the row-to-row GAP — two
+      --bt-density-cell-y paddings meeting at a hairline — because every other
+      rung is a gap and a ladder of mixed quantities ranks nothing. Ranking the
+      padding instead let cell-y reach 12px, at which the row gap EQUALS the
+      stack rung and C3 passed; that is the VD.1 defect the ladder exists to
+      prevent. The row PITCH is never ranked: it includes the line box.
+      The --bt-rhythm-row this replaced was emitted and referenced by no rule.
+      Resolved to NUMBERS through the design system; if the design system is
+      unreadable this check FAILS rather than skipping.
 
 The shipped page
   D1  client/dist declares exactly the derived --bt-* set, and no --ct-*.

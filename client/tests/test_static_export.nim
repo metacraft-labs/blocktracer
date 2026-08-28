@@ -192,13 +192,35 @@ suite "Design-system token consumption gate (VD.2 web lineage)":
     check "--bt-font-sans:'Space Grotesk" in css
     check "--bt-space-md:16px" in css
 
-  test "the four rhythm roles are separated, not one step doing two jobs":
-    # VD.1 measured a 49px row pitch against a 49px section boundary. The roles
-    # must resolve to strictly increasing, well-separated values.
-    check "--bt-rhythm-row:12px" in css
-    check "--bt-rhythm-stack:24px" in css
-    check "--bt-rhythm-group:48px" in css
-    check "--bt-rhythm-section:100px" in css
+  test "the rhythm roles resolve to strictly increasing, separated values":
+    # VD.1 measured a 49px row pitch against a 49px section boundary. This test
+    # used to assert four hard-coded px strings under a comment claiming it
+    # checked the SEPARATION; it did not — it checked four constants, and would
+    # have passed just as happily on 24/24/24/24 spelled differently. The
+    # separation is a property, so it is read out of the emitted CSS and
+    # computed here. (check-tokens.mjs C3 asserts the same property against the
+    # TOKEN SOURCE, which is the other end of the same pipe: this end proves the
+    # numbers survived emission.)
+    #
+    # The bottom rung is the row-to-row GAP — TWO --bt-density-cell-y paddings
+    # meeting at a hairline — and not the padding itself. Every other rung is a
+    # gap, and a ladder whose rungs are different kinds of quantity ranks
+    # nothing: ranking the padding reported 3.00x where the real separation was
+    # 1.50x, and passed at cell-y = 12px, where the row gap EQUALS the 24px
+    # stack rung. That is the VD.1 defect verbatim.
+    # --bt-rhythm-row was emitted and referenced by no rule, and VD.3 removed it.
+    check "--bt-rhythm-row" notin css
+    proc pxOf(name: string): int =
+      var got: array[1, string]
+      let i = css.find(re("""\{[^}]*""" & name & """:(\d+)px"""), got)
+      check i >= 0
+      parseInt(got[0])
+    let rungs = @[2 * pxOf("--bt-density-cell-y"), pxOf("--bt-rhythm-stack"),
+                  pxOf("--bt-rhythm-group"), pxOf("--bt-rhythm-section")]
+    for i in 1 ..< rungs.len:
+      # Strictly increasing AND separated: 1.75x is the bar check-tokens.mjs C3
+      # applies, expressed here in integers so no float comparison is involved.
+      check rungs[i] * 100 >= rungs[i - 1] * 175
 
   test "both themes exist independently — the light theme is not the dark one":
     # Asserted as a PROPERTY rather than against two hard-coded hexes, so the

@@ -2,7 +2,7 @@
 
 > **Status:** live — maintained per [Design-System.md](../../codetracer-specs/BlockTracer/Design-System.md) §4.
 > **Last updated:** 2026-08-28 (VD.2 Foundations Pass)
-> **Enforced by:** `node tools/design/check-tokens.mjs` (checks B1–B3), which
+> **Enforced by:** `node tools/design/check-tokens.mjs` (checks B1–B4), which
 > is a step of the `visual-design` CI job.
 > **Token source:** [`client/src/design_system/web.tokens.json`](../client/src/design_system/web.tokens.json)
 
@@ -127,7 +127,7 @@ re-derive them.
 | --- | --- | --- |
 | Light canvas | `--bt-surface-canvas` = `{colors.graphite.50}` = `#ececeb` | The docs lineage chose warm `#f0eeea`; the brand's `graphite.50` is `#ececeb`. The web lineage takes the brand value, so web and product agree and only docs differs. Snapping docs to `graphite.50` would unify all three with a change of roughly 1% lightness. |
 | Accent | `--bt-action-bg` = `{colors.brand.600}` | Identical to the product lineage. Docs diverges to `#4168cc`; web does not. |
-| Spacing ramp | `--bt-space-*` = `{scale.200 … scale.1300}` | Every step is a brand `scale.*` primitive: 2·4·8·12·16·24·32·48·60·100. The web lineage adds no new step; it only *names* four of them as rhythm roles (§3.2). |
+| Spacing ramp | `--bt-space-*` = `{scale.200 … scale.1300}` | Every step is a brand `scale.*` primitive: 2·4·8·12·16·24·32·48·60·100. The web lineage adds no new step; it only *names* three of them as rhythm roles (§3.2). |
 | Radii | `--bt-radius-*` = `{border.border radius.*}` | Straight from the brand ramp. |
 | Focus ring | `--bt-focus-ring` = `{colors.ui.border.focus}` (light), `{colors.information.400}` (dark) | The light binding is the mapped token exactly. The dark binding steps one rung lighter because `blue.500` on a `#101010` canvas is a dim ring; both are brand primitives. |
 | Status colours | `--bt-status-*` = `{colors.{success,error,warning,information}.*}` | Every status role is a brand primitive; the web lineage only chooses which rung of each ramp reads correctly on a light canvas versus a dark one. |
@@ -141,21 +141,76 @@ between two rows inside a card (49–50px) equalled the gap between two sections
 root cause was that the scale ran 4·6·8·10·12·14·16·20·24 and stopped — it had no
 section-level step at all.
 
-The fix is not a new value; it is four **named roles** drawn from the brand ramp,
+The fix is not a new value; it is **named roles** drawn from the brand ramp,
 with a separation the linter enforces:
 
-| Role | Binding | Resolves to | Job |
+| Rung | Binding | Resolves to | Job |
 | --- | --- | --- | --- |
-| `--bt-rhythm-row` | `{scale.450}` | 12px | Vertical padding inside one row of a table or definition grid. |
+| `2 × --bt-density-cell-y` | `{scale.300}` explorer, `{scale.250}` debugger | 12px / 8px | The gap between two adjacent rows of a table or definition grid: two cell paddings meeting at a hairline. Per **register**, which is why the padding it is built from is a density token and not a rhythm one. |
 | `--bt-rhythm-stack` | `{scale.650}` | 24px | Between sibling elements inside one group. |
 | `--bt-rhythm-group` | `{scale.950}` | 48px | Between groups inside one section. |
 | `--bt-rhythm-section` | `{scale.1300}` | 100px | Between two top-level sections. |
 
 `check-tokens.mjs` C3 resolves these to numbers through the design system and
-fails if any role is less than **1.75×** the one below it. That is the property
-the page actually needs — that a section boundary can never again be mistaken
-for a row gap — expressed as something a script decides rather than a thing
-someone remembers.
+fails if any rung is less than **1.75×** the one below it, **in both
+registers**. That is the property the page actually needs — that a section
+boundary can never again be mistaken for a row gap — expressed as something a
+script decides rather than a thing someone remembers.
+
+#### Why the bottom rung is a density token and not `--bt-rhythm-row`
+
+VD.2 shipped a fourth role, `--bt-rhythm-row` = `{scale.450}` = 12px, and C3
+ranked it as the bottom rung. **No rule in `styles.nim` ever referenced it.**
+Table cells and definition-grid cells take their vertical padding from
+`--bt-density-cell-y`, because row density is a property of the *register*
+(Design-System.md §2) and a register-independent rhythm role cannot express it.
+So C3 was ranking a value that was emitted into every page's `<style>` block and
+read by nothing — a separation check passing on a number no page could render.
+
+VD.3 deleted the dead token and put the live one in its place, which makes the
+ladder **register-aware**: both registers are ranked, because a rhythm that
+holds in the explorer and collapses in the debugger is the "two component sets"
+failure §2 forbids, and C3 could not previously see it.
+
+#### Why the rung is the row-to-row GAP and not the row padding
+
+VD.3's first attempt ranked `cell-y` — the **padding** — against the margins
+above it, printed the row-to-row **gap** that padding produces beside the
+verdict, and did not gate on it, on the grounds that adjacent rows carry a
+hairline rule as well as space and that whether the 1.75× bar should apply
+across a ruled boundary is a design decision a linter may not make alone. VD.3's
+review round overruled that, on three grounds:
+
+* **A ladder only means anything if every rung is the same kind of quantity.**
+  `cell-y` is a padding; stack, group and section are gaps. Two paddings meet at
+  every row boundary, so the like-for-like number is `2 × cell-y`. Gating a
+  half-quantity against a full one made the bottom ratio read 3.00× when the
+  real separation was 1.50×.
+* **It let the founding defect straight back in.** With `cell-y` at
+  `{scale.450}` = 12px — an ordinary step of the brand ramp, one token away —
+  the row-to-row gap is 24px, **exactly** the 24px stack rung. C3 printed
+  `1.00x under stack` and **passed**, and the whole checker exited 0. That is
+  verbatim the VD.1 defect this ladder exists to prevent: one spacing step doing
+  two jobs, so proximity carries no grouping information anywhere.
+* **The hairline argument is not applied anywhere else.** `.sec-title.next`
+  puts a hairline rule across the *largest* gap in the system. This stylesheet
+  does not hold "a rule substitutes for space" as a principle; it was invoked in
+  the one place the number failed. (The supporting evidence was also uncitable:
+  "round 3 reported one scale, correct proximity" resolves to a sentence in
+  `reviews/ledger.json`'s free-text `_comment` describing a round the ledger
+  itself says is **not recorded** — so check B4, added in the same branch to stop
+  comments reading as evidence, cannot reach it.)
+
+The gate costs **one token**: explorer `cell-y` moves `{scale.350}` → `{scale.300}`,
+8px → 6px, so the gap is 12px and the stack rung clears it by 2.00×. The stack,
+group and section values the review rounds actually measured and approved are
+untouched, the explorer stays distinct from the debugger (6px against 4px), and
+the change moves a data-dense explorer table in the direction it wants to go.
+
+What C3 still does **not** rank, and says so on every run, is the row **pitch** —
+padding + line box + hairline. A pitch is not comparable to a gap, and it was
+comparing one to the other (49px pitch against a 49px section gap) that produced
+VD.1's original finding in the first place.
 
 ### 3.3 Non-visual divergences
 
@@ -208,7 +263,6 @@ has drifted.
 | `--bt-radius-xl` | bkToken | `{border.border radius.2xl}` | — |
 | `--bt-radius-xs` | bkToken | `{border.border radius.2xs}` | — |
 | `--bt-rhythm-group` | bkToken | `{scale.950}` | — |
-| `--bt-rhythm-row` | bkToken | `{scale.450}` | — |
 | `--bt-rhythm-section` | bkToken | `{scale.1300}` | — |
 | `--bt-rhythm-stack` | bkToken | `{scale.650}` | — |
 | `--bt-space-2xl` | bkToken | `{scale.950}` | — |
@@ -382,7 +436,7 @@ has drifted.
 | `--bt-density-body-size` | bkToken | `{type.fontSize.md}` | — |
 | `--bt-density-card-pad` | bkToken | `{scale.750}` | — |
 | `--bt-density-cell-x` | bkToken | `{scale.650}` | — |
-| `--bt-density-cell-y` | bkToken | `{scale.350}` | — |
+| `--bt-density-cell-y` | bkToken | `{scale.300}` | — |
 | `--bt-density-control-x` | bkToken | `{scale.650}` | — |
 | `--bt-density-control-y` | bkToken | `{scale.450}` | — |
 | `--bt-density-data-size` | bkToken | `{type.fontSize.sm}` | — |
