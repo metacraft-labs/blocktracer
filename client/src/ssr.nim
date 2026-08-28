@@ -30,13 +30,13 @@ proc renderHome*(r: DataRoot): string =
 
 proc renderChain*(r: DataRoot, chain: string): string =
   let info = chainInfo(r, chain)
-  let bs = blocks(r, chain, info.generation)
+  let bs = blocks(r, info)
   # Latest transactions: walk the newest blocks, in block order.
   var txs: seq[TxRow]
   for b in bs:
-    let bd = readBlockDetail(r, chain, b.hash)
+    let bd = readBlockDetail(r, info, b.hash)
     for h in bd.transactions:
-      txs.add txRow(r, chain, h, info)
+      txs.add txRow(r, info, h)
   pageLayout(
     chain & " — BlockTracer",
     "Chain overview for " & chain & ": latest blocks and transactions.",
@@ -46,7 +46,7 @@ proc renderChain*(r: DataRoot, chain: string): string =
 
 proc renderBlockList*(r: DataRoot, chain: string): string =
   let info = chainInfo(r, chain)
-  let bs = blocks(r, chain, info.generation)
+  let bs = blocks(r, info)
   pageLayout(
     chain & " blocks — BlockTracer",
     "All blocks on " & chain & ", newest first.",
@@ -56,10 +56,10 @@ proc renderBlockList*(r: DataRoot, chain: string): string =
 
 proc renderBlock*(r: DataRoot, chain, hash: string): string =
   let info = chainInfo(r, chain)
-  let detail = readBlockDetail(r, chain, hash)
+  let detail = readBlockDetail(r, info, hash)
   var txs: seq[TxRow]
   for h in detail.transactions:
-    txs.add txRow(r, chain, h, info)
+    txs.add txRow(r, info, h)
   pageLayout(
     "Block " & $detail.height & " — " & chain & " — BlockTracer",
     "Block " & $detail.height & " on " & chain & " with " & $detail.transactions.len & " transactions.",
@@ -69,7 +69,7 @@ proc renderBlock*(r: DataRoot, chain, hash: string): string =
 
 proc renderTx*(r: DataRoot, chain, hash: string): string =
   let info = chainInfo(r, chain)
-  let v = txView(r, chain, hash, info)
+  let v = txView(r, info, hash)
   pageLayout(
     "Transaction " & hash[0 ..< min(10, hash.len)] & "… — " & chain & " — BlockTracer",
     "Transaction on " & chain & " at block " & $v.height & ".",
@@ -87,9 +87,9 @@ proc staticRoutes*(r: DataRoot): seq[string] =
     let info = chainInfo(r, chain)
     result.add "/" & chain
     result.add "/" & chain & "/blocks"
-    for h in blockHashes(r, chain, info.generation):
+    for h in blockHashes(r, info):
       result.add "/" & chain & "/block/" & h
-      let bd = readBlockDetail(r, chain, h)
+      let bd = readBlockDetail(r, info, h)
       for txh in bd.transactions:
         result.add "/" & chain & "/tx/" & txh
 

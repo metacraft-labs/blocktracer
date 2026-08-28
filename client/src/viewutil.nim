@@ -4,7 +4,7 @@
 ## availability). These map the contract enums to human labels + a class the
 ## design-system-token CSS colours; they hold no data of their own.
 
-import blocktracer/contract/model
+import blocktracer_client
 
 proc truncHash*(h: string, lead = 6, tail = 4): string =
   ## `0x27a6c250…9a6c` — a copyable middle-truncated hash for dense tables.

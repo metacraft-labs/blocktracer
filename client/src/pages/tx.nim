@@ -14,13 +14,12 @@
 import std/json
 import isonim/ssr/escape
 import isonim/dsl/ui
-import blocktracer/contract/model
 import ../reader
 import ../viewutil
 import ../components/tables
 
 proc txPage*(chain: string, v: TxView): string =
-  let headline = headlineAvailability(v.executions)
+  let headline = v.headline
   ui:
     section(class = "sec"):
       tdiv(class = "inner"):

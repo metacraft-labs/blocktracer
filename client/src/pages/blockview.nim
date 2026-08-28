@@ -4,7 +4,6 @@
 
 import isonim/ssr/escape
 import isonim/dsl/ui
-import blocktracer/contract/model
 import ../reader
 import ../viewutil
 import ../components/tables
