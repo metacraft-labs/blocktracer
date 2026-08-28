@@ -63,8 +63,17 @@ publish tree="demo-site" dest="published":
 # and cleans screenshots/ first, so a renamed view leaves no stale image.
 
 # Install the pinned Playwright package and its browser (once).
+#
+# `npm ci` and not `npm install`: the lockfile pins the exact version, and that
+# version must equal the one the pinned Nix environment's browser bundle was
+# built for (`nix run .#capture-env -- --print-pin | grep playwright`). A skewed
+# pair usually WORKS and silently changes the pixels, which is why
+# lib/pinned-env.mjs refuses it rather than hashing it.
+#
+# The browser download is for HOST runs only. Inside the pinned environment the
+# browsers come from the store, so the download is skipped there.
 capture-setup:
-    cd tools/capture && npm install --no-audit --no-fund && npx playwright install chromium
+    cd tools/capture && npm ci --no-audit --no-fund && npx playwright install chromium
 
 # Capture. Pass targeting flags through, e.g.
 #   just capture "--view tx-detail --size wide --theme dark"
@@ -84,13 +93,30 @@ capture-coverage:
 capture-canary:
     node tools/capture/check-canary.mjs
 
-# The tier-1 determinism canary, in the pinned container.
-capture-canary-pinned:
-    tools/capture/run-in-container.sh canary
+# What the pinned capture environment fixes, and its content-hash id. Two
+# hashes are comparable only if two runs print the same id.
+capture-env-pin:
+    nix run .#capture-env -- --print-pin
 
-# Full regeneration in the pinned container.
+# The tier-1 determinism canary, in the pinned capture environment
+# (tools/capture/capture-env.nix — browser build, fontconfig set and renderer
+# flags fixed; no daemon, no VM).
+#
+# ON DARWIN THIS IS STILL ADVISORY. The pinned Chromium rasterises through the
+# host's CoreGraphics/CoreText stack, which no derivation can pin, so the
+# harness refuses to call it a tier-1 verdict however pinned the inputs are.
+# Linux is where a tier-1 verdict is producible, and CI is the environment that
+# has to reproduce itself.
+capture-canary-pinned args="":
+    nix run .#capture-env -- node tools/capture/check-canary.mjs --no-build {{args}}
+
+# Full regeneration in the pinned capture environment.
 capture-pinned args="":
-    tools/capture/run-in-container.sh capture {{args}}
+    nix run .#capture-env -- node tools/capture/capture.mjs --no-build {{args}}
+
+# All four VD.0 verifications in the pinned capture environment.
+capture-selftest-pinned:
+    nix run .#capture-env -- node tools/capture/selftest.mjs
 
 # The gate a baseline comparison must pass before it may be believed.
 capture-gate:

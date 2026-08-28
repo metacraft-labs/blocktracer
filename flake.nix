@@ -56,10 +56,41 @@
         ci = pkgs.mkShell (srcEnv // {
           buildInputs = with pkgs; [ nim nimble just python3 wrangler ];
         });
+
+        # VD.0 — the PINNED CAPTURE ENVIRONMENT. Browser build, fontconfig set
+        # and renderer flags fixed, so the tier-1 exact-hash canary measures the
+        # product rather than the runner. See tools/capture/capture-env.nix for
+        # what is pinned and — just as important — the one thing it cannot pin
+        # (darwin's compositor).
+        captureEnv = pkgs.callPackage ./tools/capture/capture-env.nix { };
       in {
         # The larger, interactive default shell includes the ci shell (so a local
         # `nix develop` has the exact CI toolchain plus any interactive extras).
         devShells.ci = ci;
+
+        # `nix run .#capture-env -- <command>` runs a command with the pinned
+        # browser, fonts and locale in place. No daemon, no VM, no image build.
+        packages.capture-env = captureEnv;
+        apps.capture-env = {
+          type = "app";
+          program = "${captureEnv}/bin/vd0-capture-env";
+        };
+
+        # An interactive shell in the same environment, PLUS the Nim toolchain,
+        # so `just capture` can rebuild client/dist and capture in one place.
+        devShells.capture = pkgs.mkShell (srcEnv // {
+          buildInputs = [ captureEnv pkgs.nim pkgs.nimble pkgs.just pkgs.nodejs_22 ];
+          shellHook = ''
+            echo "blocktracer VD.0 pinned capture environment"
+            echo "  vd0-capture-env --print-pin                       — what is pinned, and its id"
+            echo "  vd0-capture-env node tools/capture/check-canary.mjs --no-build"
+            echo ""
+            echo "On darwin this environment still rasterises through the host"
+            echo "compositor, so the canary verdict stays ADVISORY. Linux is where"
+            echo "a tier-1 verdict is producible."
+          '';
+        });
+
         devShells.default = pkgs.mkShell (srcEnv // {
           inputsFrom = [ ci ];
           shellHook = ''

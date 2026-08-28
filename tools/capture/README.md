@@ -76,33 +76,52 @@ and each control names what it defends against.
 | Fixed fixture data | The demo generator is a pure function of a fixed seed and `dist/` rebuilds byte-identically; the manifest records a digest of the served tree |
 | Frozen clock | `context.clock.install()` at `2026-01-15T12:00:00Z` before the first navigation, then advanced by a fixed 2000 ms budget after load |
 | Disabled animation | `reducedMotion: 'reduce'`, an injected zero-duration stylesheet, `screenshot({animations:'disabled', caret:'hide'})` |
-| Stable fonts | Brand faces served from the site's own origin; `document.fonts.ready` awaited before and after the settle budget; fontconfig pinned in the container |
+| Stable fonts | Brand faces served from the site's own origin; `document.fonts.ready` awaited before and after the settle budget; the fallback stack and its fontconfig rules pinned by `capture-env.nix` |
 | Fixed rasterisation | `--force-device-scale-factor=1`, `--force-color-profile=srgb`, `--font-render-hinting=none`, `--disable-lcd-text`, `--disable-gpu`, `--hide-scrollbars`, and the rest of `CHROMIUM_ARGS` |
 | Fixed environment | `timezoneId: 'UTC'`, `locale: 'en-US'`, seeded `Math.random`, `--js-flags=--random-seed=…` |
 | Debugger position | Every debugger view pins `?t=` from `DEBUG_TIME_COORDINATE`; an unpinned debugger capture is non-deterministic by construction |
 
-## The pinned container
+## The pinned capture environment
 
 ```
+just capture-env-pin                             # what is pinned, and its id
 just capture-canary-pinned                       # tier-1 determinism check
-just capture-pinned                              # full regeneration in the container
-tools/capture/run-in-container.sh shell          # poke around inside
+just capture-pinned                              # full regeneration, pinned
+nix develop .#capture                            # an interactive shell in it
 ```
 
-`Dockerfile` pins the Playwright base image **by digest**, installs a
-fontconfig that removes glyph-rendering variance, and pins the npm package to
-the version whose browsers the image carries. `run-in-container.sh` refuses to
-run on a version skew, records the resolved image id and architecture in the
-manifest, and runs with `--network=none` so nothing unpinned can be fetched.
+`tools/capture/capture-env.nix` (flake output `.#capture-env`) fixes the three
+things that decide the pixels:
 
-**Architecture is part of the pin.** amd64 and arm64 Chromium do not rasterise
-text identically. A hash is comparable only with another hash from the same
-architecture; the manifest records which, so a cross-architecture comparison
-shows up as one instead of as a regression.
+| Pinned | By |
+| --- | --- |
+| The browser build | `pkgs.playwright-driver.browsers` from the locked nixpkgs — a store path, not a tag. The npm `playwright` version must equal the bundle's, and `lib/pinned-env.mjs` FAILS the environment when it does not: a skewed pair usually works and silently changes the pixels |
+| The fontconfig set | An explicit, closed font list (DejaVu + Liberation) — no host fonts reach the browser — plus the rasterisation rules in `fonts-local.conf`, `<include>`d rather than copied. The cache is built in the store, not on first use |
+| The renderer flags | `lib/determinism.mjs`, whose SHA-256 is recorded in the environment id, so a flag edit moves the id instead of quietly changing every hash under an unchanged one |
 
-The site is built on the **host** before the container starts. The image
-carries no Nim toolchain on purpose: `dist/` is already byte-reproducible from
-a fixed seed, so building it inside would add a variable without removing one.
+**It was specified as a container.** A `Dockerfile` was written and never built
+— the daemon does not run on the development machine, and a Linux VM is a heavy
+dependency for six screenshots. The requirement is *fixed inputs*, not a
+container, so it is a Nix derivation: no daemon, identical on a Linux
+workstation and in CI, and it suits a Nix-managed environment. The Docker path
+was removed rather than left beside it — two pinned environments that pin
+different Playwright releases is the exact skew tier 1 exists to prevent.
+
+**The environment id** is a content hash over every pinned input *including the
+system*. Two hashes are comparable only if the ids match. `--print-pin` shows
+what went into it.
+
+**The caveat this cannot remove.** On darwin the pinned Chromium still
+rasterises through the host's CoreGraphics/CoreText stack — `FONTCONFIG_FILE`
+does not even reach it — and that is not something a derivation can pin. So a
+darwin run is `advisory` no matter how pinned the inputs are, and
+darwin↔Linux hashes are not expected to match. Tier 1 only requires that **one**
+environment reproduces itself, and that environment is Linux CI
+(`visual-design-canary` in `.github/workflows/ci.yml`).
+
+The site is built **before** the capture, in `client/dist`. `dist/` is already
+byte-reproducible from a fixed seed, so rebuilding it between the canary's two
+runs would test the exporter rather than the renderer and confound the two.
 
 ## The determinism canary (tier 1)
 
@@ -122,8 +141,17 @@ harness still deterministic?* If it is not, every tier-2 baseline is quietly
 worthless.
 
 The verdict goes to `screenshots/canary/status.json`. A run outside the pinned
-container is marked `advisory` and is **not** accepted as a tier-1 pass — it
-measured the runner, not the product.
+environment — and a run inside it on darwin — is marked `advisory` and is
+**not** accepted as a tier-1 pass; it measured the runner, not the product. The
+`advisoryReasons` field says which of the two it was.
+
+The environment is **verified, not declared**. Setting `VD0_PINNED_ENV=nix` by
+hand does not promote anything: `lib/pinned-env.mjs` checks that
+`PLAYWRIGHT_BROWSERS_PATH` and `FONTCONFIG_FILE` are the store paths the
+wrapper exports, that they exist, that the npm and bundle Playwright versions
+agree, and that the Chromium Playwright would actually launch lives inside the
+pinned bundle. `env-selftest.mjs` is the negative-control suite for exactly
+that, one case per way of claiming the environment without being in it.
 
 ## The gate that protects the baselines
 
@@ -132,11 +160,18 @@ just capture-gate
 ```
 
 `require-deterministic.mjs` is what a baseline-comparing check must pass
-through first. It refuses in four distinct ways — no verdict, stale verdict,
-advisory verdict, failed canary — and in all four the correct downstream
-behaviour is to report the perceptual comparison as **unreliable**, not to run
-it and believe it. Collapsing those four into one would produce exactly the
-failure it exists to prevent.
+through first. It refuses in five distinct ways — no verdict, stale verdict,
+advisory verdict, failed canary, and an *incoherent* verdict whose own fields
+contradict each other — and in all five the correct downstream behaviour is to
+report the perceptual comparison as **unreliable**, not to run it and believe
+it. Collapsing them into one would produce exactly the failure it exists to
+prevent, and the distinction between "the canary failed" and "no tier-1 verdict
+exists" is the one VD.11 needs: the first says every stored baseline is
+invalidated, the second says nobody can tell.
+
+The incoherence check exists because the verdict file *is* the verdict, so the
+one thing it must not do is accept a hand-edited `deterministic: true` with
+nothing behind it. `gate.mjs` reports the result as G6 on every run.
 
 Do not raise a threshold to make this green. A threshold raised twice is a
 defect in the capture, not in the threshold.
@@ -145,14 +180,15 @@ defect in the capture, not in the threshold.
 
 ```
 just capture-selftest                            # all four, end to end
-tools/capture/run-in-container.sh selftest       # the same, pinned
+just capture-selftest-pinned                     # the same, in the pinned environment
+node tools/capture/env-selftest.mjs              # the pinned-env negative controls
 ```
 
 | VD.0 verification | Implemented by |
 | --- | --- |
 | `verify_capture_covers_named_view_list` | `check-coverage.mjs` (A + C) |
 | `verify_canary_capture_is_byte_identical` | `check-canary.mjs` |
-| `verify_canary_failure_invalidates_the_baselines` | `require-deterministic.mjs`, exercised by `selftest.mjs` |
+| `verify_canary_failure_invalidates_the_baselines` | `require-deterministic.mjs`, exercised by `selftest.mjs` and reported as G6 by `gate.mjs` |
 | `verify_full_regen_removes_stale_images` | `check-coverage.mjs` (D) + `selftest.mjs` |
 
 ## The review loop and the quality gate (VD.1)
@@ -283,7 +319,9 @@ just design-explain      # what each check decides, and why
 | `check-canary.mjs` | Tier-1 byte-identity check |
 | `require-deterministic.mjs` | The gate baselines must pass through |
 | `selftest.mjs` | All four VD.0 verifications |
+| `env-selftest.mjs` | Negative controls for the pinned-environment detector |
 | `lib/determinism.mjs` | Flags, clock, motion, fonts, theme injection |
+| `lib/pinned-env.mjs` | Detects AND VERIFIES the pinned capture environment; owns the darwin caveat |
 | `lib/entities.mjs` | Semantic route resolution over the built data plane |
 | `lib/server.mjs` | Clean-URL static server for `dist/` |
-| `Dockerfile`, `fonts-local.conf`, `run-in-container.sh` | The pinned container |
+| `capture-env.nix`, `fonts-local.conf` | The pinned capture environment (flake output `.#capture-env`) |
