@@ -226,7 +226,7 @@ proc renderMetadata*(m: MetadataPane): string =
         span(class = "badge " & m.outcomeBadge): text m.outcome
         span(class = "identifier mdhash"): text truncHash(m.hash, 10, 8)
       if m.revertReason.len > 0:
-        p(class = "mdrevert"):
+        p(class = "mdrevert " & m.revertReasonTone):
           text m.revertReasonLabel & ": " & m.revertReason
       dl(class = "mddl"):
         for r in m.rows:

@@ -540,6 +540,28 @@ suite "M8b — the metadata pane and the page cannot diverge":
     check "Reorged" notin pageBefore
     check "Reorged" notin paneBefore
 
+  test "the status reason is coloured by the OUTCOME, not by its presence":
+    # The demo's Aztec split transaction reports `partial` with both halves
+    # succeeded, and its reason reads "private-part-succeeded-public-part-
+    # succeeded". Naming that a "Status reason" and then painting it in the
+    # danger colour says the same wrong thing twice, so the tone travels with
+    # the label and comes from the same `case`.
+    check outcomeReasonLabel(ooPartial) == "Status reason"
+    check outcomeReasonTone(ooPartial) == "note"
+    check outcomeReasonLabel(ooReverted) == "Revert reason"
+    check outcomeReasonTone(ooReverted) == "bad"
+
+    # …and the pane renders the tone it was given, on a real transaction.
+    var partialTx = ""
+    for h in txHashes:
+      if txView(root, chainInfo(root, Chain), h).outcome == ooPartial:
+        partialTx = h
+        break
+    check partialTx.len > 0
+    let html = debugHtml(partialTx)
+    check "class=\"mdrevert note\"" in html
+    check "class=\"mdrevert bad\"" notin html
+
   test "a deliberate SECOND source is detectable as a disagreement":
     # The check the milestone asks for: "a deliberate second source fails the
     # check". A hand-built row set that adds a fact produces a label the page

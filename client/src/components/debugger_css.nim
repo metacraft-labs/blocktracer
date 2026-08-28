@@ -328,8 +328,13 @@ html[data-register="debugger"],
 .mdhero{display:flex;align-items:center;gap:var(--bt-space-sm);flex-wrap:wrap;
   padding:0 var(--bt-density-cell-x) var(--bt-density-cell-y)}
 .mdhash{color:var(--bt-text-strong);font-size:var(--bt-type-identifier-size)}
+/* The reason's colour follows the OUTCOME, never the presence of a reason.
+   `.bad` is a revert; `.note` is a status reason on a transaction that did not
+   fail, which the demo's Aztec split is. */
 .mdrevert{padding:0 var(--bt-density-cell-x) var(--bt-density-cell-y);
-  color:var(--bt-status-danger-fg);font-size:var(--bt-type-body-sm-size)}
+  font-size:var(--bt-type-body-sm-size)}
+.mdrevert.bad{color:var(--bt-status-danger-fg)}
+.mdrevert.note{color:var(--bt-text-muted)}
 .mddl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0}
 .mddl dt{padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
   font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);

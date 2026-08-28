@@ -289,6 +289,7 @@ proc metadataPane*(chain: string; v: TxView): MetadataPane =
     outcomeBadge: outcomeClass(v.outcome),
     revertReason: v.outcomeReason,
     revertReasonLabel: outcomeReasonLabel(v.outcome),
+    revertReasonTone: outcomeReasonTone(v.outcome),
     rows: txMetadataRows(chain, v),
     executions: txExecutionRows(v))
 

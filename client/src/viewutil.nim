@@ -94,6 +94,17 @@ proc outcomeReasonLabel*(o: OutcomeOverall): string =
   of ooReverted, ooFailedWithEffects: "Revert reason"
   of ooPartial, ooSucceeded: "Status reason"
 
+proc outcomeReasonTone*(o: OutcomeOverall): string =
+  ## How severe `outcome.reason` is — the colour half of `outcomeReasonLabel`.
+  ##
+  ## The two answer the same question and must not be able to disagree, which
+  ## is why they are next to each other and read from the same `case`. Calling
+  ## a reason a "Status reason" and then painting it in the danger colour is
+  ## the label defect made again one layer down.
+  case o
+  of ooReverted, ooFailedWithEffects: "bad"
+  of ooPartial, ooSucceeded: "note"
+
 proc yesNo*(b: bool): string =
   ## A boolean fact in the explorer register reads as a word, not as a literal.
   if b: "Yes" else: "No"

@@ -351,6 +351,16 @@ type
       ## because the pane must not hold a second opinion about the outcome
       ## vocabulary — `viewutil.outcomeReasonLabel` owns it, and the
       ## transaction page reads the same function.
+    revertReasonTone*: string
+      ## How severe `revertReason` is, as a class the stylesheet colours.
+      ##
+      ## Carried for the same reason as the label, and it has to travel WITH
+      ## the label rather than be assumed by the stylesheet: a rule that
+      ## painted every reason in the danger colour would render the demo's
+      ## Aztec split transaction — `partial`, both halves succeeded — in red,
+      ## which is the label defect `outcomeReasonLabel` fixed, made again in
+      ## colour. Naming the outcome correctly and then colouring it as a
+      ## failure says the same wrong thing twice as loudly.
     rows*: seq[MetaRow]
     executions*: seq[ExecutionRow]
 
