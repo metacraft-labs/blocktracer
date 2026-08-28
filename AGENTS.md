@@ -143,12 +143,41 @@ Do:
 Don't:
 - Don't hand-concatenate HTML or hardcode design values — use `tables.nim`
   helpers and `design_system/tokens.nim`.
-- **Don't write a raw colour, a raw pixel value, a brand primitive, or an
-  inline `style=` attribute in a page or component.** Layer 2 sees semantic
-  `var(--bt-*)` tokens and utility classes and nothing else. This is checked:
-  `node tools/design/check-tokens.mjs` (a step of the `visual-design` CI job)
-  fails on any of them, and `check-tokens-selftest.mjs` proves it by planting
-  each violation in the real source and restoring it.
+- **Don't write a raw colour, a raw pixel value, a brand primitive, an inline
+  `style=` attribute, or a hand-built HTML fragment in a page or component.**
+  Layer 2 sees semantic `var(--bt-*)` tokens and utility classes and nothing
+  else. This is checked: `node tools/design/check-tokens.mjs` (a step of the
+  `visual-design` CI job) fails on any of them — A1 colours, A2 lengths, A3
+  primitives, **A5 inline styles**, **A7 hand-built markup** — and
+  `check-tokens-selftest.mjs` proves it by planting each violation in the real
+  source and restoring it byte-identically.
+- "Raw colour" includes the **CSS system colours** (`ButtonFace`, `Canvas`,
+  `CanvasText`, `LinkText`, `Field`, `Highlight`, `GrayText`, `AccentColor`,
+  and the rest of the CSS Color 4 set). `ButtonFace` is not a footnote: it is
+  the value that made the primary action measure 1.04:1, because `.btn` set no
+  `background` and the user agent supplied one.
+- Every string literal in a Layer 2 file is scanned, not only the ones that
+  look like CSS. A colour inside a `raw "<span style=…>"` fragment and a colour
+  in a bare attribute value (`meta(name = "theme-color", content = "#4f46e5")`)
+  both fail. So do the ways of writing the same value that a text search misses:
+  a CSS identifier escape (`\42 uttonFace`), a Nim numeric escape
+  (`"\x42uttonFace"`), a value split across a `&` concatenation, `@IMPORT` in
+  another case, and the whole of CSS Color 4 and CSS Values 4 — `hwb()`,
+  `color()`, `100dvh`, `20cqw`.
+- **A Layer 2 view lives in `client/src/components/` or `client/src/pages/`.**
+  A `.nim` anywhere else under `client/src` that imports the isonim DSL or
+  carries a stylesheet fails A0, because the two-directory scan cannot see it
+  and every other rule would then report a clean pass over a subset.
+- Three things the checker knowingly does NOT catch, listed so nobody assumes
+  otherwise: a value built at run time from non-literal parts; a value routed
+  through a `const` in a module outside those two directories; and — in the
+  other direction — a single-word capitalised label such as `text "Menu"` or
+  `text "Orange"`, which fails A1 as a colour. Long prose is safe; a one-word
+  label that happens to be a colour name is not.
+- **Cite a review finding as `ledger@<revision>:<id>`** — e.g.
+  `ledger@2026-08-28.3:tx-detail/wide/light/L1/8`. A round that replaces its
+  predecessor reuses the ids, so an unversioned `L1/1` silently comes to mean a
+  different finding; check B4 fails on a citation that no longer resolves.
 
 ### The design tokens (VD.2)
 

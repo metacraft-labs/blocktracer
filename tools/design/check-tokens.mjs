@@ -30,6 +30,94 @@
 // comment strip would silently swallow `background:#fff` in a CSS line and
 // report a clean pass.
 //
+// ── What VD.3 closed, and why each hole mattered ───────────────────────────
+//
+// A review round planted eight violations against VD.2's checker. Five were
+// caught; three were not, and the first of them was self-defeating:
+//
+//   1. **CSS system colours were not detected at all.** The lint exists to stop
+//      the 1.04:1 primary button recurring. That button was 1.04:1 because it
+//      inherited the user agent's `ButtonFace` — and `background:ButtonFace`
+//      passed clean, because the detector enumerated twenty DESIGNER colour
+//      names and no system colour. The self-test now plants that exact literal
+//      BY NAME, and that case must exist for as long as this file does.
+//   2. **Hand-built HTML fragments were skipped.** A single-line string was
+//      scanned only when it matched `^[a-z-]+\s*:`, so `"<span
+//      style=\"color:#ff0000\">"` was never examined.
+//   3. **Bare values in attributes were never scanned** — `meta(name =
+//      "theme-color", content = "#4f46e5")`.
+//
+// Every string literal is now classified into one of three scan contexts, and
+// the classification is TOTAL: "not scanned" is a decision with a name.
+//
+// ── Then the fix was attacked, and six more holes were closed ──────────────
+//
+// The VD.2 lint was written carefully and still had three holes, so this one is
+// assumed to have holes too. Every case below PASSED before the line that
+// closes it was written, and each is now a plant in the self-test:
+//
+//   * `background:buttonface` — CSS system colours are ASCII case-insensitive.
+//   * `background:\42 uttonFace` — a CSS identifier escape. A browser reads it
+//     as `ButtonFace`, so a detector matching literal text is one backslash
+//     from being defeated. CSS escapes are decoded before matching.
+//   * `"…background:Butt" & "onFace…"` — the value split across a Nim
+//     concatenation, including across two `"""` blocks. Runs of `&`-joined
+//     literals are scanned as one string as well as separately.
+//   * a colour in a presentational attribute of a hand-built fragment.
+//   * `@import url(…)`, which pulls in a stylesheet this checker never reads.
+//   * a view module in a directory the scan does not enumerate. A1–A7 name two
+//     directories, so a `client/src/views/` would be invisible and every rule
+//     would report a clean pass over a subset — A0 now fails on it.
+//
+// ── Then THAT was attacked, and seven more holes were closed ───────────────
+//
+// A second review round planted evasions against the fix above. Each PASSED
+// before the line that closes it, and each is now a plant in the self-test:
+//
+//   * `background:hwb(200 30% 20%)` and `background:color(srgb …)` — two CSS
+//     Color 4 colour FUNCTIONS the detector did not list at all.
+//   * `margin-top:100dvh`, `2lh`, `40q`, `20cqw` — every container-query and
+//     dynamic-viewport unit. The unit set is now the whole of CSS Values 4.
+//   * `@IMPORT url(…)` — CSS at-rule names are ASCII case-insensitive, exactly
+//     as the system colours are; the A7 regex was not.
+//   * `"\x42uttonFace"` and `"\66uttonFace"` — NIM's own numeric escapes. The
+//     CSS identifier escape was closed and the Nim one, one layer down and
+//     needing no CSS knowledge, was left open.
+//   * `background:menu`, `background:canvas` and five more — seven names were
+//     held in the case-SENSITIVE list for a collision that measurement shows
+//     they do not have. See SYSTEM_COLOURS_AMBIGUOUS.
+//   * a rogue view module spelled `import isonim/[dsl/ui]`, or `from
+//     isonim/dsl/ui import nil`, or holding its stylesheet in a single-line
+//     string rather than a `"""` block — three ways past A0's scope check.
+//   * `"Note: the raw value is in wei"` classified as a CSS DECLARATION LIST,
+//     which made A5 report an English sentence as an inline style and made A1
+//     match the word "green" in `"Status: green means finalised"`. A false
+//     positive is how a lint gets switched off, so it counts as a hole.
+//
+// ── What is still open, stated rather than hidden ──────────────────────────
+//
+// Three things, and the first is narrower than VD.3 first claimed:
+//
+//   1. A value assembled at RUN TIME from non-literal parts has no string
+//      literal to match and is out of reach of every rule here. Closing that
+//      needs a Nim semantic pass over the render graph, not a larger regex.
+//   2. A value routed through a `const` in a module this scan does not read —
+//      `client/src/viewutil.nim`, say — is equally invisible, and this one is
+//      NOT out of reach: A0 already opens every `.nim` under client/src to ask
+//      whether it is a view in the wrong place. Scanning those files' literals
+//      as well is a change to the file set A1–A7 iterate, not a semantic pass.
+//      It is left open deliberately rather than by omission, because those
+//      modules are not Layer 2 and a raw colour in one is a different finding.
+//   3. A single-word capitalised label — `text "Menu"`, `text "Orange"` — is
+//      indistinguishable at this level from `content = "Menu"`, and FAILS A1.
+//      The whole-string rule makes long prose safe and short labels unsafe.
+//      Distinguishing them needs the ATTRIBUTE NAME from the code scan, the way
+//      A5 reads `style =`; that is a change to what a VALUE string knows about
+//      itself, and is a design decision for a review round rather than a regex.
+//
+// None of the three is an accident this lint exists to catch; 1 and 2 are
+// deliberate, obfuscating acts, and 3 fails safe.
+//
 // ── The allowlist cannot rot ───────────────────────────────────────────────
 //
 // Four kinds of literal are legitimately unavoidable in CSS (a breakpoint
@@ -83,25 +171,108 @@ export const STRUCTURAL_ROWS = new Set(["D-00"]);
 
 // ── Detectors ──────────────────────────────────────────────────────────────
 
+// ── CSS system colours ─────────────────────────────────────────────────────
+//
+// THIS IS THE LITERAL THE WHOLE LINT EXISTS TO CATCH. VD.1 measured the primary
+// button at 1.04:1 because `.btn` set no `background`, so `<button class="btn
+// ghost">` inherited the user agent's `ButtonFace` while its `<a class="btn
+// primary">` siblings did not. A detector that enumerates twenty DESIGNER
+// colour names and no SYSTEM colour cannot see the value that caused the
+// regression it was written to prevent — `background:ButtonFace` passed clean.
+//
+// Two lists, because CSS system colours are ASCII case-insensitive while ONE of
+// them is also a CSS property name that occurs in a value position.
+//
+// The case-sensitive list is a DELIBERATE WEAKENING — a lowercase spelling of a
+// name on it is a colour a browser honours and this checker cannot see — so it
+// is held to the names that have EVIDENCE behind them, and no others. VD.3
+// originally put eight names here on the reasoning that they are ordinary
+// English words. Measured against the real Layer 2 source, seven of the eight
+// (`Canvas`, `Field`, `Highlight`, `Mark`, `Menu`, `Scrollbar`, `Window`) match
+// NOTHING even case-insensitively: `scrollbar-color` and `--bt-surface-canvas`
+// are excluded by the word boundaries already, and no `<mark>` or `.menu` rule
+// exists. They bought no false-positive protection and cost seven undetectable
+// colours (`background:menu` passed clean), so they are matched
+// case-insensitively with the rest.
+//
+// `Background` is the one name with a real collision, and it is a large one: 42
+// case-insensitive matches, of which 37 are the property `background:` and 3 are
+// `transition:background …` — a property name in a VALUE position, which no
+// lookahead can distinguish from the system colour. It stays case-sensitive on
+// its canonical CSS spelling, which is the spelling a stylesheet that means the
+// system colour uses and the spelling ordinary CSS never produces.
+//
+// The residual hole is therefore exactly one name wide and is stated rather than
+// hidden: `background:background` is a colour this checker does not see.
+export const SYSTEM_COLOURS_COMPOUND = [
+  "AccentColorText", "AccentColor", "ActiveBorder", "ActiveCaption", "ActiveText",
+  "AppWorkspace", "ButtonBorder", "ButtonFace", "ButtonHighlight", "ButtonShadow",
+  "ButtonText", "CanvasText", "Canvas", "CaptionText", "FieldText", "Field",
+  "GrayText", "HighlightText", "Highlight", "InactiveBorder",
+  "InactiveCaptionText", "InactiveCaption", "InfoBackground", "InfoText",
+  "LinkText", "MarkText", "Mark", "MenuText", "Menu", "Scrollbar",
+  "SelectedItemText", "SelectedItem", "ThreeDDarkShadow", "ThreeDFace",
+  "ThreeDHighlight", "ThreeDLightShadow", "ThreeDShadow", "VisitedText",
+  "WindowFrame", "WindowText", "Window",
+];
+export const SYSTEM_COLOURS_AMBIGUOUS = [
+  "Background",
+];
+
+const SYSTEM_COLOUR_RE_I = new RegExp(`(?<![\\w-])(?:${SYSTEM_COLOURS_COMPOUND.join("|")})(?![\\w-])`, "gi");
+const SYSTEM_COLOUR_RE_S = new RegExp(`(?<![\\w-])(?:${SYSTEM_COLOURS_AMBIGUOUS.join("|")})(?![\\w-])`, "g");
+
+// The CSS named colours a designer actually reaches for. `transparent` is
+// handled by the allowlist; `inherit`/`currentColor` are inheritance, not
+// colour choices.
+const NAMED_COLOUR_RE = /(?<![\w-])(white|black|red|green|blue|grey|gray|silver|navy|teal|olive|maroon|purple|fuchsia|aqua|lime|orange|yellow|pink|brown|cyan|magenta)(?![\w-])/gi;
+
+// The colour FUNCTIONS. This list has to be the whole of CSS Color 4, not the
+// familiar half of it: `hwb()` and `color()` are as much a raw colour as
+// `rgb()` is, are supported everywhere `oklch()` is, and were both absent —
+// `background:hwb(200 30% 20%)` passed clean. `light-dark()` is deliberately
+// NOT here: its arguments are colours and are caught on their own, so listing
+// it would reject the legitimate `light-dark(var(--a), var(--b))`.
 const RAW_COLOUR = [
   { id: "hex", re: /#[0-9a-fA-F]{3,8}\b/g },
   { id: "rgb", re: /\brgba?\s*\(/g },
   { id: "hsl", re: /\bhsla?\s*\(/g },
+  { id: "hwb", re: /\bhwba?\s*\(/g },
+  { id: "color-function", re: /(?<![\w-])color\s*\(/g },
   { id: "color-mix", re: /\bcolor-mix\s*\(/g },
   { id: "lab-lch-oklch", re: /\bo?k?(lab|lch)\s*\(/g },
-  {
-    id: "named-colour",
-    // The CSS named colours a designer actually reaches for. `transparent` is
-    // handled by the allowlist; `inherit`/`currentColor` are inheritance, not
-    // colour choices.
-    re: /(?<![\w-])(white|black|red|green|blue|grey|gray|silver|navy|teal|olive|maroon|purple|fuchsia|aqua|lime|orange|yellow|pink|brown|cyan|magenta)(?![\w-])/gi,
-  },
+  { id: "named-colour", re: NAMED_COLOUR_RE },
+  { id: "system-colour", re: SYSTEM_COLOUR_RE_I },
+  { id: "system-colour", re: SYSTEM_COLOUR_RE_S },
 ];
+
+// The subset that cannot occur in English prose, and is therefore safe to look
+// for anywhere in a string — including one that is a sentence. A `#4f46e5` or
+// an `rgb(` in ANY Layer 2 string is a colour; the word "orange" is not.
+const UNAMBIGUOUS_COLOUR = RAW_COLOUR.filter((d) => !["named-colour", "system-colour"].includes(d.id));
+const PROSE_RISKY_COLOUR = RAW_COLOUR.filter((d) => ["named-colour", "system-colour"].includes(d.id));
 
 // A length literal: a number followed by a CSS unit. `0` alone is not a design
 // value, and unitless numbers (z-index, flex, line-height ratios) are not
 // lengths, so neither is matched.
-const RAW_LENGTH = /(?<![\w.#-])-?\d*\.?\d+(px|rem|em|ch|ex|vh|vw|vmin|vmax|pt|pc|cm|mm|in)(?![\w-])/g;
+//
+// The unit set is the whole of CSS Values 4, not the units that were common when
+// the rule was written. `height:100dvh` is an extremely ordinary modern
+// declaration and it passed clean, as did `2lh`, `40q`, `20cqw` and every other
+// container-query and dynamic-viewport unit: a detector that enumerates units is
+// defeated by the next unit CSS ships, so it enumerates all of them. Ordered
+// longest-first so the alternation cannot match a proper prefix.
+const LENGTH_UNITS = [
+  "rem", "rlh", "rex", "rch", "ric", "rcap",
+  "svmin", "lvmin", "dvmin", "svmax", "lvmax", "dvmax",
+  "vmin", "vmax", "cqmin", "cqmax",
+  "svh", "lvh", "dvh", "svw", "lvw", "dvw", "svi", "lvi", "dvi", "svb", "lvb", "dvb",
+  "cqw", "cqh", "cqi", "cqb", "cap",
+  "px", "em", "ch", "ex", "ic", "lh", "vh", "vw", "vi", "vb",
+  "pt", "pc", "cm", "mm", "in", "q",
+];
+const RAW_LENGTH = new RegExp(
+  `(?<![\\w.#-])-?\\d*\\.?\\d+(${LENGTH_UNITS.join("|")})(?![\\w-])`, "g");
 
 const BRAND_PRIMITIVE = [
   { id: "ct-variable", re: /var\(\s*--ct-[a-z0-9-]+\s*\)/g },
@@ -110,6 +281,77 @@ const BRAND_PRIMITIVE = [
 ];
 
 // ── Nim tokenisation: strings in, comments out ─────────────────────────────
+
+/** Nim's escapes, resolved — what the string MEANS, which is what a browser
+ *  gets. `\"` is how a hand-built HTML attribute is written.
+ *
+ *  The NUMERIC escapes matter for the same reason the CSS identifier escape
+ *  below does, and they are the easier of the two to reach for: Nim reads
+ *  `"\x42uttonFace"` and `"\66uttonFace"` as `ButtonFace`, so a detector that
+ *  only strips the backslash sees `x42uttonFace` and passes it. VD.3 closed the
+ *  CSS escape (`background:\42 uttonFace`) and left the Nim one open one layer
+ *  down, where no CSS knowledge is needed to use it. Both are closed now. */
+export function unescapeNim(text) {
+  return text.replace(
+    /\\(?:x([0-9a-fA-F]{2})|u\{([0-9a-fA-F]{1,6})\}|u([0-9a-fA-F]{4})|(\d{1,3})|(.))/g,
+    (m, hex, uBrace, u4, dec, ch) => {
+      if (hex !== undefined) return String.fromCharCode(parseInt(hex, 16));
+      if (uBrace !== undefined) {
+        const cp = parseInt(uBrace, 16);
+        return cp <= 0x10ffff ? String.fromCodePoint(cp) : m;
+      }
+      if (u4 !== undefined) return String.fromCharCode(parseInt(u4, 16));
+      // Nim's decimal escape is 1-3 digits and tops out at 255.
+      if (dec !== undefined) return Number(dec) <= 255 ? String.fromCharCode(Number(dec)) : m;
+      return ch === "n" ? "\n" : ch === "t" ? "\t" : ch === "r" ? "\r" : ch === "\\" ? "\\" : ch;
+    });
+}
+
+/** The Nim source with every string literal and comment blanked, so a regex
+ *  over it sees CODE only. Used by A5: a `style = someVar` attribute has no
+ *  string literal for the string scan to find, and is still an inline style. */
+export function nimCode(src) {
+  const chars = src.split("");
+  const blank = (from, to) => {
+    for (let k = from; k < to && k < chars.length; k++) if (chars[k] !== "\n") chars[k] = " ";
+  };
+  // The same walk as nimStrings, blanking instead of collecting.
+  let i = 0;
+  const n = src.length;
+  while (i < n) {
+    if (src.startsWith('"""', i)) {
+      const end = src.indexOf('"""', i + 3);
+      const stop = end === -1 ? n : end;
+      blank(i, stop + 3);
+      i = stop + 3;
+      continue;
+    }
+    if (src[i] === '"') {
+      let j = i + 1;
+      while (j < n && src[j] !== '"') { if (src[j] === "\\") j++; j++; }
+      blank(i, j + 1);
+      i = j + 1;
+      continue;
+    }
+    if (src[i] === "'") {
+      let j = i + 1;
+      if (src[j] === "\\") j++;
+      j++;
+      if (src[j] === "'") { blank(i, j + 1); i = j + 1; continue; }
+      i++;
+      continue;
+    }
+    if (src[i] === "#") {
+      const nl = src.indexOf("\n", i);
+      const stop = nl === -1 ? n : nl;
+      blank(i, stop);
+      i = stop;
+      continue;
+    }
+    i++;
+  }
+  return chars.join("");
+}
 
 /** Every string literal in a Nim source, with its kind and 1-based line. */
 export function nimStrings(src) {
@@ -122,7 +364,8 @@ export function nimStrings(src) {
     if (src.startsWith('"""', i)) {
       const end = src.indexOf('"""', i + 3);
       const stop = end === -1 ? n : end;
-      out.push({ kind: "block", text: src.slice(i + 3, stop), line: lineOf(i) });
+      const blockText = src.slice(i + 3, stop);
+      out.push({ kind: "block", text: blockText, unescaped: blockText, line: lineOf(i), start: i, end: stop + 3 });
       i = stop + 3;
       continue;
     }
@@ -132,7 +375,11 @@ export function nimStrings(src) {
         if (src[j] === "\\") j++;
         j++;
       }
-      out.push({ kind: "string", text: src.slice(i + 1, j), line: lineOf(i) });
+      const text = src.slice(i + 1, j);
+      // `unescaped` is what the string MEANS, which is what a browser sees. A
+      // hand-built fragment is written `"<span style=\"color:#f00\">"`, so the
+      // attribute a scanner has to reach into is behind a backslash.
+      out.push({ kind: "string", text, unescaped: unescapeNim(text), line: lineOf(i), start: i, end: j + 1 });
       i = j + 1;
       continue;
     }
@@ -158,6 +405,80 @@ export function nimStrings(src) {
 
 /** CSS block comments carry no style; they are removed before scanning. */
 const stripCssComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
+
+/** CSS identifier escapes, resolved. A browser reads `background:\42 uttonFace`
+ *  as `background:ButtonFace`, so a detector that matches literal text is one
+ *  backslash away from being defeated — this was found by trying to evade the
+ *  system-colour fix rather than by reading the spec. The optional trailing
+ *  whitespace deliberately excludes `\n`, so decoding never changes how many
+ *  newlines precede a match and reported line numbers stay true. */
+export const decodeCssEscapes = (css) =>
+  css
+    .replace(/\\([0-9a-fA-F]{1,6})[ \t\r\f]?/g, (m, h) => {
+      const cp = parseInt(h, 16);
+      return cp > 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : m;
+    })
+    .replace(/\\([^\r\n])/g, "$1");
+
+// ── What KIND of string is this, and therefore what may be looked for in it ──
+//
+// VD.2 scanned a single-line string only when it matched `^[a-z-]+\s*:`, so a
+// hand-built fragment (`"<span style=\"color:#ff0000\">"`) and a bare value in
+// an attribute (`meta(name = "theme-color", content = "#4f46e5")`) were never
+// examined at all. Both are now classified and scanned. The classification is
+// TOTAL — every string lands in exactly one context — so "not scanned" is a
+// decision with a name rather than the default.
+
+/** A CSS declaration list: `color:var(--x)`, `--gap: 4px`.
+ *
+ *  An English sentence opens exactly the same way. `"Note: the raw value is in
+ *  wei"` matched this shape and was therefore classified as CSS, with two
+ *  consequences that would have got the whole lint switched off: A5 reported the
+ *  sentence as an inline style and told the author to "move the declaration into
+ *  styles.nim behind a class", and the CSS context matches the prose-risky
+ *  colours FREELY, so `"Status: green means finalised"` failed A1 on the word
+ *  green. The value side must therefore read as CSS rather than as prose —
+ *  either it carries a CSS-significant character, or it is too short to be a
+ *  sentence, which is what `background:ButtonFace` and `color:red` are. */
+const CSS_DECL_RE = /^\s*(?:--)?[a-z-]+\s*:[^:]/i;
+const CSS_VALUEISH_RE = /[#(){};]|\d\s*(?:px|rem|em|%)|\bvar\b|!important/i;
+const looksLikeCssDecl = (t) =>
+  CSS_DECL_RE.test(t) && (CSS_VALUEISH_RE.test(t) || t.trim().split(/\s+/).length <= 3);
+/** Hand-built markup: an open or close tag, or a bare `style=` attribute. */
+const HTML_TAG_RE = /<\/?[a-z][a-z0-9]*(?:[\s/>]|$)/i;
+const STYLE_ATTR_RE = /(?<![\w-])style\s*=\s*(["'])([\s\S]*?)\1/gi;
+
+export const CTX = { CSS: "css", MARKUP: "markup", VALUE: "value" };
+
+/** Runs of string literals joined by `&`, as ONE synthetic string each.
+ *
+ *  Splitting a value across a concatenation is the obvious way to walk past a
+ *  text-matching detector: `"background:Butt" & "onFace"` is `background:Butt`
+ *  (not a colour) followed by `onFace` (not a colour), and a browser renders
+ *  ButtonFace. It works across `"""` blocks too. Joining the run and scanning
+ *  the join closes the direct case; a value routed through a `const` in another
+ *  module is still out of reach, and is stated as such in the header. */
+export function nimConcatRuns(src, strings) {
+  if (!strings.length) return [];
+  const runs = [];
+  let run = [strings[0]];
+  for (let i = 1; i < strings.length; i++) {
+    const between = src.slice(strings[i - 1].end, strings[i].start);
+    if (/^\s*&\s*$/.test(between)) run.push(strings[i]);
+    else { if (run.length > 1) runs.push(run); run = [strings[i]]; }
+  }
+  if (run.length > 1) runs.push(run);
+  return runs;
+}
+
+/** kind + text → scan context. `text` must already be unescaped and allowlisted. */
+export function classifyString(kind, text) {
+  if (kind === "block") return CTX.CSS;
+  const t = text.trim();
+  if (HTML_TAG_RE.test(t) || /(?<![\w-])style\s*=\s*["']/i.test(t)) return CTX.MARKUP;
+  if (looksLikeCssDecl(t)) return CTX.CSS;
+  return CTX.VALUE;
+}
 
 /** Apply the allowlist by blanking every allowed match, so what remains is
  *  exactly the un-exempted text. Returns the blanked text plus per-entry hits. */
@@ -261,7 +582,12 @@ async function run(opts) {
       let value = t.value;
       if (t.kind === "bkToken") value = deref(t.counterpart);
       if (t.type === "dimension" && /^-?\d*\.?\d+$/.test(value)) value += "px";
+      // Keyed BOTH ways. `--bt-density-cell-y` exists once per register with a
+      // different value in each; a map keyed by name alone silently keeps
+      // whichever group was walked last, which is how a register-aware check
+      // ends up measuring one register twice.
       resolved.set(t.cssVar, value);
+      resolved.set(`${t.group}|${t.cssVar}`, value);
     }
   }
 
@@ -272,11 +598,71 @@ async function run(opts) {
       if (f.endsWith(".nim")) files.push(join(dir, f));
     }
   }
+  // A0 also has to answer "is this the WHOLE of Layer 2". The scan enumerates
+  // two directories by name, so a view module written anywhere else under
+  // client/src is unscanned and the checker reports a clean pass over a subset
+  // — found by trying to evade this file's own fix. Any .nim outside the
+  // enumerated directories (and outside Layer 0/1, where raw values belong)
+  // that renders markup or carries a stylesheet is a Layer 2 view in the wrong
+  // place, and fails here rather than being silently out of scope.
+  const CLIENT_SRC = join(REPO_ROOT, "client", "src");
+  const DESIGN_SYSTEM_DIR = join(CLIENT_SRC, "design_system");
+  const walk = (dir) => {
+    const out = [];
+    for (const e of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) out.push(...walk(p));
+      else if (e.name.endsWith(".nim")) out.push(p);
+    }
+    return out;
+  };
+  const outOfScopeViews = [];
+  if (existsSync(CLIENT_SRC)) {
+    for (const f of walk(CLIENT_SRC)) {
+      if (files.includes(f) || f.startsWith(DESIGN_SYSTEM_DIR)) continue;
+      const src = await readFile(f, "utf8");
+      const why = [];
+      // Every spelling Nim accepts, not the one spelling VD.3 happened to write.
+      // `import isonim/[dsl/ui]` and `from isonim/dsl/ui import nil` are the
+      // same import and both walked past a `^import isonim/dsl/ui` anchor.
+      if (/^[ \t]*(?:import|from)\s+isonim\b[^\n]*(?:dsl\/ui|ssr\/renderer)/m.test(src)) {
+        why.push("imports the isonim view DSL");
+      }
+      // A stylesheet does not have to be in a `"""` block to be a stylesheet.
+      // `const extraCss* = "body{background:ButtonFace}"` is one, and requiring
+      // the triple-quoted form made a rogue module invisible for the price of a
+      // reformat. A single-line string has to look MORE like CSS than a block
+      // does — a braced rule set — so an ordinary `"a: b;"` in a ViewModel is
+      // not mistaken for one.
+      for (const s of nimStrings(src)) {
+        const text = s.kind === "block" ? stripCssComments(s.text) : s.unescaped;
+        // The declaration's terminator may be on the NEXT line — `.x{\n
+        // color: #ff0000\n}` is a stylesheet, and requiring `;` or `}` on the
+        // same line as the value meant a reformat was enough to hide one.
+        const isSheet = s.kind === "block"
+          ? /[a-z-]+\s*:\s*[^;}]+[;}]/.test(text)
+          : /\{[^{}]*[a-z-]+\s*:\s*[^;}]+[;}]/.test(text);
+        if (isSheet) {
+          why.push(`carries a stylesheet at line ${s.line}`);
+          break;
+        }
+      }
+      if (why.length) outOfScopeViews.push({ file: relative(REPO_ROOT, f), line: 1, text: why.join("; ") });
+    }
+  }
+
   if (files.length === 0) {
     // Fail closed: an empty file list is "the subject is absent", not a pass.
     add("A0", "Layer 2 sources located", false, `no .nim sources under ${LAYER2_DIRS.map((d) => relative(REPO_ROOT, d)).join(", ")}`);
+  } else if (outOfScopeViews.length) {
+    add("A0", "Layer 2 sources located", false,
+      `${outOfScopeViews.length} view module(s) outside the scanned directories (${LAYER2_DIRS.map((d) => relative(REPO_ROOT, d)).join(", ")}) — ` +
+      `A1–A7 would report a clean pass over a subset:\n` +
+      outOfScopeViews.map((v) => `        ${v.file}  ${v.text}`).join("\n"));
   } else {
-    add("A0", "Layer 2 sources located", true, `${files.length} file(s): ${files.map((f) => relative(REPO_ROOT, f)).join(", ")}`);
+    add("A0", "Layer 2 sources located", true,
+      `${files.length} file(s): ${files.map((f) => relative(REPO_ROOT, f)).join(", ")}` +
+      `; no view module elsewhere under client/src`);
   }
 
   const allowHits = new Map();
@@ -285,46 +671,137 @@ async function run(opts) {
   const primitives = [];
   const danglingRefs = [];
   const inlineStyles = [];
+  const markupFragments = [];
   const usedVars = new Set();
-  let scannedBlocks = 0;
+  const scanned = { css: 0, markup: 0, value: 0 };
   let scannedChars = 0;
 
   for (const file of files) {
     const rel = relative(REPO_ROOT, file);
     const src = await readFile(file, "utf8");
-    for (const s of nimStrings(src)) {
-      // A CSS-bearing string is either a `"""…"""` block (the stylesheet) or a
-      // single-line string that looks like inline CSS (`prop:value`).
-      const isBlock = s.kind === "block";
-      const looksInline = !isBlock && /^[a-z-]+\s*:[^:]/i.test(s.text.trim());
-      if (!isBlock && !looksInline) continue;
-      if (looksInline) inlineStyles.push({ file: rel, line: s.line, text: s.text.trim() });
-      scannedBlocks++;
 
-      const body = applyAllowlist(stripCssComments(s.text), allowHits);
-      scannedChars += body.length;
+    // A5's source-level half. `span(style = value)` — a variable, a call, a
+    // concatenation — has NO string literal for the scan below to classify, and
+    // is still an inline style attribute. Read off the code with every string
+    // and comment blanked, so this file's own prose cannot trip it.
+    // Case-insensitively: Nim identifiers ignore case after the first letter,
+    // and `$ident` emits the SOURCE spelling, so `span(sTyLe = …)` renders
+    // `<span sTyLe="…">` — which an HTML parser honours, attribute names being
+    // case-insensitive.
+    const code = nimCode(src);
+    for (const m of code.matchAll(/(?<![\w-])style\s*=/gi)) {
+      inlineStyles.push({ file: rel, line: code.slice(0, m.index).split("\n").length, kind: "attribute", text: "style = …" });
+    }
 
-      for (const d of RAW_COLOUR) {
-        for (const m of body.matchAll(d.re)) {
-          rawColours.push({ file: rel, line: s.line + body.slice(0, m.index).split("\n").length - 1, kind: d.id, text: m[0] });
+    const strings = nimStrings(src);
+    const bodyOf = (s) => (s.kind === "block" ? stripCssComments(s.text) : s.unescaped);
+    const units = [
+      ...strings.map((s) => ({ kind: s.kind, line: s.line, raw: bodyOf(s), joined: false })),
+      // Every `&`-joined run, scanned AS ONE STRING as well as separately.
+      ...nimConcatRuns(src, strings).map((run) => ({
+        kind: run.every((s) => s.kind === "block") ? "block" : "string",
+        line: run[0].line, raw: run.map(bodyOf).join(""), joined: true,
+      })),
+    ];
+
+    for (const s of units) {
+      const ctx0 = classifyString(s.kind, s.raw);
+      // A CSS identifier escape is a hiding place only in a stylesheet or a
+      // markup fragment; decoding ordinary prose would be noise.
+      const decoded = ctx0 === CTX.VALUE ? s.raw : decodeCssEscapes(s.raw);
+      // A joined run re-reads text already counted, so its allowlist hits are
+      // thrown away: A6 must report how many times an exemption really fired.
+      const body = applyAllowlist(decoded, s.joined ? new Map() : allowHits);
+      const ctx = classifyString(s.kind, body);
+      if (!s.joined) { scanned[ctx]++; scannedChars += body.length; }
+
+      const lineAt = (idx) => s.line + body.slice(0, idx).split("\n").length - 1;
+      const colour = (m, id) => rawColours.push({ file: rel, line: lineAt(m.index), kind: id, text: m[0] });
+      const length = (m) => rawLengths.push({ file: rel, line: lineAt(m.index), text: m[0] });
+
+      // `@import` pulls in a stylesheet this checker never reads, so every
+      // value in it is outside every rule above. There is no legitimate use in
+      // a Layer 2 view: the page's CSS is assembled in layout.nim.
+      // Case-insensitively: CSS at-rule names are ASCII case-insensitive exactly
+      // as the system colours are, so `@IMPORT url(…)` is honoured by every
+      // browser and walked past a case-sensitive `@import`. That is the same
+      // defect this file diagnoses for `buttonface` two hundred lines above.
+      for (const m of body.matchAll(/@import\b[^;]*/gi)) {
+        markupFragments.push({ file: rel, line: lineAt(m.index), kind: "external-stylesheet", text: m[0].trim().slice(0, 100) });
+      }
+
+      if (ctx === CTX.MARKUP) {
+        markupFragments.push({ file: rel, line: s.line, kind: "hand-built-markup", text: body.trim().slice(0, 100) });
+        for (const m of body.matchAll(STYLE_ATTR_RE)) {
+          inlineStyles.push({ file: rel, line: lineAt(m.index), kind: "markup", text: m[0].trim() });
         }
       }
-      for (const m of body.matchAll(RAW_LENGTH)) {
-        rawLengths.push({ file: rel, line: s.line + body.slice(0, m.index).split("\n").length - 1, text: m[0] });
+      if (ctx === CTX.CSS && s.kind === "string") {
+        inlineStyles.push({ file: rel, line: s.line, kind: "declaration", text: body.trim() });
       }
+
+      // Colours. The unambiguous shapes are looked for EVERYWHERE — no English
+      // sentence contains `#4f46e5` or `rgb(`. The prose-risky ones (the word
+      // "orange", the word `Canvas`) are looked for freely in CSS and in
+      // hand-built markup, which are not prose, and in an ordinary string only
+      // when the WHOLE string is that colour — which is exactly the shape of
+      // `content = "#4f46e5"` and `content = "ButtonFace"`, and is never the
+      // shape of `text "Paste a block, tx hash, or address"`.
+      for (const d of UNAMBIGUOUS_COLOUR) for (const m of body.matchAll(d.re)) colour(m, d.id);
+      if (ctx === CTX.VALUE) {
+        const t = body.trim();
+        for (const d of PROSE_RISKY_COLOUR) {
+          for (const m of t.matchAll(d.re)) if (m[0] === t) colour({ 0: m[0], index: body.indexOf(t) }, d.id);
+        }
+        for (const m of t.matchAll(RAW_LENGTH)) if (m[0] === t) length({ 0: m[0], index: body.indexOf(t) });
+      } else {
+        for (const d of PROSE_RISKY_COLOUR) for (const m of body.matchAll(d.re)) colour(m, d.id);
+        for (const m of body.matchAll(RAW_LENGTH)) length(m);
+      }
+
       for (const d of BRAND_PRIMITIVE) {
         for (const m of body.matchAll(d.re)) {
-          primitives.push({ file: rel, line: s.line + body.slice(0, m.index).split("\n").length - 1, kind: d.id, text: m[0] });
+          primitives.push({ file: rel, line: lineAt(m.index), kind: d.id, text: m[0] });
         }
       }
       for (const m of body.matchAll(/var\(\s*(--bt-[a-z0-9-]+)/g)) {
         usedVars.add(m[1]);
         if (!declared.has(m[1])) {
-          danglingRefs.push({ file: rel, line: s.line + body.slice(0, m.index).split("\n").length - 1, text: m[1] });
+          danglingRefs.push({ file: rel, line: lineAt(m.index), text: m[1] });
         }
       }
     }
   }
+
+  // A `&`-joined run is scanned twice on purpose — once member by member, once
+  // as the string a browser will actually see — so one violation can be found
+  // twice. Report it once.
+  const dedupe = (arr) => {
+    const seen = new Set();
+    return arr.filter((v) => {
+      const k = `${v.file}:${v.line}:${v.kind ?? ""}:${v.text}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  };
+  for (const arr of [rawColours, rawLengths, primitives, danglingRefs, markupFragments]) {
+    const kept = dedupe(arr);
+    arr.length = 0;
+    arr.push(...kept);
+  }
+
+  // One inline style reported once: a `span(style = "color:red")` is seen both
+  // as an attribute in the code and as a declaration list in the strings.
+  const byPlace = new Map();
+  for (const s of inlineStyles) {
+    const k = `${s.file}:${s.line}`;
+    // Prefer the entry that names the actual declaration over the bare
+    // "there is a style= here" one, so the failure text is useful.
+    if (!byPlace.has(k) || byPlace.get(k).kind === "attribute") byPlace.set(k, s);
+  }
+  const inlineStylesUnique = [...byPlace.values()]
+    .sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
 
   const fmt = (arr, n = 12) =>
     arr.slice(0, n).map((v) => `        ${v.file}:${v.line}  ${v.text}${v.kind ? `  (${v.kind})` : ""}`).join("\n") +
@@ -332,7 +809,9 @@ async function run(opts) {
 
   add("A1", "no raw colour in a Layer 2 view", rawColours.length === 0,
     rawColours.length ? `${rawColours.length} raw colour value(s):\n${fmt(rawColours)}` :
-      `${scannedBlocks} CSS-bearing string(s), ${scannedChars} chars scanned — 0 hex, rgb(), hsl(), color-mix() or named colour`);
+      `${scanned.css} CSS-bearing, ${scanned.markup} markup and ${scanned.value} bare-value string(s), ${scannedChars} chars scanned — ` +
+      `0 hex, rgb(), hsl(), color-mix(), lab/lch, named colour or CSS SYSTEM colour ` +
+      `(${SYSTEM_COLOURS_COMPOUND.length + SYSTEM_COLOURS_AMBIGUOUS.length} of them, ButtonFace among them)`);
 
   add("A2", "no raw pixel or length value in a Layer 2 view", rawLengths.length === 0,
     rawLengths.length ? `${rawLengths.length} raw length(s):\n${fmt(rawLengths)}` :
@@ -346,19 +825,32 @@ async function run(opts) {
     danglingRefs.length ? `${danglingRefs.length} reference(s) to a --bt-* variable that web.tokens.json does not define:\n${fmt(danglingRefs)}` :
       `${usedVars.size} distinct --bt-* tokens referenced, all declared`);
 
-  // A5: inline style attributes. Not banned outright — a genuinely dynamic
-  // value has nowhere else to live — but each must be token-only, which the
-  // scan above already enforced, and there should be none in a foundations
-  // pass. Reported so a growth in them is visible.
-  add("A5", "inline style attributes carry tokens only", true,
-    inlineStyles.length === 0 ? "0 inline style strings — every view uses a utility class"
-      : `${inlineStyles.length} inline style string(s), all token-only (A1–A4 scanned them):\n${fmt(inlineStyles)}`);
+  // A5: inline style attributes. AGENTS.md tells a contributor not to write one
+  // and says "the checker fails on any of them". VD.2's A5 only REPORTED them
+  // and passed unconditionally, so the documented rule was not the enforced one.
+  // It is now enforced: an inline style is a design decision written where no
+  // token layer can see it, and there is nowhere in this product that needs one.
+  // Detected three ways, so it cannot be reached around — a `style =` attribute
+  // in the code (even one whose value is a variable), a `style="…"` inside a
+  // hand-built fragment, and a bare string that is a CSS declaration list.
+  add("A5", "no inline style attribute in a Layer 2 view", inlineStylesUnique.length === 0,
+    inlineStylesUnique.length === 0 ? "0 inline styles — every view uses a utility class"
+      : `${inlineStylesUnique.length} inline style(s) — move the declaration into styles.nim behind a class:\n${fmt(inlineStylesUnique)}`);
 
   // A6: the allowlist must not rot.
   const stale = ALLOWLIST.filter((e) => !(allowHits.get(e.id) > 0));
   add("A6", "every allowlist entry still matches something", stale.length === 0,
     stale.length ? `${stale.length} stale exemption(s) — delete them rather than leaving a standing permission: ${stale.map((e) => e.id).join(", ")}`
       : ALLOWLIST.map((e) => `${e.id} x${allowHits.get(e.id)}`).join(", "));
+
+  // A7: hand-built HTML. AGENTS.md: "Don't hand-concatenate HTML". It is also
+  // what made the whole markup context invisible to VD.2's scan — a string
+  // spliced through `raw` is markup the DSL never sees and the token layer
+  // never reaches. The fragment is scanned above AND rejected here, so a
+  // colour smuggled inside one fails twice rather than not at all.
+  add("A7", "no hand-built markup and no external stylesheet in a Layer 2 view", markupFragments.length === 0,
+    markupFragments.length === 0 ? "0 hand-built fragments and 0 @import — markup comes from the isonim DSL, and the page's CSS is assembled in layout.nim"
+      : `${markupFragments.length} unscannable escape hatch(es) — build markup with the DSL, and put CSS in styles.nim, so attributes and values stay inspectable:\n${fmt(markupFragments)}`);
 
   // ── B: Design-System.md §4.1 — the divergence rule ──────────────────────
   const literals = tokens.filter((t) => t.kind === "bkLiteral");
@@ -401,6 +893,61 @@ async function run(opts) {
     }
   }
 
+  // ── B4: a citation of a review finding resolves ─────────────────────────
+  //
+  // VD.2's ledger REPLACED VD.1's round and reused the ids. Every `L1/1`,
+  // `L2/6` and `L2/7` written into styles.nim and nav.nim against VD.1's ledger
+  // therefore still parses and now points at a DIFFERENT finding — a comment
+  // that reads as evidence and is not. Worse, `L1/13` never existed in the new
+  // ledger at all and nothing said so.
+  //
+  // The fix is a citation form that names the revision it was written against
+  // and an id that must exist in it:
+  //
+  //     ledger@2026-08-28.3:tx-detail/wide/light/L1/8
+  //
+  // A ledger round that replaces its predecessor bumps `ledgerRevision`, so
+  // every stale citation goes red in one run rather than rotting silently.
+  // Evidence that survives a superseded round is cited by FILE PATH instead
+  // (reviews/break-round-debug-affordance.json), and the path must exist.
+  {
+    const CITE = /ledger@([0-9][\w.-]*):([a-z0-9-]+\/[a-z0-9-]+\/[a-z0-9-]+\/(?:L\d+|ADV)\/\d+)/gi;
+    const PATH_CITE = /(?<![\w/.-])(reviews\/[\w.-]+\.json)/g;
+    const sources = [
+      ...files,
+      WEB_TOKENS,
+      ...(existsSync(DIVERGENCE_DOC) ? [DIVERGENCE_DOC] : []),
+    ];
+    const ledgerPath = join(REPO_ROOT, "reviews", "ledger.json");
+    let ids = null;
+    let revision = null;
+    if (existsSync(ledgerPath)) {
+      const L = JSON.parse(await readFile(ledgerPath, "utf8"));
+      revision = L.ledgerRevision ?? null;
+      ids = new Set((L.reviews ?? []).flatMap((r) => (r.findings ?? []).map((f) => f.id)));
+    }
+    const bad = [];
+    let cites = 0;
+    for (const file of sources) {
+      const rel = relative(REPO_ROOT, file);
+      const text = await readFile(file, "utf8");
+      const lineOf = (i) => text.slice(0, i).split("\n").length;
+      for (const m of text.matchAll(CITE)) {
+        cites++;
+        if (!ids) { bad.push({ file: rel, line: lineOf(m.index), text: `${m[0]} — reviews/ledger.json does not exist` }); continue; }
+        if (m[1] !== revision) bad.push({ file: rel, line: lineOf(m.index), text: `${m[0]} — cites revision ${m[1]}, the ledger is at ${revision}` });
+        else if (!ids.has(m[2])) bad.push({ file: rel, line: lineOf(m.index), text: `${m[0]} — no finding with that id in the ${revision} ledger` });
+      }
+      for (const m of text.matchAll(PATH_CITE)) {
+        cites++;
+        if (!existsSync(join(REPO_ROOT, m[1]))) bad.push({ file: rel, line: lineOf(m.index), text: `${m[1]} — cited as evidence, does not exist` });
+      }
+    }
+    add("B4", "every review-finding citation resolves", bad.length === 0,
+      bad.length ? `${bad.length} citation(s) that do not resolve — a comment that reads as evidence and is not:\n${fmt(bad)}`
+        : `${cites} citation(s) across ${sources.length} source(s), every one resolving against ledger revision ${revision}`);
+  }
+
   // ── C: the token model's own invariants ─────────────────────────────────
   const keySet = (group) => new Set(tokens.filter((t) => t.group === group).map((t) => t.cssVar));
   const diff = (a, b) => [...a].filter((k) => !b.has(k)).sort();
@@ -423,16 +970,40 @@ async function run(opts) {
       ? `explorer-only: ${onlyExp.join(", ") || "none"}; debugger-only: ${onlyDbg.join(", ") || "none"} — Design-System.md §2 requires one component parametrised by density, not two component sets`
       : `${expKeys.size} density tokens, defined in both registers`);
 
+  // C3 — the rhythm ladder, ranked over the tokens the STYLESHEET ACTUALLY
+  // READS.
+  //
+  // VD.2 ranked `--bt-rhythm-row` as the bottom rung. No rule in styles.nim
+  // ever referenced it: the row rung the stylesheet reads is
+  // `--bt-density-cell-y`, the register's own cell padding. So C3 passed by
+  // measuring a token that was emitted and used nowhere — a check that ranks a
+  // value no page can render is not a check. The dead token is gone and the
+  // live one takes its place, which also makes the ladder register-aware:
+  // the bottom rung is per-register by construction, and BOTH registers are
+  // ranked, because a ladder that holds in one and collapses in the other is
+  // the two-component-sets failure Design-System.md §2 forbids.
+  //
+  // What the rung IS matters and is stated rather than assumed: the row rung is
+  // the PADDING inside a row, compared against the margins above it, which is
+  // the comparison the dead token was written to make (12px padding vs 24px
+  // stack). The row-to-row GAP that padding produces — two paddings meeting at
+  // a hairline, 2x cell-y — is reported beside the verdict, because it is a
+  // smaller number than the ladder suggests and hiding it here is how a check
+  // starts flattering the thing it measures.
   if (!resolved) {
     add("C3", "the rhythm roles are strictly separated", false,
       `the design system is not readable at ${dsDir} (set DESIGN_SYSTEM_SRC), so the rhythm could not be resolved to numbers — this check does not pass by being unable to run`);
   } else {
-    const order = ["--bt-rhythm-row", "--bt-rhythm-stack", "--bt-rhythm-group", "--bt-rhythm-section"];
-    const vals = order.map((k) => ({ k, v: px(resolved.get(k) ?? "") }));
-    const missing = vals.filter((x) => x.v === null);
-    let ok = missing.length === 0;
-    const problems = missing.map((x) => `${x.k} is not a px value`);
-    if (ok) {
+    const upper = ["--bt-rhythm-stack", "--bt-rhythm-group", "--bt-rhythm-section"];
+    const problems = [];
+    const lines = [];
+    let ok = true;
+    const rowOf = (reg) => px(resolved.get(`register.${reg}|--bt-density-cell-y`) ?? "");
+    for (const reg of ["explorer", "debugger"]) {
+      const vals = [{ k: `--bt-density-cell-y (${reg})`, v: rowOf(reg) },
+        ...upper.map((k) => ({ k, v: px(resolved.get(k) ?? "") }))];
+      const missing = vals.filter((x) => x.v === null);
+      if (missing.length) { ok = false; problems.push(...missing.map((x) => `${x.k} is not a px value`)); continue; }
       for (let i = 1; i < vals.length; i++) {
         const ratio = vals[i].v / vals[i - 1].v;
         if (ratio < 1.75) {
@@ -440,9 +1011,15 @@ async function run(opts) {
           problems.push(`${vals[i].k} (${vals[i].v}px) is only ${ratio.toFixed(2)}x ${vals[i - 1].k} (${vals[i - 1].v}px) — below the 1.75x separation, so proximity stops grouping`);
         }
       }
+      const gap = vals[0].v * 2;
+      // The rung NAMES are printed in full, not abbreviated: the self-test
+      // reads them back out of this line and requires every one to be a token
+      // styles.nim actually references, which is the property VD.2's C3 lost.
+      lines.push(`${reg}: ` + vals.map((x) => `${x.k.replace(/ \(.*\)/, "")}=${x.v}px`).join(" < ") +
+        `  (row-to-row gap = 2x cell-y = ${gap}px, ${(vals[1].v / gap).toFixed(2)}x under stack — reported, NOT gated: adjacent rows carry a hairline rule as well as space, so proximity is not the only grouping cue there)`);
     }
     add("C3", "the rhythm roles are strictly separated", ok,
-      ok ? vals.map((x) => `${x.k.replace("--bt-rhythm-", "")}=${x.v}px`).join(" < ") + "  (each >= 1.75x the one below)"
+      ok ? lines.join("\n        ") + "\n        each rung >= 1.75x the one below; every rung is a token styles.nim reads"
         : problems.join("; "));
   }
 
@@ -521,11 +1098,17 @@ tools/design/check-tokens.mjs — what each check decides
 ───────────────────────────────────────────────────────
 
 verify_no_raw_values_in_views
-  A0  Layer 2 sources were found at all. An empty file list FAILS: a check
-      that passes because its subject is absent is the failure mode this
-      project has hit three times.
-  A1  No raw colour — hex, rgb(), hsl(), color-mix(), lab/lch, or a CSS named
-      colour — in client/src/{components,pages}/*.nim.
+  A0  Layer 2 sources were found at all, AND they are all of Layer 2. An empty
+      file list FAILS — a check that passes because its subject is absent is
+      the failure mode this project has hit three times — and so does a view
+      module living anywhere else under client/src, because the scan
+      enumerates two directories by name and everything else is invisible
+      to it.
+  A1  No raw colour — hex, rgb(), hsl(), color-mix(), lab/lch, a CSS named
+      colour, or a CSS SYSTEM colour — in client/src/{components,pages}/*.nim.
+      The system colours are the point: 'background:ButtonFace' is the literal
+      that measured 1.04:1, and a detector of designer colour names alone
+      cannot see it.
   A2  No raw length. A number with a CSS unit is a design decision and belongs
       in web.tokens.json. Bare 0 and unitless numbers are not lengths.
   A3  No brand primitive: no var(--ct-*), no --ct-* declaration, no raw DTCG
@@ -533,21 +1116,45 @@ verify_no_raw_values_in_views
       undefined as well as forbidden.
   A4  Every var(--bt-X) a view uses is defined by web.tokens.json. This is
       what makes A1-A3 constructive rather than merely prohibitive.
-  A5  Inline style attributes are reported and scanned by A1-A4.
+  A5  NO inline style attribute. Enforced, not merely reported: a 'style ='
+      in the code (even with a non-literal value), a 'style="…"' inside a
+      hand-built fragment, and a bare string that is a declaration list.
   A6  Every allowlist entry still matches something. An exemption whose
       subject was deleted is a standing permission and fails here.
+  A7  No hand-built HTML fragment and no @import. Markup spliced through
+      'raw' is markup the DSL never sees, and it is the context VD.2's scan
+      skipped entirely; an @import pulls in a stylesheet this checker never
+      reads, putting every value in it outside every rule above.
+
+  What gets scanned, and why nothing is skipped by default: every string
+  literal is classified into CSS (a triple-quoted block or a declaration
+  list), MARKUP (a hand-built fragment) or VALUE (everything else, including
+  an attribute value such as 'content = "#4f46e5"'). Unambiguous colour
+  shapes are looked for in all three. The prose-risky ones — the word
+  "orange", the word 'Canvas' — are looked for freely in CSS and markup, and
+  in a VALUE string only when the whole string IS that colour. CSS identifier
+  escapes are decoded first (a browser reads a backslash-42 escape as the
+  letter B, so 'ButtonFace' can be written without the letters), and runs of
+  '&'-joined literals are scanned as one string as well as separately, so a
+  value split across a concatenation is still seen.
 
 Design-System.md §4.1 — the divergence rule
   B1  Every bkLiteral names a row in docs/DESIGN-DIVERGENCES-WEB.md.
   B2  Every row corresponds to at least one literal.
   B3  The generated implemented-binding table matches web.tokens.json.
+  B4  Every review-finding citation resolves. A ledger round that replaces its
+      predecessor reuses the ids, so 'ledger@<revision>:<id>' must name the
+      CURRENT revision and an id that exists in it.
 
 The token model's own invariants
   C1  theme.light and theme.dark carry identical key sets.
   C2  register.explorer and register.debugger carry identical key sets.
-  C3  rhythm row < stack < group < section, each at least 1.75x the one below.
-      Resolved to NUMBERS through the design system; if the design system is
-      unreadable this check FAILS rather than skipping.
+  C3  cell-y < stack < group < section, each at least 1.75x the one below, in
+      BOTH registers. The bottom rung is --bt-density-cell-y, the row padding
+      styles.nim actually reads; the --bt-rhythm-row it replaced was emitted
+      and referenced by no rule. Resolved to NUMBERS through the design
+      system; if the design system is unreadable this check FAILS rather than
+      skipping.
 
 The shipped page
   D1  client/dist declares exactly the derived --bt-* set, and no --ct-*.
