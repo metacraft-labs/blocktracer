@@ -268,6 +268,137 @@ const CASES = [
   },
 ];
 
+// ── VD.2: the foundations-scoped mode ──────────────────────────────────────
+//
+// A narrower gate is only worth having if it is still a gate. These cases prove
+// three things about `--foundations`, and the third is the one that matters:
+//
+//   1. It still FAILS on a foundations defect.
+//   2. It correctly does NOT fail on a page-level defect — the narrowing is
+//      real rather than cosmetic.
+//   3. In that same run the FULL gate is computed and reported as failing, so
+//      "foundations passed" can never be read as "this page is done".
+//
+// G2, G4 and G5 are asserted to be UNCHANGED by the narrowing: a foundations
+// round that skipped a lens or a sign-off would be a different, weaker thing
+// wearing the same name.
+
+const FOUNDATION_CASES = [
+  {
+    name: "--foundations — the complete ledger passes",
+    expect: "pass",
+    mutate: (L) => L,
+  },
+  {
+    name: "--foundations — an unresolved P2 carrying a FOUNDATIONS criterion (A2) blocks",
+    expect: "fail",
+    condition: "G3f",
+    mutate: (L) => {
+      L.reviews[0].findings[0].criterion = "A2";
+      L.resolutions = L.resolutions.filter((r) => r.findingId !== L.reviews[0].findings[0].id);
+      return L;
+    },
+  },
+  {
+    name: "--foundations — an unresolved P2 carrying A5 (numeric/monospace) blocks",
+    expect: "fail",
+    condition: "G3f",
+    mutate: (L) => {
+      L.reviews[2].findings[0].criterion = "A5";
+      L.reviews[2].findings[0].severity = "P2";
+      L.resolutions = L.resolutions.filter((r) => r.findingId !== L.reviews[2].findings[0].id);
+      return L;
+    },
+  },
+  {
+    name: "--foundations — an unresolved P1 with NO criterion (a presence failure) does NOT block",
+    expect: "pass",
+    mutate: (L) => {
+      L.reviews[1].findings.push({
+        id: "tx-detail/wide/light/L2/9",
+        severity: "P1",
+        location: "hero, where the age should be",
+        finding: "the age is absent — content nobody has built",
+      });
+      return L;
+    },
+    alsoAssert: (r) => {
+      const full = r.parsed?.fullGate;
+      return full && full.passing === 0
+        ? null
+        : `the FULL gate should still fail on the same ledger; it reported ${full?.passing}/${full?.scope}`;
+    },
+  },
+  {
+    name: "--foundations — an unresolved P1 carrying an EXCLUDED criterion (A6) does NOT block, but the full gate does",
+    expect: "pass",
+    mutate: (L) => {
+      L.reviews[1].findings.push({
+        id: "tx-detail/wide/light/L2/9",
+        severity: "P1",
+        location: "transactions table, the primary action column",
+        finding: "the primary action is the last column of a scrolling row",
+        criterion: "A6",
+      });
+      return L;
+    },
+    alsoAssert: (r) =>
+      r.parsed?.fullGate?.passing === 0 ? null : `the FULL gate should still fail; it reported ${r.parsed?.fullGate?.passing}`,
+  },
+  {
+    name: "--foundations — missing CONTENT relaxes G1 to G1f but is reported, and the full gate still fails on G1",
+    expect: "pass",
+    mutate: (L) => {
+      L.reviews[3].expectedElements = "missing";
+      L.reviews[3].missing = ["Hero: age", "Overview grid: nonce"];
+      L.reviews[3].rating = 4;
+      return L;
+    },
+    alsoAssert: (r) => {
+      const g1f = r.parsed?.results?.[0]?.conditions?.find((c) => c.id === "G1f");
+      const fullG1 = r.parsed?.fullGate?.results?.[0]?.conditions?.find((c) => c.id === "G1");
+      if (!g1f?.ok) return "G1f should pass when the presence check was performed";
+      if (!/report missing content/.test(g1f.detail)) return "G1f must SAY that content is missing, not hide it";
+      if (fullG1?.ok !== false) return "the FULL gate's G1 must still fail on the missing content";
+      return null;
+    },
+  },
+  {
+    name: "--foundations — a missing lens still blocks (G2 is NOT relaxed)",
+    expect: "fail",
+    condition: "G2",
+    mutate: (L) => {
+      L.reviews = L.reviews.filter((r) => r.reviewer !== "L3");
+      L.resolutions = L.resolutions.filter((r) => !r.findingId.includes("/L3/"));
+      return L;
+    },
+  },
+  {
+    name: "--foundations — a missing reference-parity record still blocks (G4 is NOT relaxed)",
+    expect: "fail",
+    condition: "G4",
+    mutate: (L) => { L.referenceParity = []; return L; },
+  },
+  {
+    name: "--foundations — a missing human sign-off still blocks (G5 is NOT relaxed)",
+    expect: "fail",
+    condition: "G5",
+    mutate: (L) => { L.signOffs = []; return L; },
+  },
+  {
+    name: "--foundations — a P1 resolved as 'waived' still blocks (a P1 can only be fixed)",
+    expect: "fail",
+    condition: "G3f",
+    mutate: (L) => {
+      L.reviews[0].findings[0].severity = "P1";
+      L.reviews[0].findings[0].criterion = "A7";
+      L.resolutions = L.resolutions.filter((r) => r.findingId !== L.reviews[0].findings[0].id);
+      L.resolutions.push({ findingId: L.reviews[0].findings[0].id, status: "waived", reason: "later", signedOffBy: "A Human" });
+      return L;
+    },
+  },
+];
+
 function runGate(ledgerPath, extra = []) {
   const r = spawnSync("node", [GATE, "--ledger", ledgerPath, "--json", ...extra], { encoding: "utf8" });
   let parsed = null;
@@ -322,11 +453,58 @@ async function main() {
     const okBad = unparseable.status === 1;
     console.log(`  ${okBad ? "✓" : "✗"} fail-closed — an unparseable ledger is a FAIL`);
     okBad ? pass++ : failures.push("unparseable ledger");
+
+    // ── VD.2 — the foundations-scoped mode ────────────────────────────────
+    console.log("");
+    for (const [i, c] of FOUNDATION_CASES.entries()) {
+      const L = c.mutate(clone(completeLedger()));
+      const p = join(dir, `foundations-${i}.json`);
+      await writeFile(p, JSON.stringify(L, null, 2));
+      const r = runGate(p, ["--foundations"]);
+
+      let ok;
+      let why = "";
+      if (c.expect === "pass") {
+        ok = r.status === 0 && r.parsed?.ok === true;
+        why = ok ? "" : `exit ${r.status}, ok=${r.parsed?.ok}, failing=[${(r.parsed?.results?.[0]?.conditions ?? []).filter((x) => !x.ok).map((x) => x.id).join(", ")}]`;
+      } else {
+        const failed = (r.parsed?.results?.[0]?.conditions ?? []).filter((x) => !x.ok).map((x) => x.id);
+        ok = r.status === 1 && r.parsed?.ok === false && failed.includes(c.condition);
+        why = ok ? "" : `expected ${c.condition} to fail; failing = [${failed.join(", ")}], exit ${r.status}`;
+      }
+      if (ok && c.alsoAssert) {
+        const problem = c.alsoAssert(r);
+        if (problem) { ok = false; why = problem; }
+      }
+      console.log(`  ${ok ? "✓" : "✗"} ${c.name}${ok ? "" : `\n        ${why}`}`);
+      if (ok) pass++;
+      else failures.push(c.name);
+    }
+
+    // The scope enumeration must be exhaustive and disjoint over both rubrics.
+    // A criterion in neither set would escape BOTH the narrowing and the
+    // review of the narrowing — which is exactly how a scope quietly shrinks.
+    const { FOUNDATIONS_CRITERIA, PAGE_CRITERIA } = await import("./gate.mjs")
+      .catch(() => ({ FOUNDATIONS_CRITERIA: null, PAGE_CRITERIA: null }));
+    const all = [...Array(10)].flatMap((_, i) => [`A${i + 1}`, `B${i + 1}`]);
+    const inF = new Set(Object.keys(FOUNDATIONS_CRITERIA ?? {}));
+    const inP = new Set(Object.keys(PAGE_CRITERIA ?? {}));
+    const uncovered = all.filter((c) => !inF.has(c) && !inP.has(c));
+    const overlap = all.filter((c) => inF.has(c) && inP.has(c));
+    const exhaustive = uncovered.length === 0 && overlap.length === 0;
+    console.log(`  ${exhaustive ? "✓" : "✗"} the foundations scope is exhaustive and disjoint over A1-A10 and B1-B10`);
+    if (!exhaustive) console.log(`        uncovered: [${uncovered.join(", ")}]  overlapping: [${overlap.join(", ")}]`);
+    exhaustive ? pass++ : failures.push("foundations scope enumeration");
+
+    // And every reason must actually be a reason.
+    const reasoned = [...inF, ...inP].every((k) => ((FOUNDATIONS_CRITERIA ?? {})[k] ?? (PAGE_CRITERIA ?? {})[k] ?? "").length > 30);
+    console.log(`  ${reasoned ? "✓" : "✗"} every criterion in the scope enumeration carries a stated reason`);
+    reasoned ? pass++ : failures.push("foundations scope reasons");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
 
-  const total = CASES.length + 2;
+  const total = CASES.length + 2 + FOUNDATION_CASES.length + 2;
   console.log(`\n${failures.length ? "FAIL" : "PASS"} — ${pass}/${total} gate self-test cases`);
   if (failures.length) for (const f of failures) console.log(`  failed: ${f}`);
   return failures.length ? 1 : 0;
