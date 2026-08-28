@@ -155,24 +155,78 @@ tools/capture/run-in-container.sh selftest       # the same, pinned
 | `verify_canary_failure_invalidates_the_baselines` | `require-deterministic.mjs`, exercised by `selftest.mjs` |
 | `verify_full_regen_removes_stale_images` | `check-coverage.mjs` (D) + `selftest.mjs` |
 
-## The review loop (VD.1 onwards)
+## The review loop and the quality gate (VD.1)
 
 Never view screenshots in the main context. Capture, then hand the paths to
 disposable review sub-agents together with the brief, and read only their text
-summaries:
+summaries.
+
+[`tools/visual-review-brief.md`](../visual-review-brief.md) is what every
+reviewer reads: product context, the reference direction, an expected-elements
+block for **every one of the 62 named views**, two rubrics (explorer register
+and debugger register), five reviewer lenses, the adversarial reviewer role,
+the P1/P2/P3 severity definitions, and the gate.
 
 ```
 1. change the UI
-2. just capture "--view tx-detail --size wide"
-3. launch a review agent per view, in parallel:
-     "Read the brief at tools/visual-review-brief.md. View
-      screenshots/tx-detail__wide__dark.png. This is the `tx-detail` view at
-      the `wide` viewport in the `dark` theme; its expected-elements block is
-      in the brief. This iteration changed <X>. Rate 1-10."
-4. read the summaries, fix, re-capture
+2. just capture "--view tx-detail --size wide --theme light"
+3. just review-prompt "--view tx-detail --size wide --theme light --all"
+     → six prompts: L1..L5 and ADV. Launch them in parallel; a round of six
+       costs the same wall-clock time as one.
+4. record each reviewer's ```json block in reviews/ledger.json
+5. just review-gate "--view tx-detail"
+6. fix, re-capture, repeat
 ```
 
-The brief and its per-view expected-elements blocks are VD.1's deliverable.
+### The gate
+
+`gate.mjs` decides the five **structural** conditions over the findings ledger:
+
+| | Condition |
+| --- | --- |
+| G1 | every gated view has an expectation block, and every reviewer reports `expectedElements: "present"` |
+| G2 | all five lenses **and** the adversarial reviewer reviewed the exact image |
+| G3 | zero unresolved P1 and P2 — a P1 can only be `fixed`; a P2 may be `waived` with a reason *and* a human sign-off |
+| G4 | a reference-parity check is **recorded** with a verdict and a named human — never computed |
+| G5 | a human sign-off names a person, a date and the ledger revision, and that revision is current |
+
+The rating appears in none of them. `just review-gate-explain` prints the
+ledger schema; `just review-gate-selftest` proves each condition independently
+turns a passing ledger into a failing one, and that a missing or unparseable
+ledger fails closed rather than going green for lack of anything to check.
+
+**G6 — the tier-1 determinism precondition — is not enforced**, because VD.0's
+pinned container has never been built. `gate.mjs` says so on every run rather
+than leaving it to be discovered. G1–G5 are properties of the ledger and do not
+depend on it.
+
+### The per-view expectation blocks
+
+`expectations.mjs` is the source; `render-brief.mjs` writes §4 of the brief from
+it; `check-brief.mjs` enforces that every named view has a block, that no block
+names a view that does not exist, that no block is a stub, and that the brief is
+not stale with respect to its source.
+
+### The deliberate break
+
+`break-check.mjs` removes a required element from the product's source,
+rebuilds, captures into `screenshots/break/<name>/`, **restores the source in a
+`finally`**, and prints the review prompts — unchanged, so the reviewers are
+never told anything was removed. The recorded outcome lives in
+`reviews/break-round-*.json` and is re-gradeable with `--grade`.
+
+```
+just review-break                                       # list the breaks
+just review-break "--break debug-affordance"            # run one
+just review-break "--grade reviews/break-round-debug-affordance.json"
+just review-selftest                                    # all three VD.1 verifications
+```
+
+| VD.1 verification | Implemented by |
+| --- | --- |
+| `verify_brief_has_expectation_block_per_view` | `check-brief.mjs` (+ a negative control in `review-selftest.mjs`) |
+| `verify_deliberate_break_is_detected` | `break-check.mjs`, graded over the recorded round |
+| `verify_gate_definition_is_machine_checkable` | `gate.mjs`, proved by `gate-selftest.mjs` |
 
 ## Files
 

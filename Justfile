@@ -92,6 +92,43 @@ capture-gate:
 capture-selftest:
     node tools/capture/selftest.mjs
 
+# ── Review brief and the quality gate (VD.1) ────────────────────────────────
+# The brief's §4 is generated from tools/capture/expectations.mjs; the gate is
+# evaluated over reviews/ledger.json. See tools/visual-review-brief.md.
+
+# Regenerate the brief's per-view expected-elements section.
+review-brief:
+    node tools/capture/render-brief.mjs
+
+# verify_brief_has_expectation_block_per_view
+review-check-brief:
+    node tools/capture/check-brief.mjs
+
+# Emit the sub-agent prompts for one captured image, e.g.
+#   just review-prompt "--view tx-detail --size wide --theme light --all"
+review-prompt args="":
+    node tools/capture/review-prompt.mjs {{args}}
+
+# verify_gate_definition_is_machine_checkable — the gate over the findings ledger.
+review-gate args="":
+    node tools/capture/gate.mjs {{args}}
+
+# The ledger schema and the five gate conditions.
+review-gate-explain:
+    node tools/capture/gate.mjs --explain
+
+# Proof that the gate decides: every condition independently blocks.
+review-gate-selftest:
+    node tools/capture/gate-selftest.mjs
+
+# verify_deliberate_break_is_detected — list, run, or grade a recorded round.
+review-break args="--list":
+    node tools/capture/break-check.mjs {{args}}
+
+# All three VD.1 verifications, end to end.
+review-selftest:
+    node tools/capture/review-selftest.mjs
+
 # Build the CLI binaries.
 build:
     nim c --hints:off -d:release -o:blocktracer-demo-gen src/blocktracer_demo_gen.nim

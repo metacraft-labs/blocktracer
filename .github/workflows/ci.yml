@@ -115,3 +115,63 @@ jobs:
           ISONIM_SRC: ${{ github.workspace }}/isonim
           NIM_EVERYWHERE_SRC: ${{ github.workspace }}/nim-everywhere
         run: ci/test/embed-handoff-test.sh --require
+
+  # VD.1 — the review brief and the quality gate. Its own job because it needs
+  # neither Nim nor a browser: all three verifications are decisions over the
+  # brief, the view list and the recorded findings ledger, so they run in
+  # seconds and report a stale brief or an ungated view without waiting on a
+  # toolchain.
+  #
+  # NOT here, and deliberately: the capture harness itself. `capture.mjs`
+  # needs the Nim static exporter AND a Playwright browser, and the tier-1
+  # canary needs the pinned container that has never been built (VD.0's
+  # outstanding task 1). Wiring capture into CI is VD.11's deliverable — "the
+  # harness wired in as a visual regression gate, built from the four-tier
+  # hierarchy rather than one mechanism" — and adding a half of it now would
+  # produce a green check that measures the runner.
+  visual-design:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Every named view has an expected-elements block
+        # verify_brief_has_expectation_block_per_view. Also fails when the
+        # brief's generated section has drifted from expectations.mjs, so a
+        # view added to views.mjs cannot land without its block.
+        run: node tools/capture/check-brief.mjs
+
+      - name: The gate decides — every condition independently blocks
+        # verify_gate_definition_is_machine_checkable. Synthetic ledgers, one
+        # per condition, plus the four fail-closed paths.
+        run: node tools/capture/gate-selftest.mjs
+
+      - name: The deliberate break is detected
+        # verify_deliberate_break_is_detected, re-graded from every recorded
+        # round. Applying a break needs the Nim exporter, a browser and six
+        # review sub-agents, so CI grades the recorded reviewer output rather
+        # than re-running the round.
+        run: |
+          for round in reviews/break-round-*.json; do
+            echo "── $round"
+            node tools/capture/break-check.mjs --grade "$round"
+          done
+
+      - name: The findings ledger is well-formed
+        # The gate is EXPECTED to fail while no page has been taken to it; what
+        # must not happen is a malformed ledger passing unnoticed. `--json` and
+        # a schema-problem count of zero is the assertion.
+        run: |
+          node tools/capture/gate.mjs --json > gate.json || true
+          node -e '
+            const g = require("./gate.json");
+            if (g.schemaProblems.length) {
+              console.error("ledger schema problems:");
+              for (const p of g.schemaProblems) console.error(`  [${p.code}] ${p.msg}`);
+              process.exit(1);
+            }
+            console.log(`ledger OK; gate ${g.passing}/${g.scope} passing (revision ${g.ledgerRevision})`);
+          '
