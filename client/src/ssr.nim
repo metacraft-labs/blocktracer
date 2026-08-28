@@ -5,18 +5,79 @@
 ## reads. `staticRoutes` enumerates them; `renderRoute` dispatches one; both are
 ## driven by `reader`, so there is a single source of truth for "what exists".
 
-import std/strutils
+import std/[options, strutils]
 import reader
+import viewutil
+import debugger/demo_session
+import debugger/source_document
+import debugger/session_view
 import components/layout
 import pages/home as homePg
 import pages/chain as chainPg
 import pages/blocklist as blockListPg
 import pages/blockview as blockPg
 import pages/tx as txPg
+import pages/debug as debugPg
 
 const SiteDomain* = "https://blocktracer.org"
 
 # ── per-route renderers ─────────────────────────────────────────────────────
+
+proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
+  ## The session one transaction's debug route renders.
+  ##
+  ## Assembled here rather than inside the page so that the transaction route
+  ## and the debug route can build the SAME value — §7.0's "both addresses
+  ## reach the same session; they differ in what the visitor asked for" — and
+  ## so the source-bundle preference is applied in one place.
+  let info = chainInfo(r, chain)
+  let v = txView(r, info, hash)
+  let t = traceView(r, info, hash)
+  result = demoSession(chain, v,
+    containerPath = t.containerPath,
+    containerBytes = t.containerBytes,
+    totalSteps = (if t.steps > 0: t.steps else: 0))
+  if t.languages.len > 0:
+    result.languages = t.languages
+  result.reconstructed = t.reconstructed
+  if t.truncated:
+    result.integrity = siTruncated
+    result.integrityDetail =
+      "The recorder stopped at " & $t.steps & " steps and " & $t.frames &
+      " frames — the profile's budget. Everything before that point is " &
+      "complete and steps normally."
+  # Trace-Artifacts.md §4: the manifest's recommendation is "the
+  # interpretation the page should use", so a published bundle wins over the
+  # client's fixture sources.
+  withPublishedSources(result, t.sourceBundle)
+
+proc demoSessionFor*(r: DataRoot): Option[DebugSessionView] =
+  ## The first replayable transaction in the tree, as a session — the home
+  ## page's embedded demo.
+  ##
+  ## Chosen by walking the published data rather than by naming a hash: the
+  ## demo tree is a pure function of a seed, and a hard-coded hash would make a
+  ## reseed silently produce a home page with no demo on it. `none` when
+  ## nothing is replayable, which is the honest state for a tree of
+  ## on-demand-only chains.
+  for chain in chains(r):
+    let info = chainInfo(r, chain)
+    for h in blockHashes(r, info):
+      for txh in readBlockDetail(r, info, h).transactions:
+        var s = debugSessionFor(r, chain, txh)
+        # `hasFrame`, not `phase == spReady`: the static route serves a
+        # positioned frame with the replay engine still unfetched, and the
+        # embed is that same frame. Gating on `spReady` would leave the home
+        # page with no demo on it until hydration exists.
+        if s.hasFrame and s.integrity == siValidated and
+           not s.reconstructed:
+          # The embed has no scrollbar, so it opens ON the current line rather
+          # than at line 1 of the file. Line numbers and anchors are unchanged,
+          # so a link out of the embed lands on the same line of the full
+          # session.
+          s.editor = windowAround(s.editor, radius = 12)
+          return some(s)
+  none(DebugSessionView)
 
 proc renderHome*(r: DataRoot): string =
   var infos: seq[ChainInfo]
@@ -24,7 +85,7 @@ proc renderHome*(r: DataRoot): string =
   pageLayout(
     "BlockTracer — the deepest view into every transaction",
     "The deepest view into every transaction. Step and rewind every instruction, see the full call trace at a glance, and trace any value to its origin — across many chains, VMs and languages.",
-    homePg.homePage(infos),
+    homePg.homePage(infos, demoSessionFor(r)),
     robots = "index,follow",
     canonical = SiteDomain & "/")
 
@@ -77,6 +138,19 @@ proc renderTx*(r: DataRoot, chain, hash: string): string =
     robots = "noindex,follow",
     canonical = SiteDomain & "/" & chain & "/tx/" & hash)
 
+proc renderDebug*(r: DataRoot, chain, hash: string): string =
+  let s = debugSessionFor(r, chain, hash)
+  debugLayout(
+    "Debug " & truncHash(hash) & " — " & chain & " — BlockTracer",
+    "Step through transaction " & hash & " on " & chain & ".",
+    debugPg.debugPage(s),
+    robots = "noindex,follow",
+    # The canonical address of this content is the TRANSACTION's URL. §7.0
+    # makes that page the same session's first frame, and M8b requires the
+    # transaction route's crawl surface to be unchanged — which a second
+    # indexable copy of the same content would not leave it.
+    canonical = SiteDomain & "/" & chain & "/tx/" & hash)
+
 # ── route enumeration + dispatch ────────────────────────────────────────────
 
 proc staticRoutes*(r: DataRoot): seq[string] =
@@ -92,6 +166,12 @@ proc staticRoutes*(r: DataRoot): seq[string] =
       let bd = readBlockDetail(r, info, h)
       for txh in bd.transactions:
         result.add "/" & chain & "/tx/" & txh
+        # Page-Descriptions §8: the explicit full-viewport route and the deep
+        # link target. Enumerated for EVERY transaction, not only the ones with
+        # a replayable trace, because §7.0's `absent`/`unsupported` rows are
+        # states this route renders — "the metadata, with the reason stated" —
+        # and a 404 there would be a different, worse answer.
+        result.add "/" & chain & "/tx/" & txh & "/debug"
 
 proc renderRoute*(r: DataRoot, path: string): tuple[status: int, body: string, contentType: string] =
   ## Dispatch one clean-URL path to its renderer.
@@ -114,6 +194,9 @@ proc renderRoute*(r: DataRoot, path: string): tuple[status: int, body: string, c
       if hasTx(r, parts[0], parts[2]):
         return (200, renderTx(r, parts[0], parts[2]), "text/html")
     else: discard
+  of 4:
+    if parts[1] == "tx" and parts[3] == "debug" and hasTx(r, parts[0], parts[2]):
+      return (200, renderDebug(r, parts[0], parts[2]), "text/html")
   else: discard
   let notFound =
     "<section class=\"sec\"><div class=\"inner\">" &
