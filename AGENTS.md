@@ -64,6 +64,8 @@ is now a presentation projection over the SDK, not a second reader.
 | `just sdk-test` | `tests/tclientsdk.nim` — the consumer-side conformance suite (no Embed SDK needed) |
 | `just sdk-boundary` | the bidirectional import lint plus its own self-test |
 | `just sdk-test-embed` | `tests/tembedhandoff.nim` against the real Embed SDK; needs `$CODETRACER_SRC` or a `../codetracer` checkout — pinned commit in `ci/embed-sdk-pin.env` |
+| `just debug-panes` | `tests/tdebugpanes.nim` — the debug route's five pane renderers over the Embed SDK's OWN `EditorVM`/`CalltraceVM`/`StateVM`/`EventLogVM`/`DebugControlsVM`, driven through `MockBackendService`. Needs the Embed SDK |
+| `just layout-vendor` | the vendored copy of CodeTracer's `headless_app/layout_model.nim` still hashes to its manifest and still agrees with upstream on every observable, plus the self-test that drives every failure path |
 
 ## 2. isonim architecture
 
@@ -78,9 +80,10 @@ Layout under **`client/src/`**:
 |------|------|
 | `ssr.nim` | **Route table** (`staticRoutes`) + `renderRoute` dispatcher; `SiteDomain = "https://blocktracer.org"` for canonical URLs |
 | `static_export.nim` | Export entry (`just export` compiles & runs it → `dist/`) |
-| `reader.nim`, `viewutil.nim` | Chain-data loading + view helpers |
-| `pages/*.nim` | `home`, `chain`, `blocklist`, `blockview`, `tx` |
-| `components/*.nim` | `layout` (site shell), `styles`, `nav`, `footer`, `tables` |
+| `reader.nim`, `viewutil.nim` | Chain-data loading + view helpers. `viewutil.txMetadataRows` is the ONE producer of the transaction's facts — the tx page's overview grid and the debugger's metadata pane both render it (§7.1: "from one source", and they "cannot be allowed to diverge") |
+| `pages/*.nim` | `home`, `chain`, `blocklist`, `blockview`, `tx`, `debug` |
+| `components/*.nim` | `layout` (both shells), `styles`, `debugger_css`, `nav`, `footer`, `tables`, `debugger` (the pane renderers + the LayoutNode walk) |
+| `debugger/*.nim` | The debug route's renderer-free layer: `layout_model.nim` (a VENDORED copy of CodeTracer's — see `layout_model.vendor.json` and `ci/test/layout-model-vendor.sh`), `session_view.nim` (what a pane renders), `source_document.nim` (the static source renderer's input), `demo_session.nim` (the static tree's producer) |
 | `design_system/tokens.nim` | Design-system tokens |
 
 **Route table** (`client/src/ssr.nim`) — routes are **data-derived** (one per
@@ -92,7 +95,15 @@ chain / block / tx), not a fixed page list:
 /<chain>/blocks          → block list
 /<chain>/block/<hash>    → block detail
 /<chain>/tx/<hash>       → transaction detail
+/<chain>/tx/<hash>/debug → the full-viewport debugging session (M8a/M8b)
 ```
+
+The debug route is the **product register**: `components/layout.debugLayout`
+sets `<html data-register="debugger">` and drops the nav and the footer, and the
+token layer keys density and default theme off that one attribute. Its pane
+arrangement is not written here — `renderLayout` walks CodeTracer's
+`defaultReplayLayout()`, mapping `weight` to a flex-fraction class and `stack`
+to `:target` tabs, so the whole session is navigable with scripting off.
 
 `staticRoutes` enumerates the concrete URLs to pre-render from the chain data;
 `renderRoute` dispatches by pattern (unknown → 404). **To add a page kind, add a
@@ -212,7 +223,8 @@ Exact `client/Justfile` targets (run from `client/`; verified):
 
 | Command | What it does |
 |---------|--------------|
-| `cd client && just test` | Runs `tests/test_static_export.nim` |
+| `cd client && just test` | `test-export` + `test-viewmodels` + `test-debug-route` |
+| `cd client && just test-debug-route` | `tests/test_debug_route.nim` — M8a/M8b: the route, the arrangement against `LayoutNode`, the source renderer's stable line ids, §7.0's availability-decides-the-landing rule, and the stored crawl-surface baseline. No debugger on the Nim path |
 | `cd client && just export` | Compiles + runs `src/static_export.nim` → writes `dist/` |
 | `cd client && just preview` | Runs `export`, then serves `dist/` at **http://localhost:8080** |
 | `cd client && just clean` | Removes `dist/ nimcache` + built test/export binaries |

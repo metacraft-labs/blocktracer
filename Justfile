@@ -41,6 +41,24 @@ sdk-test-embed:
 viewmodel-seam:
     ci/test/viewmodel-seam-test.sh --require
 
+# ── The debug route (M8a/M8b) ──────────────────────────────────────────────
+# The hermetic half — the route, the arrangement, the pane renderers, the
+# source renderer, §7.0's landing rule — is `cd client && just test-debug-route`
+# and needs no debugger on the Nim path. These two are the halves that do.
+
+# The five panes rendered over the Embed SDK's OWN five ViewModels, driven
+# through MockBackendService. Needs CODETRACER_SRC or a ../codetracer checkout.
+debug-panes:
+    ci/test/debug-panes-test.sh --require
+
+# The vendored copy of CodeTracer's `headless_app/layout_model.nim`: its bytes
+# still hash to the manifest, and it still agrees with upstream on every
+# observable. The self-test drives every failure path, so the check is one that
+# has been seen to say no.
+layout-vendor:
+    ci/test/layout-model-vendor.sh --require
+    ci/test/layout-model-vendor-test.sh
+
 # Generate a demo static tree into ./demo-site.
 demo-gen out="demo-site" seed="blocktracer-demo-0":
     nim c -r --hints:off src/blocktracer_demo_gen.nim --out:{{out}} --seed:{{seed}}

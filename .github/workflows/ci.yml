@@ -388,3 +388,51 @@ jobs:
           ISONIM_SRC: ${{ github.workspace }}/isonim
           NIM_EVERYWHERE_SRC: ${{ github.workspace }}/nim-everywhere
         run: ci/test/viewmodel-seam-test.sh --require
+
+      # M8a — the other half of the debug route. The route itself is checked
+      # with no debugger on the path (the `debug-route` job below); these two
+      # need the real Embed SDK and so belong here, where it is already
+      # checked out at the pin.
+      - name: The debug panes, over the Embed SDK's own five ViewModels
+        env:
+          CODETRACER_SRC: ${{ github.workspace }}/codetracer
+          ISONIM_SRC: ${{ github.workspace }}/isonim
+          NIM_EVERYWHERE_SRC: ${{ github.workspace }}/nim-everywhere
+        run: ci/test/debug-panes-test.sh --require
+
+      - name: The vendored layout model still agrees with upstream
+        env:
+          CODETRACER_SRC: ${{ github.workspace }}/codetracer
+        run: |
+          ci/test/layout-model-vendor.sh --require
+          ci/test/layout-model-vendor-test.sh
+
+  # M8a/M8b — the `/{chain}/tx/{hash}/debug` route, with NO debugger on the Nim
+  # path. The route, the arrangement walked off CodeTracer's LayoutNode, the
+  # five pane renderers, the static source renderer, §7.0's
+  # availability-decides-the-landing rule and the stored crawl-surface
+  # baseline: all of it is checked over a demo tree the suite generates
+  # in-process, and none of it needs a replay engine. The halves that DO need
+  # one are steps on the `viewmodels` job above.
+  #
+  # It runs inside `nix develop .#ci` rather than on a bare Nim toolchain
+  # because the pages it renders inline the design-system token layer, and
+  # DESIGN_SYSTEM_SRC comes from the flake's pinned input. A second checkout
+  # here would be a second pin for the same bytes.
+  debug-route:
+    runs-on: eph-linux-x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Nix
+        uses: metacraft-labs/nixos-modules/.github/setup-nix@main
+        with:
+          trusted-public-keys: ${{ vars.TRUSTED_PUBLIC_KEYS }}
+          substituters: ${{ vars.SUBSTITUTERS }}
+          nix-github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tier 1 — the debug route, the arrangement and the source renderer
+        run: nix develop .#ci --command bash -c 'cd client && just test-debug-route'
+
+      - name: The static export still round-trips with the new route in it
+        run: nix develop .#ci --command bash -c 'cd client && just test-export'

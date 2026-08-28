@@ -8,9 +8,9 @@
 export:
     nim c -r --mm:orc -d:isServer -d:release src/static_export.nim
 
-# Run both client suites: the static-export round trip and BlockTracer's own
-# ViewModel layer (M12).
-test: test-export test-viewmodels
+# Run the client suites: the static-export round trip, BlockTracer's own
+# ViewModel layer (M12), and the debug route (M8a/M8b).
+test: test-export test-viewmodels test-debug-route
 
 # The static-export round-trip test: compile + run the real exporter into a
 # temp dir, then assert the three view types render for the demo entities and
@@ -26,6 +26,14 @@ test-export:
 test-viewmodels:
     nim c -r --mm:orc --hints:off tests/test_chain_viewmodels.nim
 
+# M8a/M8b: the `/{chain}/tx/{hash}/debug` route — the arrangement walked off
+# CodeTracer's LayoutNode, the five pane renderers, the static source renderer,
+# §7.0's availability-decides-the-landing rule, and the crawl-surface baseline.
+# Hermetic: no debugger on the Nim path. The half that DOES need one is
+# `just debug-panes` in the repository root's Justfile.
+test-debug-route:
+    nim c -r --mm:orc --hints:off tests/test_debug_route.nim
+
 # Build and preview the static site locally on :8080.
 preview: export
     cd dist && python3 -m http.server 8080
@@ -34,4 +42,4 @@ preview: export
 clean:
     rm -rf dist nimcache
     find . -name nimcache -type d -exec rm -rf {} +
-    rm -f src/static_export tests/test_static_export tests/test_chain_viewmodels
+    rm -f src/static_export tests/test_static_export tests/test_chain_viewmodels tests/test_debug_route
