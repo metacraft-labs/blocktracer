@@ -425,17 +425,34 @@ export const VIEWS = [
     description: "Event log with mixed calls, storage writes, events and a revert",
     covers: ["debugger.event-log"],
     register: "debugger",
-    status: "ready",
+    status: "pending",
+    // The renderer handles all five kinds and `evRevert` is exercised against
+    // the real Embed SDK in `tests/tdebugpanes.nim`. What is missing is DATA:
+    // no transaction the demo generator produces reverts, and the pane refuses
+    // to pretend otherwise — `ooPartial` is the Aztec split with both halves
+    // succeeded, not a revert, and rendering a failed constraint against it
+    // would be the pane inventing an event the trace never carried.
+    //
+    // So this view can only ever photograph four of the five kinds, and its
+    // own "must show" requires the fifth: "the revert entry rendered as the
+    // terminal, significant event it is". Capturing it `ready` would file a
+    // four-kind log under a view whose expectation names five, and spend a
+    // review round rediscovering a gap that is already written down. Same
+    // shape as `debugger--truncated` below, and given the same status.
+    //
+    // The fix is one reverted transaction in the demo generator. Then this
+    // becomes `ready` against `txWithOutcome("reverted")` and nothing about
+    // the renderer changes.
+    pendingReason:
+      `${PENDING_STATE}: no transaction in the demo tree reverts, so the ` +
+      "event log can show four of its five kinds and this view's own " +
+      "must-show list requires the fifth",
     sizes: DESKTOP_SIZES,
     fullPage: false,
     // The event log shares a tabbed region with the state pane and is the
     // NON-default tab, so the URL carries the fragment that selects it. The
     // tabs are `:target`-driven CSS, so this is the same mechanism a visitor
     // uses — not a capture-only hook.
-    //
-    // A reverted transaction, because the pane's own requirement is that a
-    // call, a storage write, an event AND a revert are distinguishable in one
-    // stream, and only a reverted transaction contributes the fourth.
     route: debugRoute(divergentTx, {
       t: DEBUG_TIME_COORDINATE_MID,
       extra: "#pane-eventlog",

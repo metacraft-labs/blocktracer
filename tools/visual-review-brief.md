@@ -116,7 +116,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 <!-- BEGIN GENERATED: expectations — do not edit by hand -->
 <!-- regenerate with: node tools/capture/render-brief.mjs -->
 
-*62 named views, 62 blocks — generated from `tools/capture/expectations.mjs`. 18 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
+*62 named views, 62 blocks — generated from `tools/capture/expectations.mjs`. 17 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
 
 #### Explorer register — entry and navigation
 
@@ -1089,7 +1089,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | debugger — apply rubric B (§6) |
 | **Spec** | Page-Descriptions §8, VD.5 |
 | **Captured at** | wide · laptop × light · dark |
-| **Capture status** | `ready` |
+| **Capture status** | `pending` — state not yet modelled by the client ViewModel: no transaction in the demo tree reverts, so the event log can show four of its five kinds and this view's own must-show list requires the fifth |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
