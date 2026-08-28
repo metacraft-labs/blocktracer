@@ -52,6 +52,9 @@ type
     ocTraceManifest    ## /t/**/manifest.json — input-addressed
     ocContent          ## immutable data content (block/tx/ts/seg)
     ocIndexShard       ## /idx/** version-addressed shard (immutable at its path)
+    ocSourceBundle     ## /src/{chain}/{codeHash}/{bundleHash}.json — immutable
+                       ## content-addressed source bundle (Source-Resolution §5).
+                       ## Its `current.json` sibling is a POINTER, not this class.
     ocGenMap           ## d/{chain}/g/{gen}/** except root.json
     ocGenRoot          ## d/{chain}/g/{gen}/root.json — seals the generation
     ocPointer          ## ◆ names-index pointer, labels, registry, site home
@@ -83,6 +86,14 @@ func classOf*(key: string): ObjClass =
   if k.startsWith("idx/"):
     if k.endsWith("meta.json"): return ocPointer   # the names-index pointer
     return ocIndexShard
+  if k.startsWith("src/"):
+    # Source bundles: the bundle object is immutable and content-addressed, while
+    # `current.json` is the one thing that moves when a better interpretation of
+    # the same code lands (Source-Resolution.md §5). Overwriting a bundle in place
+    # would be a correctness bug, so it must never get the pointer's
+    # write-unconditionally strategy.
+    if k.endsWith("/current.json"): return ocPointer
+    return ocSourceBundle
   if k.startsWith("registry/"):
     return ocPointer                               # version-tagged, short-TTL pointer
   if k.startsWith("assets/") or k.startsWith("_a/"):
@@ -105,6 +116,7 @@ func rankOf*(cls: ObjClass): int =
   ## Upload order (§2.2). Lower first; `ocCurrent` is always last.
   case cls
   of ocAsset: 0
+  of ocSourceBundle: 5        # a bundle exists before any manifest recommends it
   of ocTraceContainer: 10     # container before its manifest
   of ocTraceManifest: 11      # manifest before the tx data that claims the trace
   of ocContent: 20            # block/tx/overlay/segment data
@@ -223,6 +235,11 @@ proc publishChain*(store: ObjectStore, treeDir, chain: string,
   # global hash index, registry, site home) that the tree also carries.
   proc belongs(k: string): bool =
     if k.startsWith("d/"): return k.startsWith("d/" & chain & "/")
+    # Source bundles are filed per chain under /src/{chain}/ (Source-Resolution
+    # §5). Without this, a manifest's `sourceBundles` recommendation is published
+    # while the bundle it names never is, and the debugger steps through code it
+    # cannot display.
+    if k.startsWith("src/"): return k.startsWith("src/" & chain & "/")
     if k.startsWith(chain & "/"): return true          # this chain's entry pages
     if k.startsWith("t/") or k.startsWith("idx/") or k.startsWith("assets/") or
        k.startsWith("registry/") or k == "index.html" or k == "sitemap.xml" or
