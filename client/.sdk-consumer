@@ -1,0 +1,1 @@
+The BlockTracer explorer is a consumer of @blocktracer/client (M12a). Every module under client/ reads chain data through the SDK facade and never past it.

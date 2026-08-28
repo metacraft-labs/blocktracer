@@ -28,3 +28,90 @@ jobs:
         run: |
           nim c -r --hints:off src/blocktracer_demo_gen.nim --out:demo-site-2
           diff -r demo-site demo-site-2
+
+  # M12a — @blocktracer/client. Its own job, because the boundary guard is the
+  # cheap half (bash + awk, no toolchain) and must not wait on a Nim build to
+  # tell someone their import crossed the layer.
+  client-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the pinned Embed SDK
+        id: pin
+        # Only the KEY=VALUE lines; the file's comments explain WHY the pin is
+        # recorded as a commit and are not step outputs.
+        run: grep -E '^[A-Z_]+=' ci/embed-sdk-pin.env >> "$GITHUB_OUTPUT"
+
+      # The Embed SDK lives in another repository. Only src/frontend is needed
+      # (6.7 MB of the tree), so the checkout is sparse and blobless.
+      - name: Check out the pinned CodeTracer Embed SDK
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.pin.outputs.CODETRACER_REPO }}
+          ref: ${{ steps.pin.outputs.CODETRACER_REF }}
+          path: codetracer
+          filter: blob:none
+          sparse-checkout: |
+            src/frontend
+            ci/test
+          sparse-checkout-cone-mode: false
+
+      - name: Check out the pinned IsoNim
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.pin.outputs.ISONIM_REPO }}
+          ref: ${{ steps.pin.outputs.ISONIM_REF }}
+          path: isonim
+          filter: blob:none
+
+      - name: Check out the pinned nim-everywhere
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.pin.outputs.NIM_EVERYWHERE_REPO }}
+          ref: ${{ steps.pin.outputs.NIM_EVERYWHERE_REF }}
+          path: nim-everywhere
+          filter: blob:none
+
+      - name: Client SDK import boundary — the guard's own self-test
+        # Every rule driven against a synthetic tree carrying ONE deliberate
+        # violation, INCLUDING the Embed SDK cases. So the upward half of the
+        # boundary — "the Embed SDK contains no chain concept" — is exercised
+        # against synthetic trees here as well as against the real package below.
+        #
+        # It runs AFTER the checkouts and with CODETRACER_SRC set, because two
+        # of its 28 cases need the sibling repository and SKIP without it: the
+        # real-Embed scan, and the cross-repository assertion that both halves
+        # of the boundary use the same CHAIN_TOKENS list. Run before the
+        # checkouts this step reports "26 case(s), 2 skipped" and the one check
+        # that catches the two lists drifting apart never executes anywhere.
+        # It still runs before the Nim install, so a crossed import is reported
+        # without waiting on a toolchain.
+        env:
+          CODETRACER_SRC: ${{ github.workspace }}/codetracer
+        run: ci/test/client-sdk-boundary-test.sh
+
+      - name: Client SDK import boundary — against the REAL Embed SDK
+        # --require-embed: with the checkout above in place, "no Embed SDK
+        # source" is a failure rather than a skip, so this step cannot pass by
+        # quietly not running.
+        env:
+          CODETRACER_SRC: ${{ github.workspace }}/codetracer
+        run: ci/test/client-sdk-boundary.sh --require-embed
+
+      - name: Install Nim
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: "2.2.x"
+
+      - name: Client SDK — consumer-side conformance suite
+        # No Embed SDK on the Nim path, deliberately: the chain half compiling
+        # without a debugger is the layering (Client-SDK.md §5).
+        run: nim c -r --hints:off tests/tclientsdk.nim
+
+      - name: Client SDK — the handoff, against the real Embed SDK
+        env:
+          CODETRACER_SRC: ${{ github.workspace }}/codetracer
+          ISONIM_SRC: ${{ github.workspace }}/isonim
+          NIM_EVERYWHERE_SRC: ${{ github.workspace }}/nim-everywhere
+        run: ci/test/embed-handoff-test.sh --require

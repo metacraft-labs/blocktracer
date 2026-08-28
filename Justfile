@@ -1,10 +1,37 @@
 # BlockTracer workspace commands.
 # `just` recipes wrap the nimble tasks so the workspace has one entry point.
 
-# Run the conformance + publisher test suites.
+# Run the conformance + publisher + Client SDK test suites, and the SDK's
+# bidirectional import lint.
 test:
     nim c -r --hints:off tests/tcontract.nim
     nim c -r --hints:off tests/tpublish.nim
+    nim c -r --hints:off tests/tclientsdk.nim
+    ci/test/client-sdk-boundary.sh
+    ci/test/client-sdk-boundary-test.sh
+
+# ── @blocktracer/client — the Client SDK (M12a) ─────────────────────────────
+# The chain-aware layer above the CodeTracer Embed SDK. See
+# codetracer-specs/BlockTracer/Client-SDK.md.
+
+# The consumer-side conformance suite. Deliberately needs NO debugger on the
+# Nim path: that the chain half compiles without one is the layering.
+sdk-test:
+    nim c -r --hints:off tests/tclientsdk.nim
+
+# The bidirectional import lint (Client-SDK.md §1.1), plus its own self-test —
+# every rule driven against a synthetic tree carrying a deliberate violation.
+# Pass CODETRACER_SRC (or keep a ../codetracer checkout) to scan the REAL Embed
+# SDK for chain concepts as well.
+sdk-boundary:
+    ci/test/client-sdk-boundary.sh
+    ci/test/client-sdk-boundary-test.sh
+
+# The handoff: compile and run tests/tembedhandoff.nim against the real Embed
+# SDK, so "a TraceSource the Embed SDK accepts" is checked by the Embed SDK.
+# Needs CODETRACER_SRC or a ../codetracer checkout (ci/embed-sdk-pin.env).
+sdk-test-embed:
+    ci/test/embed-handoff-test.sh --require
 
 # Generate a demo static tree into ./demo-site.
 demo-gen out="demo-site" seed="blocktracer-demo-0":
