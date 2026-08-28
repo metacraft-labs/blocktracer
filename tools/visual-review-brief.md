@@ -2324,7 +2324,7 @@ Two conditions sit above the per-view gate:
 
 | # | Condition | Status |
 | - | --------- | ------- |
-| G6 | **The capture is trustworthy.** `require-deterministic.mjs` returns a tier-1 verdict from the pinned container before any baseline-comparing check is believed. | **Currently unenforceable — see §12** |
+| G6 | **The capture is trustworthy.** `require-deterministic.mjs` returns a tier-1 verdict from the pinned capture environment before any baseline-comparing check is believed. | Enforceable **in Linux CI only** — see §12. `gate.mjs` reads the live verdict and reports it on every run |
 | G7 | **No page regressed while another was improved** — the whole named view set passes simultaneously in one round (VD.11). | Not reachable until the view set is `ready` |
 
 **A number is not a condition.** The rating appears nowhere in G1–G7. A view
@@ -2344,15 +2344,34 @@ schema; `--view <id>` gates one view; a bare run gates every view listed in
 
 Stated here rather than discovered later.
 
-**G6 is unenforceable today.** VD.0's pinned capture container is written but has
-never been built or run — the Docker daemon does not start on the development
-machine — so no tier-1 verdict exists. `require-deterministic.mjs` correctly
-refuses the host-only advisory verdict, which means the honest current position
-is: *the gate's tier-1 precondition fails closed and stays failed.* Everything
-in G1–G5 is a property of the review ledger and does not depend on tier 1, so
-the gate is enforceable for those five conditions today. What is **not**
-available is the assurance that two captures of the same commit produce the same
-image, and therefore any conclusion of the form "this page did not change".
+**G6 is enforceable in CI, and not on a developer's machine.** VD.0's pinned
+capture environment is now a Nix derivation (`tools/capture/capture-env.nix`,
+flake output `.#capture-env`) that fixes the browser build, the fontconfig set
+and the renderer flags with no daemon. `gate.mjs` no longer asserts a status —
+it reads `screenshots/canary/status.json` through `require-deterministic.mjs`
+and reports what is actually there.
+
+The limit is a real one and is not papered over: **on darwin the pinned Chromium
+still rasterises through the host compositor** (CoreGraphics/CoreText —
+`FONTCONFIG_FILE` does not even reach it), which no derivation can pin. So a
+darwin run stays `advisory` however pinned its inputs are, `require-deterministic.mjs`
+refuses it, and darwin↔Linux hashes are not expected to match. Tier 1 only
+requires that *one* environment reproduces itself; that environment is the
+`visual-design-canary` job on Linux, and that is where a tier-1 verdict comes
+from.
+
+So the honest position, per machine:
+
+- **Linux CI** — G6 is decided. A canary that is not byte-identical, or that ran
+  outside the pinned environment, fails the job.
+- **A darwin workstation** — G6 fails closed and stays failed, exactly as
+  before. Byte-identity is still reported, as `advisory`, because it catches
+  gross nondeterminism early while iterating; it is not a tier-1 pass and
+  nothing accepts it as one.
+
+Everything in G1–G5 is a property of the review ledger and does not depend on
+tier 1, so those five are enforceable anywhere. What a darwin session still may
+**not** conclude is anything of the form "this page did not change".
 
 **G7 is not reachable yet.** 54 of the 62 named views are `pending` because the
 client does not serve their route or model their state. The gate runs over
