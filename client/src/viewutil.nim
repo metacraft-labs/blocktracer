@@ -5,6 +5,8 @@
 ## design-system-token CSS colours; they hold no data of their own.
 
 import blocktracer_client
+import ./reader
+import ./debugger/session_view
 
 proc truncHash*(h: string, lead = 6, tail = 4): string =
   ## `0x27a6c250…9a6c` — a copyable middle-truncated hash for dense tables.
@@ -79,6 +81,19 @@ proc roleLabel*(role: string): string =
   of "relayer": "Relayer"
   else: role
 
+proc outcomeReasonLabel*(o: OutcomeOverall): string =
+  ## What to call `outcome.reason`.
+  ##
+  ## §7.2 asks for "status (with decoded revert reason if any)", and the label
+  ## was `Revert reason:` unconditionally. On the demo's Aztec split
+  ## transaction that renders "Revert reason: private-part-succeeded-public-
+  ## part-succeeded" over a transaction in which nothing reverted — the label
+  ## contradicting the value it introduces. The reason field is a status
+  ## reason; only some statuses make it a revert.
+  case o
+  of ooReverted, ooFailedWithEffects: "Revert reason"
+  of ooPartial, ooSucceeded: "Status reason"
+
 proc yesNo*(b: bool): string =
   ## A boolean fact in the explorer register reads as a word, not as a literal.
   if b: "Yes" else: "No"
@@ -113,3 +128,62 @@ proc availabilityNote*(a: TraceAvailability): string =
     "Structurally unobservable — there is no call structure to trace, so this is absent by nature, not a failed fetch."
   of taUnsupported:
     "No recorder exists for this VM yet, so no trace can be produced."
+
+# ── the transaction's facts, produced ONCE ─────────────────────────────────
+#
+# Page-Descriptions §7.1 puts the transaction's metadata inside the debugging
+# session as a pane, and then states the constraint that makes that safe: the
+# facts are "rendered in two places — the pre-rendered page and the metadata
+# pane — **from one source**, and the two cannot be allowed to diverge."
+#
+# This is that source. `pages/tx.nim`'s overview grid and
+# `components/debugger.nim`'s metadata pane both render the seq below and
+# neither builds a row of its own, so a fact added here appears in both and a
+# fact added to one of them appears in neither. M8b's
+# `test_metadata_pane_and_page_cannot_diverge` drives exactly that: it mutates
+# the underlying `TxView`, asserts both surfaces move, and asserts a
+# hand-built second source fails.
+#
+# It lives in `viewutil` rather than in either view because a shared source
+# owned by one of its two consumers is a source with a preferred consumer.
+
+proc txMetadataRows*(chain: string, v: TxView): seq[MetaRow] =
+  ## §7.2's overview facts, in spec order: block position, canonical, finality,
+  ## the roles the adapter reported, the payload target, and the cost rows.
+  ##
+  ## Family-specific rows come from the adapter (`v.roles`, `v.cost`) and are
+  ## emitted verbatim, so an EVM-shaped template cannot creep in: a Solana or
+  ## Move transaction contributes whatever roles and cost dimensions it has.
+  result.add MetaRow(label: "Block", value: $v.height & ":" & $v.index,
+                     identifier: true, href: blockUrl(chain, v.blockHash))
+  result.add MetaRow(label: "Canonical", value: yesNo(v.canonical),
+                     badge: (if v.canonical: "muted" else: "bad"))
+  result.add MetaRow(label: "Finality", value: sentenceCase(v.finality),
+                     badge: finalityClass(v.finality))
+  for role in v.roles:
+    result.add MetaRow(label: roleLabel(role.role), value: role.address,
+                       identifier: true)
+  if v.payloadTarget.len > 0:
+    result.add MetaRow(label: "Target", value: v.payloadTarget, identifier: true)
+  for c in v.cost:
+    var suffix = c.unit
+    if c.token.len > 0: suffix.add " (" & c.token & ")"
+    result.add MetaRow(label: "Cost · " & c.name,
+                       value: c.used & " / " & c.limit,
+                       suffix: suffix, identifier: true)
+
+proc txExecutionRows*(v: TxView): seq[ExecutionRow] =
+  ## The per-execution trace states — §7.1's "Aztec private/public split".
+  ##
+  ## Emitted for every transaction, including single-execution ones, because
+  ## the pane is the only place a deep-linked visitor can see that the half
+  ## they are NOT in is structurally absent. `pages/tx.nim` shows the list only
+  ## when there is more than one execution, which is the right call for a page
+  ## that already carries the headline affordance; the pane has no such
+  ## headline.
+  for e in v.executions:
+    result.add ExecutionRow(
+      selector: (if e.selector.len > 0: e.selector else: "execution"),
+      availability: availabilityState(e.availability),
+      reason: e.reason,
+      badge: availabilityClass(e.availability))

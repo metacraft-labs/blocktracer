@@ -41,7 +41,8 @@ proc txPage*(chain: string, v: TxView): string =
         p(class = "identifier lead tight"):
           text v.hash
         if v.outcomeReason.len > 0:
-          p(class = "muted stack"): text "Revert reason: " & v.outcomeReason
+          p(class = "muted stack"):
+            text outcomeReasonLabel(v.outcome) & ": " & v.outcomeReason
 
         # ── Debug affordance (follows trace.availability) ─────
         tdiv(class = "debugcard group"):
@@ -77,35 +78,27 @@ proc txPage*(chain: string, v: TxView): string =
                     span(class = "reason"): text e.reason
 
         # ── Overview grid ─────────────────────────────────────
+        # Rendered from `viewutil.txMetadataRows`, which is ALSO what the
+        # debugger's metadata pane renders (Page-Descriptions §7.1: the two
+        # surfaces render "from one source", and "the two cannot be allowed to
+        # diverge"). This loop knows how to present a row; it does not know
+        # which rows a transaction has, so it cannot grow a fact the pane
+        # lacks — and the pane cannot grow one this page lacks.
         h2(class = "sec-title next"): text "Overview"
         dl(class = "dl"):
-          dt: text "Block"
-          dd:
-            a(href = blockUrl(chain, v.blockHash), class = "identifier"):
-              text $v.height & ":" & $v.index
-          dt: text "Canonical"
-          dd:
-            span(class = "badge " & (if v.canonical: "muted" else: "bad")):
-              text yesNo(v.canonical)
-          dt: text "Finality"
-          dd:
-            span(class = "badge " & finalityClass(v.finality)):
-              text sentenceCase(v.finality)
-          for role in v.roles:
-            dt: text roleLabel(role.role)
+          for r in txMetadataRows(chain, v):
+            dt: text r.label
             dd:
-              span(class = "identifier"): text role.address
-          if v.payloadTarget.len > 0:
-            dt: text "Target"
-            dd:
-              span(class = "identifier"): text v.payloadTarget
-          for c in v.cost:
-            dt: text "Cost · " & c.name
-            dd:
-              span(class = "identifier"): text c.used & " / " & c.limit
-              span(class = "muted"): text " " & c.unit
-              if c.token.len > 0:
-                span(class = "muted"): text " (" & c.token & ")"
+              if r.href.len > 0:
+                a(href = r.href, class = "identifier"): text r.value
+              elif r.badge.len > 0:
+                span(class = "badge " & r.badge): text r.value
+              elif r.identifier:
+                span(class = "identifier"): text r.value
+              else:
+                text r.value
+              if r.suffix.len > 0:
+                span(class = "muted"): text " " & r.suffix
 
         # ── Decoded input ─────────────────────────────────────
         h2(class = "sec-title next"): text "Decoded input"
