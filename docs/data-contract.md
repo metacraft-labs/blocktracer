@@ -92,8 +92,9 @@ work:
   objects); it does not upload, compute deltas, or set cache headers.
 - **Real ingestion and real replay** (M6, M7, M10). The demo generator is a *fake*
   extractor/trace-gen behind the same seam.
-- **Real `nargo trace` output.** See `fixtures/trace/README.md` — the `.ct`
-  containers are a labelled stand-in because `nargo` was unavailable.
+- **On-demand trace generation.** `availability: onDemand` is emitted and the
+  client can compute the artifact URL, but nothing here records a trace in
+  response to a request.
 - **BLAKE3 identity.** The demo derivation uses SHA-1 (Nim stdlib has no BLAKE3)
   and tags its ids honestly (`sha1:…`). The contract treats ids as opaque, so
   swapping in BLAKE3 behind `contract/ids.nim` is a producer change, not a
@@ -245,3 +246,53 @@ describe a whole generation's layers, consistent with D3's `maps` reasoning. The
 `index.html` clean-URL convention (a directory index per route) is the standard static-
 host mapping of the extensionless spec routes and is future-compatible with the
 `/{chain}/tx/{hash}/debug` sub-route (Page-Descriptions §1).
+
+### D7 — Real `noir_space_ship` traces: vendored, with source published separately
+
+**Decision.** The demo generator packages a **real CTFS container recorded by
+`nargo trace`** from `codetracer/test-programs/noir_space_ship` (Noir tracer fork
+`codetracer` @ `906af2f42d`, nargo `1.0.0-beta.26`). It is **checked into the
+repository** at `fixtures/trace/noir_space_ship/zk_shields.ct` and copied verbatim
+into every published `ready`/`divergent` artifact, rather than recorded at
+generation time. The Noir sources are published as content-addressed **source
+bundles** at `/src/{chain}/{codeHash}/{bundleHash}.json` with a `current.json`
+pointer, and each manifest's `sourceBundles` names the bundle it recommends.
+
+**Why vendored rather than regenerated.** `nargo trace` is **not byte-deterministic**:
+two runs of the same program at the same commit differ in exactly 20 bytes, a UUIDv7
+recording id stamped into the container's `CTMD` (meta.dat) block. The rest of the
+container — the whole trace body, all 1315 steps and 80 calls — is byte-identical,
+and the embedded `workdir` string additionally varies with where the recorder ran.
+M5c requires that the same seed produce byte-identical `.ct` containers so the demo
+tree is a usable regression fixture, and a generator that shelled out to `nargo trace`
+could not satisfy that. Checking the bytes in is what makes the requirement
+achievable; re-recording is a deliberate act, documented in
+`fixtures/trace/noir_space_ship/README.md`.
+
+**Why source is a separate object.** `ct-print --full` reports `source_views: []`
+for this container: CTFS interns *path names* and line/column positions but carries
+**no source text**. A viewer given only `trace.ct` can step and show variables but
+cannot show code — which would pass every manifest check and still fail as a demo.
+Trace-Artifacts §2.5 and Source-Resolution §5 already specify the right shape
+(source referenced, not embedded; one bundle per code hash, immutable, with a moving
+`current.json` pointer), so the generator publishes that rather than inlining source
+into the artifact directory. The bundle's `sources` keys are exactly the paths the
+container interns (`src/main.nr`, `src/shield.nr`), which is what lets a step's
+position resolve to a line of code. `std/lib.nr` is the Noir standard library and is
+legitimately absent.
+
+**Bundle filenames carry the full hash.** The object is named
+`{sourceBundleId with only its algorithm tag stripped}.json`. A consumer reaching a
+bundle through a manifest's `sourceBundles` has no pointer to read and must
+reconstruct the path from the id alone; `blocktracer_client/paths.nim`'s
+`shortBundleHash` therefore strips the `sha1:`/`blake3:` tag **and nothing else**.
+Truncating the hash in the filename would publish a bundle that only the
+`current.json` route could ever find.
+
+**What the packaged trace contains** (`ct-print --summary`): 1315 steps, 80 calls,
+1315 values, 70 IO events, 3 paths, 6 functions, 8 types, 22 varnames; maximum call
+depth 3; 147456 bytes (144 KiB). Commit `906af2f42d` ("record compound assignments
+and while/loop bodies") is load-bearing for this program: `shield.nr` drives its
+simulation through `remaining_shield -= damage` inside a `for` loop, and the
+container records 29 distinct `remaining_shield` transitions, so the fix is
+observable in the bytes rather than merely claimed.
