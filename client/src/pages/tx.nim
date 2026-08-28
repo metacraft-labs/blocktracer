@@ -117,8 +117,8 @@ proc txPage*(chain: string, v: TxView): string =
         tdiv(class = "stub"):
           text "Internal calls and state changes come from the execution trace. "
           b: text "Deferred: "
-          text "these render once the CodeTracer replay embed lands (M5/M9 — the "
-          text "WASM replay + ViewModels are a later slice)."
+          text "they appear here once this transaction has a recorded trace and "
+          text "the in-page debugger can replay it."
 
         # ── Raw native payload ────────────────────────────────
         if v.native != nil and v.native.kind != JNull:
