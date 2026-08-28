@@ -611,15 +611,16 @@ suite "M8b — the metadata pane and the page cannot diverge":
   test "the engine origin is configuration, and its default is same-origin":
     # CodeTracer-Embed-SDK §5.1: `assetBase` must not default to a cross-origin
     # URL. A default that reached another host would make every deployment of
-    # this repository a client of an origin its operator never named — and the
-    # obvious name to hardcode, web.codetracer.com, currently serves a
-    # different, authenticated application entirely.
+    # this repository a client of an origin its operator never named. The stable
+    # IDE origin a cross-origin build names is ide.codetracer.com (same
+    # web-codetracer Pages bundle as web-codetracer.pages.dev); web.codetracer.com
+    # is deliberately a different, authenticated application, not this bundle.
     check not replayEngineIsCrossOrigin()
     check ReplayEngineBase.startsWith("/")
     check "http" notin ReplayEngineBase
     # The decision is DERIVED from the value, so a build cannot declare one
     # thing and load another.
-    check isCrossOrigin("https://web-codetracer.pages.dev/")
+    check isCrossOrigin("https://ide.codetracer.com/")
     check isCrossOrigin("http://example.invalid/")
     check isCrossOrigin("//example.invalid/")
     check not isCrossOrigin("/replay-engine/")
