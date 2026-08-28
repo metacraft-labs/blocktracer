@@ -301,6 +301,7 @@ export const EXPECTATIONS = [
       "All ten columns, in order, headed: Debug · Hash · Block · Age · From · To/target · Method · Value · Fee · Status.",
       "Debug as the FIRST column and always visible — not an icon at the end of the row (Page-Descriptions §6 states this explicitly).",
       "At least one reverted transaction, rendered VISUALLY DISTINCT from successful ones. Reverted transactions are the population this product exists for; a table with no visible revert treatment cannot be judged.",
+      "A control that sorts reverted transactions to the top. Page-Descriptions §6 asks for both halves — 'visually distinct AND sortable to the top' — and a table that only tints them still makes a visitor scroll to find the one they came for.",
       "A revert reason inline in the status cell where the reason is decodable.",
       "From/To rendered as address chips, with a contract badge on contract targets and a decoded method name where the ABI is known.",
       "A column picker affordance for the family-specific extras.",

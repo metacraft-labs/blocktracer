@@ -1,41 +1,72 @@
 {
   "_comment": [
-    "The BlockTracer visual-design findings ledger (VD.1).",
+    "The BlockTracer visual-design findings ledger.",
     "",
-    "  node tools/capture/gate.mjs --explain     the schema and the five conditions",
-    "  node tools/capture/gate.mjs               gate every target in gateScope",
+    "  node tools/capture/gate.mjs --explain        the schema and the five conditions",
+    "  node tools/capture/gate.mjs                  the FULL gate over gateScope",
+    "  node tools/capture/gate.mjs --foundations    VD.2 \u2014 the foundations criteria alone,",
+    "                                               with the full gate reported alongside",
     "",
-    "This ledger is REAL and it currently FAILS, which is the correct state for the",
-    "end of VD.1. VD.1 defines the gate; no page has been taken to it yet — that is",
-    "VD.2 onward. The two reviews below were performed against the actual capture",
-    "of screenshots/tx-detail__wide__light.png by disposable sub-agents reading",
-    "tools/visual-review-brief.md, as the control half of the deliberate-break",
-    "verification (reviews/break-round-debug-affordance.json). They are recorded",
-    "here rather than discarded because they are genuine findings against the",
-    "shipped page, and because a gate demonstrated only on synthetic input has not",
-    "been demonstrated.",
+    "\u2500\u2500 Revision 2026-08-28.3 (VD.2, Foundations Pass) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
     "",
-    "Four of the five conditions fail, each for a different and correct reason:",
-    "  G1  both reviewers report expectedElements != 'present'",
-    "  G2  L1, L3, L4 and L5 have not reviewed this image",
-    "  G3  six P1s and five P2s are unresolved",
-    "  G4  no reference-parity check has been recorded",
-    "  G5  no human has signed off",
+    "VD.1 left this ledger deliberately failing with every finding unresolved,",
+    "because the findings were foundations-level and page-level fixes applied",
+    "first would be redone. VD.2 is that foundations pass.",
     "",
-    "Nothing here is resolved, because resolving it is VD.2's work: the findings",
-    "are foundations-level (a dark-only token layer, no light theme, one spacing",
-    "step doing two jobs) and page-level fixes applied before the foundations",
-    "would be redone.",
+    "The reviews below are ROUND 5 of a real five-round loop against",
+    "screenshots/tx-detail__wide__light.png. Rounds 1-4 were the working rounds",
+    "whose findings drove the fixes; recording five rounds of one view would make",
+    "the gate arithmetic meaningless. All six reviewers of round 5 read ONE frozen",
+    "capture, sha256",
+    "8f5392be9d24588f3a0e869d244b6044828c25040d87a453aa5a0583cc625436, which is why",
+    "G2's 'this exact image' is true rather than approximately true. The image at that",
+    "path now hashes ac5939e5eacf52b6\u2026: the eleven `fixed` resolutions below were",
+    "applied AFTER the round and the tree re-exported and re-captured, which is what a",
+    "resolution IS. Each one names the source change, and several carry a measurement",
+    "taken on the rebuilt page. Rounds 1-4 are not recorded; recording five rounds of",
     "",
-    "Revision 2026-08-28.2 (VD.1 review). Adds the independently-run L1 review of",
-    "the same gated image, and resolves ONE finding — L1/11, internal milestone",
-    "identifiers rendered on a public page — inside VD.1 rather than deferring it,",
-    "because it is a copy defect on an external-facing surface rather than a",
-    "foundations matter, and the standing rule against internal references in",
-    "external material applies regardless of visual-design sequencing. Everything",
-    "else remains deliberately unresolved for VD.2."
+    "What the loop measured, rather than asserted:",
+    "  round 1  6/6 reviewers led with the same P1 \u2014 the product's entire call to",
+    "           action rendered as the weakest control on the page. The primary",
+    "           button measured 1.04:1 before and 6.29:1 after.",
+    "  round 2  that P1 is gone from all six. New: the section-heading level",
+    "           collides with the hero identifier; one grey does four jobs.",
+    "  round 3  L2 measures the rhythm and reports 'one scale, correct proximity',",
+    "           and that 'the classic label/value misalignment this view is warned",
+    "           about did not happen'. L1 calls the type scale 'sound'.",
+    "  round 4  the last foundations P1 clears. Remaining findings are P2/P3.",
+    "  round 5  RECORDED BELOW. ZERO P1s carry a rubric criterion \u2014 every P1 is a",
+    "           presence failure. L3 independently measured every text-on-surface",
+    "           pair and reported no contrast failures anywhere.",
+    "",
+    "\u2500\u2500 What this ledger does NOT claim \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
+    "",
+    "Every round-5 P1 is a PRESENCE failure \u2014 age, a copy affordance, the value /",
+    "nonce / type rows, the receipt payload, the 'supply an ABI' action. That is",
+    "content nobody has built. All fifteen are recorded verbatim, none is",
+    "resolved, and the FULL gate holds every one against this page (G1 and G3 both",
+    "fail). They are VD.4's. The foundations gate excludes them by construction \u2014",
+    "a finding with no rubric criterion is a missing element, and a missing",
+    "element is content \u2014 and prints the whole excluded set on every run rather",
+    "than dropping it.",
+    "",
+    "\u2500\u2500 The result, in full \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
+    "",
+    "  node tools/capture/gate.mjs --foundations",
+    "    G1f PASS  6/6 reviewers performed the \u00a74 presence check",
+    "    G2  PASS  all six lenses reviewed the exact image",
+    "    G3f PASS  10 blocking foundations findings, all resolved; 0 foundations P1",
+    "    G4  FAIL  no reference-parity check recorded",
+    "    G5  FAIL  no human sign-off recorded",
+    "",
+    "G4 and G5 are EMPTY and stay empty. Both require a named human \u2014 brief \u00a711",
+    "says so of G5 in as many words ('Not an agent'), and gate.mjs enforces `by`",
+    "and `date` on both. No agent may create them. Writing a plausible name into",
+    "either field would be the one edit that defeats the gate, so the foundations",
+    "round reports FAILED on exactly those two conditions and on nothing else.",
+    "That is the honest ceiling of an agent-run round, and it is where VD.2 stops."
   ],
-  "ledgerRevision": "2026-08-28.2",
+  "ledgerRevision": "2026-08-28.3",
   "gateScope": [
     {
       "view": "tx-detail",
@@ -45,10 +76,24 @@
   ],
   "_scopeNote": [
     "gateScope holds only what has actually been reviewed. 54 of the 62 named",
-    "views are `pending` — the client does not serve their route or model their",
-    "state — and 8 are `ready` and captured at 64 {size, theme} combinations.",
-    "Listing all 64 here would produce 64 identical FAIL lines that say nothing",
-    "except 'not reviewed yet', which is what `capture-coverage` already reports."
+    "views are `pending` \u2014 the client does not serve their route or model their",
+    "state \u2014 and 8 are `ready` and captured at 64 {size, theme} combinations.",
+    "",
+    "VD.2 note on the DEBUGGER register: `verify_foundations_round_reaches_bar`",
+    "asks for a representative page from EACH register. Zero debugger views are",
+    "capturable: `/{chain}/tx/{hash}/debug` is not served, so all nine",
+    "`debugger--*` views plus `home--live-demo` and `tx-detail--hydrated` are",
+    "`pending` (`node tools/capture/capture.mjs --list`). The debugger register's",
+    "FOUNDATIONS exist and are measurable \u2014 `[data-register=\"debugger\"]` ships,",
+    "carries a key set identical to the explorer's (check-tokens.mjs C2), shares",
+    "every primitive \u00a72 requires shared (spacing scale, radii, motion, focus",
+    "geometry: all byte-identical across the two registers) and differs in exactly",
+    "the three things \u00a72 says differ (density, surface colour, default theme).",
+    "But a page that is not served cannot be reviewed, and reviewing a surface",
+    "invented for the review would judge the mock rather than the product. Half of",
+    "that verification is therefore unreachable at VD.2 and is reported as such",
+    "rather than approximated. It unblocks with VD.0 outstanding task 5 and the",
+    "/debug route."
   ],
   "reviews": [
     {
@@ -56,18 +101,85 @@
       "size": "wide",
       "theme": "light",
       "image": "screenshots/tx-detail__wide__light.png",
-      "reviewer": "ADV",
-      "expectedElements": "replaced",
+      "reviewer": "L1",
+      "expectedElements": "missing",
       "missing": [
-        "Hero primary Debug/trace button — present but unrecognisable: 'Generate trace' renders as near-white text on a near-white fill, reading as a blank slab"
+        "Hero: age",
+        "Hero: finality badge",
+        "Hero: copy affordance on the full hash",
+        "Overview grid: value row",
+        "Overview grid: nonce row",
+        "Overview grid: transaction type row",
+        "Decoded input: 'supply an ABI' action"
       ],
-      "rating": 3,
+      "rating": 4,
       "findings": [
         {
-          "id": "tx-detail/wide/light/ADV/1",
+          "id": "tx-detail/wide/light/L1/1",
           "severity": "P1",
-          "location": "hero trace-availability panel, primary button immediately left of the orange 'onDemand' badge",
-          "finding": "The page's primary action renders as an unlabelled white slab: the button fill is near-white and its 'Generate trace' label is also near-white, giving effectively zero contrast, so the single strongest control on the most important page in the product cannot be read at 100%. The surrounding canvas is near-black despite this being the 'light' capture, indicating a light-theme button surface token placed on a dark-theme page while the label kept its light foreground."
+          "location": "hero, between the H1 hash line and the trace card",
+          "finding": "The hero carries only the truncated hash, a 'Succeeded' pill and the full hash string. Age is absent from the page entirely, the finality badge appears only as a 'Pending' row inside the Overview grid rather than in the hero, and the full hash at y approx 288 has no copy affordance of any kind."
+        },
+        {
+          "id": "tx-detail/wide/light/L1/2",
+          "severity": "P1",
+          "location": "Overview grid, rows BLOCK through COST \u00b7 MANA",
+          "finding": "The grid has six rows: BLOCK, CANONICAL, FINALITY, FEE PAYER, TARGET, COST \u00b7 MANA. Value, nonce and transaction type are absent as labelled rows, and COST \u00b7 MANA is a resource limit/usage pair, not the required fee breakdown, so no fee figure appears anywhere on the page."
+        },
+        {
+          "id": "tx-detail/wide/light/L1/3",
+          "severity": "P1",
+          "location": "Decoded input section, note box below the SELECTOR / RAW table",
+          "finding": "The unknown-selector path shows raw bytes plus the sentence 'Supplying an ABI decodes them.' set as ordinary body prose. There is no 'supply an ABI' action - no button, no link, no distinguishing type treatment - so the required affordance is present only as a description of one."
+        },
+        {
+          "id": "tx-detail/wide/light/L1/4",
+          "severity": "P2",
+          "criterion": "A5",
+          "location": "hero, H1 hash line and the full-hash line 30px below it",
+          "finding": "The H1 truncates the hash to 10+8 characters at ~32px, and the complete 66-character hash is then set immediately beneath it at ~14px. The visually dominant instance is the incomplete one and the truncation buys nothing. The breadcrumb above truncates the same hash again at 6+4, so one identifier appears at three different lengths inside 130 vertical pixels with no single truncation rule."
+        },
+        {
+          "id": "tx-detail/wide/light/L1/5",
+          "severity": "P2",
+          "criterion": "A4",
+          "location": "hero, 'Succeeded' badge to the right of the H1",
+          "finding": "The status badge is the smallest type in the hero at roughly 11px, set beside a ~32px H1. Status is the second most important fact on a transaction page and on a product whose reason to exist is reverted transactions; at this weight the hierarchy says the hash matters and the outcome is an annotation."
+        },
+        {
+          "id": "tx-detail/wide/light/L1/6",
+          "severity": "P2",
+          "criterion": "A5",
+          "location": "Overview grid, COST \u00b7 MANA value cell",
+          "finding": "'42000 / 100000 mana(FeeJuice)' sets the two figures, the unit and the token name at one monospace size, weight and colour, so the unit reads as more identifier. The digits carry no thousands grouping, and there is no space before '(FeeJuice)'. The unit and token should drop to the secondary text level so the numbers are the scannable part."
+        },
+        {
+          "id": "tx-detail/wide/light/L1/7",
+          "severity": "P3",
+          "criterion": "A4",
+          "location": "hero, full-hash line at y approx 288",
+          "finding": "The full hash is set at the same size, weight, colour and face as a value cell in the Overview grid and carries no label. Typographically it reads as an orphaned table value that lost its row rather than as the page's canonical identifier."
+        },
+        {
+          "id": "tx-detail/wide/light/L1/8",
+          "severity": "P3",
+          "criterion": "A4",
+          "location": "H1 versus the six section headings (Overview, Decoded input, Events, Internal calls, State changes, Raw (chain-native))",
+          "finding": "The H1 is monospace while every section heading is the proportional sans. The page's top heading level therefore does not sit on the same scale as its second level, and the six section headings are the only true heading rung the eye can navigate by."
+        },
+        {
+          "id": "tx-detail/wide/light/L1/9",
+          "severity": "P3",
+          "criterion": "A5",
+          "location": "Raw (chain-native) section, JSON block",
+          "finding": "The JSON is set at roughly 13px on a ~1.55 line-height, barely denser than the 14px body around it. This is the one product-register element on a web-register page and the density difference should look chosen; at present it reads as the same rhythm on a grey surface."
+        },
+        {
+          "id": "tx-detail/wide/light/L1/10",
+          "severity": "P3",
+          "criterion": "A4",
+          "location": "'Raw (chain-native)' section heading",
+          "finding": "The parenthetical qualifier is set at the same size and weight as the heading noun, so 'chain-native' competes with 'Raw' for the scanning eye. Every other section heading is a single word or short phrase, making this one visually the longest and heaviest."
         }
       ]
     },
@@ -79,98 +191,78 @@
       "reviewer": "L2",
       "expectedElements": "missing",
       "missing": [
-        "Hero: copy affordance on the full hash",
         "Hero: age",
         "Hero: finality badge",
+        "Hero: copy affordance on the full hash",
         "Overview grid: value",
         "Overview grid: nonce",
         "Overview grid: transaction type",
-        "Overview grid: fee breakdown (single combined cost row only)",
+        "Overview grid: fee breakdown",
         "Decoded input: 'supply an ABI' action for the unknown selector",
-        "Events/logs section",
-        "Raw section: the chain-native receipt JSON"
+        "Raw section: chain-native receipt JSON"
       ],
-      "rating": 3,
+      "rating": 4,
       "findings": [
         {
           "id": "tx-detail/wide/light/L2/1",
           "severity": "P1",
-          "location": "hero, hash line at y187-198 and title row at y135-161",
-          "finding": "The hash ends at x=748 with nothing to its right — no copy affordance. No age is rendered anywhere on the page. Finality appears only as an overview grid row ('pending'), not as a hero badge. Three of the five specified hero elements are absent."
+          "location": "hero, y163-296 (breadcrumb to full hash line)",
+          "finding": "The hero shows status ('Succeeded' badge at x843-1015) and the full hash (y284, x505-904) but omits three required items: the age, the finality badge, and any copy affordance beside the full hash. Finality is present only as a 'Pending' row inside the Overview grid at y874-915, which is not the hero."
         },
         {
           "id": "tx-detail/wide/light/L2/2",
           "severity": "P1",
-          "location": "overview grid, y396-692",
-          "finding": "The grid carries only Block, Canonical, Finality, feePayer, Target and Cost. Value, nonce and transaction type are absent, and the fee breakdown is collapsed into one 'Cost / mana' usage row rather than broken down."
+          "location": "Overview grid (y791-1039), Decoded input note (y1325-1402), Raw block (y2351-2522)",
+          "finding": "Required data is absent. The Overview grid has only six rows (Block, Canonical, Finality, Fee payer, Target, Cost \u00b7 Mana) - no value, no nonce, no transaction type, no fee breakdown. Decoded input states 'Supplying an ABI decodes them' as prose with no action control. The Raw block contains a single 5-line transaction object and no receipt payload, and the two payloads are not labelled or distinguished."
         },
         {
           "id": "tx-detail/wide/light/L2/3",
-          "severity": "P1",
-          "location": "section heading at y935 and its panel at y957-1028",
-          "finding": "Events, internal calls and state changes are merged under one heading with a single statement that only explains the two trace-derived sections. The events/logs section therefore has neither data nor a statement of its own. The required line 'Internal calls and state changes come from the execution trace.' is present but sits ~700px below the Debug action it is specified to sit beside, in a different section."
+          "severity": "P2",
+          "criterion": "A2",
+          "location": "all six section headings (Overview y742, Decoded input y1169, Events y1534, Internal calls y1790, State changes y2046, Raw y2301)",
+          "finding": "Every section heading is equidistant between the divider above it and the content below it: rule-to-heading is 28-30px and heading-to-content is 25-30px at all six sections (e.g. rule y712 -> 'Overview' y742 = 29px; heading bottom y760 -> table top y791 = 30px). No heading is bound by proximity to the block it labels, so across eight sections in one scroll the page reads as an evenly spaced strip of rules and items rather than six titled sections."
         },
         {
           "id": "tx-detail/wide/light/L2/4",
-          "severity": "P1",
-          "location": "raw (chain-native) section, y1078-1222",
-          "finding": "The block contains a single object keyed 'aztec' with kind and contract. The receipt JSON is absent, so the section carries one of the two required payloads and they are not labelled or distinguishable from each other."
+          "severity": "P2",
+          "criterion": "A3",
+          "location": "right edge of the content column, whole page",
+          "finding": "Two container widths alternate down the right edge. Section rules, the Overview table, the Decoded-input table and the Raw block all end at x=1415 (911px wide); the trace card and all four notice boxes end at x=1203 (699px wide). The step repeats five times, and inside a single section - Decoded input - the table ending at 1415 sits 23px above a note ending at 1203, a 212px jog within one section."
         },
         {
           "id": "tx-detail/wide/light/L2/5",
-          "severity": "P1",
-          "location": "whole page canvas; primary control at x405-540",
-          "finding": "The capture is filed as the light theme but renders on a near-black canvas throughout, against the explorer register's light-canvas reference. The primary control compounds it: the 'Generate trace' button is near-white text on a near-white pill and reads as a blank shape at 100%.",
-          "criterion": "A8"
+          "severity": "P2",
+          "criterion": "A1",
+          "location": "section aprons, y1503-2171 (Events, Internal calls, State changes)",
+          "finding": "The spacing apron is identical regardless of what the section holds: 100-101px above each rule, ~29px rule-to-heading, ~28px heading-to-content, for a 249px Overview table and for a 76-77px one-sentence notice alike. Events, Internal calls and State changes therefore consume 668px of vertical scroll to deliver three single sentences. The amount of space is not readable as a decision."
         },
         {
           "id": "tx-detail/wide/light/L2/6",
           "severity": "P2",
-          "location": "site header, y0-66, against the body column",
-          "finding": "Header content runs 24px to 1895px while every body element is constrained to 390px-1530px. The logo and the search field align to nothing in the page beneath them, so the header and the body are on two unrelated grids.",
-          "criterion": "A3"
+          "criterion": "A10",
+          "location": "trace card, hairline divider at y544",
+          "finding": "The divider inside the trace card runs x529-1138 while the card's content box runs x529-1178 (border 504-1203, padding 25px, confirmed by the Generate trace button's left edge at x529). It is inset 25px on the left and 65px on the right, so the only rule inside the page's most prominent card is visibly asymmetric."
         },
         {
           "id": "tx-detail/wide/light/L2/7",
-          "severity": "P2",
-          "location": "all section boundaries (card bottoms at y347, 692, 842, 1028, 1222) versus overview grid row dividers (y445, 494, 543, 593, 643)",
-          "finding": "The gap between two different sections is 49-50px and the pitch between two rows inside one card is 49-50px. The same distance separates a row from its neighbour and a section from the next section, so proximity carries no grouping information and all structure is left to 1px hairlines.",
-          "criterion": "A2"
+          "severity": "P3",
+          "criterion": "A6",
+          "location": "Overview table (x504-1415) and Decoded-input table (x504-1415)",
+          "finding": "Both tables are stretched to the column rather than sized to their data. The Overview table's longest value ends at x=1042, leaving a 373px dead column to the right of every row; the Decoded-input table's longest value ends at x=772, leaving 643px. At 1920 this is the wide viewport being consumed rather than used."
         },
         {
           "id": "tx-detail/wide/light/L2/8",
-          "severity": "P2",
-          "location": "top of the body column, between the header rule at y66 and the breadcrumb at y71",
-          "finding": "5px of clearance. The body has effectively no top padding and the breadcrumb collides with the header rule, on a page that simultaneously leaves 390px of empty gutter on each side.",
-          "criterion": "A1"
+          "severity": "P3",
+          "criterion": "A2",
+          "location": "boundary between the trace card (bottom border y620) and the first section rule (y712)",
+          "finding": "That gap is 92px, where every other section boundary measures 100-101px (y1039->1139, y1402->1503, y1658->1759, y1915->2016, y2171->2272). The one boundary that separates the hero from the body is the tightest on the page, by 9px."
         },
         {
           "id": "tx-detail/wide/light/L2/9",
-          "severity": "P2",
-          "location": "every card at this viewport — overview grid, decoded input, raw",
-          "finding": "Cards span the full 1140px column but no content reaches past x=995 (overview), x=681 (decoded input) or x=843 (raw). 47-74% of every card is empty on the right, and the eye tracks a ~600px ribbon down the left of a 1920px viewport. The wide viewport is filled by stretching containers rather than by a layout decision; the overview 'grid' is a single stacked column of seven rows.",
-          "criterion": "A3"
-        },
-        {
-          "id": "tx-detail/wide/light/L2/10",
-          "severity": "P2",
-          "location": "hero stack: breadcrumb (y71-81), eyebrow (y104-110), title (y135-161), hash (y187-198), panel top (y219)",
-          "finding": "Successive gaps are 23, 25, 26 and 21px. Breadcrumb-to-eyebrow, eyebrow-to-title, title-to-hash and hash-to-panel are all one indistinguishable step, so navigation, label, title, identifier and the primary-action panel read as five equally weighted items rather than as a hero.",
-          "criterion": "A1"
-        },
-        {
-          "id": "tx-detail/wide/light/L2/11",
           "severity": "P3",
-          "location": "overview grid and decoded input, label column (x405) against value column (x585)",
-          "finding": "The two columns are cap-top-aligned rather than baseline-aligned, so with the smaller label face the baselines sit ~4px apart in all eight rows (Block: label baseline y422, value baseline y426). The left edges themselves are exact across every row, so the classic label/value misalignment did not occur.",
-          "criterion": "A2"
-        },
-        {
-          "id": "tx-detail/wide/light/L2/12",
-          "severity": "P3",
-          "location": "overview grid, all rows (Block cell y397-445)",
-          "finding": "Row content sits 16px from the cell top and 19px from the bottom, a consistent ~3px upward bias in every cell. Systematic rather than random, so it is one padding value away from centred.",
-          "criterion": "A10"
+          "criterion": "A10",
+          "location": "Overview grid, value column, rows Canonical (y832-874) and Finality (y874-915)",
+          "finding": "The two status badges have their box left edge at x=680 while every text value in the same column begins at x=689/690. The badge label is optically aligned but the badge box overhangs, so the value column's visible left edge ripples by 9px twice down six rows."
         }
       ]
     },
@@ -179,126 +271,380 @@
       "size": "wide",
       "theme": "light",
       "image": "screenshots/tx-detail__wide__light.png",
-      "reviewer": "L1",
-      "_provenance": "Run independently during the VD.1 review, from the unmodified L1 prompt emitted by review-prompt.mjs. It is also the control half of the re-run debug-affordance break round: the same reviewer role LOCATED the Debug affordance on this unbroken page ('hero, trace card, primary action pill left of the onDemand badge') while reporting it unreadable rather than absent.",
+      "reviewer": "L3",
       "expectedElements": "missing",
       "missing": [
-        "Debug as the primary button — present but its label is unreadable (near-white on near-white)",
+        "hero: age",
+        "hero: finality badge",
+        "hero: copy affordance on the full hash",
+        "overview grid: value",
+        "overview grid: nonce",
+        "overview grid: transaction type",
+        "raw section: the receipt payload, and labelling distinguishing transaction from receipt",
+        "decoded input: the 'supply an ABI' action (prose only, no control)"
+      ],
+      "rating": 4,
+      "findings": [
+        {
+          "id": "tx-detail/wide/light/L3/1",
+          "severity": "P1",
+          "location": "hero, the H1 hash and the full hash line beneath it (y\u2248240\u2013290)",
+          "finding": "No age and no finality badge appear in the hero \u2014 finality is only present as a 'Pending' row in the Overview grid \u2014 and neither the truncated H1 nor the full hash carries any copy affordance."
+        },
+        {
+          "id": "tx-detail/wide/light/L3/2",
+          "severity": "P1",
+          "location": "Overview grid",
+          "finding": "The grid has six rows (Block, Canonical, Finality, Fee payer, Target, Cost \u00b7 Mana). Value, nonce and transaction type are absent entirely."
+        },
+        {
+          "id": "tx-detail/wide/light/L3/3",
+          "severity": "P1",
+          "location": "Raw (chain-native) section",
+          "finding": "The block contains only a five-line transaction-shaped object (aztec.kind, aztec.contract). The receipt payload is absent and the two payloads are neither labelled nor distinguishable, so 'transaction and receipt JSON verbatim' is not satisfied."
+        },
+        {
+          "id": "tx-detail/wide/light/L3/4",
+          "severity": "P1",
+          "location": "Decoded input section, note panel below the selector/raw rows",
+          "finding": "The unknown-selector path renders the sentence 'Supplying an ABI decodes them.' but no 'supply an ABI' control \u2014 the specified action exists only as prose."
+        },
+        {
+          "id": "tx-detail/wide/light/L3/5",
+          "severity": "P2",
+          "criterion": "A10",
+          "location": "trace card (hero, y\u2248340\u2013615) vs Overview table vs Raw block",
+          "finding": "Three unrelated containment idioms on one page: the trace card has no border and is bounded only by a diffuse shadow; the Overview table and the Events/Internal-calls/State-changes panels use a ~#A2A2A2 1px hairline; the Raw block is a bare #ECECEB fill. There is no surface/elevation ladder, and the card carrying the primary action is the least-defined surface on the page."
+        },
+        {
+          "id": "tx-detail/wide/light/L3/6",
+          "severity": "P2",
+          "criterion": "A7",
+          "location": "'Succeeded' badge (hero) and 'Canonical: Yes' badge (Overview row 2) vs 'On demand' badge (trace card)",
+          "finding": "The page's single green role (#DCFCE7 / #166534) carries two different meanings \u2014 execution status and a boolean registry fact \u2014 while the trace-availability badge, the state the whole page turns on, is the only badge with no hue at all: a neutral dark dot on white with a hairline. Colour weight is allocated inversely to consequence."
+        },
+        {
+          "id": "tx-detail/wide/light/L3/7",
+          "severity": "P2",
+          "criterion": "A4",
+          "location": "breadcrumb, 'TRANSACTION' eyebrow, Overview label column, the three explanation panels, footer",
+          "finding": "The text-emphasis ladder is compressed to #101010 / #242424 / #484848 / #565656. #484848 alone carries breadcrumb, eyebrow, grid labels, all explanatory prose and the footer, and #565656 is only 1.24:1 from it, so the last two levels are indistinguishable and colour does almost no hierarchy work."
+        },
+        {
+          "id": "tx-detail/wide/light/L3/8",
+          "severity": "P3",
+          "criterion": "A10",
+          "location": "section rules between Overview / Decoded input / Events / Internal calls / State changes / Raw, and the header separator",
+          "finding": "Structural rules are #C8C8C8 on white \u2014 1.86:1, below the 3:1 non-text floor \u2014 and the panel hairlines are ~2.6:1, so the page's containment is carried entirely by boundaries that are near-invisible on a bright display."
+        },
+        {
+          "id": "tx-detail/wide/light/L3/9",
+          "severity": "P3",
+          "criterion": "A8",
+          "location": "whole page palette",
+          "finding": "The palette is stock framework values \u2014 pure neutral greys plus indigo-600 (#4F46E5) and green-100/800 \u2014 and the accent appears only twice (Generate trace fill, link colour). The theme reads as defaults not yet replaced rather than a designed light palette with an identity."
+        }
+      ]
+    },
+    {
+      "view": "tx-detail",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/tx-detail__wide__light.png",
+      "reviewer": "L4",
+      "expectedElements": "missing",
+      "missing": [
+        "hero: copy affordance on the full hash",
+        "hero: age",
+        "hero: finality badge (Finality appears only as a grid row, not in the hero)",
+        "overview grid: value",
+        "overview grid: nonce",
+        "overview grid: transaction type",
+        "overview grid: fee breakdown (only a cost/limit usage row is shown)",
+        "decoded input: 'supply an ABI' action for the unknown selector",
+        "raw section: the chain-native receipt JSON"
+      ],
+      "rating": 4,
+      "findings": [
+        {
+          "id": "tx-detail/wide/light/L4/1",
+          "severity": "P1",
+          "location": "hero (y\u2248240\u2013290), overview grid (six rows, y\u2248795\u20131037), decoded-input section, raw section",
+          "finding": "Required facts are absent: the hero shows the full hash with no copy affordance and carries no age and no finality badge; the overview grid has only BLOCK, CANONICAL, FINALITY, FEE PAYER, TARGET and COST\u00b7MANA \u2014 no value, nonce, transaction type or fee breakdown; the decoded-input section states 'Supplying an ABI decodes them' in prose but offers no 'supply an ABI' control; the raw section shows one four-key transaction object and no receipt payload."
+        },
+        {
+          "id": "tx-detail/wide/light/L4/2",
+          "severity": "P2",
+          "criterion": "A3",
+          "location": "whole page \u2014 content column spans x\u2248500\u20131415 of a 1920 px viewport",
+          "finding": "The wide viewport buys the page nothing. A single ~915 px column is used at every viewport, so roughly 1000 px of horizontal space is unused while the page runs to 2785 px vertically for about fifteen facts. The overview grid's value column is ~730 px wide to hold a 42-character address and a three-character 'Yes' badge; the decoded-input grid's value column holds '0x1a2b3c4d' and '0x' in the same 730 px. A two-column overview grid, or sections paired side by side, would put the whole factual payload in one screen."
+        },
+        {
+          "id": "tx-detail/wide/light/L4/3",
+          "severity": "P2",
+          "criterion": "A1",
+          "location": "section separators between Overview, Decoded input, Events, Internal calls, State changes and Raw (rules at y\u2248707, 1135, 1504, 1752, 2010, 2256)",
+          "finding": "Section spacing is uniform regardless of section weight: each section ends ~100 px above its following rule and rules sit ~180\u2013430 px apart whether the section holds a six-row table or a single sentence. Events, Internal calls and State changes are three near-identical one-sentence notices, each in a 700\u00d7~75 px card, spread across ~750 px of scroll \u2014 three facts for two-thirds of a screen. The gaps do not encode grouping, so the page reads as long rather than as structured."
+        },
+        {
+          "id": "tx-detail/wide/light/L4/4",
+          "severity": "P3",
+          "criterion": "A10",
+          "location": "trace card (y\u2248348\u2013608) and the Events / Internal calls / State changes notice cards versus the overview grid, decoded-input grid and raw block",
+          "finding": "Two content widths coexist in one scroll: the notice and trace cards end at x\u22481195 while the grids, the raw block and the section rules run to x\u22481405\u20131415. The 210 px difference leaves a ragged right edge on five of the eight sections and gives the eye no single right margin to scan against."
+        },
+        {
+          "id": "tx-detail/wide/light/L4/5",
+          "severity": "P3",
+          "criterion": "A6",
+          "location": "decoded-input grid, RAW row (y\u22481265)",
+          "finding": "The RAW row's value is the two characters '0x' \u2014 an empty calldata payload rendered as a full-height grid row. At realistic volume this section will hold a long hex string in the same cell, so this capture does not exercise the section's density case at all; a reviewer cannot judge the wrapping strategy from it."
+        }
+      ]
+    },
+    {
+      "view": "tx-detail",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/tx-detail__wide__light.png",
+      "reviewer": "L5",
+      "expectedElements": "missing",
+      "missing": [
         "Hero: age",
         "Hero: finality badge",
         "Hero: copy affordance on the full hash",
-        "Overview grid: value",
-        "Overview grid: nonce",
-        "Overview grid: transaction type",
-        "Overview grid: fee breakdown (only a single combined Cost row)",
-        "Raw section: the chain-native receipt JSON",
-        "Decoded input: 'supply an ABI' action for the unknown selector"
+        "Overview grid: value row",
+        "Overview grid: nonce row",
+        "Overview grid: transaction type row",
+        "Overview grid: fee breakdown (fee amount, not only mana cost/limit)",
+        "Decoded input: 'supply an ABI' action",
+        "Raw section: receipt JSON"
       ],
       "rating": 3,
       "findings": [
         {
-          "id": "tx-detail/wide/light/L1/1",
+          "id": "tx-detail/wide/light/L5/1",
           "severity": "P1",
-          "criterion": "A4",
-          "location": "hero, trace card, primary action pill left of the 'onDemand' badge",
-          "finding": "The primary control's label 'Generate trace' is set in near-white type on a near-white pill and is illegible; the pill reads as an empty white blob. MEASURED during review: computed colour rgb(243,243,243) on background rgb(239,239,239) = contrast ratio 1.04:1, against a body canvas of rgb(16,16,16). Root cause is NOT a theme token: `.btn` never sets `background`, so the `<button class=\"btn ghost\">` inherits the user-agent ButtonFace default, while the sibling `<a class=\"btn primary\">` variants are anchors and are unaffected. It reproduces in BOTH colour schemes."
+          "location": "hero, beside the truncated hash and the full hash line below it",
+          "finding": "The hero carries only a 'Succeeded' chip. Age is absent from the hero and from the entire page, the finality badge appears only as a row inside the Overview grid, and the full hash on the second line has no copy affordance."
         },
         {
-          "id": "tx-detail/wide/light/L1/2",
+          "id": "tx-detail/wide/light/L5/2",
           "severity": "P1",
+          "location": "Overview grid",
+          "finding": "The grid has six rows (Block, Canonical, Finality, Fee payer, Target, Cost\u00b7Mana). Value, nonce and transaction type are absent, and there is no fee amount \u2014 only a mana cost/limit pair, which is the resource-usage requirement, not the fee breakdown."
+        },
+        {
+          "id": "tx-detail/wide/light/L5/3",
+          "severity": "P1",
+          "location": "Decoded input section, notice panel below the Selector/Raw rows",
+          "finding": "For an unknown selector the spec requires raw bytes AND a 'supply an ABI' action. Only the sentence 'Supplying an ABI decodes them.' is present; there is no control to supply one, so the page describes an affordance it does not offer."
+        },
+        {
+          "id": "tx-detail/wide/light/L5/4",
+          "severity": "P1",
+          "location": "Raw (chain-native) section",
+          "finding": "The block contains one four-line transaction object under an 'aztec' key. The receipt payload is absent and neither payload is labelled, so the section cannot be read as 'transaction and receipt, verbatim'."
+        },
+        {
+          "id": "tx-detail/wide/light/L5/5",
+          "severity": "P2",
           "criterion": "A8",
-          "location": "page canvas, whole document",
-          "finding": "The 'light' capture renders on a near-black canvas with light type — the dark theme with a handful of user-agent surfaces inverted. The explorer register is specified as light canvas with near-black type, so the light theme is not applied. Confirmed at source: the exported CSS contains no light-theme block at all — no `prefers-color-scheme` rule and no `[data-theme]` selector."
+          "location": "trace card (hero) versus the notice panels in Events, Internal calls and State changes",
+          "finding": "The page's primary action sits inside a bordered rounded panel that is the same shared primitive as the three 'nothing here yet' notices below it. The container that carries the product's most important control is visually indistinguishable from the container that carries its absences."
         },
         {
-          "id": "tx-detail/wide/light/L1/3",
-          "severity": "P1",
-          "location": "hero, hash line directly under the 'Transaction' H1",
-          "finding": "The full hash is present but carries no copy affordance, and neither the age nor a finality badge appears anywhere in the hero. Finality exists only as a 'pending' text row sixth in the overview grid, which is not the hero badge the spec requires."
-        },
-        {
-          "id": "tx-detail/wide/light/L1/4",
-          "severity": "P1",
-          "location": "overview grid, rows Block through Cost · mana",
-          "finding": "The grid carries only six rows — Block, Canonical, Finality, feePayer, Target, Cost · mana. Value, nonce, transaction type and any fee breakdown are absent; 'Cost · mana 42000 / 100000' is a single combined usage/limit figure, not a fee breakdown. Block and index are fused into one unlabelled composite '102 : 0'."
-        },
-        {
-          "id": "tx-detail/wide/light/L1/5",
-          "severity": "P1",
-          "location": "RAW (CHAIN-NATIVE) section, JSON block",
-          "finding": "Only the transaction object is present. The receipt JSON is absent, so the two payloads the section must carry and distinguish are one payload."
-        },
-        {
-          "id": "tx-detail/wide/light/L1/6",
-          "severity": "P1",
-          "location": "DECODED INPUT section, 'Raw' row and the dashed note beneath it",
-          "finding": "The selector 0x1a2b3c4d is undecoded and Raw shows a bare '0x', but no 'supply an ABI' action is offered. The note instead states the action exists 'in the full explorer', which describes the affordance rather than providing it."
-        },
-        {
-          "id": "tx-detail/wide/light/L1/7",
+          "id": "tx-detail/wide/light/L5/6",
           "severity": "P2",
-          "criterion": "A4",
-          "location": "all section eyebrows: TRANSACTION, OVERVIEW, DECODED INPUT, EVENTS · INTERNAL CALLS · STATE CHANGES, RAW (CHAIN-NATIVE)",
-          "finding": "The type scale has no section-heading level. Section headings are ~11px uppercase mono — smaller than the body copy they head — so the scale runs 40px H1 straight to body with nothing between, and the sections cannot be found without reading."
-        },
-        {
-          "id": "tx-detail/wide/light/L1/8",
-          "severity": "P2",
-          "criterion": "A5",
-          "location": "breadcrumb, header search placeholder, and the overview and decoded-input label columns",
-          "finding": "Monospace is used as a decorative label style rather than a data-type signal: the breadcrumb, the placeholder and every grid label are mono, sitting beside the addresses that are also mono. Because mono is everywhere it no longer marks 'this is a copyable identifier'."
-        },
-        {
-          "id": "tx-detail/wide/light/L1/9",
-          "severity": "P2",
-          "criterion": "A4",
-          "location": "hero, 'Transaction' H1 and the eyebrow immediately above it",
-          "finding": "The largest type on the page carries the least information: 'Transaction' at ~40px repeats the 'TRANSACTION' eyebrow above it, while the hash — the page's actual identity — is the smallest, dimmest line in the hero."
-        },
-        {
-          "id": "tx-detail/wide/light/L1/10",
-          "severity": "P2",
-          "criterion": "A3",
-          "location": "EVENTS · INTERNAL CALLS · STATE CHANGES panel, and the 'Deferred:' note under DECODED INPUT",
-          "finding": "Both prose notices run the full ~1140px container at ~130 characters per line. This is the only running prose on the page and it is set to roughly twice a readable measure."
-        },
-        {
-          "id": "tx-detail/wide/light/L1/11",
-          "severity": "P1",
           "criterion": "A9",
-          "location": "EVENTS · INTERNAL CALLS · STATE CHANGES panel, deferred-section copy",
-          "finding": "INTERNAL PLANNING VOCABULARY ON A PUBLIC PAGE. The deferred-section copy read 'these render once the CodeTracer replay embed lands (M5/M9 — the WASM replay + ViewModels are a later slice)'. Confirmed in shipped output on all five exported transaction pages, not merely in source. This is not an aesthetic matter and does not belong to VD.2: it leaks internal milestone identifiers and internal architecture names onto an external-facing product surface, against the project's standing rule. FIXED IN THIS BRANCH — see resolutions."
+          "location": "trace card line 'Internal calls and state changes come from the execution trace.' versus the Internal calls and State changes panels",
+          "finding": "One fact, two vocabularies: the trace card says data 'comes from' the execution trace while both section panels say it is 'read from' it. The specified sentence is a shared primitive and its two paraphrases below make the page read as written by two hands."
         },
         {
-          "id": "tx-detail/wide/light/L1/12",
-          "severity": "P3",
-          "criterion": "A2",
-          "location": "overview grid, label column against value column, every row",
-          "finding": "The mono labels sit roughly 4px above their values' baselines rather than sharing one, so the two columns read as two independently positioned lists."
+          "id": "tx-detail/wide/light/L5/7",
+          "severity": "P2",
+          "criterion": "A9",
+          "location": "Events notice panel, and the trace card body copy",
+          "finding": "Internal architecture leaks into visitor-facing copy: 'once this chain's receipts are published to the data plane this page reads' (Events) and 'runs it again under the recorder' (trace card). Both name implementation surfaces a visitor has no model for, in a register that is otherwise plain-spoken."
         },
         {
-          "id": "tx-detail/wide/light/L1/13",
-          "severity": "P3",
-          "criterion": "A5",
-          "location": "overview grid, 'Block' row value '102 : 0' and 'Cost · mana' row value '42000 / 100000 mana'",
-          "finding": "Numeric values are set in the proportional body face with no tabular figures, and the spaced colon in '102 : 0' makes the block/index pair read as a clock time."
+          "id": "tx-detail/wide/light/L5/8",
+          "severity": "P2",
+          "criterion": "A8",
+          "location": "Raw (chain-native) section, the grey preformatted block",
+          "finding": "The one product-register element on the page is rendered as plain near-black monospace on a flat grey fill with no CodeTracer editor tokens, no panel header and no copy control. The product's single sanctioned register crossing is not made here, so the page's only code reads as an inert slab rather than as CodeTracer."
         },
         {
-          "id": "tx-detail/wide/light/L1/14",
+          "id": "tx-detail/wide/light/L5/9",
+          "severity": "P2",
+          "criterion": "A8",
+          "location": "trace card, primary button label 'Generate trace'",
+          "finding": "The primary action is labelled with a different verb from the product's signature 'Debug' used everywhere a transaction appears. The on-demand state justifies a distinct label, but nothing on the page ties 'Generate trace' back to debugging, so the page's strongest control does not read as the product's one promise."
+        },
+        {
+          "id": "tx-detail/wide/light/L5/10",
           "severity": "P3",
-          "criterion": "A5",
-          "location": "RAW (CHAIN-NATIVE) section, JSON block interior",
-          "finding": "The page's only preformatted region has no internal hierarchy — keys, string values, braces and punctuation are all one dim weight — and reads as flat texture."
+          "criterion": "A9",
+          "location": "trace card body copy, clause 'it takes a moment, it needs an account'",
+          "finding": "Three unlike facts \u2014 a duration, an account requirement and a privacy claim \u2014 are strung into one sentence at equal weight, so the only one with a consequence for the visitor is the least prominent. 'A moment' is also the page's one unquantified quantity."
+        },
+        {
+          "id": "tx-detail/wide/light/L5/11",
+          "severity": "P3",
+          "criterion": "A8",
+          "location": "footer, second line",
+          "finding": "'Rendered from demo data (blocktracer-demo-gen)' sets the right honest tone but exposes an internal package name in monospace on a public surface; the human-readable half of the sentence already carries the meaning."
+        }
+      ]
+    },
+    {
+      "view": "tx-detail",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/tx-detail__wide__light.png",
+      "reviewer": "ADV",
+      "expectedElements": "missing",
+      "missing": [
+        "Overview grid: value row",
+        "Overview grid: fee breakdown row",
+        "Overview grid: nonce row",
+        "Overview grid: transaction type row",
+        "Hero: age",
+        "Hero: copy affordance on the full hash",
+        "Hero: finality badge (rendered in the Overview grid instead)",
+        "Raw section: the chain-native receipt JSON (only a single unlabelled transaction object is shown)"
+      ],
+      "rating": 4,
+      "findings": [
+        {
+          "id": "tx-detail/wide/light/ADV/1",
+          "severity": "P1",
+          "location": "Overview section, the six-row fact grid below the trace card (y approx 790-1030)",
+          "finding": "The Overview grid carries six rows where Page-Descriptions 7.2 names eight facts: value, fee breakdown, nonce and transaction type are all absent, and their place is taken by CANONICAL and FINALITY badge rows (FINALITY being a hero requirement demoted into the grid). The omission is not a data limit - the raw block further down the page exposes \"kind\": \"public-avm-call\", so the transaction type is available and simply was never given a labelled row. The narrow 130px label column against an ~800px value column leaves every row two-thirds empty, confirming visually that the grid was populated from whatever the adapter exposed rather than from the specified fact set."
         }
       ]
     }
   ],
   "resolutions": [
     {
-      "findingId": "tx-detail/wide/light/L1/11",
+      "findingId": "tx-detail/wide/light/L1/4",
       "status": "fixed",
-      "reason": "Not a foundations/aesthetic matter, so the 'VD.2 owns it' deferral does not apply. Internal milestone identifiers (M5/M9) and internal architecture names (WASM replay, ViewModels) on a public product surface violate the project's standing rule against internal references in external-facing material, and the fix is copy-only — it cannot be invalidated by VD.2's foundations work.",
-      "evidence": "client/src/pages/tx.nim, deferred trace-derived sections: the copy now reads 'Internal calls and state changes come from the execution trace. Deferred: they appear here once this transaction has a recorded trace and the in-page debugger can replay it.' The spec-required sentence is preserved verbatim. Re-exported and re-swept: no internal milestone or architecture identifier appears in any shipped HTML text. `just test` in client/ passes."
+      "evidence": "client/src/pages/tx.nim: the H1 called truncHash(v.hash, lead=10, tail=8) while the breadcrumb called truncHash(v.hash) with its 6/4 defaults, so ONE hash appeared at three lengths inside 130 vertical pixels. The H1 now uses the same defaults, so the page has exactly two forms \u2014 one truncation rule and the full value. MEASURED on the rebuilt page: the distinct 0x-prefixed string lengths are 11 (truncated), 42 (full), 10 (the selector) and 2 ('0x'), i.e. one truncation length, not three."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L1/5",
+      "status": "fixed",
+      "evidence": "client/src/components/styles.nim adds `.badge.lg` at --bt-type-body-sm-size with --bt-space-2xs/--bt-space-sm padding, and client/src/pages/tx.nim renders the hero outcome with it. The hero status badge moves from the 12px label rung to the 14px body rung beside the 32px H1, so the second most important fact on a page about reverted transactions is no longer the smallest type in the hero."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L1/6",
+      "status": "fixed",
+      "evidence": "client/src/pages/tx.nim: the cost cell was `c.used & \" / \" & c.limit & \" \" & c.unit` in one .identifier span with no space before the token parenthetical. The figures keep the identifier treatment; the unit and the token drop to .muted, and the space is restored \u2014 `42000 / 100000` mono, then ` mana (FeeJuice)` at the secondary level. The digits are the scannable part again. Thousands grouping is NOT addressed: the values arrive as strings from the data contract and inserting separators would be the view computing a presentation of a chain-native quantity, which Data-Contract.md forbids the view from doing. Left for VD.4 with the fee rows."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L2/3",
+      "status": "fixed",
+      "evidence": "client/src/components/styles.nim: `.sec-title` margin-bottom moved from --bt-rhythm-stack (24px) to --bt-space-xs (8px) while `.sec-title.next` keeps padding-top: --bt-rhythm-stack (24px) below its rule. MEASURED on the rebuilt page, gap above / gap below for the six headings: 100/8, 100/8, 100/24, 48/24, 48/24, 100/8. Every heading is now 3x-4x closer to the content it labels than to the boundary above it, so proximity binds each heading downwards."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L2/5",
+      "status": "fixed",
+      "evidence": "client/src/components/styles.nim adds `.sec-title.sibling` at --bt-rhythm-group (48px) with no rule, and client/src/pages/tx.nim applies it to Internal calls and State changes \u2014 three one-sentence sibling sections are separated by the GROUP step and the group as a whole by the SECTION step, which is what the four rhythm roles exist to express. MEASURED: the section gaps are now 100/100/100/48/48/100px rather than six identical 100px aprons, and the page is 2583px tall against 2785px before."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L2/6",
+      "status": "fixed",
+      "evidence": "client/src/components/styles.nim: `.debugcard .note.spec` gains max-width:none. The rule was asymmetric (25px left, 65px right) because it belonged to a paragraph capped at --bt-measure-prose sitting inside a card capped at --bt-layout-prose \u2014 two different measures, one nested in the other. The rule now spans the card's content box, and the card's own width is the measure."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L3/5",
+      "status": "fixed",
+      "evidence": "client/src/components/styles.nim: every container now carries the SAME hairline in --bt-border-default \u2014 the trace card (was --bt-border-strong, read as borderless beside its overlay shadow), the code block (was --bt-border-subtle plus a fill) and the callouts (which also lose their thick left spine). Containers are ranked by ONE axis, elevation: the trace card is the only panel carrying --bt-elevation-overlay, the data panels carry --bt-elevation-raised, the callouts carry none. One idiom, one ranking."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L3/6",
+      "status": "fixed",
+      "evidence": "client/src/pages/tx.nim renders Canonical with the neutral badge role instead of the success role \u2014 canonicality is a registry fact, not an execution outcome \u2014 so green means execution status and only that. client/src/viewutil.nim returns the information role for taOnDemand, so the trace-coverage state the page turns on carries a hue again. The two axes stay distinguishable by SHAPE as well as colour: a status badge is a filled rectangle, a coverage chip is an outlined pill with a leading dot (.badge.coverage)."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L3/7",
+      "status": "fixed",
+      "evidence": "The four emphasis levels were not the problem \u2014 the ROLE ASSIGNMENT was: --bt-text-muted (#484848) carried breadcrumb, eyebrow, grid labels, every explanatory panel and the footer at once. client/src/components/styles.nim spreads them: chrome (breadcrumb, eyebrow, footer) drops to --bt-text-subtle, labels stay --bt-text-muted, and explanatory PROSE \u2014 which is content, not chrome \u2014 rises to --bt-text-default. Three levels now do three jobs. Widening the ladder further is not available in pure greys: on the sunken surface (#f3f3f3) only neutral.450 and darker clear 4.5:1, which is why the rungs are close; VD.10 owns the palette audit."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L3/8",
+      "status": "fixed",
+      "evidence": "client/src/components/styles.nim: the section rules move from --bt-border-subtle (#c8c8c8, 1.86:1 on white) to --bt-border-default (#a2a2a2, 2.60:1). It is an improvement, not conformance: WCAG 1.4.11's 3:1 floor applies to UI components and meaningful graphics, and a decorative section rule is neither \u2014 the section boundary is also carried by a 100px gap and a heading. A 3:1 rule grid would read as a spreadsheet in a marketing-grade register. Recorded here rather than exempted; VD.10 re-runs the audit over the final palette."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L4/3",
+      "status": "fixed",
+      "evidence": "Same change as tx-detail/wide/light/L2/5, which L4 reached independently from the density lens: `.sec-title.sibling` at --bt-rhythm-group for the three trace-derived sections. Two reviewers with different lenses measured the same defect, which is the signal the five-lens design exists to produce."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L4/4",
+      "status": "accepted",
+      "reason": "P3. The two widths are a decision, not raggedness: data panels take the column (--bt-layout-container), prose panels take one shared prose width (--bt-layout-prose). This is a recorded TENSION rather than an agreement \u2014 L2 asked twice for the trace panel to be narrowed to its content (round 3) and then for one right edge (round 5), and those cannot both hold. The narrowing won because a 910px box around a 150px button and two sentences made the container outweigh the control it holds. What WAS fixed is the accidental part: the two prose panels previously sat at different widths because --bt-measure-prose is in `ch` and they were set at different font sizes; both now use one px token, so the page has two widths rather than three."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L2/8",
+      "status": "accepted",
+      "reason": "P3. The 92px vs 100px difference is margin collapsing between the trace card's box and the following section's margin-top, not a second spacing step: both are --bt-rhythm-section. Correcting it would mean giving one boundary a hand-written offset, which is the class of ad-hoc margin the rhythm roles exist to eliminate. Read and declined."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L2/9",
+      "status": "accepted",
+      "reason": "P3, and a genuine conflict between two readings from the same lens two rounds apart. Round 2's L2 reported that the badge's TEXT started 10px right of the other values and asked for text alignment; round 5's L2 reports that the badge's BOX starts 9px left of the other values and asks for box alignment. They are the same 9px and cannot both be satisfied while a badge has padding. Text alignment was kept, because the value column is read as a column of values and the badge's label is the value. Recorded rather than silently chosen."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L1/7",
+      "status": "accepted",
+      "reason": "P3. The full hash reads as an unlabelled value because it IS unlabelled \u2014 the hero's specified treatment (a copy affordance, an age, a finality badge beside it) is exactly the content VD.4 owns, and giving the line a foundations-level flourish now would decorate a hero that is about to be rebuilt around it. The typographic half is done: it sits at --bt-type-identifier-lead-size, one rung above the 14px data mono, in --bt-text-strong."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L1/8",
+      "status": "accepted",
+      "reason": "P3, and deliberate. The H1 is monospace because it IS an identifier \u2014 the change that made the page's largest type carry the page's actual subject, which three reviewers across two campaigns asked for. A mono page title beside sans section headings is the same distinction the whole product makes everywhere else: mono means machine value. Reported as a scale inconsistency; recorded as the rule."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L1/9",
+      "status": "accepted",
+      "reason": "P3. The JSON block and the identifier rung both resolve to {type.fontSize.sm}; what differs is line-height (--bt-type-code-line 1.65 against --bt-type-identifier-line 1.5), which is deliberate \u2014 code needs looser leading than an inline identifier. The 'this is the product register' signal L1 wants is real and larger than a type token: Design-System.md \u00a77 requires syntax highlighting from the product lineage's editor tokens here, which is the one sanctioned register crossing and is VD.4/VD.5's work."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L1/10",
+      "status": "accepted",
+      "reason": "P3. 'Raw (chain-native)' is Page-Descriptions \u00a77.2's own name for the section, and the qualifier is load-bearing \u2014 it says the payload is the chain's, not BlockTracer's. Setting the parenthetical at a secondary weight would be a per-heading exception in a heading style that is otherwise uniform. Read and declined."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L4/5",
+      "status": "accepted",
+      "reason": "P3, and correct: the fixture's calldata is empty, so this capture cannot exercise the section's density case. That is a CONTENT gap, not a design one \u2014 it is exactly what M16 (Realistic Content Corpus) exists to supply, and the campaign's own introduction says a reviewer looking at thin content reports on the emptiness. Recorded so the gap is visible when the corpus lands."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L3/9",
+      "status": "accepted",
+      "reason": "P3, criterion A8, outside the foundations scope. The observation is accurate and the cause is recorded rather than hidden: every colour in the page resolves to a codetracer-design-system brand primitive, and the web lineage deliberately introduces no new hue (docs/DESIGN-DIVERGENCES-WEB.md \u00a72 settles the accent towards the brand precisely to avoid a third value across three lineages). Giving the light theme an identity beyond the brand ramp is a reference-parity question against the 2026 Webflow direction, which is G4 and VD.11's."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L5/10",
+      "status": "accepted",
+      "reason": "P3, criterion A9, outside the foundations scope. The observation is right \u2014 'a moment' is the page's one unquantified quantity, and brief \u00a79 calls an unquantified quantity an honesty failure. It is not fixable at foundations level because the honest number depends on the recorder job's real timing, which the pipeline does not yet report to the page. VD.6 owns the degraded-state copy and should quantify it or drop the claim."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L5/11",
+      "status": "accepted",
+      "reason": "P3, criterion A8, outside the foundations scope. `blocktracer-demo-gen` is not an internal identifier \u2014 it is a shipped CLI in this repository, named in the Justfile and the README, and the footer's point is provenance: this page was rendered from a named, reproducible generator rather than from a chain. That is the opposite of the M5/M9 leak VD.1 removed, which named milestones and internal architecture. Whether provenance belongs in the footer at all is a copy question for VD.6."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L5/6",
+      "status": "fixed",
+      "evidence": "OUTSIDE the foundations scope (criterion A9) and fixed anyway, because it is one word. client/src/pages/tx.nim: the three trace-derived panels said data is 'read from' its source while the spec-required line beside the Debug action says it 'comes from' the execution trace. All three now say 'come from', so one fact has one vocabulary and the specified sentence is the shared primitive rather than one of three paraphrases."
+    },
+    {
+      "findingId": "tx-detail/wide/light/L5/7",
+      "status": "fixed",
+      "evidence": "OUTSIDE the foundations scope (criterion A9) and fixed anyway, because it is the same class of defect VD.1 removed from this exact page and the fix is copy-only. 'the data plane this page reads' (Events panel, client/src/pages/tx.nim) and 'runs it again under the recorder' (availabilityNote, client/src/viewutil.nim) named implementation surfaces a visitor has no model for. They now read 'once this chain's receipts are published' and 'replays the transaction on our side and publishes the result'. Both were copy this session introduced, so leaving them for VD.6 would have been deferring a regression rather than a finding."
     }
   ],
   "referenceParity": [],
