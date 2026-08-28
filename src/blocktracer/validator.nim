@@ -71,8 +71,52 @@ proc mustBeOneOf(v: var Validator, n: JsonNode, ctx, field: string,
 
 # ---------------------------------------------------------------------------
 
+proc checkSourceBundles(v: var Validator, mrel, chain: string, m: JsonNode) =
+  ## Every bundle a manifest RECOMMENDS must actually be published, and the
+  ## `current.json` pointer for that code hash must resolve too
+  ## (Source-Resolution.md §5, Trace-Artifacts.md §2.5).
+  ##
+  ## This edge is load-bearing rather than decorative: the CTFS container carries
+  ## no source text, so a manifest naming a bundle that is not there yields a
+  ## debugger that steps correctly through code it cannot display.
+  if "sourceBundles" notin m: return
+  let sb = m["sourceBundles"]
+  if sb.kind != JObject: return
+  for codeHash, idNode in sb:
+    let bundleId = idNode.getStr
+    if bundleId.len == 0:
+      v.err(mrel, "sourceBundles['" & codeHash & "'] is empty")
+      continue
+    let dir = "src" / chain / codeHash
+    # The pointer must exist and must agree with the id the manifest pinned.
+    let curRel = dir / "current.json"
+    let cur = v.loadJson(curRel)
+    if cur == nil:
+      v.err(mrel, "sourceBundles names code hash '" & codeHash &
+            "' with no published " & curRel)
+      continue
+    let bundleRel = cur{"bundle"}.getStr
+    if bundleRel.len == 0:
+      v.err(curRel, "missing required field 'bundle'")
+      continue
+    let bundle = v.loadJson(bundleRel)
+    if bundle == nil:
+      v.err(curRel, "pointer references a missing bundle: " & bundleRel)
+      continue
+    if bundle{"codeHash"}.getStr != codeHash:
+      v.err(bundleRel, "bundle codeHash disagrees with the path it is published at")
+    # A bundle with no sources would satisfy every structural check and still be
+    # useless, so require at least one source file.
+    let srcs = bundle{"sources"}
+    if srcs == nil or srcs.kind != JObject or srcs.len == 0:
+      v.err(bundleRel, "source bundle carries no sources")
+    else:
+      for path, entry in srcs:
+        if entry{"content"}.getStr.len == 0:
+          v.err(bundleRel, "source '" & path & "' has empty content")
+
 proc checkContainerAndManifest(v: var Validator, tid, txHash, chain,
-                               execInputId: string) =
+                               execInputId: string, overlayBytes: int) =
   ## Derived-path check: the artifact must live exactly where the id says, and
   ## its manifest must be internally consistent (Trace-Artifacts §3, §4, §2.1).
   let sh = traceShards(tid)
@@ -111,6 +155,15 @@ proc checkContainerAndManifest(v: var Validator, tid, txHash, chain,
       let want = contentHashSha1(bytes)
       if c{"hash"}.getStr != want:
         v.err(mrel, "container.hash does not match container bytes")
+      # The TraceSelection overlay advertises the container's size so the client
+      # can choose a fetch strategy before fetching. If it disagrees with the
+      # artifact, the client sizes its fetch against a number that is not the
+      # object it is about to request.
+      if overlayBytes >= 0 and overlayBytes != bytes.len:
+        v.err(mrel, "overlay advertises bytes " & $overlayBytes &
+              " but the container is " & $bytes.len & " bytes")
+  # Source bundles the manifest recommends must resolve (§2.5).
+  v.checkSourceBundles(mrel, chain, m)
   # validation block is not optional decoration (§4).
   if "validation" in m:
     v.mustBeOneOf(m["validation"], mrel & ".validation", "status", validationStatuses)
@@ -159,7 +212,10 @@ proc checkExecTrace(v: var Validator, ctx: string, t: JsonNode,
     let prof = reg{"profile"}
     let tid = deriveTraceArtifactId(execInputId, rec{"id"}.getStr,
       rec{"build"}.getStr, prof{"hash"}.getStr, reg{"traceSchema"}.getStr)
-    v.checkContainerAndManifest(tid, txHash, chain, execInputId)
+    # -1 means the overlay did not advertise a size, which is legal; a size that
+    # is present must be the truth.
+    let overlayBytes = if "bytes" in t: t["bytes"].getInt else: -1
+    v.checkContainerAndManifest(tid, txHash, chain, execInputId, overlayBytes)
 
 proc checkTransaction(v: var Validator, chain, txHash, gen, tsv: string) =
   v.walkedTx.add txHash
