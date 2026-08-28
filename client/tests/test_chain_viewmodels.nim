@@ -45,8 +45,9 @@ import blocktracer/contract/model as contractModel
 import blocktracer/contract/ids as contractIds
 
 const
+  # The REAL `noir_space_ship` CTFS container recorded by `nargo trace`.
   Fixture = currentSourcePath().parentDir.parentDir.parentDir /
-            "fixtures" / "trace" / "minimal_trace.ct"
+            "fixtures" / "trace" / "noir_space_ship" / "zk_shields.ct"
 
 proc tmpDir(name: string): string =
   result = getTempDir() / "blocktracer-m12-vm-test" / name

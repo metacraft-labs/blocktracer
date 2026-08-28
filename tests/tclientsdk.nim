@@ -40,8 +40,11 @@ import ../src/blocktracer/demo/generator
 
 const
   Chain = "aztec"
-  Fixture = currentSourcePath().parentDir.parentDir / "fixtures" / "trace" /
-            "minimal_trace.ct"
+  FixtureDir = currentSourcePath().parentDir.parentDir / "fixtures" / "trace" /
+               "noir_space_ship"
+  # The REAL `noir_space_ship` CTFS container recorded by `nargo trace`.
+  Fixture = FixtureDir / "zk_shields.ct"
+  SourcesDir = FixtureDir / "sources"
 
 proc tmp(name: string): string =
   result = getTempDir() / "blocktracer-clientsdk-test" / name
@@ -118,7 +121,7 @@ suite "M12a — contract types imported verbatim from M5b, never redeclared":
 
 let demoDir = tmp("demo")
 discard generate(DemoConfig(outDir: demoDir, seed: "sdk-seed",
-                            traceFixturePath: Fixture))
+                            traceFixturePath: Fixture, traceSourcesDir: SourcesDir))
 let demoStore = localTree(demoDir)
 
 proc openDemo(): ChainSession =
@@ -159,7 +162,7 @@ suite "M12a — the read path over a published tree":
 
   test "an unsupported contract version is refused rather than misread":
     let d = tmp("badversion")
-    discard generate(DemoConfig(outDir: d, seed: "v", traceFixturePath: Fixture))
+    discard generate(DemoConfig(outDir: d, seed: "v", traceFixturePath: Fixture, traceSourcesDir: SourcesDir))
     let rp = d / "d" / Chain / "g" / "1" / "root.json"
     var root = parseFile(rp)
     root["contractVersion"] = %(ContractVersion + 99)
@@ -170,7 +173,7 @@ suite "M12a — the read path over a published tree":
 
   test "a pointer disagreeing with the sealed root about the overlay version is refused":
     let d = tmp("tsvdrift")
-    discard generate(DemoConfig(outDir: d, seed: "v", traceFixturePath: Fixture))
+    discard generate(DemoConfig(outDir: d, seed: "v", traceFixturePath: Fixture, traceSourcesDir: SourcesDir))
     let cp = d / "d" / Chain / "current.json"
     var cur = parseFile(cp)
     cur["traceSelectionVersion"] = %"9"
@@ -273,7 +276,7 @@ suite "M12a — availability is data, and `absent` never becomes a failed fetch"
     # showing the user something indistinguishable from a failed fetch.
     let d = tmp("reasonless")
     discard generate(DemoConfig(outDir: d, seed: "sdk-seed",
-                                traceFixturePath: Fixture))
+                                traceFixturePath: Fixture, traceSourcesDir: SourcesDir))
     let op = d / "d" / Chain / "ts" / "1" / hexShard(splitTx) / splitTx & ".json"
     var ov = parseFile(op)
     for e in ov["executions"]:
@@ -300,7 +303,7 @@ suite "M12a — availability is data, and `absent` never becomes a failed fetch"
 
 suite "M12a — a pinned generation is never mixed":
   let d = tmp("pinning")
-  discard generate(DemoConfig(outDir: d, seed: "pin", traceFixturePath: Fixture))
+  discard generate(DemoConfig(outDir: d, seed: "pin", traceFixturePath: Fixture, traceSourcesDir: SourcesDir))
   let log = newRequestLog()
   let store = recordingStore(localTree(d), log)
 
@@ -312,7 +315,7 @@ suite "M12a — a pinned generation is never mixed":
 
   # The pipeline publishes generation 2, carrying a new block, and flips the
   # pointer — exactly as it would mid-session.
-  discard generate(DemoConfig(outDir: d, seed: "pin", traceFixturePath: Fixture,
+  discard generate(DemoConfig(outDir: d, seed: "pin", traceFixturePath: Fixture, traceSourcesDir: SourcesDir,
                               generation: "2", extraBlocks: @[103]))
 
   test "the pointer really did move":
@@ -612,7 +615,8 @@ proc buildEvmTree(dir: string): tuple[chain, tx, blk, codeHash, bundleId: string
   writeJsonNl(dir / "d" / chain / "g" / "1" / "txstate" / hexShard(tx) / tx & ".json",
     %*{"chain": chain, "tx": tx, "canonical": true, "finality": "finalized"})
   let ov = contractModel.TraceSelection(chain: chain, tx: tx, hasSingle: true,
-    singleTrace: ExecTrace(availability: taReady, bytes: 36864, hasValidation: true,
+    singleTrace: ExecTrace(availability: taReady, bytes: readFile(Fixture).len,
+      hasValidation: true,
       validation: ValidationSummary(status: vsMatch, strength: 2)))
   writeJsonNl(dir / "d" / chain / "ts" / "1" / hexShard(tx) / tx & ".json", ov.toJson)
 
@@ -622,7 +626,24 @@ proc buildEvmTree(dir: string): tuple[chain, tx, blk, codeHash, bundleId: string
   createDir adir
   let bytes = readFile(Fixture)
   writeFile(adir / "trace.ct", bytes)
-  let bundleId = "sha1:" & repeat("ab", 20)
+  # This producer publishes its source bundle too (Source-Resolution.md §5), so
+  # the second tree exercises the same manifest -> bundle edge the demo tree does.
+  let evmBundle = %*{
+    "schema": ContractVersion, "codeHash": codeHash, "chain": chain,
+    "match": "full", "provider": "test-fixture", "language": "solidity",
+    "compiler": {"name": "solc", "version": "0.8.24", "settings": {}},
+    "sources": {"src/Token.sol": {"content":
+      "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\n" &
+      "contract Token { function transfer(address,uint256) external {} }\n"}},
+    "debug": {}}
+  let bundleId = contentHashSha1(evmBundle.pretty & "\n")
+  # Full hex after the algorithm tag — see the note in demo/generator.nim.
+  let bundleRel = "src" / chain / codeHash /
+                  bundleId[bundleId.find(':') + 1 .. ^1] & ".json"
+  writeJsonNl(dir / bundleRel, evmBundle)
+  writeJsonNl(dir / "src" / chain / codeHash / "current.json",
+    %*{"chain": chain, "codeHash": codeHash, "sourceBundleId": bundleId,
+       "bundle": bundleRel})
   let manifest = contractModel.TraceManifest(schema: ContractVersion,
     traceArtifactId: tid, executionInputId: execId, chain: chain, tx: tx,
     recorder: RecorderRef(id: recId, build: recBuild, version: recVer),
@@ -800,7 +821,7 @@ suite "M12a — the conformance suite does not use the reader as its own oracle"
     # derivation and nothing else, so the two must stop agreeing.
     let d = tmp("driftpin")
     discard generate(DemoConfig(outDir: d, seed: "sdk-seed",
-                                traceFixturePath: Fixture))
+                                traceFixturePath: Fixture, traceSourcesDir: SourcesDir))
     check consumerConformance(localTree(d), Chain).ok
     let rp = d / "registry" / "chains.v1.json"
     var reg = parseFile(rp)
@@ -814,7 +835,7 @@ suite "M12a — the conformance suite does not use the reader as its own oracle"
   test "MUTATION BITE: a container whose bytes disagree with its manifest is caught":
     let d = tmp("driftbytes")
     discard generate(DemoConfig(outDir: d, seed: "sdk-seed",
-                                traceFixturePath: Fixture))
+                                traceFixturePath: Fixture, traceSourcesDir: SourcesDir))
     check consumerConformance(localTree(d), Chain).ok
     var container = ""
     for p in walkDirRec(d / "t"):
@@ -828,7 +849,7 @@ suite "M12a — the conformance suite does not use the reader as its own oracle"
   test "MUTATION BITE: a block and its transactions disagreeing is caught":
     let d = tmp("driftpos")
     discard generate(DemoConfig(outDir: d, seed: "sdk-seed",
-                                traceFixturePath: Fixture))
+                                traceFixturePath: Fixture, traceSourcesDir: SourcesDir))
     check consumerConformance(localTree(d), Chain).ok
     let bh = synthHash("sdk-seed", "block", 101)
     let bp = d / "d" / Chain / "block" / bh & ".json"
@@ -842,7 +863,7 @@ suite "M12a — the conformance suite does not use the reader as its own oracle"
   test "MUTATION BITE: an overlay claiming `ready` with no published trace is caught":
     let d = tmp("driftready")
     discard generate(DemoConfig(outDir: d, seed: "sdk-seed",
-                                traceFixturePath: Fixture))
+                                traceFixturePath: Fixture, traceSourcesDir: SourcesDir))
     let txh = synthHash("sdk-seed", "tx", 0)
     let op = d / "d" / Chain / "ts" / "1" / hexShard(txh) / txh & ".json"
     var ov = parseFile(op)
@@ -932,13 +953,46 @@ suite "M12a — source-bundle resolution per code hash":
     check b.outcome == boMismatched
     check b.reason.contains(ev.codeHash)
 
-  test "the published trees carry no source bundles, and say so rather than failing":
+  test "the demo tree's bundles resolve to the real Noir source of the trace":
+    # The demo tree now publishes source bundles for the `noir_space_ship`
+    # program its traces record, so the consumer path can be exercised against
+    # real data rather than against absence. Without this the debugger steps
+    # through code it cannot display: the CTFS container carries no source text.
     let session = openDemo()
     let tx = synthHash("sdk-seed", "tx", 0)
     let dtr = transaction(demoStore, session, tx)
     let dt = resolveTrace(demoStore, session, dtr.view, "")
     check dt.hasManifest
+    var resolved = 0
     for ch in codeHashes(dtr.view.facts):
       let r = resolveSourceBundle(demoStore, Chain, dt.manifest, true, ch)
-      check r.origin == bsNone
-      check r.reason.len > 0
+      # The manifest's own recommendation wins over the chain-wide pointer (§5).
+      check r.origin == bsManifest
+      let b = fetchSourceBundle(demoStore, r)
+      check b.outcome == boLoaded
+      check b.bundle.codeHash == ch
+      check b.bundle.language == "noir"
+      check b.bundle.compilerName == "nargo"
+      # The paths the CONTAINER interns must be present, or a step resolves to a
+      # file the viewer does not have.
+      for path in ["src/main.nr", "src/shield.nr"]:
+        check path in b.bundle.sources
+        check b.bundle.sources[path]["content"].getStr.len > 0
+      # Real spaceship source, not a placeholder.
+      check "iterate_asteroids" in b.bundle.sources["src/shield.nr"]["content"].getStr
+      inc resolved
+    check resolved > 0
+
+  test "an unpublished code hash still reports absence rather than failing":
+    # The honest-absence path must survive the arrival of real bundles.
+    let session = openDemo()
+    let tx = synthHash("sdk-seed", "tx", 0)
+    let dtr = transaction(demoStore, session, tx)
+    let dt = resolveTrace(demoStore, session, dtr.view, "")
+    let unknown = "0xfeed" & repeat("0", 36)
+    let r = resolveSourceBundle(demoStore, Chain, dt.manifest, true, unknown)
+    check r.origin == bsNone
+    check r.reason.len > 0
+    let b = fetchSourceBundle(demoStore, r)
+    check b.outcome == boNotPublished
+    check b.reason.len > 0

@@ -15,12 +15,29 @@
 ## field order, and the trace container bytes are copied verbatim from a fixture,
 ## so two runs at the same seed produce a byte-identical tree.
 ##
-## TRACE STAND-IN: `nargo trace` on `noir_space_ship` was NOT available in this
-## environment (`nargo` is not installed), so the public executions reuse
-## `fixtures/trace/minimal_trace.ct` as a clearly-labelled stand-in `.ct`. The
-## manifest's `container.bytes`/`hash` describe those real bytes, so the artifact
-## still validates. Swapping in a real spaceship `.ct` is a one-line change in
-## `traceFixturePath` plus per-execution `recorder`/`execution` metadata.
+## THE TRACE IS REAL. Every published (`ready` / `divergent`) execution carries
+## `fixtures/trace/noir_space_ship/zk_shields.ct` — a genuine CTFS container
+## recorded by `nargo trace` from `codetracer/test-programs/noir_space_ship`
+## (Noir tracer fork `codetracer` @ `906af2f42d`, nargo 1.0.0-beta.26). 1315 steps,
+## 80 calls, max call depth 3, all 22 variables observed, 70 stdout events. See
+## `fixtures/trace/noir_space_ship/README.md` for provenance and `ct-print` output.
+##
+## The container is VENDORED rather than recorded at generation time on purpose:
+## `nargo trace` is not byte-deterministic (it stamps a fresh UUIDv7 recording id
+## into the `CTMD` block on every run), so shelling out to it would break the
+## byte-identical-tree requirement. Checking the bytes in is what makes the demo
+## tree a usable regression fixture.
+##
+## SOURCE IS REFERENCED, NOT EMBEDDED (Trace-Artifacts.md §2.5). The container
+## interns path names and positions but carries no source text
+## (`ct-print --full` reports `source_views: []`), so a viewer given only
+## `trace.ct` can step and show variables but cannot show code. The generator
+## therefore publishes the Noir sources as content-addressed bundles at
+## `/src/{chain}/{codeHash}/{bundleHash}.json` with a `current.json` pointer
+## (Source-Resolution.md §5), and each manifest's `sourceBundles` names the
+## bundle it recommends. The bundle's `sources` keys are exactly the paths the
+## container interns (`src/main.nr`, `src/shield.nr`), which is what lets a step's
+## position resolve to a line of code.
 
 import std/[json, os, strutils, sha1, algorithm, tables]
 import ../contract/[model, version, ids, searchidx]
@@ -31,6 +48,11 @@ type
     outDir*: string
     seed*: string
     traceFixturePath*: string
+    traceSourcesDir*: string  ## directory holding the traced program's sources,
+                              ## published as content-addressed source bundles
+                              ## (Source-Resolution.md §5). Its layout under
+                              ## `src/` must match the paths the container
+                              ## interns, or a step resolves to no source line.
     generation*: string       ## generation label; "" => "1" (the M5c default).
     extraBlocks*: seq[int]     ## heights appended after 102, each carrying one new
                                ## public transaction. Empty => the byte-identical
@@ -78,6 +100,19 @@ const
   traceSchema = "ctfs/v4"
   profileName = "default"
   tsv = "1"
+
+  # --- The REAL execution summary of the packaged `noir_space_ship` trace ------
+  # These are not invented numbers. They are what `ct-print --summary` reports for
+  # `fixtures/trace/noir_space_ship/zk_shields.ct`, and `tcontract` asserts the
+  # manifests still agree with the vendored container, so re-recording the fixture
+  # without updating them fails the suite rather than silently publishing a lie.
+  traceSteps = 1315         ## ct-print: steps
+  traceFrames = 80          ## ct-print: calls — one frame per call entry
+  traceLanguage = "noir"
+  # Provenance of the vendored container, surfaced in the source bundle's
+  # `compiler` block so a reader can tell which tracer produced the execution.
+  nargoVersion = "1.0.0-beta.26"
+  tracerCommit = "906af2f42d6b874cf0f5dde193accb1e39e1bcd3"
   # Search-index parameters (Search-And-Routing §5.3, §6). Version-addressed and
   # independent of the contract version; the depths are small for the demo's tiny
   # dataset and are recomputable for the real pipeline (documented D4/D5).
@@ -108,8 +143,62 @@ proc writeRegistry(cfg: DemoConfig) =
   }
   cfg.writeJson("registry" / "chains.v" & $ContractVersion & ".json", reg)
 
+proc readSourceFiles(dir: string): seq[tuple[path, content: string]] =
+  ## Collect the traced program's sources keyed by the path the CONTAINER interns
+  ## (`src/main.nr`, `src/shield.nr`), in sorted order so bundle bytes are stable
+  ## across runs and across filesystems with different directory ordering.
+  if dir.len == 0 or not dirExists(dir): return
+  var rels: seq[string]
+  for p in walkDirRec(dir, relative = true):
+    rels.add p.replace('\\', '/')
+  rels.sort()
+  for r in rels:
+    result.add (path: r, content: readFile(dir / r))
+
+proc writeSourceBundle(cfg: DemoConfig, codeHash: string,
+                       files: seq[tuple[path, content: string]]): string =
+  ## Publish one content-addressed source bundle plus its `current.json` pointer
+  ## (Source-Resolution.md §5) and return its `sourceBundleId`.
+  ##
+  ## This is what makes the trace *readable*: the CTFS container carries no source
+  ## text (Trace-Artifacts.md §2.5), so without a bundle whose `sources` keys match
+  ## the interned paths, every step resolves to a position in a file the viewer
+  ## cannot display.
+  var srcs = newJObject()
+  for f in files:
+    srcs[f.path] = %*{"content": f.content}
+  let bundle = %*{
+    "schema": ContractVersion,
+    "codeHash": codeHash,
+    "chain": chain,
+    "match": "full",
+    "provider": "demo-vendored",
+    "language": traceLanguage,
+    "compiler": {"name": "nargo", "version": nargoVersion,
+                 "settings": {"tracerCommit": tracerCommit}},
+    "sources": srcs,
+    "debug": newJObject()}
+  # `writeJson` emits exactly `pretty & "\n"`, so hashing that string content-
+  # addresses the bytes actually published.
+  let bundleId = contentHashSha1(bundle.pretty & "\n")
+  # The filename must be the id with ONLY its algorithm tag stripped. A consumer
+  # reaching the bundle through a manifest's `sourceBundles` has no pointer to
+  # read, so it reconstructs this path from the id alone and may not assume any
+  # further shortening (blocktracer_client/paths.nim `shortBundleHash`).
+  # Truncating here would publish a bundle only the pointer route could find.
+  let short = bundleId[bundleId.find(':') + 1 .. ^1]
+  let dir = "src" / chain / codeHash
+  let rel = dir / short & ".json"
+  cfg.writeJson(rel, bundle)
+  # Only `current.json` ever moves; bundle objects are immutable (§5).
+  cfg.writeJson(dir / "current.json",
+    %*{"chain": chain, "codeHash": codeHash, "sourceBundleId": bundleId,
+       "bundle": rel})
+  bundleId
+
 proc writeArtifact(cfg: DemoConfig, txHash, execInputId: string,
-                   vs: ValidationStatus, strength: int, oracle: string) =
+                   vs: ValidationStatus, strength: int, oracle: string,
+                   codeHash, sourceBundleId: string) =
   ## Emit `/t/{shard}/{shard}/{tid}/` — manifest.json + trace.ct — for one
   ## published execution. `traceArtifactId` is DERIVED (Trace-Artifacts §2.1), so
   ## the URL is exactly what the client (and the validator) compute independently.
@@ -118,9 +207,14 @@ proc writeArtifact(cfg: DemoConfig, txHash, execInputId: string,
   let tid = deriveTraceArtifactId(execInputId, r.id, r.build, p.hash, traceSchema)
   let sh = traceShards(tid)
   let dir = "t" / sh.a / sh.b / tid
+  # The real `noir_space_ship` container, copied verbatim. Copying rather than
+  # regenerating is what keeps the tree byte-identical (see the module header).
   let bytes = readFile(cfg.traceFixturePath)
   createDir(cfg.outDir / dir)
-  writeFile(cfg.outDir / dir / "trace.ct", bytes)  # raw container bytes (stand-in)
+  writeFile(cfg.outDir / dir / "trace.ct", bytes)
+  var bundles = newJObject()
+  if sourceBundleId.len > 0:
+    bundles[codeHash] = %sourceBundleId
   let manifest = TraceManifest(
     schema: ContractVersion,
     traceArtifactId: tid,
@@ -129,11 +223,12 @@ proc writeArtifact(cfg: DemoConfig, txHash, execInputId: string,
     tx: txHash,
     recorder: r,
     profile: p,
-    sourceBundles: newJObject(),
+    sourceBundles: bundles,
     container: ContainerRef(file: "trace.ct", bytes: bytes.len, blockSize: 4096,
                             hash: contentHashSha1(bytes)),
-    execution: ExecutionSummary(steps: 11, frames: 1, truncated: false,
-                                sourceLevel: true, languages: @["noir"]),
+    execution: ExecutionSummary(steps: traceSteps, frames: traceFrames,
+                                truncated: false, sourceLevel: true,
+                                languages: @[traceLanguage]),
     validation: ValidationSummary(status: vs, strength: strength),
     validationOracle: oracle,
     prestateStrategy: "self-contained-circuit")
@@ -174,6 +269,12 @@ proc txstateJson(canonical: bool, finality: string): JsonNode =
 
 proc build(cfg: DemoConfig): seq[DemoTx] =
   let seed = cfg.seed
+  # The overlay advertises the container's size so the client can pick a fetch
+  # strategy (whole-object vs range-filled) BEFORE fetching it. Read it from the
+  # fixture rather than hardcoding: a re-recorded trace of a different size must
+  # not leave the overlay advertising the old one. The validator cross-checks this
+  # against the artifact's real file size.
+  let tbytes = int(getFileSize(cfg.traceFixturePath))
   # Blocks 100, 101, 102.
   let b100 = synthHash(seed, "block", 100)
   let b101 = synthHash(seed, "block", 101)
@@ -186,7 +287,7 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
     let c = synthAddr(seed, "contract", 0)
     var facts = mkPublicFacts(seed, h, b100, 100, 0, c)
     var ov = TraceSelection(chain: chain, tx: h, hasSingle: true,
-      singleTrace: ExecTrace(availability: taReady, bytes: 36864, hasValidation: true,
+      singleTrace: ExecTrace(availability: taReady, bytes: tbytes, hasValidation: true,
         validation: ValidationSummary(status: vsMatch, strength: 2)))
     result.add DemoTx(hash: h, height: 100, index: 0, facts: facts,
       txstate: txstateJson(true, "finalized"), overlay: ov,
@@ -225,7 +326,7 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
       ExecTrace(selector: "private", availability: taAbsent,
         reason: "aztec private function executed client-side; only proofs, " &
                 "nullifiers and commitments are published — no call structure to trace"),
-      ExecTrace(selector: "public", availability: taReady, bytes: 36864,
+      ExecTrace(selector: "public", availability: taReady, bytes: tbytes,
         hasValidation: true, validation: ValidationSummary(status: vsMatch, strength: 2))])
     result.add DemoTx(hash: h, height: 101, index: 0, facts: facts,
       txstate: txstateJson(true, "safe"), overlay: ov,
@@ -239,7 +340,7 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
     let c = synthAddr(seed, "contract", 2)
     var facts = mkPublicFacts(seed, h, b101, 101, 1, c)
     var ov = TraceSelection(chain: chain, tx: h, hasSingle: true,
-      singleTrace: ExecTrace(availability: taDivergent, bytes: 36864, hasValidation: true,
+      singleTrace: ExecTrace(availability: taDivergent, bytes: tbytes, hasValidation: true,
         validation: ValidationSummary(status: vsDivergent, strength: 0)))
     result.add DemoTx(hash: h, height: 101, index: 1, facts: facts,
       txstate: txstateJson(true, "safe"), overlay: ov,
@@ -266,7 +367,7 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
     let c = synthAddr(seed, "contract", 4)
     var facts = mkPublicFacts(seed, h, b102, 102, 1, c)
     var ov = TraceSelection(chain: chain, tx: h, hasSingle: true,
-      singleTrace: ExecTrace(availability: taReady, bytes: 36864, reconstructed: true,
+      singleTrace: ExecTrace(availability: taReady, bytes: tbytes, reconstructed: true,
         hasValidation: true, validation: ValidationSummary(status: vsUnchecked, strength: 0)))
     result.add DemoTx(hash: h, height: 102, index: 1, facts: facts,
       txstate: txstateJson(true, "pending"), overlay: ov,
@@ -286,7 +387,7 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
     let bh = synthHash(seed, "block", eb)
     var facts = mkPublicFacts(seed, h, bh, eb, 0, c)
     var ov = TraceSelection(chain: chain, tx: h, hasSingle: true,
-      singleTrace: ExecTrace(availability: taReady, bytes: 36864, hasValidation: true,
+      singleTrace: ExecTrace(availability: taReady, bytes: tbytes, hasValidation: true,
         validation: ValidationSummary(status: vsMatch, strength: 2)))
     result.add DemoTx(hash: h, height: eb, index: 0, facts: facts,
       txstate: txstateJson(true, "finalized"), overlay: ov,
@@ -309,6 +410,12 @@ proc generate*(cfg: DemoConfig): int =
   cfg.writeRegistry()
 
   let txs = build(cfg)
+
+  # The traced program's sources, published once per code hash as a content-
+  # addressed bundle (Source-Resolution.md §5). Read once: the bundle body is a
+  # pure function of these bytes plus the code hash, so the tree stays
+  # byte-identical at a given seed.
+  let srcFiles = readSourceFiles(cfg.traceSourcesDir)
 
   # Group transactions by block.
   var blocks: seq[tuple[hash: string, height: int, parent: string, txs: seq[string]]]
@@ -346,8 +453,19 @@ proc generate*(cfg: DemoConfig): int =
     cfg.writeJson("d" / chain / "g" / gen / "txstate" / sh / t.hash & ".json", st)
     let ovJson = t.overlay.toJson
     cfg.writeJson("d" / chain / "ts" / tsv / sh / t.hash & ".json", ovJson)
-    for a in t.artifacts:
-      cfg.writeArtifact(t.hash, a.execInputId, a.vs, a.strength, a.oracle)
+    if t.artifacts.len > 0:
+      # Publish the source bundle for the code this transaction executed, then
+      # name it from every one of that transaction's manifests. The bundle is
+      # keyed by code hash, so a contract's source is stored once however many
+      # executions reference it (Trace-Artifacts.md §2.5).
+      let codeHash = if t.facts.codeEdges.len > 0: t.facts.codeEdges[0].codeHash
+                     else: ""
+      var bundleId = ""
+      if codeHash.len > 0 and srcFiles.len > 0:
+        bundleId = cfg.writeSourceBundle(codeHash, srcFiles)
+      for a in t.artifacts:
+        cfg.writeArtifact(t.hash, a.execInputId, a.vs, a.strength, a.oracle,
+                          codeHash, bundleId)
     cfg.writeText(chain / "tx" / t.hash / "index.html",
                   renderTxPage(chain, t.hash, factsJson, st, ovJson))
     hashEntries.add HashEntry(hexHash: t.hash, chain: chain, kind: hkTx)

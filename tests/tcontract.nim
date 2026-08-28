@@ -8,7 +8,7 @@
 ##   - M5b test_contract_conformance_fixture_validates (negative cases)
 ##   - M5b test_both_producers_satisfy_one_contract (demo + a hand-built EVM tree)
 
-import std/[unittest, os, json, strutils, algorithm, sha1]
+import std/[unittest, os, json, strutils, algorithm, sha1, sequtils]
 import ../src/blocktracer/contract/[model, version, ids, searchidx, entrypage]
 import ../src/blocktracer/validator
 import ../src/blocktracer/demo/generator
@@ -18,7 +18,12 @@ proc synthHash(seed, kind: string, n: int): string =
 proc synthAddr(seed, kind: string, n: int): string =
   "0x" & toLowerAscii($secureHash(seed & "|addr|" & kind & "|" & $n))[0 .. 39]
 
-const fixture = currentSourcePath().parentDir.parentDir / "fixtures" / "trace" / "minimal_trace.ct"
+# The REAL `noir_space_ship` trace: a CTFS container recorded by `nargo trace`
+# (see fixtures/trace/noir_space_ship/README.md), plus the Noir sources the
+# generator publishes as content-addressed source bundles.
+const fixtureDir = currentSourcePath().parentDir.parentDir / "fixtures" / "trace" / "noir_space_ship"
+const fixture = fixtureDir / "zk_shields.ct"
+const sourcesDir = fixtureDir / "sources"
 
 proc tmp(name: string): string =
   result = getTempDir() / "blocktracer-test" / name
@@ -37,7 +42,7 @@ proc writeJsonNl(path: string, node: JsonNode) =
 suite "M5c — demo tree conformance":
   let outDir = tmp("demo")
   let seed = "test-seed-1"
-  let nTx = generate(DemoConfig(outDir: outDir, seed: seed, traceFixturePath: fixture))
+  let nTx = generate(DemoConfig(outDir: outDir, seed: seed, traceFixturePath: fixture, traceSourcesDir: sourcesDir))
 
   test "the generator emits five transactions":
     check nTx == 5
@@ -81,12 +86,117 @@ suite "M5c — demo tree conformance":
     check ovc["trace"]["availability"].getStr == "divergent"
     check ovd["trace"]["availability"].getStr == "onDemand"
 
+suite "M5c — the published traces are the real noir_space_ship execution":
+  # These tests exist because a well-formed but WRONG container passes every
+  # structural check in the validator: `container.bytes`/`hash` describe whatever
+  # bytes are there, so a stand-in from a different program validates perfectly.
+  # The only way to catch that is to assert on the container's own contents.
+  let outDir = tmp("realtrace")
+  discard generate(DemoConfig(outDir: outDir, seed: "test-seed-1",
+                              traceFixturePath: fixture,
+                              traceSourcesDir: sourcesDir))
+
+  proc containers(): seq[string] =
+    for p in walkDirRec(outDir / "t"):
+      if p.extractFilename == "trace.ct": result.add p
+    result.sort()
+
+  test "every published container really is the noir_space_ship program":
+    let cs = containers()
+    check cs.len == 4          # txA, txB-public, txC-divergent, txE-reconstructed
+    let want = readFile(fixture)
+    for c in cs:
+      let got = readFile(c)
+      # Byte-identical to the vendored `nargo trace` output — not merely the same
+      # size, and not a re-encoding.
+      check got == want
+      # CTFS container magic (`c0 de 72 ac`), so this is a real container and not
+      # a JSON blob that happens to sit at the right path.
+      check got.len > 4
+      check got[0] == '\xC0' and got[1] == '\xDE'
+      check got[2] == '\x72' and got[3] == '\xAC'
+      # The program's own identifiers are interned in the container. `factorial`
+      # (the old stand-in) has none of these, so this assertion is what would
+      # have failed while the stand-in was in place.
+      for marker in ["zk_shields", "src/main.nr", "src/shield.nr",
+                     "iterate_asteroids", "remaining_shield"]:
+        check marker in got
+
+  test "the manifests describe the real container, not invented numbers":
+    var seen = 0
+    for p in walkDirRec(outDir / "t"):
+      if p.extractFilename != "manifest.json": continue
+      inc seen
+      let m = parseFile(p)
+      # ct-print --summary on fixtures/trace/noir_space_ship/zk_shields.ct
+      check m["execution"]["steps"].getInt == 1315
+      check m["execution"]["frames"].getInt == 80
+      check m["execution"]["languages"].getElems.mapIt(it.getStr) == @["noir"]
+      check m["execution"]["sourceLevel"].getBool
+      check not m["execution"]["truncated"].getBool
+      check m["container"]["bytes"].getInt == readFile(fixture).len
+      check m["container"]["bytes"].getInt == 147456
+    check seen == 4
+
+  test "the overlay advertises the container's true size":
+    # The client picks its fetch strategy from this number before it has the
+    # object, so a stale value mis-sizes the request.
+    let want = readFile(fixture).len
+    var checkedAny = false
+    for p in walkDirRec(outDir / "d" / "aztec" / "ts"):
+      let ov = parseFile(p)
+      var traces: seq[JsonNode]
+      if "trace" in ov: traces.add ov["trace"]
+      if "executions" in ov:
+        for e in ov["executions"]: traces.add e
+      for t in traces:
+        if t{"availability"}.getStr in ["ready", "divergent"]:
+          check t["bytes"].getInt == want
+          checkedAny = true
+    check checkedAny
+
+  test "each manifest names a source bundle that resolves to real Noir source":
+    # The container carries no source text (ct-print reports `source_views: []`),
+    # so without this edge the debugger steps through code it cannot display.
+    var checkedAny = false
+    for p in walkDirRec(outDir / "t"):
+      if p.extractFilename != "manifest.json": continue
+      let m = parseFile(p)
+      check m["sourceBundles"].len == 1
+      for codeHash, idNode in m["sourceBundles"]:
+        let cur = parseFile(outDir / "src" / "aztec" / codeHash / "current.json")
+        check cur["sourceBundleId"].getStr == idNode.getStr
+        let bundle = parseFile(outDir / cur["bundle"].getStr)
+        check bundle["codeHash"].getStr == codeHash
+        check bundle["language"].getStr == "noir"
+        # The bundle must cover the paths the CONTAINER interns, or a step
+        # resolves to a file the viewer does not have. `std/lib.nr` is the Noir
+        # stdlib and is legitimately absent.
+        for path in ["src/main.nr", "src/shield.nr"]:
+          check path in bundle["sources"]
+          check bundle["sources"][path]["content"].getStr.len > 0
+        # Real source, not a placeholder.
+        check "iterate_asteroids" in bundle["sources"]["src/shield.nr"]["content"].getStr
+        check "mod shield;" in bundle["sources"]["src/main.nr"]["content"].getStr
+        checkedAny = true
+    check checkedAny
+
+  test "the bundle id is the content hash of the bytes actually published":
+    var checkedAny = false
+    for p in walkDirRec(outDir / "src"):
+      if p.extractFilename == "current.json": continue
+      let body = readFile(p)
+      let cur = parseFile(p.parentDir / "current.json")
+      check cur["sourceBundleId"].getStr == contentHashSha1(body)
+      checkedAny = true
+    check checkedAny
+
 suite "M5c — determinism":
   test "the same seed produces a byte-identical tree, containers included":
     let a = tmp("det-a")
     let b = tmp("det-b")
-    discard generate(DemoConfig(outDir: a, seed: "same", traceFixturePath: fixture))
-    discard generate(DemoConfig(outDir: b, seed: "same", traceFixturePath: fixture))
+    discard generate(DemoConfig(outDir: a, seed: "same", traceFixturePath: fixture, traceSourcesDir: sourcesDir))
+    discard generate(DemoConfig(outDir: b, seed: "same", traceFixturePath: fixture, traceSourcesDir: sourcesDir))
     let fa = listFiles(a)
     check fa == listFiles(b)
     for rel in fa:
@@ -131,7 +241,8 @@ suite "M5b — the contract names no producer":
     writeJsonNl(d / "d" / chain / "g" / "1" / "txstate" / hexShard(tx) / tx & ".json",
       %*{"chain": chain, "tx": tx, "canonical": true, "finality": "finalized"})
     let ov = TraceSelection(chain: chain, tx: tx, hasSingle: true,
-      singleTrace: ExecTrace(availability: taReady, bytes: 36864, hasValidation: true,
+      singleTrace: ExecTrace(availability: taReady, bytes: readFile(fixture).len,
+        hasValidation: true,
         validation: ValidationSummary(status: vsMatch, strength: 2)))
     writeJsonNl(d / "d" / chain / "ts" / "1" / hexShard(tx) / tx & ".json", ov.toJson)
     # the derived artifact
@@ -179,7 +290,7 @@ suite "M5b — the contract names no producer":
 suite "M5c — /idx search indices and HTML entry pages":
   let outDir = tmp("idx")
   let seed = "idx-seed"
-  discard generate(DemoConfig(outDir: outDir, seed: seed, traceFixturePath: fixture))
+  discard generate(DemoConfig(outDir: outDir, seed: seed, traceFixturePath: fixture, traceSourcesDir: sourcesDir))
 
   test "the render + idx layers are emitted and declared in the generation root":
     let root = parseFile(outDir / "d" / "aztec" / "g" / "1" / "root.json")
@@ -247,7 +358,7 @@ suite "M5c — /idx search indices and HTML entry pages":
 suite "M5c — the new /idx + entry-page assertions bite":
   proc freshIdx(name: string): string =
     result = tmp(name)
-    discard generate(DemoConfig(outDir: result, seed: "bite", traceFixturePath: fixture))
+    discard generate(DemoConfig(outDir: result, seed: "bite", traceFixturePath: fixture, traceSourcesDir: sourcesDir))
 
   test "removing the home page fails conformance":
     let d = freshIdx("bite-home")
@@ -300,7 +411,7 @@ suite "M5c — the new /idx + entry-page assertions bite":
 suite "M5b — malformed trees fail conformance":
   proc freshDemo(name: string): string =
     result = tmp(name)
-    discard generate(DemoConfig(outDir: result, seed: "neg", traceFixturePath: fixture))
+    discard generate(DemoConfig(outDir: result, seed: "neg", traceFixturePath: fixture, traceSourcesDir: sourcesDir))
 
   proc firstTxFactsPath(dir: string): string =
     for p in walkDirRec(dir / "d" / "aztec" / "tx"):
@@ -351,6 +462,66 @@ suite "M5b — malformed trees fail conformance":
     n["contractVersion"] = %(ContractVersion + 99)
     writeFile(rp, n.pretty & "\n")
     check validateTree(d).len > 0
+
+  # --- the M5c real-trace edges, each verified to bite -----------------------
+
+  proc firstOverlayWithTrace(dir: string): string =
+    for p in walkDirRec(dir / "d" / "aztec" / "ts"):
+      if parseFile(p){"trace"} != nil: return p
+    ""
+
+  test "an overlay advertising the wrong container size fails":
+    # The client sizes its fetch from this before it has the object.
+    let d = freshDemo("neg-overlay-bytes")
+    let op = firstOverlayWithTrace(d)
+    check op.len > 0
+    var n = parseFile(op)
+    n["trace"]["bytes"] = %(n["trace"]["bytes"].getInt div 2)
+    writeFile(op, n.pretty & "\n")
+    let errs = validateTree(d)
+    check errs.len > 0
+    check errs.anyIt("overlay advertises bytes" in it)
+
+  test "a manifest naming a source bundle that was never published fails":
+    let d = freshDemo("neg-bundle-missing")
+    var mp = ""
+    for p in walkDirRec(d / "t"):
+      if p.endsWith("manifest.json"): mp = p; break
+    let n = parseFile(mp)
+    # Delete the bundle the manifest recommends, leaving the reference dangling.
+    for codeHash, _ in n["sourceBundles"]:
+      removeDir(d / "src" / "aztec" / codeHash)
+    let errs = validateTree(d)
+    check errs.len > 0
+    check errs.anyIt("with no published" in it)
+
+  test "a source bundle whose pointer dangles fails":
+    let d = freshDemo("neg-bundle-pointer")
+    var cp = ""
+    for p in walkDirRec(d / "src"):
+      if p.endsWith("current.json"): cp = p; break
+    check cp.len > 0
+    var n = parseFile(cp)
+    n["bundle"] = %"src/aztec/nope/deadbeef.json"
+    writeFile(cp, n.pretty & "\n")
+    let errs = validateTree(d)
+    check errs.len > 0
+    check errs.anyIt("references a missing bundle" in it)
+
+  test "a source bundle with empty source content fails":
+    # A bundle that is structurally perfect but carries no readable source is
+    # exactly the failure this edge exists to catch.
+    let d = freshDemo("neg-bundle-empty")
+    var bp = ""
+    for p in walkDirRec(d / "src"):
+      if p.endsWith(".json") and not p.endsWith("current.json"): bp = p; break
+    check bp.len > 0
+    var n = parseFile(bp)
+    n["sources"]["src/shield.nr"]["content"] = %""
+    writeFile(bp, n.pretty & "\n")
+    let errs = validateTree(d)
+    check errs.len > 0
+    check errs.anyIt("has empty content" in it)
 
 suite "contract version wiring":
   test "the artifact-schema constant is in lock-step with version.nim":

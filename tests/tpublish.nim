@@ -24,7 +24,12 @@ import ../src/blocktracer/demo/generator
 import ../src/blocktracer/publish/objectstore
 import ../src/blocktracer/publish/publisher
 
-const fixture = currentSourcePath().parentDir.parentDir / "fixtures" / "trace" / "minimal_trace.ct"
+# The REAL `noir_space_ship` trace: a CTFS container recorded by `nargo trace`
+# (see fixtures/trace/noir_space_ship/README.md), plus the Noir sources the
+# generator publishes as content-addressed source bundles.
+const fixtureDir = currentSourcePath().parentDir.parentDir / "fixtures" / "trace" / "noir_space_ship"
+const fixture = fixtureDir / "zk_shields.ct"
+const sourcesDir = fixtureDir / "sources"
 
 proc synthHash(seed, kind: string, n: int): string =
   "0x" & toLowerAscii($secureHash(seed & "|" & kind & "|" & $n))[0 .. 39]
@@ -35,11 +40,11 @@ proc tmp(name: string): string =
   createDir result
 
 proc genGen1(dir, seed: string) =
-  discard generate(DemoConfig(outDir: dir, seed: seed, traceFixturePath: fixture))
+  discard generate(DemoConfig(outDir: dir, seed: seed, traceFixturePath: fixture, traceSourcesDir: sourcesDir))
 
 proc genGen2(dir, seed: string) =
   ## Generation 2 = generation 1 + block 103 (one new public tx with a ready trace).
-  discard generate(DemoConfig(outDir: dir, seed: seed, traceFixturePath: fixture,
+  discard generate(DemoConfig(outDir: dir, seed: seed, traceFixturePath: fixture, traceSourcesDir: sourcesDir,
     generation: "2", extraBlocks: @[103]))
 
 proc findTraceCt(storeDir: string): string =

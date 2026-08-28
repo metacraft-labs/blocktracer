@@ -73,12 +73,21 @@ proc exportSite() =
   ensureDir(OutputDir)
 
   # Step 1: emit the demo data plane + entry pages into dist/.
-  let fixture = repoRoot() / "fixtures" / "trace" / "minimal_trace.ct"
+  # The REAL `noir_space_ship` trace, plus the Noir sources published as
+  # content-addressed source bundles. The container carries no source text, so
+  # without the sources the exported site would step through code it cannot show.
+  let fixtureDir = repoRoot() / "fixtures" / "trace" / "noir_space_ship"
+  let fixture = fixtureDir / "zk_shields.ct"
+  let sources = fixtureDir / "sources"
   if not fileExists(fixture):
     stderr.writeLine "trace fixture not found: " & fixture
     quit 2
+  if not dirExists(sources):
+    stderr.writeLine "trace sources not found: " & sources
+    quit 2
   let n = generate(DemoConfig(outDir: OutputDir, seed: DefaultSeed,
-                              traceFixturePath: fixture))
+                              traceFixturePath: fixture,
+                              traceSourcesDir: sources))
   echo "  + data plane: /d /idx /t /registry + entry pages (" & $n & " transactions)"
 
   # Step 2: render the explorer views over that tree, at clean URLs.

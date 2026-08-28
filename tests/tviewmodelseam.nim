@@ -53,8 +53,11 @@ import blocktracer/contract/ids as contractIds
 
 const
   Chain = "eth"
-  Fixture = currentSourcePath().parentDir.parentDir / "fixtures" / "trace" /
-            "minimal_trace.ct"
+  FixtureDir = currentSourcePath().parentDir.parentDir / "fixtures" / "trace" /
+               "noir_space_ship"
+  # The REAL `noir_space_ship` CTFS container recorded by `nargo trace`.
+  Fixture = FixtureDir / "zk_shields.ct"
+  SourcesDir = FixtureDir / "sources"
 
 proc tmpDir(name: string): string =
   result = getTempDir() / "blocktracer-m12-seam-test" / name

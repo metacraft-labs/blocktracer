@@ -30,8 +30,11 @@ import ../src/blocktracer/demo/generator
 const
   Chain = "aztec"
   Base = "https://blocktracer.org"
-  Fixture = currentSourcePath().parentDir.parentDir / "fixtures" / "trace" /
-            "minimal_trace.ct"
+  FixtureDir = currentSourcePath().parentDir.parentDir / "fixtures" / "trace" /
+               "noir_space_ship"
+  # The REAL `noir_space_ship` CTFS container recorded by `nargo trace`.
+  Fixture = FixtureDir / "zk_shields.ct"
+  SourcesDir = FixtureDir / "sources"
 
 proc synthHash(seed, kind: string, n: int): string =
   "0x" & toLowerAscii($secureHash(seed & "|" & kind & "|" & $n))[0 .. 39]
@@ -40,7 +43,7 @@ let dir = getTempDir() / "blocktracer-embed-handoff-test"
 removeDir dir
 createDir dir
 discard generate(DemoConfig(outDir: dir, seed: "handoff",
-                            traceFixturePath: Fixture))
+                            traceFixturePath: Fixture, traceSourcesDir: SourcesDir))
 let store = localTree(dir)
 let opened = openChain(store, Chain)
 doAssert opened.outcome == ooOpened
