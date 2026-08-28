@@ -8,11 +8,23 @@
 export:
     nim c -r --mm:orc -d:isServer -d:release src/static_export.nim
 
-# Run the static-export round-trip test: compile + run the real exporter into a
+# Run both client suites: the static-export round trip and BlockTracer's own
+# ViewModel layer (M12).
+test: test-export test-viewmodels
+
+# The static-export round-trip test: compile + run the real exporter into a
 # temp dir, then assert the three view types render for the demo entities and
 # reference real /d demo data, and that the design-system token layer resolved.
-test:
+test-export:
     nim c -r --mm:orc --hints:off tests/test_static_export.nim
+
+# Tier-1 tests for BlockTracer's OWN ViewModels (Front-End-Architecture.md §3):
+# every chain-shaped degraded state from Page-Descriptions.md §14, established
+# from a mock chain and walked exhaustively. Needs no debugger on the Nim path
+# at all — the half of the seam that does is `just viewmodel-seam` in the repo
+# root's Justfile.
+test-viewmodels:
+    nim c -r --mm:orc --hints:off tests/test_chain_viewmodels.nim
 
 # Build and preview the static site locally on :8080.
 preview: export
@@ -22,4 +34,4 @@ preview: export
 clean:
     rm -rf dist nimcache
     find . -name nimcache -type d -exec rm -rf {} +
-    rm -f src/static_export tests/test_static_export
+    rm -f src/static_export tests/test_static_export tests/test_chain_viewmodels
