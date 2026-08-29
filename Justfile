@@ -161,6 +161,24 @@ review-check-brief:
 review-prompt args="":
     node tools/capture/review-prompt.mjs {{args}}
 
+# Merge reviewer reports into reviews/ledger.json. The ONLY way an entry gets
+# into the ledger: a hand-written one is how VD.1's reviewer defeated the
+# determinism gate, and the ledger is the gate's evidence. Each report is the
+# ```json block brief §10 Part 2 defines.
+#
+#   just review-ingest "--dir reviews/rounds/vd5-r3 --gate-scope debugger/wide/dark"
+#
+# It also establishes the one thing gate.mjs cannot: that all six reviewers of
+# a triple looked at the SAME bytes (G2's "the exact image"), by recording each
+# capture's sha256 and refusing a set that disagrees.
+review-ingest args="":
+    node tools/capture/ingest-review.mjs {{args}}
+
+# Proof that the ingest refuses — one case per rule, plus a base case that must
+# be ACCEPTED so the file cannot pass by rejecting everything.
+review-ingest-selftest:
+    node tools/capture/ingest-selftest.mjs
+
 # verify_gate_definition_is_machine_checkable — the gate over the findings ledger.
 review-gate args="":
     node tools/capture/gate.mjs {{args}}
