@@ -512,24 +512,26 @@ const PLANTS = [
 
   {
     rule: "B4", name: "a citation naming a finding id that does not exist", file: STYLES,
-    from: "ledger@2026-08-29.1:tx-detail/wide/light/L1/6",
-    to: "ledger@2026-08-29.1:tx-detail/wide/light/L1/99",
+    from: "ledger@2026-08-29.2:tx-detail/wide/light/L1/6",
+    to: "ledger@2026-08-29.2:tx-detail/wide/light/L1/99",
     names: "L1/99",
   },
   {
-    // The case that actually happened, twice. The ledger was replaced, the ids
-    // were reused, and every citation kept parsing while meaning something
-    // else. VD.5 moved the revision again — `.3` is now itself superseded, so
-    // it is the honest thing to plant here.
+    // The case that actually happened, three times now. The ledger was
+    // replaced, the ids were reused, and every citation kept parsing while
+    // meaning something else. Round 5's ingest moved the revision again
+    // (`2026-08-29.1` → `2026-08-29.2`), so `.1` is the revision that has just
+    // been superseded and is the honest thing to plant here.
     //
     // NOTE the anchors above and below track `styles.nim`'s CURRENT revision,
     // and must be moved with it. A `from:` that no longer appears in the file
     // makes this case fail rather than silently pass, which is the behaviour
-    // wanted — VD.5's own revision bump was caught exactly this way.
+    // wanted — this bump was caught exactly this way, as VD.5's own was before
+    // it.
     rule: "B4", name: "a citation of a SUPERSEDED ledger revision", file: STYLES,
-    from: "ledger@2026-08-29.1:tx-detail/wide/light/L1/6",
-    to: "ledger@2026-08-28.3:tx-detail/wide/light/L1/6",
-    names: "2026-08-28.3",
+    from: "ledger@2026-08-29.2:tx-detail/wide/light/L1/6",
+    to: "ledger@2026-08-29.1:tx-detail/wide/light/L1/6",
+    names: "2026-08-29.1",
   },
 
   // ── The evasions tried against the FIX OF THE FIX, and closed ────────────

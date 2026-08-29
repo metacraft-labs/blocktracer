@@ -332,12 +332,12 @@ has drifted.
 | `--bt-action-bg-hover` | bkToken | `{colors.brand.700}` | — |
 | `--bt-action-disabled-bg` | bkToken | `{colors.neutral.100}` | — |
 | `--bt-action-disabled-border` | bkToken | `{colors.neutral.150}` | — |
-| `--bt-action-disabled-fg` | bkToken | `{colors.neutral.400}` | — |
+| `--bt-action-disabled-fg` | bkToken | `{colors.neutral.450}` | — |
 | `--bt-action-fg` | bkToken | `{colors.base.white}` | — |
 | `--bt-action-ghost-bg` | bkToken | `{colors.base.white}` | — |
 | `--bt-action-ghost-bg-active` | bkToken | `{colors.neutral.100}` | — |
 | `--bt-action-ghost-bg-hover` | bkToken | `{colors.neutral.50}` | — |
-| `--bt-action-ghost-border` | bkToken | `{colors.neutral.150}` | — |
+| `--bt-action-ghost-border` | bkToken | `{colors.neutral.250}` | — |
 | `--bt-action-ghost-border-hover` | bkToken | `{colors.brand.600}` | — |
 | `--bt-action-ghost-fg` | bkToken | `{colors.neutral.1000}` | — |
 | `--bt-border-accent` | bkToken | `{colors.brand.600}` | — |
@@ -347,6 +347,13 @@ has drifted.
 | `--bt-elevation-overlay` | bkLiteral | `0 8px 28px rgba(16,16,16,.14)` | [D-05](#d-05) |
 | `--bt-elevation-raised` | bkLiteral | `0 1px 2px rgba(16,16,16,.06), 0 2px 8px rgba(16,16,16,.05)` | [D-05](#d-05) |
 | `--bt-focus-ring` | bkToken | `{colors.ui.border.focus}` | — |
+| `--bt-mark-changed` | bkToken | `{colors.yellow.800}` | — |
+| `--bt-mark-executable` | bkToken | `{colors.cyan.700}` | — |
+| `--bt-mark-position` | bkToken | `{colors.cyan.900}` | — |
+| `--bt-mark-position-surface` | bkToken | `{colors.cyan.200}` | — |
+| `--bt-mark-track` | bkToken | `{colors.neutral.300}` | — |
+| `--bt-mark-track-elapsed` | bkToken | `{colors.cyan.800}` | — |
+| `--bt-mark-view` | bkToken | `{colors.neutral.1000}` | — |
 | `--bt-status-danger-bg` | bkToken | `{colors.error.100}` | — |
 | `--bt-status-danger-border` | bkToken | `{colors.error.600}` | — |
 | `--bt-status-danger-fg` | bkToken | `{colors.error.800}` | — |
@@ -362,13 +369,13 @@ has drifted.
 | `--bt-status-warning-bg` | bkToken | `{colors.warning.100}` | — |
 | `--bt-status-warning-border` | bkToken | `{colors.warning.600}` | — |
 | `--bt-status-warning-fg` | bkToken | `{colors.warning.800}` | — |
-| `--bt-surface-canvas` | bkToken | `{colors.base.white}` | — |
+| `--bt-surface-canvas` | bkToken | `{colors.graphite.50}` | — |
 | `--bt-surface-code` | bkToken | `{colors.graphite.50}` | — |
 | `--bt-surface-hover` | bkToken | `{colors.neutral.50}` | — |
 | `--bt-surface-overlay` | bkToken | `{colors.base.white}` | — |
 | `--bt-surface-raised` | bkToken | `{colors.base.white}` | — |
 | `--bt-surface-selected` | bkToken | `{colors.brand.100}` | — |
-| `--bt-surface-sunken` | bkToken | `{colors.neutral.50}` | — |
+| `--bt-surface-sunken` | bkToken | `{colors.neutral.100}` | — |
 | `--bt-syntax-comment` | bkToken | `{colors.green.800}` | — |
 | `--bt-syntax-function` | bkToken | `{colors.yellow.900}` | — |
 | `--bt-syntax-keyword` | bkToken | `{colors.blue.700}` | — |
@@ -394,21 +401,28 @@ has drifted.
 | `--bt-action-bg-hover` | bkToken | `{colors.brand.500}` | — |
 | `--bt-action-disabled-bg` | bkToken | `{colors.neutral.850}` | — |
 | `--bt-action-disabled-border` | bkToken | `{colors.neutral.700}` | — |
-| `--bt-action-disabled-fg` | bkToken | `{colors.neutral.350}` | — |
+| `--bt-action-disabled-fg` | bkToken | `{colors.neutral.300}` | — |
 | `--bt-action-fg` | bkToken | `{colors.base.white}` | — |
 | `--bt-action-ghost-bg` | bkToken | `{colors.neutral.900}` | — |
 | `--bt-action-ghost-bg-active` | bkToken | `{colors.neutral.800}` | — |
 | `--bt-action-ghost-bg-hover` | bkToken | `{colors.neutral.850}` | — |
-| `--bt-action-ghost-border` | bkToken | `{colors.neutral.600}` | — |
+| `--bt-action-ghost-border` | bkToken | `{colors.neutral.450}` | — |
 | `--bt-action-ghost-border-hover` | bkToken | `{colors.brand.500}` | — |
 | `--bt-action-ghost-fg` | bkToken | `{colors.neutral.50}` | — |
 | `--bt-border-accent` | bkToken | `{colors.brand.500}` | — |
-| `--bt-border-default` | bkToken | `{colors.neutral.600}` | — |
-| `--bt-border-strong` | bkToken | `{colors.neutral.450}` | — |
+| `--bt-border-default` | bkToken | `{colors.neutral.450}` | — |
+| `--bt-border-strong` | bkToken | `{colors.neutral.400}` | — |
 | `--bt-border-subtle` | bkToken | `{colors.neutral.700}` | — |
 | `--bt-elevation-overlay` | bkLiteral | `0 10px 30px rgba(0,0,0,.62)` | [D-05](#d-05) |
 | `--bt-elevation-raised` | bkLiteral | `0 1px 2px rgba(0,0,0,.55)` | [D-05](#d-05) |
 | `--bt-focus-ring` | bkToken | `{colors.information.400}` | — |
+| `--bt-mark-changed` | bkToken | `{colors.amber.300}` | — |
+| `--bt-mark-executable` | bkToken | `{colors.cyan.500}` | — |
+| `--bt-mark-position` | bkToken | `{colors.cyan.300}` | — |
+| `--bt-mark-position-surface` | bkToken | `{colors.slate.700}` | — |
+| `--bt-mark-track` | bkToken | `{colors.neutral.400}` | — |
+| `--bt-mark-track-elapsed` | bkToken | `{colors.cyan.400}` | — |
+| `--bt-mark-view` | bkToken | `{colors.neutral.50}` | — |
 | `--bt-status-danger-bg` | bkToken | `{colors.neutral.850}` | — |
 | `--bt-status-danger-border` | bkToken | `{colors.error.600}` | — |
 | `--bt-status-danger-fg` | bkToken | `{colors.error.400}` | — |
@@ -424,13 +438,13 @@ has drifted.
 | `--bt-status-warning-bg` | bkToken | `{colors.neutral.850}` | — |
 | `--bt-status-warning-border` | bkToken | `{colors.warning.600}` | — |
 | `--bt-status-warning-fg` | bkToken | `{colors.warning.400}` | — |
-| `--bt-surface-canvas` | bkToken | `{colors.neutral.1000}` | — |
-| `--bt-surface-code` | bkToken | `{colors.neutral.1000}` | — |
-| `--bt-surface-hover` | bkToken | `{colors.neutral.850}` | — |
+| `--bt-surface-canvas` | bkToken | `{colors.base.black}` | — |
+| `--bt-surface-code` | bkToken | `{colors.base.black}` | — |
+| `--bt-surface-hover` | bkToken | `{colors.neutral.650}` | — |
 | `--bt-surface-overlay` | bkToken | `{colors.neutral.850}` | — |
 | `--bt-surface-raised` | bkToken | `{colors.neutral.900}` | — |
 | `--bt-surface-selected` | bkToken | `{colors.brand.900}` | — |
-| `--bt-surface-sunken` | bkToken | `{colors.neutral.950}` | — |
+| `--bt-surface-sunken` | bkToken | `{colors.neutral.700}` | — |
 | `--bt-syntax-comment` | bkToken | `{colors.green.500}` | — |
 | `--bt-syntax-function` | bkToken | `{colors.amber.400}` | — |
 | `--bt-syntax-keyword` | bkToken | `{colors.blue.300}` | — |

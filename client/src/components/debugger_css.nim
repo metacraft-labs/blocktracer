@@ -45,9 +45,23 @@ html[data-register="debugger"],
    than a fixed height that would clip them. At `wide` the whole bar is one
    row; at `laptop` the control group wraps to a second, which is a designed
    reduction and not an overflow — nothing is hidden and nothing is cut. */
+/* The gaps are a LADDER, not one value. Round 5 measured six of the bar's
+   seven boundaries at the same 16-17px, so proximity did no grouping work at
+   all and the densest strip on the page read as a run of unrelated objects
+   (ledger@2026-08-29.2:debugger/wide/light/L4/2,
+   ledger@2026-08-29.2:debugger/wide/dark/L2/3). Three steps from the scale now
+   rank the three levels of the bar's structure: `space-xs` (8px) INSIDE the
+   identity cluster, `space-md` (16px) between the sub-groups of the control
+   cluster (`.dc`), `space-lg` (24px) plus a rule between the two top-level
+   groups (`.dbgctl`). The ROW gap is separate and small: when the bar wraps at
+   laptop the two rows are one object, and 32px of air between them read as two
+   unrelated strips (ledger@2026-08-29.2:debugger/laptop/dark/L2/3). The
+   vertical padding exists for the same reason — the wrapped row used to butt
+   straight into the divider rule with nothing under it. */
 .dbgbar{flex:0 0 auto;display:flex;align-items:center;flex-wrap:wrap;
-  gap:var(--bt-space-md) var(--bt-space-md);
-  min-height:var(--bt-layout-nav-height);padding:0 var(--bt-layout-gutter);
+  gap:var(--bt-space-2xs) var(--bt-space-xs);
+  min-height:var(--bt-layout-nav-height);
+  padding:var(--bt-space-2xs) var(--bt-layout-gutter);
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-default);
   background:var(--bt-surface-raised)}
 .dbgback{color:var(--bt-text-link);font-size:var(--bt-type-body-sm-size);
@@ -74,8 +88,8 @@ html[data-register="debugger"],
    A rule separates the group from the identity to its left, because eight
    glyph buttons abutting a hash reads as one undifferentiated strip. */
 .dbgctl{flex:0 1 auto;min-width:0;display:flex;
-  align-items:center;gap:var(--bt-space-md);
-  padding-left:var(--bt-space-md);
+  align-items:center;gap:var(--bt-space-lg);
+  padding-left:var(--bt-space-lg);
   border-left:var(--bt-stroke-hairline) solid var(--bt-border-default)}
 /* Fixed, never shrinking: `flex:0 1` let it collapse to a couple of pixels at
    laptop width, which turned 48 ticks and a playhead into a single dash. A
@@ -156,7 +170,21 @@ html[data-register="debugger"],
   line-height:var(--bt-type-body-sm-line);max-width:var(--bt-measure-prose)}
 
 /* ── tabs (a stack) ─────────────────────────────────────────────────────── */
-.ln.stack{display:flex;flex-direction:column;
+/* `margin-top:0` is not decoration, it is a COLLISION FIX, and it is the whole
+   of round 5's "the three columns do not share a top edge"
+   (ledger@2026-08-29.2:debugger/laptop/light/L2/1,
+   ledger@2026-08-29.2:debugger/laptop/dark/L2/2,
+   ledger@2026-08-29.2:debugger/wide/light/L2/1). The explorer's vertical-rhythm
+   utility is spelled `.stack` and sets `margin-top:var(--bt-rhythm-stack)`;
+   this region's class list is `ln stack w3`, so it matched, and the tabbed
+   column opened exactly 24px — one rhythm-stack rung — below the Code and
+   Transaction panes, with bare canvas showing above the tab strip. Measured
+   before: `.ln.col` top y=68, `.ln.stack` top y=92, computed
+   `margin: 24px 0px 0px`. The two classes are different vocabularies that
+   happen to share a word; this rule is the boundary between them, and it is
+   here rather than in `styles.nim` because the explorer's utility is correct
+   for the explorer. */
+.ln.stack{display:flex;flex-direction:column;margin-top:0;
   border:var(--bt-stroke-hairline) solid var(--bt-border-default);
   border-radius:var(--bt-radius-md);background:var(--bt-surface-raised);
   overflow:hidden}
@@ -175,8 +203,15 @@ html[data-register="debugger"],
 /* Default tab and default panel. */
 .stackpanel.alt{display:none}
 .stackpanel.def{display:flex}
+/* `--bt-mark-view` and not the accent. "This tab is the one on screen" is a
+   different question from "this is a link", "you are here in the trace" and
+   "this value changed", and all four were painted the same indigo
+   (ledger@2026-08-29.2:debugger/laptop/dark/L3/3). The open view is the one
+   role that does not need a hue at all — it is carried by the strongest
+   neutral against the tab strip, which is also the only one of the four that
+   rises rather than falls in contrast. */
 .stacktabs > .stacktab:first-child{color:var(--bt-text-strong);
-  border-bottom-color:var(--bt-accent-default)}
+  border-bottom-color:var(--bt-mark-view)}
 /* A targeted alternate takes over, and reaches forward to correct both the
    default panel and the tab strip. */
 .stackpanel.alt:target{display:flex}
@@ -184,7 +219,7 @@ html[data-register="debugger"],
 .stackpanel.alt:target ~ .stacktabs > .stacktab:first-child{
   color:var(--bt-text-subtle);border-bottom-color:transparent}
 .stackpanel.alt:target ~ .stacktabs > .stacktab:last-child{
-  color:var(--bt-text-strong);border-bottom-color:var(--bt-accent-default)}
+  color:var(--bt-text-strong);border-bottom-color:var(--bt-mark-view)}
 
 /* ── source pane ────────────────────────────────────────────────────────── */
 /* `height:100%` and not `flex:1` alone: `.srcwrap` is a BLOCK child of
@@ -192,17 +227,7 @@ html[data-register="debugger"],
    `flex:1 1 0` items under an auto-height ancestor resolves to zero — which
    renders the pane empty rather than short. The explicit height gives the
    chain a definite one to divide. */
-.srcwrap{display:flex;flex-direction:column;min-height:0;height:100%;
-  position:relative}
-/* A code line that runs past the pane edge is CUT, and at rest nothing said
-   so — five reviewers read the clipped lines as breakage rather than as
-   scrollable overflow, because a capture (and a trackpad) hides the
-   scrollbar. The fade is the affordance: it says "there is more to the right"
-   without spending a row on a scrollbar the platform may never draw.
-   `pointer-events:none` so it cannot eat a click on the code beneath it. */
-.srcwrap::after{content:"";position:absolute;top:0;right:0;bottom:0;
-  width:var(--bt-space-2xl);pointer-events:none;
-  background:linear-gradient(to right, transparent, var(--bt-surface-code))}
+.srcwrap{display:flex;flex-direction:column;min-height:0;height:100%}
 /* One panel per document, switched by `:target`. The ACTIVE document is
    emitted last so every alternate can reach forward and hide it — CSS has
    only a forward sibling combinator. Each panel carries its OWN tab strip
@@ -226,7 +251,7 @@ html[data-register="debugger"],
   border-bottom:var(--bt-stroke-thick) solid transparent;
   transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
 .srctab:hover{color:var(--bt-text-default);background:var(--bt-surface-hover)}
-.srctab.on{color:var(--bt-text-strong);border-bottom-color:var(--bt-accent-default)}
+.srctab.on{color:var(--bt-text-strong);border-bottom-color:var(--bt-mark-view)}
 /* The pane opens part-way into the file, and says so rather than leaving the
    reader to infer it from a first line number that is not 1. */
 .srcfrom{padding:var(--bt-space-2xs) var(--bt-density-cell-x);
@@ -235,11 +260,41 @@ html[data-register="debugger"],
   background:var(--bt-surface-sunken);
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
 /* The code body is the pane's own scroll container on BOTH axes, so a long
-   line scrolls the code and not the tab strip above it. */
+   line scrolls the code and not the tab strip above it.
+   `--bt-surface-raised` and not `--bt-surface-code`: the Code pane is a pane
+   BODY, and it was the only one on the page that was not — it took the code
+   well's surface, which in dark was byte-identical to the page canvas, so the
+   flagship pane was the one pane with no elevation
+   (ledger@2026-08-29.2:debugger/laptop/dark/L3/2,
+   ledger@2026-08-29.2:debugger/wide/dark/L3/8). `--bt-surface-code` is now
+   only what its name says: the recessed WELL an embedded listing sits in
+   (`pre.raw`, the explorer's source blocks), and it recesses to the page's own
+   surface in both themes.
+   ONE overflow treatment, and it is the fade — round 5 found two on one page,
+   the Code pane masking its right edge while the RAW (chain-native) box
+   hard-clipped a hex address mid-glyph against its own border
+   (ledger@2026-08-29.2:debugger/wide/light/L2/4,
+   ledger@2026-08-29.2:debugger/wide/light/L4/5,
+   ledger@2026-08-29.2:debugger/wide/dark/L1/6). It is a MASK rather than the
+   overlay element it replaces, for two reasons: an overlay needs a positioned
+   ancestor, and the only one available spanned the tab strip and the position
+   note as well as the code, so chrome faded too; and a mask is a property of
+   the scroll container itself, so the identical declaration can be given to
+   `pre.raw`, which has no wrapper to hang an overlay on. `mask-clip` keeps the
+   border out of it, so the pane's own edge stays solid while the text under it
+   goes. `currentColor` is the opaque stop because a mask reads ALPHA — the
+   colour is never painted, and inheritance is not a design value. The lines
+   are NOT wrapped: a wrapped listing costs rows, and rows are information. */
 .src{font-family:var(--bt-font-code),var(--bt-font-mono-fallback);
   font-size:var(--bt-type-code-size);line-height:var(--bt-type-code-line);
-  color:var(--bt-text-code);background:var(--bt-surface-code);
+  color:var(--bt-text-code);background:var(--bt-surface-raised);
   padding:var(--bt-space-2xs) 0;min-width:0;flex:1 1 0;overflow:auto}
+.src,.mdsec pre.raw{
+  -webkit-mask-image:linear-gradient(to right,currentColor
+    calc(100% - var(--bt-space-2xl)),transparent);
+  mask-image:linear-gradient(to right,currentColor
+    calc(100% - var(--bt-space-2xl)),transparent);
+  -webkit-mask-clip:padding-box;mask-clip:padding-box}
 /* `min-width:max-content` makes the rows as wide as the widest line, so the
    current-line fill and the executed-line stripe extend across the whole
    scrolled width instead of stopping at the pane edge — a row highlight that
@@ -254,11 +309,37 @@ html[data-register="debugger"],
 .srcline .m{flex:0 0 var(--bt-space-md);color:var(--bt-text-subtle);
   text-align:center;user-select:none}
 .srcline .t{font:inherit;color:var(--bt-syntax-plain);white-space:pre;min-width:0}
-.srcline.hit{background:var(--bt-surface-sunken)}
-.srcline.hit .m{color:var(--bt-accent-subtle)}
-.srcline.cur{background:var(--bt-surface-selected);
-  border-left-color:var(--bt-accent-default)}
-.srcline.cur .n,.srcline.cur .m{color:var(--bt-accent-default)}
+/* A STEPPABLE line is marked in the GUTTER and nowhere else. It used to carry
+   a row fill as well, and that fill was the page's second banding signal:
+   round 5 read it as the explorer's zebra-striped data table imported into the
+   listing, noted that it did not even run on a clean two-row cycle (26 and 27
+   both shaded, 30 and 31 both clear — because it is keyed to executability and
+   not to parity, which is exactly why it must not LOOK like parity), and
+   measured it at 1.05:1 against the code surface in both themes, where it
+   carried nothing anyway (ledger@2026-08-29.2:debugger/laptop/light/L5/2,
+   ledger@2026-08-29.2:debugger/laptop/light/L3/6,
+   ledger@2026-08-29.2:debugger/wide/light/L3/7,
+   ledger@2026-08-29.2:debugger/wide/dark/L3/8). NO information is dropped: the
+   executable/non-executable distinction is a required must-show and the `·`
+   marker still carries it, now at 5.09:1 (light) and 6.66:1 (dark) in the
+   position family — "you can stop here" is the same question as "you are here"
+   asked one step quieter — instead of the accent it shared with hyperlinks. */
+.srcline.hit .m{color:var(--bt-mark-executable)}
+/* The current line RAISES contrast. It used to lower it: the line number and
+   the ▶ marker were accent-on-accent — the accent foreground on the accent's
+   own tint — which measured 3.83:1 in dark and 5.10:1 in light against 6.61:1
+   for every OTHER line number on the page, so the two glyphs whose only job is
+   to say "you are
+   here" were the least legible marks on the row they identified
+   (ledger@2026-08-29.2:debugger/laptop/dark/L3/7,
+   ledger@2026-08-29.2:debugger/wide/light/L3/1). The fill and the mark are now
+   a designed PAIR rather than two rungs of one ramp: 7.14:1 in dark and 7.30:1
+   in light, and the fill itself is a 1.66:1 / 1.25:1 step off the listing where
+   the old one was 1.23:1. Every syntax role was re-checked against it — 16
+   pairs, weakest 4.54:1 (dark comment) — because a token keeps its hue here. */
+.srcline.cur{background:var(--bt-mark-position-surface);
+  border-left-color:var(--bt-mark-position)}
+.srcline.cur .n,.srcline.cur .m{color:var(--bt-mark-position)}
 .srcline.cur .t{color:var(--bt-text-strong)}
 /* The lexical palette (Design-System.md §7: "syntax highlighting comes from the
    product lineage's editor tokens in BOTH themes"). One rule per TokenKind that
@@ -267,13 +348,14 @@ html[data-register="debugger"],
 
    These sit on the SPAN, so they win over `.srcline.cur .t` by inheritance
    rather than by specificity — a token keeps its hue on the current line,
-   where the background is `--bt-surface-selected` rather than
-   `--bt-surface-code`. Every role was checked against all three backgrounds a
-   source line can have (code, sunken for an executed line, selected for the
-   current one) in both themes — 48 pairs, and the weakest is 5.01:1 (dark
-   comment on the current line's `--bt-surface-selected`). Colour is the only
-   channel: the text is fully legible without it, so unlike a status badge this
-   needs no redundant glyph. */
+   where the background is `--bt-mark-position-surface` rather than the pane
+   body. A source line now has exactly TWO backgrounds, not three: the listing
+   itself and the current-position fill. The third was the executed-line tint,
+   removed above because the gutter marker already carried it and a second
+   banding signal read as zebra striping. Every role was re-checked against
+   both, in both themes — 32 pairs, and the weakest is 4.54:1 (dark comment on
+   the current line). Colour is the only channel: the text is fully legible
+   without it, so unlike a status badge this needs no redundant glyph. */
 .src .tk-comment{color:var(--bt-syntax-comment)}
 .src .tk-keyword{color:var(--bt-syntax-keyword)}
 .src .tk-type{color:var(--bt-syntax-type)}
@@ -304,14 +386,31 @@ html[data-register="debugger"],
   position:sticky;top:0}
 .ctrow{border-left:var(--bt-stroke-thick) solid transparent}
 .ctrow:hover{background:var(--bt-surface-hover)}
-.ctrow.cur{background:var(--bt-surface-selected);
-  border-left-color:var(--bt-accent-default)}
+.ctrow.cur{background:var(--bt-mark-position-surface);
+  border-left-color:var(--bt-mark-position)}
 .ctfn{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;
   gap:var(--bt-space-xs);overflow:hidden}
 .ctname{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
   color:var(--bt-text-strong);white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis}
-.ctrow.cur .ctname{color:var(--bt-accent-default)}
+/* Marking the current frame used to cut its contrast by four times: the name
+   went from the strongest foreground on white at 19.03:1 to accent-on-accent
+   at 3.83:1 (dark) /
+   5.10:1 (light), and the module path beside it fell to 3.62:1 — both under
+   the floor, in the pane that exists to show where you are
+   (ledger@2026-08-29.2:debugger/wide/dark/L3/1,
+   ledger@2026-08-29.2:debugger/wide/light/L3/1,
+   ledger@2026-08-29.2:debugger/wide/light/L3/3). The row is now marked by
+   ADDING: the strongest foreground, a weight step, the fill and the rail. The
+   hue moves to the rail, where lowering contrast costs nothing, and the name
+   keeps the ramp's top rung. The weight step is also what round 5 asked for
+   separately — a current frame marked by fill and hue alone does not survive a
+   squint (ledger@2026-08-29.2:debugger/laptop/dark/L1/9,
+   ledger@2026-08-29.2:debugger/wide/light/L1/9). */
+.ctrow.cur .ctname{color:var(--bt-text-strong);
+  font-weight:var(--bt-type-h3-weight)}
+.ctrow.cur .ctmod{color:var(--bt-text-default)}
+.ctrow.cur .ctcost{color:var(--bt-text-strong)}
 .ctmod{color:var(--bt-text-subtle);font-size:var(--bt-type-label-size);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ctcost{flex:0 0 auto;text-align:right;color:var(--bt-text-default);
@@ -409,7 +508,20 @@ html[data-register="debugger"],
 .strow.d7{padding-left:calc(var(--bt-space-md) * 7)}
 .strow.d8{padding-left:calc(var(--bt-space-md) * 8)}
 .strow.deeper .stname::before{content:"⋯ ";color:var(--bt-text-subtle)}
-.strow.chg{border-left-color:var(--bt-accent-default)}
+/* "This changed at this step" is `--bt-mark-changed`, and it is a DIFFERENT
+   swatch from "you are here" and from "this is a link". It used to be the
+   third of the four meanings one indigo carried, and it was the collision that
+   cost the most: the two changed numerals were the only coloured text in the
+   Values pane and they were bit-identical to the hyperlink two panes over, so
+   a changed value read as clickable and a link read as changed
+   (ledger@2026-08-29.2:debugger/wide/dark/L3/2,
+   ledger@2026-08-29.2:debugger/wide/light/L3/2). It was also the DIMMEST text
+   in its own pane — 5.77:1 against 12.68:1 for the values that did not move,
+   an emphasis inversion in the one pane whose job is to mark change
+   (ledger@2026-08-29.2:debugger/laptop/dark/L3/4). Now 11.95:1 (dark) and
+   6.85:1 (light), with a weight step so the delta survives a squint without
+   relying on hue at all. */
+.strow.chg{border-left-color:var(--bt-mark-changed)}
 /* `overflow-wrap:anywhere` and not `word-break:break-all`: a long identifier
    has to be able to break, but break-all also breaks SHORT ones that would
    have fitted on the next line, which is what shattered names across rows. */
@@ -424,7 +536,8 @@ html[data-register="debugger"],
   font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
   font-variant-numeric:var(--bt-numeric-features);
   color:var(--bt-text-code);overflow-wrap:anywhere}
-.strow.chg .stval{color:var(--bt-accent-default)}
+.strow.chg .stval{color:var(--bt-mark-changed);
+  font-weight:var(--bt-type-h3-weight)}
 
 /* ── event log: four kinds, distinguished by glyph, weight and rule ─────── */
 .ev{font-size:var(--bt-density-data-size)}
@@ -433,8 +546,15 @@ html[data-register="debugger"],
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
   border-left:var(--bt-stroke-thick) solid transparent}
 .evrow:hover{background:var(--bt-surface-hover)}
-.evrow.cur{background:var(--bt-surface-selected);
-  border-left-color:var(--bt-accent-default)}
+/* The same current-position pair as the Code pane and the Call Trace, so one
+   position looks like one position in all three. An inspection of the dark
+   capture measured the Event Log's current row at 3.62:1 — the same defect as
+   the Call Trace's selected frame and the same fix. */
+.evrow.cur{background:var(--bt-mark-position-surface);
+  border-left-color:var(--bt-mark-position)}
+.evrow.cur .evlabel{color:var(--bt-text-strong)}
+.evrow.cur .evkind,.evrow.cur .evstep,.evrow.cur .evdetail{
+  color:var(--bt-text-default)}
 .evglyph{flex:0 0 var(--bt-space-md);text-align:center}
 .evkind{flex:0 0 var(--bt-space-3xl);font-size:var(--bt-type-label-size);
   font-weight:var(--bt-type-label-weight);letter-spacing:var(--bt-type-label-tracking);
@@ -470,49 +590,101 @@ html[data-register="debugger"],
    together at one uniform gap, so proximity conveyed no grouping and eight
    buttons read as one undifferentiated run. A pair is tight; the gap between
    pairs is the one that means something. */
-.dcbtns{flex:0 0 auto;display:flex;gap:var(--bt-space-3xs)}
-.dcbtn:nth-child(odd){margin-left:var(--bt-space-xs)}
+/* A PAIR is one object. The pairs used to be separated by 2px inside and 10px
+   between, which two reviewers still read as eight unrelated chips of unequal
+   width with no pairing visible at all
+   (ledger@2026-08-29.2:debugger/wide/dark/L4/9,
+   ledger@2026-08-29.2:debugger/wide/dark/L5/5). Two channels now carry it and
+   both come off the scales: the members of a pair TOUCH (gap 0) and square the
+   corners they share, so `[reverse|forward]` renders as one capsule with a
+   divider through it rather than as two chips; and the distance BETWEEN pairs
+   is `space-md`, a step the eye reads against the zero inside them. Proximity
+   is doing the grouping the desktop app's toolbar does. */
+.dcbtns{flex:0 0 auto;display:flex;gap:0}
+.dcbtn:nth-child(odd){margin-left:var(--bt-space-md);
+  border-start-end-radius:0;border-end-end-radius:0}
+.dcbtn:nth-child(even){border-start-start-radius:0;border-end-start-radius:0}
 .dcbtn:first-child{margin-left:0}
+/* An ENABLED control is a chip with a body: the header band's surface, one
+   perceptible step off the bar it sits in, and the ramp's top foreground.
+   An INERT one LOSES its body — it takes the bar's own surface, so there is
+   nothing to press — and its glyph drops to the muted rung, which is still
+   comfortably over the floor. Round 5 measured every one of the eight glyphs
+   at exactly 4.18:1 (dark) / 3.54:1 (light) with NO variation between an
+   available move and an unavailable one, and the light theme expressed
+   "disabled" by adding weight — the inert group was the largest, darkest mass
+   in the bar while the two available actions were plain text
+   (ledger@2026-08-29.2:debugger/wide/dark/L3/4,
+   ledger@2026-08-29.2:debugger/laptop/dark/L3/8,
+   ledger@2026-08-29.2:debugger/laptop/light/L3/4,
+   ledger@2026-08-29.2:debugger/wide/light/L3/4). That is also the whole of the
+   P1 an adversarial reviewer raised — the page reporting a different state
+   from the one it displays, because the bar said FETCHING while the controls
+   looked ACTIVE (ledger@2026-08-29.2:debugger/wide/dark/ADV/1). The status was
+   TRUE; the controls were the lie. Now: enabled 13.29:1 on a chip, inert
+   5.47:1 (dark) / 7.34:1 (light) flat on the bar — legible AS a move, and
+   unmistakable as one that cannot be made. */
 .dcbtn{display:inline-flex;align-items:center;justify-content:center;
   min-width:var(--bt-space-lg);
   padding:var(--bt-space-3xs) var(--bt-space-xs);
-  border:var(--bt-stroke-hairline) solid var(--bt-border-default);
-  border-radius:var(--bt-radius-sm);background:var(--bt-action-ghost-bg);
-  color:var(--bt-action-ghost-fg);
+  border:var(--bt-stroke-hairline) solid var(--bt-action-ghost-border);
+  border-radius:var(--bt-radius-sm);background:var(--bt-surface-sunken);
+  color:var(--bt-text-strong);
   transition:background var(--bt-motion-fast) var(--bt-motion-ease)}
-.dcbtn:hover{background:var(--bt-action-ghost-bg-hover);
+.dcbtn:hover{background:var(--bt-surface-hover);
   border-color:var(--bt-action-ghost-border-hover)}
-.dcbtn.off{background:var(--bt-action-disabled-bg);
-  color:var(--bt-action-disabled-fg);border-color:var(--bt-action-disabled-border);
+.dcbtn.off{background:var(--bt-surface-raised);
+  color:var(--bt-text-subtle);border-color:var(--bt-border-subtle);
   cursor:not-allowed}
+.dcbtn.off:hover{background:var(--bt-surface-raised);
+  border-color:var(--bt-border-subtle)}
 .dcglyph{font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line)}
+/* A TRACK, not forty tick marks. `gap:0` is the whole difference: at one
+   hairline between ticks the control read as ~40 low-contrast dashes with no
+   track, no handle and no endpoints — a decorative equaliser rather than the
+   page's only timeline (ledger@2026-08-29.2:debugger/laptop/light/ADV/1,
+   ledger@2026-08-29.2:debugger/wide/dark/L3/5). The ticks are the same height
+   whether played or not, so EXTENT is a continuous bar and the played run is a
+   colour change along it rather than a change of shape. */
 .dctl{flex:1 1 auto;min-width:0;display:flex;align-items:center;
-  gap:var(--bt-stroke-hairline);height:var(--bt-space-md)}
-/* The unfilled track was `--bt-border-subtle`, which measures 1.17:1 in dark
-   and 1.67:1 in light — below the 3:1 floor for a non-text element. The
-   scrubber's extent is the one thing it exists to express, and an invisible
-   track expresses none of it: the control read as four floating dashes. */
-.dctl .tick{flex:1 1 0;height:var(--bt-space-2xs);
-  background:var(--bt-border-default);border-radius:var(--bt-radius-xs)}
-.dctl .tick.on{background:var(--bt-accent-subtle);height:var(--bt-space-sm)}
+  gap:0;height:var(--bt-space-md)}
+/* The unfilled track was `--bt-border-subtle`, then `--bt-border-default`, and
+   both measured under the 3:1 floor for a non-text component — 1.51:1 against
+   the dark bar, half the floor, with 92% of the timeline's length therefore
+   invisible (ledger@2026-08-29.2:debugger/wide/dark/L3/5,
+   ledger@2026-08-29.2:debugger/laptop/dark/L3/6,
+   ledger@2026-08-29.2:debugger/laptop/light/L3/7). `--bt-mark-track` is a role
+   of its own so the floor is checked against the BAR the track sits in rather
+   than inherited from whatever a border happens to be: 3.58:1 in dark, 3.15:1
+   in light. The played run is the position family a clear step off it. */
+.dctl .tick{flex:1 1 0;height:var(--bt-space-xs);
+  background:var(--bt-mark-track)}
+.dctl .tick.on{background:var(--bt-mark-track-elapsed)}
 /* The PLAYHEAD. The elapsed run says how far; this says where, and they are
    different claims — a filled run alone is a progress bar, and a progress bar
    at 10% on a page that is loading an 18 MB engine reads as the engine's
    loading, not as position in a trace. Full track height and the strong accent
    so it is the most legible mark in the control. */
-.dctl .tick.at{background:var(--bt-accent-default);height:100%;
+.dctl .tick.at{background:var(--bt-mark-position);height:100%;
   min-width:var(--bt-stroke-thick);border-radius:var(--bt-radius-xs);
   flex:0 0 auto}
 .dcstatus{flex:0 0 auto;display:flex;align-items:baseline;gap:var(--bt-space-sm)}
 /* One short phrase, not a sentence: it shares a bar with the identity now, and
    the step counter is its right-hand neighbour, so it says only what the
    counter cannot — WHAT is being waited for and how big it is. */
-.dcphase{color:var(--bt-text-default);font-size:var(--bt-type-body-sm-size);
+.dcphase{color:var(--bt-text-muted);font-size:var(--bt-type-body-sm-size);
   white-space:nowrap}
-.dcsteps{color:var(--bt-text-subtle);
+/* The position readout outranks the loading status. It was the other way
+   round — the persistent datum at 5.47:1 beside a transient string at 12.68:1,
+   so the number that says where you are in the trace was dimmer than a message
+   that disappears when the engine finishes
+   (ledger@2026-08-29.2:debugger/laptop/dark/L3/5,
+   ledger@2026-08-29.2:debugger/wide/dark/L4/5). Identity and position outrank
+   status; nothing is hidden, the ranking is inverted back. */
+.dcsteps{color:var(--bt-text-strong);
   font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
   font-variant-numeric:var(--bt-numeric-features);
-  font-size:var(--bt-type-label-size)}
+  font-size:var(--bt-type-body-sm-size)}
 
 /* ── metadata pane ──────────────────────────────────────────────────────── */
 .md{padding:var(--bt-density-cell-y) 0}
@@ -574,6 +746,8 @@ html[data-register="debugger"],
 .mdsec .mddl{margin-top:var(--bt-space-2xs)}
 .mdsec .mddl dt,.mdsec .mddl dd{padding-left:0;padding-right:0}
 .mdsec .panenote{padding:var(--bt-space-2xs) 0 0}
+/* The right-edge fade is declared with `.src` above — one overflow treatment
+   for every clipped code surface on the page. */
 .mdsec pre.raw{margin-top:var(--bt-space-2xs);
   border-radius:var(--bt-radius-md);padding:var(--bt-density-card-pad)}
 
@@ -597,9 +771,16 @@ html[data-register="debugger"],
   padding:var(--bt-space-3xs) var(--bt-space-xs)}
 .phaserail .phase + .phase{
   border-left:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
-.phaserail .phase.on{color:var(--bt-text-strong);
-  background:var(--bt-surface-selected);
-  box-shadow:inset var(--bt-stroke-thick) 0 0 0 var(--bt-accent-default)}
+/* The ACTIVE phase is a STATUS, not a position. It used to fill with the same
+   tint the Code pane and the Call Trace use for "you are here", so one swatch
+   meant both "the engine is doing this now" and "the session is standing here"
+   900px apart in one visual field — two unrelated state families sharing a
+   fill (ledger@2026-08-29.2:debugger/wide/light/L3/3). `status.info` is the
+   role the product already has for in-progress, and it is a different hue
+   from the position family in both themes. */
+.phaserail .phase.on{color:var(--bt-status-info-fg);
+  background:var(--bt-status-info-bg);
+  box-shadow:inset var(--bt-stroke-thick) 0 0 0 var(--bt-status-info-border)}
 .phaserail .engineorigin{padding:var(--bt-space-3xs) var(--bt-space-xs);
   border-left:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
 
@@ -654,6 +835,20 @@ html[data-register="debugger"],
 @media (max-width:1600px){
   .dbgspacer{flex:0 0 100%;height:0}
   .dbgctl .dctl{flex:0 0 var(--bt-layout-label-column)}
+  /* The wrapped row TERMINATES the bar rather than starting a new one. Three
+     reviewers read it as an orphaned toolbar strip in explorer clothing,
+     because it was left-aligned with ~1100px of empty canvas to its right and
+     no rule or label, which put the page's actions closer to the Code pane's
+     title than to the hash they act on
+     (ledger@2026-08-29.2:debugger/laptop/light/L4/3,
+     ledger@2026-08-29.2:debugger/laptop/dark/L2/4,
+     ledger@2026-08-29.2:debugger/laptop/dark/L5/2). Pushing the group to the
+     right edge does not make the row disappear — see the report's tension on
+     that — but it makes the two rows read as one bar that wrapped, and it puts
+     the last action on the same vertical line as the Transaction pane's right
+     border instead of on none. `margin-left:auto` on the first item after the
+     break; `.dbglang` is that item at every width this rule applies to. */
+  .dbgbar .dbglang{margin-left:auto}
 }
 @media (max-width:1100px){
   /* Every flex box above turns from "share a fixed viewport" into "be as tall
@@ -712,11 +907,13 @@ html[data-register="debugger"],
   .stackpanel.p-eventlog:target{display:none}
   .stackpanel.p-eventlog:target ~ .stackpanel.def{display:flex}
   .stackpanel.p-eventlog:target ~ .stacktabs > .stacktab:first-child{
-    color:var(--bt-text-strong);border-bottom-color:var(--bt-accent-default)}
+    color:var(--bt-text-strong);border-bottom-color:var(--bt-mark-view)}
   .dbgbar .btn,.dbgbar .btn.disabled{display:none}
+  .dbgbar .dbglang{margin-left:0}
 }
 @media (max-width:720px){
-  .dbgbar{gap:var(--bt-space-sm);padding:0 var(--bt-space-md)}
+  .dbgbar{gap:var(--bt-space-2xs) var(--bt-space-sm);
+    padding:var(--bt-space-2xs) var(--bt-space-md)}
   .dbgblock,.dbglang{display:none}
   .ctmod,.evdetail{display:none}
 }

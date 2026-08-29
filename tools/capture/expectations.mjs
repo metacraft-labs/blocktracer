@@ -62,12 +62,69 @@ export const BACKBONES = {
 
   // Page-Descriptions §8: the explorer chrome collapses to a slim identity bar
   // and the transaction's facts survive that collapse via the metadata pane.
+  //
+  // The FIRST item changed on 2026-08-29. It used to require "a link back to
+  // the transaction detail page", copied from §8's summary, which was written
+  // before §7.0. §7.0 made `/{chain}/tx/{hash}` serve the session itself for a
+  // `ready` or `divergent` trace — the two routes' BODIES are byte-identical —
+  // so the "detail page" a back link would target no longer exists as a
+  // distinct surface to go back TO, and `client/src/pages/debug.nim` retargeted
+  // the bar's link to `chainUrl(s.chain)` in 809e99c for exactly that reason.
+  //
+  // Left as it was, the item made the view UNREVIEWABLE against the shipped
+  // page: the L5 reviewer derived the removed requirement from it and filed the
+  // same P1 in two consecutive rounds, at two themes —
+  // ledger@2026-08-29.2:debugger/wide/dark/L5/1 and
+  // ledger@2026-08-29.2:debugger/wide/light/L5/1. Both are expectation defects,
+  // not page defects. The item is not weakened: the bar must still carry the
+  // identity, must still carry a way OUT of the debugger register, and must
+  // still not be the explorer header. Only the TARGET of that way out moved,
+  // and the item now states §7.0's reason inline so it is not re-derived.
   "debugger-shell": {
-    spec: "Page-Descriptions §8, Debugger-Integration §3, Design-System §2",
+    spec: "Page-Descriptions §8, §7.0, Debugger-Integration §3, Design-System §2",
     items: [
-      "A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.",
+      "A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a way OUT of the debugger register that lands on the CHAIN, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header. The exit targets the chain and NOT the transaction's own URL, because under Page-Descriptions §7.0 that URL IS this session — for a `ready` or `divergent` trace the two routes serve byte-identical bodies, so a link to the transaction would be a link to the page the visitor is already on. A missing exit is a P1; an exit that targets the chain is CORRECT and is not a finding.",
       "Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.",
       "Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.",
+    ],
+  },
+
+  // The same register requirements, minus everything a ONE-PANE capture cannot
+  // contain. Several debugger views carry a `clip:` in views.mjs, so the image
+  // a reviewer is handed is a single pane — not the viewport. `debugger-shell`
+  // requires the identity bar and "every pane region BELOW the identity bar",
+  // and both are out of frame by construction in such a capture: the
+  // expectation can never be satisfied, however good the page is.
+  //
+  // That is not hypothetical. The L4 review of `debugger--call-trace` at
+  // wide/dark reported `expectedElements: MISSING — the debugger-shell identity
+  // bar` at P1, rating 4, and correctly diagnosed it as a harness mismatch
+  // rather than a build defect: finding `debugger--call-trace/wide/dark/L4/1`,
+  // in reviews/rounds/vd5-round5/debugger--call-trace__wide__dark__L4.md.
+  //
+  // That finding is cited by REPORT PATH and not as `ledger@…`, deliberately:
+  // the report is HELD OUT of reviews/ledger.json pending this fix. It is 1 of
+  // only 2 lenses captured for the view, and its P1 is against the expectation
+  // this backbone replaces, so it will be re-run against the corrected block
+  // before it is ingested. A `ledger@` pin here would not resolve, and B4's
+  // whole point is that a citation which does not resolve is a comment that
+  // reads as evidence and is not.
+  //
+  // A clipped capture is scoped to one pane, and the identity bar's absence
+  // from such a frame is NOT a finding.
+  //
+  // What survives the clip is the register (a pane is rendered in the product
+  // register whether or not the bar is in shot) and the pane's own chrome. What
+  // the pane must CONTAIN is each view's own must-show list, which is where the
+  // specificity lives anyway. `check-brief.mjs` check F refuses any view with a
+  // `clip:` that still inherits `debugger-shell`.
+  "debugger-pane": {
+    spec: "Page-Descriptions §8, §7.1, Debugger-Integration §3, Design-System §2",
+    items: [
+      "Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1. This survives the clip — a pane is drawn in the product register whether or not the identity bar is in shot.",
+      "What is in frame is ONE self-contained region of the session's own chrome, with its own boundary and its own content. Where that region is a pane it carries the same pane chrome as the session's other panes, its title included (§7.1's 'the same pane chrome rather than a bespoke surface'); where the clip is the identity bar it is the slim bar itself, and not the full explorer header. Content bleeding past a boundary that is not drawn, or a pane with content and no title, is the finding.",
+      "The region is populated, not blank and not a placeholder. A pane with nothing in it must say why rather than sit empty.",
+      "This capture is CLIPPED to one pane. The identity bar, the sibling panes and the rest of the viewport are out of frame by construction — their absence from this image is not a finding, and nothing here may be reported as missing on the grounds that the surrounding session is not visible.",
     ],
   },
 
@@ -901,7 +958,8 @@ export const EXPECTATIONS = [
       "The transaction metadata pane inside the session — the answer to 'a visitor deep-linked into a stepping session still needs to know what they are looking at'.",
     spec: "Page-Descriptions §7.1",
     register: "debugger",
-    inherits: ["debugger-shell"],
+    // Clipped to `#pane-metadata` — one pane, not the viewport. See `debugger-pane`.
+    inherits: ["debugger-pane"],
     mustShow: [
       "The metadata rendered as a PANE among the debugger's panes — same chrome and same header treatment as the Call Trace or Values pane.",
       "The §7.2 facts inside it: status with revert reason, value, roles (from/to), cost, finality, the execution list, and the private/public split where the chain has one.",
@@ -926,7 +984,9 @@ export const EXPECTATIONS = [
       "The call trace at realistic depth and width, including the cost column and the cost-sorted view. It is the OPEN tab of the navigation region, which gained the space the debug-controls pane used to occupy.",
     spec: "Page-Descriptions §8, Debugger-Integration §4.1, VD.5",
     register: "debugger",
-    inherits: ["debugger-shell"],
+    // Clipped to `.ln.stack` — the navigation REGION, not the viewport. See
+    // `debugger-pane`; this is the view whose L4 review caught the mismatch.
+    inherits: ["debugger-pane"],
     mustShow: [
       "A call tree at genuine depth — several levels of nesting visible, not a flat list of top-level calls.",
       "A per-frame cost column, aligned as a numeric column.",
@@ -953,7 +1013,9 @@ export const EXPECTATIONS = [
       "The event log with mixed entry kinds — calls, storage writes, events and a revert in one stream. It is the SECOND tab of the navigation region, paired with the call trace, and is captured through the fragment that selects it.",
     spec: "Page-Descriptions §8, Debugger-Integration §4.2, VD.5",
     register: "debugger",
-    inherits: ["debugger-shell"],
+    // Clipped to `.ln.stack` — the same region as `debugger--call-trace`, in
+    // its other tab state. One pane, not the viewport. See `debugger-pane`.
+    inherits: ["debugger-pane"],
     mustShow: [
       "All four entry kinds present in the same view: a call, a storage write, an event, and a revert.",
       "The four kinds VISUALLY DISTINGUISHABLE from each other by more than their text — this is the pane's whole job and the reason it is captured with a mixed fixture.",
@@ -981,7 +1043,8 @@ export const EXPECTATIONS = [
       "The Values pane with deeply nested values and long identifiers — variable values AT STEP N, which is a different thing from the transaction page's aggregate state diff.",
     spec: "Page-Descriptions §8, VD.5",
     register: "debugger",
-    inherits: ["debugger-shell"],
+    // Clipped to `#pane-state` — one pane, not the viewport. See `debugger-pane`.
+    inherits: ["debugger-pane"],
     mustShow: [
       "The pane titled **Values**, not State (renamed 2026-08-29). `State` is Etherscan's and Blockscout's word for a whole-transaction state diff; a pane called State that shows values at one step collides with a convention every visitor arrives with.",
       "A value tree nested to at least three levels, expanded enough to show the nesting.",
@@ -1009,7 +1072,11 @@ export const EXPECTATIONS = [
       "The Code pane in a source-level session, with the source/instruction level boundary legible.",
     spec: "Page-Descriptions §8, §14 (No verified source), VD.5",
     register: "debugger",
-    inherits: ["debugger-shell"],
+    // Clipped to `#pane-editor` — one pane, not the viewport. See `debugger-pane`.
+    // Its own must-show carries the "full height of the region beside the
+    // navigation column" item, which is a shape a one-pane frame can still
+    // report on; the identity bar above it is not.
+    inherits: ["debugger-pane"],
     mustShow: [
       "The pane titled **Code**, not Editor (renamed 2026-08-29): it is a read-only listing with no editor behind it, and where fidelity drops to instruction level what it lists is not source at all — which is the case 'Source' would misname.",
       "The pane occupying the full height of the region beside the navigation column — nothing is stacked under it.",
@@ -1046,7 +1113,27 @@ export const EXPECTATIONS = [
       "Phased, honest loading — fetching, then opening, then positioning. Never an indeterminate spinner. Captured as the identity bar, which is where the whole loading account now lives: the phase rail, the controls' status and the inert stepping buttons.",
     spec: "Page-Descriptions §8, Trace-Processing §3.2",
     register: "debugger",
-    inherits: ["debugger-shell"],
+    // `debugger-pane`, deliberately — even though this view's clip (`.dbgbar`)
+    // IS the identity bar, which is the one thing `debugger-shell` requires
+    // that the other clipped views cannot show.
+    //
+    // Two reasons. First, `debugger-shell`'s bar item would be REDUNDANT here
+    // and weaker than what is already below it: the mustShow list names the
+    // phase word, the phase sequence, the quantified wait, the controls' inert
+    // state and the identity, which is the bar's contents in far more detail
+    // than "carrying the transaction identity … and the stepping controls".
+    // Second, `debugger-shell`'s third item — "every pane region BELOW the
+    // identity bar is a pane … no page-level scrollbar" — is exactly as out of
+    // frame here as it is in a pane clip: this capture is the bar and nothing
+    // under it. Inheriting `debugger-shell` would hand a reviewer one duplicate
+    // requirement and one unreviewable one.
+    //
+    // What `debugger-pane` contributes is the part that does survive: the
+    // product register, the bar as a bounded self-contained strip rather than
+    // the explorer header, that it is populated, and — the item that matters
+    // most for this view — that the rest of the viewport being out of frame is
+    // not a finding.
+    inherits: ["debugger-pane"],
     mustShow: [
       "A NAMED PHASE, in words, matching the phase the capture pins — fetching, opening or positioning. The name is the requirement; its absence is the P1 this view exists to catch.",
       "The phase sequence shown as a sequence, with the current member marked, so the visitor can see which phase they are in and what remains.",

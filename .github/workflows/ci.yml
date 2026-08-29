@@ -305,6 +305,19 @@ jobs:
           nix run .#capture-env -- node tools/capture/capture.mjs --no-build
           node tools/capture/check-coverage.mjs
 
+      - name: The ingest tool refuses what a hand would write
+        # `just review-ingest-selftest`. It belongs in THIS job and not beside
+        # gate-selftest in `visual-design`, for one reason: its base case hashes
+        # a real capture (screenshots/debugger__wide__dark.png), and it refuses
+        # to report green over an absent subject rather than skipping. So it can
+        # only run where the regeneration above has just produced the images.
+        #
+        # Every case runs against a synthetic ledger under its own temp dir, so
+        # this step's verdict does not depend on reviews/ledger.json agreeing
+        # with the screenshots the step before it just rewrote — which is the
+        # whole reason it is safe to put here.
+        run: nix run .#capture-env -- node tools/capture/ingest-selftest.mjs
+
       - name: The VD.0 verifications, end to end
         # selftest.mjs re-runs all four against a throwaway output directory,
         # including the negative control that plants a stale image. In the

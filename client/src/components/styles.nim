@@ -67,13 +67,13 @@
 ##    the 32px page title and 16px body; the mono uppercase kicker is a kicker
 ##    again, never the heading itself (VD.1 round 1; the remaining VD.2
 ##    findings on the heading scale are
-##    ledger@2026-08-29.1:tx-detail/wide/light/L1/8 and
-##    ledger@2026-08-29.1:tx-detail/wide/light/L1/10).
+##    ledger@2026-08-29.2:tx-detail/wide/light/L1/8 and
+##    ledger@2026-08-29.2:tx-detail/wide/light/L1/10).
 ##  * **Mono means machine value.** Breadcrumbs, placeholders and grid labels
 ##    are the sans face; mono is reserved for hashes, addresses, selectors,
 ##    amounts and code, so it marks "copyable identifier" again, and every
 ##    numeric column carries tabular figures
-##    (ledger@2026-08-29.1:tx-detail/wide/light/L1/6).
+##    (ledger@2026-08-29.2:tx-detail/wide/light/L1/6).
 ##  * **A measure.** Running prose is capped at `--bt-measure-prose` instead of
 ##    the full 1140px container (VD.1 round 1; recorded as divergence row D-06).
 ##  * **Focus, hover and active** are one treatment, defined once, shared by

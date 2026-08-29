@@ -14,13 +14,14 @@
 // markdown back off disk and greps it, and separately proves the markdown is
 // not stale with respect to its source.
 //
-// Five checks, each failing for a distinct reason:
+// Six checks, each failing for a distinct reason:
 //
 //   A  every view in views.mjs has a block heading in the brief
 //   B  every block heading in the brief names a real view      (no orphans)
 //   C  every block is non-empty and carries real requirements  (no stubs)
 //   D  the brief's generated section matches expectations.mjs  (not stale)
 //   E  every block names a spec anchor and a register          (traceable)
+//   F  no CLIPPED view inherits a full-viewport backbone       (in frame)
 
 import { readFile } from "node:fs/promises";
 
@@ -111,6 +112,41 @@ async function main(argv) {
     }
   }
 
+  // ── F. a clipped capture cannot be held to a full-viewport backbone ─────
+  //
+  // A view with a `clip:` is photographed as ONE REGION, not as the viewport.
+  // `debugger-shell` requires the identity bar and "every pane region below the
+  // identity bar", neither of which can be in such a frame — so a clipped view
+  // that inherits it is UNREVIEWABLE: its presence check cannot be satisfied
+  // however good the page is, and the only verdicts left to a reviewer are a
+  // false `present` or a P1 against the harness.
+  //
+  // That is not a hypothetical failure mode. The L4 review of
+  // `debugger--call-trace` at wide/dark spent its round-5 slot filing
+  // `expectedElements: missing — the debugger-shell identity bar` at P1,
+  // rating 4, against a capture clipped to `.ln.stack`
+  // (reviews/rounds/vd5-round5/debugger--call-trace__wide__dark__L4.md,
+  // finding `debugger--call-trace/wide/dark/L4/1`). The fix was to give the
+  // clipped views their own backbone, `debugger-pane`; this check is what stops
+  // the next view that gains a `clip:` from silently re-acquiring the defect,
+  // because adding a clip in views.mjs and inheriting a backbone in
+  // expectations.mjs are edits to two different files that nothing else pairs.
+  //
+  // The rule is on the BACKBONE, not on the view id: any backbone listed in
+  // VIEWPORT_BACKBONES states requirements about the whole viewport, so no
+  // clipped view may inherit one, whatever it is called.
+  const VIEWPORT_BACKBONES = new Set(["debugger-shell"]);
+  const clippedWithViewportBackbone = [];
+  for (const view of VIEWS) {
+    if (!view.clip) continue;
+    const exp = EXPECTATIONS_BY_ID.get(view.id);
+    for (const key of exp?.inherits ?? []) {
+      if (VIEWPORT_BACKBONES.has(key)) {
+        clippedWithViewportBackbone.push({ view: view.id, backbone: key, clip: view.clip });
+      }
+    }
+  }
+
   if (withoutBlock.length) {
     problems.push(
       `A: ${withoutBlock.length} named view(s) have NO expected-elements block in the brief:\n` +
@@ -141,6 +177,16 @@ async function main(argv) {
         untraceable.map((s) => `     ${s.view}: ${s.why}`).join("\n"),
     );
   }
+  if (clippedWithViewportBackbone.length) {
+    problems.push(
+      `F: ${clippedWithViewportBackbone.length} CLIPPED view(s) inherit a full-viewport backbone —\n` +
+        `     the requirement is out of frame by construction and cannot be satisfied:\n` +
+        clippedWithViewportBackbone
+          .map((s) => `     ${s.view}: clip \`${s.clip}\` but inherits '${s.backbone}'`)
+          .join("\n") +
+        `\n     use a clip-scoped backbone (e.g. 'debugger-pane') for these views.`,
+    );
+  }
 
   const summary = {
     check: "verify_brief_has_expectation_block_per_view",
@@ -152,6 +198,7 @@ async function main(argv) {
     stubBlocks: stubs,
     briefStale: stale,
     untraceable,
+    clippedWithViewportBackbone,
     ok: problems.length === 0,
   };
 
@@ -168,6 +215,10 @@ async function main(argv) {
     line(!stubs.length, `C  no block is a stub (${stubs.length} stub(s))`);
     line(!stale, `D  the brief matches expectations.mjs`);
     line(!untraceable.length, `E  every block names a spec anchor and the right register`);
+    line(
+      !clippedWithViewportBackbone.length,
+      `F  no clipped view inherits a full-viewport backbone (${VIEWS.filter((v) => v.clip).length} clipped view(s))`,
+    );
     console.log("");
     if (problems.length) {
       console.log(`FAIL — ${problems.length} problem(s):`);

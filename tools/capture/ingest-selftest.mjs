@@ -12,6 +12,12 @@
  * rule. If the base stopped being accepted the whole file would still "pass"
  * by refusing everything, so the base case is asserted first and separately.
  *
+ * Every case runs against a SYNTHETIC ledger under the test's own temp
+ * directory (`--ledger`, plus `--dry-run`), and never against
+ * reviews/ledger.json — see `ingestInto` for why, and for the guard that keeps
+ * it that way. The suite's verdict is a function of the reports it plants and
+ * of the capture on disk, and of nothing else.
+ *
  *   node tools/capture/ingest-selftest.mjs
  */
 
@@ -42,13 +48,63 @@ const base = (over = {}) => ({
   ...over,
 });
 
-let dir, pass = 0, fail = 0;
+// The real ledger, named ONLY so this file can prove it never touches it.
+const REAL_LEDGER = join(ROOT, "reviews/ledger.json");
+
+let dir, DEFAULT_LEDGER, pass = 0, fail = 0;
+
+/**
+ * An empty, well-formed ledger — the fixed starting state every case that does
+ * not stage one of its own is run against.
+ *
+ * `gateScope` and `reviews` are empty deliberately. `ingest-review.mjs` runs
+ * its cross-reviewer hash check over the WHOLE ledger and not just the batch
+ * in hand, so a ledger with reviews in it decides the outcome of the cases
+ * below — which is precisely the coupling this constant removes.
+ */
+const emptyLedger = (revision) => JSON.stringify({
+  ledgerRevision: revision,
+  gateScope: [],
+  reviews: [],
+  resolutions: [],
+  referenceParity: [],
+  signOffs: [],
+}, null, 2) + "\n";
 
 function ingestInto(ledger, files) {
-  // `--dry-run` throughout: a self-test that could write the ledger would be
-  // the hand-written entry this whole tool exists to prevent.
-  const args = [TOOL, "--dry-run"];
-  if (ledger) args.push("--ledger", ledger);
+  // EVERY case names its own synthetic ledger — there is no default, and this
+  // refusal is the guard that keeps it that way.
+  //
+  // Until 2026-08-29 the `ingest()` helper below passed `null` here, which let
+  // `ingest-review.mjs` fall back to reviews/ledger.json. That made the suite's
+  // result a function of the REAL ledger's agreement with the REAL screenshots:
+  // the tool's cross-reviewer check reads every review already in the ledger,
+  // so any visual change that recaptured `debugger__wide__dark.png` without a
+  // re-review turned this file red — 16/18, the base case and the two-reviewer
+  // acceptance — while `ingest-review.mjs`, the tool actually under test, was
+  // working exactly as specified. A self-test that reddens for a reason outside
+  // the thing it tests is a self-test that gets ignored.
+  //
+  // The cross-reviewer cases below already did the right thing; `--ledger`
+  // exists on the tool for exactly this reason. Now every case does.
+  //
+  // `--dry-run` throughout as well: a self-test that could write a ledger would
+  // be the hand-written entry this whole tool exists to prevent. Belt and
+  // braces — dry-run stops the WRITE, a synthetic path stops the READ.
+  if (!ledger) {
+    throw new Error(
+      "ingest-selftest: a case was run with no --ledger, which would fall back to " +
+      "reviews/ledger.json and couple this suite to the real ledger's state. " +
+      "Every case must name a synthetic ledger under the test's temp dir.",
+    );
+  }
+  if (resolve(ledger) === REAL_LEDGER) {
+    throw new Error(
+      "ingest-selftest: a case named reviews/ledger.json. The suite must not read " +
+      "or write the real ledger.",
+    );
+  }
+  const args = [TOOL, "--dry-run", "--ledger", ledger];
   for (const f of files) args.push("--report", f);
   try {
     execFileSync("node", args, { encoding: "utf8", stdio: "pipe" });
@@ -58,7 +114,7 @@ function ingestInto(ledger, files) {
   }
 }
 
-const ingest = (files) => ingestInto(null, files);
+const ingest = (files) => ingestInto(DEFAULT_LEDGER, files);
 
 /** `null` writes a report with no json block at all — a path no mutated
  *  object can express. */
@@ -93,6 +149,12 @@ function main() {
     return 1;
   }
   dir = mkdtempSync(join(tmpdir(), "bt-ingest-selftest-"));
+  // The ledger every case that does not stage its own is run against. Empty, so
+  // the suite's outcome depends on the REPORT under test and on nothing else.
+  DEFAULT_LEDGER = join(dir, "default-ledger.json");
+  writeFileSync(DEFAULT_LEDGER, emptyLedger("selftest.0"));
+  // Recorded so the run can prove it left the real ledger alone.
+  const realBefore = existsSync(REAL_LEDGER) ? readFileSync(REAL_LEDGER) : null;
   try {
     console.log("the base case — a well-formed report is ACCEPTED");
     accepts("a report that is right in every respect", base());
@@ -223,6 +285,55 @@ function main() {
           " stamp a fresh capture's hash onto a review of the image it replaced"); fail++;
       } else {
         console.log(`  ✗ refused for the wrong reason:\n      ${r.out.trim()}`); fail++;
+      }
+    }
+
+    // ── The coupling to the real ledger, and the guard that closes it ──────
+    //
+    // These three are about the SUITE, not about `ingest-review.mjs`. Every
+    // case above is only a test of the tool if its outcome is decided by the
+    // report it plants; while `ingest()` fell through to reviews/ledger.json,
+    // two of them were decided by whether the real ledger happened to agree
+    // with the real screenshots, and went red on a recapture the tool had
+    // nothing to do with.
+    console.log("\nthe suite's own isolation — no case may reach the real ledger");
+    {
+      const f = join(dir, "isolation.md");
+      writeFileSync(f, "```json\n" + JSON.stringify(base()) + "\n```\n");
+
+      // 1. The fallback that produced the coupling is refused outright, so it
+      //    cannot be reintroduced by an `ingestInto(null, …)` in a later case.
+      let threw = null;
+      try { ingestInto(null, [f]); } catch (e) { threw = e.message; }
+      if (threw && threw.includes("no --ledger")) {
+        console.log("  ✓ a case with no --ledger is refused before it can run"); pass++;
+      } else {
+        console.log("  ✗ a case with no --ledger was allowed to run — it would fall back to" +
+          " reviews/ledger.json and couple the suite to it again"); fail++;
+      }
+
+      // 2. …and so is naming the real ledger explicitly, which is the same
+      //    coupling written the long way round.
+      threw = null;
+      try { ingestInto(REAL_LEDGER, [f]); } catch (e) { threw = e.message; }
+      if (threw && threw.includes("must not read or write the real ledger")) {
+        console.log("  ✓ a case naming reviews/ledger.json is refused before it can run"); pass++;
+      } else {
+        console.log("  ✗ a case was allowed to name reviews/ledger.json"); fail++;
+      }
+    }
+    // 3. The independent confirmation, on bytes: whatever the cases above did,
+    //    the real ledger is exactly as it was. `--dry-run` should already
+    //    guarantee this; the point of checking is that it is guaranteed by an
+    //    observation rather than by a flag nobody re-reads.
+    {
+      const after = existsSync(REAL_LEDGER) ? readFileSync(REAL_LEDGER) : null;
+      const same = realBefore === null ? after === null : after !== null && after.equals(realBefore);
+      if (same) {
+        console.log("  ✓ reviews/ledger.json is byte-identical after the run"); pass++;
+      } else {
+        console.log("  ✗ reviews/ledger.json CHANGED during the self-test — the suite wrote the" +
+          " one file ingest-review.mjs exists to be the only writer of"); fail++;
       }
     }
 

@@ -1047,8 +1047,8 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, §7.0, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a way OUT of the debugger register that lands on the CHAIN, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header. The exit targets the chain and NOT the transaction's own URL, because under Page-Descriptions §7.0 that URL IS this session — for a `ready` or `divergent` trace the two routes serve byte-identical bodies, so a link to the transaction would be a link to the page the visitor is already on. A missing exit is a P1; an exit that targets the chain is CORRECT and is not a finding.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
   - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
 - A pane titled **Code** with a visible current-position indicator at the pinned coordinate — the session is positioned, not merely loaded. It is titled Code and not Editor: it is a read-only listing, and at instruction-level fidelity it is not source at all.
@@ -1089,10 +1089,11 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
-  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
-  - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
+- *Inherited backbone `debugger-pane` (Page-Descriptions §8, §7.1, Debugger-Integration §3, Design-System §2):*
+  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1. This survives the clip — a pane is drawn in the product register whether or not the identity bar is in shot.
+  - What is in frame is ONE self-contained region of the session's own chrome, with its own boundary and its own content. Where that region is a pane it carries the same pane chrome as the session's other panes, its title included (§7.1's 'the same pane chrome rather than a bespoke surface'); where the clip is the identity bar it is the slim bar itself, and not the full explorer header. Content bleeding past a boundary that is not drawn, or a pane with content and no title, is the finding.
+  - The region is populated, not blank and not a placeholder. A pane with nothing in it must say why rather than sit empty.
+  - This capture is CLIPPED to one pane. The identity bar, the sibling panes and the rest of the viewport are out of frame by construction — their absence from this image is not a finding, and nothing here may be reported as missing on the grounds that the surrounding session is not visible.
 - The metadata rendered as a PANE among the debugger's panes — same chrome and same header treatment as the Call Trace or Values pane.
 - The §7.2 facts inside it: status with revert reason, value, roles (from/to), cost, finality, the execution list, and the private/public split where the chain has one.
 - Addresses, targets and selectors legible in full, and marked as values that can be taken out of the page (§13: 'every hash, address and identifier is copyable with one click').
@@ -1123,10 +1124,11 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
-  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
-  - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
+- *Inherited backbone `debugger-pane` (Page-Descriptions §8, §7.1, Debugger-Integration §3, Design-System §2):*
+  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1. This survives the clip — a pane is drawn in the product register whether or not the identity bar is in shot.
+  - What is in frame is ONE self-contained region of the session's own chrome, with its own boundary and its own content. Where that region is a pane it carries the same pane chrome as the session's other panes, its title included (§7.1's 'the same pane chrome rather than a bespoke surface'); where the clip is the identity bar it is the slim bar itself, and not the full explorer header. Content bleeding past a boundary that is not drawn, or a pane with content and no title, is the finding.
+  - The region is populated, not blank and not a placeholder. A pane with nothing in it must say why rather than sit empty.
+  - This capture is CLIPPED to one pane. The identity bar, the sibling panes and the rest of the viewport are out of frame by construction — their absence from this image is not a finding, and nothing here may be reported as missing on the grounds that the surrounding session is not visible.
 - A call tree at genuine depth — several levels of nesting visible, not a flat list of top-level calls.
 - A per-frame cost column, aligned as a numeric column.
 - The current frame indicated distinctly from the rest.
@@ -1159,10 +1161,11 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
-  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
-  - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
+- *Inherited backbone `debugger-pane` (Page-Descriptions §8, §7.1, Debugger-Integration §3, Design-System §2):*
+  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1. This survives the clip — a pane is drawn in the product register whether or not the identity bar is in shot.
+  - What is in frame is ONE self-contained region of the session's own chrome, with its own boundary and its own content. Where that region is a pane it carries the same pane chrome as the session's other panes, its title included (§7.1's 'the same pane chrome rather than a bespoke surface'); where the clip is the identity bar it is the slim bar itself, and not the full explorer header. Content bleeding past a boundary that is not drawn, or a pane with content and no title, is the finding.
+  - The region is populated, not blank and not a placeholder. A pane with nothing in it must say why rather than sit empty.
+  - This capture is CLIPPED to one pane. The identity bar, the sibling panes and the rest of the viewport are out of frame by construction — their absence from this image is not a finding, and nothing here may be reported as missing on the grounds that the surrounding session is not visible.
 - All four entry kinds present in the same view: a call, a storage write, an event, and a revert.
 - The four kinds VISUALLY DISTINGUISHABLE from each other by more than their text — this is the pane's whole job and the reason it is captured with a mixed fixture.
 - The revert entry rendered as the terminal, significant event it is.
@@ -1196,10 +1199,11 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
-  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
-  - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
+- *Inherited backbone `debugger-pane` (Page-Descriptions §8, §7.1, Debugger-Integration §3, Design-System §2):*
+  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1. This survives the clip — a pane is drawn in the product register whether or not the identity bar is in shot.
+  - What is in frame is ONE self-contained region of the session's own chrome, with its own boundary and its own content. Where that region is a pane it carries the same pane chrome as the session's other panes, its title included (§7.1's 'the same pane chrome rather than a bespoke surface'); where the clip is the identity bar it is the slim bar itself, and not the full explorer header. Content bleeding past a boundary that is not drawn, or a pane with content and no title, is the finding.
+  - The region is populated, not blank and not a placeholder. A pane with nothing in it must say why rather than sit empty.
+  - This capture is CLIPPED to one pane. The identity bar, the sibling panes and the rest of the viewport are out of frame by construction — their absence from this image is not a finding, and nothing here may be reported as missing on the grounds that the surrounding session is not visible.
 - The pane titled **Values**, not State (renamed 2026-08-29). `State` is Etherscan's and Blockscout's word for a whole-transaction state diff; a pane called State that shows values at one step collides with a convention every visitor arrives with.
 - A value tree nested to at least three levels, expanded enough to show the nesting.
 - Per entry: identifier, value, and type — in that reading order, which is the desktop app's.
@@ -1233,10 +1237,11 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
-  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
-  - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
+- *Inherited backbone `debugger-pane` (Page-Descriptions §8, §7.1, Debugger-Integration §3, Design-System §2):*
+  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1. This survives the clip — a pane is drawn in the product register whether or not the identity bar is in shot.
+  - What is in frame is ONE self-contained region of the session's own chrome, with its own boundary and its own content. Where that region is a pane it carries the same pane chrome as the session's other panes, its title included (§7.1's 'the same pane chrome rather than a bespoke surface'); where the clip is the identity bar it is the slim bar itself, and not the full explorer header. Content bleeding past a boundary that is not drawn, or a pane with content and no title, is the finding.
+  - The region is populated, not blank and not a placeholder. A pane with nothing in it must say why rather than sit empty.
+  - This capture is CLIPPED to one pane. The identity bar, the sibling panes and the rest of the viewport are out of frame by construction — their absence from this image is not a finding, and nothing here may be reported as missing on the grounds that the surrounding session is not visible.
 - The pane titled **Code**, not Editor (renamed 2026-08-29): it is a read-only listing with no editor behind it, and where fidelity drops to instruction level what it lists is not source at all — which is the case 'Source' would misname.
 - The pane occupying the full height of the region beside the navigation column — nothing is stacked under it.
 - Syntax-highlighted source from the product lineage's editor tokens (Design-System §7).
@@ -1279,10 +1284,11 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
-  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
-  - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
+- *Inherited backbone `debugger-pane` (Page-Descriptions §8, §7.1, Debugger-Integration §3, Design-System §2):*
+  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1. This survives the clip — a pane is drawn in the product register whether or not the identity bar is in shot.
+  - What is in frame is ONE self-contained region of the session's own chrome, with its own boundary and its own content. Where that region is a pane it carries the same pane chrome as the session's other panes, its title included (§7.1's 'the same pane chrome rather than a bespoke surface'); where the clip is the identity bar it is the slim bar itself, and not the full explorer header. Content bleeding past a boundary that is not drawn, or a pane with content and no title, is the finding.
+  - The region is populated, not blank and not a placeholder. A pane with nothing in it must say why rather than sit empty.
+  - This capture is CLIPPED to one pane. The identity bar, the sibling panes and the rest of the viewport are out of frame by construction — their absence from this image is not a finding, and nothing here may be reported as missing on the grounds that the surrounding session is not visible.
 - A NAMED PHASE, in words, matching the phase the capture pins — fetching, opening or positioning. The name is the requirement; its absence is the P1 this view exists to catch.
 - The phase sequence shown as a sequence, with the current member marked, so the visitor can see which phase they are in and what remains.
 - What is being waited for, QUANTIFIED — the engine's size — so 'loading' is not an indeterminate spinner wearing words.
@@ -1315,8 +1321,8 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, §7.0, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a way OUT of the debugger register that lands on the CHAIN, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header. The exit targets the chain and NOT the transaction's own URL, because under Page-Descriptions §7.0 that URL IS this session — for a `ready` or `divergent` trace the two routes serve byte-identical bodies, so a link to the transaction would be a link to the page the visitor is already on. A missing exit is a P1; an exit that targets the chain is CORRECT and is not a finding.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
   - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
 - A STATEMENT IN THE UI that this is a reduced session and what is missing. §13 says 'and says so'; an unannounced reduction is the P1 here.
@@ -1350,8 +1356,8 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, §7.0, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a way OUT of the debugger register that lands on the CHAIN, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header. The exit targets the chain and NOT the transaction's own URL, because under Page-Descriptions §7.0 that URL IS this session — for a `ready` or `divergent` trace the two routes serve byte-identical bodies, so a link to the transaction would be a link to the page the visitor is already on. A missing exit is a P1; an exit that targets the chain is CORRECT and is not a finding.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
   - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
 - A banner stating the trace is truncated, and where — a step count, a depth, or a size, so 'truncated' is quantified rather than asserted.
@@ -1383,8 +1389,8 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, §7.0, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a way OUT of the debugger register that lands on the CHAIN, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header. The exit targets the chain and NOT the transaction's own URL, because under Page-Descriptions §7.0 that URL IS this session — for a `ready` or `divergent` trace the two routes serve byte-identical bodies, so a link to the transaction would be a link to the page the visitor is already on. A missing exit is a P1; an exit that targets the chain is CORRECT and is not a finding.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
   - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
 - A banner above the debugger naming the SPECIFIC mismatch — which value, which step, expected versus observed. 'A divergence was detected' alone is not this state.

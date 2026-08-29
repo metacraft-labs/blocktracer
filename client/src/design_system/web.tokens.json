@@ -181,9 +181,10 @@
 
     "light": {
       "surface": {
-        "canvas": { "$type": "color", "$value": "{colors.base.white}" },
+        "$description": "THE SURFACE LADDER. VD.5 round 5 measured the light theme as having none at all — identity bar, canvas, every pane body and every pane header inside two near-white tones, so a pane was held by its hairline alone (ledger@2026-08-29.2:debugger/laptop/light/L3/1, ledger@2026-08-29.2:debugger/wide/light/L3/6). The dark half measured #101010/#161616/#1b1b1b/#202020 — adjacent steps of 1.051, 1.051 and 1.057:1, none of them perceptible (ledger@2026-08-29.2:debugger/laptop/dark/L3/1). The levels are now ASSIGNED rather than picked per element: canvas is the page, `raised` is a pane BODY one step above it, `sunken` is the pane HEADER / tab strip a further clearly separated step, and `hover` is the fourth. Every adjacent pair is at least 1.15:1. The third step's DIRECTION is per-theme because only one direction has room: in light the body is white and the header goes darker, in dark the body is lifted off black and the header goes lighter. `code` is the recessed WELL an embedded listing sits in (`pre.raw`, the explorer's source blocks) and is the canvas rung — the debugger's own Code pane is a pane BODY like its three peers and takes `raised`, which is what closes the round-5 finding that the flagship pane was byte-identical to the page behind it (ledger@2026-08-29.2:debugger/laptop/dark/L3/2).",
+        "canvas": { "$type": "color", "$value": "{colors.graphite.50}" },
         "raised": { "$type": "color", "$value": "{colors.base.white}" },
-        "sunken": { "$type": "color", "$value": "{colors.neutral.50}" },
+        "sunken": { "$type": "color", "$value": "{colors.neutral.100}" },
         "code": { "$type": "color", "$value": "{colors.graphite.50}" },
         "hover": { "$type": "color", "$value": "{colors.neutral.50}" },
         "selected": { "$type": "color", "$value": "{colors.brand.100}" },
@@ -210,6 +211,16 @@
         "default": { "$type": "color", "$value": "{colors.brand.600}" },
         "subtle": { "$type": "color", "$value": "{colors.brand.500}" }
       },
+      "mark": {
+        "$description": "MARKING ROLES — one role, one meaning (rubric B5). VD.5 round 5 measured a single indigo carrying four to eight of them at once: hyperlink, current position, changed-since-last-step, open tab, open file, scrubber fill and active phase chip, all #4F46E5 in light and #818cf8 in dark, so a changed numeral in the Values pane was bit-identical to a hyperlink two panes away (ledger@2026-08-29.2:debugger/wide/light/L3/2, ledger@2026-08-29.2:debugger/wide/dark/L3/2, ledger@2026-08-29.2:debugger/laptop/dark/L3/3, ledger@2026-08-29.2:debugger/laptop/light/L3/2). NAVIGATION keeps the brand indigo, because a link in the debugger must be the same object as a link in the explorer and text.link is that shared role. Everything else moves off it: POSITION ('you are here' — current source line, current frame, current event, scrubber playhead) takes the cyan family, CHANGED ('this moved at this step') takes the amber/gold family, VIEW ('this tab, this file, is the one on screen') drops hue entirely for the strongest neutral, and the engine's active PHASE chip moves to the status.info role, because loading progress and trace position are unrelated state families that were sharing one fill (ledger@2026-08-29.2:debugger/wide/light/L3/3). `executable` is the steppable-line marker, one rung quieter in the same family as position, because 'you can stop here' and 'you are here' are the same question asked twice. `track` and `track-elapsed` are the scrubber's extent, which measured 1.51:1 against the bar — half the 3:1 floor for a non-text component (ledger@2026-08-29.2:debugger/wide/dark/L3/5).",
+        "position": { "$type": "color", "$value": "{colors.cyan.900}" },
+        "position-surface": { "$type": "color", "$value": "{colors.cyan.200}" },
+        "changed": { "$type": "color", "$value": "{colors.yellow.800}" },
+        "view": { "$type": "color", "$value": "{colors.neutral.1000}" },
+        "executable": { "$type": "color", "$value": "{colors.cyan.700}" },
+        "track": { "$type": "color", "$value": "{colors.neutral.300}" },
+        "track-elapsed": { "$type": "color", "$value": "{colors.cyan.800}" }
+      },
       "action": {
         "bg": { "$type": "color", "$value": "{colors.brand.600}" },
         "bg-hover": { "$type": "color", "$value": "{colors.brand.700}" },
@@ -218,12 +229,12 @@
         "ghost-bg": { "$type": "color", "$value": "{colors.base.white}" },
         "ghost-bg-hover": { "$type": "color", "$value": "{colors.neutral.50}" },
         "ghost-bg-active": { "$type": "color", "$value": "{colors.neutral.100}" },
-        "ghost-border": { "$type": "color", "$value": "{colors.neutral.150}" },
+        "ghost-border": { "$type": "color", "$value": "{colors.neutral.250}" },
         "ghost-border-hover": { "$type": "color", "$value": "{colors.brand.600}" },
         "ghost-fg": { "$type": "color", "$value": "{colors.neutral.1000}" },
         "disabled-bg": { "$type": "color", "$value": "{colors.neutral.100}" },
         "disabled-border": { "$type": "color", "$value": "{colors.neutral.150}" },
-        "disabled-fg": { "$type": "color", "$value": "{colors.neutral.400}" }
+        "disabled-fg": { "$type": "color", "$value": "{colors.neutral.450}" }
       },
       "status": {
         "success-fg": { "$type": "color", "$value": "{colors.success.800}" },
@@ -264,11 +275,12 @@
 
     "dark": {
       "surface": {
-        "canvas": { "$type": "color", "$value": "{colors.neutral.1000}" },
+        "$description": "The dark half of the ladder the light half's note describes. canvas → raised → sunken → hover, each at least 1.15:1 against the one before, against measured 1.051/1.051/1.057 before this round. The third step goes LIGHTER here because below #101010 there is no room for it; the rule the two themes share is that a header band is one clearly separated step off its own pane body in whichever direction the theme has room for.",
+        "canvas": { "$type": "color", "$value": "{colors.base.black}" },
         "raised": { "$type": "color", "$value": "{colors.neutral.900}" },
-        "sunken": { "$type": "color", "$value": "{colors.neutral.950}" },
-        "code": { "$type": "color", "$value": "{colors.neutral.1000}" },
-        "hover": { "$type": "color", "$value": "{colors.neutral.850}" },
+        "sunken": { "$type": "color", "$value": "{colors.neutral.700}" },
+        "code": { "$type": "color", "$value": "{colors.base.black}" },
+        "hover": { "$type": "color", "$value": "{colors.neutral.650}" },
         "selected": { "$type": "color", "$value": "{colors.brand.900}" },
         "overlay": { "$type": "color", "$value": "{colors.neutral.850}" }
       },
@@ -284,8 +296,8 @@
         "on-accent": { "$type": "color", "$value": "{colors.base.white}" }
       },
       "border": {
-        "strong": { "$type": "color", "$value": "{colors.neutral.450}" },
-        "default": { "$type": "color", "$value": "{colors.neutral.600}" },
+        "strong": { "$type": "color", "$value": "{colors.neutral.400}" },
+        "default": { "$type": "color", "$value": "{colors.neutral.450}" },
         "subtle": { "$type": "color", "$value": "{colors.neutral.700}" },
         "accent": { "$type": "color", "$value": "{colors.brand.500}" }
       },
@@ -293,7 +305,18 @@
         "default": { "$type": "color", "$value": "{colors.brand.400}" },
         "subtle": { "$type": "color", "$value": "{colors.brand.300}" }
       },
+      "mark": {
+        "$description": "The dark half of the marking roles; see the light half for the argument.",
+        "position": { "$type": "color", "$value": "{colors.cyan.300}" },
+        "position-surface": { "$type": "color", "$value": "{colors.slate.700}" },
+        "changed": { "$type": "color", "$value": "{colors.amber.300}" },
+        "view": { "$type": "color", "$value": "{colors.neutral.50}" },
+        "executable": { "$type": "color", "$value": "{colors.cyan.500}" },
+        "track": { "$type": "color", "$value": "{colors.neutral.400}" },
+        "track-elapsed": { "$type": "color", "$value": "{colors.cyan.400}" }
+      },
       "action": {
+        "$description": "`disabled-fg` moves one rung TOWARDS the text end in both themes. Round 5 measured the inert stepping glyphs at 4.18:1 in dark and 3.54:1 in light — the least legible marks on a page whose premise is those controls, and with no legible split from an enabled one (ledger@2026-08-29.2:debugger/wide/dark/L3/4, ledger@2026-08-29.2:debugger/laptop/dark/L3/8, ledger@2026-08-29.2:debugger/wide/light/L3/4). An inert control still has to be READABLE as the move it will not make; what marks it inert is its SURFACE losing its body, which is expressed on `.dcbtn.off` in debugger_css.nim rather than here, because the fix is a relationship between the chip and the bar it sits in and no single colour can state that. `ghost-border` also moves one rung, so an enabled chip has a visible outline at 2.35:1 (dark) and 2.55:1 (light) instead of the 1.5:1 that made a chip read as loose grey text (ledger@2026-08-29.2:debugger/wide/dark/L3/3).",
         "bg": { "$type": "color", "$value": "{colors.brand.600}" },
         "bg-hover": { "$type": "color", "$value": "{colors.brand.500}" },
         "bg-active": { "$type": "color", "$value": "{colors.brand.400}" },
@@ -301,12 +324,12 @@
         "ghost-bg": { "$type": "color", "$value": "{colors.neutral.900}" },
         "ghost-bg-hover": { "$type": "color", "$value": "{colors.neutral.850}" },
         "ghost-bg-active": { "$type": "color", "$value": "{colors.neutral.800}" },
-        "ghost-border": { "$type": "color", "$value": "{colors.neutral.600}" },
+        "ghost-border": { "$type": "color", "$value": "{colors.neutral.450}" },
         "ghost-border-hover": { "$type": "color", "$value": "{colors.brand.500}" },
         "ghost-fg": { "$type": "color", "$value": "{colors.neutral.50}" },
         "disabled-bg": { "$type": "color", "$value": "{colors.neutral.850}" },
         "disabled-border": { "$type": "color", "$value": "{colors.neutral.700}" },
-        "disabled-fg": { "$type": "color", "$value": "{colors.neutral.350}" }
+        "disabled-fg": { "$type": "color", "$value": "{colors.neutral.300}" }
       },
       "status": {
         "success-fg": { "$type": "color", "$value": "{colors.success.400}" },
