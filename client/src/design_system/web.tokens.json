@@ -245,6 +245,17 @@
       "focus": {
         "ring": { "$type": "color", "$value": "{colors.ui.border.focus}" }
       },
+      "syntax": {
+        "$description": "The LIGHT half of the lexical palette. Design-System.md §7 asks for editor tokens in BOTH themes, and this is the half no lineage supplies: mapped.json's colors.editor.syntax.* has modes.Light identical to modes.Dark, so its four rungs are all near-white and unusable on a light code surface. The hue PER CATEGORY is the desktop's (codetracerDark.json), held constant across the two themes; only the ramp step changes, so a category does not change identity when the theme flips. Two deliberate departures from codetracerWhite.json, both recorded in docs/DESKTOP-CONTINUITY.md row 19: comments are green rather than #eb4f64, because red is this product's revert/danger hue and a comment painted in it beside an event log full of reverts is a false signal; and numbers are violet rather than green, because the light theme cannot separate two greens at the contrast this surface requires. Every value is a {ref} — no literal, so no divergence row.",
+        "plain": { "$type": "color", "$value": "{colors.neutral.800}" },
+        "punctuation": { "$type": "color", "$value": "{colors.neutral.500}" },
+        "comment": { "$type": "color", "$value": "{colors.green.800}" },
+        "keyword": { "$type": "color", "$value": "{colors.blue.700}" },
+        "type": { "$type": "color", "$value": "{colors.cyan.800}" },
+        "function": { "$type": "color", "$value": "{colors.yellow.900}" },
+        "string": { "$type": "color", "$value": "{colors.orange.800}" },
+        "number": { "$type": "color", "$value": "{colors.violet.700}" }
+      },
       "elevation": {
         "raised": { "$type": "shadow", "$value": "0 1px 2px rgba(16,16,16,.06), 0 2px 8px rgba(16,16,16,.05)", "$extensions": { "bt.divergence": "D-05" } },
         "overlay": { "$type": "shadow", "$value": "0 8px 28px rgba(16,16,16,.14)", "$extensions": { "bt.divergence": "D-05" } }
@@ -316,6 +327,17 @@
       },
       "focus": {
         "ring": { "$type": "color", "$value": "{colors.information.400}" }
+      },
+      "syntax": {
+        "$description": "The DARK half of the lexical palette, and the one the debugger register shows by default. The two neutral roles bind straight to the product lineage's own editor family — colors.editor.syntax.primary resolves to #f3f3f3, which is byte-identical to codetracerDark.json's default foreground, and .secondary to #c8c8c8 against its delimiter greys. The six hued roles take the desktop's hue per category (comment green, keyword blue, type cyan, string orange, function amber) off the brand ramps, so the palette is continuous with the desktop app without inventing a colour. Numbers are violet rather than the desktop's pale green — see the light half's note. Every value is a {ref}; every role clears 4.5:1 against surface.code, surface.sunken and surface.selected, which are the three backgrounds a source line can sit on.",
+        "plain": { "$type": "color", "$value": "{colors.editor.syntax.primary}" },
+        "punctuation": { "$type": "color", "$value": "{colors.editor.syntax.secondary}" },
+        "comment": { "$type": "color", "$value": "{colors.green.500}" },
+        "keyword": { "$type": "color", "$value": "{colors.blue.300}" },
+        "type": { "$type": "color", "$value": "{colors.cyan.300}" },
+        "function": { "$type": "color", "$value": "{colors.amber.400}" },
+        "string": { "$type": "color", "$value": "{colors.orange.300}" },
+        "number": { "$type": "color", "$value": "{colors.violet.300}" }
       },
       "elevation": {
         "raised": { "$type": "shadow", "$value": "0 1px 2px rgba(0,0,0,.55)", "$extensions": { "bt.divergence": "D-05" } },
