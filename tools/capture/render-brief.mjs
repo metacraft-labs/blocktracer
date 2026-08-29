@@ -128,7 +128,7 @@ const ENTRY = new Set([
   "txs-list", "txs-list--cards",
 ]);
 const TX = new Set([
-  "tx-detail", "tx-detail--dense", "tx-detail--hydrated", "tx-detail--decoded-input",
+  "tx-detail", "tx-detail--session", "tx-detail--dense", "tx-detail--hydrated", "tx-detail--decoded-input",
   "tx-detail--events", "tx-detail--internal-calls", "tx-detail--state-changes", "tx-detail--raw",
 ]);
 const UTIL = new Set([

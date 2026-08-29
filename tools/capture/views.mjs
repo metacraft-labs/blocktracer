@@ -103,6 +103,14 @@ const debugRoute = (txSel, { t = DEBUG_TIME_COORDINATE, extra = "" } = {}) => (i
 const readyTx = txWithAvailability("ready", { reconstructed: false });
 const divergentTx = txWithAvailability("divergent");
 
+/** The transaction whose URL is NOT a session (Page-Descriptions §7.0's second
+ *  and third rows). The demo tree publishes one: the on-demand transaction.
+ *  Selected by availability rather than by position, because after §7.0 the
+ *  availability is what decides which of the two shapes `/{chain}/tx/{hash}`
+ *  serves — a positional selector would silently re-point a view at the other
+ *  shape the first time a block's contents changed. */
+const onDemandTx = txWithAvailability("onDemand");
+
 const PENDING_ROUTE = "route not yet served by the client";
 const PENDING_STATE = "state not yet modelled by the client ViewModel";
 
@@ -208,24 +216,63 @@ export const VIEWS = [
     sizes: NARROW_SIZES,
     route: (ix) => `/${ix.primaryChain}/txs`,
   },
+  // ── The transaction route has TWO shapes (Page-Descriptions §7.0) ────────
+  //
+  // "One URL, and what it becomes depends on the trace, not on a click."
+  // `ready`/`divergent` land in the debugging interface with the transaction's
+  // facts as §7.1's metadata pane; `onDemand`/`absent`/`unsupported` get the
+  // metadata page. Both shapes are served at `/{chain}/tx/{hash}`, so each
+  // needs its own named view and each view has to pin a transaction whose
+  // availability produces the shape the view's name claims — the same rule the
+  // debugger views already follow.
   {
     id: "tx-detail",
-    description: "Transaction detail — hero, overview grid, decoded input, events, calls, state, raw",
+    description: "Transaction page for a trace that opens no session (§7.0) — hero, overview grid, decoded input, events, calls, state, raw",
     covers: ["tx-detail"],
     register: "explorer",
     status: "ready",
-    route: (ix) => `/${ix.primaryChain}/tx/${nthTx(0)(ix).hash}`,
+    // Pinned by AVAILABILITY, not by position. `nthTx(0)` is the on-demand
+    // transaction only by accident of block order, and after §7.0 that
+    // accident decides which of the two shapes this view photographs.
+    route: (ix) => `/${ix.primaryChain}/tx/${onDemandTx(ix).hash}`,
+  },
+  {
+    id: "tx-detail--session",
+    description: "The transaction's own URL landing in the debugging session (§7.0) — panes, with the transaction's facts as the metadata pane",
+    covers: ["tx-detail"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    fullPage: false,
+    // §7.0's first row, at the transaction's own address rather than at
+    // /debug. This is the view that would have caught the divergence it now
+    // documents: before it, the only capture of this URL was `tx-detail`, and
+    // a page carrying a Debug BUTTON satisfied that view's name perfectly.
+    route: (ix) => `/${ix.primaryChain}/tx/${readyTx(ix).hash}`,
   },
   {
     id: "tx-detail--dense",
-    description: "Transaction detail at the largest published payload — the density case",
+    description: "The metadata page at the largest published payload — the density case",
     covers: ["tx-detail"],
     register: "explorer",
-    status: "ready",
-    route: (ix) => {
-      const txs = ix.chain().txs;
-      return `/${ix.primaryChain}/tx/${txs[txs.length - 1].hash}`;
-    },
+    status: "pending",
+    // It used to capture the last transaction in block order, which has a
+    // published trace — so after §7.0 that URL is the session, and capturing
+    // it here would file a debugging surface under a view whose expectation
+    // block requires eight explorer sections.
+    //
+    // Repointing it is not available either: the metadata page is now served
+    // only for transactions with NO session, and the demo tree has exactly one
+    // — the on-demand transaction, which is already `tx-detail`'s subject.
+    // Capturing the same URL twice would answer VD.4's
+    // `verify_transaction_page_holds_at_extreme_content` with a duplicate.
+    pendingReason:
+      "after §7.0 the metadata page is served only for a transaction with no " +
+      "session, and the demo tree has exactly one — the on-demand transaction, " +
+      "which is `tx-detail`'s own subject. A dense metadata page needs a " +
+      "second traceless transaction with many roles, many cost rows and a long " +
+      "raw payload in the demo generator, not a change to the route",
+    route: (ix) => `/${ix.primaryChain}/tx/${onDemandTx(ix).hash}`,
   },
   {
     id: "tx-detail--hydrated",
@@ -233,14 +280,21 @@ export const VIEWS = [
     covers: ["tx-detail.hydrated"],
     register: "debugger",
     status: "pending",
+    // What remains missing is narrower than it was. The transaction's own URL
+    // now SERVES the session (`tx-detail--session`), so §7.0's landing rule is
+    // captured; what nothing produces is the transition — the pre-rendered
+    // frame being taken over by a live engine, in place, without the visitor
+    // seeing less at any point. That is hydration, and the client ships no
+    // JavaScript at all.
     pendingReason:
-      "the transaction route serves the pre-rendered page and the debug route " +
-      "serves the session, but nothing hydrates one into the other: the client " +
-      "ships no JavaScript at all, and the SPA/hydration shell is the deferred " +
-      "half of Front-End-Architecture §2's layer 4. Capturing this view against " +
-      "the un-hydrated page would file the transaction page under the hydrated " +
-      "view's name",
-    route: (ix) => `/${ix.primaryChain}/tx/${txWithAvailability("ready", { reconstructed: false })(ix).hash}`,
+      "the transaction route now serves the session itself (see " +
+      "`tx-detail--session`), but nothing hydrates it: the client ships no " +
+      "JavaScript at all, and the SPA/hydration shell is the deferred half of " +
+      "Front-End-Architecture §2's layer 4. The engine is unfetched, so the " +
+      "panes are the pre-hydration frame and the stepping toolbar is inert — " +
+      "capturing that under the hydrated view's name would file a static " +
+      "first frame as a live session",
+    route: (ix) => `/${ix.primaryChain}/tx/${readyTx(ix).hash}`,
   },
   {
     id: "tx-detail--decoded-input",
@@ -249,7 +303,7 @@ export const VIEWS = [
     register: "explorer",
     status: "pending",
     pendingReason: `${PENDING_STATE}: the section renders a placeholder, not decoded parameters`,
-    route: (ix) => `/${ix.primaryChain}/tx/${nthTx(0)(ix).hash}`,
+    route: (ix) => `/${ix.primaryChain}/tx/${onDemandTx(ix).hash}`,
     clip: "#decoded-input",
   },
   {
@@ -259,7 +313,7 @@ export const VIEWS = [
     register: "explorer",
     status: "pending",
     pendingReason: `${PENDING_STATE}: the events section is not populated`,
-    route: (ix) => `/${ix.primaryChain}/tx/${nthTx(0)(ix).hash}`,
+    route: (ix) => `/${ix.primaryChain}/tx/${onDemandTx(ix).hash}`,
     clip: "#events",
   },
   {
@@ -269,7 +323,7 @@ export const VIEWS = [
     register: "explorer",
     status: "pending",
     pendingReason: `${PENDING_STATE}: the internal-calls section is not populated`,
-    route: (ix) => `/${ix.primaryChain}/tx/${nthTx(0)(ix).hash}`,
+    route: (ix) => `/${ix.primaryChain}/tx/${onDemandTx(ix).hash}`,
     clip: "#internal-calls",
   },
   {
@@ -279,7 +333,7 @@ export const VIEWS = [
     register: "explorer",
     status: "pending",
     pendingReason: `${PENDING_STATE}: the state-changes section is not populated`,
-    route: (ix) => `/${ix.primaryChain}/tx/${nthTx(0)(ix).hash}`,
+    route: (ix) => `/${ix.primaryChain}/tx/${onDemandTx(ix).hash}`,
     clip: "#state-changes",
   },
   {
@@ -287,9 +341,13 @@ export const VIEWS = [
     description: "Raw section — chain-native transaction and receipt JSON, verbatim",
     covers: ["tx-detail.raw"],
     register: "explorer",
-    status: "pending",
-    pendingReason: `${PENDING_STATE}: the raw section is not rendered`,
-    route: (ix) => `/${ix.primaryChain}/tx/${nthTx(0)(ix).hash}`,
+    status: "ready",
+    // Was pending on "the raw section is not rendered", which had stopped
+    // being true: the section renders, but its heading carried no id, so the
+    // clip selector resolved to nothing. §7.0's work gave both trace-derived
+    // §7.2 sections stable anchors — the metadata pane needs them too — so
+    // the clip now addresses the section it names.
+    route: (ix) => `/${ix.primaryChain}/tx/${onDemandTx(ix).hash}`,
     clip: "#raw",
   },
   {
@@ -611,7 +669,11 @@ export const CANARY = [
     renderingPath: "data table — many rows, aligned numeric columns",
   },
   {
-    view: "tx-detail--dense",
+    // Was `tx-detail--dense`, which §7.0 turned into a pending view: the URL
+    // it captured now serves the session. `tx-detail` renders the same
+    // rendering path — a page of hashes, addresses and decoded values in the
+    // monospace face — and is ready, so the canary keeps covering it.
+    view: "tx-detail",
     size: "laptop",
     theme: "light",
     renderingPath: "dense monospace text — hashes, addresses, decoded values",

@@ -348,12 +348,12 @@ export const EXPECTATIONS = [
   {
     id: "tx-detail",
     summary:
-      "The transaction page — the most important page in the product, and the one a competitor comparison lands on.",
-    spec: "Page-Descriptions §7.2",
+      "The transaction page for a trace that opens no session — §7.0's second and third rows. The most important page in the product for a transaction the debugger cannot open, and the one a competitor comparison lands on.",
+    spec: "Page-Descriptions §7.0, §7.2",
     register: "explorer",
     mustShow: [
-      "Hero: status with decoded revert reason if any, the full hash with a copy affordance, age, finality badge, and Debug as the PRIMARY button — visually the strongest control on the page.",
-      "The Debug button's state matching the trace availability shown beside it, and a note explaining that state in words.",
+      "Hero: status with decoded revert reason if any, the full hash with a copy affordance, age, finality badge, and — on the on-demand path — Generate trace as the PRIMARY button, visually the strongest control on the page.",
+      "The trace's state named beside that action, and a note explaining that state in words.",
       "Overview grid: from/to, value, fee breakdown, block and index, nonce, resource limits and usage, transaction type — each labelled.",
       "A decoded-input section with the function/entry point and its parameters, or raw bytes with a 'supply an ABI' action when the selector is unknown.",
       "An events/logs section.",
@@ -364,11 +364,12 @@ export const EXPECTATIONS = [
     ],
     mustNotShow: [
       "An empty panel for any section. Rule 2 admits data or a statement, never nothing.",
-      "A sign-in prompt on a page whose trace is ready — the prompt appears only on the on-demand generation path.",
+      "A Debug button. §7.0: 'a button that opens the debugger is a link to the primary action, not the primary action' — and this page is the shape served when there is no session to open, so a Debug affordance here could only lead somewhere that says no.",
+      "A disabled control standing in for an absent one. `absent` and `unsupported` get 'no debugger, and no pretence of one'; a greyed button still occupies the primary action's position.",
       "Any section rendered as a bare 'coming soon' with no explanation of what would appear there.",
     ],
     watchFor: [
-      "Eight sections in one scroll: check the section-heading treatment is strong enough to navigate by, and that the eye can find the hero → Debug → overview path without reading.",
+      "Eight sections in one scroll: check the section-heading treatment is strong enough to navigate by, and that the eye can find the hero → action → overview path without reading.",
       "The overview grid's label column against its value column — mixed proportional labels and monospace values are the classic misalignment here.",
       "The raw JSON block: it is the only preformatted region on the page and will dominate if its surface, size and containment are not deliberately handled.",
       "The revert reason if present — it is prose inside a hero of identifiers and must not be styled as another identifier.",
@@ -376,9 +377,36 @@ export const EXPECTATIONS = [
   },
 
   {
+    id: "tx-detail--session",
+    summary:
+      "The transaction's own URL landing in the debugging interface — §7.0's central claim, that arriving at a transaction with a trace means arriving in its execution.",
+    spec: "Page-Descriptions §7.0, §7.1",
+    register: "debugger",
+    mustShow: [
+      "A debugging session occupying the viewport at `/{chain}/tx/{hash}` — source with a current line, the call trace, the values, and the stepping controls. This URL, not `/debug`.",
+      "The transaction's facts as a PANE beside the debugger's own panes (§7.1) — status and revert reason, block, finality, roles, cost, and the execution list — with the same pane chrome and the same dismiss control as every other pane.",
+      "The decoded input and the chain-native payload inside that pane. §7.1 makes §7.2 the definition of this metadata, so a fact that was on the page before must be in the pane now.",
+      "The honest loading line: what is being waited for, how large it is, and the named phase — the engine has not been fetched, and the page says so rather than implying the toolbar can step.",
+      "The stepping controls rendered VISIBLY inert, because no replay engine has loaded.",
+    ],
+    mustNotShow: [
+      "A Debug button, or any link to `/debug`. The visitor is already in the session; a button to it would be the waiting room this view exists to prove is gone.",
+      "An empty or skeleton debugger. The panes are populated from published data before any engine loads; grey boxes shaped like content would be the failure §7.0 rules out with 'no state renders less than the pre-hydration page'.",
+      "The transaction's facts reduced to an identity bar. §7.1: 'An identity bar is too little.'",
+      "Enabled-looking stepping controls. Nothing can move time yet, and a control that looks live would lie on the first click.",
+    ],
+    watchFor: [
+      "This is a `noindex,follow` page a crawler is served and a visitor lands on cold. Judge it as an ARRIVAL, not as a session someone navigated into: is it legible without the context of having clicked Debug?",
+      "The metadata pane against the debugger's panes — it carries prose, a definition list, a code block and a badge set, and it has to read as one of the panes rather than as an explorer page pasted into a slot.",
+      "The raw chain-native payload inside a pane body that already scrolls: check it is contained rather than driving the pane's own scroll length.",
+      "Whether anything on this surface still reads as 'a transaction page with a debugger on it' rather than 'the debugger, with the transaction's facts in it'.",
+    ],
+  },
+
+  {
     id: "tx-detail--dense",
     summary:
-      "The transaction page at the largest published payload — the density case the whole campaign exists to catch.",
+      "The metadata page at the largest published payload — the density case the whole campaign exists to catch. Pending: after §7.0 this page is served only for a transaction with no session, and the demo tree has exactly one.",
     spec: "Page-Descriptions §7.2, VD.4 verify_transaction_page_holds_at_extreme_content",
     register: "explorer",
     mustShow: [
@@ -401,13 +429,13 @@ export const EXPECTATIONS = [
   {
     id: "tx-detail--hydrated",
     summary:
-      "The transaction page after the debugger has hydrated over it in place — §7.0's central claim, that the page IS the debugger's first frame.",
+      "The transaction page after the debugger has hydrated over its first frame — the TRANSITION, not the landing. `tx-detail--session` is the landing, and it is captured; what nothing produces yet is a live engine taking that frame over in place.",
     spec: "Page-Descriptions §7.0, §7.1",
     register: "debugger",
     mustShow: [
-      "A live debugging surface occupying the page, with the transaction metadata still available as a PANE beside the debugger's own panes (§7.1) rather than reduced to an identity bar.",
+      "A LIVE debugging surface occupying the page — the stepping controls enabled and the session positioned by an engine, not by the pre-rendered frame — with the transaction metadata still available as a PANE beside the debugger's own panes (§7.1) rather than reduced to an identity bar.",
       "The metadata pane visibly dismissible/restorable like any other pane — a pane, not a bespoke sidebar.",
-      "Continuity with the pre-hydration page: the same hash, the same status, the same facts. A reviewer must be able to see that this is the same transaction, not a different surface.",
+      "Continuity with the pre-hydration frame: the same hash, the same status, the same facts, the same panes. A reviewer must be able to see that the engine arrived over the frame that was already there, not that a different surface replaced it.",
       "The debugger's own panes populated — source, and at least one of call trace / event log / state.",
     ],
     mustNotShow: [
@@ -415,7 +443,7 @@ export const EXPECTATIONS = [
       "The transaction facts lost to the hydration. If the metadata is gone, that is the P1 this view exists to catch.",
     ],
     watchFor: [
-      "The register crossing: this URL is explorer-register before hydration and product-register after. Check that the result looks like one designed surface and not two pasted together.",
+      "The transition itself: compare against `tx-detail--session` and state what visibly changed. If the only difference is that the toolbar stopped looking inert, say so — that is the correct answer and it is worth recording.",
       "Whether the metadata pane's density matches the debugger's panes or still carries the explorer's spacious rhythm.",
     ],
   },
