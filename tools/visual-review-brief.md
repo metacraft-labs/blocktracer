@@ -1200,6 +1200,8 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
   - The session occupies the full viewport below the identity bar. No explorer footer, no marketing chrome, no page-level scrollbar.
 - Syntax-highlighted source from the product lineage's editor tokens (Design-System §7).
+- Highlighting that carries LEXICAL MEANING, not decoration: comments, string literals, numeric literals, keywords, named types and called functions each visibly distinct from ordinary identifiers and from each other. A reviewer should be able to name which category a coloured run belongs to without reading the code.
+- Comments visibly QUIETER than the code they annotate — they are the one category that must recede rather than attract.
 - Line numbers.
 - The current line indicated unambiguously — a highlight, a gutter marker, or both.
 - Executable versus non-executable lines distinguishable, so a visitor knows where stepping can land.
@@ -1208,7 +1210,9 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
-- Unhighlighted plain-text source.
+- Unhighlighted plain-text source, where the file's language IS one the exporter can lex (Noir today). Plain text is the CORRECT rendering for any other language and for instruction-level content — see the next item — so judge this against the pane's stated language, never on sight alone.
+- Highlighting applied to content the exporter cannot actually lex — a bytecode or instruction listing wearing source colours, or a non-Noir file coloured by Noir's keyword list. Confident mis-tokenisation is a worse failure than plain text because it looks authoritative.
+- Colour used for anything OTHER than lexical category inside the code area — a coloured run that means 'executed', 'changed' or 'selected' would collide with the palette and make both unreadable. Execution state is carried by the row's background and gutter marker, and must stay there.
 - A current-line indicator that is indistinguishable from a selection or a hover.
 - Instruction-level content presented as though it were source.
 
@@ -1216,7 +1220,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 - Line-height and font-size against the desktop app's source pane — the continuity requirement is strongest here because this is the pane a CodeTracer user knows best.
 - The gutter's width budget with four-digit line numbers plus a marker.
-- Highlighting palette in light theme: the editor tokens are dark-first and light is the case most likely to be wrong.
+- Highlighting palette in light theme: the mapped editor tokens are dark-first — mapped.json's four rungs have modes.Light identical to modes.Dark — so the light half is web-lineage work and is the case most likely to be wrong.
+- Token legibility ON the current line and ON executed lines, not only against the plain code surface. Those rows have their own backgrounds, and a palette checked against one background only will fail on the row the eye goes to first.
+- Comments in the LIGHT theme specifically: the desktop's white theme paints them #eb4f64, and this lineage deliberately does not, because red is the product's revert hue. If comments read as errors, that departure was wrong.
+- Whether string and function colours are still separable — they are the closest pair in both themes, being the two warm categories.
 
 ### View: `debugger--loading-phases`
 
