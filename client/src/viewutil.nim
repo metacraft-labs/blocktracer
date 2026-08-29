@@ -67,7 +67,7 @@ proc availabilityState*(a: TraceAvailability): string =
 
 proc roleLabel*(role: string): string =
   ## An adapter's role name → the label column's own vocabulary. The VD.1 round,
-  ## and ledger@2026-08-28.3:tx-detail/wide/light/L5/7 — internal architecture
+  ## and ledger@2026-08-29.1:tx-detail/wide/light/L5/7 — internal architecture
   ## leaking into visitor-facing copy: `feePayer` sat beside `Block`, `Canonical` and
   ## `Finality`, so one column carried two languages. Unknown roles fall through
   ## verbatim rather than being hidden — a new chain family must show up as an
