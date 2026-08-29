@@ -33,7 +33,8 @@
 // it could not find anything to check.
 
 import { readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -358,13 +359,54 @@ function gateTarget(target, L, model, opts = {}) {
     );
   }
 
-  // ── G2: full lens coverage ──────────────────────────────────────────────
+  // ── G2: full lens coverage, OF THE IMAGE THAT IS THERE NOW ──────────────
+  //
+  // G2 reads "L1..L5 and ADV have all reviewed the exact image", and coverage
+  // was the only half of that being checked. The other half is "the exact
+  // image", and it cannot be settled by counting reviewer names.
+  //
+  // `ingest-review.mjs` establishes it on bytes — but only at the moment of
+  // ingest, and only ACROSS reviews: it refuses a set whose hashes disagree
+  // with each other. Once a full set is ingested they all agree, and a
+  // recapture afterwards moves the file while leaving every review looking
+  // perfect. Nothing then disagrees with anything, so nothing was refused, and
+  // the gate would certify six reviews of an image that no longer exists.
+  //
+  // That is not a hypothetical: fix-then-recapture is the campaign's normal
+  // cycle, and this check was added after a scrubber fix landed between a
+  // capture and a gate run and went undetected. The verification is therefore
+  // against the FILE, not against the other reviews.
+  //
+  // A review carrying no `imageSha256` predates the ingest path. It is
+  // reported as unverifiable rather than treated as either passing or
+  // failing — inventing a verdict for it is what a gate must not do.
   const seen = new Set(reviews.map((r) => r.reviewer));
   const absent = ALL_LENSES.filter((l) => !seen.has(l));
+  const hashed = reviews.filter((r) => r.imageSha256 && r.image);
+  const stale = [];
+  const unreadable = [];
+  for (const r of hashed) {
+    const abs = join(REPO_ROOT, r.image);
+    if (!existsSync(abs)) { unreadable.push(`${r.reviewer} (${r.image} is gone)`); continue; }
+    const now = createHash("sha256").update(readFileSync(abs)).digest("hex");
+    if (now !== r.imageSha256) {
+      stale.push(`${r.reviewer}@${r.imageSha256.slice(0, 12)} vs file @${now.slice(0, 12)}`);
+    }
+  }
+  const unverified = reviews.length - hashed.length;
   push(
     "G2",
-    absent.length === 0,
-    absent.length ? `missing reviewer(s): ${absent.join(", ")}` : `all ${ALL_LENSES.length} reviewers present`,
+    absent.length === 0 && stale.length === 0 && unreadable.length === 0,
+    [
+      absent.length ? `missing reviewer(s): ${absent.join(", ")}` : `all ${ALL_LENSES.length} reviewers present`,
+      unreadable.length ? `the capture reviewed is missing: ${unreadable.join(", ")}` : "",
+      stale.length
+        ? `${stale.length} review(s) are of a SUPERSEDED capture — the file moved after they were ` +
+          `filed, so "the exact image" is no longer the image on disk: ${stale.join(", ")}. ` +
+          `Re-run those reviewers against the current capture and re-ingest.`
+        : "",
+      unverified ? `${unverified} review(s) carry no capture hash and could not be verified (pre-ingest)` : "",
+    ].filter(Boolean).join("; "),
   );
 
   // ── G3: zero unresolved P1 and P2 ───────────────────────────────────────

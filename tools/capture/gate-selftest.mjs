@@ -14,6 +14,8 @@
 // gate must never have is going green because it found nothing to check.
 
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,6 +23,24 @@ import { spawnSync } from "node:child_process";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const GATE = join(HERE, "gate.mjs");
+const REPO_ROOT = resolvePath(HERE, "..", "..");
+
+// A capture that really exists, so the hash cases below are about the LEDGER
+// rather than about a missing file — the "gone" case names its own absent one.
+const REAL_IMAGE_REL = "screenshots/debugger__wide__dark.png";
+const REAL_IMAGE_ABS = join(REPO_ROOT, REAL_IMAGE_REL);
+if (!existsSync(REAL_IMAGE_ABS)) {
+  console.error(`SKIP-PROOF FAILURE — ${REAL_IMAGE_REL} does not exist, so G2's "the exact image"` +
+    ` cases could not tell a stale hash from a missing file. Capture the debugger view first.`);
+  process.exit(1);
+}
+/** The file's hash, read when the case is BUILT rather than at start-up.
+ *
+ *  The property under test is "a hash equal to the file's passes", and the
+ *  gate reads the file for itself moments later. Caching the value at start-up
+ *  makes the base case fail whenever a capture runs alongside the self-test —
+ *  a flake that says nothing about the gate, which is the worst kind. */
+const realImageSha = () => createHash("sha256").update(readFileSync(REAL_IMAGE_ABS)).digest("hex");
 
 const REV = "selftest.1";
 
@@ -114,6 +134,50 @@ const CASES = [
     mutate: (L) => {
       L.reviews = L.reviews.filter((r) => r.reviewer === "ADV");
       L.resolutions = L.resolutions.filter((r) => r.findingId.includes("/ADV/"));
+      return L;
+    },
+  },
+  // ── G2's other half: "the exact image" ──────────────────────────────────
+  //
+  // Coverage was the only half being checked. `ingest-review.mjs` settles the
+  // other half on bytes, but only ACROSS reviews and only at ingest time: once
+  // a full set is in, they all agree with each other, and a recapture
+  // afterwards leaves every review looking perfect while the file underneath
+  // has moved. These three cases drive the check that decides it against the
+  // FILE — including the base case, so the branch cannot pass by treating
+  // every recorded hash as stale.
+  {
+    name: "G2 — a review of a capture that has since been REPLACED blocks",
+    expect: "fail",
+    condition: "G2",
+    mutate: (L) => {
+      for (const r of L.reviews) {
+        r.image = REAL_IMAGE_REL;
+        r.imageSha256 = "0".repeat(64);   // not the file's, and never will be
+      }
+      return L;
+    },
+  },
+  {
+    name: "G2 — a review whose recorded hash IS the file's still passes",
+    expect: "pass",
+    mutate: (L) => {
+      for (const r of L.reviews) {
+        r.image = REAL_IMAGE_REL;
+        r.imageSha256 = realImageSha();
+      }
+      return L;
+    },
+  },
+  {
+    name: "G2 — a review naming a capture that is GONE blocks",
+    expect: "fail",
+    condition: "G2",
+    mutate: (L) => {
+      for (const r of L.reviews) {
+        r.image = "screenshots/no-such-capture__wide__light.png";
+        r.imageSha256 = realImageSha();
+      }
       return L;
     },
   },
