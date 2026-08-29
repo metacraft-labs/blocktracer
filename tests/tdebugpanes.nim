@@ -276,9 +276,14 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       # Matched through the `ctname` class and not on the bare name — the
       # source pane now renders `calculate_damage` as a `tk-function` span too,
       # so an unqualified `>name</span>` would be satisfied by the wrong pane.
+      # The class is BUILT from `panes.Copyable` rather than spelled out: a
+      # frame name is a value a reader takes out of the session (§13), and a
+      # test that restated the attribute would fail the next time the set of
+      # copyable values changes, which is not what it is here to detect.
       check s.calltrace.visibleLines.val.len == 3
       for line in s.calltrace.visibleLines.val:
-        check ("<span class=\"ctname\">" & line.name & "</span>") in html
+        check ("<span class=\"ctname " & panes.Copyable & "\">" &
+               line.name & "</span>") in html
         check ("ctrow d" & $line.depth) in html
 
       # State: every variable the StateVM currently exposes.
@@ -344,11 +349,13 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       # by line 4 of the source in BOTH renders and the mutation bite would
       # have stopped biting — silently, and while still passing on the `in`
       # half of every pair.
-      check "<span class=\"stval\">10000</span>" in before
-      check "<span class=\"stval\">9000</span>" notin before
-      check "<span class=\"stval\">9000</span>" in after
-      check "<span class=\"ctname\">calculate_damage</span>" notin before
-      check "<span class=\"ctname\">calculate_damage</span>" in after
+      let stval = "<span class=\"stval " & panes.Copyable & "\">"
+      let ctname = "<span class=\"ctname " & panes.Copyable & "\">"
+      check (stval & "10000</span>") in before
+      check (stval & "9000</span>") notin before
+      check (stval & "9000</span>") in after
+      check (ctname & "calculate_damage</span>") notin before
+      check (ctname & "calculate_damage</span>") in after
 
       s.close()
       dispose()
