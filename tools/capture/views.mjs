@@ -445,7 +445,8 @@ export const VIEWS = [
   // ─────────────────────────── Debugger register ──────────────────────────
   {
     id: "debugger",
-    description: "Full-viewport debugging session at the pinned time coordinate, slim explorer bar",
+    description:
+      "Full-viewport debugging session at the pinned time coordinate — controls in the identity bar, Code beside a tabbed Call Trace / Event Log region with Values below it",
     covers: ["debugger"],
     register: "debugger",
     status: "ready",
@@ -469,18 +470,32 @@ export const VIEWS = [
   },
   {
     id: "debugger--call-trace",
-    description: "Call trace at realistic depth and width, including the cost column",
+    description:
+      "Call trace at realistic depth and width, including the cost column — the OPEN tab of the navigation region",
     covers: ["debugger.call-trace"],
     register: "debugger",
     status: "ready",
     sizes: DESKTOP_SIZES,
     fullPage: false,
+    // No fragment, deliberately. The call trace is the region's DEFAULT tab
+    // (`session_layout.blockTracerReplayLayout`, `activeIndex = 0`), so the
+    // bare route is what a visitor arrives at, and capturing it through
+    // `#pane-calltrace` would photograph a state reached by a click rather
+    // than the one the page opens in. Its sibling `debugger--event-log` DOES
+    // carry a fragment, for exactly the same reason in the other direction.
     route: debugRoute(readyTx, { t: DEBUG_TIME_COORDINATE_MID }),
-    clip: "#pane-calltrace",
+    // The REGION, not `#pane-calltrace`. Inside a stack the panel's own
+    // `.panehead` is `display:none` and the tab strip is its sibling, so a clip
+    // on the panel yields an image with no title on it at all — and the strip
+    // is now part of this pane's chrome, not decoration around it. There is
+    // exactly one `.ln.stack` in the served markup and `test_debug_route`
+    // asserts that count, so the selector is as stable as an id would be.
+    clip: ".ln.stack",
   },
   {
     id: "debugger--event-log",
-    description: "Event log with mixed calls, storage writes, events and a revert",
+    description:
+      "Event log with mixed calls, storage writes, events and a revert — the second tab of the navigation region, selected by its fragment",
     covers: ["debugger.event-log"],
     register: "debugger",
     status: "pending",
@@ -507,36 +522,47 @@ export const VIEWS = [
       "must-show list requires the fifth",
     sizes: DESKTOP_SIZES,
     fullPage: false,
-    // The event log shares a tabbed region with the state pane and is the
-    // NON-default tab, so the URL carries the fragment that selects it. The
-    // tabs are `:target`-driven CSS, so this is the same mechanism a visitor
-    // uses — not a capture-only hook.
+    // The event log is the ALTERNATE half of the navigation region's tab pair
+    // — it now pairs with the call trace rather than with the values pane —
+    // so the URL carries the fragment that selects it. The tabs are
+    // `:target`-driven CSS, so this is the same mechanism a visitor uses, not
+    // a capture-only hook: the fragment IS the click.
     route: debugRoute(divergentTx, {
       t: DEBUG_TIME_COORDINATE_MID,
       extra: "#pane-eventlog",
     }),
-    clip: "#pane-eventlog",
+    // The region, for the same reason as `debugger--call-trace` above: these
+    // two views are the same region in its two states, and the strip that says
+    // which state it is in has to be in both frames.
+    clip: ".ln.stack",
   },
   {
-    id: "debugger--state-pane",
-    description: "State pane with deeply nested values and long identifiers",
-    covers: ["debugger.state-pane"],
+    id: "debugger--values-pane",
+    description: "Values pane with deeply nested values and long identifiers",
+    covers: ["debugger.values-pane"],
     register: "debugger",
     status: "ready",
     sizes: DESKTOP_SIZES,
     fullPage: false,
     route: debugRoute(readyTx, { t: DEBUG_TIME_COORDINATE_MID }),
+    // `#pane-state`, not `#pane-values`, and deliberately: the element id is
+    // derived from CodeTracer's `PaneKind` spelling (`paneState` → `"state"`),
+    // which is a wire format shared with the Embed SDK. The pane's TITLE is
+    // BlockTracer's and is now "Values"; renaming the enum would be a
+    // cross-repo change to a serialisation. See `debugger/session_layout.nim`.
     clip: "#pane-state",
   },
   {
     id: "debugger--source-pane",
-    description: "Source pane, source-level session with the level boundary legible",
+    description: "Code pane, source-level session with the level boundary legible",
     covers: ["debugger.source-pane"],
     register: "debugger",
     status: "ready",
     sizes: DESKTOP_SIZES,
     fullPage: false,
     route: debugRoute(readyTx, { t: DEBUG_TIME_COORDINATE_MID }),
+    // Same enum-versus-label split as `debugger--values-pane` above: the pane
+    // is titled "Code" and its id is still `pane-editor`.
     clip: "#pane-editor",
   },
   {
@@ -556,11 +582,17 @@ export const VIEWS = [
     // WorkerBackendService lands; asking for them with a query parameter would
     // be staging a screenshot, which is what this view exists to rule out.
     route: debugRoute(readyTx, { t: DEBUG_TIME_COORDINATE_MID }),
-    clip: ".enginenotice",
+    // The identity bar, because that is where all of this now lives: the phase
+    // rail, the controls' status, and the inert stepping buttons whose state IS
+    // the loading signal. The clip used to be a full-width explanatory band
+    // above the session; that band was deleted, and a clip aimed at it would
+    // capture nothing — which is why this selector moves with the change rather
+    // than after the next review round notices.
+    clip: ".dbgbar",
   },
   {
     id: "debugger--narrow",
-    description: "Reduced read-only narrow session — source + call trace + values, limitation stated",
+    description: "Reduced read-only narrow session — code + call trace + values, limitation stated",
     covers: ["debugger.narrow"],
     register: "debugger",
     status: "ready",

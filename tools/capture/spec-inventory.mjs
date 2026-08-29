@@ -14,8 +14,8 @@
 
 export const SPEC_SOURCE = {
   document: "codetracer-specs/BlockTracer/Page-Descriptions.md",
-  lastUpdated: "2026-08-28",
-  transcribedOn: "2026-08-28",
+  lastUpdated: "2026-08-29",
+  transcribedOn: "2026-08-29",
 };
 
 // ── Pages (Page-Descriptions §1 route map, expanded by §2–§13) ──────────────
@@ -45,7 +45,14 @@ export const PAGES = [
   { id: "debugger.metadata-pane", route: "/{chain}/tx/{hash}/debug", anchor: "§7.1" },
   { id: "debugger.call-trace", route: "/{chain}/tx/{hash}/debug", anchor: "§8 / Debugger-Integration" },
   { id: "debugger.event-log", route: "/{chain}/tx/{hash}/debug", anchor: "§8 / Debugger-Integration" },
-  { id: "debugger.state-pane", route: "/{chain}/tx/{hash}/debug", anchor: "§8 / Debugger-Integration" },
+  // Renamed from `debugger.state-pane` on 2026-08-29, following the pane's own
+  // rename. `State` is Etherscan's and Blockscout's word for a transaction's
+  // aggregate state DIFF; this pane shows variable values at step N. Keeping a
+  // slug that says `state` for a pane titled `Values` is how a reviewer comes
+  // to look for a surface the product does not have. The DOM id it is captured
+  // through is still `#pane-state`, because that comes from CodeTracer's
+  // `PaneKind` enum and is a wire format — see `views.mjs`.
+  { id: "debugger.values-pane", route: "/{chain}/tx/{hash}/debug", anchor: "§8 / Debugger-Integration" },
   { id: "debugger.source-pane", route: "/{chain}/tx/{hash}/debug", anchor: "§8 / Debugger-Integration" },
   { id: "debugger.loading-phases", route: "/{chain}/tx/{hash}/debug", anchor: "§8 phased loading" },
   { id: "debugger.narrow", route: "/{chain}/tx/{hash}/debug", anchor: "§13 reduced narrow session" },

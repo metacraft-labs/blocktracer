@@ -997,7 +997,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
 - A LIVE debugging surface occupying the page — the stepping controls enabled and the session positioned by an engine, not by the pre-rendered frame — with the transaction metadata still available as a PANE beside the debugger's own panes (§7.1) rather than reduced to an identity bar.
-- The metadata pane visibly dismissible/restorable like any other pane — a pane, not a bespoke sidebar.
+- The metadata carrying the same pane chrome as the debugger's own panes — a pane, not a bespoke sidebar. It has no dismiss control, for the reason recorded on `debugger--metadata-pane`.
 - Continuity with the pre-hydration frame: the same hash, the same status, the same facts, the same panes. A reviewer must be able to see that the engine arrived over the frame that was already there, not that a different surface replaced it.
 - The debugger's own panes populated — source, and at least one of call trace / event log / state.
 
@@ -1013,25 +1013,26 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 ### View: `debugger`
 
-> The full-viewport CodeTracer session at the pinned time coordinate — the product register's flagship surface.
+> The full-viewport CodeTracer session at the pinned time coordinate — the product register's flagship surface. Four panes: Code beside a navigation column of Call Trace, Event Log and Values, with the stepping controls in the identity bar.
 
 | | |
 | --- | --- |
 | **Register** | debugger — apply rubric B (§6) |
-| **Spec** | Page-Descriptions §8, Debugger-Integration |
+| **Spec** | Page-Descriptions §8, Debugger-Integration §3 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain) and a link back to the transaction detail page — not the full explorer header.
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
-  - The session occupies the full viewport below the identity bar. No explorer footer, no marketing chrome, no page-level scrollbar.
-- A source pane with a visible current-position indicator at the pinned coordinate — the session is positioned, not merely loaded.
-- A call trace pane with more than one frame.
-- A state/values pane with at least one value.
-- Stepping controls, including both directions — reverse stepping is this product's entire premise and its controls must be visible, not hidden behind a menu.
+  - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
+- A pane titled **Code** with a visible current-position indicator at the pinned coordinate — the session is positioned, not merely loaded. It is titled Code and not Editor: it is a read-only listing, and at instruction-level fidelity it is not source at all.
+- A call trace with more than one frame, occupying the region that carries the largest share of the column beside Code.
+- **Call Trace and Event Log as ONE TABBED REGION, with Call Trace open.** They are the two ways of discovering chronological data and jumping to it, and tabs draw that pairing as peers in one region — each getting the full height of it, one strip naming both. Call Trace is the tab that opens because selection is the primary navigation gesture and the call trace is the primary selection surface. A tab strip pairing either of them with the Values pane, or with the metadata pane, is the P1 this item exists to catch.
+- A pane titled **Values** with at least one value. Not titled State: `State` is the explorer's and the incumbents' word for a transaction's aggregate state diff, and this pane shows values at step N.
+- Stepping controls in the identity bar, including both directions — reverse stepping is this product's entire premise and its controls must be visible, not hidden behind a menu. They belong in the bar and not in a pane: selection is the primary navigation gesture in this category and stepping is the secondary one.
 - A timeline or scrubber expressing position within the trace.
 - The transaction identity reachable — either the metadata pane or, at minimum, the identity bar's hash.
 
@@ -1040,11 +1041,16 @@ transaction. Inherited items are presence requirements exactly like the rest.
 - An indeterminate spinner anywhere in a fully loaded session.
 - Empty panes. A pane with nothing in it must say why, not sit blank.
 - Explorer-register light chrome around the session.
+- A full-width band of explanatory prose above the panes. The engine's loading state is carried by the controls' own status, the phase rail and the buttons' disabled state; a paragraph restating it was removed on 2026-08-29 and its return is a finding.
+- A pane occupying a full-width row of its own above the others — the arrangement is one row of two columns, and a full-width band is how the controls pane used to outrank the call trace.
+- The Values pane inside the tab strip. It is a pane BELOW the tabbed region, not a third tab: it answers 'what is true here', which is not a way of finding a position, and hiding it behind a tab is what this milestone spent hiding the event log.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
-- Pane proportions at 1920 versus 1440: which pane loses width first, and whether the source pane keeps a usable measure.
-- Continuity with the CodeTracer desktop app — same pane vocabulary, same density, same control placement. Divergences are findings (VD.5 records them).
+- Pane proportions at 1920 versus 1440: which pane loses width first, and whether the Code pane keeps a usable measure. Code now keeps the full height of the region — say whether the extra rows are legible or merely present.
+- The navigation region takes three fifths of its column for a call trace the fixture fills in its first third. Say how much of the region is empty below the last frame, and whether the region or the Values pane below it is the one that should have the height. This is a MEASUREMENT the change has not made.
+- The identity bar carries identity, controls, scrubber, status, phase rail and two actions. Judge whether it reads as grouped or as a strip of unrelated objects, and say where it wraps at laptop width.
+- Continuity with the CodeTracer desktop app — same pane vocabulary, same density. Control PLACEMENT deliberately diverges (the desktop app puts the toolbar in a pane); judge the placement on its own terms, not against the desktop app, and judge the vocabulary against it.
 - Small-text legibility: the tool rubric rewards density, but 11 px text at low contrast is a P2 under it, not a win.
 
 ### View: `debugger--metadata-pane`
@@ -1060,13 +1066,13 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain) and a link back to the transaction detail page — not the full explorer header.
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
-  - The session occupies the full viewport below the identity bar. No explorer footer, no marketing chrome, no page-level scrollbar.
-- The metadata rendered as a PANE among the debugger's panes — same chrome, same header treatment, same dismiss affordance as a call-trace or state pane.
+  - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
+- The metadata rendered as a PANE among the debugger's panes — same chrome and same header treatment as the Call Trace or Values pane.
 - The §7.2 facts inside it: status with revert reason, value, roles (from/to), cost, finality, the execution list, and the private/public split where the chain has one.
-- A dismiss control, and evidence that the pane is restorable like any other.
+- Addresses, targets and selectors legible in full, and marked as values that can be taken out of the page (§13: 'every hash, address and identifier is copyable with one click').
 - The debugger's other panes still visible around it, so the pane is seen in context rather than as a full-screen overlay.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
@@ -1074,6 +1080,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 - A modal dialog or a full-viewport takeover — it is a pane (§7.1 says so explicitly, in contrast to 'a bespoke surface').
 - A subset of the facts that drops the revert reason or the private/public split.
 - Metadata rendered at explorer density inside a product-register session.
+- A dismiss control. §7.1 used to call the pane 'dismissible and restorable like any other' while also requiring that the metadata survive the collapse to an identity bar in EVERY state — so a control whose success would violate the page's own invariant was never merely unimplemented. The control was removed on 2026-08-29 and the spec sentence moved with it: §7.1 now states that the pane carries no dismiss control, and gives the reason. Its return is a P1.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
@@ -1082,26 +1089,28 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 ### View: `debugger--call-trace`
 
-> The call trace at realistic depth and width, including the cost column and the cost-sorted view.
+> The call trace at realistic depth and width, including the cost column and the cost-sorted view. It is the OPEN tab of the navigation region, which gained the space the debug-controls pane used to occupy.
 
 | | |
 | --- | --- |
 | **Register** | debugger — apply rubric B (§6) |
-| **Spec** | Page-Descriptions §8, Debugger-Integration, VD.5 |
+| **Spec** | Page-Descriptions §8, Debugger-Integration §4.1, VD.5 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain) and a link back to the transaction detail page — not the full explorer header.
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
-  - The session occupies the full viewport below the identity bar. No explorer footer, no marketing chrome, no page-level scrollbar.
+  - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
 - A call tree at genuine depth — several levels of nesting visible, not a flat list of top-level calls.
 - A per-frame cost column, aligned as a numeric column.
 - The current frame indicated distinctly from the rest.
-- Frame identification: function or entry-point name plus its contract/module, per frame.
+- Frame identification: function or entry-point name plus its contract/module, per frame, with the name legible as a value that can be taken out of the page.
 - A sort or ordering affordance for the cost-sorted view.
+- Enough vertical extent to be the session's primary navigation surface — its region carries the largest weight in the column, and a call trace whose rows end in the first third of a mostly empty region is the P2 this item exists to catch.
+- A tab strip above it naming both this pane and the Event Log, with THIS tab marked as the open one. It is captured at the bare route because it is the tab the session opens in; a strip that marks the other tab, or that names only one pane, is a P1.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
@@ -1116,41 +1125,44 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 ### View: `debugger--event-log`
 
-> The event log with mixed entry kinds — calls, storage writes, events and a revert in one stream.
+> The event log with mixed entry kinds — calls, storage writes, events and a revert in one stream. It is the SECOND tab of the navigation region, paired with the call trace, and is captured through the fragment that selects it.
 
 | | |
 | --- | --- |
 | **Register** | debugger — apply rubric B (§6) |
-| **Spec** | Page-Descriptions §8, VD.5 |
+| **Spec** | Page-Descriptions §8, Debugger-Integration §4.2, VD.5 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `pending` — state not yet modelled by the client ViewModel: no transaction in the demo tree reverts, so the event log can show four of its five kinds and this view's own must-show list requires the fifth |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain) and a link back to the transaction detail page — not the full explorer header.
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
-  - The session occupies the full viewport below the identity bar. No explorer footer, no marketing chrome, no page-level scrollbar.
+  - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
 - All four entry kinds present in the same view: a call, a storage write, an event, and a revert.
 - The four kinds VISUALLY DISTINGUISHABLE from each other by more than their text — this is the pane's whole job and the reason it is captured with a mixed fixture.
 - The revert entry rendered as the terminal, significant event it is.
 - A position/ordering that ties entries to the trace, so the log can be read as a sequence.
 - The entry corresponding to the current position indicated.
+- A tab strip above it naming both the Call Trace and this pane, with THIS tab marked as the open one — the capture reaches it through `#pane-eventlog`, which is the same `:target` mechanism a visitor's click uses. It is paired with the CALL TRACE now (changed 2026-08-29; it used to be the non-default half of a tab pair with the state pane, which paired it with the one pane it is not an alternative to).
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
 - Four kinds rendered identically with only a differing label.
 - Kind distinguished by colour alone.
 - A log so uniformly dense that the revert does not stand out.
+- A tab strip pairing it with the VALUES pane. Values is not an alternative way of finding a position — it answers what is true once you have arrived — and that pairing is the arrangement this change removed. Its return is a P1 against the `debugger` view's own must-show.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
 - The icon/badge/colour system across four kinds in both themes — this is the densest use of the status colour roles in the product.
 - Row height consistency when entries carry different amounts of detail.
+- It shares a region with the call trace and a column with the values pane below. Say whether the tab strip reads as a control — two peers, one open — or as a header with a stray word beside it. An inactive tab that reads as a label is the specific way this arrangement can look wrong, and it is the failure the strip this replaced actually had.
 
-### View: `debugger--state-pane`
+### View: `debugger--values-pane`
 
-> The state pane with deeply nested values and long identifiers.
+> The Values pane with deeply nested values and long identifiers — variable values AT STEP N, which is a different thing from the transaction page's aggregate state diff.
 
 | | |
 | --- | --- |
@@ -1161,14 +1173,15 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain) and a link back to the transaction detail page — not the full explorer header.
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
-  - The session occupies the full viewport below the identity bar. No explorer footer, no marketing chrome, no page-level scrollbar.
+  - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
+- The pane titled **Values**, not State (renamed 2026-08-29). `State` is Etherscan's and Blockscout's word for a whole-transaction state diff; a pane called State that shows values at one step collides with a convention every visitor arrives with.
 - A value tree nested to at least three levels, expanded enough to show the nesting.
-- Per entry: identifier, type, and value.
+- Per entry: identifier, value, and type — in that reading order, which is the desktop app's.
 - A long identifier present and handled — this pane is captured specifically for that case.
-- Expand/collapse affordances on composite values.
+- Each value legible as something that can be taken out of the page in one gesture (§13), and visibly so — not a behaviour a reader has to guess at.
 - Values whose type is not obvious from their rendering carrying a type annotation.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
@@ -1176,15 +1189,17 @@ transaction. Inherited items are presence requirements exactly like the rest.
 - A long identifier truncated with no way to see it in full.
 - Nesting expressed only by indentation with no guides, at three levels or more.
 - A flat key/value dump.
+- The title `State`.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
 - The identifier column and the value column compete for a narrow pane; describe how that is resolved and whether the resolution survives the deepest nesting shown.
 - Changed-since-last-step highlighting, if present — it is the pane's most valuable signal and the easiest to render too subtly.
+- It is the lower of two regions in the column and the smaller of them, and it is the only one not behind a tab. Say whether it has enough rows to be useful, or whether it has become a strip — and whether being the column's one always-visible surface makes it read as more important than its rank.
 
 ### View: `debugger--source-pane`
 
-> The source pane in a source-level session, with the source/instruction level boundary legible.
+> The Code pane in a source-level session, with the source/instruction level boundary legible.
 
 | | |
 | --- | --- |
@@ -1195,10 +1210,12 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain) and a link back to the transaction detail page — not the full explorer header.
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
-  - The session occupies the full viewport below the identity bar. No explorer footer, no marketing chrome, no page-level scrollbar.
+  - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
+- The pane titled **Code**, not Editor (renamed 2026-08-29): it is a read-only listing with no editor behind it, and where fidelity drops to instruction level what it lists is not source at all — which is the case 'Source' would misname.
+- The pane occupying the full height of the region beside the navigation column — nothing is stacked under it.
 - Syntax-highlighted source from the product lineage's editor tokens (Design-System §7).
 - Highlighting that carries LEXICAL MEANING, not decoration: comments, string literals, numeric literals, keywords, named types and called functions each visibly distinct from ordinary identifiers and from each other. A reviewer should be able to name which category a coloured run belongs to without reading the code.
 - Comments visibly QUIETER than the code they annotate — they are the one category that must recede rather than attract.
@@ -1215,6 +1232,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 - Colour used for anything OTHER than lexical category inside the code area — a coloured run that means 'executed', 'changed' or 'selected' would collide with the palette and make both unreadable. Execution state is carried by the row's background and gutter marker, and must stay there.
 - A current-line indicator that is indistinguishable from a selection or a hover.
 - Instruction-level content presented as though it were source.
+- The title `Editor`, or any affordance implying the listing can be edited.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
@@ -1227,7 +1245,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 ### View: `debugger--loading-phases`
 
-> Phased, honest loading — fetching, then opening, then positioning. Never an indeterminate spinner.
+> Phased, honest loading — fetching, then opening, then positioning. Never an indeterminate spinner. Captured as the identity bar, which is where the whole loading account now lives: the phase rail, the controls' status and the inert stepping buttons.
 
 | | |
 | --- | --- |
@@ -1238,29 +1256,32 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain) and a link back to the transaction detail page — not the full explorer header.
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
-  - The session occupies the full viewport below the identity bar. No explorer footer, no marketing chrome, no page-level scrollbar.
+  - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
 - A NAMED PHASE, in words, matching the phase the capture pins — fetching, opening or positioning. The name is the requirement; its absence is the P1 this view exists to catch.
-- The phase sequence shown, so the visitor can see which phase they are in and what remains.
-- The panes' eventual layout already indicated — skeletons matching the shape of what will replace them (VD.9) rather than a blank void.
+- The phase sequence shown as a sequence, with the current member marked, so the visitor can see which phase they are in and what remains.
+- What is being waited for, QUANTIFIED — the engine's size — so 'loading' is not an indeterminate spinner wearing words.
+- The stepping controls rendered visibly inert, and inert AS CONTROLS: a disabled surface, a disabled foreground, and their state on the accessibility tree. Their appearance is what must carry it (changed 2026-08-29; a paragraph above the session used to).
 - The transaction identity already present in the identity bar during loading.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
 - An indeterminate spinner as the only loading signal. Page-Descriptions §8 rules this out by name.
 - A percentage, unless it is genuinely derived and labelled as an estimate.
-- A blank viewport.
+- A blank viewport, or a skeleton. The panes behind this bar are already FULL — the route serves a positioned first frame from published data — so grey boxes shaped like content we already have would be a worse page, not a loading state.
+- A full-width band of prose explaining why the controls cannot act. Removed 2026-08-29; the controls say it themselves now.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
-- Whether the skeleton geometry actually matches the loaded layout — compare against the `debugger` view and say whether the panes land where the skeleton promised.
-- The phase label's prominence: it is the only honest information on screen and is usually rendered at caption size in a muted colour.
+- The bar has to carry identity, controls, scrubber, status, phase rail and two actions at once. Say whether the loading account is findable in it, or whether it has become one small item among many.
+- The phase rail's prominence: it is the sequence §8 requires and is usually rendered at label size in a muted colour, beside a toolbar that is visually louder than it.
+- Compare against the `debugger` view: the loading account and the session are now the same strip, so judge whether a visitor can tell at a glance that stepping is not yet possible.
 
 ### View: `debugger--narrow`
 
-> The reduced, read-only narrow session — source + call trace + values, no flow pane, with the limitation stated in the UI.
+> The reduced, read-only narrow session — Code + Call Trace + Values, with the limitation stated in the UI.
 
 | | |
 | --- | --- |
@@ -1271,14 +1292,15 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain) and a link back to the transaction detail page — not the full explorer header.
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
-  - The session occupies the full viewport below the identity bar. No explorer footer, no marketing chrome, no page-level scrollbar.
+  - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
 - A STATEMENT IN THE UI that this is a reduced session and what is missing. §13 says 'and says so'; an unannounced reduction is the P1 here.
-- Exactly the three specified panes reachable: source, call trace, values. The flow pane must be absent, not present-and-broken.
+- Exactly the three specified panes reachable: Code, Call Trace, Values. The event log is removed at this width, not present-and-broken — and its TAB is removed with it, because a tab that selects a hidden pane is a dead control. The Call Trace's strip is left naming one pane, which is what serves as its header here.
 - A working way to move between the three panes at this width (tabs, an accordion, or a switcher) rather than three stacked panes each 100 px tall.
-- Read-only presentation — stepping controls either absent or visibly disabled, consistent with the stated limitation.
+- Read-only presentation — the stepping controls absent from the identity bar, consistent with the stated limitation. They are removed rather than shrunk (changed 2026-08-29: they are removed from the BAR now, which is where they live).
+- The phase rail still present in the bar. A narrow visitor is waiting on the same engine and is owed the same account of it; §8's 'phased and honest' is not a desktop-only requirement.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
@@ -1305,10 +1327,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain) and a link back to the transaction detail page — not the full explorer header.
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
-  - The session occupies the full viewport below the identity bar. No explorer footer, no marketing chrome, no page-level scrollbar.
+  - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
 - A banner stating the trace is truncated, and where — a step count, a depth, or a size, so 'truncated' is quantified rather than asserted.
 - The option to request a deeper profile, as an action.
 - The debugger fully usable behind the banner, with its panes populated. Truncated is not broken.
@@ -1338,10 +1360,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Design-System §2):*
-  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain) and a link back to the transaction detail page — not the full explorer header.
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a link back to the transaction detail page, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
-  - The session occupies the full viewport below the identity bar. No explorer footer, no marketing chrome, no page-level scrollbar.
+  - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
 - A banner above the debugger naming the SPECIFIC mismatch — which value, which step, expected versus observed. 'A divergence was detected' alone is not this state.
 - No dismiss control. §8 says it cannot be dismissed, so a close button present is a P1 against the spec.
 - The session still open and steppable beneath it.
