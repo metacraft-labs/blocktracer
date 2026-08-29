@@ -139,9 +139,13 @@ proc renderTx*(r: DataRoot, chain, hash: string): string =
   ##
   ## The first row renders `debugPg.debugPage` over the SAME `debugSessionFor`
   ## value the `/debug` route renders, in the same `debugLayout`. That is what
-  ## §7.0's "both addresses reach the same session" means as markup: the two
-  ## routes differ in their `<title>` and in their sitemap membership, and in
-  ## nothing else. Arriving at a transaction is arriving in its execution, and
+  ## §7.0's "both addresses reach the same session" means as markup: the served
+  ## BODIES are byte-identical, and the two routes differ only in the two head
+  ## elements that describe the request — the `<title>` and the description —
+  ## and in which address `sitemapRoutes` submits. `robots`, `canonical` and
+  ## the inlined stylesheet are the same bytes on both, which is the part that
+  ## matters: the crawl surface does not depend on which address was asked
+  ## for. Arriving at a transaction is arriving in its execution, and
   ## there is no Debug button here because there is nothing left for one to do.
   ##
   ## What this costs, itemised, because §7.0 claims it costs nothing:

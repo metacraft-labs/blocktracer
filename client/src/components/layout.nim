@@ -79,8 +79,10 @@ proc debugLayout*(title, description, content: string,
   ## Two routes reach it, and §7.0 is why: `/{chain}/tx/{hash}` uses it
   ## wherever a trace is published, because "arriving at a transaction means
   ## arriving in its execution", and `/{chain}/tx/{hash}/debug` uses it always.
-  ## The shell is the same on both; what differs is the `<title>` and which of
-  ## the two addresses `sitemapRoutes` submits.
+  ## The shell is the same on both; what differs is the `<title>`, the
+  ## description, and which of the two addresses `sitemapRoutes` submits. The
+  ## `robots` class and the canonical link are the same values either way, so
+  ## the crawl surface does not depend on which address was asked for.
   ##
   ## Three differences from `pageLayout`, and each is a decision rather than an
   ## omission:

@@ -964,7 +964,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
 - A debugging session occupying the viewport at `/{chain}/tx/{hash}` — source with a current line, the call trace, the values, and the stepping controls. This URL, not `/debug`.
-- The transaction's facts as a PANE beside the debugger's own panes (§7.1) — status and revert reason, block, finality, roles, cost, and the execution list — with the same pane chrome and the same dismiss control as every other pane.
+- The transaction's facts as a PANE beside the debugger's own panes (§7.1) — status and revert reason, block, finality, roles, cost, and the execution list — with the same pane chrome as every other pane. (Not a dismiss control: this route has no JavaScript, and VD.5 removed the one that could not be honoured. §7.1's 'dismissible and restorable' is the hydrated view's expectation, not this one's.)
 - The decoded input and the chain-native payload inside that pane. §7.1 makes §7.2 the definition of this metadata, so a fact that was on the page before must be in the pane now.
 - The honest loading line: what is being waited for, how large it is, and the named phase — the engine has not been fetched, and the page says so rather than implying the toolbar can step.
 - The stepping controls rendered VISIBLY inert, because no replay engine has loaded.

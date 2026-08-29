@@ -18,9 +18,13 @@
 ## §7.0: "Both addresses reach the same session; they differ in what the
 ## visitor asked for." `ssr.renderTx` renders **this procedure**, over the
 ## **same** `debugSessionFor` value, wherever `trace.availability` is `ready`
-## or `divergent`. The two routes therefore differ in their `<title>` and in
-## their sitemap membership, and in nothing else — which is the only way "the
-## same session" can be a property of the markup rather than an intention.
+## or `divergent`. The served bodies are therefore byte-identical, and the two
+## routes differ only in the head elements that describe the request — the
+## `<title>` and the description — and in which address is submitted to a
+## crawler. That is the only way "the same session" can be a property of the
+## markup rather than an intention; `test_debug_route` asserts the body
+## equality and ENUMERATES the permitted head differences, so a third one
+## cannot appear unnoticed.
 ##
 ## What the debug address adds is what a visitor asks it for: the viewport
 ## without ambiguity, and `?t=` as a deep-link coordinate (§8). What the
