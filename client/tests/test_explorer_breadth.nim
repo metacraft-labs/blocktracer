@@ -271,11 +271,29 @@ suite "M9 — e2e_explorer_renders_from_published_files_only":
 
   test "no rendered page ships script, so nothing can fetch one later":
     # A page with no external reference but an inline fetch would satisfy the
-    # check above and violate the claim. The client ships no JavaScript at all,
-    # which is the stronger statement and the checkable one.
+    # check above and violate the claim. The client ships nothing a browser
+    # would EXECUTE, which is the stronger statement and the checkable one.
+    #
+    # Counted rather than matched as a substring, because hydration added a
+    # second kind of `<script>` to the debug route: an
+    # `application/json` source island carrying the source bundle as DATA,
+    # which a browser neither parses nor runs and which renders nothing with
+    # scripting off. A `notin "<script"` would fail on inert data and pass on
+    # a `<script src>` that a build with `HydrationBundle` set would emit —
+    # exactly backwards. `test_debug_route.executableScripts` states the same
+    # rule for the debugger's own routes; this is that rule over every route.
     for route in routes:
       let (_, body, _) = renderRoute(plain, route)
-      check "<script" notin body
+      var i = 0
+      var executable = 0
+      while true:
+        let at = body.find("<script", i)
+        if at < 0: break
+        let close = body.find('>', at)
+        if close < 0: break
+        if "type=\"application/json\"" notin body[at .. close]: inc executable
+        i = close + 1
+      check executable == 0
 
   test "every internal link resolves to a route the exporter wrote":
     # A published explorer that links to a page it never wrote is the one

@@ -59,8 +59,15 @@ import std/strutils
 import isonim/ssr/escape
 import isonim/dsl/ui
 import ../debugger/layout_model
+import ../debugger/replay_engine
 import ../debugger/session_view
-import ../viewutil
+# NOT `../viewutil`. These renderers are compiled TWICE — once by
+# `static_export.nim` for the served HTML, and once by `nim js` for the
+# hydration bundle, which is what makes the live session's markup the same
+# markup by construction rather than by review. `viewutil` reaches
+# `blocktracer_client` and `reader`, and therefore the filesystem, so importing
+# it here would put a file reader on a browser bundle's import graph. The one
+# symbol this module used from it, `truncHash`, now lives in `session_view`.
 
 # ── weights → flex fractions ───────────────────────────────────────────────
 
@@ -328,8 +335,18 @@ proc renderCallTrace*(p: CallTracePane): string =
     ui:
       tdiv(class = "ctrows"):
         for f in frames:
+          # `data-step` is the time coordinate the frame starts at — the same
+          # coordinate `?t=` carries (Debugger-Integration §6.2), which is why
+          # it needs no protocol of its own. §3's last deferral is that "no row
+          # in the navigation region is a jump target yet", and its stated
+          # reason is that "until hydration lands such a link would reload the
+          # page at a coordinate the static export cannot honour". So the
+          # coordinate ships as DATA and the affordance does not: with
+          # scripting off this row is what it has always been, and hydration is
+          # what turns it into something clickable.
           tdiv(class = "ctrow " & (if indented: depthClass(f.depth) else: "d0 flat") &
-                       (if f.current: " cur" else: "")):
+                       (if f.current: " cur" else: ""),
+               `data-step` = $f.step):
             span(class = "ctfn"):
               span(class = "ctname " & Copyable): text f.fn
               span(class = "ctmod"): text f.module
@@ -409,12 +426,57 @@ proc renderEventLog*(p: EventLogPane): string =
   ui:
     tdiv(class = "ev"):
       for r in p.rows:
-        tdiv(class = "evrow k-" & $r.kind & (if r.current: " cur" else: "")):
+        # The same inert coordinate the call trace carries, for the same
+        # reason. §4.2 calls clicking an event row "the single most valuable
+        # interaction in the product — 'take me to the line that wrote this
+        # value'"; `EventRow.step` is already the step identity it needs, and
+        # this attribute is the only thing that was missing between the two.
+        tdiv(class = "evrow k-" & $r.kind & (if r.current: " cur" else: ""),
+             `data-step` = $r.step):
           span(class = "evglyph"): text eventKindGlyph(r.kind)
           span(class = "evkind"): text eventKindLabel(r.kind)
           span(class = "evstep num"): text $r.step
           span(class = "evlabel " & Copyable): text r.label
           span(class = "evdetail"): text r.detail
+
+proc renderPhaseRail*(s: DebugSessionView): string =
+  ## §8: "Loading is phased and honest — fetching, then opening, then
+  ## positioning — never an indeterminate spinner."
+  ##
+  ## It lived in `pages/debug.nim` and moved here when hydration landed, for
+  ## the reason every renderer on this route is in this file: hydration
+  ## RE-RENDERS the rail as the engine advances through the three phases, and a
+  ## copy of it in the bundle would be a second producer of the one thing on
+  ## the page whose whole job is to be an accurate statement about the engine.
+  ## `pages/debug.nim` calls this, the bundle calls this, and the phase a
+  ## visitor reads mid-load is drawn by the same code that drew the served one.
+  ##
+  ## Nothing here is a skeleton. The panes behind this bar are already full:
+  ## the loading design exists because the engine is an 18 MB wasm bundle, and
+  ## the answer to that is to show the frame we already have rather than to
+  ## draw grey boxes shaped like it.
+  ##
+  ## Renders NOTHING once the engine is live, which is how the rail disappears
+  ## on hydration without hydration having to know it exists.
+  if s.engineLive: return ""
+  ui:
+    tdiv(class = "phaserail"):
+      for p in [spFetching, spOpening, spPositioning]:
+        # The sentence `phaseLabel` spells is what the one-word chip is short
+        # FOR, so it is the chip's title rather than something the short form
+        # replaced. Fetching additionally carries the quantity, because "how
+        # long is this" is the only question the word "fetching" leaves open.
+        span(class = "phase" & (if p == s.phase: " on" else: ""),
+             title = (if p == spFetching:
+                        phaseLabel(p) & " — " & approxMegabytes(s.engineBytes)
+                      else: phaseLabel(p))):
+          text phaseShortLabel(p)
+      # A build that loads the engine from another origin says which one. The
+      # default is same-origin (`replay_engine.nim`), so this renders nothing
+      # in every build that has not explicitly named a third party — which is
+      # the point: there is no origin to disclose until there is.
+      if s.engineCrossOrigin:
+        span(class = "engineorigin"): text "Engine: " & s.engineBase
 
 const TimelineTicks = 48
   ## The scrubber is a fixed number of discrete ticks rather than a filled bar,
@@ -463,7 +525,16 @@ proc renderControls*(p: DebugControlsPane): string =
         for b in p.buttons:
           let why = (if b.enabled: b.label
                      else: b.label & " — inert until the replay engine loads")
+          # `data-action` names the MOVE, in the wire spelling of
+          # `DebugAction`, so hydration can bind a button to the command it
+          # already claims to be. It is inert data and not an affordance — the
+          # same standing `data-copy` has: no role, no `tabindex`, no handler,
+          # and no change to what the button does with scripting off. What it
+          # replaces is a hydration that had to identify a control by matching
+          # its label text, which would make the toolbar's behaviour depend on
+          # its wording.
           button(class = "dcbtn" & (if b.enabled: "" else: " off"),
+                 `data-action` = $b.action,
                  title = why, `aria-label` = why,
                  `aria-disabled` = (if b.enabled: "false" else: "true")):
             span(class = "dcglyph"): text b.glyph

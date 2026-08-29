@@ -132,7 +132,28 @@ proc focus*(pane: var EditorPane; path: string; line: int) =
       pane.documents[d].lines[i].current =
         d == idx and pane.documents[d].lines[i].number == line
 
-proc openAtCurrent*(pane: EditorPane; lead: int): EditorPane =
+const SourceLeadIn* = 6
+  ## How many lines of context the source pane opens ABOVE the current line.
+  ##
+  ## Enough to see the statement in its block, few enough that the current line
+  ## is on screen at the shortest viewport this route is served at. See
+  ## `openAtCurrent` below for why a lead-in and not a centred window.
+  ##
+  ## It lives HERE, beside `openAtCurrent`, because it is read by two
+  ## compilations that must agree: `pages/debug.nim` windows the served pane
+  ## with it, and `hydrate/hydrate.nim` re-windows the hydrated pane with it on
+  ## every stop. Those two are the same pane at the same position, and the
+  ## whole claim that hydration renders the markup the export rendered rests on
+  ## them windowing identically.
+  ##
+  ## It was briefly a private `const` restated in both files. That is a drift
+  ## surface with no guard — the renderers are shared by import, so they cannot
+  ## diverge, but a windowing PARAMETER copied into two modules can, and a
+  ## served page and a hydrated pane that disagree by two lines would be a
+  ## silent difference in exactly the thing this route promises is the same.
+  ## One definition removes the possibility rather than testing for it.
+
+proc openAtCurrent*(pane: EditorPane; lead: int = SourceLeadIn): EditorPane =
   ## The active document narrowed to start `lead` lines ABOVE the current line
   ## and run to the end of the file. Other documents are kept, untouched.
   ##

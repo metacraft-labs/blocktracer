@@ -31,6 +31,7 @@ import ./debugger_css
 import ./nav
 import ./footer
 import ../design_system/tokens
+import ../debugger/replay_engine
 
 proc siteCss(): string =
   ## One stylesheet for both registers.
@@ -124,4 +125,25 @@ proc debugLayout*(title, description, content: string,
             raw css
         body:
           raw content
+          # The hydration bundle, and ONLY on this shell.
+          #
+          # `defer`, and last in the body, because §7.0 requires "first paint
+          # is static HTML, with no wasm on the critical path". A `defer`d
+          # external script is parsed after the document and executed before
+          # `DOMContentLoaded`; it cannot delay the served frame, and the
+          # engine it goes on to fetch is 18 MB that a visitor must never wait
+          # on to READ this page.
+          #
+          # Emitted only when a bundle was actually built. An empty
+          # `HydrationBundle` is the ordinary case for a build without the
+          # Embed SDK on its path, and it produces the page this route has
+          # always produced — which is §7.0's guarantee made structural rather
+          # than promised: there is no code path here that removes anything.
+          #
+          # `pageLayout` deliberately does NOT get this. The explorer shell has
+          # no session to hydrate, and a script on it would be bytes fetched to
+          # do nothing.
+          if HydrationBundle.len > 0:
+            script(src = HydrationBundle, `defer` = "defer"):
+              discard
   )

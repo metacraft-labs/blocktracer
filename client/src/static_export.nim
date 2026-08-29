@@ -24,6 +24,7 @@ import std/[os, strutils, times]
 import blocktracer/demo/generator
 import ssr
 import reader
+import debugger/replay_engine
 
 const
   OutputDir = "dist"
@@ -52,6 +53,36 @@ proc copyFonts() =
     for kind, path in walkDir(src):
       if kind == pcFile:
         copyFile(path, dest / extractFilename(path))
+
+proc installHydrationBundle() =
+  ## Put the built hydration bundle where the pages say it is — or fail.
+  ##
+  ## `HydrationBundle` is a build-time URL (`replay_engine.nim`) and its
+  ## default is empty, which is a build that ships no script and produces the
+  ## page this route has always produced. That case does nothing here, and it
+  ## must not warn: it is the ordinary shape of a build without the CodeTracer
+  ## Embed SDK on its Nim path.
+  ##
+  ## When it is NOT empty, the page carries a `<script src=…>`, and a `<script>`
+  ## pointing at a 404 is the one outcome this must never produce quietly. It is
+  ## not merely a dead script tag — it is the page CLAIMING to hydrate while its
+  ## controls sit inert forever, saying they are waiting for an engine nothing
+  ## will ever ask for. That is the affordance-that-lies defect with a build
+  ## error's cause, so it is made a build error: `quit 2`, at the point where a
+  ## missing file is still cheap to notice.
+  if HydrationBundle.len == 0: return
+  let built = repoRoot() / "client" / "hydrate" / "hydrate.js"
+  if not fileExists(built):
+    stderr.writeLine "hydration bundle not built: " & built
+    stderr.writeLine "  This build declares -d:hydrationBundle=" & HydrationBundle &
+                     ", so every debug page carries a <script> for it."
+    stderr.writeLine "  Build it first (cd client && just hydrate) or drop the define."
+    quit 2
+  let dest = OutputDir / HydrationBundle.strip(chars = {'/'})
+  ensureDir(parentDir(dest))
+  copyFile(built, dest)
+  echo "  + hydration bundle: " & HydrationBundle & " (" &
+    $(getFileSize(built) div 1024) & " KB)"
 
 proc generateSitemap(routes: seq[string]) =
   var xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -119,6 +150,7 @@ proc exportSite() =
 
   # Step 3: assets + crawl files.
   copyFonts()
+  installHydrationBundle()
   # `sitemapRoutes`, not `routes`: every route is RENDERED, and a `noindex`
   # route is not SUBMITTED (SEO-And-Crawl-Budget.md §5). The debug route is the
   # transaction's content at a second address, so a sitemap entry for it would

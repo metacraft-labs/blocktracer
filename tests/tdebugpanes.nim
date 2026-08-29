@@ -17,14 +17,23 @@
 ## rewrite. Here the values on screen come out of a ViewModel that a real
 ## backend writes through.
 ##
-## ## The projection is the part that will be replaced, and that is the point
+## ## The projection is the SHIPPING one (revised: hydration landed)
 ##
-## `project*` below is deliberately small and deliberately in a test. The
-## shipping adapter is `WorkerBackendService` plus a hydration entry point,
-## which is a separate workstream (Debugger-Integration §2's DAP-over-
-## `postMessage` transport). What this file fixes is the SEAM those will meet:
-## the pane types, and the renderers over them. When the adapter lands it
-## replaces these functions and nothing below them.
+## This file used to carry its own `project*` procs and said of them: "the
+## shipping adapter is `WorkerBackendService` plus a hydration entry point …
+## When the adapter lands it replaces these functions and nothing below them."
+##
+## It has, and they are gone. The projection now imported from
+## `client/hydrate/session_project.nim` is the one the browser bundle runs, and
+## that changes what this suite is evidence FOR: it used to show that a
+## projection RESEMBLING the shipping one rendered; it now drives the shipping
+## one, through `MockBackendService` instead of a worker. A private copy left
+## here would have made the suite green about code nobody serves — which is the
+## failure `ci/test/debug-panes-test.sh` already guards against in the other
+## direction, on the renderers.
+##
+## What is still local is the DRIVING: `openSession`, the fixture text, and the
+## store writes below. Those belong to a test.
 ##
 ## ## Facade only
 ##
@@ -36,46 +45,31 @@
 ## Build:
 ##   just debug-panes                 # resolves CODETRACER_SRC / ../codetracer
 
-import std/[options, strutils, unittest]
+import std/[strutils, unittest]
 
 import codetracer_embed
 
 import ../client/src/debugger/layout_model
 import ../client/src/debugger/session_view
 import ../client/src/debugger/source_document
+import ../client/src/debugger/source_island
 import ../client/src/components/debugger as panes
+import ../client/hydrate/session_project
 
 # ---------------------------------------------------------------------------
 # One store, one mock backend, five ViewModels — a consumer's view of them
 # ---------------------------------------------------------------------------
 
-type Session = object
-  store: ReplayDataStore
-  mock: MockBackendService
-  editor: EditorVM
-  calltrace: CalltraceVM
-  state: StateVM
-  eventLog: EventLogVM
-  controls: DebugControlsVM
+type Session = LiveSession
+  ## The shipped session shape. `session_project.openLiveSession` builds it,
+  ## `session_project.close` tears it down, and this suite only supplies the
+  ## backend — which is the whole point: the browser passes a
+  ## `WorkerBackendService`, this passes a `MockBackendService`, and everything
+  ## downstream is the same code.
 
 proc openSession(): Session =
-  let mock = newMockBackendService(autoRespond = true)
-  let store = createReplayDataStore(mock.toBackendService())
-  Session(
-    store: store, mock: mock,
-    editor: createEditorVM(store),
-    calltrace: createCalltraceVM(store),
-    state: createStateVM(store),
-    eventLog: createEventLogVM(store),
-    controls: createDebugControlsVM(store))
-
-proc close(s: Session) =
-  s.editor.dispose()
-  s.calltrace.dispose()
-  s.state.dispose()
-  s.eventLog.dispose()
-  s.controls.dispose()
-  s.store.dispose()
+  openLiveSession(newMockBackendService(autoRespond = true).toBackendService(),
+                  sourceIsPublished = true)
 
 # The source text a real session gets from a published source bundle, not from
 # the container (Trace-Artifacts §2.5: the container interns paths and
@@ -96,114 +90,41 @@ const ShieldNr = """pub fn iterate_asteroids(initial_shield: Field) -> bool {
 # The projection: ViewModel state -> the pane types the renderers read
 # ---------------------------------------------------------------------------
 
-proc projectEditor(vm: EditorVM; store: ReplayDataStore;
-                   path, text: string): EditorPane =
-  ## Position from the session, text from the bundle, joined on the interned
-  ## path — which is exactly how a real session resolves a step to a line.
-  ##
-  ## The line comes from the STORE's debugger position, not from
-  ## `EditorVM.cursorLine`: the second is the user's caret, which a shell moves
-  ## on a click, and the pane's current-line marker has to mean "the step the
-  ## session is on". They coincide in a real shell only because the shell sets
-  ## the caret when a stop arrives.
-  let position = store.debugger.val.location
-  case vm.sourceAvailability.val
-  of savVerified:
-    result.availability = SourceAvailabilityView.srcSourceLevel
-    result.documents = @[newSourceDocument(
-      path, "noir", text, currentLine = position.line)]
-    result.currentLine = position.line
-  of savUnverified:
-    result.availability = SourceAvailabilityView.srcUnverified
-    result.reason = "No source bundle is published for the code that ran."
-  else:
-    result.availability = SourceAvailabilityView.srcAbsent
-    result.reason = "This execution ran no contract code."
+# ---------------------------------------------------------------------------
+# The one thing this suite still builds: the SERVED frame the projection
+# overlays. In the browser that comes from the page; here it is stated.
+# ---------------------------------------------------------------------------
 
-proc projectCalltrace(vm: CalltraceVM): CallTracePane =
-  result.costLabel = "ACIR"
-  for line in vm.visibleLines.val:
-    result.frames.add CallFrame(
-      depth: line.depth,
-      fn: line.name,
-      module: line.location.file,
-      cost: $line.rrTicks,
-      costUnit: "ticks",
-      step: int(line.rrTicks),
-      current: vm.selectedEntry.val == some(line.index))
+proc sourceIsland(path, language, text: string): string =
+  ## The inlined source bundle, built through the SAME encoder `pages/debug.nim`
+  ## serves and the same decoder hydration reads — so "position from the trace,
+  ## text from the bundle, matched by the interned path" is exercised over the
+  ## real carrier rather than over a hand-made `EditorPane`.
+  var pane: EditorPane
+  pane.availability = SourceAvailabilityView.srcSourceLevel
+  pane.documents = @[newSourceDocument(path, language, text)]
+  encodeSourceIsland(pane)
 
-proc projectState(vm: StateVM): StatePane =
-  for v in vm.currentVariables.val:
-    result.values.add StateValue(
-      name: v.name, typ: v.typeName, value: v.value,
-      # `changed` is the pane's "written at this step" marker. The StateVM
-      # does not model that yet, so the projection maps it to the VM's own
-      # selection rather than inventing a value — a marker that lit up on
-      # nothing would be indistinguishable from a correct one.
-      changed: vm.selectedPath.val == v.name)
-
-proc kindOf(row: EventLogRow): EventKind =
-  ## The chain reading of an ordinary event row. CodeTracer-Embed-SDK §3.2
-  ## keeps every chain concept one layer up, so `kind` is free text the
-  ## recorder supplies and turning it into `evStorageWrite` is the CONSUMER's
-  ## job — which is what makes this projection the right place for it.
-  case row.kind.toLowerAscii
-  of "write", "storagewrite": evStorageWrite
-  of "call": evCall
-  of "revert": evRevert
-  of "output", "stdout": evOutput
-  else: evEvent
-
-proc projectEventLog(vm: EventLogVM): EventLogPane =
-  ## The page the EventLogVM's paging signals select. The VM owns the rows,
-  ## the page index and the page size and exposes no pre-sliced memo, so the
-  ## slice is the consumer's — which is the right side of the boundary for it:
-  ## how many rows a pane shows is a property of the pane.
-  let rows = vm.eventRows.val
-  let size = max(1, vm.pageSize.val)
-  let first = vm.currentPage.val * size
-  for i in first ..< min(first + size, rows.len):
-    let row = rows[i]
-    result.rows.add EventRow(
-      kind: kindOf(row),
-      step: int(row.rrTicks),
-      label: row.file & ":" & $row.line,
-      detail: row.value,
-      current: vm.selectedRow.val == some(row.eventIndex))
-
-proc projectControls(vm: DebugControlsVM; step, total: int): DebugControlsPane =
-  proc btn(a: DebugAction; label, glyph: string; on: bool): ControlButton =
-    ControlButton(action: a, label: label, glyph: glyph, enabled: on)
-  result.buttons = @[
-    btn(daReverseContinue, "Reverse continue", "⏮", vm.canReverseContinue.val),
-    btn(daStepBackward, "Step backward", "◀", vm.canStepBackward.val),
-    btn(daStepForward, "Step forward", "▶", vm.canStepForward.val),
-    btn(daContinue, "Continue", "⏭", vm.canContinue.val),
-  ]
-  result.statusText = vm.statusText.val
-  result.step = step
-  result.totalSteps = total
-  result.positioned = step > 0
-
-proc projectSession(s: Session; path, text: string; step, total: int):
-    DebugSessionView =
+proc servedFrame(step, total: int): DebugSessionView =
+  ## What the static route rendered before hydration: identity, metadata, and
+  ## the step count from the manifest. Everything else comes from the engine.
   result.chain = "aztec"
   result.txHash = "0xabc1230000000000000000000000000000000000"
-  result.phase = spReady        # hydration HAS happened in this projection
   result.hasFrame = true
-  result.integrity =
-    if s.controls.divergenceDetected.val: siDivergent
-    elif s.controls.traceTruncated.val: siTruncated
-    else: siValidated
-  result.editor = projectEditor(s.editor, s.store, path, text)
-  result.calltrace = projectCalltrace(s.calltrace)
-  result.state = projectState(s.state)
-  result.eventLog = projectEventLog(s.eventLog)
-  result.controls = projectControls(s.controls, step, total)
+  result.phase = spFetching
+  result.integrity = siValidated
+  result.controls.step = step
+  result.controls.totalSteps = total
   result.metadata = MetadataPane(
     chain: "aztec", hash: result.txHash, outcome: "Succeeded",
     outcomeBadge: "ok",
     rows: @[MetaRow(label: "Block", value: "102:0", identifier: true)])
+
+proc projectSession(s: Session; path, text: string; step, total: int):
+    DebugSessionView =
+  ## The shipping projection, over the shipping island encoder.
+  projectReplayPanes(s, servedFrame(step, total),
+                     sourceIsland(path, "noir", text))
 
 proc writeRow(index: int; kind, file: string; line: int;
               value: string; ticks: uint64): EventLogRow =

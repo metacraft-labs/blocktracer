@@ -8,6 +8,52 @@
 export:
     nim c -r --mm:orc -d:isServer -d:release src/static_export.nim
 
+# ── Hydration (the debug route's live session) ─────────────────────────────
+
+# Build the hydration bundle: `nim js` over client/hydrate/hydrate.nim, WITH
+# the CodeTracer Embed SDK on the Nim path.
+#
+# This is the one compilation in the repository that links a debugger. Keeping
+# it a separate target — and a separate Nim invocation from `export` — is what
+# preserves the property `AGENTS.md` §1a states: everything else compiles with
+# no debugger on the Nim path at all. `export` reads the RESULT of this as a
+# file; it does not depend on the Embed SDK to run.
+#
+# Sources resolve exactly as ci/test/debug-panes-test.sh resolves them —
+# $CODETRACER_SRC, else a ../codetracer sibling — because a second convention
+# for locating the same tree is a second thing to keep in step. The pinned
+# commit is in ci/embed-sdk-pin.env.
+hydrate:
+    ./hydrate/build.sh
+
+# export, with hydration. The two-step order is the point: the bundle is built
+# FIRST, and only then is the exporter compiled with a -d:hydrationBundle that
+# names it — so a page can never carry a <script> for a file that was not
+# produced. `installHydrationBundle` re-checks that and fails the build.
+export-hydrated: hydrate
+    nim c -r --mm:orc -d:isServer -d:release \
+      -d:hydrationBundle=/assets/hydrate.js src/static_export.nim
+
+# Copy the published replay engine into dist/replay-engine/ so a LOCAL preview
+# has a live session.
+#
+# CodeTracer-Embed-SDK.md §5.1: `new Worker(scriptURL)` requires a same-origin
+# script, which is why `ReplayEngineBase` defaults to `/replay-engine/` and why
+# the engine has to be COPIED to the origin that serves the page rather than
+# linked from the one that publishes it. This is §5.1's "copy to own origin"
+# mode, which is the recommended one, done by hand for a preview.
+#
+# Not part of `export`, and not committed: it is 18 MB of build output from
+# another repository, and a deploy decides for itself whether to carry it (or
+# to point -d:replayEngineBase at an origin that already does).
+replay-engine BASE="https://web-codetracer.pages.dev":
+    ./hydrate/fetch-engine.sh dist/replay-engine {{BASE}}
+
+# Everything a live local session needs: the site with hydration, and an engine
+# for it to load. Then serve it.
+preview-live: export-hydrated replay-engine
+    cd dist && python3 -m http.server 8080
+
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
 test: test-export test-viewmodels test-debug-route test-explorer-breadth

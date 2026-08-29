@@ -9,10 +9,12 @@ import blocktracer_client
 import ./reader
 import ./debugger/session_view
 
-proc truncHash*(h: string, lead = 6, tail = 4): string =
-  ## `0x27a6c250…9a6c` — a copyable middle-truncated hash for dense tables.
-  if h.len <= lead + tail + 1: return h
-  h[0 ..< lead] & "…" & h[h.len - tail ..< h.len]
+# `truncHash` moved DOWN into `session_view`, and is re-exported here so no
+# call site moved. See the proc's own comment for why: `components/debugger`
+# needed this one symbol and nothing else from this module, and that edge put a
+# filesystem reader on the pane renderers' import graph — which the `nim js`
+# hydration build cannot follow.
+export session_view.truncHash
 
 # ── clean-URL route builders (mirror the exporter) ─────────────────────────
 

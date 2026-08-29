@@ -52,3 +52,13 @@ nimcache/
 
 # Editor / OS
 .DS_Store
+
+# The hydration bundle and its nimcache are build output of `just hydrate`.
+/client/hydrate/hydrate.js
+/client/hydrate/nimcache/
+
+# The exported site, which now also holds the replay engine copied to this
+# origin by `just replay-engine` — 18 MB of another repository's published
+# build output. See client/hydrate/fetch-engine.sh for why it is fetched at
+# build time and not vendored.
+/client/dist/

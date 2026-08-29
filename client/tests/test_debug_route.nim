@@ -30,6 +30,7 @@ import ../src/debugger/session_layout
 import ../src/debugger/session_view
 import ../src/debugger/replay_engine
 import ../src/debugger/source_document
+import ../src/debugger/source_island
 import ../src/debugger/demo_session
 import ../src/components/debugger as dbgc
 import ../src/components/debugger_css
@@ -295,6 +296,34 @@ proc occurrences(html, needle: string): int =
     inc result
     i = at + needle.len
 
+proc executableScripts(html: string): int =
+  ## How many `<script>` elements a browser would EXECUTE.
+  ##
+  ## Not the same as how many `<script>` substrings the document contains, and
+  ## the difference is the whole of what hydration added to this page. Two
+  ## kinds now appear and only one of them runs:
+  ##
+  ##   * `<script type="application/json" id="bt-session-source">` — the source
+  ##     bundle as DATA (`source_island.nim`). A browser does not parse or run
+  ##     it; it is markup carrying text, in the same standing as `data-copy`.
+  ##     With scripting off it renders nothing.
+  ##   * `<script src="…" defer>` — the hydration bundle, emitted only when
+  ##     `replay_engine.HydrationBundle` names one. This suite compiles with the
+  ##     default, which is empty, so it must find none.
+  ##
+  ## Counting the substring would make an inert data island indistinguishable
+  ## from a script, and this file's whole standard is that a page ships nothing
+  ## that could act unless it can. So the count is of things that act.
+  var i = 0
+  while true:
+    let at = html.find("<script", i)
+    if at < 0: break
+    let close = html.find('>', at)
+    if close < 0: break
+    let tag = html[at .. close]
+    if "type=\"application/json\"" notin tag: inc result
+    i = close + 1
+
 # ---------------------------------------------------------------------------
 
 suite "M8a — the debug route is served":
@@ -538,7 +567,14 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     check "class=\"stacktab t-pane-eventlog\" href=\"#pane-eventlog\"" in markup
     check markup.find("t-pane-calltrace") < markup.find("t-pane-eventlog")
     check ".stacktabs > .stacktab:first-child" in debugRouteCss
-    check "<script" notin markup
+    # The tabs are `:target` links and NOT script. Asserted as "no executable
+    # script", which is what the claim has always meant and is now the sharper
+    # spelling of it: this build declares no hydration bundle
+    # (`HydrationBundle` is empty by default, `replay_engine.nim`), so the only
+    # `<script>` on the page is the `application/json` source island, which a
+    # browser neither parses nor runs. A `notin "<script"` would have made this
+    # test fail on inert data.
+    check executableScripts(markup) == 0
 
     # Values is NOT in the region: it is a pane below it, not a third tab. It
     # answers "what is true here" rather than "where do I want to be", and a
@@ -1784,7 +1820,12 @@ suite "§13 — values are copyable, and nothing pretends to copy them":
     ## that lies on click — the `panedismiss` defect again. The affordance is
     ## CSS; the control is staged, not shipped.
     let html = debugHtml(readyTx)
-    check "<script" notin html
+    # No executable script in a build that declares no hydration bundle, and
+    # NO copy control in the served markup even in a build that does — the
+    # button is added by hydration, at run time, and only where
+    # `navigator.clipboard` exists. `copybtn` is the class it adds, so its
+    # absence here is the staging §13 describes.
+    check executableScripts(html) == 0
     check "copybtn" notin html
     check "navigator.clipboard" notin html
     check ">Copy<" notin html
@@ -1792,6 +1833,8 @@ suite "§13 — values are copyable, and nothing pretends to copy them":
     # tabindex and no handler.
     check "data-copy" in html
     check "onclick" notin html
+    check "onkeydown" notin html
+    check "javascript:" notin html
 
   test "a source line stays copyable WITHOUT its gutter":
     ## Source lines are deliberately not `.copyable` — one click selecting a
@@ -1919,6 +1962,222 @@ suite "the embedded demo on the home page is the same session surface":
     # …and it is positioned, which is what makes it a demo rather than a shell.
     check "stopped mid-execution at step" in html
     check "class=\"srcline cur" in html
+
+suite "hydration — the seams the bundle reads, and the honesty they preserve":
+  ## What hydration needs from the SERVED page, checked on the served page.
+  ##
+  ## Every one of these is inert markup, and that is the property under test as
+  ## much as the presence is: `Debugger-Integration` §3 deferred making
+  ## call-trace and event-log rows jump targets specifically because "until
+  ## hydration lands such a link would reload the page at a coordinate the
+  ## static export cannot honour", and "an affordance that cannot act is the
+  ## defect this route has already removed twice". So the coordinate ships and
+  ## the affordance does not.
+
+  test "a build that ships no bundle ships no script, and is unchanged":
+    ## §7.0's guarantee at BUILD time. `HydrationBundle` defaults to empty, and
+    ## the page a default build serves is the page this route has always
+    ## served. If this ever fails, some build has begun emitting a `<script>`
+    ## for a file it may not have produced.
+    check HydrationBundle.len == 0
+    let html = debugHtml(readyTx)
+    check executableScripts(html) == 0
+    check "<script src=" notin html
+    # …and the whole toolbar is still honestly inert, which is the state the
+    # bundle's absence must leave behind.
+    let s = sessionFor(readyTx)
+    check occurrences(html, "class=\"dcbtn off\"") == s.controls.buttons.len
+
+  test "every control names the MOVE it would make, in the enum's spelling":
+    ## Hydration binds a button to a command by `data-action`. Matching on the
+    ## label instead would make the toolbar's behaviour depend on its wording,
+    ## so the attribute is derived from `DebugAction` and checked against it.
+    let html = debugHtml(readyTx)
+    let s = sessionFor(readyTx)
+    check s.controls.buttons.len > 0
+    for b in s.controls.buttons:
+      check ("data-action=\"" & $b.action & "\"") in html
+    check occurrences(html, "data-action=\"") == s.controls.buttons.len
+    let markup = html.split("</style>")[1]
+    # Distinct: eight buttons, eight different moves. A toolbar that emitted
+    # one action eight times would satisfy the loop above.
+    var seen: HashSet[string]
+    for b in s.controls.buttons: seen.incl $b.action
+    check seen.len == s.controls.buttons.len
+    # The attribute is DATA, not an affordance: the inert button gains no role
+    # and no handler from carrying it. Matched over the MARKUP — the inlined
+    # stylesheet mentions `[tabindex]` in its focus rule, so a whole-document
+    # match would answer itself with CSS.
+    check "onclick" notin markup
+    check "role=\"button\"" notin markup
+
+  test "every navigation row carries its coordinate, and is not a link":
+    ## §3's deferred item, staged. `EventRow.step` and a frame's step are the
+    ## same `?t=` the URL carries (§6.2), so the rows carry it as data — and
+    ## stay rows until there is something that can honour a click.
+    let html = debugHtml(readyTx)
+    let s = sessionFor(readyTx)
+    check s.calltrace.frames.len > 0
+    check s.eventLog.rows.len > 0
+    for f in s.calltrace.frames:
+      check ("class=\"ctrow" in html)
+      check ("data-step=\"" & $f.step & "\"") in html
+    for r in s.eventLog.rows:
+      check ("data-step=\"" & $r.step & "\"") in html
+    # Not links, not buttons, not focusable — the whole reason §3 recorded this
+    # rather than shipping it. Over the markup, for the stylesheet reason above.
+    let markup = html.split("</style>")[1]
+    check "<a class=\"ctrow" notin markup
+    check "<a class=\"evrow" notin markup
+    check "tabindex" notin markup
+    check "role=\"button\"" notin markup
+    check "data-rows-navigable" notin markup
+
+  test "the source bundle is inlined as DATA, and it is the WHOLE file":
+    ## The pane is served WINDOWED (`openAtCurrent`), so the served DOM does not
+    ## contain the lines a backward step needs. The island does, which is what
+    ## lets hydration render a line the served page never had — without a
+    ## second fetch and without a second producer of the markup.
+    let s = sessionFor(readyTx)
+    let html = debugHtml(readyTx)
+    check ("id=\"" & SourceIslandId & "\"") in html
+    check "type=\"application/json\"" in html
+    # It is not executable, so it does not count as a script.
+    check executableScripts(html) == 0
+
+    # The island round-trips through the SHIPPING encoder and decoder, and what
+    # comes back is the whole bundle — not the window the page rendered.
+    let active = activeDocument(s.editor)
+    let island = encodeSourceIsland(s.editor)
+    let windowed = openAtCurrent(s.editor, 6)
+    let restored = decodeSourceIsland(island, active.path, s.editor.currentLine)
+    check restored.documents.len == s.editor.documents.len
+    check restored.documents.len > 1        # the bundle really has several
+
+    proc totalLines(p: EditorPane): int =
+      for d in p.documents: result += d.lines.len
+    proc totalExecuted(p: EditorPane): int =
+      for d in p.documents:
+        for ln in d.lines:
+          if ln.executed: inc result
+
+    check totalLines(restored) == totalLines(s.editor)
+    # The window really is smaller — or this test proves nothing about why the
+    # island exists at all. This is the whole justification for inlining it:
+    # the served DOM does not contain the lines a backward step needs.
+    check totalLines(windowed) < totalLines(restored)
+    check totalExecuted(s.editor) > 0
+    check totalExecuted(restored) == totalExecuted(s.editor)
+    # Text survives verbatim, and the pane opens on the file the session is IN
+    # rather than on whichever document the export happened to open.
+    check activeDocument(restored).path == active.path
+    check activeDocument(restored).lines[0].text == active.lines[0].text
+    # Re-lexed by the same lexer, so the hydrated pane is highlighted like the
+    # served one rather than merely similarly.
+    var tokensIn, tokensOut = 0
+    for ln in active.lines: tokensIn += ln.tokens.len
+    for ln in activeDocument(restored).lines: tokensOut += ln.tokens.len
+    check tokensIn > 0
+    check tokensOut == tokensIn
+    # Exactly one line is current, and it is the session's.
+    var currents = 0
+    for d in restored.documents:
+      for ln in d.lines:
+        if ln.current:
+          inc currents
+          check ln.number == s.editor.currentLine
+          check d.path == active.path
+    check currents == 1
+
+  test "the island cannot close its own element":
+    ## Source is arbitrary text and `</script>` is a legal string in it. Inside
+    ## a `<script>` element the content model is raw text with exactly one
+    ## terminator, so an unescaped one would end the element early and spill the
+    ## rest of the trace's source into the document as markup.
+    var pane: EditorPane
+    pane.availability = srcSourceLevel
+    pane.documents = @[newSourceDocument(
+      "evil.nr", "noir", "let s = \"</script><img onerror=x>\";\n")]
+    let island = encodeSourceIsland(pane)
+    check "</script" notin island
+    check "<" notin island
+    # …and it still decodes to the text it came from, so the escaping is a
+    # transport detail and not a mutation of the source.
+    let back = decodeSourceIsland(island, "evil.nr", 1)
+    check back.documents[0].lines[0].text ==
+          "let s = \"</script><img onerror=x>\";"
+
+  test "a malformed island is nothing, not an exception":
+    ## Hydration's contract is that a failure leaves the served DOM standing,
+    ## which a raise crossing the entry point would break — it would abandon
+    ## whatever had already been written.
+    check decodeSourceIsland("", "a.nr", 1).documents.len == 0
+    check decodeSourceIsland("not json", "a.nr", 1).documents.len == 0
+    check decodeSourceIsland("[1,2,3]", "a.nr", 1).documents.len == 0
+    check decodeSourceIsland("{}", "a.nr", 1).documents.len == 0
+    # An island with documents but no match still renders them, with NO line
+    # marked current — one position, or none, never two.
+    var pane: EditorPane
+    pane.availability = srcSourceLevel
+    pane.documents = @[newSourceDocument("a.nr", "noir", "let x = 1;\n")]
+    let back = decodeSourceIsland(encodeSourceIsland(pane), "other.nr", 3)
+    check back.documents.len == 1
+    for ln in back.documents[0].lines: check not ln.current
+
+  test "hydration is offered a container on exactly the transactions a visitor is":
+    ## `containerPath` is DERIVABLE for an on-demand execution, so its
+    ## non-emptiness proves nothing — this page says so itself, about the
+    ## download action. `data-trace` therefore reads the SAME predicate the
+    ## download reads, and this is the check that they cannot drift apart: two
+    ## predicates for "is there a container" is one predicate and a bug, and it
+    ## was one — the demo tree's on-demand transaction had a `data-trace`
+    ## pointing at a container that 404s while the button beside it correctly
+    ## offered nothing.
+    var checkedOffered, checkedRefused = 0
+    for hash in txHashes:
+      let s = sessionFor(hash)
+      let html = debugHtml(hash)
+      let hasDownload = ("download=\"trace.ct\"" in html)
+      let offered = ("data-trace=\"/" & s.containerPath & "\"") in html and
+                    s.containerPath.len > 0
+      check offered == hasDownload
+      if offered: inc checkedOffered else: inc checkedRefused
+      if not offered: check "data-trace=\"\"" in html
+    # Both sides of the rule were actually exercised by the demo tree.
+    check checkedOffered > 0
+    check checkedRefused > 0
+
+  test "the served frame states the position hydration starts from":
+    let s = sessionFor(readyTx)
+    let html = debugHtml(readyTx)
+    check ("data-step=\"" & $s.controls.step & "\"") in html
+    check ("data-total-steps=\"" & $s.controls.totalSteps & "\"") in html
+    check s.controls.totalSteps > 0
+
+  test "the phase rail has ONE producer, and it goes quiet when the engine lives":
+    ## Hydration re-renders the rail as the engine advances, so a copy of it in
+    ## the bundle would be a second producer of the one element whose only job
+    ## is to be an accurate statement about the engine. It is a shared renderer
+    ## instead, and `pages/debug.nim` calls the same one.
+    var s = sessionFor(readyTx)
+    check s.phase == spFetching
+    let fetching = dbgc.renderPhaseRail(s)
+    check "class=\"phaserail\"" in fetching
+    check (">" & phaseShortLabel(spFetching) & "<") in fetching
+    check "class=\"phase on\"" in fetching
+    # Each phase marks itself, and only itself.
+    for p in [spFetching, spOpening, spPositioning]:
+      s.phase = p
+      let rail = dbgc.renderPhaseRail(s)
+      check occurrences(rail, "class=\"phase on\"") == 1
+      check ("class=\"phase on\" title=\"" & phaseLabel(p)) in rail
+    # …and once the engine is live it renders nothing at all, which is how the
+    # rail disappears on hydration without hydration knowing it exists.
+    s.phase = spReady
+    check s.engineLive
+    check dbgc.renderPhaseRail(s) == ""
+    # The served page's rail is this renderer's output, not a second one.
+    check fetching in debugHtml(readyTx)
 
 removeDir(workDir)
 removeDir(degradedDir)

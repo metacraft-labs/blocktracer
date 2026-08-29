@@ -515,5 +515,19 @@ func canShare*(v: DebugSessionView): bool =
 func truncatedHash*(h: string): string =
   if h.len <= 13: h else: h[0 ..< 8] & "…" & h[h.len - 4 .. ^1]
 
+func truncHash*(h: string, lead = 6, tail = 4): string =
+  ## `0x27a6c250…9a6c` — a middle-truncated hash for dense tables and for the
+  ## metadata pane's hero.
+  ##
+  ## It lived in `viewutil` — which imports `blocktracer_client`, `reader` and
+  ## `std/json`, and therefore the filesystem. `components/debugger.nim` used
+  ## exactly one symbol from it, this one, and that single edge is what made
+  ## the pane renderers unreachable from a `nim js` build: hydration compiles
+  ## the SAME renderers to JavaScript, and a renderer that transitively imports
+  ## a file reader cannot be compiled for a browser. `viewutil` re-exports
+  ## `session_view`, so every existing call site is unchanged.
+  if h.len <= lead + tail + 1: return h
+  h[0 ..< lead] & "…" & h[h.len - tail ..< h.len]
+
 func joinLanguages*(v: DebugSessionView): string =
   v.languages.join(", ")

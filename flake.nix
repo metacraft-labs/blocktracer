@@ -29,9 +29,26 @@
       url = "github:metacraft-labs/codetracer-design-system/dfb1de1b0d86576beb9e9c6d1cf03c5438d1fa95";
       flake = false;
     };
+
+    # The CodeTracer Embed SDK — needed by ONE compilation in this repository,
+    # `client/hydrate/hydrate.nim`, the `nim js` bundle the debug route defers.
+    # Everything else still builds with no debugger on the Nim path at all;
+    # that is the layering (AGENTS.md §1a) and adding this input does not
+    # change it, because nothing under `client/src` imports it.
+    #
+    # The revision MUST equal `ci/embed-sdk-pin.env`'s `CODETRACER_REF` — that
+    # file is the one place naming the bytes this repository is built and
+    # checked against, and a flake input that drifted from it would mean the
+    # bundle CI ships and the Embed SDK CI's suites run against are two
+    # different trees. `client/hydrate/build.sh` resolves `$CODETRACER_SRC`,
+    # which `packages.default` sets from here.
+    codetracer = {
+      url = "github:metacraft-labs/codetracer/8d1c84a85034a739804914a33f2f55329b5f051a";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, codetracer-design-system }:
+  outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, codetracer-design-system, codetracer }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
@@ -46,6 +63,11 @@
           ISONIM_SRC = isonim;
           NIM_EVERYWHERE_SRC = nim-everywhere;
           DESIGN_SYSTEM_SRC = codetracer-design-system;
+          # The Embed SDK, for `just hydrate` and for the cross-repo suites
+          # (`just debug-panes`, `just sdk-test-embed`, `just viewmodel-seam`),
+          # every one of which resolves $CODETRACER_SRC before falling back to
+          # a ../codetracer sibling.
+          CODETRACER_SRC = codetracer;
         };
 
         # CI dev shell — the execution environment CI runs project commands in
@@ -114,14 +136,27 @@
         packages.default = pkgs.stdenv.mkDerivation {
           name = "blocktracer-site";
           src = ./.;
-          nativeBuildInputs = [ pkgs.nim ];
+          nativeBuildInputs = [ pkgs.nim pkgs.bash ];
+          CODETRACER_SRC = codetracer;
           ISONIM_SRC = isonim;
           NIM_EVERYWHERE_SRC = nim-everywhere;
           DESIGN_SYSTEM_SRC = codetracer-design-system;
           buildPhase = ''
             export HOME=$TMPDIR
             cd client
-            nim c -r --mm:orc -d:isServer -d:release src/static_export.nim
+
+            # 1. The hydration bundle FIRST, because step 2 declares its URL
+            #    and `installHydrationBundle` refuses to finish if that URL
+            #    names a file that was not produced. A page must never carry a
+            #    <script> for something that does not exist: its controls would
+            #    sit inert forever, saying they are waiting for an engine
+            #    nothing will ever ask for.
+            bash ./hydrate/build.sh --require
+
+            # 2. The site, told where the bundle went.
+            nim c -r --mm:orc -d:isServer -d:release \
+              -d:hydrationBundle=/assets/hydrate.js \
+              src/static_export.nim
           '';
           installPhase = ''
             mkdir -p $out

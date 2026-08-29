@@ -63,6 +63,36 @@ func isCrossOrigin*(base: string): bool =
 
 func replayEngineIsCrossOrigin*(): bool = isCrossOrigin(ReplayEngineBase)
 
+const HydrationBundle* {.strdefine: "hydrationBundle".} = ""
+  ## The URL of the hydration bundle, or `""` for a build that ships none.
+  ##
+  ## ## Why the DEFAULT is "no script"
+  ##
+  ## Same shape as `ReplayEngineBase` above and for a stronger reason.
+  ## `Page-Descriptions.md` §7.0: "If wasm, workers or range requests fail,
+  ## hydration does not happen and the visitor is already looking at the page
+  ## that fallback would have produced. **No state renders less than the
+  ## pre-hydration page.**"
+  ##
+  ## That guarantee has a build-time half and a run-time half, and this is the
+  ## build-time one. The bundle is a SEPARATE compilation — `nim js` over
+  ## `client/hydrate/hydrate.nim`, which needs the CodeTracer Embed SDK on the
+  ## Nim path, while `static_export.nim` deliberately compiles with isonim and
+  ## nim-everywhere and nothing else. A build that cannot produce the bundle
+  ## must therefore still produce the site, and the site it produces is exactly
+  ## today's: an empty value emits no `<script>` at all.
+  ##
+  ## It is a URL and not a `bool` so that the page cannot claim a script it
+  ## does not serve: the exporter is given the path it actually wrote, and
+  ## `static_export.nim` refuses to finish if this names a file that is not in
+  ## `dist/`. A boolean would let "hydration was requested" and "hydration was
+  ## built" drift apart, which is the two-fields-that-must-agree bug
+  ## `isCrossOrigin` is derived to avoid.
+  ##
+  ## Set by `client/Justfile`'s `hydrate` target and by `flake.nix`, both of
+  ## which build the bundle first:
+  ##   nim c -d:hydrationBundle=/assets/hydrate.js … src/static_export.nim
+
 const ReplayEngineWasmBytes* = 18_094_114
   ## The measured size of `pkg/db_backend_bg.wasm` as published.
   ##

@@ -67,6 +67,39 @@ is now a presentation projection over the SDK, not a second reader.
 | `just debug-panes` | `tests/tdebugpanes.nim` — the debug route's five pane renderers over the Embed SDK's OWN `EditorVM`/`CalltraceVM`/`StateVM`/`EventLogVM`/`DebugControlsVM`, driven through `MockBackendService`. Needs the Embed SDK |
 | `just layout-vendor` | the vendored copy of CodeTracer's `headless_app/layout_model.nim` still hashes to its manifest and still agrees with upstream on every observable, plus the self-test that drives every failure path |
 
+## 1b. `client/hydrate/` — the debug route's live session
+
+The debug route ships a **second compilation**: `nim js` over
+`client/hydrate/hydrate.nim`, with the Embed SDK on the Nim path, producing the
+bundle `pages/debug.nim` defers. It is the only build in this repository that
+links a debugger — **everything under `client/src` still compiles with none**,
+which is the §1a layering and is what keeps `static_export.nim` hermetic.
+
+| Path | Role |
+|------|------|
+| `client/hydrate/hydrate.nim` | the entry point: reads the served DOM, runs §14.2's capability ladder, drives the worker, re-renders panes on every stop |
+| `client/hydrate/session_project.nim` | the ONE projection from CodeTracer's five ViewModels onto the pane types. `tests/tdebugpanes.nim` imports it, so `just debug-panes` drives the shipping code rather than a lookalike |
+| `client/hydrate/engine_transport.nim` | the browser half of the transport — `new Worker`, `load-trace`, clipboard, `history.replaceState`. `WorkerBackendService` deliberately owns none of this |
+| `client/hydrate/build.sh` | the build. Exit 3 = no Embed SDK found, which is a **valid** outcome: no bundle, no `<script>`, and the page this route has always served |
+
+| Command | What it does |
+|---------|--------------|
+| `cd client && just hydrate` | build the bundle → `client/hydrate/hydrate.js` |
+| `cd client && just export-hydrated` | build the bundle, then export with `-d:hydrationBundle=/assets/hydrate.js` |
+| `cd client && just replay-engine` | copy the published `worker.js` + `pkg/` into `dist/replay-engine/` (§5.1's "copy to own origin"; `new Worker` requires same-origin) |
+| `cd client && just preview-live` | all three, then serve — a genuinely live session on :8080 |
+
+**`replay_engine.HydrationBundle` is empty by default**, and that default is
+Page-Descriptions §7.0's guarantee made structural: a build that cannot produce
+the bundle emits no `<script>` and serves exactly today's page. Never make the
+page carry a script tag for a file the build might not have written —
+`installHydrationBundle` fails the build rather than shipping one.
+
+**The two engine assets are not vendored and not in `dist` by default.** A
+deploy either copies them to its own origin (`just replay-engine`) or points
+`-d:replayEngineBase` at an origin that already serves them. With neither,
+hydration reports that it could not start and the served page stands.
+
 ## 2. isonim architecture
 
 **isonim** is a cross-platform reactive UI framework for Nim (signals / effects /

@@ -69,10 +69,10 @@
 
 import isonim/ssr/escape
 import isonim/dsl/ui
-import ../debugger/replay_engine
 import ../debugger/session_layout
 import ../debugger/session_view
 import ../debugger/source_document
+import ../debugger/source_island
 import ../components/debugger
 import ../viewutil
 
@@ -90,45 +90,6 @@ proc shareAnchor(s: DebugSessionView): string =
     for ln in d.lines:
       if ln.current: return ln.anchor
   ""
-
-proc phaseRail(s: DebugSessionView): string =
-  ## §8: "Loading is phased and honest — fetching, then opening, then
-  ## positioning — never an indeterminate spinner."
-  ##
-  ## Rendered whenever the engine is not live, which on a statically exported
-  ## page is always. The three phases are named as words and the current one is
-  ## marked, so the visitor can see which phase they are in and what remains —
-  ## which is the requirement, and is not the same thing as a spinner.
-  ##
-  ## It used to live inside the engine-notice row and now sits in the identity
-  ## bar, immediately after the controls' status. That is the right adjacency
-  ## and not merely the surviving one: "which phase the engine is in" and
-  ## "why these buttons are inert" are one fact, and they were being told in
-  ## two places a viewport apart.
-  ##
-  ## Nothing here is a skeleton. The panes behind this bar are already full:
-  ## the loading design exists because the engine is an 18 MB wasm bundle, and
-  ## the answer to that is to show the frame we already have rather than to
-  ## draw grey boxes shaped like it.
-  if s.engineLive: return ""
-  ui:
-    tdiv(class = "phaserail"):
-      for p in [spFetching, spOpening, spPositioning]:
-        # The sentence `phaseLabel` spells is what the one-word chip is short
-        # FOR, so it is the chip's title rather than something the short form
-        # replaced. Fetching additionally carries the quantity, because "how
-        # long is this" is the only question the word "fetching" leaves open.
-        span(class = "phase" & (if p == s.phase: " on" else: ""),
-             title = (if p == spFetching:
-                        phaseLabel(p) & " — " & approxMegabytes(s.engineBytes)
-                      else: phaseLabel(p))):
-          text phaseShortLabel(p)
-      # A build that loads the engine from another origin says which one. The
-      # default is same-origin (`replay_engine.nim`), so this renders nothing
-      # in every build that has not explicitly named a third party — which is
-      # the point: there is no origin to disclose until there is.
-      if s.engineCrossOrigin:
-        span(class = "engineorigin"): text "Engine: " & s.engineBase
 
 proc identityBar(s: DebugSessionView): string =
   ## Debugger-Integration §3's slim bar: back link, identity, status, block,
@@ -194,8 +155,10 @@ proc identityBar(s: DebugSessionView): string =
       # the clearest possible pretence.
       if s.hasFrame:
         tdiv(class = "dbgctl"):
+          # Both halves of the group, from the shared renderers, so hydration
+          # can replace this one element's contents with the same two calls.
           raw renderControls(s.controls)
-          raw phaseRail(s)
+          raw renderPhaseRail(s)
       # The spacer, always, and AFTER the control group. The slack belongs
       # between the session's controls and the page's actions, not inside the
       # scrubber — see `.dbgctl` in `debugger_css.nim` for why the one element
@@ -260,18 +223,16 @@ proc noSession(s: DebugSessionView): string =
                   text "Generating a trace costs us compute, so it needs a " &
                        "signed-in account with quota remaining."
 
-const SourceLeadIn = 6
-  ## How many lines of context the source pane opens ABOVE the current line.
-  ##
-  ## Enough to see the statement in its block, few enough that the current line
-  ## is on screen at the shortest viewport this route is served at. See
-  ## `source_document.openAtCurrent` for why a lead-in and not a centred
-  ## window, and why the pane cannot simply scroll: there is no JavaScript on
-  ## this page to scroll it with.
-
 proc debugPage*(s: DebugSessionView): string =
   ## The whole route.
   var s = s
+  # The WHOLE bundle, before the window is taken. `openAtCurrent` below reduces
+  # each document to the lines around the position, which is right for a page
+  # that cannot scroll and wrong for a session that can move: the first step
+  # out of that window needs a line the served DOM does not hold. So the island
+  # is encoded from the complete documents, here, and the window is taken
+  # after. See `source_island.nim`.
+  let sourceIsland = (if s.hasFrame: encodeSourceIsland(s.editor) else: "")
   # The session is POSITIONED, which means the pane opens on the position. A
   # document rendered from line 1 leaves the current line wherever the file
   # puts it — at `laptop` the fixture's line 32 falls below the fold, so the
@@ -284,7 +245,30 @@ proc debugPage*(s: DebugSessionView): string =
     else: noSession(s)
   ui:
     tdiv(class = "dbg", `data-replay-engine` = s.engineBase,
-         `data-session-phase` = $s.phase):
+         `data-session-phase` = $s.phase,
+         # The three facts hydration cannot derive from the rendered panes: the
+         # container it must fetch, and the position the served frame is at.
+         # Carried on the root rather than inlined into the bundle, because the
+         # bundle is ONE file served to every transaction and these differ per
+         # transaction — a build-time constant here would make every session
+         # step through the first one's trace.
+         #
+         # `data-trace` is `canShare`'s predicate and not `containerPath`'s.
+         #
+         # That distinction is not defensive coding, it is this page's own
+         # warning taken seriously: "`containerPath` is DERIVABLE for an
+         # on-demand execution, so its non-emptiness proves nothing". The demo
+         # tree has exactly such a transaction, and reading the raw path here
+         # gave it a `data-trace` pointing at a container that 404s — while the
+         # download button beside it, which reads `canShare`, correctly offered
+         # nothing. Two predicates for "is there a container", disagreeing.
+         #
+         # So there is one. Hydration is offered a container on exactly the
+         # transactions the visitor is offered one, and on the others it does
+         # what §7.0's `onDemand` row says: no engine, and no pretence of one.
+         `data-trace` = (if s.canShare: "/" & s.containerPath else: ""),
+         `data-step` = $s.controls.step,
+         `data-total-steps` = $s.controls.totalSteps):
       raw identityBar(s)
       raw banner(s)
       tdiv(class = "dbgnarrow"):
@@ -319,3 +303,20 @@ proc debugPage*(s: DebugSessionView): string =
             # merely unimplemented.
           tdiv(class = "panebody"):
             raw renderMetadata(s.metadata)
+      # The source bundle, as DATA (§7.0's "data-inlined HTML").
+      #
+      # `type="application/json"` is not an executable script type: a browser
+      # does not parse or run it, and it reaches the page as the contents of an
+      # element. That distinction is the whole reason this is allowed on a
+      # route whose contract is that it ships nothing that could act — it is
+      # markup carrying text, in the same standing as `data-copy` and
+      # `data-step`, and with scripting off it is inert bytes that render
+      # nothing.
+      #
+      # Emitted only where there is a frame, because that is the only state
+      # whose panes have a document to carry.
+      if sourceIsland.len > 0:
+        script(`type` = "application/json", id = SourceIslandId):
+          # Pre-escaped by `encodeSourceIsland` — every `<` is `<`, so the
+          # element cannot be closed early by its own contents.
+          raw sourceIsland
