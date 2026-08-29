@@ -38,6 +38,12 @@ test-debug-route:
 preview: export
     cd dist && python3 -m http.server 8080
 
+# Live-reload dev server: runs the real exporter, serves dist/, and reloads every
+# open tab on any edit under src/ or ../src (the shared contract + demo generator).
+# `just dev [PORT] [HOST]`, default 127.0.0.1:8080.
+dev *ARGS:
+    nim c -r --mm:orc --hints:off src/dev.nim {{ARGS}}
+
 # Remove build artifacts.
 clean:
     rm -rf dist nimcache

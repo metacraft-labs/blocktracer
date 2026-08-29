@@ -236,6 +236,13 @@ review-gate-foundations args="":
 # fails, rather than skipping, when there is no dist/ to cross-check.
 design-verify: design-selftest design-check
 
+# Live-reload dev server for the IsoNim client site. Runs the client's real
+# static exporter, serves client/dist/, and reloads every open tab on any edit
+# under client/src or src/ (the shared contract + demo generator). Delegates to
+# the client workspace so paths resolve from there. `just dev [PORT] [HOST]`.
+dev *ARGS:
+    cd client && just dev {{ARGS}}
+
 # Build the CLI binaries.
 build:
     nim c --hints:off -d:release -o:blocktracer-demo-gen src/blocktracer_demo_gen.nim
