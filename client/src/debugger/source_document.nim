@@ -11,12 +11,21 @@
 ## the pane re-renders with a different window of the file. An index into a
 ## `seq` cannot do that; a content-derived id can.
 ##
-## **No syntax highlighting, and the absence is structural rather than a
-## to-do.** Highlighting means tokenising per language, which means a lexer per
-## language, which is the shape of dependency (Monaco, Shiki, tree-sitter-wasm)
-## the explorer has deliberately not taken. A line is emitted as one text node
-## inside a `<code>` element, so the day a tokeniser arrives it replaces the
-## text node with spans and nothing above it moves.
+## **Syntax highlighting is tokenised HERE, at static-export time.** The seam
+## this module reserved — one text node per line inside a `<code>` — has been
+## filled exactly as described: `source_highlight.highlightLines` partitions
+## each line into classified spans, the spans travel on `SourceLine.tokens`, and
+## the renderer emits them. Nothing above moved. The dependency the explorer
+## refused (Monaco, Shiki, tree-sitter-wasm) is still refused: the page ships no
+## JavaScript, so the lexer is Nim and runs during `nim c -r static_export.nim`.
+##
+## **A language without a profile is rendered plain, never guessed at.**
+## `newSourceDocument` takes the language as a string and asks
+## `source_highlight.profileFor` for it; an unknown language yields no tokens and
+## the renderer falls back to the single text node. Applying Noir's lexer to a
+## Solidity file — or to the bytecode listing an instruction-level session
+## shows — would produce confident nonsense, which is worse than plain text
+## because it is wrong in a way that looks authoritative.
 ##
 ## **Executed-line marking is data, not a heuristic.** `newSourceDocument` takes
 ## the set of line numbers the trace visited. A pane that guessed — highlighting
@@ -25,6 +34,7 @@
 
 import std/[strutils, tables]
 import ./session_view
+import ./source_highlight
 
 func splitSourceLines*(text: string): seq[string] =
   ## Split on newlines, tolerating CRLF and a trailing newline.
@@ -51,15 +61,21 @@ proc newSourceDocument*(path, language, text: string;
   for n in executed: hit[n] = true
   result.path = path
   result.language = language
+  let lines = splitSourceLines(text)
+  # The whole file at once, not line by line: a block comment spans lines, so
+  # the lexer has to carry state between them. `highlightLines` returns one
+  # token seq per line — or NOTHING at all, when no profile covers `language`.
+  let tokens = highlightLines(lines, profileForDocument(path, language))
   var n = 0
-  for text in splitSourceLines(text):
+  for text in lines:
     inc n
     result.lines.add SourceLine(
       number: n,
       text: text,
       anchor: lineAnchor(path, n),
       executed: hit.getOrDefault(n, false),
-      current: n == currentLine)
+      current: n == currentLine,
+      tokens: (if n <= tokens.len: tokens[n - 1] else: @[]))
 
 proc annotate*(doc: var SourceDocument; line: int; ann: LineAnnotation) =
   ## Attach a value overlay to a line.

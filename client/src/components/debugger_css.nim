@@ -229,13 +229,34 @@ html[data-register="debugger"],
   user-select:none}
 .srcline .m{flex:0 0 var(--bt-space-md);color:var(--bt-text-subtle);
   text-align:center;user-select:none}
-.srcline .t{font:inherit;color:inherit;white-space:pre;min-width:0}
+.srcline .t{font:inherit;color:var(--bt-syntax-plain);white-space:pre;min-width:0}
 .srcline.hit{background:var(--bt-surface-sunken)}
 .srcline.hit .m{color:var(--bt-accent-subtle)}
 .srcline.cur{background:var(--bt-surface-selected);
   border-left-color:var(--bt-accent-default)}
 .srcline.cur .n,.srcline.cur .m{color:var(--bt-accent-default)}
 .srcline.cur .t{color:var(--bt-text-strong)}
+/* The lexical palette (Design-System.md §7: "syntax highlighting comes from the
+   product lineage's editor tokens in BOTH themes"). One rule per TokenKind that
+   `debugger.tokenClass` can return; `tkPlain` has none, because it is emitted
+   as a bare text node and takes `.t`'s colour above.
+
+   These sit on the SPAN, so they win over `.srcline.cur .t` by inheritance
+   rather than by specificity — a token keeps its hue on the current line,
+   where the background is `--bt-surface-selected` rather than
+   `--bt-surface-code`. Every role was checked against all three backgrounds a
+   source line can have (code, sunken for an executed line, selected for the
+   current one) in both themes — 48 pairs, and the weakest is 5.01:1 (dark
+   comment on the current line's `--bt-surface-selected`). Colour is the only
+   channel: the text is fully legible without it, so unlike a status badge this
+   needs no redundant glyph. */
+.src .tk-comment{color:var(--bt-syntax-comment)}
+.src .tk-keyword{color:var(--bt-syntax-keyword)}
+.src .tk-type{color:var(--bt-syntax-type)}
+.src .tk-function{color:var(--bt-syntax-function)}
+.src .tk-string{color:var(--bt-syntax-string)}
+.src .tk-number{color:var(--bt-syntax-number)}
+.src .tk-punct{color:var(--bt-syntax-punctuation)}
 /* The inline value overlay's slot. Nothing produces annotations yet; the rule
    exists so that when a producer does, the line does not have to change. */
 .srcline .ann{display:inline-flex;gap:var(--bt-space-2xs);

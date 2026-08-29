@@ -97,13 +97,43 @@ proc paneNote(note: string): string =
 
 # ── the five replay panes ──────────────────────────────────────────────────
 
+func tokenClass*(k: TokenKind): string =
+  ## The CSS class for a lexical kind.
+  ##
+  ## Total over `TokenKind`, so a kind added to the lexer is a compile error
+  ## here rather than an unstyled span. `debugger_css.nim` carries a rule for
+  ## every class this returns, and `test_debug_route` checks that in both
+  ## directions — the two files are the one place the mapping could drift, and
+  ## a token whose class has no rule would render as unremarkable text while
+  ## the lexer reported success.
+  ##
+  ## `tkPlain` is deliberately given no class: `renderSource` emits it as a bare
+  ## text node, so returning one would create a class nothing uses.
+  case k
+  of tkPlain: ""
+  of tkComment: "tk-comment"
+  of tkKeyword: "tk-keyword"
+  of tkType: "tk-type"
+  of tkFunction: "tk-function"
+  of tkString: "tk-string"
+  of tkNumber: "tk-number"
+  of tkPunctuation: "tk-punct"
+
 proc renderSource*(p: EditorPane): string =
   ## The static source renderer.
   ##
-  ## Per line: a gutter number, an execution marker, and the text as ONE text
-  ## node inside `<code>`. No tokenising, no highlighting, and no library —
-  ## and the single text node is the seam that lets a tokeniser be dropped in
-  ## later without moving anything around it.
+  ## Per line: a gutter number, an execution marker, and the line's text inside
+  ## `<code>` — as classified `<span>`s when the file's language has a lexer
+  ## profile, and as the ONE text node it has always been when it does not.
+  ## The seam this function reserved was used exactly as described: the spans
+  ## arrive on `SourceLine.tokens`, already computed at export time by
+  ## `source_highlight`, and nothing around them moved. Still no library, and
+  ## still no JavaScript.
+  ##
+  ## The fallback is the honest half. A language with no profile, and an
+  ## instruction-level session where there is no source and no lexer applies,
+  ## both render plain — never mis-tokenised by whichever lexer happened to be
+  ## available. A Solidity lexer over Noir would produce confident nonsense.
   ##
   ## `data-line` and the element `id` carry the line's stable identity
   ## (`session_view.lineAnchor`), derived from the file path and the line
@@ -155,7 +185,23 @@ proc renderSource*(p: EditorPane): string =
                id = ln.anchor, `data-line` = $ln.number):
             span(class = "n"): text $ln.number
             span(class = "m"): text (if ln.current: "▶" elif ln.executed: "·" else: " ")
-            code(class = "t"): text ln.text
+            code(class = "t"):
+              # No tokens means the language has no profile — render the line
+              # as the ONE text node it was before highlighting existed. This
+              # is the honest output for a file nothing here can lex, and for
+              # an instruction-level listing where no lexer applies at all.
+              if ln.tokens.len == 0:
+                text ln.text
+              else:
+                for tok in ln.tokens:
+                  # `tkPlain` carries whitespace and unremarkable identifiers.
+                  # It gets no span: a wrapper that sets no colour is markup
+                  # nobody reads, and it would roughly double the bytes of
+                  # every source pane on the site.
+                  if tok.kind == tkPlain:
+                    text tok.text
+                  else:
+                    span(class = tokenClass(tok.kind)): text tok.text
             if ln.annotations.len > 0:
               span(class = "ann"):
                 for a in ln.annotations:

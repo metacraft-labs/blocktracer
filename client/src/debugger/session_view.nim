@@ -38,6 +38,8 @@
 ## the ViewModel that owns it, upstream of this projection.
 
 import std/strutils
+import ./source_highlight
+export source_highlight
 
 # ---------------------------------------------------------------------------
 # Phases — Page-Descriptions §8: "Loading is phased and honest — fetching,
@@ -144,6 +146,21 @@ type
     executed*: bool       ## the trace visited this line at least once
     current*: bool        ## the session's position is on this line
     annotations*: seq[LineAnnotation]
+    tokens*: seq[SourceToken]
+      ## The line, partitioned into classified spans by `source_highlight`.
+      ##
+      ## EMPTY means "render `text` as one text node", which is what a file in a
+      ## language no profile covers gets, and what every line got before
+      ## highlighting existed. It is deliberately not "a single `tkPlain`
+      ## token": the renderer has to be able to tell "lexed, and every run came
+      ## out unremarkable" from "not lexed at all", because only the second may
+      ## fall back to the pre-highlighting markup.
+      ##
+      ## Computed once, at static-export time, by `newSourceDocument` — the page
+      ## ships no JavaScript, so there is nowhere else it could happen. It
+      ## travels WITH the line so that `openAtCurrent` and `windowAround`, which
+      ## copy `SourceLine`s into a narrower document, keep the highlighting
+      ## without re-lexing and without knowing the language.
 
   SourceDocument* = object
     ## One file in the editor pane.
