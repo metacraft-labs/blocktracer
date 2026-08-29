@@ -588,6 +588,15 @@ html[data-register="debugger"],
   .pane,.ln.stack > .pane{flex:0 0 auto;height:auto}
   .panebody{flex:0 0 auto;height:auto;
     max-height:var(--bt-layout-code-max-height);overflow:auto}
+  /* …with ONE exception, and it is the pane §13 names first. `.srcwrap` is
+     `height:100%` and `.src` inside it is `flex:1 1 0`, so an auto-height
+     `.panebody` gives the chain nothing to divide and the code renders at zero
+     height: the source pane came out as an EMPTY TITLE BAR at every narrow
+     viewport, which is exactly the "reduced session that silently drops a
+     pane" §13 forbids — except that it was not even announced, because the
+     pane was still there. VD.5's own `debugger--narrow` capture shows it. A
+     definite height is all the chain needs. */
+  .p-source .panebody{height:var(--bt-layout-code-max-height)}
   .dbgnarrow{display:block;flex:0 0 auto;
     padding:var(--bt-density-cell-y) var(--bt-layout-gutter);
     background:var(--bt-status-info-bg);color:var(--bt-status-info-fg);
