@@ -7,7 +7,7 @@ import isonim/ssr/escape
 import isonim/dsl/ui
 import ../reader
 import ../viewutil
-import ../debugger/layout_model
+import ../debugger/session_layout
 import ../debugger/session_view
 import ../components/debugger
 
@@ -21,13 +21,21 @@ proc liveDemo(demo: DebugSessionView): string =
   ## view's anti-requirements name, and reusing the route's own renderers is
   ## what makes it structurally impossible here.
   ##
+  ## It walks `blockTracerReplayLayout()` — the debug route's own arrangement,
+  ## not a second one — so the embed cannot come to show a layout the product
+  ## does not have. That is also why the stepping controls are absent from it:
+  ## they are in the route's identity bar, and the embed has no identity bar
+  ## because the page around it is the identity. An embed that grew a toolbar
+  ## of its own would be offering to step inside a marketing panel, which is
+  ## the "picture of a debugger" failure in the other direction.
+  ##
   ## The panel is product register inside an explorer-register page. §2 of
   ## Design-System.md makes that crossing deliberate, so it is drawn as a
   ## bounded, elevated surface rather than left to bleed.
   ui:
     tdiv(class = "livedemo", id = "live-demo", `data-register` = "debugger"):
       tdiv(class = "dbgmain"):
-        raw renderLayout(defaultReplayLayout(), demo)
+        raw renderLayout(blockTracerReplayLayout(), demo)
       tdiv(class = "livedemofoot"):
         span:
           text "A real session, stopped mid-execution at step " &

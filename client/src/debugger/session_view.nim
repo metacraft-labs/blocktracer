@@ -104,6 +104,23 @@ func phaseLabel*(p: SessionPhase): string =
   of spAwaitingGeneration: "No trace recorded yet"
   of spUnavailable: "No session"
 
+func phaseShortLabel*(p: SessionPhase): string =
+  ## The same phase in one word, for the rail in the identity bar.
+  ##
+  ## §8 requires the loading to be "phased and honest — fetching, then opening,
+  ## then positioning". Naming all three and marking the current one is what
+  ## satisfies that, and it has to fit on a bar beside the toolbar it explains;
+  ## `phaseLabel`'s sentences are for a pane header, where there is room for a
+  ## sentence. Two spellings of one enum, both exhaustive `case`s over it, so a
+  ## phase added later has to answer both rather than silently inheriting one.
+  case p
+  of spFetching: "Fetching"
+  of spOpening: "Opening"
+  of spPositioning: "Positioning"
+  of spReady: "Stepping"
+  of spAwaitingGeneration: "Not recorded"
+  of spUnavailable: "No session"
+
 # ---------------------------------------------------------------------------
 # Editor pane — the source view
 # ---------------------------------------------------------------------------

@@ -16,7 +16,7 @@
 ##
 ## ## The weight ladder
 ##
-## `defaultReplayLayout()` uses weights 1, 2, 3 and 9. A flex fraction cannot
+## `blockTracerReplayLayout()` uses weights 1, 2 and 3. A flex fraction cannot
 ## come from a custom property applied per element without an inline `style`
 ## attribute, and an inline style is a design value no token layer can reach
 ## (check A5). So the fractions are a fixed ladder of classes and
@@ -41,8 +41,13 @@ html[data-register="debugger"],
 [data-register="debugger"] .dbg{display:flex;flex-direction:column;height:100%;min-height:0}
 
 /* ── identity bar ───────────────────────────────────────────────────────── */
-.dbgbar{flex:0 0 auto;display:flex;align-items:center;gap:var(--bt-space-md);
-  height:var(--bt-layout-nav-height);padding:0 var(--bt-layout-gutter);
+/* It carries the stepping controls now, so it is `min-height` and wraps rather
+   than a fixed height that would clip them. At `wide` the whole bar is one
+   row; at `laptop` the control group wraps to a second, which is a designed
+   reduction and not an overflow — nothing is hidden and nothing is cut. */
+.dbgbar{flex:0 0 auto;display:flex;align-items:center;flex-wrap:wrap;
+  gap:var(--bt-space-md) var(--bt-space-md);
+  min-height:var(--bt-layout-nav-height);padding:0 var(--bt-layout-gutter);
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-default);
   background:var(--bt-surface-raised)}
 .dbgback{color:var(--bt-text-link);font-size:var(--bt-type-body-sm-size);
@@ -59,6 +64,23 @@ html[data-register="debugger"],
 .dbgspacer{flex:1 1 auto}
 .btn.sm{font-size:var(--bt-type-label-size);line-height:var(--bt-type-label-line);
   padding:var(--bt-space-3xs) var(--bt-space-xs)}
+/* The control group inside the bar. It takes the width its contents need and
+   no more — the slack goes to `.dbgspacer` after it, NOT into the scrubber.
+   That is deliberate: a uniform-step scrubber over `step / totalSteps` carries
+   almost no information (nobody in this category ships one — WinDbg's timeline
+   is event-typed lanes, Chrome's is a CPU chart for range selection), and an
+   element that absorbs every spare pixel becomes the largest thing in the bar
+   by accident rather than by rank. It is capped below and stays a readout.
+   A rule separates the group from the identity to its left, because eight
+   glyph buttons abutting a hash reads as one undifferentiated strip. */
+.dbgctl{flex:0 1 auto;min-width:0;display:flex;
+  align-items:center;gap:var(--bt-space-md);
+  padding-left:var(--bt-space-md);
+  border-left:var(--bt-stroke-hairline) solid var(--bt-border-default)}
+/* Fixed, never shrinking: `flex:0 1` let it collapse to a couple of pixels at
+   laptop width, which turned 48 ticks and a playhead into a single dash. A
+   readout that cannot be read is worse than one that costs width. */
+.dbgctl .dctl{flex:0 0 var(--bt-layout-search)}
 
 /* ── banners: one component, two severities ─────────────────────────────── */
 .dbgbanner{flex:0 0 auto;display:flex;align-items:baseline;
@@ -72,18 +94,20 @@ html[data-register="debugger"],
 .dbgbanner .bannertitle{font-weight:var(--bt-type-h3-weight);white-space:nowrap}
 .dbgbanner .bannertext{color:inherit;max-width:var(--bt-measure-prose)}
 
-/* ── the honest loading line (§8: phase, never a spinner) ───────────────── */
-.enginenotice{flex:0 0 auto;display:flex;align-items:center;
-  gap:var(--bt-space-md);flex-wrap:wrap;
-  padding:var(--bt-density-cell-y) var(--bt-layout-gutter);
-  border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
-  background:var(--bt-surface-sunken);
-  font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line)}
-.enginetext{color:var(--bt-text-muted);max-width:var(--bt-measure-prose)}
+/* The engine-loading band — a full-width row of prose above the session
+   explaining that the buttons below it could not act yet — is GONE, with both
+   rules that styled it. It was hydration's absence rendered as a paragraph,
+   and what it said is now said by the controls' own status, the phase rail
+   beside them and each inert button's title. A rule kept for an element that
+   no longer exists is a standing invitation to re-add it; this stylesheet is
+   INLINED into the page, so the selectors — or a comment spelling them —
+   would keep the removed band's names in the served bytes, which
+   `test_debug_route` asserts against. Same reasoning as the pane-header
+   dismiss rule below. The engine-ORIGIN rule survives because the disclosure
+   does: it moved into the phase rail. */
 .engineorigin{color:var(--bt-text-subtle);
   font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
   font-size:var(--bt-type-label-size);word-break:break-all}
-.enginenotice .phaserail{margin-top:0}
 
 /* ── the pane region ────────────────────────────────────────────────────── */
 .dbgmain{flex:1 1 0;display:flex;min-height:0;min-width:0;
@@ -437,10 +461,18 @@ html[data-register="debugger"],
 .evrow.k-revert .evdetail{color:var(--bt-status-danger-fg)}
 
 /* ── debug controls ─────────────────────────────────────────────────────── */
-.dc{display:flex;align-items:center;gap:var(--bt-space-md);
-  padding:var(--bt-density-control-y) var(--bt-density-control-x);
-  height:100%}
+/* In the identity bar, not in a pane of their own. No padding and no height of
+   its own: the bar sets both, and a control group that reasserted them would
+   sit at a different vertical rhythm from the identity it stands beside. */
+.dc{flex:1 1 0;min-width:0;display:flex;align-items:center;
+  gap:var(--bt-space-md)}
+/* The four moves are PAIRS — backward then forward — and the pairs used to run
+   together at one uniform gap, so proximity conveyed no grouping and eight
+   buttons read as one undifferentiated run. A pair is tight; the gap between
+   pairs is the one that means something. */
 .dcbtns{flex:0 0 auto;display:flex;gap:var(--bt-space-3xs)}
+.dcbtn:nth-child(odd){margin-left:var(--bt-space-xs)}
+.dcbtn:first-child{margin-left:0}
 .dcbtn{display:inline-flex;align-items:center;justify-content:center;
   min-width:var(--bt-space-lg);
   padding:var(--bt-space-3xs) var(--bt-space-xs);
@@ -472,7 +504,11 @@ html[data-register="debugger"],
   min-width:var(--bt-stroke-thick);border-radius:var(--bt-radius-xs);
   flex:0 0 auto}
 .dcstatus{flex:0 0 auto;display:flex;align-items:baseline;gap:var(--bt-space-sm)}
-.dcphase{color:var(--bt-text-default);font-size:var(--bt-type-body-sm-size)}
+/* One short phrase, not a sentence: it shares a bar with the identity now, and
+   the step counter is its right-hand neighbour, so it says only what the
+   counter cannot — WHAT is being waited for and how big it is. */
+.dcphase{color:var(--bt-text-default);font-size:var(--bt-type-body-sm-size);
+  white-space:nowrap}
 .dcsteps{color:var(--bt-text-subtle);
   font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
   font-variant-numeric:var(--bt-numeric-features);
@@ -546,16 +582,47 @@ html[data-register="debugger"],
 .norow{display:flex;align-items:center;gap:var(--bt-space-md);flex-wrap:wrap;
   margin-top:var(--bt-rhythm-stack)}
 .norow .panenote{padding:0;flex:1 1 var(--bt-measure-narrow)}
-.phaserail{display:flex;gap:var(--bt-space-sm);flex-wrap:wrap;
-  align-items:center;margin-top:var(--bt-rhythm-group)}
+/* The phase rail sits in the identity bar now, beside the controls whose
+   inertness it explains, so it has no vertical rhythm of its own and its
+   chips carry one word rather than a sentence (`session_view.phaseShortLabel`).
+   The chips run together with a hairline between them instead of eight pixels
+   of air: three separate pills read as three independent states, and this is
+   one sequence with a position in it. */
+.phaserail{display:flex;flex-wrap:wrap;align-items:center;flex:0 0 auto;
+  border:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
+  border-radius:var(--bt-radius-full);overflow:hidden}
 .phaserail .phase{font-size:var(--bt-type-label-size);
   font-weight:var(--bt-type-label-weight);letter-spacing:var(--bt-type-label-tracking);
-  text-transform:uppercase;color:var(--bt-text-subtle);
-  padding:var(--bt-space-3xs) var(--bt-space-xs);
-  border:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
-  border-radius:var(--bt-radius-full)}
+  text-transform:uppercase;color:var(--bt-text-subtle);white-space:nowrap;
+  padding:var(--bt-space-3xs) var(--bt-space-xs)}
+.phaserail .phase + .phase{
+  border-left:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
 .phaserail .phase.on{color:var(--bt-text-strong);
-  border-color:var(--bt-accent-default);background:var(--bt-surface-selected)}
+  background:var(--bt-surface-selected);
+  box-shadow:inset var(--bt-stroke-thick) 0 0 0 var(--bt-accent-default)}
+.phaserail .engineorigin{padding:var(--bt-space-3xs) var(--bt-space-xs);
+  border-left:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
+
+/* ── copying a value out (§13: copyable with one click) ─────────────────── */
+/* `user-select:all` is the whole mechanism: one click selects the entire
+   value, and the platform's copy gesture takes it from there. It is what a
+   page with NO JavaScript can offer; a copy BUTTON here would be a control
+   that cannot succeed, which is the defect two affordances on this surface
+   were already removed for. `components/debugger.Copyable` carries the whole
+   argument — and carries it there rather than here because this stylesheet is
+   INLINED into the page, so naming a removed affordance in a comment would
+   put its name back into the served bytes.
+   The hover treatment is what makes it discoverable rather than a hidden
+   behaviour: the value gains a surface and a border on hover, so it reads as a
+   single object you can take, and `cursor` says which gesture is on offer.
+   Applied only to values rendered IN FULL — see `Copyable` for why a
+   truncated identifier carries `title`/`data-copy` instead. */
+.copyable{user-select:all;cursor:copy;border-radius:var(--bt-radius-xs);
+  transition:background var(--bt-motion-fast) var(--bt-motion-ease)}
+.copyable:hover{background:var(--bt-surface-hover);
+  box-shadow:0 0 0 var(--bt-stroke-hairline) var(--bt-border-default)}
+.copyable::selection{background:var(--bt-surface-selected);
+  color:var(--bt-text-strong)}
 
 /* ── the embedded demo on the home page ─────────────────────────────────── */
 /* Design-System §2 makes the register crossing deliberate, so the embed is a
@@ -575,6 +642,19 @@ html[data-register="debugger"],
 
 /* ── narrow: its own surface, not a squeeze (Page-Descriptions §13) ─────── */
 .dbgnarrow{display:none}
+/* ── the identity bar's wrap point ──────────────────────────────────────── */
+/* Below `wide`, the bar cannot hold the identity, the controls, the scrubber,
+   the status, the phase rail and both actions on one line. Left alone it wraps
+   wherever the last item stops fitting, which left the final action alone on a
+   second line and read as a rendering fault. So the wrap point is a
+   DECISION: the spacer becomes a zero-height full-width break, giving two
+   deliberate rows — the session (identity and its controls) above, the page's
+   actions below — and the scrubber gives up the width that makes the first row
+   fit, because a uniform-step readout is the cheapest thing in the group. */
+@media (max-width:1600px){
+  .dbgspacer{flex:0 0 100%;height:0}
+  .dbgctl .dctl{flex:0 0 var(--bt-layout-label-column)}
+}
 @media (max-width:1100px){
   /* Every flex box above turns from "share a fixed viewport" into "be as tall
      as your content, up to a cap" — a pane that keeps `flex:1 1 0` inside an
@@ -591,12 +671,15 @@ html[data-register="debugger"],
   /* …with ONE exception, and it is the pane §13 names first. `.srcwrap` is
      `height:100%` and `.src` inside it is `flex:1 1 0`, so an auto-height
      `.panebody` gives the chain nothing to divide and the code renders at zero
-     height: the source pane came out as an EMPTY TITLE BAR at every narrow
+     height: the Code pane came out as an empty title bar at every narrow
      viewport, which is exactly the "reduced session that silently drops a
      pane" §13 forbids — except that it was not even announced, because the
-     pane was still there. VD.5's own `debugger--narrow` capture shows it. A
-     definite height is all the chain needs. */
+     pane was still there. A definite height is all the chain needs. */
   .p-source .panebody{height:var(--bt-layout-code-max-height)}
+  /* The identity bar's forced two-row wrap is a `wide`/`laptop` measure. Here
+     the actions are hidden anyway, so the break would leave the language tag
+     alone on a row of its own. */
+  .dbgspacer{flex:1 1 auto;height:auto}
   .dbgnarrow{display:block;flex:0 0 auto;
     padding:var(--bt-density-cell-y) var(--bt-layout-gutter);
     background:var(--bt-status-info-bg);color:var(--bt-status-info-fg);
@@ -604,10 +687,32 @@ html[data-register="debugger"],
     font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line)}
   /* Page-Descriptions §13: source, call trace and values, read-only. The
      controls and the event log are REMOVED rather than shrunk, and the banner
-     above says so — an unannounced reduction is the §13 failure. */
-  .p-controls{display:none}
-  .p-eventlog,.stacktab.t-pane-eventlog{display:none}
-  .stackpanel.def{display:flex}
+     above says so — an unannounced reduction is the §13 failure.
+     The controls are hidden in the BAR now rather than in the pane grid,
+     because that is where they moved; a rule aimed at the pane they used to be
+     would silently stop hiding anything, and this stylesheet is inlined, so
+     even naming that class in a comment would keep it in the served bytes.
+     `.dc` and not `.dbgctl`: the phase rail is the group's other member and it
+     stays. §8's "phased and honest, never an indeterminate spinner" is not a
+     desktop-only requirement, and a narrow visitor waiting on the same 18 MB
+     is owed the same account of what is being waited for. */
+  .dbgbar .dc{display:none}
+  .dbgbar .dbgctl{border-left:0;padding-left:0;flex:0 0 auto}
+  /* The Event Log is the ALTERNATE half of the navigation region's tab pair,
+     so at this width it is already hidden and nothing has to hide it. What
+     does have to go is its TAB — a tab that selects a hidden panel is a
+     control that does nothing, which is the defect this surface has removed
+     twice. And a URL arriving with `#pane-eventlog` still in it must not be
+     able to bring the panel back or blank the region, so the three targeted-
+     alternate rules are answered here rather than left to win the cascade:
+     the panel stays hidden, the Call Trace panel stays shown, and its tab
+     stays marked. A `:target` that changes nothing is the correct behaviour
+     for a fragment naming a pane this viewport does not offer. */
+  .stacktab.t-pane-eventlog{display:none}
+  .stackpanel.p-eventlog:target{display:none}
+  .stackpanel.p-eventlog:target ~ .stackpanel.def{display:flex}
+  .stackpanel.p-eventlog:target ~ .stacktabs > .stacktab:first-child{
+    color:var(--bt-text-strong);border-bottom-color:var(--bt-accent-default)}
   .dbgbar .btn,.dbgbar .btn.disabled{display:none}
 }
 @media (max-width:720px){

@@ -1,26 +1,31 @@
 ## The debug route's surface: the slim identity bar, the pane arrangement, and
 ## the six pane renderers.
 ##
-## ## The arrangement is CodeTracer's, consumed rather than restated
+## ## The arrangement is CodeTracer's MODEL, composed by BlockTracer
 ##
-## `renderLayout` walks a `LayoutNode` — the vendored copy of CodeTracer's
-## `headless_app/layout_model.nim` — and turns it into markup:
+## `renderLayout` walks a `LayoutNode` — the type from the vendored copy of
+## CodeTracer's `headless_app/layout_model.nim` — and turns it into markup:
 ##
 ##   `lnRow` / `lnColumn` → a flex container on that axis
 ##   `weight`             → a flex fraction, via a class from the weight ladder
 ##   `lnStack`            → tabs, one visible at a time
 ##   `lnPane`             → the pane renderer for that `PaneKind`
 ##
-## Nothing here decides *what the arrangement is*. `defaultReplayLayout()`
-## decides that, and a change upstream to the shape or the weights arrives here
-## without an edit. That is the whole reason to consume the model: this is the
-## fourth front-end to arrange these five panes, and the previous three
-## disagreeing about the default was the problem.
+## Nothing here decides *what the arrangement is*. `session_layout
+## .blockTracerReplayLayout()` decides that, over the same primitives and the
+## same closed `PaneKind`. It used to be `defaultReplayLayout()` verbatim; that
+## module stays byte-identical to CodeTracer's and the composition moved out of
+## it, because the desktop app's default and a web session's default are two
+## decisions and only one of them is ours to make. `session_layout.nim` carries
+## the reasoning.
 ##
 ## `renderLayout` is total over `LayoutNodeKind` and over `PaneKind`, so a pane
 ## added to CodeTracer's enum is a compile error here rather than a blank
 ## region — which is the failure mode `GoldenLayoutResolvedConfig` has today
-## and the reason `lpUnknownPane` exists in the model at all.
+## and the reason `lpUnknownPane` exists in the model at all. Totality is also
+## why `renderStack` survives an arrangement that places no stack: `lnStack` is
+## a shape of the model, not a feature of BlockTracer's default, and a restored
+## layout may still carry one.
 ##
 ## ## No layout engine, no drag, no persistence
 ##
@@ -40,10 +45,15 @@
 ## one of them. Adding a value to the vendored copy would make it a fork rather
 ## than a copy and would fail `ci/test/layout-model-vendor.sh`.
 ##
-## So the replay region is the walked tree, verbatim, and BlockTracer's own
-## pane is composed beside it with the same pane chrome. `Debugger-Integration`
-## §3 licenses exactly this: "BlockTracer's contribution is which panes are
-## open by default … and the three augmentations in §4."
+## So the replay region is the walked tree and BlockTracer's own pane is
+## composed beside it with the same pane chrome. `Debugger-Integration` §3
+## licenses exactly this: "BlockTracer's contribution is which panes are open
+## by default … and the three augmentations in §4."
+##
+## The debug controls make the same move in the opposite direction — a pane of
+## `PaneKind` that BlockTracer renders OUTSIDE the tree, in the identity bar.
+## `session_layout.ControlsArePlacedInTheBar` is where that is written down and
+## `pages/debug.nim` is where it is done.
 
 import std/strutils
 import isonim/ssr/escape
@@ -55,8 +65,9 @@ import ../viewutil
 # ── weights → flex fractions ───────────────────────────────────────────────
 
 const MaxWeight* = 12
-  ## The weight ladder `debugger_css.nim` emits rules for. `defaultReplayLayout`
-  ## uses 1, 2, 3 and 9; the ladder is wider so a change upstream has room, and
+  ## The weight ladder `debugger_css.nim` emits rules for.
+  ## `blockTracerReplayLayout` uses 1, 2 and 3 and `defaultReplayLayout`
+  ## uses 1, 2, 3 and 9; the ladder is wider so a change has room, and
   ## `weightClass` REFUSES a weight outside it rather than silently rendering
   ## the wrong proportions. A static export turns that refusal into a failed
   ## build, which is where a layout that cannot be rendered should surface.
@@ -94,6 +105,53 @@ proc paneNote(note: string): string =
   ## not sit blank", so there is no code path that renders an empty body.
   ui:
     p(class = "panenote"): text note
+
+# ── copying a value out (§13: "every hash, address and identifier is copyable
+#    with one click") ───────────────────────────────────────────────────────
+
+const Copyable* = "copyable"
+  ## The class that makes a machine value selectable **in one click**.
+  ##
+  ## ## Why this is a CSS affordance and not a button
+  ##
+  ## This page ships no JavaScript, and `navigator.clipboard.writeText` is the
+  ## only way markup can put a string on the clipboard. A `<button>Copy</button>`
+  ## here would therefore be a control that cannot succeed — the exact defect
+  ## `panedismiss` and the inert `.ctsort` span were removed for, and one this
+  ## surface has now made twice.
+  ##
+  ## `user-select: all` is the affordance that *does* work with scripting off:
+  ## one click selects the whole value, and the platform's own copy gesture
+  ## takes it from there. It is less than a copy button and it is not a lie
+  ## about being one. `debugger_css.nim` gives it a hover treatment and a
+  ## `cursor` so it is discoverable rather than a hidden behaviour.
+  ##
+  ## ## Where it is applied, and where it deliberately is not
+  ##
+  ## Only on values rendered **in full**: a frame name, an event label, a
+  ## variable's value, an execution selector, a metadata identifier. A
+  ## `user-select: all` on a value that is displayed TRUNCATED would select and
+  ## copy `0xa45907…9296` — a string that is not the value and cannot be pasted
+  ## anywhere useful. Truncated identifiers (`.dbgid`, `.mdhash`) therefore
+  ## carry `title` and `data-copy` with the full value instead: the first makes
+  ## it readable on hover today, the second is what hydration reads when it
+  ## upgrades these into real one-click copy buttons.
+  ##
+  ## Source lines are not marked either, and that is a judgement rather than an
+  ## omission: `user-select: all` on a line of code would make selecting a
+  ## sub-expression impossible, and the line is already copyable — `.srcline .n`
+  ## and `.srcline .m` are `user-select: none`, so a drag across the pane yields
+  ## the code without the gutter, which is what a reader of code actually wants.
+  ##
+  ## ## The one thing a copy affordance must not do
+  ##
+  ## Copying must not launder a *deduced* value into a *verified* one. Where a
+  ## value's provenance is in question the qualifier travels with it in the same
+  ## row — the execution rows carry their availability badge and reason beside
+  ## the selector, the identity bar carries `Reconstructed` beside the hash, and
+  ## the source pane states `srcUnverified` before it shows anything. Nothing
+  ## below marks a value copyable in a place where its qualifier is not already
+  ## adjacent to it.
 
 # ── the five replay panes ──────────────────────────────────────────────────
 
@@ -273,7 +331,7 @@ proc renderCallTrace*(p: CallTracePane): string =
           tdiv(class = "ctrow " & (if indented: depthClass(f.depth) else: "d0 flat") &
                        (if f.current: " cur" else: "")):
             span(class = "ctfn"):
-              span(class = "ctname"): text f.fn
+              span(class = "ctname " & Copyable): text f.fn
               span(class = "ctmod"): text f.module
             span(class = "ctcost num"): text f.cost
 
@@ -341,7 +399,7 @@ proc renderState*(p: StatePane): string =
           # end rather than trailing the name, so it is scannable down the
           # pane instead of landing at a different x on every row.
           span(class = "stname"): text v.name
-          span(class = "stval"): text v.value
+          span(class = "stval " & Copyable): text v.value
           span(class = "sttype"): text v.typ
 
 proc renderEventLog*(p: EventLogPane): string =
@@ -355,7 +413,7 @@ proc renderEventLog*(p: EventLogPane): string =
           span(class = "evglyph"): text eventKindGlyph(r.kind)
           span(class = "evkind"): text eventKindLabel(r.kind)
           span(class = "evstep num"): text $r.step
-          span(class = "evlabel"): text r.label
+          span(class = "evlabel " & Copyable): text r.label
           span(class = "evdetail"): text r.detail
 
 const TimelineTicks = 48
@@ -365,6 +423,26 @@ const TimelineTicks = 48
   ## an inline style is a design value no token layer can reach.
 
 proc renderControls*(p: DebugControlsPane): string =
+  ## The stepping toolbar, the scrubber and the status — rendered into the
+  ## identity bar (`pages/debug.nim`), not into a pane of its own.
+  ##
+  ## ## Why the inertness is on the buttons and not in a paragraph
+  ##
+  ## This used to be a full-width pane under a row of prose explaining that
+  ## stepping had not started yet. The prose is gone. A control that cannot act
+  ## has to say so *as a control*: `.dcbtn.off` carries the disabled surface,
+  ## the disabled foreground and `cursor: not-allowed`, `aria-disabled` puts the
+  ## same fact on the accessibility tree, and the `title` names the move AND
+  ## what it is waiting for. Three channels, all attached to the thing that is
+  ## inert, and none of them a sentence a reader has to connect to a button two
+  ## panes away.
+  ##
+  ## `aria-disabled` rather than the `disabled` attribute, deliberately: a
+  ## `disabled` button leaves the tab order and, in several browsers, stops
+  ## showing its own tooltip — so the one channel that explains WHY it is inert
+  ## would be unreachable exactly for the users who most need it. The button
+  ## cannot act either way; this page has no script and no form behind it.
+
   # NEAREST tick, not the one below it. `int()` truncates, and truncation is a
   # systematic bias in one direction: the fixture sits at step 128 of 1315 =
   # 9.7%, which truncated to tick 4 of 48 and read as 8.3%. Every position the
@@ -383,8 +461,11 @@ proc renderControls*(p: DebugControlsPane): string =
     tdiv(class = "dc"):
       tdiv(class = "dcbtns"):
         for b in p.buttons:
+          let why = (if b.enabled: b.label
+                     else: b.label & " — inert until the replay engine loads")
           button(class = "dcbtn" & (if b.enabled: "" else: " off"),
-                 title = b.label, `aria-label` = b.label):
+                 title = why, `aria-label` = why,
+                 `aria-disabled` = (if b.enabled: "false" else: "true")):
             span(class = "dcglyph"): text b.glyph
       tdiv(class = "dctl"):
         for i in 1 .. TimelineTicks:
@@ -420,7 +501,12 @@ proc metaRows(rows: seq[MetaRow]; cls: string): string =
           elif r.badge.len > 0:
             span(class = "badge " & r.badge): text r.value
           elif r.identifier:
-            span(class = "identifier"): text r.value
+            # Rendered in FULL — an address, a target, a cost pair, a decoded
+            # argument — so one click selects the whole of it. `Copyable` lives
+            # here rather than at either call site for the same reason this
+            # helper does: a row must not acquire a second presentation by
+            # being in the other list.
+            span(class = "identifier " & Copyable): text r.value
           else:
             text r.value
           if r.suffix.len > 0:
@@ -431,7 +517,12 @@ proc renderMetadata*(m: MetadataPane): string =
     tdiv(class = "md"):
       tdiv(class = "mdhero"):
         span(class = "badge " & m.outcomeBadge): text m.outcome
-        span(class = "identifier mdhash"): text truncHash(m.hash, 10, 8)
+        # Displayed TRUNCATED, so it is not `Copyable`: selecting the rendered
+        # text would yield an ellipsis, which is not the hash. The full value
+        # travels on `title` (readable on hover) and on `data-copy` (what
+        # hydration reads when it turns this into a copy button).
+        span(class = "identifier mdhash", title = m.hash,
+             `data-copy` = m.hash): text truncHash(m.hash, 10, 8)
       # The hash IN FULL, below the truncation, exactly as the metadata page's
       # hero renders it (`pages/tx.nim`: a truncated `h1` over a full-hash
       # lead). §7.2 section 1 asks for "hash with copy", and after §7.0 this
@@ -440,7 +531,11 @@ proc renderMetadata*(m: MetadataPane): string =
       # two different truncations has lost the fact that identifies it. The
       # slim identity bar keeps its truncation, because §8's collapse is a
       # width constraint and this pane is not under it.
-      p(class = "mdfull identifier"): text m.hash
+      #
+      # And because it IS the full value, it is the copy target: one click
+      # selects the whole hash. That is what §7.2's "with copy" can honestly
+      # mean on a page with no script.
+      p(class = "mdfull identifier " & Copyable): text m.hash
       if m.revertReason.len > 0:
         p(class = "mdrevert " & m.revertReasonTone):
           text m.revertReasonLabel & ": " & m.revertReason
@@ -450,7 +545,10 @@ proc renderMetadata*(m: MetadataPane): string =
           span(class = "mdexectitle"): text "Executions"
           for e in m.executions:
             tdiv(class = "mdexecrow"):
-              span(class = "sel"): text e.selector
+              # The selector is copyable and its availability badge is its
+              # immediate sibling, so what is copied never arrives without the
+              # qualifier that says how much it is worth.
+              span(class = "sel " & Copyable): text e.selector
               span(class = "badge " & e.badge): text e.availability
               if e.reason.len > 0:
                 span(class = "reason"): text e.reason
@@ -489,7 +587,7 @@ proc paneBody(kind: PaneKind; s: DebugSessionView): string =
     # of the model's closed enum is that an unplaced pane is visible.
     paneNote("The " & $kind & " pane is not part of BlockTracer's session.")
 
-proc paneClass(kind: PaneKind): string =
+proc paneClass*(kind: PaneKind): string =
   case kind
   of paneEditor: "p-source"
   of paneCalltrace: "p-calltrace"
@@ -498,7 +596,7 @@ proc paneClass(kind: PaneKind): string =
   of paneDebugControls: "p-controls"
   else: "p-other"
 
-proc paneId(kind: PaneKind): string =
+proc paneId*(kind: PaneKind): string =
   ## The capture harness and any deep link address a pane by this id, so it is
   ## derived from the model's own enum spelling rather than hand-listed.
   "pane-" & ($kind).toLowerAscii

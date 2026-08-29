@@ -42,22 +42,35 @@
 ## ## What this page is not doing yet, stated rather than implied
 ##
 ## It renders the session's **first frame** from published data plus the demo
-## session fixture, and it says so on the page. It does not run a replay
-## engine: that is `WorkerBackendService` over DAP-on-`postMessage`
-## (Debugger-Integration §2) driving the already-published browser bundle from
+## session fixture. It does not run a replay engine: that is
+## `WorkerBackendService` over DAP-on-`postMessage` (Debugger-Integration §2)
+## driving the already-published browser bundle from
 ## `replay_engine.ReplayEngineBase`, and until it lands `phase` stays
-## `spFetching`, the stepping controls render visibly inert, and the honest
-## loading line names what is missing and how big it is.
+## `spFetching` and the stepping controls render visibly inert.
 ##
-## Nothing here has to change when it does — the panes render a
+## **That fact is carried by the controls, not by a paragraph** (revised
+## 2026-08-29). There used to be an `engineNotice` row above the session —
+## *"This is the session's first frame, rendered from published data. Stepping
+## starts once the replay engine loads — 18 MB, fetched once and cached."* —
+## and it is gone. It was an artefact of hydration not existing yet: a
+## page-level explanation of why the buttons two rows down do nothing, spending
+## a full band of a full-viewport surface to say something the buttons are
+## better placed to say themselves. What it actually contributed is kept, in
+## three places that are attached to the thing they describe: the controls'
+## own status (`Engine loading — 18 MB`), the phase rail beside it, and each
+## inert button's `aria-disabled` and title. Its third claim — the engine's
+## origin, when a build names a cross-origin one — moves to `data-replay-engine`
+## on the root, which every build already carried.
+##
+## Nothing here has to change when hydration lands — the panes render a
 ## `DebugSessionView`, hydration produces one with `phase == spReady`, and
 ## every affordance on this page is already gated on that rather than on the
 ## presence of content.
 
 import isonim/ssr/escape
 import isonim/dsl/ui
-import ../debugger/layout_model
 import ../debugger/replay_engine
+import ../debugger/session_layout
 import ../debugger/session_view
 import ../debugger/source_document
 import ../components/debugger
@@ -78,9 +91,49 @@ proc shareAnchor(s: DebugSessionView): string =
       if ln.current: return ln.anchor
   ""
 
+proc phaseRail(s: DebugSessionView): string =
+  ## §8: "Loading is phased and honest — fetching, then opening, then
+  ## positioning — never an indeterminate spinner."
+  ##
+  ## Rendered whenever the engine is not live, which on a statically exported
+  ## page is always. The three phases are named as words and the current one is
+  ## marked, so the visitor can see which phase they are in and what remains —
+  ## which is the requirement, and is not the same thing as a spinner.
+  ##
+  ## It used to live inside the engine-notice row and now sits in the identity
+  ## bar, immediately after the controls' status. That is the right adjacency
+  ## and not merely the surviving one: "which phase the engine is in" and
+  ## "why these buttons are inert" are one fact, and they were being told in
+  ## two places a viewport apart.
+  ##
+  ## Nothing here is a skeleton. The panes behind this bar are already full:
+  ## the loading design exists because the engine is an 18 MB wasm bundle, and
+  ## the answer to that is to show the frame we already have rather than to
+  ## draw grey boxes shaped like it.
+  if s.engineLive: return ""
+  ui:
+    tdiv(class = "phaserail"):
+      for p in [spFetching, spOpening, spPositioning]:
+        # The sentence `phaseLabel` spells is what the one-word chip is short
+        # FOR, so it is the chip's title rather than something the short form
+        # replaced. Fetching additionally carries the quantity, because "how
+        # long is this" is the only question the word "fetching" leaves open.
+        span(class = "phase" & (if p == s.phase: " on" else: ""),
+             title = (if p == spFetching:
+                        phaseLabel(p) & " — " & approxMegabytes(s.engineBytes)
+                      else: phaseLabel(p))):
+          text phaseShortLabel(p)
+      # A build that loads the engine from another origin says which one. The
+      # default is same-origin (`replay_engine.nim`), so this renders nothing
+      # in every build that has not explicitly named a third party — which is
+      # the point: there is no origin to disclose until there is.
+      if s.engineCrossOrigin:
+        span(class = "engineorigin"): text "Engine: " & s.engineBase
+
 proc identityBar(s: DebugSessionView): string =
   ## Debugger-Integration §3's slim bar: back link, identity, status, block,
-  ## and the two actions a session offers — share and container download.
+  ## **the stepping controls**, and the two actions a session offers — share
+  ## and container download.
   ##
   ## The back link targets the CHAIN, which is what its label has always said.
   ## It used to target the transaction's own URL, on the model of §8's "a link
@@ -89,11 +142,40 @@ proc identityBar(s: DebugSessionView): string =
   ## page on the other. The chain overview is the surface a visitor actually
   ## leaves a session for, and it is the outbound link a `noindex,follow`
   ## crawl of this page needs.
+  ##
+  ## ## Why the controls are here (revised 2026-08-29)
+  ##
+  ## They were a full-width `paneDebugControls` pane across the top of the
+  ## replay region, weight 1 — the largest interactive object on the page.
+  ## Every serious recorded-execution tool makes *selection* the primary
+  ## navigation gesture and *stepping* the secondary one; Tenderly, Sentio,
+  ## Pernosco, WinDbg TTD, Replay.io and Chrome's performance panel all
+  ## navigate by clicking a trace, an event or a timeline element, and Pernosco
+  ## says outright that single-stepping is what developers reach for when they
+  ## are "afraid of going too far forward". Ranking the toolbar above the call
+  ## trace was a habit inherited from a desktop debugger, and the band it
+  ## occupied is height the panes that answer "where do I want to be" now have.
+  ##
+  ## The controls are not diminished by the move: they are on screen at all
+  ## times, in the one strip that never scrolls, beside the identity of the
+  ## thing they step through. What changed is the ranking, not the presence —
+  ## `test_debug_route.nim` asserts they render in the bar and not in the tree,
+  ## so "moved" cannot quietly become "dropped".
+  ##
+  ## The control group takes the width its contents need; the slack goes to the
+  ## spacer after it. The scrubber is deliberately NOT the elastic member —
+  ## letting the one element that would happily grow absorb every spare pixel
+  ## made a uniform-step readout the largest object in the bar, which is the
+  ## opposite of the ranking this change is making.
   ui:
     header(class = "dbgbar"):
       a(class = "dbgback", href = chainUrl(s.chain)):
         text "← " & s.chain
-      span(class = "dbgid identifier"): text truncatedHash(s.txHash)
+      # Truncated for the bar, so the full value rides on `title` and
+      # `data-copy` rather than being selectable as an ellipsis. See
+      # `components/debugger.Copyable`.
+      span(class = "dbgid identifier", title = s.txHash,
+           `data-copy` = s.txHash): text truncatedHash(s.txHash)
       span(class = "badge " & s.outcomeBadge): text s.outcomeLabel
       span(class = "dbgblock num"): text "block " & $s.blockHeight
       # Trace-Artifacts.md §2.3a: a trace can be `ready` AND heuristically
@@ -105,6 +187,19 @@ proc identityBar(s: DebugSessionView): string =
              title = "Reconstructed from chain data rather than recorded by " &
                      "a native tracer."):
           text "Reconstructed"
+      # The controls, and the phase they are waiting on, as one group. Gated on
+      # `hasFrame` for the same reason Share and Download are: §7.0's `absent`,
+      # `unsupported` and `onDemand` rows get "no debugger, and no pretence of
+      # one", and a stepping toolbar over a trace that was never recorded is
+      # the clearest possible pretence.
+      if s.hasFrame:
+        tdiv(class = "dbgctl"):
+          raw renderControls(s.controls)
+          raw phaseRail(s)
+      # The spacer, always, and AFTER the control group. The slack belongs
+      # between the session's controls and the page's actions, not inside the
+      # scrubber — see `.dbgctl` in `debugger_css.nim` for why the one element
+      # here that would happily grow is the one that must not.
       span(class = "dbgspacer")
       if s.languages.len > 0:
         span(class = "dbglang"): text joinLanguages(s)
@@ -145,26 +240,6 @@ proc banner(s: DebugSessionView): string =
   of siValidated, siUnknown:
     ""
 
-proc phaseRail(s: DebugSessionView): string =
-  ## §8: "Loading is phased and honest — fetching, then opening, then
-  ## positioning — never an indeterminate spinner."
-  ##
-  ## Rendered whenever the engine is not live, which on a statically exported
-  ## page is always. The three phases are named as words and the current one is
-  ## marked, so the visitor can see which phase they are in and what remains —
-  ## which is the requirement, and is not the same thing as a spinner.
-  ##
-  ## Nothing here is a skeleton. The panes behind this rail are already full:
-  ## the loading design exists because the engine is an 18 MB wasm bundle, and
-  ## the answer to that is to show the frame we already have rather than to
-  ## draw grey boxes shaped like it.
-  if s.engineLive: return ""
-  ui:
-    tdiv(class = "phaserail"):
-      for p in [spFetching, spOpening, spPositioning]:
-        span(class = "phase" & (if p == s.phase: " on" else: "")):
-          text phaseLabel(p)
-
 proc noSession(s: DebugSessionView): string =
   ## §7.0's non-session rows, in the region the panes would have occupied.
   ##
@@ -184,26 +259,6 @@ proc noSession(s: DebugSessionView): string =
                 span(class = "panenote"):
                   text "Generating a trace costs us compute, so it needs a " &
                        "signed-in account with quota remaining."
-
-proc engineNotice(s: DebugSessionView): string =
-  ## The honest loading line, above the session and below the banner.
-  ##
-  ## It states three things a spinner cannot: WHAT is being waited for, HOW
-  ## BIG it is, and — when the build points at another origin — WHERE it comes
-  ## from. The last is not decoration: a page that fetches 18 MB from a third
-  ## party should say which one, and `replay_engine.nim` makes a cross-origin
-  ## base an explicit build decision rather than a default.
-  if s.engineLive or not s.hasFrame: return ""
-  ui:
-    tdiv(class = "enginenotice"):
-      span(class = "enginetext"):
-        text "This is the session's first frame, rendered from published " &
-             "data. Stepping starts once the replay engine loads — " &
-             approxMegabytes(s.engineBytes) & ", fetched once and cached."
-      raw phaseRail(s)
-      if s.engineCrossOrigin:
-        span(class = "engineorigin"):
-          text "Engine: " & s.engineBase
 
 const SourceLeadIn = 6
   ## How many lines of context the source pane opens ABOVE the current line.
@@ -225,17 +280,19 @@ proc debugPage*(s: DebugSessionView): string =
   # is why deliverable 1 reviews both viewports rather than the widest.
   s.editor = openAtCurrent(s.editor, SourceLeadIn)
   let replay =
-    if s.hasFrame: renderLayout(defaultReplayLayout(), s)
+    if s.hasFrame: renderLayout(blockTracerReplayLayout(), s)
     else: noSession(s)
   ui:
     tdiv(class = "dbg", `data-replay-engine` = s.engineBase,
          `data-session-phase` = $s.phase):
       raw identityBar(s)
       raw banner(s)
-      raw engineNotice(s)
       tdiv(class = "dbgnarrow"):
-        text "Narrow session: source, call trace and values only, read-only. " &
-             "Stepping needs a wider viewport."
+        # Named by their pane TITLES, so the sentence and the headers a reader
+        # can see agree. It said "source, call trace and values" while the
+        # panes were titled Editor, Call Trace and State — two of three wrong.
+        text "Narrow session: Code, Call Trace and Values only, read-only. " &
+             "The event log and stepping need a wider viewport."
       tdiv(class = "dbgmain"):
         tdiv(class = "ln row w4 replayregion"):
           raw replay

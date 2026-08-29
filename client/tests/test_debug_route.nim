@@ -26,6 +26,7 @@ import ../src/ssr
 import ../src/reader
 import ../src/viewutil
 import ../src/debugger/layout_model
+import ../src/debugger/session_layout
 import ../src/debugger/session_view
 import ../src/debugger/replay_engine
 import ../src/debugger/source_document
@@ -341,12 +342,90 @@ suite "M8a — the debug route is served":
     check "<html lang=\"en\" data-register=\"explorer\">" in txHtml(onDemandTx)
     check debugCss == explorerCss
 
-suite "M8a — the arrangement is CodeTracer's LayoutNode, consumed":
+suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
 
-  test "every pane of the reference layout is placed exactly once":
+  test "the arrangement is PINNED: which panes, in which grouping":
+    ## The structural claim, asserted against the model rather than against the
+    ## markup, so a later change cannot revert the arrangement quietly. Every
+    ## sentence of `session_layout`'s doc comment has a line here.
+    let m = blockTracerReplayLayout()
+    check isValid(m)
+
+    # One row: Code on the left, a column of two regions on the right.
+    check m.kind == lnRow
+    check m.children.len == 2
+    let code = m.children[0]
+    let nav = m.children[1]
+    check code.kind == lnPane
+    check code.pane == paneEditor
+    check code.title == "Code"          # not "Editor" — see §3 below
+    check nav.kind == lnColumn
+    check nav.children.len == 2
+
+    # Call Trace and Event Log are ONE TABBED REGION, in that order, and Values
+    # sits below it as a pane of its own. This is the grouping the change exists
+    # for: an edit that flattens the region back into two stacked panes, or that
+    # pulls Values into the tab strip, fails here.
+    let region = nav.children[0]
+    let values = nav.children[1]
+    check region.kind == lnStack
+    check region.children.len == 2
+    check region.children[0].pane == paneCalltrace
+    check region.children[1].pane == paneEventLog
+    check region.children[0].title == "Call Trace"
+    check region.children[1].title == "Event Log"
+    check values.kind == lnPane
+    check values.pane == paneState
+    check values.title == "Values"              # not "State" — see §3 below
+
+    # Call Trace is the tab that OPENS. Selection is the primary navigation
+    # gesture and the call trace is the primary selection surface; it is also
+    # the index `renderStack`'s `:target` CSS is correct for, which marks the
+    # FIRST tab as active.
+    check region.activeIndex == 0
+    check visiblePanes(region) == @[paneCalltrace]
+
+    # The Event Log is behind a tab, so `visiblePanes` and `allPanes` disagree
+    # by exactly it — and by nothing else, which is what stops a later edit from
+    # hiding a third pane and calling it the same arrangement.
+    check allPanes(m).toHashSet ==
+      [paneEditor, paneCalltrace, paneEventLog, paneState].toHashSet
+    check visiblePanes(m).toHashSet ==
+      [paneEditor, paneCalltrace, paneState].toHashSet
+    check allPanes(m).toHashSet - visiblePanes(m).toHashSet ==
+      [paneEventLog].toHashSet
+
+    # The controls are NOT a pane of this tree. Named through the constant so
+    # the absence is checked against the written decision and not against a
+    # literal repeated here.
+    check ControlsArePlacedInTheBar == paneDebugControls
+    check not m.contains(ControlsArePlacedInTheBar)
+
+    # The navigation region carries the larger share of the column, and Values
+    # keeps a definite share rather than whatever is left.
+    check region.weight > values.weight
+    check values.weight > 0.0
+
+  test "the vendored model is untouched — the composition is what differs":
+    ## `ci/test/layout-model-vendor.sh` is the real guard; this is the cheap
+    ## in-suite half of it, and it is what makes "we composed instead of
+    ## forking" a checked statement rather than a claim in a comment.
+    let upstream = defaultReplayLayout()
+    check allPanes(upstream).len == 5              # still CodeTracer's five
+    check paneDebugControls in allPanes(upstream)  # …including the controls
+    check visiblePanes(upstream).len < allPanes(upstream).len  # …and its stack
+    check $upstream != $blockTracerReplayLayout()
+    # The pane titles differ; the ENUM does not, because the enum is a wire
+    # format shared with the SDK and only the labels are BlockTracer's.
+    check find(upstream, paneEditor).title == "Editor"
+    check find(blockTracerReplayLayout(), paneEditor).title == "Code"
+    check $paneEditor == "editor"
+    check $paneState == "state"
+
+  test "every pane of the arrangement is placed exactly once":
     let html = debugHtml(readyTx)
-    let model = defaultReplayLayout()
-    check allPanes(model).len == 5
+    let model = blockTracerReplayLayout()
+    check allPanes(model).len == 4
     for pane in allPanes(model):
       let id = "id=\"pane-" & ($pane).toLowerAscii & "\""
       check occurrences(html, id) == 1
@@ -356,55 +435,173 @@ suite "M8a — the arrangement is CodeTracer's LayoutNode, consumed":
     for pane in allPanes(model): expected.incl "pane-" & ($pane).toLowerAscii
     expected.incl "pane-metadata"   # §7.1, BlockTracer's own, beside the tree
     check placed == expected
+    # The controls pane is not among them, and is not merely missing either —
+    # the next test finds it in the bar.
+    check "id=\"pane-debugcontrols\"" notin html
+
+  test "the debug controls render in the identity bar, not in the pane grid":
+    ## The move, asserted in both directions. Half of this test is what stops
+    ## "the controls moved to the bar" from decaying into "the controls were
+    ## deleted", which is the failure a purely negative check would pass.
+    let html = debugHtml(readyTx)
+    let s = sessionFor(readyTx)
+
+    # Present, complete, and inside the bar.
+    let barStart = html.find("class=\"dbgbar\"")
+    check barStart > 0
+    let barEnd = html.find("class=\"dbgnarrow\"")
+    check barEnd > barStart
+    let bar = html[barStart ..< barEnd]
+    check "class=\"dbgctl\"" in bar
+    check "class=\"dc\"" in bar
+    check occurrences(bar, "class=\"dcbtn off\"") == s.controls.buttons.len
+    check "class=\"dctl\"" in bar          # the scrubber came with them
+    check "class=\"dcsteps num\"" in bar   # …and the position readout
+    # Every control the model names is in the bar, by its own label.
+    for b in s.controls.buttons:
+      check b.label in bar
+
+    # And nowhere else: not a pane, not a second copy in the grid.
+    let grid = html[barEnd .. ^1]
+    check "class=\"dc\"" notin grid
+    check "p-controls" notin grid
+    # The stylesheet no longer carries a rule for a pane that cannot exist.
+    check ".p-controls" notin debugRouteCss
 
   test "the weights of the model become the flex fractions in the markup":
     let html = debugHtml(readyTx)
-    # `defaultReplayLayout()`: controls 1 / row 9, editor 3 / column 2,
-    # calltrace 1, stack 1. Read the weights OFF THE MODEL so this cannot
-    # drift into a restatement of the numbers.
-    let model = defaultReplayLayout()
-    let controls = model.children[0]
-    let row = model.children[1]
-    let editor = row.children[0]
-    check ("pane p-controls " & dbgc.weightClass(controls.weight)) in html
-    check ("ln row " & dbgc.weightClass(row.weight)) in html
-    check ("pane p-source " & dbgc.weightClass(editor.weight)) in html
+    # `blockTracerReplayLayout()`: code 3 / column 2, calltrace 4, eventlog 2,
+    # state 2. Read the weights OFF THE MODEL so this cannot drift into a
+    # restatement of the numbers.
+    let model = blockTracerReplayLayout()
+    let code = model.children[0]
+    let nav = model.children[1]
+    check ("ln row " & dbgc.weightClass(model.weight)) in html
+    check ("pane p-source " & dbgc.weightClass(code.weight)) in html
+    check ("ln col " & dbgc.weightClass(nav.weight)) in html
+    # The navigation region is a STACK, so its weight lands on the container
+    # rather than on a pane — the panels inside it each fill the region and
+    # carry no fraction of their own, which is what a tab pair means.
+    check ("ln stack " & dbgc.weightClass(nav.children[0].weight)) in html
+    check (dbgc.paneClass(nav.children[1].pane) & " " &
+           dbgc.weightClass(nav.children[1].weight)) in html
 
   test "a DIFFERENT layout renders differently — the walk is driven by the model":
     # The negative half. Without it, "the arrangement comes from LayoutNode"
     # would be satisfied by a renderer that ignores the argument entirely.
     let s = sessionFor(readyTx)
-    let reference = dbgc.renderLayout(defaultReplayLayout(), s)
+    let reference = dbgc.renderLayout(blockTracerReplayLayout(), s)
 
-    var swapped = defaultReplayLayout()
-    check activate(swapped, paneEventLog)          # make Event Log the live tab
-    let swappedHtml = dbgc.renderLayout(swapped, s)
-    check swappedHtml != reference
-    # The default panel is the one the model says is active.
-    check "stackpanel p-eventlog def" in swappedHtml
-    check "stackpanel p-state def" in reference
-
-    var trimmed = defaultReplayLayout()
+    var trimmed = blockTracerReplayLayout()
     check removePane(trimmed, paneCalltrace)
     let trimmedHtml = dbgc.renderLayout(trimmed, s)
     check "id=\"pane-calltrace\"" notin trimmedHtml
     check "id=\"pane-calltrace\"" in reference
 
-    var reweighted = defaultReplayLayout()
+    var reweighted = blockTracerReplayLayout()
     check setWeight(reweighted, paneEditor, 5.0)
     check ("pane p-source w5") in dbgc.renderLayout(reweighted, s)
 
-  test "a stack is tabs: both panes are rendered, one is the live tab":
-    let html = debugHtml(readyTx)
-    check "id=\"pane-state\"" in html
-    check "id=\"pane-eventlog\"" in html
+    # The titles are the MODEL's, not the renderer's: a pane relabelled in the
+    # tree is relabelled on the page, which is what makes "Code" and "Values"
+    # BlockTracer's labels rather than a string buried in a `case`.
+    var relabelled = blockTracerReplayLayout()
+    find(relabelled, paneState).title = "Storage"
+    check ">Storage<" in dbgc.renderLayout(relabelled, s)
+    check ">Values<" in reference
+    check ">Values<" notin dbgc.renderLayout(relabelled, s)
+
+  test "Call Trace and Event Log are ONE tabbed region, Call Trace open":
+    ## The grouping, asserted over the served MARKUP rather than the model, so
+    ## the two halves of the claim — the model says tabs, the page renders tabs
+    ## — are both pinned. Everything here is matched against the document with
+    ## the inlined stylesheet removed: `<style>` carries the `.stackpanel` and
+    ## `.stacktab` rules, so a whole-document match would answer itself.
+    let markup = debugHtml(readyTx).split("</style>")[1]
+
+    # One region, two panels, one strip.
+    check occurrences(markup, "class=\"ln stack ") == 1
+    check occurrences(markup, "class=\"stacktabs\"") == 1
+    check "stackpanel p-eventlog alt" in markup
+    # Call Trace is the DEFAULT panel — `activeIndex = 0` — and the Event Log
+    # is the alternate. Reversing that fails here.
+    check "stackpanel p-calltrace def" in markup
+    check "stackpanel p-eventlog def" notin markup
+    check "stackpanel p-calltrace alt" notin markup
+
+    # The strip names both, in the model's order, and switches with `:target`
+    # links rather than script. `.stacktab:first-child` is what the stylesheet
+    # marks active, so the FIRST tab has to be the default panel: an arrangement
+    # whose active child is not its first would render a strip that marks the
+    # wrong tab, which is the latent defect this ordering avoids.
+    check "class=\"stacktab t-pane-calltrace\" href=\"#pane-calltrace\"" in markup
+    check "class=\"stacktab t-pane-eventlog\" href=\"#pane-eventlog\"" in markup
+    check markup.find("t-pane-calltrace") < markup.find("t-pane-eventlog")
+    check ".stacktabs > .stacktab:first-child" in debugRouteCss
+    check "<script" notin markup
+
+    # Values is NOT in the region: it is a pane below it, not a third tab. It
+    # answers "what is true here" rather than "where do I want to be", and a
+    # tab would rank it as an alternative to navigating.
+    check "stackpanel p-state" notin markup
+    check "t-pane-state" notin markup
+    check "class=\"pane p-state " in markup
+
+    # Both panes still exist and are both addressable — a tab is a change of
+    # ranking, not a removal. This is the half that stops "tabbed" from decaying
+    # into "the Event Log was dropped again".
+    check "id=\"pane-calltrace\"" in markup
+    check "id=\"pane-eventlog\"" in markup
+    for row in sessionFor(readyTx).eventLog.rows:
+      check escapeHtml(row.label) in markup
+
+  test "renderLayout is total over lnStack, and the model decides the live tab":
+    ## Driven over a SYNTHETIC node as well as the served one, because
+    ## `renderLayout` must be total over `LayoutNodeKind` for any tree — a
+    ## restored layout (`restoreLayout`) can carry a stack of panes this
+    ## arrangement never groups, and CodeTracer's own default carries a
+    ## different one. Deleting the branch would turn that into a blank region,
+    ## which is the exact failure `lpUnknownPane` exists to prevent.
+    let s = sessionFor(readyTx)
+    let node = stack([pane(paneState, "Values"), pane(paneEventLog, "Event Log")],
+                     activeIndex = 0)
+    let html = dbgc.renderLayout(node, s)
     check "stackpanel p-state def" in html
     check "stackpanel p-eventlog alt" in html
     # The tab strip links to both, so the switch works with no JavaScript.
     check "href=\"#pane-state\"" in html
     check "href=\"#pane-eventlog\"" in html
-    # …and there is no script on the page at all.
-    check "<script" notin html
+    # …and the model decides which tab is live.
+    let other = dbgc.renderLayout(
+      stack([pane(paneState, "Values"), pane(paneEventLog, "Event Log")],
+            activeIndex = 1), s)
+    check "stackpanel p-eventlog def" in other
+    check other != html
+    # The rules that render it are in the shipped stylesheet, so the branch is
+    # not styled by nothing.
+    check ".stackpanel.alt:target" in debugRouteCss
+    check ".stackpanel.alt:target ~ .stackpanel.def" in debugRouteCss
+
+  test "§13's narrow reduction removes the Event Log's TAB, not just its panel":
+    ## The Event Log is the alternate half of the region now, so at narrow width
+    ## it is already hidden by `.stackpanel.alt` — which means the rule that
+    ## USED to hide it is doing nothing, and the thing that would be left behind
+    ## is a tab selecting a pane this viewport does not offer. That is the dead
+    ## control this surface has removed twice; the stylesheet has to name the
+    ## tab, and it has to answer `:target` so a stale fragment cannot blank the
+    ## region either.
+    check ".stacktab.t-pane-eventlog{display:none}" in debugRouteCss
+    check ".stackpanel.p-eventlog:target{display:none}" in debugRouteCss
+    check ".stackpanel.p-eventlog:target ~ .stackpanel.def{display:flex}" in
+          debugRouteCss
+    # …inside the narrow media query and not at top level, where it would hide
+    # the Event Log at every width.
+    let narrow = debugRouteCss.split("@media (max-width:1100px){")[1]
+    check ".stacktab.t-pane-eventlog{display:none}" in narrow
+    # The Code pane's narrow height fix is in the same block — the P1 where an
+    # auto-height `.panebody` gave `.srcwrap`'s `height:100%` nothing to divide
+    # and the pane rendered as an empty title bar.
+    check ".p-source .panebody{height:" in narrow
 
   test "a weight the stylesheet has no fraction for is a build failure":
     # `weightClass` is the only place a layout can fail to be renderable, and
@@ -1438,12 +1635,37 @@ suite "M8b — the metadata pane and the page cannot diverge":
     # Every stepping control carries the inert class; none is left enabled.
     check occurrences(html, "class=\"dcbtn off\"") == s.controls.buttons.len
     check "class=\"dcbtn\"" notin html
+    # …and each one says so as a CONTROL, on the accessibility tree and in its
+    # own tooltip, rather than relying on a paragraph elsewhere on the page.
+    check occurrences(html, "aria-disabled=\"true\"") == s.controls.buttons.len
+    check "aria-disabled=\"false\"" notin html
+    for b in s.controls.buttons:
+      check (b.label & " — inert until the replay engine loads") in html
+
     # The phase is NAMED, the sequence is shown, and the wait is quantified.
     check "class=\"phaserail\"" in html
-    check phaseLabel(spFetching) in html
-    check phaseLabel(spOpening) in html
-    check phaseLabel(spPositioning) in html
+    for p in [spFetching, spOpening, spPositioning]:
+      # The one-word chip is what the visitor READS …
+      check (">" & phaseShortLabel(p) & "<") in html
+      # … and the sentence it is short for is still on the page, as its title.
+      check ("title=\"" & phaseLabel(p)) in html
+    check phaseShortLabel(spFetching) != phaseLabel(spFetching)
     check approxMegabytes(ReplayEngineWasmBytes) in html
+
+    # The engine-notice row is GONE — the whole row, not just its wording. The
+    # sentence it carried, the class that styled it, and the stylesheet rule
+    # behind that class all have to be absent, because the stylesheet is
+    # INLINED and a surviving rule would keep the removed band's name in the
+    # served bytes.
+    check "enginenotice" notin html
+    check "enginetext" notin html
+    check "This is the session's first frame" notin html
+    check "fetched once and cached" notin html
+    check ".enginenotice" notin debugRouteCss
+    check ".enginetext" notin debugRouteCss
+    # What it actually contributed survived, beside the controls it explains.
+    check "class=\"dcphase\"" in html
+
     # …and it is not a spinner wearing words. Checked over the MARKUP with the
     # stylesheet removed: `<style>` carries a comment naming the thing being
     # ruled out, and matching against it would make this assertion pass or fail
@@ -1506,6 +1728,81 @@ suite "M8b — the metadata pane and the page cannot diverge":
     check "class=\"mdexec\"" in splitHtml
     check ">private<" in splitHtml
     check ">public<" in splitHtml
+
+suite "§13 — values are copyable, and nothing pretends to copy them":
+
+  test "a value rendered in FULL is one click from being selected":
+    let s = sessionFor(readyTx)
+    let html = debugHtml(readyTx)
+    # The class has a rule behind it, in the stylesheet that is actually
+    # shipped. Without this the class is decoration and every check below
+    # would pass over markup that does nothing.
+    check (".copyable{user-select:all") in debugRouteCss
+    check ".copyable:hover{" in debugRouteCss
+
+    # Frame names, event labels and variable values — the machine values a
+    # reader takes out of a session — each carry it.
+    check "class=\"ctname copyable\"" in html
+    check "class=\"evlabel copyable\"" in html
+    check "class=\"stval copyable\"" in html
+    # …on every row, not on the first one only.
+    check occurrences(html, "class=\"ctname copyable\"") >=
+          s.calltrace.frames.len
+    check occurrences(html, "class=\"stval copyable\"") == s.state.values.len
+
+    # Addresses and targets in the metadata pane. Asserted through the shared
+    # producer, so a row it stops marking as an identifier stops being asserted
+    # here too rather than silently losing the affordance.
+    let v = txView(root, chainInfo(root, Chain), readyTx)
+    var plainIdentifiers = 0
+    for r in txMetadataRows(Chain, v):
+      if r.identifier and r.href.len == 0 and r.badge.len == 0:
+        check ("class=\"identifier copyable\">" & escapeHtml(r.value)) in html
+        inc plainIdentifiers
+    check plainIdentifiers > 0        # the loop had a body
+
+  test "a TRUNCATED identifier is not copyable, and carries the full value":
+    ## The trap this rule exists for: `user-select:all` on `0xa45907…9296`
+    ## selects an ellipsis. A value that cannot be copied correctly must not
+    ## advertise that it can.
+    let s = sessionFor(readyTx)
+    let html = debugHtml(readyTx)
+
+    check truncatedHash(s.txHash) != s.txHash          # it IS truncated
+    check truncHash(s.txHash, 10, 8) != s.txHash
+    check "class=\"dbgid identifier copyable\"" notin html
+    check "class=\"identifier mdhash copyable\"" notin html
+    # …and the full value is on the element, both for a reader (title) and for
+    # the hydration that will turn these into real copy buttons (data-copy).
+    check ("class=\"dbgid identifier\" title=\"" & s.txHash &
+           "\" data-copy=\"" & s.txHash & "\"") in html
+    check ("data-copy=\"" & s.txHash & "\"") in html
+    check occurrences(html, "data-copy=\"" & s.txHash & "\"") == 2  # bar + pane
+
+  test "there is no copy CONTROL, because nothing could honour one":
+    ## The page ships no JavaScript, so a copy button would be an affordance
+    ## that lies on click — the `panedismiss` defect again. The affordance is
+    ## CSS; the control is staged, not shipped.
+    let html = debugHtml(readyTx)
+    check "<script" notin html
+    check "copybtn" notin html
+    check "navigator.clipboard" notin html
+    check ">Copy<" notin html
+    # A `data-copy` is inert markup, not a control: it carries no role, no
+    # tabindex and no handler.
+    check "data-copy" in html
+    check "onclick" notin html
+
+  test "a source line stays copyable WITHOUT its gutter":
+    ## Source lines are deliberately not `.copyable` — one click selecting a
+    ## whole line would make selecting a sub-expression impossible. What makes
+    ## them copyable is the negative rule on the gutter, so a drag across the
+    ## pane yields code and not line numbers.
+    let html = debugHtml(readyTx)
+    check ".srcline .n{" in debugRouteCss
+    check "user-select:none" in debugRouteCss
+    check "class=\"srcline" in html
+    check "srcline copyable" notin html
 
 suite "M8b — the crawl surface is unchanged":
 

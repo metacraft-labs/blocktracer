@@ -273,12 +273,16 @@ proc fixtureControls(positioned, live: bool; steps: int): DebugControlsPane =
   result.positioned = positioned
   result.totalSteps = steps
   result.step = (if positioned: FixtureStep else: 0)
+  # Short, because this now renders in the identity bar beside the controls it
+  # describes rather than in a pane of its own — and because the step counter
+  # sits next to it (`.dcsteps`), so repeating "step 128 of 1315" here spent a
+  # third of the bar restating the field to its right. What the counter cannot
+  # say is WHAT is being waited for and HOW BIG it is, which is the whole of
+  # what the removed engine-notice row contributed and all that is kept of it.
   result.statusText =
-    if positioned and live: "Stopped at step " & $FixtureStep & " of " & $steps
+    if positioned and live: "Stepping"
     elif positioned:
-      "Step " & $FixtureStep & " of " & $steps & " — stepping starts when the " &
-      "replay engine finishes loading (" &
-      approxMegabytes(ReplayEngineWasmBytes) & ")"
+      "Engine loading — " & approxMegabytes(ReplayEngineWasmBytes)
     else: "No position yet"
 
 # ---------------------------------------------------------------------------
