@@ -50,7 +50,14 @@
     "cost row and no byte of the native payload left the transaction's URL —",
     "they are rendered inside a pane instead of under an `<h2>`. The test",
     "asserts the `<dt>` set of whichever grid the shape renders against",
-    "`txMetadataRows`, so a fact that quietly stopped being served fails here."
+    "`txMetadataRows`, so a fact that quietly stopped being served fails here.",
+    "",
+    "One fact is checked outside these three lists, because it cannot be a",
+    "literal: the transaction's OWN HASH, in full. It differs per transaction,",
+    "and it is the fact a change of shape loses most easily — both shapes lead",
+    "with a truncation, and the session shape carried NOTHING else until the",
+    "metadata pane was given the full hash beneath it. The suite asserts `h in",
+    "body` for every transaction in both trees."
   ],
 
   "recordedAt": "2026-08-29",

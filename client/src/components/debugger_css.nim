@@ -462,6 +462,13 @@ html[data-register="debugger"],
 .mdhero{display:flex;align-items:center;gap:var(--bt-space-sm);flex-wrap:wrap;
   padding:0 var(--bt-density-cell-x) var(--bt-density-cell-y)}
 .mdhash{color:var(--bt-text-strong);font-size:var(--bt-type-identifier-size)}
+/* The full hash under the truncation. `break-all` and not `hidden`: it is 66
+   characters in a pane column, and a hash clipped mid-string is a hash a
+   reader cannot check against the one they arrived with. Same treatment the
+   pane's own long identifier values get (`.mddl dd .identifier`). */
+.mdfull{padding:0 var(--bt-density-cell-x) var(--bt-density-cell-y);
+  color:var(--bt-text-muted);font-size:var(--bt-type-body-sm-size);
+  line-height:var(--bt-type-body-sm-line);word-break:break-all}
 /* The reason's colour follows the OUTCOME, never the presence of a reason.
    `.bad` is a revert; `.note` is a status reason on a transaction that did not
    fail, which the demo's Aztec split is. */

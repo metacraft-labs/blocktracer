@@ -737,9 +737,15 @@ suite "§7.0 — the transaction page IS the debugger's first frame":
     check "<html lang=\"en\" data-register=\"debugger\">" in html
     check "<html lang=\"en\" data-register=\"explorer\">" notin html
     check "class=\"nav\"" notin markup(html)
-    # …and it is a POSITIONED frame, not an empty debugger shell.
+    # …and it is a POSITIONED frame, not an empty debugger shell: exactly one
+    # marked line, and it is the statement the fixture position names. Asserted
+    # on the STATEMENT rather than on the enclosing function's signature,
+    # because the source window opens on the position and elides what is above
+    # it — a signature is not guaranteed to be inside the window, and the
+    # positioned line always is.
     check occurrences(html, "class=\"srcline cur") == 1
-    check "pub fn iterate_asteroids" in html
+    check "damage = mass * (100 - shield_pct);" in html
+    check "id=\"L-src-shield-nr-32\"" in html   # demo_session's FixtureLine
 
   test "a divergent transaction's own URL serves it too, with the banner":
     let html = txHtml(divergentTx)
@@ -840,8 +846,22 @@ suite "§7.0 — the transaction page IS the debugger's first frame":
       let atTx = txHtml(h)
       let atDebug = debugHtml(h)
       check atTx.split("</head>")[1] == atDebug.split("</head>")[1]
-      # What they differ in is what the visitor asked for, and it is in the
-      # head: the title. Everything else a crawler reads is identical.
+      # What they differ in is what the visitor ASKED FOR, and it is confined
+      # to the two head elements that describe the request: the title and the
+      # description. Enumerated rather than described, so a third difference
+      # growing into the head fails here instead of being discovered later —
+      # `robots`, `canonical`, the viewport and the inlined stylesheet are the
+      # crawl surface, and they must be the same bytes on both addresses.
+      var headTx = atTx.split("</head>")[0]
+      var headDebug = atDebug.split("</head>")[0]
+      for tag in ["<title>", "<meta name=\"description\" content=\""]:
+        for doc in [headTx.addr, headDebug.addr]:
+          let at = doc[].find(tag)
+          check at >= 0
+          let stop = doc[].find((if tag == "<title>": "</title>" else: "\" />"),
+                                at)
+          doc[] = doc[][0 ..< at] & doc[][stop .. ^1]
+      check headTx == headDebug
       check "<title>Transaction " in atTx
       check "<title>Debug " in atDebug
       check ("<link rel=\"canonical\" href=\"" & SiteDomain & "/" & Chain &
@@ -1202,6 +1222,13 @@ suite "M8b — the crawl surface is unchanged":
         # shapes §7.0 gives this route.
         let body = markup(html)
         check baseline["txMustContain"].getElems.allIt(it.getStr in body)
+        # …including the transaction's OWN HASH, in full. It cannot be a
+        # `mustContain` literal because it differs per transaction, and it is
+        # the fact most easily lost by a change of shape: both shapes carry a
+        # truncation in their hero, and a page that states its subject's
+        # identity only as `0x5c6787…f8df` has stopped serving the identifier
+        # the URL is addressed by. §7.2 section 1: "hash with copy".
+        check h in body
         if isSession(html):
           inc sessions
           check baseline["txSessionMustContain"].getElems.allIt(it.getStr in body)

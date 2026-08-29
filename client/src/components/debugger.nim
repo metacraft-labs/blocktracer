@@ -386,6 +386,15 @@ proc renderMetadata*(m: MetadataPane): string =
       tdiv(class = "mdhero"):
         span(class = "badge " & m.outcomeBadge): text m.outcome
         span(class = "identifier mdhash"): text truncHash(m.hash, 10, 8)
+      # The hash IN FULL, below the truncation, exactly as the metadata page's
+      # hero renders it (`pages/tx.nim`: a truncated `h1` over a full-hash
+      # lead). §7.2 section 1 asks for "hash with copy", and after §7.0 this
+      # pane is what a visitor and a crawler are served at the transaction's
+      # own canonical URL — a page that states its subject's identity only in
+      # two different truncations has lost the fact that identifies it. The
+      # slim identity bar keeps its truncation, because §8's collapse is a
+      # width constraint and this pane is not under it.
+      p(class = "mdfull identifier"): text m.hash
       if m.revertReason.len > 0:
         p(class = "mdrevert " & m.revertReasonTone):
           text m.revertReasonLabel & ": " & m.revertReason
