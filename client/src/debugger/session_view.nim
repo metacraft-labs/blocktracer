@@ -393,6 +393,19 @@ type
     rows*: seq[MetaRow]
     executions*: seq[ExecutionRow]
 
+    payload*: seq[MetaRow]
+      ## §7.2 section 3 — the decoded input, as rows from the same producer as
+      ## `rows`. Carried by the PANE and not only by an explorer page because
+      ## §7.0 makes the transaction route land in the session for a published
+      ## trace: a fact that lived only on a page nobody is served any more is a
+      ## fact the product lost.
+    payloadNote*: string
+      ## Why the parameters are raw bytes, when they are.
+    native*: string
+      ## §7.2 section 8 — the chain-native transaction and receipt JSON,
+      ## verbatim, already formatted by the producer. Empty when the tree
+      ## publishes none.
+
 # ---------------------------------------------------------------------------
 # The session
 # ---------------------------------------------------------------------------

@@ -500,6 +500,18 @@ html[data-register="debugger"],
   font-size:var(--bt-type-label-size);color:var(--bt-text-muted)}
 .mdexecrow .reason{flex:1 1 100%;color:var(--bt-text-subtle);
   font-size:var(--bt-type-label-size);line-height:var(--bt-type-body-sm-line)}
+/* §7.2's remaining facts — the decoded input and the chain-native payload —
+   as sections of the same pane. They are here rather than only on the
+   metadata page because §7.0 makes the transaction route land in the session
+   wherever a trace is published, so a fact that lived only on that page would
+   be one the product stopped serving. The section heading reuses the
+   execution list's, because it is the same kind of label. */
+.mdsec{padding:var(--bt-density-cell-y) var(--bt-density-cell-x)}
+.mdsec .mddl{margin-top:var(--bt-space-2xs)}
+.mdsec .mddl dt,.mdsec .mddl dd{padding-left:0;padding-right:0}
+.mdsec .panenote{padding:var(--bt-space-2xs) 0 0}
+.mdsec pre.raw{margin-top:var(--bt-space-2xs);
+  border-radius:var(--bt-radius-md);padding:var(--bt-density-card-pad)}
 
 /* ── the states with no session ─────────────────────────────────────────── */
 .nostate{padding:var(--bt-density-card-pad) var(--bt-density-cell-x)}

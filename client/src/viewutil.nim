@@ -4,6 +4,7 @@
 ## availability). These map the contract enums to human labels + a class the
 ## design-system-token CSS colours; they hold no data of their own.
 
+import std/json
 import blocktracer_client
 import ./reader
 import ./debugger/session_view
@@ -182,6 +183,37 @@ proc txMetadataRows*(chain: string, v: TxView): seq[MetaRow] =
     result.add MetaRow(label: "Cost · " & c.name,
                        value: c.used & " / " & c.limit,
                        suffix: suffix, identifier: true)
+
+const UnknownSelectorNote* =
+  "This selector is not in any ABI BlockTracer holds, so the parameters are " &
+  "shown as raw bytes. Supplying an ABI decodes them."
+  ## §7.2 section 3's degraded copy. A constant rather than a literal in a
+  ## view, for the same reason `txMetadataRows` is a proc: the transaction
+  ## route now lands in the SESSION for a published trace, so this sentence is
+  ## rendered by the metadata pane too and two spellings of it would be two
+  ## answers to the same question.
+
+proc txPayloadRows*(v: TxView): seq[MetaRow] =
+  ## §7.2 section 3's decoded input, as rows.
+  ##
+  ## The same shape as `txMetadataRows` and for the same reason: §7.1 requires
+  ## the pre-rendered page and the metadata pane to render the transaction's
+  ## facts "from one source". The selector and the raw calldata are facts, so
+  ## they get one producer rather than a hand-written `<dl>` per surface.
+  result.add MetaRow(label: "Selector",
+                     value: (if v.payloadSelector.len > 0: v.payloadSelector
+                             else: "—"),
+                     identifier: v.payloadSelector.len > 0)
+  result.add MetaRow(label: "Raw",
+                     value: (if v.payloadRaw.len > 0: v.payloadRaw else: "0x"),
+                     identifier: true)
+
+proc txNativePayload*(v: TxView): string =
+  ## §7.2 section 8 — the chain-native payload, verbatim and pretty-printed.
+  ##
+  ## Empty when the tree published none, which is a different thing from an
+  ## empty object and is rendered as nothing at all rather than as `null`.
+  if v.native == nil or v.native.kind == JNull: "" else: pretty(v.native)
 
 proc txExecutionRows*(v: TxView): seq[ExecutionRow] =
   ## The per-execution trace states — §7.1's "Aztec private/public split".

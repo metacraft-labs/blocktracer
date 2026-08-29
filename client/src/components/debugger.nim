@@ -360,6 +360,26 @@ proc renderControls*(p: DebugControlsPane): string =
 
 # ── the metadata pane (§7.1) ───────────────────────────────────────────────
 
+proc metaRows(rows: seq[MetaRow]; cls: string): string =
+  ## One `<dl>` of §7.2 facts. Shared by the overview rows and the decoded
+  ## input so a row cannot acquire a second presentation by being in the other
+  ## list.
+  ui:
+    dl(class = cls):
+      for r in rows:
+        dt: text r.label
+        dd:
+          if r.href.len > 0:
+            a(href = r.href, class = "identifier"): text r.value
+          elif r.badge.len > 0:
+            span(class = "badge " & r.badge): text r.value
+          elif r.identifier:
+            span(class = "identifier"): text r.value
+          else:
+            text r.value
+          if r.suffix.len > 0:
+            span(class = "muted"): text " " & r.suffix
+
 proc renderMetadata*(m: MetadataPane): string =
   ui:
     tdiv(class = "md"):
@@ -369,20 +389,7 @@ proc renderMetadata*(m: MetadataPane): string =
       if m.revertReason.len > 0:
         p(class = "mdrevert " & m.revertReasonTone):
           text m.revertReasonLabel & ": " & m.revertReason
-      dl(class = "mddl"):
-        for r in m.rows:
-          dt: text r.label
-          dd:
-            if r.href.len > 0:
-              a(href = r.href, class = "identifier"): text r.value
-            elif r.badge.len > 0:
-              span(class = "badge " & r.badge): text r.value
-            elif r.identifier:
-              span(class = "identifier"): text r.value
-            else:
-              text r.value
-            if r.suffix.len > 0:
-              span(class = "muted"): text " " & r.suffix
+      raw metaRows(m.rows, "mddl")
       if m.executions.len > 0:
         tdiv(class = "mdexec"):
           span(class = "mdexectitle"): text "Executions"
@@ -392,6 +399,23 @@ proc renderMetadata*(m: MetadataPane): string =
               span(class = "badge " & e.badge): text e.availability
               if e.reason.len > 0:
                 span(class = "reason"): text e.reason
+      # §7.2 sections 3 and 8, in the pane rather than only on a page.
+      #
+      # §7.0 makes the transaction route land in the SESSION where a trace is
+      # published, so a fact that lived only on the explorer page would be a
+      # fact the product stopped serving — to a visitor and to a crawler
+      # alike. §7.1 says "§7.2 specifies *what* that metadata is", so the pane
+      # carries §7.2, not a subset of it chosen by what fits.
+      if m.payload.len > 0:
+        tdiv(class = "mdsec", id = "decoded-input"):
+          span(class = "mdexectitle"): text "Decoded input"
+          raw metaRows(m.payload, "mddl mdpayload")
+          if m.payloadNote.len > 0:
+            p(class = "panenote"): text m.payloadNote
+      if m.native.len > 0:
+        tdiv(class = "mdsec", id = "raw"):
+          span(class = "mdexectitle"): text "Raw (chain-native)"
+          pre(class = "raw"): text m.native
 
 # ── walking the layout ─────────────────────────────────────────────────────
 

@@ -297,7 +297,10 @@ proc metadataPane*(chain: string; v: TxView): MetadataPane =
     revertReasonLabel: outcomeReasonLabel(v.outcome),
     revertReasonTone: outcomeReasonTone(v.outcome),
     rows: txMetadataRows(chain, v),
-    executions: txExecutionRows(v))
+    executions: txExecutionRows(v),
+    payload: txPayloadRows(v),
+    payloadNote: UnknownSelectorNote,
+    native: txNativePayload(v))
 
 # ---------------------------------------------------------------------------
 # The session
