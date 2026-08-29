@@ -31,6 +31,8 @@ import ../src/debugger/replay_engine
 import ../src/debugger/source_document
 import ../src/debugger/demo_session
 import ../src/components/debugger as dbgc
+import ../src/components/debugger_css
+import isonim/ssr/escape
 import ../src/pages/debug as debugPg
 import ../src/pages/tx as txPg
 import blocktracer/demo/generator
@@ -276,8 +278,30 @@ suite "M8a — the source pane renders real source, with stable line identity":
     check doc.lines.len > 20
     let html = debugHtml(readyTx)
     # Lines of the real `zk_shields` program, not a placeholder.
-    check "pub fn iterate_asteroids" in html
-    check "remaining_shield -= damage;" in html
+    #
+    # Taken from the window the pane actually opens on rather than from the top
+    # of the file: the pane opens ON the session's position, so line 1 is not
+    # on the page. Asserting over the rendered window keeps this a check that
+    # the REAL program is rendered — the strings below are still `shield.nr`'s
+    # own source, read out of the document rather than written in by hand, so a
+    # placeholder renderer still fails it.
+    let rendered = activeDocument(openAtCurrent(s.editor, lead = 6))
+    check rendered.lines.len > 20
+    check rendered.lines[0].number > 1     # the window is a real window
+    var matched = 0
+    for ln in rendered.lines:
+      let t = ln.text.strip()
+      # Lines carrying HTML-special characters are escaped in the served
+      # bytes, so they are compared through the same escape the renderer uses
+      # rather than skipped — skipping them would drop exactly the lines most
+      # likely to be mangled.
+      if t.len > 0:
+        check escapeHtml(t) in html
+        inc matched
+    check matched > 20
+    # The session's own line, from the window, by hand — so a renderer that
+    # emitted the right COUNT of wrong lines still fails.
+    check escapeHtml("damage = mass * (100 - shield_pct);") in html
     # Rendered as text inside <code>, so a tokeniser can replace the text node
     # later without moving anything around it.
     check "<code class=\"t\">" in html
@@ -291,9 +315,187 @@ suite "M8a — the source pane renders real source, with stable line identity":
       check ln.anchor notin seen
       seen.incl ln.anchor
     check seen.len == doc.lines.len
+    # The page opens the pane ON the position (see the next test), so the lines
+    # it renders are the window's, not the whole file's. The identity property
+    # is asserted over exactly the lines the page emits — and, because the
+    # anchors are derived from `(path, line)` and not from render order, the
+    # windowed ids are the same ids the full document produced above.
     let html = debugHtml(readyTx)
-    for ln in doc.lines:
+    let rendered = activeDocument(openAtCurrent(s.editor, lead = 6))
+    check rendered.lines.len > 0
+    for ln in rendered.lines:
+      check ln.anchor == lineAnchor(doc.path, ln.number)
       check ("id=\"" & ln.anchor & "\"") in html
+
+  test "the source pane OPENS on the position, at every viewport":
+    ## The regression this test exists for shipped, and four of six reviewers
+    ## in VD.5's first round found it on the rendered page: the pane rendered
+    ## the file from line 1, so at the `laptop` viewport the current line fell
+    ## below the fold. The toolbar claimed a step and no pane showed one.
+    ##
+    ## "Visible" cannot be asserted from markup, so the property asserted is
+    ## the one that CAUSES it and does not depend on a viewport: the current
+    ## line is among the first few lines the pane emits. A pane that opens on
+    ## its position is visible in any pane tall enough to show a handful of
+    ## rows; a pane that opens at line 1 is not.
+    let s = sessionFor(readyTx)
+    let full = activeDocument(s.editor)
+    # The fixture has to be able to fail this, or the test is decoration.
+    check s.editor.currentLine > 8
+    check full.lines.len > s.editor.currentLine
+
+    let html = debugHtml(readyTx)
+    # The pane emits one panel per document, so the ids are scoped to the
+    # ACTIVE document's own file before position within it is asserted.
+    let prefix = "L-" & pathSlug(full.path) & "-"
+    let ids = idsInOrder(html, "L-").filterIt(it.startsWith(prefix))
+    check ids.len > 0
+    let cur = lineAnchor(full.path, s.editor.currentLine)
+    check cur in ids
+    # Within the first handful of rendered rows, not merely present somewhere.
+    check ids.find(cur) <= 8
+
+    # And the lines that were dropped to get there are ANNOUNCED, not silently
+    # missing — Page-Descriptions §13's rule applies to a reduction in a pane
+    # exactly as it does to one at a viewport.
+    check "Showing from line" in html
+
+  test "every file the tab strip names is reachable":
+    ## The strip listed the published bundle's four files and exactly one of
+    ## them could be opened — the other three were inert `<span>`s. A tab that
+    ## names a file it cannot open is an affordance that lies, which is the
+    ## same defect class as the toolbar this page is careful to render inert.
+    let s = sessionFor(readyTx)
+    let docs = s.editor.documents
+    check docs.len > 1          # or the test proves nothing
+    let html = debugHtml(readyTx)
+    for d in docs:
+      # a panel to land in …
+      check ("id=\"" & docAnchor(d.path) & "\"") in html
+      # … and a link that goes there.
+      check ("href=\"#" & docAnchor(d.path) & "\"") in html
+    # No inert tab left behind.
+    check "<span class=\"srctab" notin html
+
+  test "'Sort by cost' sorts, and the sorted view does not draw a tree":
+    ## It was styled as a link — accent colour, underline — and was a `<span>`.
+    ## Now it is a real `:target` view, which is also VD.5's "including the
+    ## cost column and cost-sorted view".
+    let html = debugHtml(readyTx)
+    check "href=\"#calltrace-by-cost\"" in html
+    check "id=\"calltrace-by-cost\"" in html
+    check "<span class=\"ctsort" notin html
+    # The cost-ordered rows are flat: once the rows are not in call order, an
+    # indent would draw a tree the ordering does not describe.
+    let sorted = html[html.find("id=\"calltrace-by-cost\"") .. ^1]
+    let sortedView = sorted[0 ..< sorted.find("ctview def")]
+    check "ctrow d0 flat" in sortedView
+    for d in 1 .. 8:
+      check ("ctrow d" & $d & " ") notin sortedView
+
+  test "the cost sort is by cost, descending — not by call order":
+    let s = sessionFor(readyTx)
+    check s.calltrace.frames.len > 2
+    let html = debugHtml(readyTx)
+    let sorted = html[html.find("id=\"calltrace-by-cost\"") .. ^1]
+    let sortedView = sorted[0 ..< sorted.find("ctview def")]
+    var lastCost = high(int)
+    var seenNames = 0
+    for f in s.calltrace.frames:
+      check f.fn in sortedView
+    # The most expensive frame appears before the cheapest one.
+    var costs: seq[int]
+    for f in s.calltrace.frames:
+      var n = 0
+      for c in f.cost:
+        if c in {'0'..'9'}: n = n * 10 + (ord(c) - ord('0'))
+      costs.add n
+    let dearest = s.calltrace.frames[costs.maxIndex].fn
+    let cheapest = s.calltrace.frames[costs.minIndex].fn
+    check sortedView.find(dearest) < sortedView.find(cheapest)
+    discard lastCost
+    discard seenNames
+
+  test "depth beyond the indentation ladder is clamped AND marked":
+    ## The renderer emitted `d6`, `d7`, … for any depth; the stylesheet had
+    ## rules to `d5`. An out-of-ladder class resolves to NO indentation, so a
+    ## trace deeper than the ladder rendered FLAT — indistinguishable on a
+    ## screenshot from a correct shallow one. That is the density collapse
+    ## `verify_debugger_holds_under_load` exists to rule out.
+    check depthClass(0) == "d0"
+    check depthClass(5) == "d5"
+    check depthClass(MaxIndentDepth) == "d" & $MaxIndentDepth
+    # Past the ladder: clamped to a class that HAS a rule, and marked.
+    for d in (MaxIndentDepth + 1) .. (MaxIndentDepth + 40):
+      let c = depthClass(d)
+      check c == "d" & $MaxIndentDepth & " deeper"
+    # Every class the renderer can emit has an indentation rule behind it.
+    for d in 0 .. (MaxIndentDepth + 40):
+      let cls = depthClass(d).split(' ')[0]
+      check (".ctrow." & cls & " .ctfn{padding-left") in debugRouteCss or cls == "d0"
+      check (".strow." & cls & "{padding-left") in debugRouteCss or cls == "d0"
+
+  test "the scrubber marks the NEAREST tick, and never rounds up to the end":
+    ## `int()` truncates, and truncation biases every reading in one direction:
+    ## the fixture sits at step 128 of 1315 = 9.73%, which truncated to tick 4
+    ## of 48 and read as 8.33%. A scrubber whose only job is to say WHERE in
+    ## the trace the session is may not be systematically early.
+    ##
+    ## The exception is the last tick, which is not a measurement but the claim
+    ## that the trace has ENDED. That claim must come from `fraction == 1.0`
+    ## and never from rounding, so 47/48 is the most a mid-trace step can show.
+    proc atTick(step, total: int): int =
+      ## The tick index the renderer marks with `.at`, read back out of the
+      ## markup rather than recomputed — so this tests the renderer, not a
+      ## copy of its arithmetic.
+      var p = DebugControlsPane(step: step, totalSteps: total, positioned: true)
+      let html = renderControls(p)
+      var i = 0
+      for chunk in html.split("<span class=\"tick"):
+        if chunk.startsWith(" at\""): return i
+        inc i
+      -1
+
+    # The fixture's own position: 128/1315 = 9.73%, which is nearer 5/48
+    # (10.42%) than 4/48 (8.33%). It used to report 4.
+    check atTick(128, 1315) == 5
+    # The boundary either side of a half-tick, to pin the rounding direction.
+    check atTick(1, 96) == 1           # 0.52 of a tick, rounds to the floor 1
+    check atTick(3, 96) == 2           # 1.5 ticks exactly, rounds up
+    # Never past the end, and never AT the end unless the trace is at the end.
+    check atTick(1314, 1315) == 47
+    check atTick(1315, 1315) == 48
+    check atTick(9_999, 1315) == 48    # `fraction` clamps, and so does this
+    # A positioned session always shows a mark, however early it is.
+    check atTick(1, 1_000_000) == 1
+    # And an unpositioned one shows none at all — no mark is a claim too.
+    let none = renderControls(DebugControlsPane(step: 0, totalSteps: 1315))
+    check "tick at\"" notin none
+    check "tick on\"" notin none
+
+  test "the metadata pane offers no control the page cannot honour":
+    ## The `×` had nothing behind it — this page ships no JavaScript — and it
+    ## was the only pane header carrying one. Dismissing it would also violate
+    ## this route's own invariant that the metadata pane is present in every
+    ## state.
+    for hash in [readyTx, divergentTx]:
+      let html = debugHtml(hash)
+      check "panedismiss" notin html
+      check "pane-metadata" in html
+
+  test "a document whose position is near the top is NOT windowed":
+    ## The negative. `openAtCurrent` must be a no-op when the current line is
+    ## already within the lead-in, or every session would claim a reduction it
+    ## did not make.
+    var e = sessionFor(readyTx).editor
+    e.currentLine = 3
+    for i in 0 ..< e.documents.len:
+      for j in 0 ..< e.documents[i].lines.len:
+        e.documents[i].lines[j].current =
+          e.documents[i].lines[j].number == 3 and i == e.activeIndex
+    let opened = openAtCurrent(e, lead = 6)
+    check activeDocument(opened).lines.len == activeDocument(e).lines.len
+    check activeDocument(opened).lines[0].number == 1
 
   test "narrowing the document to a window does not move a line's identity":
     # The property the anchors exist for. The home page's embed renders a

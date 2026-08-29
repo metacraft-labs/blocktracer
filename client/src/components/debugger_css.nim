@@ -120,10 +120,12 @@ html[data-register="debugger"],
 .panetitle{font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);
   line-height:var(--bt-type-label-line);letter-spacing:var(--bt-type-label-tracking);
   text-transform:uppercase;color:var(--bt-text-muted)}
-.panedismiss{color:var(--bt-text-subtle);line-height:var(--bt-type-label-line);
-  padding:0 var(--bt-space-3xs);border-radius:var(--bt-radius-xs);
-  transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
-.panedismiss:hover{color:var(--bt-text-strong);background:var(--bt-surface-hover)}
+/* The pane-header dismiss rule is GONE, with the control it styled — see
+   `pages/debug.nim` for why that control could not be honoured. A rule kept
+   for an element that no longer exists is a standing invitation to re-add it.
+   Note also that this stylesheet is INLINED into the page, so a selector, or
+   even a comment, naming a removed affordance keeps its name in the served
+   bytes; `test_debug_route` asserts over those bytes. */
 .panebody{flex:1 1 0;min-height:0;overflow:auto}
 .panenote{padding:var(--bt-density-card-pad) var(--bt-density-cell-x);
   color:var(--bt-text-muted);font-size:var(--bt-type-body-sm-size);
@@ -161,20 +163,66 @@ html[data-register="debugger"],
   color:var(--bt-text-strong);border-bottom-color:var(--bt-accent-default)}
 
 /* ── source pane ────────────────────────────────────────────────────────── */
-.srcwrap{display:flex;flex-direction:column;min-height:0}
-.srctabs{display:flex;gap:var(--bt-space-xs);flex-wrap:wrap;
+/* `height:100%` and not `flex:1` alone: `.srcwrap` is a BLOCK child of
+   `.panebody`, so it has no flex parent to grow into, and a chain of
+   `flex:1 1 0` items under an auto-height ancestor resolves to zero — which
+   renders the pane empty rather than short. The explicit height gives the
+   chain a definite one to divide. */
+.srcwrap{display:flex;flex-direction:column;min-height:0;height:100%;
+  position:relative}
+/* A code line that runs past the pane edge is CUT, and at rest nothing said
+   so — five reviewers read the clipped lines as breakage rather than as
+   scrollable overflow, because a capture (and a trackpad) hides the
+   scrollbar. The fade is the affordance: it says "there is more to the right"
+   without spending a row on a scrollbar the platform may never draw.
+   `pointer-events:none` so it cannot eat a click on the code beneath it. */
+.srcwrap::after{content:"";position:absolute;top:0;right:0;bottom:0;
+  width:var(--bt-space-2xl);pointer-events:none;
+  background:linear-gradient(to right, transparent, var(--bt-surface-code))}
+/* One panel per document, switched by `:target`. The ACTIVE document is
+   emitted last so every alternate can reach forward and hide it — CSS has
+   only a forward sibling combinator. Each panel carries its OWN tab strip
+   with its own tab marked, which is what makes the active tab correct for any
+   number of documents without a per-document rule. */
+.srcdoc{display:flex;flex-direction:column;min-height:0;flex:1 1 0}
+.srcdoc.alt{display:none}
+.srcdoc.alt:target{display:flex}
+.srcdoc.alt:target ~ .srcdoc.def{display:none}
+.srctabs{display:flex;gap:var(--bt-space-3xs);flex-wrap:wrap;flex:0 0 auto;
   padding:var(--bt-space-3xs) var(--bt-density-cell-x);
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
   background:var(--bt-surface-sunken)}
+/* A tab is a real link to its document, so it gets a real hit area and a real
+   hover — the strip used to be four inert `<span>`s naming four files of which
+   one was reachable. */
 .srctab{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
-  font-size:var(--bt-type-label-size);color:var(--bt-text-subtle)}
-.srctab.on{color:var(--bt-text-strong)}
+  font-size:var(--bt-type-label-size);color:var(--bt-text-subtle);
+  padding:var(--bt-space-3xs) var(--bt-space-xs);
+  border-radius:var(--bt-radius-xs);
+  border-bottom:var(--bt-stroke-thick) solid transparent;
+  transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
+.srctab:hover{color:var(--bt-text-default);background:var(--bt-surface-hover)}
+.srctab.on{color:var(--bt-text-strong);border-bottom-color:var(--bt-accent-default)}
+/* The pane opens part-way into the file, and says so rather than leaving the
+   reader to infer it from a first line number that is not 1. */
+.srcfrom{padding:var(--bt-space-2xs) var(--bt-density-cell-x);
+  color:var(--bt-text-muted);font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
+  font-size:var(--bt-type-label-size);line-height:var(--bt-type-body-sm-line);
+  background:var(--bt-surface-sunken);
+  border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
+/* The code body is the pane's own scroll container on BOTH axes, so a long
+   line scrolls the code and not the tab strip above it. */
 .src{font-family:var(--bt-font-code),var(--bt-font-mono-fallback);
   font-size:var(--bt-type-code-size);line-height:var(--bt-type-code-line);
   color:var(--bt-text-code);background:var(--bt-surface-code);
-  padding:var(--bt-space-2xs) 0;min-width:0}
+  padding:var(--bt-space-2xs) 0;min-width:0;flex:1 1 0;overflow:auto}
+/* `min-width:max-content` makes the rows as wide as the widest line, so the
+   current-line fill and the executed-line stripe extend across the whole
+   scrolled width instead of stopping at the pane edge — a row highlight that
+   ends mid-line reads as a rendering fault once the pane is scrolled. */
 .srcline{display:flex;align-items:flex-start;gap:var(--bt-space-xs);
   padding:0 var(--bt-density-cell-x);white-space:pre;
+  min-width:max-content;
   border-left:var(--bt-stroke-thick) solid transparent}
 .srcline .n{flex:0 0 var(--bt-space-2xl);text-align:right;
   color:var(--bt-text-subtle);font-variant-numeric:var(--bt-numeric-features);
@@ -225,19 +273,71 @@ html[data-register="debugger"],
   font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
   font-variant-numeric:var(--bt-numeric-features);
   min-width:var(--bt-space-3xl)}
-.ctunit{flex:0 0 auto;color:var(--bt-text-subtle);
-  font-size:var(--bt-type-label-size);min-width:var(--bt-space-2xl)}
-/* Depth is indentation, and the indentation ladder is the spacing scale. */
+/* The unit is the COLUMN's, carried once by the header. It used to repeat on
+   every row, spending width that the frame column — the one that actually
+   truncates — needed. */
+.ctunit{color:var(--bt-text-subtle);font-size:var(--bt-type-label-size);
+  font-weight:var(--bt-type-body-weight);letter-spacing:normal;
+  text-transform:none}
+
+/* Depth is indentation, and the ladder is LINEAR.
+   It used to be the spacing scale, which is not: `md → xl → 2xl → 3xl → 4xl`
+   is 16 → 32 → 48 → 60 → 100 px, so the rungs stepped by 16, 16, 12, 40. Depth
+   3 to depth 4 moved three quarters of a character; depth 4 to depth 5 moved
+   two and a half characters. One level of nesting therefore meant a different
+   amount of indentation depending on where in the trace it occurred, which is
+   the one thing an indent ladder may not do: it ranks EQUAL things — each rung
+   is exactly one call — and so it has to step equally. A spacing scale ranks
+   unequal ones, which is why it grows, and why it is the wrong scale here.
+   Beyond the ladder the rows carried a `d6`, `d7`,
+   … no rule answered, which resolved to NO indentation — so a trace deeper
+   than the ladder did not render as deep, it rendered as FLAT, which is
+   indistinguishable from a correct shallow trace. `debugger.depthClass`
+   clamps to `MaxIndentDepth` and adds `.deeper`, and the ladder below covers
+   every class it can now emit. */
 .ctrow.d0 .ctfn{padding-left:0}
-.ctrow.d1 .ctfn{padding-left:var(--bt-space-md)}
-.ctrow.d2 .ctfn{padding-left:var(--bt-space-xl)}
-.ctrow.d3 .ctfn{padding-left:var(--bt-space-2xl)}
-.ctrow.d4 .ctfn{padding-left:var(--bt-space-3xl)}
-.ctrow.d5 .ctfn{padding-left:var(--bt-space-4xl)}
+.ctrow.d1 .ctfn{padding-left:calc(var(--bt-space-md) * 1)}
+.ctrow.d2 .ctfn{padding-left:calc(var(--bt-space-md) * 2)}
+.ctrow.d3 .ctfn{padding-left:calc(var(--bt-space-md) * 3)}
+.ctrow.d4 .ctfn{padding-left:calc(var(--bt-space-md) * 4)}
+.ctrow.d5 .ctfn{padding-left:calc(var(--bt-space-md) * 5)}
+.ctrow.d6 .ctfn{padding-left:calc(var(--bt-space-md) * 6)}
+.ctrow.d7 .ctfn{padding-left:calc(var(--bt-space-md) * 7)}
+.ctrow.d8 .ctfn{padding-left:calc(var(--bt-space-md) * 8)}
+/* A frame deeper than the ladder is MARKED as clamped rather than drawn at a
+   depth it is not at. The rule is what stops the clamp from becoming a
+   quieter version of the bug it replaced. */
+.ctrow.deeper .ctname::before{content:"⋯ ";color:var(--bt-text-subtle)}
+/* A guide rule per row, so depth is readable by eye rather than by comparing
+   left edges character by character. */
+.ctrow:not(.d0):not(.flat) .ctfn{
+  border-left:var(--bt-stroke-hairline) solid var(--bt-border-default);
+  margin-left:var(--bt-space-2xs)}
 .ctfoot{border-bottom:0;color:var(--bt-text-subtle);
   font-size:var(--bt-type-label-size);justify-content:space-between}
 .ctsort{color:var(--bt-text-link);text-decoration:underline;
   text-underline-offset:var(--bt-space-3xs)}
+.ctsort:hover{color:var(--bt-text-link-hover)}
+
+/* The cost-sorted view, on the same `:target` mechanism as the pane tabs.
+   `.ctview.def` is emitted LAST so the alternate can reach forward and hide
+   it. "Sort by cost" is now a link that sorts; it used to be a `<span>` with
+   link colour and an underline and no behaviour at all. */
+.ctview.alt{display:none}
+.ctview.def{display:block}
+.ctview.alt:target{display:block}
+.ctview.alt:target ~ .ctview.def{display:none}
+
+/* A dense pane sets its own data size, and `.num` must not override it.
+   `styles.nim` gives `.num` the explorer's numeric size and line-height, which
+   inside a 12px/1.35 debugger row resolves to 14px/1.5 — so the row grew to
+   30px, the COST number rendered larger than the function name it annotates,
+   and the three list panes stopped sharing a pitch (call trace 30, event log
+   30, state 25) where the desktop app keeps every call-trace row at one size
+   and one pitch. The class still carries the tabular-figure treatment, which
+   is the part these columns actually want. */
+.ct .num,.st .num,.ev .num,.mddl .num,.dc .num{
+  font-size:inherit;line-height:inherit}
 
 /* ── state ──────────────────────────────────────────────────────────────── */
 .st{font-size:var(--bt-density-data-size)}
@@ -246,17 +346,39 @@ html[data-register="debugger"],
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
   border-left:var(--bt-stroke-thick) solid transparent}
 .strow:hover{background:var(--bt-surface-hover)}
-.strow.d1{padding-left:var(--bt-space-lg)}
-.strow.d2{padding-left:var(--bt-space-2xl)}
+/* Linear, and covering every class `debugger.depthClass` can emit — the SAME
+   ladder as the call trace, so one level of nesting means one indent step in
+   both panes.
+   It was `d1` (lg, 24px) and `d2` (2xl, 48px) only. A value nested three deep
+   — which any struct-of-struct produces — got a `d3` no rule answered, so it
+   fell back to the row's own cell padding and rendered at the indent of a
+   TOP-LEVEL value: not one rung short, but all the way flat, and nothing said
+   so. The desktop app indents state by a flat 16px per level and does not
+   stop. */
+.strow.d1{padding-left:calc(var(--bt-space-md) * 1)}
+.strow.d2{padding-left:calc(var(--bt-space-md) * 2)}
+.strow.d3{padding-left:calc(var(--bt-space-md) * 3)}
+.strow.d4{padding-left:calc(var(--bt-space-md) * 4)}
+.strow.d5{padding-left:calc(var(--bt-space-md) * 5)}
+.strow.d6{padding-left:calc(var(--bt-space-md) * 6)}
+.strow.d7{padding-left:calc(var(--bt-space-md) * 7)}
+.strow.d8{padding-left:calc(var(--bt-space-md) * 8)}
+.strow.deeper .stname::before{content:"⋯ ";color:var(--bt-text-subtle)}
 .strow.chg{border-left-color:var(--bt-accent-default)}
+/* `overflow-wrap:anywhere` and not `word-break:break-all`: a long identifier
+   has to be able to break, but break-all also breaks SHORT ones that would
+   have fitted on the next line, which is what shattered names across rows. */
 .stname{flex:0 0 auto;font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
-  color:var(--bt-text-strong);word-break:break-all}
-.sttype{flex:0 0 auto;color:var(--bt-text-subtle);
-  font-size:var(--bt-type-label-size)}
+  color:var(--bt-text-strong);overflow-wrap:anywhere;min-width:0}
+/* The type is the last column and a fixed one, so it can be scanned down the
+   pane rather than landing wherever the name happens to end. */
+.sttype{flex:0 0 var(--bt-space-4xl);text-align:right;
+  color:var(--bt-text-subtle);font-size:var(--bt-type-label-size);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .stval{flex:1 1 auto;min-width:0;text-align:right;
   font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
   font-variant-numeric:var(--bt-numeric-features);
-  color:var(--bt-text-code);word-break:break-all}
+  color:var(--bt-text-code);overflow-wrap:anywhere}
 .strow.chg .stval{color:var(--bt-accent-default)}
 
 /* ── event log: four kinds, distinguished by glyph, weight and rule ─────── */
@@ -313,9 +435,21 @@ html[data-register="debugger"],
 .dcglyph{font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line)}
 .dctl{flex:1 1 auto;min-width:0;display:flex;align-items:center;
   gap:var(--bt-stroke-hairline);height:var(--bt-space-md)}
+/* The unfilled track was `--bt-border-subtle`, which measures 1.17:1 in dark
+   and 1.67:1 in light — below the 3:1 floor for a non-text element. The
+   scrubber's extent is the one thing it exists to express, and an invisible
+   track expresses none of it: the control read as four floating dashes. */
 .dctl .tick{flex:1 1 0;height:var(--bt-space-2xs);
-  background:var(--bt-border-subtle);border-radius:var(--bt-radius-xs)}
-.dctl .tick.on{background:var(--bt-accent-default);height:var(--bt-space-sm)}
+  background:var(--bt-border-default);border-radius:var(--bt-radius-xs)}
+.dctl .tick.on{background:var(--bt-accent-subtle);height:var(--bt-space-sm)}
+/* The PLAYHEAD. The elapsed run says how far; this says where, and they are
+   different claims — a filled run alone is a progress bar, and a progress bar
+   at 10% on a page that is loading an 18 MB engine reads as the engine's
+   loading, not as position in a trace. Full track height and the strong accent
+   so it is the most legible mark in the control. */
+.dctl .tick.at{background:var(--bt-accent-default);height:100%;
+  min-width:var(--bt-stroke-thick);border-radius:var(--bt-radius-xs);
+  flex:0 0 auto}
 .dcstatus{flex:0 0 auto;display:flex;align-items:baseline;gap:var(--bt-space-sm)}
 .dcphase{color:var(--bt-text-default);font-size:var(--bt-type-body-sm-size)}
 .dcsteps{color:var(--bt-text-subtle);
@@ -341,9 +475,18 @@ html[data-register="debugger"],
   letter-spacing:var(--bt-type-label-tracking);text-transform:uppercase;
   color:var(--bt-text-subtle);white-space:nowrap;
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
+/* `word-break:break-all` applied to the whole cell broke WORDS as well as
+   hashes: `mana (FeeJuice)` came out as `mana (Fe` / `eJuice)`, which three
+   reviewers reported independently. Only an identifier needs to break at an
+   arbitrary character, and only an identifier is monospace enough for the
+   break to stay legible, so the aggressive rule is scoped to `.identifier`
+   and the cell itself breaks between words. */
 .mddl dd{padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
-  font-size:var(--bt-density-data-size);text-align:right;word-break:break-all;
+  font-size:var(--bt-density-data-size);text-align:right;
+  overflow-wrap:break-word;
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
+.mddl dd .identifier{word-break:break-all}
+.mddl dd .muted{white-space:nowrap}
 .mddl dd a{color:var(--bt-text-link);text-decoration:underline;
   text-underline-offset:var(--bt-space-3xs)}
 .mdexec{padding:var(--bt-density-cell-y) var(--bt-density-cell-x)}

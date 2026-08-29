@@ -41,6 +41,7 @@ import isonim/dsl/ui
 import ../debugger/layout_model
 import ../debugger/replay_engine
 import ../debugger/session_view
+import ../debugger/source_document
 import ../components/debugger
 import ../viewutil
 
@@ -178,8 +179,25 @@ proc engineNotice(s: DebugSessionView): string =
         span(class = "engineorigin"):
           text "Engine: " & s.engineBase
 
+const SourceLeadIn = 6
+  ## How many lines of context the source pane opens ABOVE the current line.
+  ##
+  ## Enough to see the statement in its block, few enough that the current line
+  ## is on screen at the shortest viewport this route is served at. See
+  ## `source_document.openAtCurrent` for why a lead-in and not a centred
+  ## window, and why the pane cannot simply scroll: there is no JavaScript on
+  ## this page to scroll it with.
+
 proc debugPage*(s: DebugSessionView): string =
   ## The whole route.
+  var s = s
+  # The session is POSITIONED, which means the pane opens on the position. A
+  # document rendered from line 1 leaves the current line wherever the file
+  # puts it — at `laptop` the fixture's line 32 falls below the fold, so the
+  # toolbar claims a step and no pane shows it. That is a presence failure
+  # against this view's own "must show", and it is invisible at `wide`, which
+  # is why deliverable 1 reviews both viewports rather than the widest.
+  s.editor = openAtCurrent(s.editor, SourceLeadIn)
   let replay =
     if s.hasFrame: renderLayout(defaultReplayLayout(), s)
     else: noSession(s)
@@ -198,8 +216,23 @@ proc debugPage*(s: DebugSessionView): string =
         section(class = "pane p-metadata w1", id = "pane-metadata"):
           header(class = "panehead"):
             span(class = "panetitle"): text "Transaction"
-            button(class = "panedismiss", title = "Dismiss pane",
-                   `aria-label` = "Dismiss pane"):
-              text "×"
+            # No dismiss control.
+            #
+            # It had one, and nothing was behind it: the page ships no
+            # JavaScript, so the `×` was the single affordance here not held to
+            # the standard the stepping toolbar holds itself to two panes away,
+            # where every button that cannot act renders visibly inert. It was
+            # also the only pane header carrying one — the editor, call trace,
+            # state and controls panes have none — so it made the pane §7.1
+            # calls "a pane in the session, beside the debugger's own panes"
+            # read as a sidebar that happens to be styled as a pane.
+            #
+            # And dismissing it is a thing this page must not offer anyway.
+            # This module's own contract is that the metadata pane "is present
+            # in every state, including the states where no session can open,
+            # because a visitor deep-linked into a stepping session still needs
+            # to know what they are looking at". A control whose success would
+            # violate the page's stated invariant is not a control that is
+            # merely unimplemented.
           tdiv(class = "panebody"):
             raw renderMetadata(s.metadata)

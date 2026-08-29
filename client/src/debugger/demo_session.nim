@@ -172,6 +172,7 @@ proc fixtureCalltrace(): CallTracePane =
     CallFrame(depth: depth, fn: s.name, module: DemoModule & " · " & s.path,
               cost: cost, costUnit: "opcodes", step: step, current: current)
   result.costLabel = "ACIR"
+  result.costUnit = "opcodes"
   result.frames = @[
     frame("main", 0, 1, "1,315"),
     frame("iterate_asteroids", 1, 6, "1,208"),
@@ -255,13 +256,18 @@ proc fixtureControls(positioned, live: bool; steps: int): DebugControlsPane =
   ## click, which is the single most likely wrong thing to ship here.
   proc btn(a: DebugAction; label, glyph: string): ControlButton =
     ControlButton(action: a, label: label, glyph: glyph, enabled: live)
+  # Four pairs, reverse then forward, in the desktop app's own toolbar order.
+  # Every glyph is distinct: `daReverseStepOut` and `daStepOut` both used to
+  # render `⤴`, so two different moves carried one mark on a toolbar whose
+  # entire point is that each move has a direction.
   result.buttons = @[
-    btn(daReverseContinue, "Reverse continue", "⏮"),
-    btn(daReverseStepOut, "Reverse step out", "⤴"),
     btn(daStepBackward, "Step backward", "◀"),
     btn(daStepForward, "Step forward", "▶"),
-    btn(daStepIn, "Step in", "⤵"),
-    btn(daStepOut, "Step out", "⤴"),
+    btn(daReverseStepIn, "Reverse step in", "⇱"),
+    btn(daStepIn, "Step in", "⇲"),
+    btn(daReverseStepOut, "Reverse step out", "⇤"),
+    btn(daStepOut, "Step out", "⇥"),
+    btn(daReverseContinue, "Reverse continue", "⏮"),
     btn(daContinue, "Continue", "⏭"),
   ]
   result.positioned = positioned

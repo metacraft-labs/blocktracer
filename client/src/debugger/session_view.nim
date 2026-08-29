@@ -177,14 +177,24 @@ type
     activeIndex*: int         ## which document the pane shows
     currentLine*: int         ## 0 when the session is not positioned
 
+func pathSlug*(path: string): string =
+  ## Path characters that are not safe in an HTML id, folded to `-`.
+  result = newStringOfCap(path.len)
+  for c in path:
+    if c in {'a'..'z', 'A'..'Z', '0'..'9'}: result.add c
+    else: result.add '-'
+
 func lineAnchor*(path: string; line: int): string =
   ## The stable per-line id. Path characters that are not safe in an HTML id
   ## are folded to `-`; the line number keeps the id unique within the file.
-  var slug = newStringOfCap(path.len + 8)
-  for c in path:
-    if c in {'a'..'z', 'A'..'Z', '0'..'9'}: slug.add c
-    else: slug.add '-'
-  "L-" & slug & "-" & $line
+  "L-" & pathSlug(path) & "-" & $line
+
+func docAnchor*(path: string): string =
+  ## The stable per-DOCUMENT id, which the source pane's tab strip targets.
+  ##
+  ## Same folding as `lineAnchor` and a different prefix, so a document id can
+  ## never collide with one of its own line ids.
+  "D-" & pathSlug(path)
 
 func activeDocument*(p: EditorPane): SourceDocument =
   if p.documents.len == 0: SourceDocument()
@@ -211,6 +221,11 @@ type
   CallTracePane* = object
     frames*: seq[CallFrame]
     costLabel*: string    ## the column heading, e.g. `gas`, `ACIR opcodes`
+    costUnit*: string     ## the unit the column is in, carried ONCE by the
+                          ## header rather than repeated on every row. Empty
+                          ## means "take it from the frames", so a producer
+                          ## that only fills `CallFrame.costUnit` still renders
+                          ## a labelled column.
     sortedByCost*: bool   ## whether the cost-sorted view is the active one
     note*: string         ## what the pane says when `frames` is empty
 
@@ -285,12 +300,26 @@ type
     ## The moves `DebugControlsVM` exposes, in toolbar order. Backward first in
     ## each pair: reverse stepping is the product's premise, and a toolbar that
     ## buries it behind a menu is the finding the review brief names.
-    daReverseContinue = "reverse-continue"
-    daReverseStepOut = "reverse-step-out"
+    ##
+    ## The order is CodeTracer's own — `isonim_debug_controls_view.nim` lays
+    ## the desktop toolbar out as `[reverse-next][next]`,
+    ## `[reverse-step-in][step-in]`, `[reverse-step-out][step-out]`,
+    ## `[reverse-continue][continue]` — because a desktop user reaches for
+    ## these by position before they read a glyph.
+    ##
+    ## It did not used to be. The list was a PALINDROME (all four reverse moves
+    ## on the left, all three forward moves on the right) while this very
+    ## comment claimed it was paired, and `reverse-step-in` was missing
+    ## altogether — three reverse moves against four forward ones on the
+    ## surface whose whole premise is that time runs both ways. VD.5's
+    ## continuity check against the desktop app found both.
     daStepBackward = "step-backward"
     daStepForward = "step-forward"
+    daReverseStepIn = "reverse-step-in"
     daStepIn = "step-in"
+    daReverseStepOut = "reverse-step-out"
     daStepOut = "step-out"
+    daReverseContinue = "reverse-continue"
     daContinue = "continue"
 
   ControlButton* = object

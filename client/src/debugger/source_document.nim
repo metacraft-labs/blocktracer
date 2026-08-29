@@ -116,6 +116,45 @@ proc focus*(pane: var EditorPane; path: string; line: int) =
       pane.documents[d].lines[i].current =
         d == idx and pane.documents[d].lines[i].number == line
 
+proc openAtCurrent*(pane: EditorPane; lead: int): EditorPane =
+  ## The active document narrowed to start `lead` lines ABOVE the current line
+  ## and run to the end of the file. Other documents are kept, untouched.
+  ##
+  ## This is what makes the full session *positioned* rather than merely
+  ## loaded, and it is a correctness fix rather than a nicety. The pane has no
+  ## JavaScript to scroll with: a document rendered from line 1 puts the
+  ## current line wherever the file happens to put it, and at the `laptop`
+  ## viewport the fixture's line 32 falls below the fold entirely — the pane
+  ## renders a file, the toolbar claims a step, and nothing on screen connects
+  ## them. Four of six reviewers in VD.5's first round independently reported
+  ## the missing indicator as a presence failure, at `laptop` and not at
+  ## `wide`, which is exactly the signature of a position that is rendered but
+  ## off-screen.
+  ##
+  ## A LEAD-IN rather than a centred window: `lead` lines of context above
+  ## guarantees the current line lands in row `lead + 1` at every viewport,
+  ## however short the pane is, where a centred window only guarantees it for
+  ## panes taller than the window. Opening on the current statement with a few
+  ## lines above it is also what the desktop app does, so the continuity is
+  ## with CodeTracer rather than with a file viewer.
+  ##
+  ## The lines above the lead-in are DROPPED, not hidden, and `renderSource`
+  ## says so on the pane — Page-Descriptions §13's rule that a reduction is
+  ## announced rather than silent applies to a reduction in a pane just as it
+  ## does to one at a viewport.
+  result = pane
+  if pane.availability != srcSourceLevel or pane.documents.len == 0: return
+  if pane.currentLine <= 0: return
+  let idx = (if pane.activeIndex >= 0 and pane.activeIndex < pane.documents.len:
+               pane.activeIndex else: 0)
+  let first = max(1, pane.currentLine - lead)
+  if first == 1: return
+  var window = SourceDocument(path: pane.documents[idx].path,
+                              language: pane.documents[idx].language)
+  for ln in pane.documents[idx].lines:
+    if ln.number >= first: window.lines.add ln
+  result.documents[idx] = window
+
 proc windowAround*(pane: EditorPane; radius: int): EditorPane =
   ## The active document narrowed to `radius` lines either side of the current
   ## line, other documents dropped.

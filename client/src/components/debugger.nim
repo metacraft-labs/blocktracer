@@ -123,15 +123,32 @@ proc renderSource*(p: EditorPane): string =
             text "Stepping continues at instruction level."
           button(class = "btn ghost sm"): text "Supply sources"
   let doc = activeDocument(p)
-  ui:
-    tdiv(class = "srcwrap"):
-      if p.documents.len > 1:
-        nav(class = "srctabs"):
-          for d in p.documents:
-            span(class = "srctab" & (if d.path == doc.path: " on" else: "")):
-              text d.path
+
+  proc tabStrip(activePath: string): string =
+    ## The strip, rendered once PER PANEL with that panel's own tab marked.
+    ##
+    ## Emitting it per panel is what lets the active tab be correct for N
+    ## documents with no JavaScript and no per-document CSS. The alternative —
+    ## one shared strip corrected by `:target ~` selectors — can only reach the
+    ## first and last tab, which is why `renderStack` gets away with it for a
+    ## two-pane stack and why it would silently mismark a four-file bundle.
+    ui:
+      nav(class = "srctabs"):
+        for d in p.documents:
+          a(class = "srctab" & (if d.path == activePath: " on" else: ""),
+            href = "#" & docAnchor(d.path)):
+            text d.path
+
+  proc body(d: SourceDocument): string =
+    ## One document's lines, plus the notice when the pane opens part-way in.
+    let first = (if d.lines.len > 0: d.lines[0].number else: 1)
+    ui:
       tdiv(class = "src"):
-        for ln in doc.lines:
+        if first > 1:
+          tdiv(class = "srcfrom"):
+            text "Showing from line " & $first & " — the session's position is " &
+                 "below, and the lines above it are not in this window."
+        for ln in d.lines:
           tdiv(class = "srcline" &
                        (if ln.current: " cur" else: "") &
                        (if ln.executed: " hit" else: ""),
@@ -145,25 +162,120 @@ proc renderSource*(p: EditorPane): string =
                   span(class = "annv " & $a.slot):
                     text a.label & "=" & a.value
 
+  # The ACTIVE document is emitted LAST so that `.srcdoc.alt:target` can reach
+  # forward and hide it. CSS has only a forward sibling combinator, and the
+  # active document is the one every alternate has to be able to displace.
+  var panels = ""
+  for d in p.documents:
+    if d.path == doc.path: continue
+    let alt = ui:
+      tdiv(class = "srcdoc alt", id = docAnchor(d.path)):
+        raw tabStrip(d.path)
+        raw body(d)
+    panels.add alt
+  let def = ui:
+    tdiv(class = "srcdoc def", id = docAnchor(doc.path)):
+      raw tabStrip(doc.path)
+      raw body(doc)
+  panels.add def
+  ui:
+    tdiv(class = "srcwrap"):
+      raw panels
+
+const MaxIndentDepth* = 8
+  ## The depth the indentation ladder in `debugger_css.nim` has rules for.
+  ##
+  ## `depthClass` CLAMPS to it and marks the row, rather than emitting a `d9`
+  ## no stylesheet answers. That distinction is the whole point: an unclamped
+  ## class silently resolves to zero indentation, so a trace deeper than the
+  ## ladder does not look deep — it looks FLAT, and a flattened call trace is
+  ## indistinguishable from a correct one on a screenshot. Depth is the call
+  ## trace's only structural signal, and losing it silently is precisely the
+  ## "density collapse" VD.5's `verify_debugger_holds_under_load` exists to
+  ## rule out.
+  ##
+  ## `weightClass` above refuses an out-of-ladder weight outright, because a
+  ## layout that cannot be rendered is a build error. A frame is different: the
+  ## trace is DATA and arrives at whatever depth it arrives at, so refusing
+  ## would turn a deep transaction into a failed page. Clamping and SAYING SO
+  ## is the honest form of the same rule.
+
+proc depthClass*(depth: int): string =
+  ## `depth` → its indentation class, clamped to the ladder and marked.
+  if depth < 0: "d0"
+  elif depth <= MaxIndentDepth: "d" & $depth
+  else: "d" & $MaxIndentDepth & " deeper"
+
+func costKey(f: CallFrame): int =
+  ## The cost column's sort key. The producer has already FORMATTED the cost
+  ## for display (`"1,315"`), so the separators come back out to compare it.
+  ## A frame whose cost is not a number sorts last rather than crashing the
+  ## page — a cost column can legitimately carry `—` for an unmetered frame.
+  for c in f.cost:
+    if c in {'0'..'9'}: result = result * 10 + (ord(c) - ord('0'))
+    elif c notin {',', '_', ' '}: return -1
+
 proc renderCallTrace*(p: CallTracePane): string =
   if p.frames.len == 0:
     return paneNote(if p.note.len > 0: p.note else:
       "The call structure comes from the execution trace.")
-  ui:
-    tdiv(class = "ct"):
+
+  proc rows(frames: seq[CallFrame]; indented: bool): string =
+    ui:
+      tdiv(class = "ctrows"):
+        for f in frames:
+          tdiv(class = "ctrow " & (if indented: depthClass(f.depth) else: "d0 flat") &
+                       (if f.current: " cur" else: "")):
+            span(class = "ctfn"):
+              span(class = "ctname"): text f.fn
+              span(class = "ctmod"): text f.module
+            span(class = "ctcost num"): text f.cost
+
+  # Sorted by cost, descending. Rendered FLAT and not indented: the rows are no
+  # longer in call order, so an indent would draw a tree that the ordering does
+  # not describe — the one way a sorted call trace can lie.
+  var byCost = p.frames
+  for i in 1 ..< byCost.len:
+    let cur = byCost[i]
+    var j = i - 1
+    while j >= 0 and costKey(byCost[j]) < costKey(cur):
+      byCost[j + 1] = byCost[j]
+      dec j
+    byCost[j + 1] = cur
+
+  let unit = (if p.costUnit.len > 0: p.costUnit
+              elif p.frames.len > 0: p.frames[0].costUnit else: "")
+  proc head(): string =
+    ## The unit belongs to the COLUMN, not to every row in it. Repeating it per
+    ## row spends width on a token that never varies, and the width it spends
+    ## is taken from the frame column, which is the one that truncates.
+    ui:
       tdiv(class = "cthead"):
         span(class = "ctfn"): text "Frame"
-        span(class = "ctcost"): text p.costLabel
-      for f in p.frames:
-        tdiv(class = "ctrow d" & $f.depth & (if f.current: " cur" else: "")):
-          span(class = "ctfn"):
-            span(class = "ctname"): text f.fn
-            span(class = "ctmod"): text f.module
-          span(class = "ctcost num"): text f.cost
-          span(class = "ctunit"): text f.costUnit
-      tdiv(class = "ctfoot"):
-        text "Sorted by call order."
-        span(class = "ctsort"): text "Sort by cost"
+        span(class = "ctcost"):
+          text p.costLabel
+          if unit.len > 0:
+            span(class = "ctunit"): text " " & unit
+
+  # The cost-sorted view is a REAL alternate view reached by a `:target` link,
+  # on the same no-JavaScript mechanism as the pane stack's tabs — not a label
+  # styled as an action. VD.5's first round recorded `.ctsort` as an affordance
+  # that lies; a sort that sorts is the fix, and it is also the milestone's own
+  # "including the cost column and cost-sorted view".
+  ui:
+    tdiv(class = "ct"):
+      tdiv(class = "ctview alt", id = "calltrace-by-cost"):
+        raw head()
+        raw rows(byCost, indented = false)
+        tdiv(class = "ctfoot"):
+          span: text "Sorted by cost."
+          a(class = "ctsort", href = "#pane-calltrace"): text "Sort by call order"
+      tdiv(class = "ctview def"):
+        raw head()
+        raw rows(p.frames, indented = true)
+        tdiv(class = "ctfoot"):
+          span: text "Sorted by call order."
+          a(class = "ctsort", href = "#calltrace-by-cost"): text "Sort by cost"
 
 proc renderState*(p: StatePane): string =
   if p.values.len == 0:
@@ -172,10 +284,19 @@ proc renderState*(p: StatePane): string =
   ui:
     tdiv(class = "st"):
       for v in p.values:
-        tdiv(class = "strow d" & $v.depth & (if v.changed: " chg" else: "")):
+        # Same clamped, linear ladder as the call trace: a value nested deeper
+        # than the ladder is marked, never silently drawn at the wrong depth.
+        tdiv(class = "strow " & depthClass(v.depth) &
+                     (if v.changed: " chg" else: "")):
+          # name → value → type, which is the desktop app's reading order
+          # (`isonim_state_view.nim`). It was name → type → value here, so the
+          # one pane a CodeTracer user reads fastest put its columns in an
+          # order they do not know. The type stays a column of its own at the
+          # end rather than trailing the name, so it is scannable down the
+          # pane instead of landing at a different x on every row.
           span(class = "stname"): text v.name
-          span(class = "sttype"): text v.typ
           span(class = "stval"): text v.value
+          span(class = "sttype"): text v.typ
 
 proc renderEventLog*(p: EventLogPane): string =
   if p.rows.len == 0:
@@ -198,9 +319,20 @@ const TimelineTicks = 48
   ## an inline style is a design value no token layer can reach.
 
 proc renderControls*(p: DebugControlsPane): string =
+  # NEAREST tick, not the one below it. `int()` truncates, and truncation is a
+  # systematic bias in one direction: the fixture sits at step 128 of 1315 =
+  # 9.7%, which truncated to tick 4 of 48 and read as 8.3%. Every position the
+  # scrubber can show was reported as EARLIER in the trace than it is, by up
+  # to a whole tick; rounding halves the worst case and removes the bias.
+  #
+  # The LAST tick is reserved for `fraction == 1.0`. Rounding would otherwise
+  # let step 1314 of 1315 land on it, and the final tick is not a measurement
+  # — it is the claim that the trace has ended, which is a different kind of
+  # statement from "roughly here" and must not be made by rounding error.
   let filled =
     if not p.positioned: 0
-    else: max(1, int(p.fraction * float(TimelineTicks)))
+    else: clamp(int(p.fraction * float(TimelineTicks) + 0.5),
+                1, (if p.fraction >= 1.0: TimelineTicks else: TimelineTicks - 1))
   ui:
     tdiv(class = "dc"):
       tdiv(class = "dcbtns"):
@@ -210,7 +342,16 @@ proc renderControls*(p: DebugControlsPane): string =
             span(class = "dcglyph"): text b.glyph
       tdiv(class = "dctl"):
         for i in 1 .. TimelineTicks:
-          span(class = "tick" & (if i <= filled: " on" else: ""))
+          # The tick AT the position is marked separately from the ticks
+          # before it. Without it the control is a progress bar, and a
+          # progress bar at 10% on a page that is loading an 18 MB engine
+          # reads as the engine's load progress rather than as position in
+          # the trace — which is how five of six VD.5 round-1 reviewers
+          # described it. The elapsed run says how far; the marker says
+          # WHERE, and the scrubber's only job is the second one.
+          span(class = "tick" &
+                       (if p.positioned and i == filled: " at"
+                        elif i <= filled: " on" else: ""))
       tdiv(class = "dcstatus"):
         span(class = "dcphase"): text p.statusText
         if p.totalSteps > 0:
