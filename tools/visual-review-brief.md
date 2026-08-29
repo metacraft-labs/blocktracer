@@ -116,7 +116,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 <!-- BEGIN GENERATED: expectations — do not edit by hand -->
 <!-- regenerate with: node tools/capture/render-brief.mjs -->
 
-*63 named views, 63 blocks — generated from `tools/capture/expectations.mjs`. 18 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
+*65 named views, 65 blocks — generated from `tools/capture/expectations.mjs`. 29 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
 
 #### Explorer register — entry and navigation
 
@@ -160,27 +160,27 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | explorer — apply rubric A (§5) |
 | **Spec** | Page-Descriptions §3 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /chains is not rendered by static_export |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- A table with all eight specified columns present and headed: Chain (name, logo, slug, CAIP-2 id) · VM · Debug tier · Historical reach · Source level · Coverage · Freshness · Status notes.
-- Debug tier rendered as a T0–T2 badge, not as bare text.
-- Historical reach showing its actual vocabulary — `archive`, `windowed(7d)`, `version-addressed` or `recent-only` — not a boolean tick.
-- Coverage showing `eager` / `selective` / `on demand`, which is what the Debug button will do on first click.
-- Freshness as a lag behind the chain tip, with a unit.
-- Status notes as free text, including at least one real limitation — this column exists to be honest, and an all-empty notes column reads as a table that has nothing to admit.
+- A table whose every cell is a REGISTRY fact — chain slug, recorder id and version, trace schema, coverage mode, block and transaction counters, and freshness against the tip. A placeholder or a hand-written cell means the page was not generated from the registry, which is §3's one structural requirement.
+- Coverage rendered in its own vocabulary — `eager` / `selective` / `on demand` — because that is what the Debug affordance will do on first click.
+- Freshness as a state (at tip / behind tip) WITH the head and finalized heights beside it, so the claim is checkable rather than asserted.
+- A statement, below the table, naming the two columns §3 asks for that have no published source yet — the debug tier and historical reach — and what would carry them. §3's table has eight columns; six are in the tree and this page must not let a reader mistake the other two for columns this chain lacks.
+- The chain slug as a link into the chain overview: this page is the entry point a protocol team lands on.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
-- A 'Requires' or 'Supported' boolean column that flattens the tier and reach vocabulary back into yes/no.
+- A 'Requires' or 'Supported' boolean column that flattens the coverage vocabulary back into yes/no.
+- A debug tier badge or a historical-reach value INVENTED from the recorder pin. This is the one page in the product where a confident wrong answer costs the most, and a plausible T1 badge with no source behind it is exactly that.
 - Placeholder chain rows (`Chain 1`, `example-chain`) — this page is registry-generated and placeholders mean it is not.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
-- Eight columns is wide. At laptop width, check whether the table has already collapsed a column into a tooltip, and whether the columns that survive are the ones that matter (tier, reach, coverage).
-- Badge and free-text in the same row: the notes column will be the tallest cell and drags row height; check vertical alignment of the badge columns against it.
-- Logos at mixed aspect ratios sitting on a common baseline.
+- A seven-column table with one row: check the table does not read as an empty frame, and that the single row is not lost against the header.
+- The freshness cell carries a badge and a run of small text; check the two are grouped as one fact rather than reading as two columns that ran together.
+- The absent-columns statement is prose under a data table — check it reads as a note about the table rather than as a footer of the page.
 
 ### View: `chain-overview`
 
@@ -195,22 +195,22 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- A header carrying name, VM, chain id, debug tier, finality rule and coverage mode — six registry facts, each labelled.
-- The head: latest block number with its age. This is the ticking element, so it must be present and legible at a glance.
-- Latest blocks — a list of the last ~10 with per-block transaction counts.
-- Latest transactions — a list of the last ~25, with a Debug action visible on every row (Page-Descriptions rule 1).
-- Chain notes: limitations in plain language, from the registry.
+- A head/finalized/blocks/transactions/coverage stat row, each figure labelled — the registry and pointer facts a visitor needs before reading either list.
+- Latest blocks — the newest ~10 with per-block transaction counts and a finality badge per row.
+- Latest transactions — the shared transactions table, with the Debug affordance as the FIRST column of every row (rule 1).
+- A chain-notes section naming the recorder pinned for this chain, the trace schema, the coverage mode in words, and the generation every read on the page was pinned to.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
 - An empty 'latest blocks' or 'latest transactions' region. Rule 2 — nothing renders as an empty list; either data or a statement of why not.
 - A Debug action that is present only at the end of a row that has scrolled out of view.
+- A staleness notice on a chain whose published summary says it is at the tip — the notice is resolved from `summary.json`, and one appearing here would mean it is being inferred.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
-- Two lists of different lengths side by side — check they do not leave a large dead column, and that the shorter one does not stretch its rows to match.
-- Head age is the only element that would change between captures; in a frozen-clock capture it must show a stable, plausible value rather than '0s ago' or 'NaN'.
-- The six header facts as a group: they are the densest text on an otherwise spacious page and are the most likely place for the explorer rubric's whitespace discipline to break down.
+- Two lists of different lengths one above the other — check the section rhythm separates them more than the row rhythm separates their rows.
+- The stat row is the densest text on an otherwise spacious page and is the most likely place for the explorer rubric's whitespace discipline to break down.
+- The chain-notes grid repeats facts from the stat row in a different presentation; check that reads as detail rather than as duplication.
 
 ### View: `chain-overview--stale`
 
@@ -221,7 +221,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | explorer — apply rubric A (§5) |
 | **Spec** | Page-Descriptions §4 (Degraded), §14 row 1 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — state not yet modelled by the client ViewModel: no staleness notice in the chain view |
+| **Capture status** | `pending` — the staleness treatment is rendered by `components/degraded` and resolved by `ssr.chainSnapshot`, and no chain in the demo tree is behind its tip: the generator publishes one chain with `stale: false` in its summary. This needs a behind-the-tip chain in the demo tree, not a change to the chain view |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -246,28 +246,30 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | | |
 | --- | --- |
 | **Register** | explorer — apply rubric A (§5) |
-| **Spec** | Page-Descriptions §5.1 |
+| **Spec** | Page-Descriptions §5.1, Static-Site-Architecture §2.2 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- All seven columns headed and populated: height · hash · age · tx count · gas/resource usage WITH A BAR · producer/proposer · finality badge.
-- The resource-usage bar rendered as a graphical bar with a common scale across rows — this is the one chart on the page and the column is specified as a bar, not a number.
-- A finality badge per row, visually distinct from the other columns.
-- Rows in descending height order, with enough rows present to judge density (a three-row table is not this page).
-- Pagination that walks backwards — a cursor control, not numbered pages.
+- Five columns headed and populated: height (linked to the block) · hash · transaction count · finality badge · parent.
+- A finality badge per row, derived from the finalized height the chain pointer publishes, visually distinct from the other columns.
+- Rows in descending height order, with the newest at the top.
+- A cursor pager: a statement of which block range this page covers, and an 'Older' control where an older page exists. NO page numbers — §2.2 rules out ordinal pagination outright, so a numbered pager here is a P1 against the data model, not a styling choice.
+- A statement naming the three columns §5.1 asks for that have no published source — age, resource usage with a bar, and producer — and that each is a pipeline field rather than a view. A reader must be able to tell 'not published' from 'this chain has none'.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
-- The resource column rendered as a bare number or a placeholder line where the bar should be.
-- Numeric columns left-aligned or centre-aligned — heights, counts and usage are numeric and must be right-aligned or tabular-figure aligned.
+- A resource-usage bar, an age, or a producer VALUE. There is no timestamp, no per-block usage aggregate and no consensus-role field in the published block object, so any of the three appearing means it was derived from the height — a fabricated fact on the product's most scannable surface.
+- Numbered pagination, a page-size selector, or an offset in the URL.
+- Numeric columns left-aligned or centre-aligned — heights and counts are numeric and must be right-aligned or tabular-figure aligned.
+- A link on the parent of the oldest block, whose page this generation does not hold.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
 - Hash truncation: check that the truncation is consistent down the column and that the visible prefix/suffix is enough to distinguish adjacent rows.
 - Tabular figures — with proportional digits, a column of block heights visibly ripples. This is the highest-value place in the product to check it.
-- Row height against the bar's height: the bar must sit on the text baseline grid rather than inflating the row.
+- The pager sits under the table and carries prose plus controls; check it reads as part of the table's group rather than as a new section.
 
 ### View: `blocks-list--row-expanded`
 
@@ -278,7 +280,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | explorer — apply rubric A (§5) |
 | **Spec** | Page-Descriptions §5.1 (row expansion) |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — state not yet modelled by the client ViewModel: row expansion is not implemented |
+| **Capture status** | `pending` — row expansion needs script and this client ships none. What §5.1 asks the expansion to reveal is the shared transactions table filtered to the block, which the block's own page renders and `block-detail` captures; the height cell links to it. This view is the EXPANDED state, which only hydration can produce |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -299,7 +301,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 ### View: `block-detail`
 
-> A single block: its header facts, family extras, its transactions, and its neighbours.
+> A single block: its header facts, its transactions, and its neighbours.
 
 | | |
 | --- | --- |
@@ -310,24 +312,26 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- The header zone with all eight facts: hash, number, timestamp with age, parent link, producer, size, resource usage, finality state.
-- A family-extras region — for an EVM chain, base fee / blob gas / withdrawals; for Move, checkpoint/epoch; for Solana, slot, leader, parent slot. Whichever family the fixture is, its rows must come from the adapter and be labelled with that family's vocabulary.
+- A header carrying the block number and a finality badge, above a fact grid with chain, full hash, height, parent (linked), finality and transaction count.
+- Previous / next block navigation, both controls present, with a sentence stating where in the chain this block is.
 - The shared transactions table filtered to this block, with Debug as its first column.
-- Previous / next block navigation, both controls present.
+- A statement naming the family-extras zone §5.2 specifies (EVM base fee and blob gas, Move checkpoint and epoch, Solana slot and leader) and the field that would carry it — the published block object has no chain-native payload, unlike a transaction, and the absence must read as 'not published' rather than 'this family has none'.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
 - EVM-shaped labels on a non-EVM chain (a 'gas price' row on Solana), which would mean the family adapter was bypassed for a template.
+- A timestamp, an age, a size or a producer — none is in the published block object, and each appearing would be a fabricated fact.
 - An empty transactions region for a block that has transactions.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
-- The header is a nine-item fact grid; check the label/value pairing is unambiguous at every column width and that long values (hashes) do not push their labels out of alignment.
+- The fact grid carries a 42-character hash as a value; check the label/value pairing survives it at every column width.
 - Parent link and prev/next are three navigation affordances that mean similar things — check they are not three different visual treatments.
+- The finality badge appears twice, beside the title and in the grid; check that reads as emphasis rather than as an inconsistency.
 
 ### View: `block-detail--genesis-edge`
 
-> Block detail at the oldest published block — the boundary case where 'previous' has nowhere to go.
+> Block detail at the oldest block this generation indexes — the boundary case where 'previous' has nowhere to go.
 
 | | |
 | --- | --- |
@@ -340,17 +344,22 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 - The previous/next navigation with one direction VISIBLY DISABLED — the whole point of this view. A disabled control that looks identical to an enabled one is a P1.
 - The disabled control still present rather than removed, so the navigation's shape does not change between blocks.
-- The full block detail otherwise: header zone, family extras, transactions table.
+- A sentence naming WHICH edge this is: the oldest block this GENERATION indexes, not genesis. The generation's floor is a fact about this tree; genesis is a claim about the chain, and the tree does not know it.
+- The parent hash still shown IN FULL, with no link on it and a statement that its page is below this generation's floor — the identifier is the chain's and the page is this tree's.
+- The full block detail otherwise: header fact grid and the transactions table.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
 - Both controls enabled.
+- A link on the parent hash. It resolves to no page in this tree, and a published explorer linking to a page it never wrote is the one failure it cannot explain away.
+- The word 'genesis' presented as a fact about the chain.
 - The disabled control rendered only as a colour change too subtle to read at a glance — disabled must be legible as a state, not inferred.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
 - The disabled treatment against the contrast floor: 'disabled' must not mean 'unreadable', and this is the view where that trade-off is visible.
 - Whether the same disabled treatment is used here as on every other disabled control in the product (Design-System §2: shared primitives are shared).
+- The unlinked parent hash sits in a grid where every other identifier of its kind IS a link; check the difference is legible without hovering.
 
 ### View: `txs-list`
 
@@ -361,30 +370,31 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | explorer — apply rubric A (§5) |
 | **Spec** | Page-Descriptions §6 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /{chain}/txs is not rendered by static_export |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- All ten columns, in order, headed: Debug · Hash · Block · Age · From · To/target · Method · Value · Fee · Status.
-- Debug as the FIRST column and always visible — not an icon at the end of the row (Page-Descriptions §6 states this explicitly).
-- At least one reverted transaction, rendered VISUALLY DISTINCT from successful ones. Reverted transactions are the population this product exists for; a table with no visible revert treatment cannot be judged.
-- A control that sorts reverted transactions to the top. Page-Descriptions §6 asks for both halves — 'visually distinct AND sortable to the top' — and a table that only tints them still makes a visitor scroll to find the one they came for.
-- A revert reason inline in the status cell where the reason is decodable.
-- From/To rendered as address chips, with a contract badge on contract targets and a decoded method name where the ABI is known.
-- A column picker affordance for the family-specific extras.
-- Enough rows to judge density — this is a virtualised table and a short table hides every problem it has.
+- Eight columns, in order, headed: Debug · Tx hash · Block · From · To/target · Method · Fee · Status.
+- Debug as the FIRST column and always visible — not an icon at the end of the row (Page-Descriptions §6 states this explicitly). It must remain visible when the table scrolls horizontally.
+- The Debug cell carrying an ACTION where the trace licenses one and a STATED REASON where it does not — and never a disabled control. A row whose execution is structurally unobservable gets a labelled state, not a greyed button.
+- From and To rendered as address chips that LINK to the address page, and the Block cell linking to the block detail.
+- The fee rendered from the transaction's cost VECTOR — every dimension, not the first one alone.
+- A cursor pager stating which block range the page covers, with no page numbers.
+- A statement naming the two §6 behaviours that need script and do not have it — the column picker, and sorting reverted rows to the top — and that reverted rows are ALREADY visually distinct, which is the half that works without script.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
 - A CSV export control. Page-Descriptions §6 excludes it by name in v1.
-- Raw undecoded selectors in the Method column where the fixture has an ABI.
+- An Age or a Value column. Neither has a published source — the block object carries no timestamp and the transaction schema carries no native value — so either appearing would be a fabricated fact in a table people scan.
+- A sort control that does nothing, or a column picker that does not open. A control that cannot succeed is one this product does not ship.
 - Horizontal scrolling of the page body — the table may scroll inside its own container, the page may not.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
-- Ten columns at 1440 px is the hardest layout problem in the explorer register. Check what gives: which columns compress, whether Debug and Status keep their width, and whether Hash/From/To truncate at sensible boundaries.
-- Three different monospace-ish columns (hash, from, to) adjacent — check they are distinguishable by more than position.
-- The revert treatment against the status colour role: it must survive both themes and must not be the only signal (colour alone fails).
+- Eight columns at 1440 px: check what gives, whether Debug and Status keep their width, and whether Hash/From/To truncate at sensible boundaries.
+- Three adjacent monospace-ish columns (hash, from, to) — check they are distinguishable by more than position.
+- The sticky Debug column against a scrolled table: check its background covers the columns passing under it in BOTH themes, with no bleed-through.
+- The demo tree has no reverted transaction, so the reverted row treatment cannot be judged from this image. Say so rather than grading its absence — the treatment is exercised by `components/tables` and is blocked on demo data.
 
 ### View: `txs-list--cards`
 
@@ -395,26 +405,27 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | explorer — apply rubric A (§5) |
 | **Spec** | Page-Descriptions §6, §13 |
 | **Captured at** | tablet · mobile × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /{chain}/txs is not rendered by static_export |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
 - Stacked cards, one per transaction — not a table with a horizontal scrollbar, which is the failure this view exists to rule out.
-- The Debug action prominent on every card (§13: the primary action is retained).
-- The status, including revert treatment, prominent on every card.
-- Hash, age and value present on the card; the columns that did not survive the collapse must be the low-value ones, and the reviewer should be able to say which were dropped.
+- The Debug action LEADING each card at full width, so the primary action is the first thing in the card rather than a labelled row among others (§13: the primary action is retained).
+- The status, including its badge, present on every card.
+- Every other cell carrying its column name as a label, so a value is never orphaned from what it means once the header row is gone.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
 - A horizontally scrolling table.
 - A card that is just a re-flowed row of label:value pairs with no hierarchy — the collapse is a redesign, not a rotation.
 - Any element extending past the viewport edge at 375 px.
+- A visible column header row.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
 - Long hashes and addresses at 375 px — the single most likely source of horizontal overflow in the product.
 - Card-to-card spacing versus intra-card spacing: if they are equal, the cards read as one list rather than as discrete records.
-- Whether the Debug action is a full-width button per card (thumb-reachable) or a small link, and whether it clears the touch-target minimum.
+- Whether the Debug action clears the touch-target minimum, and whether the labelled rows below it stay legible at the label size.
 
 #### Explorer register — the transaction page
 
@@ -629,7 +640,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 ### View: `address`
 
-> The address page — scoped in V1 to get you to a transaction worth tracing, with complete history and no capability to negotiate.
+> The address page for a CONTRACT — scoped in V1 to get you to a transaction worth tracing, with complete history and no capability to negotiate.
 
 | | |
 | --- | --- |
@@ -640,21 +651,24 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- Header: the full address with a copy affordance, a resolved name if any, a contract/EOA badge, and the proxy relationship where one exists.
-- A code summary: code hash, size, verification status, compiler.
+- The address in full beneath a truncated heading, with a contract badge — and, where the tree publishes a label for it, the name WITH its provenance beside it, because a curated name and a self-declared one are different claims.
 - The shared transactions table with Debug on every row, presented as COMPLETE history — no record cap, no 'showing the most recent N' apology.
-- An events section listing logs emitted by this address.
+- A code section carrying the code hash, the verification status, the provider and the compiler, with a route into the source browser.
+- An events section that STATES why it is empty and what would fill it — §9 promises complete log coverage, so silence there would read as 'this address emitted none'.
+- A statement that balances and token holdings are out of SCOPE in V1 rather than missing, with the reason.
+- A cursor pager naming which block range this page of history covers.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
 - A balance, a token holdings list, a portfolio value, a price, a P/L figure or holder analytics. Page-Descriptions §9 excludes all of these by name for V1; one appearing means the wrong scope was built.
 - A 'Requires' column or any capability-negotiation notice — its absence is the point of this page.
 - A 'read contract' panel (deferred in V1).
+- A code SIZE or a proxy relationship: neither has a published object, and either appearing would be invented.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
-- The header carries a long identifier as its title. Check the treatment: it is the page's H1 and it is 42 characters of hex.
-- Contract/EOA badge and proxy relationship are two different kinds of fact adjacent to each other; check they are not styled identically.
+- The header carries a 42-character identifier twice — truncated as the title and in full beneath it. Check the pair reads as one fact rather than as two.
+- Three consecutive stated-absence blocks (events, balances, and whatever the code section says) risk reading as a page of apologies; check the transactions table still dominates.
 - At 375 px this view has a known horizontal-overflow finding from VD.0 — measure whether content exceeds the viewport and name the element that does it.
 
 ### View: `contract-source`
@@ -666,86 +680,91 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | explorer — apply rubric A (§5) |
 | **Spec** | Page-Descriptions §10, Design-System §7 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /{chain}/address/{address}/code is not rendered |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- A verification panel: match level (full/partial), provider, compiler and settings, SPDX licence — all four.
-- A file tree of sources with more than one file, and syntax-highlighted source in the reading pane.
-- An in-file search affordance.
-- A rendered ABI/interface view with copy-per-item.
-- A storage layout listing declared state variables against slots.
-- A deployments list of other addresses sharing this code hash.
-- A supply-sources affordance for dropping a build output.
-- Function entries in the ABI view linking to transactions that called them, where permitted — and where not permitted, the link ABSENT rather than present-and-broken.
+- A verification panel: the code hash, the match level, the provider, the compiler and its version, the language, and the bundle id — each labelled.
+- A file list naming every source in the bundle, each linking to its own region.
+- Every source file rendered with line numbers and SYNTAX HIGHLIGHTING from the same lexical palette the debugger's source pane uses — Design-System §7 makes this the one sanctioned register crossing, and a generic web highlighter is a register error.
+- A deployments section naming the other addresses sharing this code hash, or stating that this hash is bound to one address and why that is the interesting fact (source is keyed by code hash, so a second deployment arrives already verified).
+- A statement naming §10's ABI/interface view and storage layout as absent because this bundle publishes an empty debug object — and that with no ABI there is nothing to link 'transactions that called this function' FROM, so the link is absent rather than broken.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
 - Source rendered without syntax highlighting.
-- A single-file view with no tree, when the fixture has multiple sources.
-- Highlighting that is visibly not the CodeTracer editor palette — Design-System §7 makes this the one sanctioned register crossing, and a generic web highlighter is a P2 register error.
+- An empty ABI panel or an empty storage-layout table — the absence is a statement, not a frame with nothing in it.
+- An in-file search box that does nothing: search needs script and this client ships none.
+- Highlighting that is visibly not the CodeTracer editor palette.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
-- Six panels plus a tree plus a source pane is the most complex layout in the explorer register. Check the reading order and whether the source pane is given the space it needs.
-- Long Solidity/Move lines against the pane width — horizontal scroll inside the code container is correct; horizontal scroll of the page is not.
-- Match level 'partial' is a caveat; check it reads as a caveat and not as a pass.
+- A verification grid above several long code regions: check the page has a reading order and that the first file does not begin before the verification facts have been read.
+- Long lines against the container width — horizontal scroll inside the code container is correct; horizontal scroll of the page is not.
+- The code region is product-register colour inside an explorer-register page; check the crossing reads as deliberate (a bounded, elevated surface) rather than as the page breaking.
+- Line-number gutter alignment across files of different line counts.
 
 ### View: `contract-source--unverified`
 
-> No verified source — instruction-level stepping, with the supply-sources action prominent.
+> No verified source — instruction-level stepping stated as still available, with what would resolve it.
 
 | | |
 | --- | --- |
 | **Register** | explorer — apply rubric A (§5) |
 | **Spec** | Page-Descriptions §14 (No verified source), §10 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: the code route is not rendered |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- A clear statement that no verified source is available for this address, and what that means for stepping.
-- The supply-sources action rendered PROMINENTLY — this is the specified treatment, so a small link at the bottom is a P1 against the spec, not a P3.
-- The instruction-level alternative offered explicitly, so the visitor knows stepping is still possible.
-- Whatever IS known — code hash, size, compiler if detectable — rather than a page that only says 'no'.
+- The verification panel present, with the code hash shown and the status reading as unverified — what IS known, rather than a page that only says 'no'.
+- The producer's own reason for there being no bundle, quoted rather than paraphrased.
+- An explicit statement that this contract is STILL DEBUGGABLE at instruction level, which is the fidelity ladder's floor and holds with no source at all. Without it the page reads as a dead end, and that is the finding.
+- What would resolve it: publishing a build output whose bytes hash to this code hash, and that doing so serves every deployment of the same code rather than this address alone.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
-- An empty file tree.
+- An empty file tree or an empty code region.
 - An error treatment. This is a normal, expected state for most addresses on most chains.
 - A 'verify this contract' call to action that implies BlockTracer runs a verification service.
+- A control that would upload or supply sources, which needs script this client does not ship.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
-- The tone requirement from VD.6: informative, not apologetic. Read the copy and say which it is.
-- The balance between the absence notice and the supply-sources action — the action is the point of the page and must not be subordinate to the explanation.
+- Tone: informative, not apologetic. Read the copy and say which it is.
+- The page is short. Check it has been composed rather than left as two blocks at the top of an empty viewport.
+- The unverified status badge against the verified one on `contract-source`: check they are legibly different states of the same control rather than two unrelated treatments.
 
 ### View: `search`
 
-> Search resolution for an unambiguous input — which normally navigates immediately, so this view is the resolution surface itself.
+> The search route — what resolution IS, which chains would be checked, and the whole published name corpus, browsable without a query.
 
 | | |
 | --- | --- |
 | **Register** | explorer — apply rubric A (§5) |
-| **Spec** | Page-Descriptions §11, Search-And-Routing |
+| **Spec** | Page-Descriptions §11, Search-And-Routing §1–§8 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /search is not rendered (M14 Search And Routing) |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- The query echoed back, so the visitor can see what was searched.
-- The single resolved candidate with its kind labelled (transaction / block / address / name) and its chain.
-- A visible path onward to the resolved object.
+- A search field as the page's primary input.
+- A statement that this address cannot resolve a query yet and WHY — resolution runs in the browser and this deployment ships no script — phrased so that 'nothing was looked in' is legibly different from 'not found'. Search-And-Routing §8 requires a miss to name what was tried; this is that, for the case where nothing was.
+- The four resolution mechanisms as a table with their REQUEST COST — 0, 1, 2, 1–2 — and what each handles. The cost column is the point: most explorer search is identifier resolution, and three of the four compute a path rather than querying anything.
+- The chains that would be checked, each linked, so the scope of a miss is visible before one happens.
+- The published name corpus as a browsable table — name, symbol, kind, PROVENANCE and address — with each row linking to the entity it names. This is data from files, and it is the part of §11 that needs no query at all.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
-- A results page for an input that Page-Descriptions §11 says navigates immediately, presented as though an intermediate page were the design — if this surface exists at all it must read as a resolution step, not as a search-engine results page.
-- Zero-state advertising copy.
+- A results list, a candidate, or an echoed query. A static file server cannot read `?q=`, and a page that appeared to have resolved something it never saw is the one thing this product cannot afford.
+- A zero-state illustration or advertising copy.
+- A 'no results found' message, which would be an assertion about a query the page never received.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
-- How the candidate's kind is expressed — a badge, a section heading, or an icon — and whether that vocabulary matches the ambiguous view's grouping.
-- The search field's own state on this page versus on home: the same component in two contexts.
+- Two data tables and a chain strip on one page: check the three regions are separated by the section rhythm rather than reading as one long run.
+- The provenance column is the only place in the product where a name's trustworthiness is shown; check `curated` and `self-declared` are legibly different weights.
+- The explanatory statement sits above the tables and is the page's most important text; check it is not styled as a caveat.
 
 ### View: `search--ambiguous`
 
@@ -756,7 +775,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | explorer — apply rubric A (§5) |
 | **Spec** | Page-Descriptions §11 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /search is not rendered (M14) |
+| **Capture status** | `pending` — /search is served, and this state is query-dependent: a static file server cannot read `?q=`, and every resolution mechanism (Search-And-Routing §1-§6) runs in the browser. It arrives with hydration, not with a change to the route |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -784,7 +803,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | explorer — apply rubric A (§5) |
 | **Spec** | Page-Descriptions §11 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /search is not rendered (M14) |
+| **Capture status** | `pending` — /search is served, and this state is query-dependent: a static file server cannot read `?q=`, and every resolution mechanism (Search-And-Routing §1-§6) runs in the browser. It arrives with hydration, not with a change to the route |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -811,7 +830,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | explorer — apply rubric A (§5) |
 | **Spec** | Page-Descriptions §11, Search-And-Routing §8 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /search is not rendered (M14) |
+| **Capture status** | `pending` — /search is served, and this state is query-dependent: a static file server cannot read `?q=`, and every resolution mechanism (Search-And-Routing §1-§6) runs in the browser. It arrives with hydration, not with a change to the route |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -838,56 +857,59 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | | |
 | --- | --- |
 | **Register** | explorer — apply rubric A (§5) |
-| **Spec** | Page-Descriptions §12 |
+| **Spec** | Page-Descriptions §12, §13 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /settings is not rendered |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- Four labelled groups: Storage · Debugger · Privacy · Advanced.
-- Storage: local trace-cache usage shown as a real figure, a ceiling control, and a clear button.
-- Debugger: theme, keybinding set, pane layout, and a reduced-motion honouring control.
-- Privacy: a statement of what this deployment can observe — only its own CDN logs — and the opt-in telemetry switch shown OFF.
-- Advanced: the registry override URL field.
+- Four labelled groups: Privacy · Storage · Debugger · Advanced.
+- The privacy group ANSWERED rather than described: no account, no ads, no third-party requests, telemetry off, what is logged (this deployment's own CDN logs), and no record caps. This group needs no script and must be complete.
+- For each of the other three groups, a statement of what it will control and why it cannot act yet — measuring a cache, persisting a theme and overriding a registry at run time are all script operations.
+- A link onward to the fuller privacy summary.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
-- The telemetry switch defaulting to on.
-- Any chain RPC, data-provider or indexer configuration beyond the single registry override above — the page's shortness is a design statement and additions to it are a spec violation.
+- ANY interactive control — no toggle, no select, no number field, no clear button. §13's rule is that a control that cannot succeed is one this product does not ship, and a settings control that appears to accept a value has told the user their preference was recorded.
+- A telemetry switch, even one drawn as off.
+- Any chain RPC, data-provider or indexer configuration — the page's shortness is a design statement and additions to it are a spec violation.
 - An account, profile or sign-in section.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
+- A page of prose where a reviewer expects controls: check it reads as a deliberate account of what this deployment does rather than as an unfinished form.
+- The privacy group is a real answer among three stated absences; check it dominates rather than being lost among them.
 - A short page on a wide viewport: check whether it has been given a measure and a column, or left as full-width rows across 1920 px.
-- Control alignment down the left edge across four groups with different control types (a number, a button, a select, a toggle, a text field).
-- The privacy statement is prose among controls; check it is not styled as a control label.
 
 ### View: `static-content`
 
-> Static content — /about and the privacy summary the home page's trust strip links to.
+> Static content — /about, the privacy summary the home page's trust strip links to.
 
 | | |
 | --- | --- |
 | **Register** | explorer — apply rubric A (§5) |
 | **Spec** | Page-Descriptions §1 route map, §2 Trust strip |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — route not yet served by the client: /about and /docs/* are not rendered |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
 - Long-form prose with a heading hierarchy of at least two levels.
 - A constrained measure — this is the one page in the product that is purely reading, and full-viewport-width body text at 1920 px is a P2 typography failure here specifically.
+- The trust strip's five claims itemised with their EVIDENCE — no account, no ads, no tracking, complete history, no record caps — rather than restated. A claim repeated is not a privacy summary.
+- An account of the read path: static files behind a CDN, one mutable object per chain, no third-party requests.
 - The site's standard header and footer, so the page reads as part of the product.
-- The privacy content the trust strip promises, reachable and present.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
 - Unstyled default browser typography.
 - Body text running the full width of a wide viewport.
+- Marketing superlatives standing in for the specifics — this page is class I0 on the condition that it carries substantive unique content.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
 - This is the purest test of the type scale: heading levels, body, and the spacing rhythm between them, with no data to hide behind.
+- The itemised claims are rendered as a definition grid rather than as prose; check that reads as evidence rather than as a specification table.
 - Link treatment inside running prose, which appears nowhere else in the product at this density.
 
 ### View: `not-found`
@@ -899,26 +921,27 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | explorer — apply rubric A (§5) |
 | **Spec** | Page-Descriptions §14 (Object not found) |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — static_export writes only the 200 routes: renderRoute() has a 404 body but no 404.html is emitted, so a capture here would photograph the dev server's fallback, not the product |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
-- The statement that the object is not on this chain — specific to the chain, not a generic 404.
-- The chains that WERE checked, enumerated by name.
-- The identifier that was looked up, echoed back.
-- A route onward: search, the chain overview, or the chains index.
+- The §14 treatment as a bounded notice with a named condition, not a bare heading: the statement that nothing at this address is published, and the chains that WERE checked, enumerated by name.
+- A route onward — the supported-chains index, the home page, and the resolution page.
 - The product's own header and footer — this must be a BlockTracer page, not a server error page.
+- A statement that an identifier from a chain BlockTracer does not cover will not be here, so a miss reads as a scoping answer rather than a dead end.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
 - A bare '404' or a web-server default error page.
 - A blank page.
+- The requested path echoed back. This one file is served for EVERY unmatched path, so a quoted URL would be right in the response body and wrong in the file — and the address is in the visitor's address bar either way.
 - A stack trace or any internal identifier.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
-- Note explicitly whether this capture is the product's 404 or the capture server's fallback — VD.0 records that `static_export` emits no `404.html`, so a plausible-looking page here may not be the product's.
+- This is the product's own 404 (`static_export` writes `404.html` with the same bytes `renderRoute` returns), so grade it as product design rather than noting it may be the harness's fallback.
 - Tone: this is the most common way a visitor's first click fails, and it decides whether the product reads as considered.
+- The notice is the same component every degraded state uses; check it does not look like an error dialog here and like a note elsewhere.
 
 #### Debugger register
 
@@ -2116,6 +2139,67 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 - This is the only view whose correctness is partly about WHAT SERVED IT. State whether what you see is plausibly the product's shell or the browser's fallback.
 - The constrained-navigation treatment: it must read as temporary, not as a broken build.
+
+#### Uncategorised
+
+### View: `address--account`
+
+> The address page for an ACCOUNT — no code is bound to it, so §9's code summary is a statement rather than a table.
+
+| | |
+| --- | --- |
+| **Register** | explorer — apply rubric A (§5) |
+| **Spec** | Page-Descriptions §9, rule 2 |
+| **Captured at** | wide · laptop · tablet · mobile × light · dark |
+| **Capture status** | `ready` |
+
+**Must show** — absent ⇒ P1, rating ≤ 4:
+
+- An account badge rather than a contract badge, decided by whether the tree binds CODE to the address and not by the shape of the address.
+- A code section that states there is no code bound to this address and what a code binding IS — a code edge on the transactions that ran it. This is rule 2 on a section rather than on a list, and an empty panel here is the finding.
+- The shared transactions table with Debug on every row.
+- The same pager, events statement and out-of-scope statement the contract case carries, so the two shapes of this page differ only where the data does.
+
+**Must not show** — present ⇒ P1, rating ≤ 4:
+
+- An empty file list, an empty verification panel, or a 'not verified' badge — there is no code here, so there is no verification question to answer, and answering it would be a category error.
+- A link into the source browser presented as the primary next step.
+- A balance or token holdings, as on the contract case.
+
+**Watch for** — judged after the presence check, normally P2/P3:
+
+- This page and `address` are the same template over two shapes of subject; check the difference is legible immediately from the badge and the code section rather than only on reading.
+- The statement replaces a table: check it is given a measure and does not run the full width of the container.
+
+### View: `address--older-page`
+
+> A later block-range segment of an address's history — the cursor pager with both directions live.
+
+| | |
+| --- | --- |
+| **Register** | explorer — apply rubric A (§5) |
+| **Spec** | Page-Descriptions §9, Static-Site-Architecture §2.2 |
+| **Captured at** | wide · laptop · tablet · mobile × light · dark |
+| **Capture status** | `ready` |
+
+**Must show** — absent ⇒ P1, rating ≤ 4:
+
+- A pager carrying BOTH a 'Newest' and an 'Older' control, since this page is neither the first nor necessarily the last.
+- A statement of which block range this page covers and which segment of how many it is — a cursor URL, unlike `?page=3`, does not tell a reader where they are, and the honest answer to that is a sentence.
+- The shared transactions table for THIS segment only, with Debug on every row.
+- The address identity above it, so a reader deep in history still knows whose history they are in.
+
+**Must not show** — present ⇒ P1, rating ≤ 4:
+
+- Page numbers, a page-size selector, or an offset anywhere on the page or in the URL. §2.2 rules out ordinal pagination in BOTH directions; a numbered pager here is a P1 against the data model.
+- A 'load more' control that would append rather than navigate — every page of history has its own address.
+- Any suggestion that history has been truncated.
+
+**Watch for** — judged after the presence check, normally P2/P3:
+
+- The pager appears twice in the product with the same component (block list, transactions list) — check this instance is identical to those and not a variant.
+- 'Newest' and 'Older →' are the two controls; check the asymmetry in their labels reads as direction rather than as inconsistency.
+- The segment-position sentence is the only thing telling a reader how deep they are; check it is not lost between the table and the buttons.
 
 <!-- END GENERATED -->
 

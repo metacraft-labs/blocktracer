@@ -21,6 +21,9 @@ import {
   firstAddress,
   txWithAvailability,
   txWithSplitExecutions,
+  contractWithSource,
+  addressWithSegments,
+  segmentIdOf,
 } from "./lib/entities.mjs";
 
 // ── Viewport set ───────────────────────────────────────────────────────────
@@ -111,6 +114,19 @@ const divergentTx = txWithAvailability("divergent");
  *  shape the first time a block's contents changed. */
 const onDemandTx = txWithAvailability("onDemand");
 
+/** The two contract-source subjects, selected by whether a bundle for their
+ *  code hash is PUBLISHED — never by position. The demo tree carries one of
+ *  each: four of its five contracts executed a transaction whose trace was
+ *  published (so their source was too), and the fifth is the on-demand
+ *  transaction's target, which is genuinely unverified. */
+const verifiedContract = contractWithSource(true);
+const unverifiedContract = contractWithSource(false);
+
+/** The address whose history the generation splits across more than one
+ *  block-range segment — the only address on which the cursor pager renders an
+ *  "Older" control at all. */
+const pagedAddress = addressWithSegments(2);
+
 const PENDING_ROUTE = "route not yet served by the client";
 const PENDING_STATE = "state not yet modelled by the client ViewModel";
 
@@ -140,8 +156,7 @@ export const VIEWS = [
     description: "Chains index — capability inventory table with debug-tier badges",
     covers: ["chains-index"],
     register: "explorer",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /chains is not rendered by static_export`,
+    status: "ready",
     route: () => "/chains",
   },
   {
@@ -158,7 +173,19 @@ export const VIEWS = [
     covers: ["degraded.pipeline-behind"],
     register: "explorer",
     status: "pending",
-    pendingReason: `${PENDING_STATE}: no staleness notice in the chain view`,
+    // The TREATMENT now exists: `components/degraded.notice` renders
+    // `cdPipelineBehindTip`, `ssr.chainSnapshot` resolves it from the pinned
+    // session's published `stale` flag, and `ChainOverviewDegradations` is the
+    // sensitivity set that admits it here. What is missing is DATA — the demo
+    // generator publishes one chain whose summary says `stale: false`, so no
+    // route in the tree renders the notice. Flipping this view needs a
+    // behind-the-tip chain in the demo tree (M5c), not a change to the view.
+    pendingReason:
+      "the staleness treatment is rendered by `components/degraded` and " +
+      "resolved by `ssr.chainSnapshot`, and no chain in the demo tree is " +
+      "behind its tip: the generator publishes one chain with `stale: false` " +
+      "in its summary. This needs a behind-the-tip chain in the demo tree, " +
+      "not a change to the chain view",
     route: (ix) => `/${ix.primaryChain}`,
   },
   {
@@ -175,7 +202,16 @@ export const VIEWS = [
     covers: ["blocks-list.row-expanded"],
     register: "explorer",
     status: "pending",
-    pendingReason: `${PENDING_STATE}: row expansion is not implemented`,
+    // Expansion is a script behaviour and this client ships none. The
+    // CONTENT §5.1 asks the expansion to reveal — the block's transaction
+    // hashes with per-row Debug actions — is one click away on the block's own
+    // page, through the height cell, and is captured as `block-detail`.
+    pendingReason:
+      "row expansion needs script and this client ships none. What §5.1 asks " +
+      "the expansion to reveal is the shared transactions table filtered to " +
+      "the block, which the block's own page renders and `block-detail` " +
+      "captures; the height cell links to it. This view is the EXPANDED " +
+      "state, which only hydration can produce",
     route: (ix) => `/${ix.primaryChain}/blocks`,
   },
   {
@@ -202,8 +238,7 @@ export const VIEWS = [
     description: "Recent transactions — the shared TransactionsTable, Debug first column",
     covers: ["txs-list"],
     register: "explorer",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /{chain}/txs is not rendered by static_export`,
+    status: "ready",
     route: (ix) => `/${ix.primaryChain}/txs`,
   },
   {
@@ -211,8 +246,7 @@ export const VIEWS = [
     description: "Transactions table collapsed to stacked cards below 900px, Debug and status retained",
     covers: ["txs-list.cards"],
     register: "explorer",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /{chain}/txs is not rendered by static_export`,
+    status: "ready",
     sizes: NARROW_SIZES,
     route: (ix) => `/${ix.primaryChain}/txs`,
   },
@@ -352,38 +386,79 @@ export const VIEWS = [
   },
   {
     id: "address",
-    description: "Address / account — header, code summary, transactions with Debug on every row, events",
+    description: "Address / contract — identity, code summary with verification, the shared transactions table with Debug on every row, and the events section",
     covers: ["address"],
     register: "explorer",
     status: "ready",
+    // A CONTRACT, so §9's code-summary section has content. `firstAddress`
+    // is the lexicographically first indexed address and is an account in this
+    // tree, whose code summary is a single sentence saying there is no code —
+    // a true statement, and not what this view is named for. The account case
+    // is `address--account`.
+    route: (ix) => `/${ix.primaryChain}/address/${verifiedContract(ix)}`,
+  },
+  {
+    id: "address--account",
+    description: "Address that is an account, not a contract — the code section states there is no code rather than showing an empty file list",
+    covers: ["address"],
+    register: "explorer",
+    status: "ready",
+    // The same page over a different SHAPE of subject, which is what makes it
+    // a second view rather than a duplicate: an account has no code hash, so
+    // §9's code summary is a statement instead of a table, and rule 2's "a
+    // statement of why not" is what this image is reviewed for.
     route: (ix) => `/${ix.primaryChain}/address/${firstAddress(ix)}`,
+  },
+  {
+    id: "address--older-page",
+    description: "A later block-range segment of an address's history — the cursor pager, with Older and Newest and no page numbers",
+    covers: ["address"],
+    register: "explorer",
+    status: "ready",
+    // §2.2 rules out ordinal pagination outright, so the thing to review here
+    // is the ABSENCE of page numbers as much as the presence of the controls:
+    // a cursor page is addressed by the block range it covers, and the pager
+    // states that range in words because a cursor URL does not tell a reader
+    // where they are.
+    route: (ix) => {
+      const address = pagedAddress(ix);
+      return `/${ix.primaryChain}/address/${address}/seg/${segmentIdOf(address, 1)(ix)}`;
+    },
   },
   {
     id: "contract-source",
     description: "Verified source browser — verification, file tree, ABI, storage layout, deployments",
     covers: ["contract-source"],
     register: "explorer",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /{chain}/address/{address}/code is not rendered`,
-    route: (ix) => `/${ix.primaryChain}/address/${firstAddress(ix)}/code`,
+    status: "ready",
+    // Pinned by whether a source bundle for the address's code hash is
+    // PUBLISHED. `firstAddress` is the lexicographically first indexed
+    // address, which in this tree is an account with no code at all — the
+    // page would render "no code is bound to this address", filed under a view
+    // named "verified source browser".
+    route: (ix) => `/${ix.primaryChain}/address/${verifiedContract(ix)}/code`,
   },
   {
     id: "contract-source--unverified",
     description: "No verified source — instruction-level stepping with supply-sources prominent",
     covers: ["degraded.no-verified-source"],
     register: "explorer",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: the code route is not rendered`,
-    route: (ix) => `/${ix.primaryChain}/address/${firstAddress(ix)}/code`,
+    status: "ready",
+    route: (ix) => `/${ix.primaryChain}/address/${unverifiedContract(ix)}/code`,
   },
   {
     id: "search",
-    description: "Search resolution — the unambiguous single-candidate presentation",
+    description: "Search — how an identifier resolves, the chains that would be checked, and the published name corpus",
     covers: ["search"],
     register: "explorer",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /search is not rendered (M14 Search And Routing)`,
-    route: () => "/search?q=0x27a6c250bda5f426cac12790abe9cff80fb29a6c",
+    status: "ready",
+    // No `?q=`. A static file server cannot read one, and the page is
+    // deliberately not a results page: §11's resolution runs in the browser
+    // (Search-And-Routing §1-§6) and this client ships no script. What the
+    // route serves is what it genuinely holds — the mechanisms, the chains
+    // that would be checked, and the whole published name corpus, browsable
+    // without a query. The three query-DEPENDENT states below stay pending.
+    route: () => "/search",
   },
   {
     id: "search--ambiguous",
@@ -391,7 +466,14 @@ export const VIEWS = [
     covers: ["search.ambiguous"],
     register: "explorer",
     status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /search is not rendered (M14)`,
+    // `/search` IS served now (see the `search` view), and this state is
+    // not: it needs the page to have READ the query, and a static file server
+    // cannot. Every mechanism that would produce grouped candidates for an ambiguous query runs in the browser.
+    pendingReason:
+      "/search is served, and this state is query-dependent: a static file " +
+      "server cannot read `?q=`, and every resolution mechanism " +
+      "(Search-And-Routing §1-§6) runs in the browser. It arrives with " +
+      "hydration, not with a change to the route",
     route: () => "/search?q=0x27a6",
   },
   {
@@ -400,7 +482,14 @@ export const VIEWS = [
     covers: ["search.cross-chain"],
     register: "explorer",
     status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /search is not rendered (M14)`,
+    // `/search` IS served now (see the `search` view), and this state is
+    // not: it needs the page to have READ the query, and a static file server
+    // cannot. Every mechanism that would produce an active chain's results above a 'found on other chains' group runs in the browser.
+    pendingReason:
+      "/search is served, and this state is query-dependent: a static file " +
+      "server cannot read `?q=`, and every resolution mechanism " +
+      "(Search-And-Routing §1-§6) runs in the browser. It arrives with " +
+      "hydration, not with a change to the route",
     route: () => "/search?q=0x27a6&scope=all",
   },
   {
@@ -409,7 +498,14 @@ export const VIEWS = [
     covers: ["search.not-found"],
     register: "explorer",
     status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /search is not rendered (M14)`,
+    // `/search` IS served now (see the `search` view), and this state is
+    // not: it needs the page to have READ the query, and a static file server
+    // cannot. Every mechanism that would produce the not-found answer for a specific query runs in the browser.
+    pendingReason:
+      "/search is served, and this state is query-dependent: a static file " +
+      "server cannot read `?q=`, and every resolution mechanism " +
+      "(Search-And-Routing §1-§6) runs in the browser. It arrives with " +
+      "hydration, not with a change to the route",
     route: () => "/search?q=0xdeadbeef",
   },
   {
@@ -417,8 +513,7 @@ export const VIEWS = [
     description: "Settings — storage, debugger, privacy and advanced groups",
     covers: ["settings"],
     register: "explorer",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /settings is not rendered`,
+    status: "ready",
     route: () => "/settings",
   },
   {
@@ -426,8 +521,9 @@ export const VIEWS = [
     description: "Static content — /about, the privacy summary the trust strip links to",
     covers: ["static-content"],
     register: "explorer",
-    status: "pending",
-    pendingReason: `${PENDING_ROUTE}: /about and /docs/* are not rendered`,
+    status: "ready",
+    // `/about` is served; `/docs/*` is not, and is not a separate view: the
+    // inventory entry names both and a view covers it when either renders.
     route: () => "/about",
   },
   {
@@ -435,9 +531,11 @@ export const VIEWS = [
     description: "Object not found — 'not on this chain', naming the chains checked",
     covers: ["degraded.not-found"],
     register: "explorer",
-    status: "pending",
-    pendingReason:
-      "static_export writes only the 200 routes: renderRoute() has a 404 body but no 404.html is emitted, so a capture here would photograph the dev server's fallback, not the product",
+    status: "ready",
+    // `static_export` now writes `404.html`, and it writes the exact bytes
+    // `renderRoute` returns with a 404 status — so the harness's server serves
+    // the product's own page here rather than its own fallback, and the image
+    // is the treatment rather than a placeholder.
     route: (ix) => `/${ix.primaryChain}/tx/0x0000000000000000000000000000000000000000`,
     expectHttpStatus: 404,
   },

@@ -12,14 +12,90 @@ import debugger/demo_session
 import debugger/source_document
 import debugger/session_view
 import components/layout
+import components/degraded
 import pages/home as homePg
+import pages/chains as chainsPg
 import pages/chain as chainPg
 import pages/blocklist as blockListPg
 import pages/blockview as blockPg
+import pages/txs as txsPg
 import pages/tx as txPg
+import pages/address as addressPg
+import pages/code as codePg
+import pages/search as searchPg
+import pages/settings as settingsPg
+import pages/about as aboutPg
+import pages/notfound as notFoundPg
 import pages/debug as debugPg
 
 const SiteDomain* = "https://blocktracer.org"
+
+# ── crawl classes (SEO-And-Crawl-Budget.md §5, §6) ─────────────────────────
+
+type
+  RouteClass* = enum
+    ## The three indexability classes this product's routes fall into. §5 gives
+    ## each one a robots policy and a sitemap answer; §6 assigns a class per
+    ## route. Both halves are read from here, so a route cannot carry one class
+    ## in its `<meta>` and be treated as another by the sitemap.
+    rcCore = "index,follow"           ## I0 — home, /chains, /about, chain landing
+    rcAddressable = "noindex,follow"  ## N1 — ordinary entities and their lists
+    rcUtility = "noindex,nofollow"    ## N2 — search, settings, embeds
+
+func isPaginationRoute*(route: string): bool =
+  ## §6's last row: "Pagination, filter, sort and layout variants … Never
+  ## submitted." The three cursor shapes this client serves, named by their
+  ## path segment rather than by a count of slashes, so a fourth cursor added
+  ## later has to be added here to be excluded — which is a visible edit.
+  "/blocks/from/" in route or "/txs/from/" in route or "/address/" in route and
+    "/seg/" in route
+
+func routeClass*(route: string): RouteClass =
+  ## The crawl class of a rendered route. A total function of the route's
+  ## shape, so the class is decided in one place and both the `<meta robots>`
+  ## and the sitemap read the same answer.
+  let p = route.strip(chars = {'/'})
+  if p.len == 0: return rcCore
+  case p
+  of "chains", "about": return rcCore
+  of "search", "settings": return rcUtility
+  else: discard
+  # `/{chain}` — §6: "Chain is publicly supported", which is what being in the
+  # registry means here.
+  if '/' notin p: return rcCore
+  rcAddressable
+
+proc isSitemapRoute*(route: string): bool =
+  ## Whether a rendered route belongs in `sitemap.xml`.
+  ##
+  ## A route that is RENDERED and a route that is SUBMITTED are two different
+  ## questions, and this is where they part company.
+  ##
+  ## Three exclusions, each from a row of SEO-And-Crawl-Budget.md §6:
+  ##
+  ##   * **`/debug`** — the transaction's content at a second address. Its own
+  ##     `<meta robots>` and canonical already say so; being absent from the
+  ##     sitemap is the same statement made where a crawler reads it first, and
+  ##     M8b requires this milestone to add no second indexable copy.
+  ##   * **`/search` and `/settings`** — class N2, whose promotion column reads
+  ##     "Never".
+  ##   * **Pagination variants** — "Never submitted". Every page of a cursor
+  ##     walk is reachable by following the pager from the first page, which is
+  ##     what `follow` is for.
+  ##
+  ## **What is deliberately NOT excluded, and why it is recorded here rather
+  ## than fixed:** §5's class table also gives N1 "Sitemap: No", and this
+  ## client submits N1 entity pages. That predates M9 — `test_debug_route`'s
+  ## crawl-surface baseline records the transaction route's sitemap membership
+  ## as it was — and narrowing it would change the crawl surface of every
+  ## transaction and block in the product, which is a promotion-policy decision
+  ## (§7) rather than a rendering one. It is left as it was, and named, because
+  ## a rule whose comment claims more than its code does is the shape of a
+  ## check that cannot fail.
+  if route.endsWith("/debug"): return false
+  if routeClass(route) == rcUtility: return false
+  if isPaginationRoute(route): return false
+  true
 
 # ── per-route renderers ─────────────────────────────────────────────────────
 
@@ -79,6 +155,47 @@ proc demoSessionFor*(r: DataRoot): Option[DebugSessionView] =
           return some(s)
   none(DebugSessionView)
 
+# ── §14, resolved once per surface ─────────────────────────────────────────
+#
+# Page-Descriptions §14: "Every row above is a value of an enum on a
+# ViewModel, not a branch in a view." The snapshot below is built from
+# published facts, `resolveChainDegradation` picks the most severe row the
+# SURFACE renders, and `components/degraded` renders exactly one treatment for
+# it. No page tests a condition of its own.
+
+proc chainSnapshot(r: DataRoot, info: ChainInfo): ChainStateSnapshot =
+  ## The axes every explorer surface shares, from the pinned session.
+  result = initChainStateSnapshot()
+  # §5 of Static-Site-Architecture: a consumer "surfaces staleness from
+  # `summary.json` rather than inferring it". The published flag decides; the
+  # height delta below only names HOW FAR.
+  if info.stale: result.freshness = pfBehindTip
+  if not info.hasRecorder: result.provenance = tpRecorderUnavailable
+
+proc behindBy(r: DataRoot, info: ChainInfo): int =
+  ## How far the sealed generation is behind the pointer's tip, in blocks.
+  ##
+  ## Read from the generation's height MAP (one object per epoch), never by
+  ## walking block details: this number decorates a notice, and a decoration
+  ## that costs one read per block would put back exactly the cap this
+  ## milestone's pagination exists to remove. Zero when the generation is not
+  ## behind — the notice then says so in words instead of in a number.
+  let highest = highestIndexedHeight(r, info)
+  if highest < 0 or info.headHeight <= highest: 0
+  else: info.headHeight - highest
+
+proc chainNotice(r: DataRoot, info: ChainInfo): DegradationNotice =
+  ## `behindBy` is computed only when the published summary says the chain IS
+  ## behind. §5: a consumer "surfaces staleness from `summary.json` rather than
+  ## inferring it" — so the flag decides, the delta only names how far, and a
+  ## page that is not showing a staleness notice pays nothing to find out it is
+  ## not showing one.
+  DegradationNotice(subject: info.slug,
+                    behindBy: (if info.stale: behindBy(r, info) else: 0),
+                    chainsChecked: chains(r))
+
+# ── the pages ──────────────────────────────────────────────────────────────
+
 proc renderHome*(r: DataRoot): string =
   var infos: seq[ChainInfo]
   for c in chains(r): infos.add chainInfo(r, c)
@@ -86,34 +203,91 @@ proc renderHome*(r: DataRoot): string =
     "BlockTracer — the deepest view into every transaction",
     "The deepest view into every transaction. Step and rewind every instruction, see the full call trace at a glance, and trace any value to its origin — across many chains, VMs and languages.",
     homePg.homePage(infos, demoSessionFor(r)),
-    robots = "index,follow",
+    robots = $routeClass("/"),
     canonical = SiteDomain & "/")
+
+proc renderChains*(r: DataRoot): string =
+  pageLayout(
+    "Supported chains — BlockTracer",
+    "Every chain in BlockTracer's registry, with the recorder, trace schema, coverage mode and freshness it actually has.",
+    chainsPg.chainsPage(chainRows(r)),
+    robots = $routeClass("/chains"),
+    canonical = SiteDomain & "/chains")
+
+proc renderAbout*(r: DataRoot): string =
+  pageLayout(
+    "About BlockTracer — no account, no ads, no tracking",
+    "How BlockTracer reads a chain: static files behind a CDN, one mutable object per chain, no third-party requests, and no record caps.",
+    aboutPg.aboutPage(chains(r).len),
+    robots = $routeClass("/about"),
+    canonical = SiteDomain & "/about")
+
+proc renderSettings*(r: DataRoot): string =
+  pageLayout(
+    "Settings — BlockTracer",
+    "Browser-side preferences, and what this deployment can observe.",
+    settingsPg.settingsPage(),
+    robots = $routeClass("/settings"),
+    canonical = SiteDomain & "/settings")
+
+proc renderSearch*(r: DataRoot): string =
+  ## §11. The query is resolved in the browser (Search-And-Routing §1–§6), so
+  ## this route renders what it genuinely holds: how an identifier resolves,
+  ## which chains would be checked, and the published name corpus — browsable
+  ## without a query at all.
+  var named: seq[searchPg.NamedEntity]
+  for chain in chains(r):
+    for l in labels(r, chain):
+      if l.id.len == 0 or l.name.len == 0: continue
+      named.add searchPg.NamedEntity(
+        chain: chain, id: l.id, name: l.name, symbol: l.symbol,
+        kind: l.kind, provenance: l.provenance,
+        href: addressUrl(chain, l.id))
+  pageLayout(
+    "Search — BlockTracer",
+    "Resolve a transaction hash, block, or address. Resolution is identifier lookup, not a query.",
+    searchPg.searchPage(chains(r), named),
+    robots = $routeClass("/search"),
+    canonical = SiteDomain & "/search")
 
 proc renderChain*(r: DataRoot, chain: string): string =
   let info = chainInfo(r, chain)
-  let bs = blocks(r, info)
-  # Latest transactions: walk the newest blocks, in block order.
-  var txs: seq[TxRow]
-  for b in bs:
-    let bd = readBlockDetail(r, info, b.hash)
-    for h in bd.transactions:
-      txs.add txRow(r, info, h)
+  let page = txsFrom(r, info, -1)
+  let bs = blocksFrom(r, info, -1, size = 10).rows
+  let d = resolveChainDegradation(chainSnapshot(r, info),
+                                  ChainOverviewDegradations)
   pageLayout(
     chain & " — BlockTracer",
-    "Chain overview for " & chain & ": latest blocks and transactions.",
-    chainPg.chainPage(chain, info, bs, txs),
-    robots = "noindex,follow",
+    "Chain overview for " & chain & ": latest blocks and transactions, each with the debugger as its primary action.",
+    chainPg.chainPage(chain, info, bs, page.rows, d, chainNotice(r, info)),
+    robots = $routeClass("/" & chain),
     canonical = SiteDomain & "/" & chain)
 
-proc renderBlockList*(r: DataRoot, chain: string): string =
+proc renderBlockList*(r: DataRoot, chain: string, fromHeight: int): string =
   let info = chainInfo(r, chain)
-  let bs = blocks(r, info)
+  let page = blocksFrom(r, info, fromHeight)
+  let d = resolveChainDegradation(chainSnapshot(r, info), BlockDegradations)
+  let route = if fromHeight < 0: blocksUrl(chain)
+              else: blocksFromUrl(chain, fromHeight)
   pageLayout(
     chain & " blocks — BlockTracer",
-    "All blocks on " & chain & ", newest first.",
-    blockListPg.blockListPage(chain, info, bs),
-    robots = "noindex,follow",
-    canonical = SiteDomain & "/" & chain & "/blocks")
+    "Blocks on " & chain & ", newest first, paginated by walking backwards.",
+    blockListPg.blockListPage(chain, info, page, d, chainNotice(r, info)),
+    robots = $routeClass(route),
+    canonical = SiteDomain & route)
+
+proc renderTxList*(r: DataRoot, chain: string, fromHeight: int): string =
+  let info = chainInfo(r, chain)
+  let page = txsFrom(r, info, fromHeight)
+  let d = resolveChainDegradation(chainSnapshot(r, info), BlockDegradations)
+  let route = if fromHeight < 0: txsUrl(chain)
+              else: txsFromUrl(chain, fromHeight)
+  pageLayout(
+    chain & " transactions — BlockTracer",
+    "Transactions on " & chain & ", newest first, with Debug as the first column of every row.",
+    txsPg.txsPage(chain, info, page, d, chainNotice(r, info)),
+    robots = $routeClass(route),
+    canonical = SiteDomain & route)
 
 proc renderBlock*(r: DataRoot, chain, hash: string): string =
   let info = chainInfo(r, chain)
@@ -121,12 +295,80 @@ proc renderBlock*(r: DataRoot, chain, hash: string): string =
   var txs: seq[TxRow]
   for h in detail.transactions:
     txs.add txRow(r, info, h)
+  # §2.1: a reorg is a change to the height map, not to the block. So the
+  # question this page asks is whether the generation's map still points at
+  # this hash for this height — and the block object is correct either way.
+  let canonicalHere = canonicalBlockAt(r, info, detail.height)
+  var snapshot = chainSnapshot(r, info)
+  if canonicalHere.len > 0 and canonicalHere != detail.hash:
+    snapshot.canonicality = ccReorganisedAway
+  let d = resolveChainDegradation(snapshot, BlockDegradations)
+  var note = chainNotice(r, info)
+  note.subject = detail.hash
+  if snapshot.canonicality != ccCanonical:
+    note.detail = "At height " & $detail.height & " this generation's height " &
+      "map points at " & canonicalHere & "."
+    note.actionHref = blockUrl(chain, canonicalHere)
+    note.actionLabel = "The canonical block at this height"
   pageLayout(
     "Block " & $detail.height & " — " & chain & " — BlockTracer",
     "Block " & $detail.height & " on " & chain & " with " & $detail.transactions.len & " transactions.",
-    blockPg.blockPage(chain, detail, txs),
-    robots = "noindex,follow",
+    blockPg.blockPage(chain, info, detail, txs,
+                      nextBlockHash(r, info, detail.height),
+                      hasBlock(r, chain, detail.parentHash), d, note),
+    robots = $routeClass("/" & chain & "/block/" & hash),
     canonical = SiteDomain & "/" & chain & "/block/" & hash)
+
+proc addressCode(r: DataRoot, info: ChainInfo, address: string,
+                 rows: seq[TxRow]): seq[SourceBundleView] =
+  for h in codeHashesAt(r, info, address, rows):
+    result.add sourceBundleAt(r, info.slug, h)
+
+proc renderAddress*(r: DataRoot, chain, address, segmentId: string): string =
+  ## §9. One block-range segment of an address's history, with Debug on every
+  ## row — and the code bound to the address, where any is.
+  let info = chainInfo(r, chain)
+  let v = addressView(r, info, address, segmentId)
+  let rows = addressRows(r, info, v)
+  var snapshot = chainSnapshot(r, info)
+  if not v.indexed: snapshot.presence = opNotOnThisChain
+  let d = resolveChainDegradation(snapshot, AddressDegradations)
+  var note = chainNotice(r, info)
+  note.subject = address
+  note.detail = v.reason
+  let route = if segmentId.len > 0: addressSegmentUrl(chain, address, segmentId)
+              else: addressUrl(chain, address)
+  pageLayout(
+    "Address " & truncHash(address) & " — " & chain & " — BlockTracer",
+    "Complete transaction history for " & address & " on " & chain & ", with the debugger as the primary action on every row.",
+    addressPg.addressPage(chain, info, v, rows,
+                          labelFor(labels(r, chain), address),
+                          addressCode(r, info, address, rows), d, note),
+    robots = $routeClass(route),
+    canonical = SiteDomain & route)
+
+proc renderAddressCode*(r: DataRoot, chain, address: string): string =
+  ## §10. The verified-source browser for the code at an address.
+  let info = chainInfo(r, chain)
+  let v = addressView(r, info, address)
+  let rows = addressRows(r, info, v)
+  var snapshot = chainSnapshot(r, info)
+  if not v.indexed: snapshot.presence = opNotOnThisChain
+  let d = resolveChainDegradation(snapshot, AddressDegradations)
+  var note = chainNotice(r, info)
+  note.subject = address
+  note.detail = v.reason
+  let code = addressCode(r, info, address, rows)
+  var deployments: seq[string]
+  if code.len > 0:
+    deployments = deploymentsOf(r, info, code[0].codeHash)
+  let route = addressCodeUrl(chain, address)
+  pageLayout(
+    "Source for " & truncHash(address) & " — " & chain & " — BlockTracer",
+    "Verified source, compiler settings and deployments for the code at " & address & " on " & chain & ".",
+    codePg.codePage(chain, address, code, deployments, d, note),
+    robots = $routeClass(route),
+    canonical = SiteDomain & route)
 
 proc renderTx*(r: DataRoot, chain, hash: string): string =
   ## `/{chain}/tx/{hash}` — Page-Descriptions §7.0, whose whole point is that
@@ -166,20 +408,21 @@ proc renderTx*(r: DataRoot, chain, hash: string): string =
   let short = hash[0 ..< min(10, hash.len)]
   let description = "Transaction on " & chain & " at block " & $v.height & "."
   let canonical = SiteDomain & "/" & chain & "/tx/" & hash
+  let robots = $routeClass("/" & chain & "/tx/" & hash)
   let s = debugSessionFor(r, chain, hash)
   if s.hasFrame:
     debugLayout(
       "Transaction " & short & "… — " & chain & " — BlockTracer",
       description,
       debugPg.debugPage(s),
-      robots = "noindex,follow",
+      robots = robots,
       canonical = canonical)
   else:
     pageLayout(
       "Transaction " & short & "… — " & chain & " — BlockTracer",
       description,
       txPg.txPage(chain, v),
-      robots = "noindex,follow",
+      robots = robots,
       canonical = canonical)
 
 proc renderDebug*(r: DataRoot, chain, hash: string): string =
@@ -188,23 +431,60 @@ proc renderDebug*(r: DataRoot, chain, hash: string): string =
     "Debug " & truncHash(hash) & " — " & chain & " — BlockTracer",
     "Step through transaction " & hash & " on " & chain & ".",
     debugPg.debugPage(s),
-    robots = "noindex,follow",
+    robots = $routeClass("/" & chain & "/tx/" & hash & "/debug"),
     # The canonical address of this content is the TRANSACTION's URL. §7.0
     # makes that page the same session's first frame, and M8b requires the
     # transaction route's crawl surface to be unchanged — which a second
     # indexable copy of the same content would not leave it.
     canonical = SiteDomain & "/" & chain & "/tx/" & hash)
 
+proc renderNotFound*(r: DataRoot): string =
+  ## §14's "Object not found" row, at a real 404 (SEO §6 class G0).
+  ##
+  ## `chains(r)` is what was ACTUALLY reachable, not the registry's declared
+  ## list, for the same reason `SearchVM.chainsChecked` is: naming a chain that
+  ## could not be read would claim a search that did not happen.
+  ##
+  ## Takes no path, so the body is a pure function of the tree and
+  ## `static_export` can write these exact bytes to `404.html` — see
+  ## `pages/notfound.nim`.
+  pageLayout(
+    "Not found — BlockTracer",
+    "Nothing is published at this address.",
+    notFoundPg.notFoundPage(chains(r)),
+    robots = "noindex,nofollow")
+
 # ── route enumeration + dispatch ────────────────────────────────────────────
 
 proc staticRoutes*(r: DataRoot): seq[string] =
-  ## Every clean-URL route the explorer renders from the data tree: home, and
-  ## per chain the overview + block list + one page per block + one per tx.
+  ## Every clean-URL route the explorer renders from the data tree.
+  ##
+  ## Enumerated from the data rather than declared, which is what makes the
+  ## route set and the page bodies the same source of truth: a block that is
+  ## published gets a page, a page of a cursor walk exists exactly while the
+  ## walk has one, and an address the generation indexes gets a page for every
+  ## segment its own list carries. Nothing here is a literal path except the
+  ## five site-level pages, which have no entity behind them.
   result.add "/"
+  result.add "/chains"
+  result.add "/about"
+  result.add "/settings"
+  result.add "/search"
   for chain in chains(r):
     let info = chainInfo(r, chain)
     result.add "/" & chain
-    result.add "/" & chain & "/blocks"
+    # Block list, walked to exhaustion by its own cursor — so a page exists
+    # exactly when the pager offers a link to it, and never otherwise.
+    result.add blocksUrl(chain)
+    var page = blocksFrom(r, info, -1)
+    while page.hasMore:
+      result.add blocksFromUrl(chain, page.nextFrom)
+      page = blocksFrom(r, info, page.nextFrom)
+    result.add txsUrl(chain)
+    var tp = txsFrom(r, info, -1)
+    while tp.hasMore:
+      result.add txsFromUrl(chain, tp.nextFrom)
+      tp = txsFrom(r, info, tp.nextFrom)
     for h in blockHashes(r, info):
       result.add "/" & chain & "/block/" & h
       let bd = readBlockDetail(r, info, h)
@@ -216,24 +496,15 @@ proc staticRoutes*(r: DataRoot): seq[string] =
         # states this route renders — "the metadata, with the reason stated" —
         # and a 404 there would be a different, worse answer.
         result.add "/" & chain & "/tx/" & txh & "/debug"
-
-proc isSitemapRoute*(route: string): bool =
-  ## Whether a rendered route belongs in `sitemap.xml`.
-  ##
-  ## A route that is RENDERED and a route that is SUBMITTED are two different
-  ## questions, and the debug route is the first case where they part company.
-  ## SEO-And-Crawl-Budget.md §5's class table gives every `noindex` class
-  ## "Sitemap: No", for the reason §6 gives: a sitemap is a submission, and
-  ## submitting a URL that carries `noindex` spends crawl capacity to be told
-  ## not to index something.
-  ##
-  ## It matters here beyond tidiness. M8b's requirement is that the
-  ## transaction's crawl surface is UNCHANGED, and the debug route is the same
-  ## content at a second address — exactly the duplicate a sitemap entry would
-  ## invite a crawler to fetch and then discard. Its `<meta robots>` and its
-  ## canonical already say so; being absent from the sitemap is the same
-  ## statement made where a crawler reads it first.
-  not route.endsWith("/debug")
+    for address in addressesInGeneration(r, info):
+      result.add addressUrl(chain, address)
+      result.add addressCodeUrl(chain, address)
+      let listed = addressSegmentPaths(r, info, address)
+      # Every segment but the first: the first IS the address page, and a
+      # second URL serving identical bytes is the duplicate a canonical link
+      # exists to prevent.
+      for i in 1 ..< listed.paths.len:
+        result.add addressSegmentUrl(chain, address, segmentIdOf(listed.paths[i]))
 
 proc sitemapRoutes*(r: DataRoot): seq[string] =
   ## The subset of `staticRoutes` that is submitted to search engines.
@@ -246,12 +517,30 @@ proc renderRoute*(r: DataRoot, path: string): tuple[status: int, body: string, c
   if p.len == 0:
     return (200, renderHome(r), "text/html")
   let parts = p.split('/')
+  # Every route below the site level is chain-scoped, and `chainInfo` RAISES on
+  # a chain the registry does not publish (`DataPlaneError`, so that a page
+  # silently omitting a chain fails the build rather than half-rendering). That
+  # is right for the exporter and wrong for a dispatcher: an unknown slug in a
+  # URL is a visitor's typo, and §14's answer to it is "not on this chain",
+  # not an exception. So the slug is checked ONCE here, against the registry,
+  # before any branch reaches a reader.
+  if parts.len >= 2 and parts[0] notin chains(r):
+    return (404, renderNotFound(r), "text/html")
   case parts.len
   of 1:
-    return (200, renderChain(r, parts[0]), "text/html")
+    case parts[0]
+    of "chains": return (200, renderChains(r), "text/html")
+    of "about": return (200, renderAbout(r), "text/html")
+    of "settings": return (200, renderSettings(r), "text/html")
+    of "search": return (200, renderSearch(r), "text/html")
+    else:
+      if parts[0] in chains(r):
+        return (200, renderChain(r, parts[0]), "text/html")
   of 2:
     if parts[1] == "blocks":
-      return (200, renderBlockList(r, parts[0]), "text/html")
+      return (200, renderBlockList(r, parts[0], -1), "text/html")
+    if parts[1] == "txs":
+      return (200, renderTxList(r, parts[0], -1), "text/html")
   of 3:
     case parts[1]
     of "block":
@@ -260,14 +549,31 @@ proc renderRoute*(r: DataRoot, path: string): tuple[status: int, body: string, c
     of "tx":
       if hasTx(r, parts[0], parts[2]):
         return (200, renderTx(r, parts[0], parts[2]), "text/html")
+    of "address":
+      let info = chainInfo(r, parts[0])
+      if addressSegmentPaths(r, info, parts[2]).found:
+        return (200, renderAddress(r, parts[0], parts[2], ""), "text/html")
     else: discard
   of 4:
     if parts[1] == "tx" and parts[3] == "debug" and hasTx(r, parts[0], parts[2]):
       return (200, renderDebug(r, parts[0], parts[2]), "text/html")
+    if parts[1] == "address" and parts[3] == "code":
+      let info = chainInfo(r, parts[0])
+      if addressSegmentPaths(r, info, parts[2]).found:
+        return (200, renderAddressCode(r, parts[0], parts[2]), "text/html")
+    if parts[1] == "blocks" and parts[2] == "from":
+      try:
+        return (200, renderBlockList(r, parts[0], parseInt(parts[3])), "text/html")
+      except ValueError: discard
+    if parts[1] == "txs" and parts[2] == "from":
+      try:
+        return (200, renderTxList(r, parts[0], parseInt(parts[3])), "text/html")
+      except ValueError: discard
+  of 5:
+    if parts[1] == "address" and parts[3] == "seg":
+      let info = chainInfo(r, parts[0])
+      let v = addressView(r, info, parts[2], parts[4])
+      if v.indexed:
+        return (200, renderAddress(r, parts[0], parts[2], parts[4]), "text/html")
   else: discard
-  let notFound =
-    "<section class=\"sec\"><div class=\"inner\">" &
-    "<h1 class=\"h2\">404 — not found</h1>" &
-    "<p class=\"lead\">No such route in this static tree.</p></div></section>"
-  (404, pageLayout("Not found — BlockTracer", "Page not found.", notFound,
-                   robots = "noindex,follow"), "text/html")
+  (404, renderNotFound(r), "text/html")

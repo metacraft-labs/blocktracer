@@ -244,8 +244,24 @@ type DemoTx = object
   artifacts: seq[tuple[selector, execInputId: string, vs: ValidationStatus,
                        strength: int, oracle: string, reconstructed: bool]]
 
+proc contractCodeHash(seed: string, contractIdx: int): string =
+  ## The code hash bound to demo contract `contractIdx`.
+  ##
+  ## Keyed by the CONTRACT, not by the transaction's position in its block.
+  ## Static-Site-Architecture.md §2.1a makes source interpretation
+  ## code-hash-addressed precisely so that one bundle serves every deployment of
+  ## the same bytecode — a code hash keyed by `obIndex` broke that in both
+  ## directions: two unrelated contracts at index 0 shared a bundle, and one
+  ## contract called from two positions had two. It also made "an unverified
+  ## contract" unreachable in the demo tree, because every hash that any
+  ## transaction used was also a hash some *other* transaction had published a
+  ## bundle for. Contract 3 — the on-demand transaction's target — is now
+  ## genuinely unverified, which is §14's "No verified source" row as data.
+  synthHash(seed, "code", contractIdx)
+
 proc mkPublicFacts(seed, txHash, blockHash: string, height, index: int;
-                   contractAddr: string): TransactionFacts =
+                   contractIdx: int): TransactionFacts =
+  let contractAddr = synthAddr(seed, "contract", contractIdx)
   TransactionFacts(
     chain: chain,
     id: TxId(kind: tikHash, hash: txHash),
@@ -258,7 +274,7 @@ proc mkPublicFacts(seed, txHash, blockHash: string, height, index: int;
     payloadRaw: "0x", payloadSelector: "0x1a2b3c4d", payloadTarget: contractAddr,
     logs: @[],
     codeEdges: @[CodeEdge(address: contractAddr,
-                          codeHash: synthHash(seed, "code", index),
+                          codeHash: contractCodeHash(seed, contractIdx),
                           boundAt: blockHash)],
     executions: @[Execution(selector: "public",
                             executionInputId: demoExecutionInputId(chain, txHash, "public"))],
@@ -285,7 +301,7 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
   block:
     let h = synthHash(seed, "tx", 0)
     let c = synthAddr(seed, "contract", 0)
-    var facts = mkPublicFacts(seed, h, b100, 100, 0, c)
+    var facts = mkPublicFacts(seed, h, b100, 100, 0, 0)
     var ov = TraceSelection(chain: chain, tx: h, hasSingle: true,
       singleTrace: ExecTrace(availability: taReady, bytes: tbytes, hasValidation: true,
         validation: ValidationSummary(status: vsMatch, strength: 2)))
@@ -338,7 +354,7 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
   block:
     let h = synthHash(seed, "tx", 2)
     let c = synthAddr(seed, "contract", 2)
-    var facts = mkPublicFacts(seed, h, b101, 101, 1, c)
+    var facts = mkPublicFacts(seed, h, b101, 101, 1, 2)
     var ov = TraceSelection(chain: chain, tx: h, hasSingle: true,
       singleTrace: ExecTrace(availability: taDivergent, bytes: tbytes, hasValidation: true,
         validation: ValidationSummary(status: vsDivergent, strength: 0)))
@@ -354,7 +370,7 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
   block:
     let h = synthHash(seed, "tx", 3)
     let c = synthAddr(seed, "contract", 3)
-    var facts = mkPublicFacts(seed, h, b102, 102, 0, c)
+    var facts = mkPublicFacts(seed, h, b102, 102, 0, 3)
     var ov = TraceSelection(chain: chain, tx: h, hasSingle: true,
       singleTrace: ExecTrace(availability: taOnDemand))
     result.add DemoTx(hash: h, height: 102, index: 0, facts: facts,
@@ -365,7 +381,7 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
   block:
     let h = synthHash(seed, "tx", 4)
     let c = synthAddr(seed, "contract", 4)
-    var facts = mkPublicFacts(seed, h, b102, 102, 1, c)
+    var facts = mkPublicFacts(seed, h, b102, 102, 1, 4)
     var ov = TraceSelection(chain: chain, tx: h, hasSingle: true,
       singleTrace: ExecTrace(availability: taReady, bytes: tbytes, reconstructed: true,
         hasValidation: true, validation: ValidationSummary(status: vsUnchecked, strength: 0)))
@@ -385,7 +401,7 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
     let h = synthHash(seed, "tx", n)
     let c = synthAddr(seed, "contract", n)
     let bh = synthHash(seed, "block", eb)
-    var facts = mkPublicFacts(seed, h, bh, eb, 0, c)
+    var facts = mkPublicFacts(seed, h, bh, eb, 0, n)
     var ov = TraceSelection(chain: chain, tx: h, hasSingle: true,
       singleTrace: ExecTrace(availability: taReady, bytes: tbytes, hasValidation: true,
         validation: ValidationSummary(status: vsMatch, strength: 2)))
@@ -435,7 +451,6 @@ proc generate*(cfg: DemoConfig): int =
 
   # Block details (content-addressed) + tx facts + txstate + overlays + artifacts.
   # Each block/transaction also gets its pre-rendered HTML entry page (§2, §4.2).
-  var addrSegs: seq[tuple[address, seg: string, fromB, toB: int, txs: seq[string]]]
   for b in blocks:
     let bd = BlockDetail(chain: chain, hash: b.hash, height: b.height,
                          parentHash: b.parent, transactions: b.txs)
@@ -470,19 +485,68 @@ proc generate*(cfg: DemoConfig): int =
                   renderTxPage(chain, t.hash, factsJson, st, ovJson))
     hashEntries.add HashEntry(hexHash: t.hash, chain: chain, kind: hkTx)
 
-  # One demo address with a single block-range segment referencing the fee payers.
+  # ---- Address history: every participating address, segmented by block ------
+  #
+  # Static-Site-Architecture.md §2.2. An address's history is stored as
+  # IMMUTABLE segments keyed by block range, never as ordinal pages, and the
+  # generation's `addr` object lists the segments that exist "and their display
+  # order".
+  #
+  # Two things changed here for M9, and both were needed before the address page
+  # (§9) and the contract-source page (§10) could be anything but a stub:
+  #
+  #   * **Every participating address is indexed**, not one hand-picked fee
+  #     payer. An address participates if it holds a role, is the payload
+  #     target, or carries a code edge. Before this, five of the tree's seven
+  #     addresses appeared in the transactions table as text that linked
+  #     nowhere, and no contract had a history at all — so `/{chain}/address/
+  #     {contract}/code` had no subject in the published tree.
+  #   * **One segment per block**, rather than one segment spanning the whole
+  #     chain. A single segment makes paging unobservable: the client fetches
+  #     the list, fetches the one segment, and there is nothing to page. Per
+  #     block is the finest honest granularity (a segment's identity is a fact
+  #     about the chain, and compaction merges them later — §2.2), and it is
+  #     what makes "pages from first to last with constant per-page cost" a
+  #     property the demo tree can actually exercise.
+  #
+  # Display order is newest block first, which is the order the client walks.
   let demoAddr = synthAddr(seed, "feepayer", 0)
-  block:
-    var segTxs: seq[string]
-    for t in txs: segTxs.add t.hash
-    let loB = heightList[0]
-    let hiB = heightList[^1]
-    let seg = $loB & "-" & $hiB
-    cfg.writeJson("d" / chain / "seg" / hexShard(demoAddr) / demoAddr / seg & ".json",
-      %*{"chain": chain, "address": demoAddr, "fromBlock": loB, "toBlock": hiB,
-         "transactions": segTxs})
-    addrSegs.add (demoAddr, seg, loB, hiB, segTxs)
-  hashEntries.add HashEntry(hexHash: demoAddr, chain: chain, kind: hkAddress)
+  var addrOrder: seq[string]
+  var addrTxsByHeight = initTable[string, OrderedTable[int, seq[string]]]()
+  proc participate(address: string, height: int, txHash: string) =
+    if address.len == 0: return
+    if address notin addrTxsByHeight:
+      addrTxsByHeight[address] = initOrderedTable[int, seq[string]]()
+      addrOrder.add address
+    var byHeight = addrTxsByHeight[address]
+    if height notin byHeight: byHeight[height] = @[]
+    if txHash notin byHeight[height]: byHeight[height].add txHash
+    addrTxsByHeight[address] = byHeight
+  for t in txs:
+    for r in t.facts.roles: participate(r.address, t.height, t.hash)
+    participate(t.facts.payloadTarget, t.height, t.hash)
+    for e in t.facts.codeEdges: participate(e.address, t.height, t.hash)
+  addrOrder.sort()
+
+  # (address, [segment relative paths, newest block first])
+  var addrSegs: seq[tuple[address: string, segments: seq[string],
+                          segJson: seq[JsonNode]]]
+  for address in addrOrder:
+    var heights: seq[int]
+    for h in addrTxsByHeight[address].keys: heights.add h
+    heights.sort(SortOrder.Descending)
+    var segRels: seq[string]
+    var segNodes: seq[JsonNode]
+    for h in heights:
+      let node = %*{"chain": chain, "address": address, "fromBlock": h,
+                    "toBlock": h, "transactions": addrTxsByHeight[address][h]}
+      let rel = "d" / chain / "seg" / hexShard(address) / address /
+                ($h & "-" & $h) & ".json"
+      cfg.writeJson(rel, node)
+      segRels.add rel
+      segNodes.add node
+    addrSegs.add (address, segRels, segNodes)
+    hashEntries.add HashEntry(hexHash: address, chain: chain, kind: hkAddress)
 
   # Generation-scoped derived maps.
   let heightRel = "d" / chain / "g" / gen / "height" / "0.json"
@@ -498,14 +562,13 @@ proc generate*(cfg: DemoConfig): int =
   var addrRels: seq[string]
   for a in addrSegs:
     let rel = "d" / chain / "g" / gen / "addr" / hexShard(a.address) / a.address & ".json"
-    let addrList = %*{"chain": chain, "address": a.address,
-      "segments": [("d" / chain / "seg" / hexShard(a.address) / a.address / a.seg & ".json")]}
+    var segArray = newJArray()
+    for s in a.segments: segArray.add %s
+    let addrList = %*{"chain": chain, "address": a.address, "segments": segArray}
     cfg.writeJson(rel, addrList)
     addrRels.add rel
-    let segJson = %*{"chain": chain, "address": a.address, "fromBlock": a.fromB,
-                     "toBlock": a.toB, "transactions": a.txs}
     cfg.writeText(chain / "address" / a.address / "index.html",
-                  renderAddressPage(chain, a.address, addrList, @[segJson]))
+                  renderAddressPage(chain, a.address, addrList, a.segJson))
 
   var txstateRels: seq[string]
   for t in txs:

@@ -142,6 +142,7 @@ code,.mono,.identifier{font-family:var(--bt-font-mono),var(--bt-font-mono-fallba
 .tight{margin-top:var(--bt-space-sm)}
 .group{margin-top:var(--bt-rhythm-group)}
 .titlerow{display:flex;gap:var(--bt-space-sm);align-items:center;flex-wrap:wrap}
+.badgerow{display:inline-flex;gap:var(--bt-space-xs);align-items:center;flex-wrap:wrap}
 
 /* ── nav ────────────────────────────────────────────────────────────────── */
 .nav{position:fixed;top:0;left:0;right:0;z-index:20;height:var(--bt-layout-nav-height);display:flex;align-items:center;border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);background:var(--bt-surface-raised)}
@@ -246,10 +247,103 @@ table.tbl td.num{text-align:right}
 /* ── raw json ───────────────────────────────────────────────────────────── */
 pre.raw{max-height:var(--bt-layout-code-max-height);overflow:auto;background:var(--bt-surface-code);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-lg);padding:var(--bt-space-md) var(--bt-density-cell-x);overflow-x:auto;font-family:var(--bt-font-code),var(--bt-font-mono-fallback);font-size:var(--bt-type-code-size);line-height:var(--bt-type-code-line);color:var(--bt-text-code);font-variant-numeric:var(--bt-numeric-features)}
 
+/* ── §14 degraded-state notice ──────────────────────────────────────────── */
+/* One block, one tone from the status vocabulary, and never colour alone: the
+   row is named in a badge before it is painted (rubric A7). */
+.notice{margin-top:var(--bt-rhythm-stack);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-left:var(--bt-stroke-thick) solid var(--bt-border-strong);border-radius:var(--bt-radius-md);padding:var(--bt-space-md) var(--bt-density-cell-x);background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised)}
+.notice.bad{border-left-color:var(--bt-status-danger-border)}
+.notice.warn{border-left-color:var(--bt-status-warning-border)}
+.notice.info{border-left-color:var(--bt-status-info-border)}
+.notice.muted{border-left-color:var(--bt-status-neutral-border)}
+.notice .noticehead{display:flex;align-items:center;gap:var(--bt-space-sm);flex-wrap:wrap;margin-bottom:var(--bt-space-sm)}
+.notice p{font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line);color:var(--bt-text-default)}
+.notice .reason{color:var(--bt-text-muted);margin-top:var(--bt-space-2xs)}
+
+/* ── cursor pager (§2.2: no ordinal pages, so no page numbers) ───────────── */
+.pager{display:flex;align-items:center;justify-content:space-between;gap:var(--bt-space-md);flex-wrap:wrap;margin-top:var(--bt-rhythm-stack)}
+.pager .pagerwhere{color:var(--bt-text-muted);font-size:var(--bt-type-body-sm-size);font-variant-numeric:var(--bt-numeric-features)}
+.pager .pagerbtns{display:flex;gap:var(--bt-space-sm)}
+.btn.sm{font-size:var(--bt-type-caption-size);line-height:var(--bt-type-caption-line);padding:var(--bt-space-2xs) var(--bt-space-sm)}
+.linkrow{display:flex;gap:var(--bt-space-sm);flex-wrap:wrap}
+.linklist{list-style:none;display:flex;flex-direction:column;gap:var(--bt-space-2xs);margin-top:var(--bt-rhythm-stack)}
+.linklist a{color:var(--bt-text-link);text-decoration:underline;text-underline-offset:var(--bt-space-3xs)}
+
+/* ── the shared transactions table (§6) ─────────────────────────────────── */
+/* The Debug column is first and never scrolls out of view horizontally: it is
+   the primary action, and a table that scrolls it away is the anti-goal rule 1
+   names. */
+table.txtbl th.act,table.txtbl td.act{position:sticky;left:0;z-index:1;background:var(--bt-surface-raised)}
+table.txtbl th.act{background:var(--bt-surface-sunken)}
+table.txtbl tbody tr:hover td.act{background:var(--bt-surface-hover)}
+table.txtbl td .reason{display:inline-block;margin-left:var(--bt-space-xs);color:var(--bt-text-muted);font-size:var(--bt-type-caption-size)}
+/* Reverted rows are visually distinct — they are the population this product
+   exists for — and the distinction is a tinted row plus a leading rule, so it
+   survives a greyscale render and a colour-vision deficiency alike. */
+table.txtbl tbody tr.reverted td{background:var(--bt-status-danger-bg)}
+table.txtbl tbody tr.reverted td.act{border-left:var(--bt-stroke-thick) solid var(--bt-status-danger-border)}
+table.txtbl tbody tr.reverted:hover td{background:var(--bt-surface-hover)}
+table.txtbl tbody tr.partial td.act{border-left:var(--bt-stroke-thick) solid var(--bt-status-warning-border)}
+table.tbl td a.addr{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);color:var(--bt-text-link)}
+table.tbl td .reason{white-space:normal;max-width:var(--bt-measure-narrow)}
+
+/* ── verified-source browser (§10) ──────────────────────────────────────── */
+.filetree{display:flex;gap:var(--bt-space-sm);flex-wrap:wrap;margin-bottom:var(--bt-rhythm-stack)}
+.filetree a{border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-sm);padding:var(--bt-space-3xs) var(--bt-space-xs);color:var(--bt-text-link);background:var(--bt-surface-sunken);font-size:var(--bt-type-caption-size)}
+.filetree a:hover{border-color:var(--bt-border-accent)}
+.codefile{margin-top:var(--bt-rhythm-stack);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-lg);overflow:hidden;background:var(--bt-surface-code)}
+.codehead{display:flex;justify-content:space-between;gap:var(--bt-space-md);padding:var(--bt-space-xs) var(--bt-density-cell-x);background:var(--bt-surface-sunken);border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-default);font-size:var(--bt-type-caption-size)}
+.codeview{max-height:var(--bt-layout-code-max-height);overflow:auto;padding:var(--bt-space-sm) 0}
+.codeline{display:flex;gap:var(--bt-space-sm);font-family:var(--bt-font-code),var(--bt-font-mono-fallback);font-size:var(--bt-type-code-size);line-height:var(--bt-type-code-line)}
+.codeline .gutter{flex:0 0 var(--bt-space-3xl);text-align:right;color:var(--bt-text-subtle);user-select:none;font-variant-numeric:var(--bt-numeric-features)}
+.codeline .t{white-space:pre;color:var(--bt-syntax-plain);padding-right:var(--bt-density-cell-x)}
+/* The same lexical palette the debugger's source pane uses, in the explorer
+   register. One set of roles, so a keyword is the same colour in both. */
+.codeview .tk-comment{color:var(--bt-syntax-comment)}
+.codeview .tk-keyword{color:var(--bt-syntax-keyword)}
+.codeview .tk-type{color:var(--bt-syntax-type)}
+.codeview .tk-function{color:var(--bt-syntax-function)}
+.codeview .tk-string{color:var(--bt-syntax-string)}
+.codeview .tk-number{color:var(--bt-syntax-number)}
+.codeview .tk-punct{color:var(--bt-syntax-punctuation)}
+
+/* ── footer links ───────────────────────────────────────────────────────── */
+.footlinks{display:flex;gap:var(--bt-space-md);margin-top:var(--bt-space-xs)}
+.footlinks a{color:var(--bt-text-link);text-decoration:underline;text-underline-offset:var(--bt-space-3xs)}
+
 /* ── footer ─────────────────────────────────────────────────────────────── */
 .foot{border-top:var(--bt-stroke-hairline) solid var(--bt-border-subtle);margin-top:var(--bt-rhythm-group);padding:var(--bt-rhythm-group) 0;color:var(--bt-text-subtle);font-size:var(--bt-type-body-sm-size);background:var(--bt-surface-raised)}
 .foot .inner{display:flex;justify-content:space-between;gap:var(--bt-rhythm-stack);flex-wrap:wrap}
 .foot code{color:var(--bt-text-code)}
+
+/* ── §13: below 900px the transactions table becomes stacked cards ───────── */
+/* "All tables virtualised; below 900 px they become stacked cards with the
+   primary action (Debug) and status retained." Debug leads each card and the
+   status closes it, which is the pair §13 names — and the horizontal scroll
+   that would otherwise hide the far columns is gone rather than tightened. */
+@media (max-width:900px){
+  .tablewrap:has(table.txtbl){overflow-x:visible;border:0;background:none;box-shadow:none}
+  table.txtbl{display:block;font-size:var(--bt-type-body-sm-size)}
+  table.txtbl thead{display:none}
+  table.txtbl tbody{display:block}
+  table.txtbl tbody tr{display:block;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-lg);background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised);padding:var(--bt-space-sm) var(--bt-density-cell-x);margin-bottom:var(--bt-space-sm)}
+  table.txtbl tbody tr.reverted{border-color:var(--bt-status-danger-border)}
+  table.txtbl td{display:flex;justify-content:space-between;align-items:baseline;gap:var(--bt-space-md);white-space:normal;border-bottom:0;padding:var(--bt-space-3xs) 0;text-align:left}
+  table.txtbl td.num{text-align:left}
+  table.txtbl td::before{content:attr(data-label);color:var(--bt-text-muted);font-family:var(--bt-font-sans),var(--bt-font-sans-fallback);font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);letter-spacing:var(--bt-type-label-tracking);text-transform:uppercase;flex:0 0 auto}
+  /* Debug leads the card at full width, so the primary action is the first
+     thing in every card rather than a value in a labelled row. */
+  table.txtbl td.act{position:static;display:block;background:none;padding-bottom:var(--bt-space-sm);border-left:0}
+  table.txtbl td.act::before{content:none}
+  table.txtbl td.act .btn{width:100%}
+  table.txtbl tbody tr.reverted td,table.txtbl tbody tr.reverted:hover td{background:none}
+  /* The desktop treatment marks a non-successful row with a rule down the LEFT
+     EDGE of its Debug cell. In card mode that cell is a full-width block and
+     the rule became a stub above the button; the card's own border carries the
+     status instead, so the rule is reset at matching specificity. */
+  table.txtbl tbody tr.reverted td.act,table.txtbl tbody tr.partial td.act{border-left:0}
+  table.txtbl tbody tr.partial{border-color:var(--bt-status-warning-border)}
+  table.txtbl td .reason{margin-left:0;max-width:none}
+}
 
 /* Breakpoints are written as literals because CSS cannot read a custom
    property in a media condition. */

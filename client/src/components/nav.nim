@@ -22,9 +22,16 @@ proc siteNav*(): string =
           span(class = "sq")
           text "BlockTracer"
         tdiv(class = "links"):
-          a(class = "opt", href = "/aztec/blocks"):
-            text "Blocks"
-          a(class = "opt", href = "/aztec"):
-            text "Chain"
+          # Site-level destinations only. The two chain-scoped links this bar
+          # used to carry — `/aztec` and `/aztec/blocks` — named a chain the
+          # nav cannot know it is on: the nav is rendered into every page of
+          # every chain, and a hard-coded slug is a link that is wrong on all
+          # but one of them. `/chains` is the chain-scoped entry point and is
+          # generated from the registry, so it cannot name a chain that has
+          # stopped being published.
+          a(class = "opt", href = "/chains"):
+            text "Chains"
+          a(class = "opt", href = "/about"):
+            text "About"
           form(action = "/search", `method` = "get"):
             input(name = "q", placeholder = "block · tx · address")

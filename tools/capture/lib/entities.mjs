@@ -89,7 +89,43 @@ export function buildEntityIndex(distDir) {
       ? readdirSync(addrDir).filter((a) => a.startsWith("0x")).sort()
       : [];
 
-    byChain[chain] = { chain, current, blocks, txs, addresses };
+    // Per address: the segments its generation lists, the code hashes bound to
+    // it, and whether any of those hashes has a published source bundle.
+    //
+    // Read from the data plane rather than from the rendered page, and by the
+    // same rule as the trace availability above: a view named "the verified
+    // source browser" has to be captured against a contract that HAS one, and
+    // a view named "no verified source" against one that does not. Picking
+    // either by position would re-point both the first time the seed moved,
+    // and the second would silently photograph a verified contract.
+    const gen = current.generation;
+    const details = {};
+    for (const address of addresses) {
+      const shard = address.slice(2, 6);
+      const indexPath = join(distDir, "d", chain, "g", gen, "addr", shard, `${address}.json`);
+      const entry = { address, segments: [], codeHashes: [], verified: false };
+      if (existsSync(indexPath)) {
+        entry.segments = readJson(indexPath).segments ?? [];
+        for (const segRel of entry.segments) {
+          const segPath = join(distDir, segRel);
+          if (!existsSync(segPath)) continue;
+          for (const hash of readJson(segPath).transactions ?? []) {
+            const factsPath = join(distDir, "d", chain, "tx", hash.slice(2, 6), `${hash}.json`);
+            if (!existsSync(factsPath)) continue;
+            for (const edge of readJson(factsPath).codeEdges ?? []) {
+              if (edge.address === address && !entry.codeHashes.includes(edge.codeHash)) {
+                entry.codeHashes.push(edge.codeHash);
+              }
+            }
+          }
+        }
+      }
+      entry.verified = entry.codeHashes.some((h) =>
+        existsSync(join(distDir, "src", chain, h, "current.json")));
+      details[address] = entry;
+    }
+
+    byChain[chain] = { chain, current, blocks, txs, addresses, addressDetails: details };
   }
 
   return {
@@ -151,6 +187,46 @@ export const txWithAvailability = (want, { reconstructed = null } = {}) => (ix) 
       ` (present: ${seen || "none"})`);
   }
   return t;
+};
+
+/** An address the tree binds CODE to, whose code hash does (`want = true`) or
+ *  does not (`want = false`) have a published source bundle.
+ *
+ *  Throws rather than falling back, for the reason `txWithAvailability` does:
+ *  `contract-source--unverified` captured against a verified contract is an
+ *  image a reviewer would grade as the wrong finding, not as a missing one. */
+export const contractWithSource = (want) => (ix) => {
+  const c = ix.chain();
+  const hit = c.addresses.find((a) => {
+    const d = c.addressDetails?.[a];
+    return d && d.codeHashes.length > 0 && d.verified === want;
+  });
+  if (!hit) {
+    throw new Error(
+      `data plane has no contract address whose source bundle is ` +
+      `${want ? "published" : "absent"} ` +
+      `(addresses with code: ${
+        c.addresses.filter((a) => (c.addressDetails?.[a]?.codeHashes.length ?? 0) > 0).length})`);
+  }
+  return hit;
+};
+
+/** An address whose history the generation splits across more than one
+ *  block-range segment — the case the cursor pager exists for, and the only
+ *  one where "Older" renders at all. */
+export const addressWithSegments = (least) => (ix) => {
+  const c = ix.chain();
+  const hit = c.addresses.find((a) => (c.addressDetails?.[a]?.segments.length ?? 0) >= least);
+  if (!hit) throw new Error(`data plane indexes no address with >= ${least} segments`);
+  return hit;
+};
+
+/** The id of the nth segment of an address's history, as it appears in the
+ *  paged URL — read out of the published path, never recomputed. */
+export const segmentIdOf = (address, n) => (ix) => {
+  const segs = ix.chain().addressDetails?.[address]?.segments ?? [];
+  if (segs.length <= n) throw new Error(`${address} has no segment at offset ${n}`);
+  return segs[n].split("/").pop().replace(/\.json$/, "");
 };
 
 /** The transaction with more than one execution — the Aztec private/public

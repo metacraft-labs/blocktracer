@@ -1874,9 +1874,37 @@ suite "M8b — the crawl surface is unchanged":
     check submittedDebug == 0
     # …and nothing ELSE was dropped on the way, so the transaction route's own
     # sitemap membership is exactly what it was.
-    check submitted.len == all.len - renderedDebug
+    #
+    # M9 added two more exclusion classes, both from SEO-And-Crawl-Budget.md
+    # §6's own table — class N2 ("Never" promoted: `/search`, `/settings`) and
+    # pagination variants ("Never submitted") — so the identity is now stated
+    # over the UNION of the three rather than over `/debug` alone. The bite is
+    # unchanged and is in the second loop: every route that is not in one of
+    # the three named classes must still be submitted, so narrowing the
+    # sitemap to exclude, say, every `noindex` entity page fails here.
+    proc excludedForAStatedReason(route: string): bool =
+      route.endsWith("/debug") or routeClass(route) == rcUtility or
+        isPaginationRoute(route)
+    var excluded = 0
     for route in all:
-      if not route.endsWith("/debug"): check route in submitted
+      if excludedForAStatedReason(route): inc excluded
+    check excluded > renderedDebug        # the two new classes are non-empty
+    check submitted.len == all.len - excluded
+    for route in all:
+      if not excludedForAStatedReason(route): check route in submitted
+    # Each new class is genuinely excluded, named rather than counted: a class
+    # that stopped being excluded would still satisfy the arithmetic above if
+    # another one grew by the same amount.
+    check "/search" notin submitted
+    check "/settings" notin submitted
+    check "/search" in all
+    check "/settings" in all
+    var paginated = 0
+    for route in all:
+      if isPaginationRoute(route):
+        inc paginated
+        check route notin submitted
+    check paginated > 0
 
 suite "the embedded demo on the home page is the same session surface":
 

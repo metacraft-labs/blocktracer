@@ -10,7 +10,7 @@ export:
 
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
-test: test-export test-viewmodels test-debug-route
+test: test-export test-viewmodels test-debug-route test-explorer-breadth
 
 # The static-export round-trip test: compile + run the real exporter into a
 # temp dir, then assert the three view types render for the demo entities and
@@ -34,6 +34,15 @@ test-viewmodels:
 test-debug-route:
     nim c -r --mm:orc --hints:off tests/test_debug_route.nim
 
+# M9: the explorer breadth slice — the milestone's three named verifications
+# (renders from published files only, pointer objects are not cached across
+# navigations, address history pages with constant per-page cost) plus the two
+# product rules asserted over EVERY rendered page. Built with -d:release: one
+# of them walks a synthetic address with a hundred thousand transactions from
+# its first page to its last.
+test-explorer-breadth:
+    nim c -r --mm:orc -d:release --hints:off tests/test_explorer_breadth.nim
+
 # Build and preview the static site locally on :8080.
 preview: export
     cd dist && python3 -m http.server 8080
@@ -48,4 +57,4 @@ dev *ARGS:
 clean:
     rm -rf dist nimcache
     find . -name nimcache -type d -exec rm -rf {} +
-    rm -f src/static_export tests/test_static_export tests/test_chain_viewmodels tests/test_debug_route
+    rm -f src/static_export tests/test_static_export tests/test_chain_viewmodels tests/test_debug_route tests/test_explorer_breadth

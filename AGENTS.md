@@ -81,8 +81,8 @@ Layout under **`client/src/`**:
 | `ssr.nim` | **Route table** (`staticRoutes`) + `renderRoute` dispatcher; `SiteDomain = "https://blocktracer.org"` for canonical URLs |
 | `static_export.nim` | Export entry (`just export` compiles & runs it → `dist/`) |
 | `reader.nim`, `viewutil.nim` | Chain-data loading + view helpers. `viewutil.txMetadataRows` is the ONE producer of the transaction's facts — the tx page's overview grid and the debugger's metadata pane both render it (§7.1: "from one source", and they "cannot be allowed to diverge") |
-| `pages/*.nim` | `home`, `chain`, `blocklist`, `blockview`, `tx`, `debug` |
-| `components/*.nim` | `layout` (both shells), `styles`, `debugger_css`, `nav`, `footer`, `tables`, `debugger` (the pane renderers + the LayoutNode walk) |
+| `pages/*.nim` | `home`, `chains`, `chain`, `blocklist`, `blockview`, `txs`, `tx`, `debug`, `address`, `code`, `search`, `settings`, `about`, `notfound` |
+| `components/*.nim` | `layout` (both shells), `styles`, `debugger_css`, `nav`, `footer`, `tables` (the shared `<TransactionsTable>`), `pager` (the cursor pager — §2.2 rules out ordinal pages, so there are no page numbers anywhere), `degraded` (the ONE `case` over `ChainDegradation` in the explorer: §14's treatments, rendered from the enum `viewmodel/chain_degradation.nim` resolves), `debugger` (the pane renderers + the LayoutNode walk) |
 | `debugger/*.nim` | The debug route's renderer-free layer: `layout_model.nim` (a VENDORED copy of CodeTracer's — see `layout_model.vendor.json` and `ci/test/layout-model-vendor.sh`), `session_view.nim` (what a pane renders), `source_document.nim` (the static source renderer's input), `demo_session.nim` (the static tree's producer) |
 | `design_system/tokens.nim` | Design-system tokens |
 
@@ -90,13 +90,34 @@ Layout under **`client/src/`**:
 chain / block / tx), not a fixed page list:
 
 ```
-/                        → home
-/<chain>                 → chain overview      (e.g. /aztec)
-/<chain>/blocks          → block list
-/<chain>/block/<hash>    → block detail
-/<chain>/tx/<hash>       → transaction detail
-/<chain>/tx/<hash>/debug → the full-viewport debugging session (M8a/M8b)
+/                                   → home
+/chains                             → the registry-generated capability inventory
+/about, /settings, /search          → static content, preferences, resolution
+/<chain>                            → chain overview      (e.g. /aztec)
+/<chain>/blocks                     → block list          (page 1)
+/<chain>/blocks/from/<height>       → block list          (cursor page)
+/<chain>/block/<hash>               → block detail
+/<chain>/txs                        → transactions list   (page 1)
+/<chain>/txs/from/<height>          → transactions list   (cursor page)
+/<chain>/tx/<hash>                  → transaction detail — the session where a trace is published (§7.0)
+/<chain>/tx/<hash>/debug            → the full-viewport debugging session (M8a/M8b)
+/<chain>/address/<addr>             → address history     (newest segment)
+/<chain>/address/<addr>/seg/<a>-<b> → address history     (one block-range segment)
+/<chain>/address/<addr>/code        → verified source browser
+404.html                            → §14's "not on this chain", the same bytes `renderRoute` returns
 ```
+
+**Pagination is by CURSOR, never by ordinal page.** Static-Site-Architecture.md
+§2.2 rules out ordinal pages in BOTH directions, so a page's identity in the URL
+is the same thing the object's identity is: a block number for the two lists, a
+block RANGE for address history. There is no `?page=`, no `?offset=` and no page
+number in any pager. `components/pager.nim` states why.
+
+**Crawl class is a function of the route** (`ssr.routeClass`, SEO-And-Crawl-Budget
+§5–§6), and `isSitemapRoute` reads the same answer — so a route cannot carry one
+class in its `<meta robots>` and be treated as another by the sitemap. `/search`
+and `/settings` are N2 and every cursor page is a pagination variant; neither is
+submitted.
 
 The debug route is the **product register**: `components/layout.debugLayout`
 sets `<html data-register="debugger">` and drops the nav and the footer, and the
@@ -223,7 +244,8 @@ Exact `client/Justfile` targets (run from `client/`; verified):
 
 | Command | What it does |
 |---------|--------------|
-| `cd client && just test` | `test-export` + `test-viewmodels` + `test-debug-route` |
+| `cd client && just test` | `test-export` + `test-viewmodels` + `test-debug-route` + `test-explorer-breadth` |
+| `cd client && just test-explorer-breadth` | `tests/test_explorer_breadth.nim` — M9's three verifications (renders from published files only, pointer objects are not cached across navigations, address history pages with constant per-page cost) plus the two product rules over EVERY rendered page. Built `-d:release`: one case walks a synthetic address of 100,000 transactions from its first page to its last |
 | `cd client && just test-debug-route` | `tests/test_debug_route.nim` — M8a/M8b: the route, the arrangement against `LayoutNode`, the source renderer's stable line ids, §7.0's availability-decides-the-landing rule, and the stored crawl-surface baseline. No debugger on the Nim path |
 | `cd client && just export` | Compiles + runs `src/static_export.nim` → writes `dist/` |
 | `cd client && just preview` | Runs `export`, then serves `dist/` at **http://localhost:8080** |

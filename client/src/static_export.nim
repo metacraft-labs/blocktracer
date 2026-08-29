@@ -101,7 +101,21 @@ proc exportSite() =
       inc rendered
     else:
       echo "  ! " & route & " (status " & $status & ")"
-  echo "  + client views: " & $rendered & " pages (home, chain, block list, block, tx)"
+  echo "  + client views: " & $rendered &
+    " pages (home, chains, chain, blocks, block, txs, tx, debug, address, code, search, settings, about)"
+
+  # The not-found body, at the file a static host serves for an unmatched path.
+  #
+  # SEO-And-Crawl-Budget.md §6 class G0: "Real `404`, never a successful
+  # generic shell", and "unknown paths must produce genuine `404` responses
+  # rather than mapping every path to `index.html`". The BYTES are the same
+  # ones `renderRoute` returns with a 404 status, taken from `renderRoute`
+  # itself rather than re-rendered here: a 404 file that differs from the 404
+  # body is two answers to one question, and only one of them would be tested.
+  let (notFoundStatus, notFoundBody, _) = renderRoute(root, "/__not_found__")
+  doAssert notFoundStatus == 404, "renderRoute stopped 404ing an unknown path"
+  writeFile(OutputDir / "404.html", notFoundBody)
+  echo "  + 404.html (Page-Descriptions §14 'not on this chain')"
 
   # Step 3: assets + crawl files.
   copyFonts()
