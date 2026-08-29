@@ -38,17 +38,17 @@
     "isonim": {
       "flake": false,
       "locked": {
-        "lastModified": 1787222882,
-        "narHash": "sha256-vvfFgI9d6jkPOLfTD/gfrn41WIaCs9RLVIduUXQagKw=",
+        "lastModified": 1787967233,
+        "narHash": "sha256-9bRlWq0pt2cvT7oDRVFiWgmvQAJf79FPqVN/oZ8do0A=",
         "owner": "metacraft-labs",
         "repo": "isonim",
-        "rev": "03f8349784b2642ba5b49101f1a04b454b3476f3",
+        "rev": "2a24d9549543c2a894525f65c4e608f9881b7373",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "isonim",
-        "rev": "03f8349784b2642ba5b49101f1a04b454b3476f3",
+        "rev": "2a24d9549543c2a894525f65c4e608f9881b7373",
         "type": "github"
       }
     },

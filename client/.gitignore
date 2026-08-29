@@ -8,6 +8,7 @@ result-*
 
 # Compiled Nim binaries (no extension, left by nim c -r)
 src/static_export
+src/dev
 tests/test_static_export
 tests/test_debug_route
 tests/test_chain_viewmodels

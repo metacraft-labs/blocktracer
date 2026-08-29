@@ -13,7 +13,7 @@
     # static sites (reprobuild-web-site / codetracer-web-site), recorded in the
     # isonim-sites registry.
     isonim = {
-      url = "github:metacraft-labs/isonim/03f8349784b2642ba5b49101f1a04b454b3476f3";
+      url = "github:metacraft-labs/isonim/2a24d9549543c2a894525f65c4e608f9881b7373";
       flake = false;
     };
     nim-everywhere = {
