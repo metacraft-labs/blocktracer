@@ -257,6 +257,35 @@ proc idsInOrder(html: string; prefix: string): seq[string] =
     result.add html[start ..< stop]
     i = stop
 
+proc codeLines(html: string): seq[string] =
+  ## The TEXT of every rendered source line, recovered from the served markup.
+  ##
+  ## Since VD.5 a line is a run of `<span>`s inside its `<code>` rather than one
+  ## text node, so a line's text is no longer a contiguous substring of the
+  ## page. Stripping the tags and undoing the escaping is what lets a test still
+  ## ask "is the real program on this page" without either asserting against the
+  ## tokenisation (which would make every lexer change a test change) or
+  ## weakening to a per-fragment search (which a placeholder renderer emitting
+  ## the right words in the wrong order would pass).
+  var i = 0
+  while true:
+    let at = html.find("<code class=\"t\">", i)
+    if at < 0: break
+    let start = at + len("<code class=\"t\">")
+    let stop = html.find("</code>", start)
+    if stop < 0: break
+    var text = ""
+    var j = start
+    while j < stop:
+      if html[j] == '<':
+        j = html.find('>', j) + 1
+      else:
+        text.add html[j]
+        inc j
+    result.add text.multiReplace(("&lt;", "<"), ("&gt;", ">"), ("&quot;", "\""),
+                                 ("&#39;", "'"), ("&amp;", "&"))
+    i = stop
+
 proc occurrences(html, needle: string): int =
   var i = 0
   while true:
@@ -405,23 +434,24 @@ suite "M8a — the source pane renders real source, with stable line identity":
     let rendered = activeDocument(openAtCurrent(s.editor, lead = 6))
     check rendered.lines.len > 20
     check rendered.lines[0].number > 1     # the window is a real window
+    # The served bytes, with the tokenisation undone — see `codeLines`. Every
+    # line is compared WHOLE and in full, including the ones carrying HTML
+    # -special characters, which are the ones most likely to be mangled.
+    let served = codeLines(html)
     var matched = 0
     for ln in rendered.lines:
-      let t = ln.text.strip()
-      # Lines carrying HTML-special characters are escaped in the served
-      # bytes, so they are compared through the same escape the renderer uses
-      # rather than skipped — skipping them would drop exactly the lines most
-      # likely to be mangled.
-      if t.len > 0:
-        check escapeHtml(t) in html
+      if ln.text.strip().len > 0:
+        check ln.text in served
         inc matched
     check matched > 20
-    # The session's own line, from the window, by hand — so a renderer that
-    # emitted the right COUNT of wrong lines still fails.
-    check escapeHtml("damage = mass * (100 - shield_pct);") in html
-    # Rendered as text inside <code>, so a tokeniser can replace the text node
-    # later without moving anything around it.
+    # The session's own line, by hand — so a renderer that emitted the right
+    # COUNT of wrong lines still fails.
+    check "        damage = mass * (100 - shield_pct);" in served
+    # Still one `<code>` per line, and the per-line container is unchanged:
+    # highlighting replaced the text node INSIDE it and moved nothing around
+    # it, which is what the inline-value workstream is relying on.
     check "<code class=\"t\">" in html
+    check served.len == occurrences(html, "class=\"srcline")
 
   test "every line has a stable id derived from (path, line), not render order":
     let s = sessionFor(readyTx)
@@ -717,7 +747,15 @@ suite "M8a — the source pane renders real source, with stable line identity":
       "sources": {"src/only.nr": {"content": "fn only() {}\n"}}})
     check withBundle.editor.documents.len == 1
     check withBundle.editor.documents[0].path == "src/only.nr"
-    check "fn only()" in dbgc.renderSource(withBundle.editor)
+    check withBundle.editor.documents[0].lines[0].text == "fn only() {}"
+    # The bundle declared `noir`, so its text is lexed by the same profile the
+    # vendored fixture sources get. The substitution changes where the text
+    # came from and never how it is rendered — a bundle whose content arrived
+    # as plain text while the fixture's was highlighted would be a visible
+    # inconsistency between two paths that are supposed to be one.
+    let onlyHtml = dbgc.renderSource(withBundle.editor)
+    check "<span class=\"tk-keyword\">fn</span>" in onlyHtml
+    check "<span class=\"tk-function\">only</span>" in onlyHtml
     # A bundle that resolves to nothing usable is IGNORED, never allowed to
     # empty a pane that had content.
     var withJunk = s
@@ -744,7 +782,9 @@ suite "§7.0 — the transaction page IS the debugger's first frame":
     # it — a signature is not guaranteed to be inside the window, and the
     # positioned line always is.
     check occurrences(html, "class=\"srcline cur") == 1
-    check "damage = mass * (100 - shield_pct);" in html
+    # Through `codeLines`, because the statement is a run of highlighted spans
+    # in the served bytes rather than a contiguous string.
+    check "        damage = mass * (100 - shield_pct);" in codeLines(html)
     check "id=\"L-src-shield-nr-32\"" in html   # demo_session's FixtureLine
 
   test "a divergent transaction's own URL serves it too, with the banner":
@@ -891,6 +931,272 @@ suite "§7.0 — the transaction page IS the debugger's first frame":
     # …and it renders the rows that have no session, so the refusal is
     # specific rather than a page that never renders at all.
     check txPg.txPage(Chain, txView(root, info, onDemandTx)).len > 0
+
+
+suite "VD.5 — the source pane is syntax highlighted, at export time":
+
+  # The subject is the REAL recorded program. `shieldSource` is the same
+  # `src/shield.nr` the `zk_shields` trace was recorded from and that the demo
+  # session renders — read from disk rather than retyped, so a test cannot
+  # quietly assert against a convenient sample that the product never shows.
+  let shieldSource = readFile(fixtureSources / "src" / "shield.nr")
+  let shieldDoc = newSourceDocument("src/shield.nr", "noir", shieldSource)
+
+  proc tokensOn(doc: SourceDocument; line: int): seq[SourceToken] =
+    for ln in doc.lines:
+      if ln.number == line: return ln.tokens
+
+  proc textOf(doc: SourceDocument; line: int; kind: TokenKind): seq[string] =
+    for t in tokensOn(doc, line):
+      if t.kind == kind: result.add t.text
+
+  test "the recorded program's keywords, types and calls are classified":
+    # shield.nr:1 — `pub fn iterate_asteroids(initial_shield: Field, …) -> bool {`
+    # One line carrying four of the eight kinds is worth more than four lines
+    # carrying one each: it is where a lexer that decides a kind from the word
+    # alone and one that also looks at its neighbours give different answers.
+    check textOf(shieldDoc, 1, tkKeyword) == @["pub", "fn"]
+    check textOf(shieldDoc, 1, tkFunction) == @["iterate_asteroids"]
+    check textOf(shieldDoc, 1, tkType) == @["Field", "Field", "Field", "bool"]
+    check textOf(shieldDoc, 1, tkNumber) == @["8"]
+
+    # `println` is a call and not a keyword; `assert` is a keyword even though
+    # it is also followed by `(`. A lexer that decided "followed by ( ⇒
+    # function" before consulting the word list would get the second wrong.
+    check textOf(shieldDoc, 54, tkFunction) == @["println"]
+
+  test "strings, numbers and comments are classified over the real source":
+    # shield.nr:54 — `println(f"----- iteration {iteration} -----");`
+    # The `f` prefix belongs to the literal. A lexer that took it as an
+    # identifier would emit a stray name before every format string in the
+    # file, and shield.nr is full of them.
+    check textOf(shieldDoc, 54, tkString) ==
+          @["f\"----- iteration {iteration} -----\""]
+
+    # shield.nr:17 is a whole-line comment; the text is carried verbatim,
+    # leading delimiter included.
+    let comments = textOf(shieldDoc, 17, tkComment)
+    check comments.len == 1
+    check comments[0].startsWith("// We need to have at least 1 unit")
+
+    # shield.nr:4 — `for i in 0..8 {`. The range operator must NOT be eaten by
+    # the number scanner: `0..8` is two numbers around a `..`, not one broken
+    # float. This is the single most likely lexer defect on this file.
+    check textOf(shieldDoc, 4, tkNumber) == @["0", "8"]
+    check ".." in textOf(shieldDoc, 4, tkPunctuation)
+    check textOf(shieldDoc, 4, tkKeyword) == @["for", "in"]
+
+  test "every character of every line survives tokenisation, exactly":
+    # The invariant that makes highlighting safe: the tokens PARTITION the
+    # line. A lexer that dropped a character, or normalised whitespace, would
+    # render source that is not the source — a worse failure than no
+    # highlighting, because the pane would still look authoritative.
+    var lexedLines = 0
+    for path in ["src/shield.nr", "src/main.nr"]:
+      let doc = newSourceDocument(
+        path, "noir", readFile(fixtureSources / path))
+      check doc.lines.len > 0
+      for ln in doc.lines:
+        check ln.tokens.len > 0 or ln.text.len == 0
+        var joined = ""
+        for t in ln.tokens: joined.add t.text
+        check joined == ln.text
+        inc lexedLines
+    # Guard against the suite passing because both files lexed to nothing.
+    check lexedLines >= 100
+
+  test "an unknown language renders plain — it is never guessed at":
+    # Trace-Artifacts and §14: a bundle from a chain whose language has no
+    # profile is the ordinary case, not an error. A Noir lexer over Solidity
+    # would produce confident nonsense, so it is not applied.
+    let solidity = newSourceDocument(
+      "Vault.sol", "solidity",
+      "// SPDX-License-Identifier: MIT\ncontract Vault { uint256 x = 1; }\n")
+    check solidity.lines.len == 2
+    for ln in solidity.lines:
+      check ln.tokens.len == 0
+
+    var pane = EditorPane(availability: srcSourceLevel,
+                          documents: @[solidity], activeIndex: 0)
+    let html = dbgc.renderSource(pane)
+    # The text is all there, as the ONE text node it was before highlighting
+    # existed — and carries no lexical class at all.
+    check "contract Vault { uint256 x = 1; }" in html
+    check "tk-keyword" notin html
+    check "tk-comment" notin html
+    check "tk-number" notin html
+
+    # A file with NO declared language at all takes the same path.
+    let unlabelled = newSourceDocument("blob.txt", "", "fn main() {}\n")
+    check unlabelled.lines[0].tokens.len == 0
+
+  test "a bundle's declared language does not lex the files that are not it":
+    # A bundle carries ONE language (Source-Resolution §5 puts it on the bundle)
+    # and is not all one language. The demo's own bundle declares `noir` and
+    # ships `Nargo.toml` and `Prover.toml` beside the two `.nr` files — and
+    # they were being lexed as Noir: `[package]` in punctuation colours and
+    # `initial_shield = "10000"` as a Noir string literal. A manifest wearing
+    # source highlighting is exactly the confident nonsense the fallback exists
+    # to prevent, so the EXTENSION decides and the declared language is only
+    # consulted when there is no extension at all.
+    let manifest = newSourceDocument(
+      "Nargo.toml", "noir", "[package]\nname = \"zk_shields\"\n")
+    for ln in manifest.lines:
+      check ln.tokens.len == 0
+    let prover = newSourceDocument(
+      "Prover.toml", "noir", "initial_shield = \"10000\"\n")
+    check prover.lines[0].tokens.len == 0
+
+    # ...while the .nr files in the SAME bundle are still highlighted.
+    check newSourceDocument("src/shield.nr", "noir", "let x = 1;\n")
+            .lines[0].tokens.len > 0
+    # An extension is trusted over the declaration in both directions: a .nr
+    # file in a bundle that forgot to declare a language is still Noir.
+    check newSourceDocument("src/shield.nr", "", "let x = 1;\n")
+            .lines[0].tokens.len > 0
+
+    # And the route that actually serves the demo bundle carries both kinds.
+    let s = sessionFor(readyTx)
+    var sawToml, sawNoir = false
+    for d in s.editor.documents:
+      if d.path.endsWith(".toml"):
+        sawToml = true
+        for ln in d.lines: check ln.tokens.len == 0
+      elif d.path.endsWith(".nr"):
+        sawNoir = true
+        var any = false
+        for ln in d.lines:
+          if ln.tokens.len > 0: any = true
+        check any
+    check sawToml     # the bundle really does carry a non-Noir file
+    check sawNoir
+
+  test "at instruction level there is no source, so nothing is tokenised":
+    # §14's fidelity ladder. `srcUnverified` means code ran and nobody
+    # published source for it: the pane shows a stated reason and the supply
+    # action, and no lexer is reached at all. The anti-requirement is a pane
+    # that renders a bytecode listing as though it were highlighted source.
+    for level in [srcUnverified, srcAbsent]:
+      let pane = EditorPane(availability: level,
+                            reason: "No source is published for this code.")
+      let html = dbgc.renderSource(pane)
+      check "srcnone" in html
+      check "tk-keyword" notin html
+      check "tk-punct" notin html
+      check "class=\"srcline" notin html
+
+    # And the ladder is legible in the route the visitor actually gets.
+    # Matching on `class="tk-…"` and not on the bare name: the page inlines the
+    # stylesheet, so every rule's SELECTOR is in the markup whether or not
+    # anything is highlighted. A test that missed this would pass on a page
+    # with no source pane for the wrong reason, and keep passing if one
+    # appeared.
+    let s = sessionFor(onDemandTx)
+    check s.editor.availability != srcSourceLevel
+    check "class=\"tk-keyword\"" notin debugHtml(onDemandTx)
+    check "class=\"srcline" notin debugHtml(onDemandTx)
+
+  test "every kind the lexer emits has a class AND a stylesheet rule":
+    # `tokenClass` and `debugger_css` are the one place the mapping can drift.
+    # A kind with a class but no rule renders as unremarkable text while the
+    # lexer reports success — invisible in every test that only asserts kinds.
+    for kind in TokenKind:
+      let cls = dbgc.tokenClass(kind)
+      if kind == tkPlain:
+        check cls == ""          # emitted as a bare text node, by design
+      else:
+        check cls.len > 0
+        check ("." & cls & "{") in debugRouteCss or
+              ("." & cls & ",") in debugRouteCss
+        # ...and the rule resolves to a design token, never a raw colour.
+        check ("--bt-syntax-") in debugRouteCss
+
+    # The other direction: no orphan rule for a class nothing can emit.
+    var emitted: seq[string]
+    for kind in TokenKind:
+      if kind != tkPlain: emitted.add dbgc.tokenClass(kind)
+    var i = 0
+    while true:
+      let at = debugRouteCss.find(".tk-", i)
+      if at < 0: break
+      let stop = debugRouteCss.find({'{', ',', ' '}, at)
+      check debugRouteCss[at + 1 ..< stop] in emitted
+      i = stop
+
+  test "a second language is DATA, not another branch in the lexer":
+    # The seam. BlockTracer will need Solidity, Move and Cadence; the claim is
+    # that each is a `LanguageProfile` literal and no code change. Proving it
+    # with a profile built here — not by shipping one and asserting it exists —
+    # is what keeps the claim honest while only Noir is genuinely supported.
+    let toy = LanguageProfile(
+      names: @["toy"],
+      identifierStart: {'a'..'z'},
+      identifierBody: {'a'..'z', '0'..'9'},
+      keywords: @["begin", "end"],
+      types: @["num"],
+      functionKeywords: @["begin"],
+      lineComment: "#",
+      stringDelimiters: {'\''},
+      escape: '\\')
+    let lines = highlightLines(@["begin adder # go", "x: num = 'hi'"], toy)
+    check lines.len == 2
+    var kinds: seq[TokenKind]
+    for t in lines[0]: kinds.add t.kind
+    check tkKeyword in kinds        # `begin`
+    check tkFunction in kinds       # `adder`, because `begin` declares one
+    check tkComment in kinds        # `# go`, this language's line comment
+    var second: seq[TokenKind]
+    for t in lines[1]: second.add t.kind
+    check tkType in second          # `num`
+    check tkString in second        # `'hi'`, this language's quote
+
+    # The registry itself claims only what can be demonstrated.
+    check KnownLanguages.len == 1
+    check profileFor("noir").isKnown
+    check not profileFor("solidity").isKnown
+    check profileFor("NOIR").isKnown          # matching is case-insensitive
+
+  test "highlighting escapes, and does not disturb ids or the overlay slot":
+    # The parallel omniscience workstream depends on both, and this is the
+    # change most likely to have broken them.
+    let s = sessionFor(readyTx)
+    var pane = s.editor
+    let html = dbgc.renderSource(pane)
+    for ln in activeDocument(pane).lines:
+      check ("id=\"" & ln.anchor & "\"") in html
+    check "class=\"srcline" in html
+
+    # Narrowing copies lines into a new document; the tokens travel with them,
+    # so a window is not silently unhighlighted.
+    let windowed = windowAround(pane, 3)
+    let wdoc = activeDocument(windowed)
+    check wdoc.lines.len > 0
+    var anyTokens = false
+    for ln in wdoc.lines:
+      if ln.tokens.len > 0: anyTokens = true
+    check anyTokens
+    check "tk-keyword" in dbgc.renderSource(windowed)
+
+    # A token's text is ESCAPED by the renderer, exactly once. Source is
+    # arbitrary text and `<` is a legal Noir operator.
+    let sharp = newSourceDocument(
+      "cmp.nr", "noir", "let ok = a < b && \"<script>\" != c;\n")
+    var sharpPane = EditorPane(availability: srcSourceLevel,
+                               documents: @[sharp], activeIndex: 0)
+    let sharpHtml = dbgc.renderSource(sharpPane)
+    check "<script>" notin sharpHtml
+    check "&lt;script&gt;" in sharpHtml
+    check "&amp;lt;" notin sharpHtml          # not double-escaped
+
+  test "the served debug route is highlighted, in the markup a browser gets":
+    # Everything above works on the renderer directly. This is the route.
+    let html = debugHtml(readyTx)
+    for cls in ["tk-keyword", "tk-type", "tk-function", "tk-string",
+                "tk-number", "tk-comment", "tk-punct"]:
+      check ("class=\"" & cls & "\"") in html
+    # The pane still says which file it is showing, and still marks a position.
+    check "src/shield.nr" in html
+    check "class=\"srcline cur" in html
 
 suite "M8b — availability decides the landing, not a preference":
 

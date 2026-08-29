@@ -262,14 +262,23 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       # the two met on the interned path.
       check s.editor.activeFileName.val == "src/shield.nr"
       check s.store.debugger.val.location.line == 5
-      check "remaining_shield -= damage;" in html
+      # The bundle's text reached the pane. Checked on the PROJECTION rather
+      # than by substring-matching the markup: since VD.5 a source line is a run
+      # of `<span>`s, so its text is no longer contiguous in the HTML, and a
+      # test that matched fragments of it would be asserting the tokenisation
+      # instead of the handoff this suite is about.
+      check view.editor.documents[0].lines[4].text ==
+            "        remaining_shield -= damage;"
       check ("id=\"" & lineAnchor("src/shield.nr", 5) & "\"") in html
       check "class=\"srcline cur" in html
 
       # Call trace: every visible line of the CalltraceVM, at its depth.
+      # Matched through the `ctname` class and not on the bare name — the
+      # source pane now renders `calculate_damage` as a `tk-function` span too,
+      # so an unqualified `>name</span>` would be satisfied by the wrong pane.
       check s.calltrace.visibleLines.val.len == 3
       for line in s.calltrace.visibleLines.val:
-        check (">" & line.name & "</span>") in html
+        check ("<span class=\"ctname\">" & line.name & "</span>") in html
         check ("ctrow d" & $line.depth) in html
 
       # State: every variable the StateVM currently exposes.
@@ -328,11 +337,18 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       check before != after
       check ("id=\"" & lineAnchor("src/shield.nr", 2) & "\" data-line=\"2\"") in before
       check "class=\"srcline cur" in before
-      check ">10000</span>" in before
-      check ">9000</span>" notin before
-      check ">9000</span>" in after
-      check ">calculate_damage</span>" notin before
-      check ">calculate_damage</span>" in after
+      # Every one of these names the PANE it belongs to. An unqualified
+      # `>value</span>` used to be unambiguous and is not any more: the source
+      # pane emits `tk-number` spans around numeric literals and `tk-function`
+      # spans around call names, so `>calculate_damage</span>` is now satisfied
+      # by line 4 of the source in BOTH renders and the mutation bite would
+      # have stopped biting — silently, and while still passing on the `in`
+      # half of every pair.
+      check "<span class=\"stval\">10000</span>" in before
+      check "<span class=\"stval\">9000</span>" notin before
+      check "<span class=\"stval\">9000</span>" in after
+      check "<span class=\"ctname\">calculate_damage</span>" notin before
+      check "<span class=\"ctname\">calculate_damage</span>" in after
 
       s.close()
       dispose()
