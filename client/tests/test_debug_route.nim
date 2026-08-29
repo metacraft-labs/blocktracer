@@ -73,19 +73,22 @@ proc shardOf(hash: string): string =
   let h = if hash.startsWith("0x"): hash[2 .. ^1] else: hash
   h[0 .. 3]
 
-let generationJson = parseJson(readFile(workDir / "d" / Chain / "current.json"))
-let tsv = generationJson["traceSelectionVersion"].getStr
+proc overlayPathIn(dir, hash: string): string =
+  let generationJson = parseJson(readFile(dir / "d" / Chain / "current.json"))
+  dir / "d" / Chain / "ts" / generationJson["traceSelectionVersion"].getStr /
+    shardOf(hash) / (hash & ".json")
 
-proc overlayOf(hash: string): JsonNode =
-  parseJson(readFile(workDir / "d" / Chain / "ts" / tsv / shardOf(hash) /
-                     (hash & ".json")))
+proc overlayIn(dir, hash: string): JsonNode =
+  parseJson(readFile(overlayPathIn(dir, hash)))
 
-proc headlineAvailabilityOf(hash: string): string =
+proc overlayOf(hash: string): JsonNode = overlayIn(workDir, hash)
+
+proc headlineIn(dir, hash: string): string =
   ## The strongest availability among a transaction's executions, computed here
   ## from the raw overlay rather than borrowed from the SDK — so a change to
   ## `bestTrace`'s ranking shows up as a disagreement instead of moving both
   ## sides of the assertion at once.
-  let o = overlayOf(hash)
+  let o = overlayIn(dir, hash)
   var execs: seq[JsonNode]
   if o.hasKey("trace"): execs.add o["trace"]
   elif o.hasKey("executions"):
@@ -94,6 +97,8 @@ proc headlineAvailabilityOf(hash: string): string =
     for e in execs:
       if e{"availability"}.getStr == want: return want
   if execs.len > 0: execs[0]{"availability"}.getStr else: ""
+
+proc headlineAvailabilityOf(hash: string): string = headlineIn(workDir, hash)
 
 proc allTxHashes(): seq[string] =
   for path in routes:
@@ -123,15 +128,117 @@ proc requireFixtures() =
 
 requireFixtures()
 
-proc debugHtml(hash: string): string =
-  let (status, body, _) = renderRoute(root, "/" & Chain & "/tx/" & hash & "/debug")
+# ── a second tree, exhibiting §7.0's two non-session rows ──────────────────
+#
+# The demo generator publishes `ready`, `divergent` and `onDemand` headlines
+# and no `absent` or `unsupported` one: the split transaction's private half is
+# absent, but its public half is ready, so the transaction's HEADLINE is ready
+# and the two rows §7.0 gives "no debugger, and no pretence of one" are not
+# reachable through the route in the tree above.
+#
+# They are the rows the negative half of this milestone turns on — "the served
+# page for a ready trace IS the session, and for absent is NOT" — so they get a
+# real tree rather than a direct call to a renderer. This is a SECOND generated
+# tree with two transactions' overlays rewritten in place, which means the
+# reader, the resolver, the session producer, the router and the layout all run
+# exactly as they do in production; only the published availability differs.
+# `requireDegraded` below refuses to continue unless the rewrite actually took.
+let degradedDir = getTempDir() /
+  ("blocktracer-tx7-degraded-" & $getCurrentProcessId())
+removeDir(degradedDir)
+createDir(degradedDir)
+discard generate(DemoConfig(outDir: degradedDir, seed: "debug-route-test",
+                            traceFixturePath: fixture,
+                            traceSourcesDir: fixtureSources))
+
+proc degrade(hash, availability, reason: string) =
+  ## Republish one transaction's trace selection with a different availability.
+  ##
+  ## Every execution moves, so the transaction's headline moves with it, and
+  ## the fields that would claim a published artifact are removed: an `absent`
+  ## execution with a byte count and a validation verdict is not a state the
+  ## pipeline can emit, and testing the route against one would be testing a
+  ## tree that cannot exist.
+  let path = overlayPathIn(degradedDir, hash)
+  var o = parseJson(readFile(path))
+  proc rewrite(e: JsonNode) =
+    e["availability"] = %availability
+    e["reason"] = %reason
+    for key in ["bytes", "validation", "traceArtifactId", "reconstructed"]:
+      if e.hasKey(key): e.delete(key)
+  if o.hasKey("trace"): rewrite(o["trace"])
+  if o.hasKey("executions"):
+    for e in o["executions"]: rewrite(e)
+  writeFile(path, $o)
+
+const
+  AbsentReason = "aztec private execution: no call structure to trace"
+  UnsupportedReason = "no recorder exists for this VM yet"
+
+degrade(readyTx, "absent", AbsentReason)
+degrade(divergentTx, "unsupported", UnsupportedReason)
+
+let degradedRoot = newDataRoot(degradedDir)
+let
+  absentTx = readyTx
+  unsupportedTx = divergentTx
+
+proc requireDegraded() =
+  ## The rewrite is a fixture, so it is verified against the tree it wrote
+  ## rather than assumed. Without this the two negative tests below would pass
+  ## over transactions that still had traces — which is the exact shape of
+  ## check this suite exists to refuse.
+  doAssert headlineIn(degradedDir, absentTx) == "absent",
+    "the absent fixture did not take: " & headlineIn(degradedDir, absentTx)
+  doAssert headlineIn(degradedDir, unsupportedTx) == "unsupported",
+    "the unsupported fixture did not take: " &
+    headlineIn(degradedDir, unsupportedTx)
+
+requireDegraded()
+
+proc debugHtmlIn(r: DataRoot, hash: string): string =
+  let (status, body, _) = renderRoute(r, "/" & Chain & "/tx/" & hash & "/debug")
   doAssert status == 200, "debug route did not serve " & hash & ": " & $status
   body
 
-proc txHtml(hash: string): string =
-  let (status, body, _) = renderRoute(root, "/" & Chain & "/tx/" & hash)
-  doAssert status == 200
+proc txHtmlIn(r: DataRoot, hash: string): string =
+  let (status, body, _) = renderRoute(r, "/" & Chain & "/tx/" & hash)
+  doAssert status == 200, "tx route did not serve " & hash & ": " & $status
   body
+
+proc debugHtml(hash: string): string = debugHtmlIn(root, hash)
+proc txHtml(hash: string): string = txHtmlIn(root, hash)
+
+# The markers that say "this document is a debugging session". Deliberately
+# structural — the pane region, a walked pane id and a rendered line of source
+# — rather than a word on the page: a page that merely SAID "debugger" would
+# satisfy a copy match and none of these.
+const SessionMarkers = [
+  "class=\"dbgmain\"",          # the pane region
+  "id=\"pane-editor\"",         # a pane the LayoutNode walk placed
+  "id=\"pane-calltrace\"",
+  "id=\"pane-metadata\"",       # §7.1's pane, beside the walked tree
+  "class=\"srcline",            # real source, line by line
+  "class=\"dc\"",               # the stepping toolbar
+]
+
+proc isSession(html: string): bool =
+  for m in SessionMarkers:
+    if m notin html.split("</style>")[1]: return false
+  true
+
+proc hasNoSessionMarker(html: string): bool =
+  for m in SessionMarkers:
+    if m in html.split("</style>")[1]: return false
+  true
+
+proc markup(html: string): string =
+  ## The document with the inlined stylesheet removed. Every "this is NOT on
+  ## the page" assertion is made against this: the `<style>` payload names
+  ## `.btn`, `.dc` and every other class the whole site can render, so a
+  ## negative matched against the whole document would be answered by the CSS
+  ## rather than by the markup.
+  html.split("</style>")[1]
 
 proc sessionFor(hash: string): DebugSessionView =
   debugSessionFor(root, Chain, hash)
@@ -183,16 +290,26 @@ suite "M8a — the debug route is served":
     # The two pieces of explorer chrome §8 says collapse.
     check "class=\"nav\"" notin html
     check "class=\"foot\"" notin html
-    # …replaced by the slim identity bar, carrying the identity and the way back.
+    # …replaced by the slim identity bar, carrying the identity and the way
+    # back. The way back is the CHAIN, which is what the link's label says:
+    # §7.0 makes the transaction's own URL this same session, so a link there
+    # would be a link to an identical page.
     check "class=\"dbgbar\"" in html
-    check ("href=\"" & txUrl(Chain, readyTx) & "\"") in html
+    check ("href=\"" & chainUrl(Chain) & "\"") in html
+    check ("href=\"" & txUrl(Chain, readyTx) & "\"") notin html
 
   test "the register is a change of ATTRIBUTE VALUE, not a second stylesheet":
     # Design-System §2: the registers share everything but density, surface and
     # default theme. If the debug page shipped rules the explorer page does not,
     # the register would have become a component library.
+    # The explorer half is read off a page that is STILL the explorer register:
+    # §7.0 sends a transaction with a published trace into the session, so the
+    # transaction route is only an explorer page for the rows that have no
+    # session, and reading it off `readyTx` would compare the debug route with
+    # itself.
     let debugCss = debugHtml(readyTx).split("<style>")[1].split("</style>")[0]
-    let explorerCss = txHtml(readyTx).split("<style>")[1].split("</style>")[0]
+    let explorerCss = txHtml(onDemandTx).split("<style>")[1].split("</style>")[0]
+    check "<html lang=\"en\" data-register=\"explorer\">" in txHtml(onDemandTx)
     check debugCss == explorerCss
 
 suite "M8a — the arrangement is CodeTracer's LayoutNode, consumed":
@@ -607,6 +724,154 @@ suite "M8a — the source pane renders real source, with stable line identity":
     withPublishedSources(withJunk, %*{"sources": {}})
     check withJunk.editor.documents.len == s.editor.documents.len
 
+suite "§7.0 — the transaction page IS the debugger's first frame":
+  ## "The transaction page is not a waiting room before the debugger; it is the
+  ## debugger's first frame." The four assertions below are §7.0's table, read
+  ## off the transaction's OWN URL — the address the divergence was at.
+
+  test "a ready transaction's own URL serves the session, not a page about it":
+    let html = txHtml(readyTx)
+    check isSession(html)
+    # The register follows the surface: this document is the product lineage,
+    # and the explorer chrome §8 collapses is gone from it.
+    check "<html lang=\"en\" data-register=\"debugger\">" in html
+    check "<html lang=\"en\" data-register=\"explorer\">" notin html
+    check "class=\"nav\"" notin markup(html)
+    # …and it is a POSITIONED frame, not an empty debugger shell.
+    check occurrences(html, "class=\"srcline cur") == 1
+    check "pub fn iterate_asteroids" in html
+
+  test "a divergent transaction's own URL serves it too, with the banner":
+    let html = txHtml(divergentTx)
+    check isSession(html)
+    check "class=\"dbgbanner bad\"" in html
+    check "Divergent trace" in html
+
+  test "there is no Debug button, because arriving IS the primary action":
+    # The divergence in one assertion. "A button that opens the debugger is a
+    # link to the primary action, not the primary action" — so on a page that
+    # IS the primary action there is neither the button nor its destination.
+    for h in [readyTx, divergentTx]:
+      let body = markup(txHtml(h))
+      check ">Debug<" notin body
+      check ">Debug (divergent)<" notin body
+      check ("href=\"" & txUrl(Chain, h) & "/debug\"") notin body
+      # …and the waiting room's copy went with it. "A recorded trace is
+      # published — Debug loads it immediately and anonymously" was a sentence
+      # about a button, on a page whose whole job was to carry that button.
+      # (`Trace ready` survives, in the metadata pane's execution list, where
+      # it is a fact about an execution rather than a caption for an action.)
+      check "Debug loads it immediately" notin body
+      check availabilityNote(taReady) notin body
+
+  test "an ABSENT trace is NOT the session, and pretends nothing":
+    # The negative half, over a real tree whose published availability is
+    # `absent` (see `degrade`/`requireDegraded`). §7.0: "the metadata, with the
+    # reason stated. No debugger, and no pretence of one."
+    let html = txHtmlIn(degradedRoot, absentTx)
+    let body = markup(html)
+    check hasNoSessionMarker(html)
+    check "<html lang=\"en\" data-register=\"explorer\">" in html
+    check "<html lang=\"en\" data-register=\"debugger\">" notin html
+    # The reason is stated…
+    check "Structurally unobservable" in body
+    check availabilityState(taAbsent) in body
+    # …and there is no control at all, not even a disabled one. A greyed
+    # button still occupies the primary action's position and still invites
+    # the click it will refuse.
+    check "<button" notin body
+    check ">Debug<" notin body
+    # The transaction itself is complete: §14.1a's "the page never degrades".
+    check "<h2 class=\"sec-title next\">Overview</h2>" in body
+    check "class=\"raw\"" in body
+    # …and the trace-derived sections say NOT EVER rather than not yet.
+    # §14.1a: presenting either as the other is the failure it exists to
+    # prevent, and "they appear here once this transaction has a recorded
+    # trace" is a promise nothing can keep for a structurally absent execution.
+    check "empty permanently, not yet" in body
+    check "once this transaction has a recorded trace" notin body
+    check "Internal calls and state changes come from the execution trace." notin body
+
+  test "an UNSUPPORTED trace is NOT the session either":
+    let html = txHtmlIn(degradedRoot, unsupportedTx)
+    let body = markup(html)
+    check hasNoSessionMarker(html)
+    check "No recorder exists for this VM yet" in body
+    check availabilityState(taUnsupported) in body
+    check "<button" notin body
+    check "<h2 class=\"sec-title next\">Overview</h2>" in body
+    check "no trace can be produced and this section stays empty" in body
+    check "once this transaction has a recorded trace" notin body
+
+  test "on-demand is the metadata and the generate action, and no debugger":
+    let html = txHtml(onDemandTx)
+    let body = markup(html)
+    check hasNoSessionMarker(html)
+    check availabilityLabel(taOnDemand) in body      # "Generate trace"
+    check "it needs an account" in body
+    check "<h2 class=\"sec-title next\">Overview</h2>" in body
+    # …and this row DOES get §7.2's converting line, beside the action that
+    # requests the trace, because on this row a trace can still be had.
+    check "Internal calls and state changes come from the execution trace." in body
+    check "once this transaction has a recorded trace" in body
+
+  test "the availability decides it, exhaustively, over both trees":
+    # Every transaction in both trees, checked against ground truth read out of
+    # the overlay JSON. The counters make the loop's own coverage visible, so
+    # this cannot pass by never reaching a branch.
+    var landings: Table[string, int]
+    for (r, dir) in [(root, workDir), (degradedRoot, degradedDir)]:
+      for h in txHashes:
+        let want = headlineIn(dir, h)
+        let html = txHtmlIn(r, h)
+        case want
+        of "ready", "divergent": check isSession(html)
+        else: check hasNoSessionMarker(html)
+        landings.mgetOrPut(want, 0) += 1
+    for want in ["ready", "divergent", "onDemand", "absent", "unsupported"]:
+      check landings.getOrDefault(want, 0) > 0
+
+  test "both addresses reach the SAME session, not two renderings of one":
+    # §7.0: "Both addresses reach the same session; they differ in what the
+    # visitor asked for." Checked as an equality of the served BODIES, which is
+    # the only form of that claim a second renderer could not satisfy by
+    # accident.
+    for h in [readyTx, divergentTx]:
+      let atTx = txHtml(h)
+      let atDebug = debugHtml(h)
+      check atTx.split("</head>")[1] == atDebug.split("</head>")[1]
+      # What they differ in is what the visitor asked for, and it is in the
+      # head: the title. Everything else a crawler reads is identical.
+      check "<title>Transaction " in atTx
+      check "<title>Debug " in atDebug
+      check ("<link rel=\"canonical\" href=\"" & SiteDomain & "/" & Chain &
+             "/tx/" & h & "\"") in atTx
+      check ("<link rel=\"canonical\" href=\"" & SiteDomain & "/" & Chain &
+             "/tx/" & h & "\"") in atDebug
+
+  test "the transaction route is still the SUBMITTED address; /debug is not":
+    # The pair that makes the two addresses different where it matters. Both
+    # render; only the transaction's own URL is offered to a crawler.
+    let submitted = sitemapRoutes(root)
+    for h in txHashes:
+      check ("/" & Chain & "/tx/" & h) in submitted
+      check ("/" & Chain & "/tx/" & h & "/debug") notin submitted
+      check ("/" & Chain & "/tx/" & h & "/debug") in staticRoutes(root)
+
+  test "§7.0's non-session rows cannot be served the waiting room by accident":
+    # `pages/tx.nim` REFUSES to render a transaction whose trace is published,
+    # rather than trusting the router to route. Without this, reinstating the
+    # divergence would be a one-line change in `ssr.renderTx` that no test
+    # could see, because the old page would still render perfectly well.
+    let info = chainInfo(root, Chain)
+    expect ValueError:
+      discard txPg.txPage(Chain, txView(root, info, readyTx))
+    expect ValueError:
+      discard txPg.txPage(Chain, txView(root, info, divergentTx))
+    # …and it renders the rows that have no session, so the refusal is
+    # specific rather than a page that never renders at all.
+    check txPg.txPage(Chain, txView(root, info, onDemandTx)).len > 0
+
 suite "M8b — availability decides the landing, not a preference":
 
   test "every transaction's phase follows its published availability":
@@ -689,51 +954,102 @@ suite "M8b — availability decides the landing, not a preference":
 suite "M8b — the metadata pane and the page cannot diverge":
 
   test "the pane and the page render the same facts, from one producer":
+    # Two surfaces, and after §7.0 they are served at different addresses: the
+    # metadata PAGE is what a transaction with no session gets, and the metadata
+    # PANE is what one with a session gets. Both are checked against the same
+    # producer, on their own transactions.
     let info = chainInfo(root, Chain)
-    let v = txView(root, info, readyTx)
-    let rows = txMetadataRows(Chain, v)
-    check rows.len > 0
-    let page = txHtml(readyTx)
-    let pane = debugHtml(readyTx)
-    for r in rows:
-      check (">" & r.label & "</dt>") in page
-      check (">" & r.label & "</dt>") in pane
-      check r.value in page
-      check r.value in pane
+    for h in [onDemandTx, readyTx]:
+      let v = txView(root, info, h)
+      let rows = txMetadataRows(Chain, v)
+      check rows.len > 0
+      let served = txHtml(h)
+      let deep = debugHtml(h)
+      for r in rows:
+        check (">" & r.label & "</dt>") in served
+        check (">" & r.label & "</dt>") in deep
+        check r.value in served
+        check r.value in deep
 
-  test "the page carries NO fact the shared producer does not name":
-    # The other direction, and the one a shared helper does not give you for
-    # free: a page can always grow a hand-written row beside the loop. The
-    # overview grid's <dt> set must equal the producer's label set exactly.
-    let info = chainInfo(root, Chain)
-    let v = txView(root, info, readyTx)
-    var expected = initHashSet[string]()
-    for r in txMetadataRows(Chain, v): expected.incl r.label
-
-    let page = txHtml(readyTx)
-    let gridStart = page.find("<dl class=\"dl\">")
-    check gridStart > 0
-    let gridEnd = page.find("</dl>", gridStart)
-    let grid = page[gridStart ..< gridEnd]
-    var rendered = initHashSet[string]()
+  proc dtLabelsIn(html, open: string): HashSet[string] =
+    ## The `<dt>` set of one `<dl>`, by its opening tag.
+    let start = html.find(open)
+    doAssert start > 0, "no " & open & " in the served document"
+    let stop = html.find("</dl>", start)
+    let grid = html[start ..< stop]
     var i = 0
     while true:
       let at = grid.find("<dt>", i)
       if at < 0: break
-      let stop = grid.find("</dt>", at)
-      rendered.incl grid[at + 4 ..< stop]
-      i = stop
-    check rendered == expected
+      let close = grid.find("</dt>", at)
+      result.incl grid[at + 4 ..< close]
+      i = close
+
+  test "neither surface carries a fact the shared producer does not name":
+    # The other direction, and the one a shared helper does not give you for
+    # free: either surface can always grow a hand-written row beside the loop.
+    # The rendered <dt> set must equal the producer's label set exactly — on
+    # the metadata page's `<dl class="dl">` AND on the pane's `<dl
+    # class="mddl">`, which after §7.0 is the grid a crawler of a ready
+    # transaction is actually served.
+    let info = chainInfo(root, Chain)
+
+    var expectedPage = initHashSet[string]()
+    for r in txMetadataRows(Chain, txView(root, info, onDemandTx)):
+      expectedPage.incl r.label
+    check dtLabelsIn(txHtml(onDemandTx), "<dl class=\"dl\">") == expectedPage
+
+    var expectedPane = initHashSet[string]()
+    for r in txMetadataRows(Chain, txView(root, info, readyTx)):
+      expectedPane.incl r.label
+    check dtLabelsIn(txHtml(readyTx), "<dl class=\"mddl\">") == expectedPane
+    check dtLabelsIn(debugHtml(readyTx), "<dl class=\"mddl\">") == expectedPane
+
+  test "the decoded input has one producer too, on both surfaces":
+    # §7.2 section 3. It used to be a hand-written `<dl>` in `pages/tx.nim`
+    # only, which after §7.0 would have meant a ready transaction's own URL
+    # stopped serving its selector and calldata at all.
+    let info = chainInfo(root, Chain)
+
+    var expectedPage = initHashSet[string]()
+    for r in txPayloadRows(txView(root, info, onDemandTx)):
+      expectedPage.incl r.label
+    check expectedPage.len > 0
+    let pageGrids = txHtml(onDemandTx)
+    let decoded = pageGrids[pageGrids.find("Decoded input") .. ^1]
+    check dtLabelsIn(decoded, "<dl class=\"dl\">") == expectedPage
+
+    var expectedPane = initHashSet[string]()
+    for r in txPayloadRows(txView(root, info, readyTx)):
+      expectedPane.incl r.label
+    check dtLabelsIn(txHtml(readyTx), "<dl class=\"mddl mdpayload\">") ==
+          expectedPane
+
+  test "the pane carries §7.2's chain-native payload, so the URL keeps it":
+    # §7.2 section 8 — "the chain-native transaction and receipt JSON,
+    # verbatim". The transaction's own URL served it before this milestone and
+    # still does, on both shapes; that is the crawl surface not regressing.
+    let info = chainInfo(root, Chain)
+    for h in [onDemandTx, readyTx]:
+      let native = txNativePayload(txView(root, info, h))
+      check native.len > 0
+      check "class=\"raw\"" in markup(txHtml(h))
+      check "Raw (chain-native)" in markup(txHtml(h))
 
   test "a mutation to the underlying view moves BOTH surfaces":
     let info = chainInfo(root, Chain)
-    var v = txView(root, info, readyTx)
-    let pageBefore = txPg.txPage(Chain, v)
-    let paneBefore = dbgc.renderMetadata(metadataPane(Chain, v))
+    # The page half is driven from a transaction the page actually renders:
+    # `txPage` refuses a published trace outright (§7.0), so the old spelling
+    # of this test would now be asserting against an exception.
+    var pv = txView(root, info, onDemandTx)
+    var sv = txView(root, info, readyTx)
+    let pageBefore = txPg.txPage(Chain, pv)
+    let paneBefore = dbgc.renderMetadata(metadataPane(Chain, sv))
 
-    v.finality = "reorged"
-    let pageAfter = txPg.txPage(Chain, v)
-    let paneAfter = dbgc.renderMetadata(metadataPane(Chain, v))
+    pv.finality = "reorged"
+    sv.finality = "reorged"
+    let pageAfter = txPg.txPage(Chain, pv)
+    let paneAfter = dbgc.renderMetadata(metadataPane(Chain, sv))
 
     check pageBefore != pageAfter
     check paneBefore != paneAfter
@@ -872,14 +1188,29 @@ suite "M8b — the crawl surface is unchanged":
     # surface cannot regress silently.
     let baseline = parseJson(readFile(
       clientRoot / "tests" / "baselines" / "tx-crawl-surface.json"))
-    for h in txHashes:
-      let html = txHtml(h)
-      check ("<meta name=\"robots\" content=\"" &
-             baseline["txRobots"].getStr & "\"") in html
-      check ("<link rel=\"canonical\" href=\"" & SiteDomain & "/" & Chain &
-             "/tx/" & h & "\"") in html
-      # The inlined entry data the crawler is served is still there.
-      check baseline["txMustContain"].getElems.allIt(it.getStr in html)
+    # Both trees, so the assertion covers all five availability rows and not
+    # only the three the demo generator publishes.
+    var sessions, pages = 0
+    for (r, dir) in [(root, workDir), (degradedRoot, degradedDir)]:
+      for h in txHashes:
+        let html = txHtmlIn(r, h)
+        check ("<meta name=\"robots\" content=\"" &
+               baseline["txRobots"].getStr & "\"") in html
+        check ("<link rel=\"canonical\" href=\"" & SiteDomain & "/" & Chain &
+               "/tx/" & h & "\"") in html
+        # The inlined entry data the crawler is served is still there, on both
+        # shapes §7.0 gives this route.
+        let body = markup(html)
+        check baseline["txMustContain"].getElems.allIt(it.getStr in body)
+        if isSession(html):
+          inc sessions
+          check baseline["txSessionMustContain"].getElems.allIt(it.getStr in body)
+        else:
+          inc pages
+          check baseline["txPageMustContain"].getElems.allIt(it.getStr in body)
+    # Neither branch is passing over an empty loop.
+    check sessions > 0
+    check pages > 0
 
   test "the debug route adds no second indexable copy of the transaction":
     let baseline = parseJson(readFile(
@@ -932,3 +1263,4 @@ suite "the embedded demo on the home page is the same session surface":
     check "class=\"srcline cur" in html
 
 removeDir(workDir)
+removeDir(degradedDir)

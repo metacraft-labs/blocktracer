@@ -13,6 +13,20 @@
 ##     dismissed.** It is markup with no dismiss control, not a control that is
 ##     disabled.
 ##
+## ## This page is also what the TRANSACTION route serves (§7.0)
+##
+## §7.0: "Both addresses reach the same session; they differ in what the
+## visitor asked for." `ssr.renderTx` renders **this procedure**, over the
+## **same** `debugSessionFor` value, wherever `trace.availability` is `ready`
+## or `divergent`. The two routes therefore differ in their `<title>` and in
+## their sitemap membership, and in nothing else — which is the only way "the
+## same session" can be a property of the markup rather than an intention.
+##
+## What the debug address adds is what a visitor asks it for: the viewport
+## without ambiguity, and `?t=` as a deep-link coordinate (§8). What the
+## transaction address adds is that it is the canonical, submitted URL for the
+## transaction. Neither adds a pane.
+##
 ## ## What decides what the visitor lands in
 ##
 ## `trace.availability`, and nothing else — no query parameter, no preference,
@@ -63,9 +77,17 @@ proc shareAnchor(s: DebugSessionView): string =
 proc identityBar(s: DebugSessionView): string =
   ## Debugger-Integration §3's slim bar: back link, identity, status, block,
   ## and the two actions a session offers — share and container download.
+  ##
+  ## The back link targets the CHAIN, which is what its label has always said.
+  ## It used to target the transaction's own URL, on the model of §8's "a link
+  ## back to the detail page" — but §7.0 makes that URL this same session, so
+  ## the link had become a self-link on one route and a link to an identical
+  ## page on the other. The chain overview is the surface a visitor actually
+  ## leaves a session for, and it is the outbound link a `noindex,follow`
+  ## crawl of this page needs.
   ui:
     header(class = "dbgbar"):
-      a(class = "dbgback", href = txUrl(s.chain, s.txHash)):
+      a(class = "dbgback", href = chainUrl(s.chain)):
         text "← " & s.chain
       span(class = "dbgid identifier"): text truncatedHash(s.txHash)
       span(class = "badge " & s.outcomeBadge): text s.outcomeLabel

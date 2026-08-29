@@ -1,25 +1,102 @@
-## Transaction detail (`/{chain}/tx/{hash}`) — Page-Descriptions §7. The most
-## important non-debugger page. Rendered strictly from the three data-plane
-## layers (immutable facts + txstate + the trace overlay); nothing is computed
-## in the page.
+## Transaction detail (`/{chain}/tx/{hash}`) — Page-Descriptions §7, for the
+## availability rows that do NOT open a session.
 ##
-## Sections rendered here (the M5 skeleton subset): hero with the Debug
-## affordance whose behaviour follows `trace.availability`; the overview grid;
-## decoded-input summary; the per-execution trace list (the Aztec private/public
-## split renders honestly — `absent` with its reason, never a failed fetch); and
-## the raw chain-native payload. Deferred sections (events/logs, internal calls,
-## state changes, and the full CodeTracer debugger embed) are shown as honest
-## stubs, matching the spec's degraded-state copy.
+## ## What this page is, and what it is not
+##
+## §7.0's table has three rows and this page is two of them:
+##
+##   | `ready`, `divergent` | **The debugging interface**, with the transaction
+##                            metadata rendered around it (§7.1) |
+##   | `onDemand`           | The metadata, and the generate action |
+##   | `absent`,
+##     `unsupported`       | The metadata, with the reason stated. **No
+##                            debugger, and no pretence of one** |
+##
+## The first row is `pages/debug.nim`, rendered at this route by
+## `ssr.renderTx`: "The debug affordance is the primary action wherever a
+## transaction appears — and a button that opens the debugger is a link to the
+## primary action, not the primary action." A transaction with a published
+## trace therefore never renders this page, and there is deliberately no branch
+## here that would let it: a `Debug` button living on this surface is exactly
+## the waiting room §7.0 forbids, and removing the branch is what stops it
+## growing back.
+##
+## The remaining two rows are what this page serves. They have no session, so
+## there is nothing for a debugger to hydrate over and the metadata IS the
+## page.
+##
+## ## Rendered strictly from the data plane
+##
+## The three data-plane layers (immutable facts + txstate + the trace overlay);
+## nothing is computed in the page. The overview grid and the decoded input
+## come from `viewutil.txMetadataRows` / `txPayloadRows`, which are also what
+## the session's metadata pane renders — §7.1's "rendered in two places … from
+## one source, and the two cannot be allowed to diverge".
 
-import std/json
 import isonim/ssr/escape
 import isonim/dsl/ui
 import ../reader
 import ../viewutil
-import ../components/tables
+import ../debugger/session_view
+
+proc metaGrid(rows: seq[MetaRow]): string =
+  ## One `<dl>` of §7.2 facts, presented the explorer way. It knows how to
+  ## present a row; it does not know which rows a transaction has, so it cannot
+  ## grow a fact the metadata pane lacks — and the pane cannot grow one this
+  ## page lacks.
+  ui:
+    dl(class = "dl"):
+      for r in rows:
+        dt: text r.label
+        dd:
+          if r.href.len > 0:
+            a(href = r.href, class = "identifier"): text r.value
+          elif r.badge.len > 0:
+            span(class = "badge " & r.badge): text r.value
+          elif r.identifier:
+            span(class = "identifier"): text r.value
+          else:
+            text r.value
+          if r.suffix.len > 0:
+            span(class = "muted"): text " " & r.suffix
 
 proc txPage*(chain: string, v: TxView): string =
   let headline = v.headline
+  # §7.0's first row does not render here, and cannot be made to.
+  #
+  # A `Debug` button on this page is "a link to the primary action, not the
+  # primary action", and the way to keep it from growing back is to make the
+  # state that would need one unrenderable rather than to rely on a caller
+  # choosing correctly. `ssr.renderTx` routes `ready` and `divergent` to
+  # `pages/debug.nim`; a routing change that stopped doing so fails the static
+  # export instead of quietly reinstating the waiting room — the same
+  # treatment `components/debugger.weightClass` gives a layout it cannot draw.
+  if headline in {taReady, taDivergent}:
+    raise newException(ValueError,
+      "transaction " & v.hash & " has a " & $headline & " trace, so §7.0 " &
+      "lands it in the debugging interface; ssr.renderTx must render " &
+      "pages/debug.debugPage for it, not the metadata page")
+
+  # §7.2 sections 5 and 6 come from the trace, so what they say depends on
+  # whether one can ever exist. "They appear here once this transaction has a
+  # recorded trace" is true on the on-demand row and is a promise the product
+  # cannot keep on the other two: an execution that publishes no call
+  # structure, and a VM with no recorder, are terminal in different ways.
+  # §14.1a: "'Not now' and 'not ever' are different states. … Presenting
+  # either as the other is the failure this table exists to prevent."
+  let traceSectionNote =
+    case headline
+    of taOnDemand:
+      "come from the execution trace. They appear here once this transaction " &
+      "has a recorded trace."
+    of taAbsent:
+      "come from the execution trace. This execution publishes no call " &
+      "structure, so there is none to record — this section is empty " &
+      "permanently, not yet."
+    else:
+      "come from the execution trace. No recorder exists for this VM yet, so " &
+      "no trace can be produced and this section stays empty until one does."
+  let native = txNativePayload(v)
   ui:
     section(class = "sec"):
       tdiv(class = "inner"):
@@ -44,17 +121,21 @@ proc txPage*(chain: string, v: TxView): string =
           p(class = "muted stack"):
             text outcomeReasonLabel(v.outcome) & ": " & v.outcomeReason
 
-        # ── Debug affordance (follows trace.availability) ─────
+        # ── The trace's state, and the only action it licenses ─
+        #
+        # §7.0: `onDemand` gets "the metadata, and the generate action";
+        # `absent` and `unsupported` get "the metadata, with the reason stated.
+        # No debugger, and no pretence of one."
+        #
+        # So the second pair has NO control at all — not even a disabled one.
+        # A greyed `Not observable` button is still a button: it occupies the
+        # position of the primary action and invites the click it will refuse,
+        # which is the pretence the row rules out. The state is a badge and the
+        # reason is a sentence, and neither pretends to be actionable.
         tdiv(class = "debugcard group"):
           tdiv(class = "row"):
-            case headline
-            of taReady, taDivergent:
-              a(class = "btn primary", href = txUrl(chain, v.hash) & "/debug"):
-                text availabilityLabel(headline)
-            of taOnDemand:
+            if headline == taOnDemand:
               button(class = "btn primary"): text availabilityLabel(headline)
-            of taAbsent, taUnsupported:
-              button(class = "btn disabled"): text availabilityLabel(headline)
             span(class = "badge coverage " & availabilityClass(headline)):
               text availabilityState(headline)
           p(class = "note"): text availabilityNote(headline)
@@ -65,8 +146,15 @@ proc txPage*(chain: string, v: TxView): string =
           # that measurement has no citable id; the round-5 findings on the same
           # separation are ledger@2026-08-29.1:tx-detail/wide/light/L2/3 and
           # ledger@2026-08-29.1:tx-detail/wide/light/L5/6.
-          p(class = "note spec"):
-            text "Internal calls and state changes come from the execution trace."
+          #
+          # It belongs to the ON-DEMAND row only. §7.2 attaches it to "the
+          # Debug button that requests it" — it is the sentence that converts,
+          # and it converts because a trace can still be had. Beside a
+          # transaction whose execution has no call structure, or a VM with no
+          # recorder, the same words describe a section that will never fill.
+          if headline == taOnDemand:
+            p(class = "note spec"):
+              text "Internal calls and state changes come from the execution trace."
           if v.executions.len > 1:
             ul(class = "execlist"):
               for e in v.executions:
@@ -78,65 +166,44 @@ proc txPage*(chain: string, v: TxView): string =
                     span(class = "reason"): text e.reason
 
         # ── Overview grid ─────────────────────────────────────
-        # Rendered from `viewutil.txMetadataRows`, which is ALSO what the
-        # debugger's metadata pane renders (Page-Descriptions §7.1: the two
-        # surfaces render "from one source", and "the two cannot be allowed to
-        # diverge"). This loop knows how to present a row; it does not know
-        # which rows a transaction has, so it cannot grow a fact the pane
-        # lacks — and the pane cannot grow one this page lacks.
         h2(class = "sec-title next"): text "Overview"
-        dl(class = "dl"):
-          for r in txMetadataRows(chain, v):
-            dt: text r.label
-            dd:
-              if r.href.len > 0:
-                a(href = r.href, class = "identifier"): text r.value
-              elif r.badge.len > 0:
-                span(class = "badge " & r.badge): text r.value
-              elif r.identifier:
-                span(class = "identifier"): text r.value
-              else:
-                text r.value
-              if r.suffix.len > 0:
-                span(class = "muted"): text " " & r.suffix
+        raw metaGrid(txMetadataRows(chain, v))
 
-        # ── Decoded input ─────────────────────────────────────
-        h2(class = "sec-title next"): text "Decoded input"
-        dl(class = "dl"):
-          dt: text "Selector"
-          dd:
-            if v.payloadSelector.len > 0:
-              span(class = "identifier"): text v.payloadSelector
-            else:
-              span(class = "muted"): text "—"
-          dt: text "Raw"
-          dd:
-            span(class = "identifier"): text (if v.payloadRaw.len > 0: v.payloadRaw else: "0x")
-        tdiv(class = "stub"):
-          tdiv(class = "measure"):
-            text "This selector is not in any ABI BlockTracer holds, so the "
-            text "parameters are shown as raw bytes. Supplying an ABI decodes them."
+        # ── §7.2's remaining sections ─────────────────────────
+        #
+        # Each is wrapped in a container carrying the section's id, and that is
+        # load-bearing rather than tidy: the capture harness clips a named view
+        # to `#decoded-input`, `#events`, `#internal-calls`, `#state-changes`
+        # and `#raw`, and an id on the HEADING clips the heading — a review
+        # image of two words and no content, filed under the section's name.
+        tdiv(id = "decoded-input"):
+          h2(class = "sec-title next"): text "Decoded input"
+          raw metaGrid(txPayloadRows(v))
+          tdiv(class = "stub"):
+            tdiv(class = "measure"):
+              text UnknownSelectorNote
 
-        # ── Deferred trace-derived sections ───────────────────
-        h2(class = "sec-title next"): text "Events"
-        tdiv(class = "stub"):
-          tdiv(class = "measure"):
-            text "Events come from the transaction receipt, not from a trace. "
-            text "They appear here once this chain's receipts are published."
+        tdiv(id = "events"):
+          h2(class = "sec-title next"): text "Events"
+          tdiv(class = "stub"):
+            tdiv(class = "measure"):
+              text "Events come from the transaction receipt, not from a trace. "
+              text "They appear here once this chain's receipts are published."
 
-        h2(class = "sec-title sibling"): text "Internal calls"
-        tdiv(class = "stub"):
-          tdiv(class = "measure"):
-            text "Internal calls come from the execution trace. They appear here "
-            text "once this transaction has a recorded trace."
+        tdiv(id = "internal-calls"):
+          h2(class = "sec-title sibling"): text "Internal calls"
+          tdiv(class = "stub"):
+            tdiv(class = "measure"):
+              text "Internal calls " & traceSectionNote
 
-        h2(class = "sec-title sibling"): text "State changes"
-        tdiv(class = "stub"):
-          tdiv(class = "measure"):
-            text "State changes come from the execution trace. They appear here "
-            text "once this transaction has a recorded trace."
+        tdiv(id = "state-changes"):
+          h2(class = "sec-title sibling"): text "State changes"
+          tdiv(class = "stub"):
+            tdiv(class = "measure"):
+              text "State changes " & traceSectionNote
 
         # ── Raw native payload ────────────────────────────────
-        if v.native != nil and v.native.kind != JNull:
-          h2(class = "sec-title next"): text "Raw (chain-native)"
-          pre(class = "raw"): text pretty(v.native)
+        if native.len > 0:
+          tdiv(id = "raw"):
+            h2(class = "sec-title next"): text "Raw (chain-native)"
+            pre(class = "raw"): text native

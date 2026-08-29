@@ -73,8 +73,14 @@ proc pageLayout*(title, description, content: string,
 
 proc debugLayout*(title, description, content: string,
                   robots = "noindex,follow", canonical = ""): string =
-  ## The debug route's shell — Page-Descriptions §8: "the explorer chrome
+  ## The debugging session's shell — Page-Descriptions §8: "the explorer chrome
   ## collapses to a slim identity bar".
+  ##
+  ## Two routes reach it, and §7.0 is why: `/{chain}/tx/{hash}` uses it
+  ## wherever a trace is published, because "arriving at a transaction means
+  ## arriving in its execution", and `/{chain}/tx/{hash}/debug` uses it always.
+  ## The shell is the same on both; what differs is the `<title>` and which of
+  ## the two addresses `sitemapRoutes` submits.
   ##
   ## Three differences from `pageLayout`, and each is a decision rather than an
   ## omission:

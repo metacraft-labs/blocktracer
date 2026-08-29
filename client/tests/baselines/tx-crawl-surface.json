@@ -25,14 +25,55 @@
     "suite asserts the route is still RENDERED, so the two do not get fixed by",
     "dropping the page."
   ],
+
+  "_whyTwoShapes": [
+    "Page-Descriptions §7.0 makes the transaction route serve the DEBUGGING",
+    "INTERFACE where a trace is published, and the metadata page where one is",
+    "not. The transaction's own URL therefore has two markup shapes, and this",
+    "baseline gained a split rather than a weakening:",
+    "",
+    "  `txMustContain`        — required of BOTH shapes. Everything a crawler",
+    "                           was served before and must still be served: the",
+    "                           chain-native payload and §7.2's decoded input,",
+    "                           by the words that name them rather than by the",
+    "                           heading markup that used to carry them.",
+    "  `txSessionMustContain` — required of the session shape, and the reason",
+    "                           the headings moved: the facts are in §7.1's",
+    "                           metadata pane, in a `<dl class=\"mddl\">` built",
+    "                           by `viewutil.txMetadataRows` — the same single",
+    "                           producer the page's grid uses.",
+    "  `txPageMustContain`    — required of the metadata shape, which is",
+    "                           unchanged from the recording below.",
+    "",
+    "What did NOT change, and is what the M8b deliverable actually names: the",
+    "robots class, the canonical link, and the facts themselves. No `<dt>`, no",
+    "cost row and no byte of the native payload left the transaction's URL —",
+    "they are rendered inside a pane instead of under an `<h2>`. The test",
+    "asserts the `<dt>` set of whichever grid the shape renders against",
+    "`txMetadataRows`, so a fact that quietly stopped being served fails here."
+  ],
+
   "recordedAt": "2026-08-29",
   "recordedFrom": "client/src/ssr.nim renderTx, before /debug was served",
+  "revisedAt": "2026-08-29",
+  "revisedFor": "Page-Descriptions §7.0 — the transaction route lands in the session",
 
   "txRobots": "noindex,follow",
   "txMustContain": [
     "class=\"raw\"",
+    "Raw (chain-native)",
+    "Decoded input"
+  ],
+  "txSessionMustContain": [
+    "<dl class=\"mddl\">",
+    "id=\"pane-metadata\"",
+    "class=\"dbgmain\""
+  ],
+  "txPageMustContain": [
+    "<dl class=\"dl\">",
     "<h2 class=\"sec-title next\">Overview</h2>",
-    "<h2 class=\"sec-title next\">Decoded input</h2>"
+    "<div id=\"decoded-input\">",
+    "<div id=\"raw\">"
   ],
 
   "debugRobots": "noindex,follow",

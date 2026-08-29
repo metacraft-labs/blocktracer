@@ -129,14 +129,54 @@ proc renderBlock*(r: DataRoot, chain, hash: string): string =
     canonical = SiteDomain & "/" & chain & "/block/" & hash)
 
 proc renderTx*(r: DataRoot, chain, hash: string): string =
+  ## `/{chain}/tx/{hash}` — Page-Descriptions §7.0, whose whole point is that
+  ## **what this route serves depends on the trace, not on a click**:
+  ##
+  ##   `ready`, `divergent`   the debugging interface, with the transaction's
+  ##                          facts as the metadata pane inside it (§7.1)
+  ##   `onDemand`             the metadata, and the generate action
+  ##   `absent`, `unsupported` the metadata, with the reason stated
+  ##
+  ## The first row renders `debugPg.debugPage` over the SAME `debugSessionFor`
+  ## value the `/debug` route renders, in the same `debugLayout`. That is what
+  ## §7.0's "both addresses reach the same session" means as markup: the two
+  ## routes differ in their `<title>` and in their sitemap membership, and in
+  ## nothing else. Arriving at a transaction is arriving in its execution, and
+  ## there is no Debug button here because there is nothing left for one to do.
+  ##
+  ## What this costs, itemised, because §7.0 claims it costs nothing:
+  ##
+  ##   * **The crawl surface.** `robots` and `canonical` are the same values on
+  ##     both branches and are unchanged from before this milestone; §7.2's
+  ##     facts — the overview grid, the decoded input and the chain-native
+  ##     payload — are in the metadata pane on the session branch, from
+  ##     `viewutil`'s producers, so no fact left the transaction's own URL.
+  ##   * **First paint.** Still static HTML; the replay engine is not on the
+  ##     critical path and the page says so (`engineNotice`).
+  ##   * **The fallback.** There is nothing to fall back to. The client ships
+  ##     no JavaScript, so the frame served here is what every visitor sees,
+  ##     and "no state renders less than the pre-hydration page" holds because
+  ##     the pre-hydration page is all there is.
   let info = chainInfo(r, chain)
   let v = txView(r, info, hash)
-  pageLayout(
-    "Transaction " & hash[0 ..< min(10, hash.len)] & "… — " & chain & " — BlockTracer",
-    "Transaction on " & chain & " at block " & $v.height & ".",
-    txPg.txPage(chain, v),
-    robots = "noindex,follow",
-    canonical = SiteDomain & "/" & chain & "/tx/" & hash)
+  let short = hash[0 ..< min(10, hash.len)]
+  let description = "Transaction on " & chain & " at block " & $v.height & "."
+  let canonical = SiteDomain & "/" & chain & "/tx/" & hash
+  let s = debugSessionFor(r, chain, hash)
+  if s.hasFrame:
+    debugLayout(
+      "Transaction " & short & "… — " & chain & " — BlockTracer",
+      description,
+      debugPg.debugPage(s),
+      robots = "noindex,follow",
+      canonical = canonical)
+  else:
+    pageLayout(
+      "Transaction " & short & "… — " & chain & " — BlockTracer",
+      description,
+      txPg.txPage(chain, v),
+      robots = "noindex,follow",
+      canonical = canonical)
 
 proc renderDebug*(r: DataRoot, chain, hash: string): string =
   let s = debugSessionFor(r, chain, hash)
