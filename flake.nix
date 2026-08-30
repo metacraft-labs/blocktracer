@@ -43,7 +43,7 @@
     # different trees. `client/hydrate/build.sh` resolves `$CODETRACER_SRC`,
     # which `packages.default` sets from here.
     codetracer = {
-      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=8d1c84a85034a739804914a33f2f55329b5f051a";
+      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=8d1c84a85034a739804914a33f2f55329b5f051a&submodules=1";
       flake = false;
     };
   };
