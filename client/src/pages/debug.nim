@@ -69,6 +69,7 @@
 
 import isonim/ssr/escape
 import isonim/dsl/ui
+import ../debugger/deeplink_landing
 import ../debugger/session_layout
 import ../debugger/session_view
 import ../debugger/source_document
@@ -76,9 +77,15 @@ import ../debugger/source_island
 import ../components/debugger
 import ../viewutil
 
-proc shareAnchor(s: DebugSessionView): string =
-  ## The `a=` anchor of the share payload (Debugger-Integration §6.0a), as the
-  ## stable id of the line the session is on.
+type SharePosition = object
+  ## What a Share control needs: the §6.0a anchor for the payload, and the
+  ## element id for the fragment.
+  anchor*: string     ## `src:src/shield.nr:32` — §6.0a's `a`
+  element*: string    ## `L-src-shield-nr-32` — the id the page scrolls to
+
+proc sharePosition(s: DebugSessionView): SharePosition =
+  ## The share payload's anchor and the fragment's scroll target, from the line
+  ## the session is on.
   ##
   ## M8a: "Share **always** emits an anchor, never `t` alone." A time
   ## coordinate is a *witness*, not a stable coordinate — §6.0a is explicit
@@ -86,10 +93,22 @@ proc shareAnchor(s: DebugSessionView): string =
   ## silently in the wrong place. The anchor is what a witness mismatch
   ## recovers through, so a share control that cannot produce one is a control
   ## that would emit the link the spec forbids.
+  ##
+  ## The two are different things and used to be one. §6.0a's `src` anchor is
+  ## *file plus line* — a property of the transaction, which a reader's client
+  ## resolves against whatever trace it opens; `SourceLine.anchor` is an HTML
+  ## element id derived from the same pair, for scrolling this document. The
+  ## payload carried the element id, which no client could resolve as an
+  ## anchor, so every share link was a `t` with a decoration where its recovery
+  ## anchor should have been. Both are emitted now, each where it means
+  ## something: the anchor in `a=`, the id in the fragment, so a visitor with no
+  ## script still lands on the line and a visitor with one recovers the
+  ## position when the coordinate no longer transfers.
   for d in s.editor.documents:
     for ln in d.lines:
-      if ln.current: return ln.anchor
-  ""
+      if ln.current:
+        return SharePosition(anchor: "src:" & d.path & ":" & $ln.number,
+                             element: ln.anchor)
 
 proc identityBar(s: DebugSessionView): string =
   ## Debugger-Integration §3's slim bar: back link, identity, status, block,
@@ -172,10 +191,11 @@ proc identityBar(s: DebugSessionView): string =
       # one" §7.0 rules out — and `containerPath` is DERIVABLE for an
       # on-demand execution, so its non-emptiness proves nothing.
       if s.canShare:
-        let anchor = shareAnchor(s)
-        if anchor.len > 0:
+        let share = sharePosition(s)
+        if share.anchor.len > 0:
           a(class = "btn ghost sm",
-            href = "?t=" & $s.timeCoordinate & "#" & anchor):
+            href = positionQuery(s.traceContentHash, s.timeCoordinate,
+                                 share.anchor) & "#" & share.element):
             text "Share"
         else:
           button(class = "btn disabled sm",
@@ -268,9 +288,28 @@ proc debugPage*(s: DebugSessionView): string =
          # what §7.0's `onDemand` row says: no engine, and no pretence of one.
          `data-trace` = (if s.canShare: "/" & s.containerPath else: ""),
          `data-step` = $s.controls.step,
-         `data-total-steps` = $s.controls.totalSteps):
+         `data-total-steps` = $s.controls.totalSteps,
+         # §6.0's content witness needs something to be a witness OF. The
+         # comparison happens in a browser, before the engine has opened
+         # anything, against "the artifact currently recommended" — which is a
+         # fact of the published tree that this page has already resolved and
+         # the bundle has no other way to learn. Emitted for every state,
+         # including the ones with no container: an empty value is `absent`,
+         # which §6.0's table treats as unverifiable rather than as agreement.
+         `data-content-hash` = s.traceContentHash):
       raw identityBar(s)
       raw banner(s)
+      # §6.0a's landing notice. Empty on every statically exported page, and
+      # necessarily so: the payload is in the query, and a static route serves
+      # one file per PATH — `?t=` cannot select a rendering. The resolution
+      # therefore happens in the browser, and this is the slot it writes into.
+      #
+      # Rendered through the same producer either way, so the sentence a
+      # hydrated page shows is the one this renderer would have written. That
+      # is the rule every surface on this route follows and the reason the pane
+      # renderers are reachable from a `nim js` build at all.
+      tdiv(class = "dbgnotices", id = PositionNoticeSlotId):
+        raw renderPositionNotice(s)
       tdiv(class = "dbgnarrow"):
         # Named by their pane TITLES, so the sentence and the headers a reader
         # can see agree. It said "source, call trace and values" while the

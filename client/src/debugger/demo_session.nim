@@ -33,6 +33,7 @@
 import std/[algorithm, json, os, tables]
 import ../reader
 import ../viewutil
+import ./deeplink_landing
 import ./demo_flow
 import ./flow_view
 import ./replay_engine
@@ -197,6 +198,10 @@ proc fixtureCalltrace(): CallTracePane =
     frame("calculate_damage", 2, 112, "63", current = true),
     frame("calculate_remaining_shield_pct", 3, 120, "11"),
   ]
+  # §6.0a's `call:` anchors, from the shared derivation. Stamped here rather
+  # than spelled per frame so the path a share link emits and the path an
+  # incoming link resolves against are one function's output.
+  withCallAnchors(result)
 
 proc fixtureState(): StatePane =
   ## The values are **computed from the recorded program and its recorded
@@ -262,6 +267,9 @@ proc fixtureEventLog(reverted: bool): EventLogPane =
     result.rows.add EventRow(kind: evRevert, step: 1299,
       label: "assert(did_survive_positive == true)",
       detail: "constraint not satisfied — the shields did not hold")
+  # `log:`, `sw:` and `revert` anchors, per §6.0a's kind table. Same reason as
+  # the call trace's: one derivation, so emitting and resolving agree.
+  withEventAnchors(result)
 
 proc fixtureControls(positioned, live: bool; steps: int): DebugControlsPane =
   ## `positioned` is "the panes carry a step"; `live` is "the engine can move
@@ -328,6 +336,7 @@ proc metadataPane*(chain: string; v: TxView): MetadataPane =
 proc demoSession*(chain: string; v: TxView;
                   timeCoordinate = 0;
                   containerPath = ""; containerBytes = 0;
+                  contentHash = "";
                   totalSteps = FixtureTotalSteps): DebugSessionView =
   ## The pre-hydration frame for one transaction, with `trace.availability`
   ## deciding what it is — Page-Descriptions §7.0's table, applied to the
@@ -354,6 +363,11 @@ proc demoSession*(chain: string; v: TxView;
   result.timeCoordinate = timeCoordinate
   result.containerPath = containerPath
   result.containerBytes = containerBytes
+  # Carried in every state, including the ones with no session: §6.0a's step 1
+  # is "no replayable artifact → state that", and a browser has to be able to
+  # tell that apart from "a different artifact", which needs the hash to be
+  # absent for a real reason rather than absent because nobody passed it.
+  result.traceContentHash = contentHash
   result.languages = @[DemoLanguage]
   result.engineBase = ReplayEngineBase
   result.engineCrossOrigin = replayEngineIsCrossOrigin()

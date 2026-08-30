@@ -510,86 +510,135 @@ proc depthClass*(depth: int): string =
   elif depth <= MaxIndentDepth: "d" & $depth
   else: "d" & $MaxIndentDepth & " deeper"
 
-func costKey(f: CallFrame): int =
-  ## The cost column's sort key. The producer has already FORMATTED the cost
-  ## for display (`"1,315"`), so the separators come back out to compare it.
-  ## A frame whose cost is not a number sorts last rather than crashing the
-  ## page — a cost column can legitimately carry `—` for an unmetered frame.
-  for c in f.cost:
-    if c in {'0'..'9'}: result = result * 10 + (ord(c) - ord('0'))
-    elif c notin {',', '_', ' '}: return -1
+const SelfCostViewId* = "calltrace-self-cost"
+  ## The aggregate view's `:target` id. Named here because the footer link, the
+  ## panel and the capture harness all address it and a third spelling is a
+  ## view that can be reached but never marked.
 
 proc renderCallTrace*(p: CallTracePane): string =
   if p.frames.len == 0:
     return paneNote(if p.note.len > 0: p.note else:
       "The call structure comes from the execution trace.")
 
-  proc rows(frames: seq[CallFrame]; indented: bool): string =
+  proc frameCells(f: CallFrame): string =
+    ## The row's contents, so the two element shapes below cannot drift. A row
+    ## is an `<a>` when the producer gave it a destination and a `<div>` when it
+    ## did not, and everything inside is written once.
+    let name = ui:
+      span(class = "ctfn"):
+        span(class = "ctname " & Copyable): text f.fn
+        span(class = "ctmod"): text f.module
+    let cost = ui:
+      span(class = "ctcost num"): text f.cost
+    name & cost
+
+  proc rows(frames: seq[CallFrame]): string =
     ui:
       tdiv(class = "ctrows"):
         for f in frames:
           # `data-step` is the time coordinate the frame starts at — the same
           # coordinate `?t=` carries (Debugger-Integration §6.2), which is why
-          # it needs no protocol of its own. §3's last deferral is that "no row
-          # in the navigation region is a jump target yet", and its stated
-          # reason is that "until hydration lands such a link would reload the
-          # page at a coordinate the static export cannot honour". So the
-          # coordinate ships as DATA and the affordance does not: with
-          # scripting off this row is what it has always been, and hydration is
-          # what turns it into something clickable.
-          tdiv(class = "ctrow " & (if indented: depthClass(f.depth) else: "d0 flat") &
-                       (if f.current: " cur" else: ""),
-               `data-step` = $f.step):
-            span(class = "ctfn"):
-              span(class = "ctname " & Copyable): text f.fn
-              span(class = "ctmod"): text f.module
-            span(class = "ctcost num"): text f.cost
-
-  # Sorted by cost, descending. Rendered FLAT and not indented: the rows are no
-  # longer in call order, so an indent would draw a tree that the ordering does
-  # not describe — the one way a sorted call trace can lie.
-  var byCost = p.frames
-  for i in 1 ..< byCost.len:
-    let cur = byCost[i]
-    var j = i - 1
-    while j >= 0 and costKey(byCost[j]) < costKey(cur):
-      byCost[j + 1] = byCost[j]
-      dec j
-    byCost[j + 1] = cur
+          # it needs no protocol of its own.
+          #
+          # `href` is what turns the row into a jump target, and it is the
+          # PRODUCER's decision, not this renderer's. §3 deferred these on the
+          # grounds that "until hydration lands such a link would reload the
+          # page at a coordinate the static export cannot honour" — which is
+          # still true of a static export, because a query string does not
+          # select a file. What changed is that hydration now READS the
+          # coordinate (§6.0a), so a link is honourable exactly where a script
+          # is running to honour it. The served page keeps rows that are rows;
+          # the hydrated page has anchors, and gets focus, Enter, middle-click
+          # and the status bar from the platform rather than from a `keydown`
+          # handler that would have to reimplement all four.
+          #
+          # `data-anchor` rides alongside as the row's §6.0a recovery anchor.
+          # It is what makes the SERVED page able to resolve an incoming link
+          # before a byte is fetched: §7.0 makes this page the session's first
+          # frame from published data, so these rows already describe the
+          # artifact the link is about, and §6.3 wants resolution "before first
+          # paint" rather than after a round trip to an engine that has not
+          # loaded. Inert either way — a row with no href does nothing with it.
+          let cls = "ctrow " & depthClass(f.depth) &
+                    (if f.current: " cur" else: "")
+          if f.href.len > 0:
+            a(class = cls, href = f.href, `data-step` = $f.step,
+              `data-anchor` = f.anchor):
+              raw frameCells(f)
+          else:
+            tdiv(class = cls, `data-step` = $f.step, `data-anchor` = f.anchor):
+              raw frameCells(f)
 
   let unit = (if p.costUnit.len > 0: p.costUnit
               elif p.frames.len > 0: p.frames[0].costUnit else: "")
-  proc head(): string =
+
+  proc head(first, cost: string; withCalls: bool): string =
     ## The unit belongs to the COLUMN, not to every row in it. Repeating it per
     ## row spends width on a token that never varies, and the width it spends
     ## is taken from the frame column, which is the one that truncates.
     ui:
       tdiv(class = "cthead"):
-        span(class = "ctfn"): text "Frame"
+        span(class = "ctfn"): text first
+        if withCalls:
+          span(class = "ctcalls"): text "Calls"
         span(class = "ctcost"):
-          text p.costLabel
+          text cost
           if unit.len > 0:
             span(class = "ctunit"): text " " & unit
 
-  # The cost-sorted view is a REAL alternate view reached by a `:target` link,
-  # on the same no-JavaScript mechanism as the pane stack's tabs — not a label
-  # styled as an action. VD.5's first round recorded `.ctsort` as an affordance
-  # that lies; a sort that sorts is the fix, and it is also the milestone's own
-  # "including the cost column and cost-sorted view".
+  # ── the aggregate view ───────────────────────────────────────────────────
+  #
+  # This replaced a cost-SORTED view, and the replacement is the finding rather
+  # than the ranking: Chrome DevTools' `Bottom-up` is an AGGREGATION, and
+  # sorting 500 frames gives 500 rows in a new order while aggregating gives
+  # ~30 whose top row is the answer. `session_view.selfCostRows` does the
+  # arithmetic — self cost is a frame's cost with its direct callees' taken out
+  # — and this renders it.
+  #
+  # Still FLAT, and for the reason the sorted view was: these rows are not in
+  # call order. There a flat rendering avoided drawing a tree the ordering did
+  # not describe; here there is no tree to draw at all, because a function is
+  # not a frame and has no depth. The reasoning survives the change that made
+  # it moot, which is why it is restated rather than deleted.
+  proc costRows(): string =
+    ui:
+      tdiv(class = "ctrows"):
+        for r in selfCostRows(p):
+          tdiv(class = "ctrow d0 flat" & (if r.unmetered: " partial" else: "")):
+            span(class = "ctfn"):
+              span(class = "ctname " & Copyable): text r.fn
+              span(class = "ctmod"): text r.module
+            span(class = "ctcalls num"): text $r.calls
+            if r.unmetered:
+              # A floor, marked as one. An aggregate that silently dropped an
+              # unmetered frame would rank this function below one it may well
+              # exceed, and the number would look exactly like a total.
+              span(class = "ctcost num floor",
+                   title = "At least one frame of this function reported no " &
+                           "metered cost, so this total is a floor."):
+                span(class = "ctfloorsign"): text "≥"
+                text formatCost(r.cost)
+            else:
+              span(class = "ctcost num"): text formatCost(r.cost)
+
+  # Both views are REAL alternates reached by a `:target` link, on the same
+  # no-JavaScript mechanism as the pane stack's tabs — not a label styled as an
+  # action. VD.5's first round recorded `.ctsort` as an affordance that lies;
+  # a control that switches a view is the fix.
   ui:
     tdiv(class = "ct"):
-      tdiv(class = "ctview alt", id = "calltrace-by-cost"):
-        raw head()
-        raw rows(byCost, indented = false)
+      tdiv(class = "ctview alt", id = SelfCostViewId):
+        raw head("Function", "Self " & p.costLabel, withCalls = true)
+        raw costRows()
         tdiv(class = "ctfoot"):
-          span: text "Sorted by cost."
-          a(class = "ctsort", href = "#pane-calltrace"): text "Sort by call order"
+          span: text "By function — self cost, callees excluded."
+          a(class = "ctsort", href = "#pane-calltrace"): text "Call order"
       tdiv(class = "ctview def"):
-        raw head()
-        raw rows(p.frames, indented = true)
+        raw head("Frame", p.costLabel, withCalls = false)
+        raw rows(p.frames)
         tdiv(class = "ctfoot"):
-          span: text "Sorted by call order."
-          a(class = "ctsort", href = "#calltrace-by-cost"): text "Sort by cost"
+          span: text "By call order."
+          a(class = "ctsort", href = "#" & SelfCostViewId): text "Self cost"
 
 proc renderState*(p: StatePane): string =
   if p.values.len == 0:
@@ -616,21 +665,71 @@ proc renderEventLog*(p: EventLogPane): string =
   if p.rows.len == 0:
     return paneNote(if p.note.len > 0: p.note else:
       "Calls, storage writes and events come from the execution trace.")
+
+  proc eventCells(r: EventRow): string =
+    ## As in the call trace: the contents are written once and the element
+    ## shape is the producer's decision. §4.2 calls clicking an event row "the
+    ## single most valuable interaction in the product — 'take me to the line
+    ## that wrote this value'", and an event row is the ONE surface where the
+    ## storage writes are individually addressable, so it is a jump target on
+    ## exactly the same terms as a call frame rather than on weaker ones.
+    let glyph = ui:
+      span(class = "evglyph"): text eventKindGlyph(r.kind)
+    let kind = ui:
+      span(class = "evkind"): text eventKindLabel(r.kind)
+    let step = ui:
+      span(class = "evstep num"): text $r.step
+    let label = ui:
+      span(class = "evlabel " & Copyable): text r.label
+    let detail = ui:
+      span(class = "evdetail"): text r.detail
+    glyph & kind & step & label & detail
+
   ui:
     tdiv(class = "ev"):
       for r in p.rows:
-        # The same inert coordinate the call trace carries, for the same
-        # reason. §4.2 calls clicking an event row "the single most valuable
-        # interaction in the product — 'take me to the line that wrote this
-        # value'"; `EventRow.step` is already the step identity it needs, and
-        # this attribute is the only thing that was missing between the two.
-        tdiv(class = "evrow k-" & $r.kind & (if r.current: " cur" else: ""),
-             `data-step` = $r.step):
-          span(class = "evglyph"): text eventKindGlyph(r.kind)
-          span(class = "evkind"): text eventKindLabel(r.kind)
-          span(class = "evstep num"): text $r.step
-          span(class = "evlabel " & Copyable): text r.label
-          span(class = "evdetail"): text r.detail
+        let cls = "evrow k-" & $r.kind & (if r.current: " cur" else: "")
+        if r.href.len > 0:
+          a(class = cls, href = r.href, `data-step` = $r.step,
+            `data-anchor` = r.anchor):
+            raw eventCells(r)
+        else:
+          tdiv(class = cls, `data-step` = $r.step, `data-anchor` = r.anchor):
+            raw eventCells(r)
+
+const PositionNoticeSlotId* = "dbg-position-notice"
+  ## The element `renderPositionNotice`'s output goes in.
+  ##
+  ## A named, always-emitted slot rather than an insertion point hydration
+  ## computes: `readUi` resolves every element it writes to once, at a point
+  ## where failing means "do not hydrate", and a notice that could not find
+  ## somewhere to go would otherwise fail silently — which is precisely the
+  ## silent landing §6.0a exists to prevent, reintroduced by the mechanism
+  ## meant to prevent it.
+
+proc renderPositionNotice*(s: DebugSessionView): string =
+  ## §6.0a's visible branches, as the one sentence the visitor is owed.
+  ##
+  ## "Every branch below (2) is *visible*. The client never silently lands
+  ## somewhere other than where the link pointed." This is where that stops
+  ## being a property of a data structure and becomes something on a screen.
+  ##
+  ## Renders NOTHING for an ordinary visit and nothing for an exact hit — the
+  ## two cases where the page is showing precisely what was asked for and a
+  ## banner would be noise that trains readers to ignore the one that matters.
+  ## Every other outcome renders, whatever it is, because the decision about
+  ## which branches speak belongs to `resolvePosition` and is made once.
+  ##
+  ## `role="status"` and not `role="alert"`: nothing is wrong. A recovered
+  ## position is the product working as designed, and the divergence banner
+  ## above it is the one that interrupts. The outcome travels as
+  ## `data-landing` so the state is inspectable — by a test, by the capture
+  ## harness, and by anyone reading the DOM — without parsing the sentence.
+  if not s.landing.isVisible: return ""
+  ui:
+    tdiv(class = "dbgnotice", role = "status", `data-landing` = s.landing.outcome):
+      span(class = "noticetitle"): text "Position"
+      span(class = "noticetext"): text s.landing.statement
 
 proc renderPhaseRail*(s: DebugSessionView): string =
   ## §8: "Loading is phased and honest — fetching, then opening, then

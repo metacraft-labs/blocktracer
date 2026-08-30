@@ -39,8 +39,10 @@ import std/[options, strutils]
 
 import codetracer_embed
 
+import ../src/debugger/deeplink_landing
 import ../src/debugger/session_view
 import ../src/debugger/source_island
+export deeplink_landing
 
 # ---------------------------------------------------------------------------
 # One store, one backend, five ViewModels
@@ -255,7 +257,15 @@ proc projectFlowRail*(vm: FlowVM; path: string): FlowRail =
     result.iterations.add FlowIteration(
       index: index, ticks: ticks, reached: true)
 
-proc projectCalltrace*(vm: CalltraceVM): CallTracePane =
+proc projectCalltrace*(vm: CalltraceVM; contentHash = ""): CallTracePane =
+  ## The frames, with the two things that make a row a jump target.
+  ##
+  ## `contentHash` is the artifact the page is opening — `traceContentHash`,
+  ## from the served DOM. It is not decoration on the link: §6.0a requires `t`
+  ## to travel with the content witness `c`, so a row link built without it
+  ## would be one this product's own reader treats as unverifiable. The hash
+  ## therefore reaches the projection rather than the renderer, because the
+  ## renderer must not build URLs and the ViewModel does not know it.
   result.costLabel = "ACIR"
   for line in vm.visibleLines.val:
     result.frames.add CallFrame(
@@ -268,6 +278,12 @@ proc projectCalltrace*(vm: CalltraceVM): CallTracePane =
       # the markup, and what a click on the row hands back to the engine.
       step: int(line.rrTicks),
       current: vm.selectedEntry.val == some(line.index))
+  # The anchors first, because the href carries one. Both derived by the shared
+  # functions, so a live session's `call:` paths are the static export's.
+  withCallAnchors(result)
+  for i in 0 ..< result.frames.len:
+    result.frames[i].href = positionQuery(
+      contentHash, result.frames[i].step, result.frames[i].anchor)
 
 proc projectState*(vm: StateVM): StatePane =
   for v in vm.currentVariables.val:
@@ -291,7 +307,7 @@ proc kindOf*(row: EventLogRow): EventKind =
   of "output", "stdout": evOutput
   else: evEvent
 
-proc projectEventLog*(vm: EventLogVM): EventLogPane =
+proc projectEventLog*(vm: EventLogVM; contentHash = ""): EventLogPane =
   ## The page the EventLogVM's paging signals select. The VM owns the rows, the
   ## page index and the page size and exposes no pre-sliced memo, so the slice
   ## is the consumer's — which is the right side of the boundary for it: how
@@ -307,6 +323,14 @@ proc projectEventLog*(vm: EventLogVM): EventLogPane =
       label: row.file & ":" & $row.line,
       detail: row.value,
       current: vm.selectedRow.val == some(row.eventIndex))
+  # The same staging as the call trace, and the same reason it matters here
+  # more: §4.2 calls a click on an event row "the single most valuable
+  # interaction in the product — 'take me to the line that wrote this value'".
+  # It is the only surface on which an individual storage write is addressable.
+  withEventAnchors(result)
+  for i in 0 ..< result.rows.len:
+    result.rows[i].href = positionQuery(
+      contentHash, result.rows[i].step, result.rows[i].anchor)
 
 func toolbarActionId*(a: DebugAction): string =
   ## BlockTracer's `DebugAction` → the `actionId` `DebugControlsVM
@@ -399,9 +423,14 @@ proc projectReplayPanes*(s: LiveSession; base: DebugSessionView;
   if result.editor.availability == SourceAvailabilityView.srcSourceLevel:
     result.editor.flow =
       projectFlowRail(s.flow, s.store.debugger.val.location.file)
-  result.calltrace = projectCalltrace(s.calltrace)
+  # `base.traceContentHash` and not a value from the engine: §6.0's witness is
+  # a fact about the artifact the PAGE recommends, which the served DOM carries
+  # and the engine has no opinion about. Reading it from `base` is also what
+  # keeps the rows' links pointing at the same trace the metadata pane
+  # describes.
+  result.calltrace = projectCalltrace(s.calltrace, base.traceContentHash)
   result.state = projectState(s.state)
-  result.eventLog = projectEventLog(s.eventLog)
+  result.eventLog = projectEventLog(s.eventLog, base.traceContentHash)
   result.controls = projectControls(
     s.controls, int(s.store.debugger.val.rrTicks), base.controls.totalSteps,
     live = true)

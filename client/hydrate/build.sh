@@ -81,6 +81,14 @@ paths=(
 	"--path:${ct}/src/frontend"
 	"--path:${ct}/src"
 	"--path:${repo_root}/client/src"
+	# The repository's own `src`, for `blocktracer_client_deeplink` — the
+	# Client SDK's browser-compilable entry point. §6.0a's grammar and its
+	# five-step precedence live there and are what `hydrate.nim` resolves an
+	# incoming link with; the FACADE cannot be on this path, because its graph
+	# reaches `std/sha1` and `nim js` cannot compile `std/endians`.
+	# `ci/test/client-sdk-boundary.sh` is what keeps that entry point narrow
+	# enough for this build to be possible.
+	"--path:${repo_root}/src"
 )
 [ -n "${isonim}" ] && paths+=("--path:${isonim}/src")
 [ -n "${neverywhere}" ] && paths+=("--path:${neverywhere}/src")

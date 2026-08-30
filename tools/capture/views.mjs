@@ -87,12 +87,24 @@ export const RANDOM_SEED = 0x5eed_10ce;
 //
 // The route is STATIC, which has a consequence worth stating rather than
 // discovering: a query string cannot change what a static file server
-// returns, so `?t=` does not yet move the session. It is carried because a
-// capture URL must be the URL the product uses, and because the moment
-// hydration lands (WorkerBackendService, Debugger-Integration §2) the same URL
-// starts positioning the session for real. Where a view needs a DIFFERENT
-// session, it selects a different transaction — which is a real difference in
-// the published tree — rather than a different query parameter.
+// returns, so `?t=` does not move the session in a captured build. It is
+// carried because a capture URL must be the URL the product uses. Where a view
+// needs a DIFFERENT session, it selects a different transaction — which is a
+// real difference in the published tree — rather than a different query
+// parameter.
+//
+// UPDATED 2026-08-30, and the update is a caveat rather than a change. The
+// hydration bundle now READS this coordinate (Debugger-Integration §6.0a), so
+// the same URL positions a live session for real — but only where the bundle
+// is present, and `runExporter` in `capture.mjs` compiles `static_export.nim`
+// with no `-d:hydrationBundle`, so a captured page carries no script and the
+// query stays inert. What a capture must NOT start doing is stand in for a
+// deep-link test: a bare `?t=` has no content witness, and §6.0's table treats
+// a witness-less coordinate as unverifiable, so a HYDRATED build served this
+// URL would open at the start of the execution and say so. That is correct
+// behaviour and it is exercised where it belongs —
+// `client/tests/test_debug_route.nim`'s §6.0a suite, case 5(b) — rather than
+// inferred from a screenshot of a page with no script on it.
 export const DEBUG_TIME_COORDINATE = "1";
 export const DEBUG_TIME_COORDINATE_MID = "128";
 

@@ -107,6 +107,24 @@ EMBED_HANDOFF_REL="src/blocktracer_client_embed.nim"
 EMBED_HANDOFF_MODULE="blocktracer_client_embed"
 EMBED_FACADE_MODULE="codetracer_embed"
 
+# The one entry point a BROWSER build may import instead of the facade, and the
+# single internal it is allowed to carry.
+#
+# The facade's graph reaches `std/sha1` (via `blocktracer/contract/ids`), which
+# does not compile on the JS backend, so `client/hydrate/` — the bundle that
+# reads a shared URL and decides where the session lands — cannot import it.
+# §6.0a's grammar and precedence need nothing but `std/strutils` and
+# `std/tables`, so they get a named entry point of their own.
+#
+# What this guard enforces is that the entry point stays that narrow. Its whole
+# value is being compilable for a browser; a second internal reaching into the
+# reader or the contract would take that away silently — `nim js` would fail in
+# a repository whose lint was green, or worse, the import would be pure and the
+# next one would not be.
+DEEPLINK_ENTRY_REL="src/blocktracer_client_deeplink.nim"
+DEEPLINK_ENTRY_MODULE="blocktracer_client_deeplink"
+DEEPLINK_INTERNAL_REL="src/blocktracer_client/deeplink.nim"
+
 # Where an unqualified module spec is looked up, after the importing file's own
 # directory. Mirrors client/nim.cfg and the repo's own layout.
 SEARCH_ROOTS=("src" "client/src" ".")
@@ -592,6 +610,10 @@ elif ! grep -q "BlockTracerClientEmbedModule\* = \"${EMBED_HANDOFF_MODULE}\"" "$
 	check_failed "facade-present"
 	violation_detail "${FACADE_REL} does not declare BlockTracerClientEmbedModule* = \"${EMBED_HANDOFF_MODULE}\";"
 	violation_detail "the handoff module's name and the name this guard enforces have drifted apart"
+elif ! grep -q "BlockTracerClientDeepLinkModule\* = \"${DEEPLINK_ENTRY_MODULE}\"" "${FACADE_REL}"; then
+	check_failed "facade-present"
+	violation_detail "${FACADE_REL} does not declare BlockTracerClientDeepLinkModule* = \"${DEEPLINK_ENTRY_MODULE}\";"
+	violation_detail "the browser entry point's name and the name this guard enforces have drifted apart"
 else
 	check_ok "facade-present"
 	facade_ok=1
@@ -690,6 +712,55 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Check 4b: the browser entry point stays browser-compilable
+#
+# Not "it imports the right module" but "its whole closure is the two modules
+# it is allowed to be". A reach into the reader, the contract or the facade
+# would compile perfectly well on the C backend and break the ONE build this
+# module exists for, in another directory, with an error naming `std/endians`.
+# ---------------------------------------------------------------------------
+
+if [ ! -f "${DEEPLINK_ENTRY_REL}" ]; then
+	check_failed "deeplink-entry-present"
+	violation_detail "${DEEPLINK_ENTRY_REL} does not exist — a browser build has no way to reach"
+	violation_detail "§6.0a's link grammar, and the client would have to restate the precedence"
+	violation_detail "that decides where a shared link lands (Debugger-Integration.md §6.0a)."
+elif [ ! -f "${DEEPLINK_INTERNAL_REL}" ]; then
+	check_failed "deeplink-entry-present"
+	violation_detail "${DEEPLINK_INTERNAL_REL} does not exist — the entry point re-exports nothing"
+else
+	deeplink_violations=0
+	saw_deeplink_internal=0
+	deeplink_closure=()
+	while IFS= read -r line; do deeplink_closure+=("${line}"); done < <(closure_of "${DEEPLINK_ENTRY_REL}" | sort -u)
+	for m in ${deeplink_closure[@]+"${deeplink_closure[@]}"}; do
+		case "${m}" in
+		"${DEEPLINK_ENTRY_REL}") ;;
+		"${DEEPLINK_INTERNAL_REL}") saw_deeplink_internal=1 ;;
+		*)
+			deeplink_violations=$((deeplink_violations + 1))
+			violation_detail "${DEEPLINK_ENTRY_MODULE}'s graph reaches ${m}"
+			violation_detail "  The browser entry point may carry ${DEEPLINK_INTERNAL_REL} and nothing"
+			violation_detail "  else. Its value is that it compiles under \`nim js\`; the facade does not,"
+			violation_detail "  because blocktracer/contract/ids hashes with std/sha1 and std/endians uses"
+			violation_detail "  copyMem. Widening this is a deliberate edit here, not an import over there."
+			;;
+		esac
+	done
+	if [ "${saw_deeplink_internal}" -eq 0 ]; then
+		deeplink_violations=$((deeplink_violations + 1))
+		violation_detail "${DEEPLINK_ENTRY_REL} does not reach ${DEEPLINK_INTERNAL_REL}"
+		violation_detail "  This module exists to re-export the deep-link grammar. If it stops doing so,"
+		violation_detail "  the check above is being asserted about an empty graph."
+	fi
+	if [ "${deeplink_violations}" -eq 0 ]; then
+		check_ok "deeplink-entry-browser-safe: ${DEEPLINK_ENTRY_REL} carries only ${DEEPLINK_INTERNAL_REL}"
+	else
+		check_failed "deeplink-entry-browser-safe: ${deeplink_violations} violation(s)"
+	fi
+fi
+
+# ---------------------------------------------------------------------------
 # Check 5: declared consumers reach this package only through the facade
 # ---------------------------------------------------------------------------
 
@@ -710,7 +781,8 @@ for c in ${consumers[@]+"${consumers[@]}"}; do
 		consumer_violations=$((consumer_violations + 1))
 		violation_detail "${c} imports '${spec}' -> ${resolved}"
 		violation_detail "  That is a Client SDK internal. A consumer may import only"
-		violation_detail "  '${FACADE_MODULE}' (or '${EMBED_HANDOFF_MODULE}' to open a trace)."
+		violation_detail "  '${FACADE_MODULE}' (or '${EMBED_HANDOFF_MODULE}' to open a trace, or"
+		violation_detail "  '${DEEPLINK_ENTRY_MODULE}' from a browser build that cannot compile the facade)."
 	done < <(nim_imports "${c}")
 done
 

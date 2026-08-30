@@ -72,9 +72,13 @@ make_sdk_tree() {
 import blocktracer_client/store
 export store
 
+import blocktracer_client/deeplink
+export deeplink
+
 const
   BlockTracerClientFacadeModule* = "blocktracer_client"
   BlockTracerClientEmbedModule* = "blocktracer_client_embed"
+  BlockTracerClientDeepLinkModule* = "blocktracer_client_deeplink"
 EOF
 
 	cat >"${d}/src/blocktracer_client/store.nim" <<'EOF'
@@ -82,6 +86,22 @@ import std/json
 
 type ObjectStore* = object
   name*: string
+EOF
+
+	# The browser-compilable half: a leaf internal, and the entry point that is
+	# allowed to carry it and nothing else.
+	cat >"${d}/src/blocktracer_client/deeplink.nim" <<'EOF'
+import std/strutils
+
+type DeepLink* = object
+  coordinate*: string
+
+proc parseDeepLink*(s: string): DeepLink = DeepLink(coordinate: s.strip)
+EOF
+
+	cat >"${d}/src/blocktracer_client_deeplink.nim" <<'EOF'
+import blocktracer_client/deeplink
+export deeplink
 EOF
 
 	cat >"${d}/src/blocktracer_client_embed.nim" <<'EOF'
@@ -213,6 +233,48 @@ cat >>"${t}/src/blocktracer_client/store.nim" <<'EOF'
 # path and nothing else (CodeTracer-Identity.md §4).
 EOF
 expect_guard 0 "an identity word in a COMMENT is not a violation (a module may state the rule)" --root "${t}"
+
+# ---------------------------------------------------------------------------
+# The browser entry point (check 4b). Its whole value is that `nim js` can
+# compile it, and every case below is a way that stops being true while the C
+# backend keeps building.
+# ---------------------------------------------------------------------------
+
+t="${work}/deeplink-entry-missing"
+make_sdk_tree "${t}"
+rm "${t}/src/blocktracer_client_deeplink.nim"
+expect_guard 1 "a MISSING browser entry point is rejected (the client would have to restate §6.0a)" --root "${t}"
+
+t="${work}/deeplink-entry-reaches-facade"
+make_sdk_tree "${t}"
+cat >"${t}/src/blocktracer_client_deeplink.nim" <<'EOF'
+import blocktracer_client
+export blocktracer_client
+
+import blocktracer_client/deeplink
+export deeplink
+EOF
+expect_guard 1 "the browser entry point importing the FACADE is rejected (that is the graph it exists to avoid)" --root "${t}"
+
+t="${work}/deeplink-entry-reaches-second-internal"
+make_sdk_tree "${t}"
+cat >>"${t}/src/blocktracer_client/deeplink.nim" <<'EOF'
+import blocktracer_client/store
+EOF
+expect_guard 1 "a SECOND SDK internal in the browser entry point's graph is rejected" --root "${t}"
+
+t="${work}/deeplink-entry-reexports-nothing"
+make_sdk_tree "${t}"
+cat >"${t}/src/blocktracer_client_deeplink.nim" <<'EOF'
+const Nothing* = 0
+EOF
+expect_guard 1 "a browser entry point that re-exports NOTHING is rejected (the rule would hold vacuously)" --root "${t}"
+
+t="${work}/deeplink-constant-drift"
+make_sdk_tree "${t}"
+sed -i.bak 's/BlockTracerClientDeepLinkModule\* = "blocktracer_client_deeplink"/BlockTracerClientDeepLinkModule* = "something_else"/' \
+	"${t}/src/blocktracer_client.nim"
+expect_guard 1 "the browser entry point's name drifting from the guard's is rejected" --root "${t}"
 
 t="${work}/facade-renamed"
 make_sdk_tree "${t}"

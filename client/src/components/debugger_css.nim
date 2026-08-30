@@ -110,6 +110,30 @@ html[data-register="debugger"],
 .dbgbanner .bannertitle{font-weight:var(--bt-type-h3-weight);white-space:nowrap}
 .dbgbanner .bannertext{color:inherit;max-width:var(--bt-measure-prose)}
 
+/* §6.0a's landing notice: where a deep link actually put the session, when
+   that is not where it asked to be.
+
+   Deliberately NOT a `.dbgbanner`. The two banners above are page-level
+   verdicts about the TRACE — divergent, truncated — and one of them cannot be
+   dismissed because what it says stays true for as long as the page is open.
+   This says something about the LINK, once, on arrival, and nothing is wrong:
+   a recovered position is the mechanism working. So it gets the informational
+   surface rather than a severity, and the same left-rail treatment the panes
+   use for "this is the position", because that is what it is a statement
+   about. Sharing `.dbgbanner`'s rules would have made a working recovery look
+   like a defect the first time anyone shared a link. */
+.dbgnotices:empty{display:none}
+.dbgnotice{flex:0 0 auto;display:flex;align-items:baseline;
+  gap:var(--bt-space-sm);padding:var(--bt-density-cell-y) var(--bt-layout-gutter);
+  background:var(--bt-status-info-bg);color:var(--bt-status-info-fg);
+  border-bottom:var(--bt-stroke-hairline) solid var(--bt-status-info-border);
+  border-left:var(--bt-stroke-thick) solid var(--bt-mark-position);
+  font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line)}
+.dbgnotice .noticetitle{font-weight:var(--bt-type-h3-weight);white-space:nowrap;
+  font-size:var(--bt-type-label-size);
+  letter-spacing:var(--bt-type-label-tracking);text-transform:uppercase}
+.dbgnotice .noticetext{color:inherit;max-width:var(--bt-measure-prose)}
+
 /* The engine-loading band — a full-width row of prose above the session
    explaining that the buttons below it could not act yet — is GONE, with both
    rules that styled it. It was hydration's absence rendered as a paragraph,
@@ -540,6 +564,32 @@ a.frseg:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
   font-weight:var(--bt-type-body-weight);letter-spacing:normal;
   text-transform:none}
 
+/* The aggregate view's third column. A count, not a cost, so it sits before
+   the cost and is narrower — a function called twice and one called two
+   hundred times must be tellable apart at a glance, which is most of why the
+   aggregation is worth having. */
+.ctcalls{flex:0 0 var(--bt-space-2xl);text-align:right;
+  color:var(--bt-text-muted);
+  font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
+  font-variant-numeric:var(--bt-numeric-features)}
+/* A self cost that is a FLOOR, because at least one frame of the function
+   reported no metered cost. Marked in the number rather than in a footnote:
+   the whole column is a ranking, and a row that may belong higher has to say
+   so where it is read. */
+.ctcost.floor{color:var(--bt-text-muted)}
+.ctfloorsign{color:var(--bt-text-subtle);
+  margin-right:var(--bt-space-3xs)}
+
+/* A row that is a jump target. `a{color:inherit;text-decoration:none}` already
+   holds site-wide, so the anchor inherits the row's typography exactly and
+   only the pointer has to be said; the focus ring comes from `styles.nim`'s
+   one `:focus-visible` treatment, which already covers `a`. That is the whole
+   reason these are anchors rather than `role="button"` elements with a
+   `keydown` handler: focus, Enter, middle-click, the status bar and the
+   context menu all arrive from the platform, and none of them can be
+   forgotten. */
+a.ctrow,a.evrow{cursor:pointer}
+
 /* Depth is indentation, and the ladder is LINEAR.
    It used to be the spacing scale, which is not: `md → xl → 2xl → 3xl → 4xl`
    is 16 → 32 → 48 → 60 → 100 px, so the rungs stepped by 16, 16, 12, 40. Depth
@@ -579,10 +629,16 @@ a.frseg:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
   text-underline-offset:var(--bt-space-3xs)}
 .ctsort:hover{color:var(--bt-text-link-hover)}
 
-/* The cost-sorted view, on the same `:target` mechanism as the pane tabs.
-   `.ctview.def` is emitted LAST so the alternate can reach forward and hide
-   it. "Sort by cost" is now a link that sorts; it used to be a `<span>` with
-   link colour and an underline and no behaviour at all. */
+/* The aggregate self-cost view, on the same `:target` mechanism as the pane
+   tabs. `.ctview.def` is emitted LAST so the alternate can reach forward and
+   hide it.
+
+   It used to be a cost-SORTED view, and before that a `<span>` with link
+   colour and an underline and no behaviour at all. The sort was the fix for
+   the second defect and a different one for the first: Chrome's `Bottom-up`
+   is an aggregation, and reordering N frames answers nothing that reading them
+   did not. What is here now is self cost per FUNCTION, which is why the header
+   gains a `Calls` column and the rows lose their depth. */
 .ctview.alt{display:none}
 .ctview.def{display:block}
 .ctview.alt:target{display:block}

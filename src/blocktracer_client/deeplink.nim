@@ -149,8 +149,15 @@ proc parseAnchor*(raw: string): tuple[anchor: Anchor, err: string] =
 proc parseDeepLink*(fragment: string): ParseResult =
   ## Parse the URL fragment. Reports rather than raises: a link is untrusted
   ## input pasted by a person, and a malformed one still names a transaction.
+  ##
+  ## A leading `?` is accepted as well as a leading `#`, because the payload is
+  ## carried in both places and the grammar is the same in both. §6's URL form
+  ## puts it in the fragment; Page-Descriptions §8 and Configuration.md's query
+  ## table put `t` in the QUERY, which is also what a debug page's
+  ## `history.replaceState` writes on every navigation. One parser for one
+  ## grammar, and no second spelling of `&`-joined fields to keep in step.
   var f = fragment
-  if f.startsWith("#"): f = f[1 .. ^1]
+  if f.startsWith("#") or f.startsWith("?"): f = f[1 .. ^1]
   result.link.version = 0
   if f.len == 0:
     result.errors.add "empty deep-link fragment"
@@ -319,11 +326,34 @@ proc resolvePosition*(link: DeepLink, inputs: PositionInputs): PositionResolutio
         " anchor could not be resolved in this trace, so the nearest " &
         "enclosing frame is shown instead.")
 
+  # Step 5 names WHY the coordinate could not be used, because the four reasons
+  # are four different facts about the link and a reader who is about to be
+  # moved somewhere else is owed the specific one. "Could not be restored" is
+  # true of a regenerated trace and false of an older link, whose coordinate may
+  # well still be correct and merely cannot be *checked* — telling that reader
+  # the position was lost would be a confident wrong sentence, which is the
+  # thing this precedence exists to prevent.
   PositionResolution(outcome: poStartOfExecution,
     coordinate: inputs.executionStartCoordinate, witness: verdict, visible: true,
     statement:
       if link.coordinate.len == 0:
         "This link carried no position, so the execution is shown from its start."
       else:
-        "The linked position could not be restored in the current trace and " &
-        "the link carries no usable anchor, so the execution is shown from its start.")
+        case verdict
+        of wvDiffers:
+          "The trace was regenerated since this link was made, so its position " &
+          "no longer means anything here, and the link carries no usable " &
+          "anchor — the execution is shown from its start."
+        of wvAbsent:
+          "This link predates the content witness, so its position could not be " &
+          "verified against the current trace, and it carries no usable " &
+          "anchor — the execution is shown from its start."
+        of wvUnknownArtifact:
+          "The current trace's content hash is unknown, so this link's position " &
+          "could not be verified, and it carries no usable anchor — the " &
+          "execution is shown from its start."
+        of wvMatches:
+          # Reachable only with a matching witness and an empty `t`, which the
+          # branch above already answers — kept total so a verdict added later
+          # cannot fall through to a sentence written for another one.
+          "This link carried no position, so the execution is shown from its start.")

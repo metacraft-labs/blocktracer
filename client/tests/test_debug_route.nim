@@ -32,6 +32,7 @@ import ../src/debugger/replay_engine
 import ../src/debugger/source_document
 import ../src/debugger/source_island
 import ../src/debugger/demo_session
+import ../src/debugger/deeplink_landing
 import ../src/debugger/demo_flow
 import ../src/debugger/flow_view
 import ../src/components/debugger as dbgc
@@ -40,6 +41,7 @@ import isonim/ssr/escape
 import ../src/pages/debug as debugPg
 import ../src/pages/tx as txPg
 import blocktracer/demo/generator
+import blocktracer/contract/ids   # `contentHashSha1`, as an independent oracle
 
 const Chain = "aztec"
 
@@ -759,44 +761,152 @@ suite "M8a — the source pane renders real source, with stable line identity":
     # No inert tab left behind.
     check "<span class=\"srctab" notin html
 
-  test "'Sort by cost' sorts, and the sorted view does not draw a tree":
-    ## It was styled as a link — accent colour, underline — and was a `<span>`.
-    ## Now it is a real `:target` view, which is also VD.5's "including the
-    ## cost column and cost-sorted view".
-    let html = debugHtml(readyTx)
-    check "href=\"#calltrace-by-cost\"" in html
-    check "id=\"calltrace-by-cost\"" in html
-    check "<span class=\"ctsort" notin html
-    # The cost-ordered rows are flat: once the rows are not in call order, an
-    # indent would draw a tree the ordering does not describe.
-    let sorted = html[html.find("id=\"calltrace-by-cost\"") .. ^1]
-    let sortedView = sorted[0 ..< sorted.find("ctview def")]
-    check "ctrow d0 flat" in sortedView
-    for d in 1 .. 8:
-      check ("ctrow d" & $d & " ") notin sortedView
+  # ── the second view is an AGGREGATION, not an ordering ───────────────────
+  #
+  # The research finding this replaced: Chrome DevTools' `Bottom-up` view is an
+  # aggregation of self cost per FUNCTION, and "sorting 500 frames gives 500
+  # rows in a new order while aggregating gives ~30 and the top row is the
+  # answer". The old view sorted. These tests are written so that a
+  # re-introduced sort fails them: a sort cannot reduce the row count and
+  # cannot produce a call count.
 
-  test "the cost sort is by cost, descending — not by call order":
-    let s = sessionFor(readyTx)
-    check s.calltrace.frames.len > 2
+  proc selfCostView(html: string): string =
+    let at = html.find("id=\"" & dbgc.SelfCostViewId & "\"")
+    doAssert at > 0, "the self-cost view is not in the rendered page"
+    let rest = html[at .. ^1]
+    rest[0 ..< rest.find("ctview def")]
+
+  test "the second call-trace view is a real `:target` view, not a styled span":
+    ## It was accent-coloured, underlined, and a `<span>` with nothing behind
+    ## it. It is a link that switches a view.
     let html = debugHtml(readyTx)
-    let sorted = html[html.find("id=\"calltrace-by-cost\"") .. ^1]
-    let sortedView = sorted[0 ..< sorted.find("ctview def")]
-    var lastCost = high(int)
-    var seenNames = 0
-    for f in s.calltrace.frames:
-      check f.fn in sortedView
-    # The most expensive frame appears before the cheapest one.
-    var costs: seq[int]
-    for f in s.calltrace.frames:
-      var n = 0
+    check ("href=\"#" & dbgc.SelfCostViewId & "\"") in html
+    check ("id=\"" & dbgc.SelfCostViewId & "\"") in html
+    check "<span class=\"ctsort" notin html
+
+  test "the self-cost view AGGREGATES by function — fewer rows than frames":
+    let s = sessionFor(readyTx)
+    let rows = selfCostRows(s.calltrace)
+    # The fixture has to contain a repeated function or this proves nothing
+    # about aggregation: with all-distinct names an aggregation and a sort
+    # produce the same row count.
+    check s.calltrace.frames.len > 0
+    check rows.len > 0
+    check rows.len < s.calltrace.frames.len
+    var repeated = 0
+    for r in rows:
+      if r.calls > 1: inc repeated
+    check repeated > 0
+
+    let view = selfCostView(debugHtml(readyTx))
+    # One row per function, not one per frame. Counted in the MARKUP, so a
+    # renderer that aggregated the data and then emitted every frame fails.
+    # `class="ctrow ` with the trailing space: `class="ctrows"` — the
+    # container — is a prefix of the row class and would be counted as a row.
+    check occurrences(view, "class=\"ctrow ") == rows.len
+    for r in rows:
+      check r.fn in view
+    # The call count is rendered, which a sorted frame list has no way to show.
+    check "Calls" in view
+    for r in rows:
+      if r.calls > 1:
+        check ("class=\"ctcalls num\">" & $r.calls) in view
+
+  test "self cost is the frame's own cost, with its direct callees taken out":
+    ## The arithmetic, against an INDEPENDENT hand-computation over the same
+    ## frames — not against `selfCost` calling itself. A view that summed
+    ## INCLUSIVE cost would rank the entry point first on every trace ever
+    ## recorded, which is the answer that is always true and never useful.
+    let s = sessionFor(readyTx)
+    let frames = s.calltrace.frames
+    check frames.len > 3
+
+    proc inclusive(f: CallFrame): int =
       for c in f.cost:
-        if c in {'0'..'9'}: n = n * 10 + (ord(c) - ord('0'))
-      costs.add n
-    let dearest = s.calltrace.frames[costs.maxIndex].fn
-    let cheapest = s.calltrace.frames[costs.minIndex].fn
-    check sortedView.find(dearest) < sortedView.find(cheapest)
-    discard lastCost
-    discard seenNames
+        if c in {'0'..'9'}: result = result * 10 + (ord(c) - ord('0'))
+
+    var expected: seq[tuple[fn: string, calls, cost: int]]
+    for i, f in frames:
+      var own = inclusive(f)
+      # Direct children: the run after `i` at depth+1, up to the first frame at
+      # `f.depth` or shallower. Written out here rather than shared with the
+      # implementation.
+      var j = i + 1
+      while j < frames.len and frames[j].depth > f.depth:
+        if frames[j].depth == f.depth + 1: own -= inclusive(frames[j])
+        inc j
+      var at = -1
+      for k in 0 ..< expected.len:
+        if expected[k].fn == f.fn: at = k
+      if at < 0:
+        expected.add (f.fn, 0, 0)
+        at = expected.len - 1
+      expected[at].calls += 1
+      expected[at].cost += own
+
+    let rows = selfCostRows(s.calltrace)
+    check rows.len == expected.len
+    for e in expected:
+      var found = false
+      for r in rows:
+        if r.fn == e.fn:
+          found = true
+          check r.calls == e.calls
+          check r.cost == e.cost
+      check found
+
+    # The entry frame carries the whole trace inclusively and must NOT top the
+    # ranking on self cost — the difference between the two views, in one
+    # assertion over this fixture.
+    check frames[0].depth == 0
+    check inclusive(frames[0]) == frames.mapIt(inclusive(it)).max
+    check rows[0].fn != frames[0].fn
+
+  test "the self-cost view is ranked, and is flat":
+    let html = debugHtml(readyTx)
+    let view = selfCostView(html)
+    let rows = selfCostRows(sessionFor(readyTx).calltrace)
+    check rows.len > 1
+    var last = high(int)
+    for r in rows:
+      check r.cost <= last
+      last = r.cost
+    # Rendered in that order.
+    check view.find(rows[0].fn) < view.find(rows[^1].fn)
+    # Flat: a function is not a frame and has no depth, so an indent would draw
+    # a structure that does not exist. (The same reasoning the cost-SORTED view
+    # was given, which survived the change that made it moot.)
+    check "ctrow d0 flat" in view
+    for d in 1 .. 8:
+      check ("ctrow d" & $d & " ") notin view
+
+  test "an unmetered frame makes the total a stated FLOOR, never a silent sum":
+    ## A cost column can carry `—`. Dropping such a frame silently would rank
+    ## its function below one it may well exceed, and the number would look
+    ## exactly like a total.
+    var p = CallTracePane(costLabel: "ACIR", costUnit: "opcodes")
+    p.frames = @[
+      CallFrame(depth: 0, fn: "root", module: "m", cost: "100"),
+      CallFrame(depth: 1, fn: "child", module: "m", cost: "40"),
+      CallFrame(depth: 1, fn: "child", module: "m", cost: "—"),
+    ]
+    let rows = selfCostRows(p)
+    check rows.len == 2
+    for r in rows:
+      if r.fn == "child":
+        check r.calls == 2          # the unmetered frame is COUNTED
+        check r.cost == 40
+        check r.unmetered           # and the total says it is partial
+      else:
+        check not r.unmetered
+    let markup = dbgc.renderCallTrace(p)
+    check "ctcost num floor" in markup
+    check "this total is a floor" in markup
+    # And the control: an all-metered pane says nothing about floors, or the
+    # assertion above would pass on every render.
+    var metered = p
+    metered.frames[2].cost = "10"
+    check "ctcost num floor" notin dbgc.renderCallTrace(metered)
 
   test "depth beyond the indentation ladder is clamped AND marked":
     ## The renderer emitted `d6`, `d7`, … for any depth; the stylesheet had
@@ -2032,15 +2142,44 @@ suite "M8b — availability decides the landing, not a preference":
     let bannerEnd = html.find("</div>", bannerStart)
     check "panedismiss" notin html[bannerStart .. bannerEnd]
 
-  test "a ready session shares with an anchor, never a time coordinate alone":
-    # M8a: "Share **always** emits an anchor, never `t` alone."
+  test "a ready session shares the WHOLE §6.0a payload, not a coordinate alone":
+    ## M8a: "Share **always** emits an anchor, never `t` alone", and §6.0a: `c`
+    ## is required whenever `t` is present.
+    ##
+    ## The payload used to be `?t=<n>#<element-id>`. Both halves were wrong:
+    ## there was no witness, so this product's own reader treats the coordinate
+    ## as unverifiable; and the fragment carried an HTML element id where a
+    ## recovery anchor should have been, which no client can resolve. The check
+    ## is that the emitted URL PARSES as a valid link, through the SDK's own
+    ## grammar, rather than that it contains some substrings.
+    let s = sessionFor(readyTx)
     let html = debugHtml(readyTx)
-    let at = html.find("href=\"?t=")
+    let at = html.find("href=\"?v=")
     check at > 0
     let stop = html.find('"', at + 6)
-    let href = html[at + 6 ..< stop]
-    check '#' in href
-    check href.split('#')[1].startsWith("L-")
+    # The attribute as a BROWSER reads it: `escapeAttr` turns every `&` into
+    # `&amp;`, so the raw substring is not a URL and parsing it would silently
+    # see one field and five unknown ones.
+    let href = html[at + 6 ..< stop].replace("&amp;", "&")
+
+    let parts = href.split('#')
+    check parts.len == 2
+    # The fragment still scrolls a scripting-off visitor to the line.
+    check parts[1].startsWith("L-")
+
+    let parsed = parseDeepLink(parts[0])
+    check parsed.errors.len == 0
+    check parsed.link.version == DeepLinkVersion
+    check parsed.link.coordinate == $s.timeCoordinate
+    check parsed.link.witness.len > 0
+    # The anchor is a `src:` anchor naming a real file and the line the session
+    # is on — a property of the transaction, resolvable in any correct trace.
+    check parsed.link.anchor.kind == akSource
+    check parsed.link.anchor.data == activeDocument(s.editor).path & ":" &
+                                     $s.editor.currentLine
+    # And it is a witness OF the artifact this page recommends, not a constant.
+    check checkWitness(parsed.link.witness, s.traceContentHash) == wvMatches
+    check s.traceContentHash.len > 0
 
   test "with no position there is no share link, only a stated refusal":
     var s = sessionFor(readyTx)
@@ -2049,7 +2188,7 @@ suite "M8b — availability decides the landing, not a preference":
         s.editor.documents[d].lines[i].current = false
     let html = debugPg.debugPage(s)
     check "btn disabled sm" in html
-    check "href=\"?t=" notin html
+    check "href=\"?v=" notin html
 
 suite "M8b — the metadata pane and the page cannot diverge":
 
@@ -2561,10 +2700,12 @@ suite "hydration — the seams the bundle reads, and the honesty they preserve":
     check "onclick" notin markup
     check "role=\"button\"" notin markup
 
-  test "every navigation row carries its coordinate, and is not a link":
+  test "every navigation row carries its coordinate AND its anchor as data":
     ## §3's deferred item, staged. `EventRow.step` and a frame's step are the
-    ## same `?t=` the URL carries (§6.2), so the rows carry it as data — and
-    ## stay rows until there is something that can honour a click.
+    ## same `?t=` the URL carries (§6.2); `data-anchor` is the row's §6.0a
+    ## recovery anchor, and it is on the SERVED page because that is what lets a
+    ## browser resolve an incoming link before it fetches an engine (§6.3's
+    ## "before first paint").
     let html = debugHtml(readyTx)
     let s = sessionFor(readyTx)
     check s.calltrace.frames.len > 0
@@ -2572,16 +2713,104 @@ suite "hydration — the seams the bundle reads, and the honesty they preserve":
     for f in s.calltrace.frames:
       check ("class=\"ctrow" in html)
       check ("data-step=\"" & $f.step & "\"") in html
+      check f.anchor.len > 0
+      check ("data-anchor=\"" & f.anchor & "\"") in html
     for r in s.eventLog.rows:
       check ("data-step=\"" & $r.step & "\"") in html
-    # Not links, not buttons, not focusable — the whole reason §3 recorded this
-    # rather than shipping it. Over the markup, for the stylesheet reason above.
+    # The anchors are DISTINCT, or a link would resolve to whichever row came
+    # first and the whole recovery path would land in the wrong frame.
+    var anchors: HashSet[string]
+    for f in s.calltrace.frames: anchors.incl f.anchor
+    check anchors.len == s.calltrace.frames.len
+
+  test "a SERVED row is not a link; the same renderer makes a hydrated one":
+    ## The staging, in one test, over one renderer.
+    ##
+    ## §3 deferred these because "until hydration lands such a link would
+    ## reload the page at a coordinate the static export cannot honour". A
+    ## static route still cannot honour one — a query string does not select a
+    ## file — so the served page keeps rows that are rows. What changed is that
+    ## hydration READS the coordinate now, so a link is honourable exactly
+    ## where a script is running to honour it, and the producer decides which
+    ## it is by supplying an `href` or not.
+    let html = debugHtml(readyTx)
     let markup = html.split("</style>")[1]
     check "<a class=\"ctrow" notin markup
     check "<a class=\"evrow" notin markup
+    # Matched over the markup, not the document: the inlined stylesheet names
+    # `[tabindex]` in its focus rule, so a whole-document match would answer
+    # itself with CSS.
     check "tabindex" notin markup
     check "role=\"button\"" notin markup
     check "data-rows-navigable" notin markup
+
+    # The other half of the staging, through the SAME renderers the bundle
+    # links — so "hydration makes them links" is checked here rather than
+    # asserted about a browser nobody runs in this suite.
+    var s = sessionFor(readyTx)
+    check s.calltrace.frames.len > 0
+    check s.eventLog.rows.len > 0
+    for i in 0 ..< s.calltrace.frames.len:
+      s.calltrace.frames[i].href = positionQuery(
+        s.traceContentHash, s.calltrace.frames[i].step,
+        s.calltrace.frames[i].anchor)
+    for i in 0 ..< s.eventLog.rows.len:
+      s.eventLog.rows[i].href = positionQuery(
+        s.traceContentHash, s.eventLog.rows[i].step, s.eventLog.rows[i].anchor)
+
+    let live = dbgc.renderCallTrace(s.calltrace) & dbgc.renderEventLog(s.eventLog)
+    check "<a class=\"ctrow" in live
+    check "<a class=\"evrow" in live
+    # An anchor is keyboard-operable by the platform: it takes focus and Enter
+    # activates it. That is the whole reason it is an anchor rather than a
+    # `role="button"` div with a click handler — neither Enter nor Space fires
+    # a click on a div, so the previous staging shipped a control the research
+    # calls PRIMARY that a keyboard could not reach.
+    check "role=\"button\"" notin live
+    check "tabindex" notin live
+    # Every row's href is a valid §6.0a link, not a bare coordinate.
+    var checked = 0
+    for f in s.calltrace.frames:
+      let parsed = parseDeepLink(f.href)
+      check parsed.errors.len == 0
+      check parsed.link.coordinate == $f.step
+      check parsed.link.witness.len > 0
+      check ("href=\"" & escapeAttr(f.href) & "\"") in live
+      inc checked
+    for r in s.eventLog.rows:
+      let parsed = parseDeepLink(r.href)
+      check parsed.errors.len == 0
+      check parsed.link.coordinate == $r.step
+      inc checked
+    check checked == s.calltrace.frames.len + s.eventLog.rows.len
+
+  test "the event log's rows are jump targets on the SAME terms as the frames":
+    ## §4.2 calls a click on an event row "the single most valuable interaction
+    ## in the product — 'take me to the line that wrote this value'", and the
+    ## event log is the only surface on which an individual storage write is
+    ## addressable. Call-trace rows became clickable with hydration; this is
+    ## the assertion that the event rows are not a weaker case.
+    var s = sessionFor(readyTx)
+    check s.eventLog.rows.len > 0
+    var kinds: HashSet[EventKind]
+    for r in s.eventLog.rows: kinds.incl r.kind
+    check evStorageWrite in kinds        # or this proves nothing about writes
+    for i in 0 ..< s.eventLog.rows.len:
+      s.eventLog.rows[i].href = positionQuery(
+        s.traceContentHash, s.eventLog.rows[i].step, s.eventLog.rows[i].anchor)
+    let live = dbgc.renderEventLog(s.eventLog)
+    check occurrences(live, "<a class=\"evrow") == s.eventLog.rows.len
+    # Every KIND is a target, not just the convenient ones.
+    for r in s.eventLog.rows:
+      check ("<a class=\"evrow k-" & $r.kind) in live
+    # And the consensus-recorded kinds carry an anchor that survives
+    # regeneration, per §6.0a's table.
+    for r in s.eventLog.rows:
+      case r.kind
+      of evStorageWrite: check r.anchor.startsWith("sw:")
+      of evEvent: check r.anchor.startsWith("log:")
+      of evRevert: check r.anchor == "revert"
+      of evCall, evOutput: check r.anchor == ""
 
   test "the source bundle is inlined as DATA, and it is the WHOLE file":
     ## The pane is served WINDOWED (`openAtCurrent`), so the served DOM does not
@@ -2728,6 +2957,272 @@ suite "hydration — the seams the bundle reads, and the honesty they preserve":
     check dbgc.renderPhaseRail(s) == ""
     # The served page's rail is this renderer's output, not a second one.
     check fetching in debugHtml(readyTx)
+
+# ===========================================================================
+# §6.0a — the link is READ, and every branch of the reading is visible
+# ===========================================================================
+#
+# The route existed as a deep-link TARGET that never read its own link: `?t=`
+# was written on every navigation and ignored on every arrival, so a shared
+# link opened wherever the engine happened to land. §6.0a's precedence is the
+# fix, and §8's rule is that no combination of missing witness, unresolvable
+# anchor or absent artifact may produce a *silent* landing at the wrong
+# position.
+#
+# The suite drives the SHIPPING resolver — `deeplink_landing.resolveLanding`,
+# which `client/hydrate/hydrate.nim` calls — against the REAL demo session's
+# rows, and asserts the RENDERED sentence, not only the struct. A page that
+# resolved correctly and said nothing would pass a struct-only check and be
+# exactly the defect.
+
+suite "§6.0a — the five resolution branches, each one visible":
+
+  let session = sessionFor(readyTx)
+  let hash = session.traceContentHash
+  # Nothing below is a test unless the fixture actually carries these.
+  doAssert hash.len > 0,
+    "the ready transaction has no traceContentHash — every witness branch " &
+    "would collapse into `unknownArtifact` and four of the five cases would " &
+    "be asserting about the same thing"
+  doAssert session.calltrace.frames.len > 3
+  doAssert session.eventLog.rows.len > 3
+
+  let good = witnessFor(hash)                 ## a witness that matches
+  let stale = "0123456789ab"                  ## one that does not
+  doAssert checkWitness(good, hash) == wvMatches
+  doAssert checkWitness(stale, hash) == wvDiffers
+
+  # A row of each kind to anchor on, taken from the fixture rather than named.
+  let anchoredFrame = session.calltrace.frames[^1]
+  var anchoredEvent: EventRow
+  for r in session.eventLog.rows:
+    if r.anchor.startsWith("log:"): anchoredEvent = r
+  doAssert anchoredEvent.anchor.len > 0
+
+  proc land(payload: string; artifact = true;
+            contentHash = hash): LinkLanding =
+    resolveLanding(payload,
+      artifactAvailable = artifact, currentContentHash = contentHash,
+      calltrace = session.calltrace, eventLog = session.eventLog)
+
+  proc noticeHtml(l: LinkLanding): string =
+    ## What the visitor actually sees, through the renderer the page uses.
+    var v = session
+    v.landing = l.notice
+    v.landingCoordinate = l.coordinate
+    dbgc.renderPositionNotice(v)
+
+  test "0. an ordinary visit resolves nothing and says nothing":
+    ## Not step 5. "The link was honoured exactly" and "there was no link" are
+    ## different facts, and only the second may render nothing without a
+    ## sentence — a page that announced a failed recovery on every plain view
+    ## would train readers to ignore the notice that matters.
+    for payload in ["", "?", "#", "#L-src-shield-nr-32", "?utm_source=x"]:
+      let l = land(payload)
+      check not l.asked
+      check l.coordinate == 0
+      check l.notice.statement == ""
+      check noticeHtml(l) == ""
+
+  test "1. no replayable artifact — stated, and terminal":
+    let l = land(positionQuery(hash, anchoredFrame.step, anchoredFrame.anchor),
+                 artifact = false)
+    check l.asked
+    check l.notice.outcome == $poNoReplayableArtifact
+    # Terminal: no position is offered, because there is nothing to position in.
+    check l.coordinate == 0
+    let html = noticeHtml(l)
+    check html.len > 0
+    check "not replayable" in html
+    check "data-landing=\"" & $poNoReplayableArtifact & "\"" in html
+
+  test "2. the witness matches — the exact step, and the ONLY silent branch":
+    let l = land(positionQuery(hash, 41, "call:0.0.0"))
+    check l.asked
+    check l.notice.outcome == $poExact
+    check l.coordinate == 41
+    # §6.0a: only branch (2) is silent, and it is silent because the page is
+    # showing precisely what was asked for.
+    check l.notice.statement == ""
+    check noticeHtml(l) == ""
+
+  test "3. the witness differs — recovered through the anchor, and said so":
+    ## The trace was regenerated, so `t` means nothing reliable. The anchor is
+    ## a property of the TRANSACTION and still resolves, so the reader lands
+    ## where the link meant and is told why it is not where the link said.
+    for (anchor, want) in [(anchoredFrame.anchor, anchoredFrame.step),
+                           (anchoredEvent.anchor, anchoredEvent.step)]:
+      var link = DeepLink(version: DeepLinkVersion, coordinate: "999999",
+                          witness: stale)
+      let (a, err) = parseAnchor(anchor)
+      check err == ""
+      link.anchor = a
+      let l = land(emitFragment(link))
+      check l.notice.outcome == $poRecoveredByAnchor
+      # It landed on the ANCHOR's coordinate, not the link's.
+      check l.coordinate == want
+      check l.coordinate != 999999
+      let html = noticeHtml(l)
+      check "regenerated" in html
+      check "recovered" in html.toLowerAscii
+
+  test "4. the anchor does not resolve — the nearest enclosing frame, plainly":
+    ## A call path whose deepest segment this trace no longer makes still has a
+    ## parent that ran. That is a weaker claim than the anchor's and gets a
+    ## different sentence, which is the whole point of it being step 4 rather
+    ## than a quiet variant of step 3.
+    let parent = session.calltrace.frames[1]
+    check parent.anchor.startsWith("call:")
+    let missing = parent.anchor & ".99"
+    # The premise: this path is genuinely not in the trace.
+    for f in session.calltrace.frames: check f.anchor != missing
+
+    var link = DeepLink(version: DeepLinkVersion, coordinate: "999999",
+                        witness: stale)
+    let (a, err) = parseAnchor(missing)
+    check err == ""
+    link.anchor = a
+    let l = land(emitFragment(link))
+    check l.notice.outcome == $poNearestEnclosingFrame
+    check l.coordinate == parent.step
+    let html = noticeHtml(l)
+    check "could not be resolved" in html
+    check "nearest" in html
+
+    # A `src:` anchor for a line the trace never reaches, in a file it runs,
+    # resolves the same way — the second of the two structural anchor kinds.
+    let file = activeDocument(session.editor).path
+    var srcLink = DeepLink(version: DeepLinkVersion, coordinate: "999999",
+                           witness: stale,
+                           anchor: Anchor(kind: akSource,
+                                          data: file & ":99999"))
+    let bySrc = land(emitFragment(srcLink))
+    check bySrc.notice.outcome == $poNearestEnclosingFrame
+    check bySrc.coordinate > 0
+    check noticeHtml(bySrc).len > 0
+
+  test "5. nothing usable — the start of the execution, plainly, and by REASON":
+    ## Three ways to arrive here, and each says which one it was. "The trace was
+    ## regenerated" and "this link predates the witness" are different facts
+    ## about a link, and a reader who is being moved is owed the specific one:
+    ## an older link's coordinate may well still be correct and merely cannot
+    ## be CHECKED, so telling that reader the position was lost would itself be
+    ## a confident wrong sentence.
+    let start = startCoordinate(session.calltrace, session.eventLog)
+    check start > 0
+
+    # (a) a regenerated trace, no anchor
+    let regenerated = land(emitFragment(DeepLink(
+      version: DeepLinkVersion, coordinate: "999999", witness: stale)))
+    check regenerated.notice.outcome == $poStartOfExecution
+    check regenerated.coordinate == start
+    check "regenerated" in noticeHtml(regenerated)
+
+    # (b) an OLDER link: `t` with no `c` at all — §6.0's "Absent" row. This is
+    # exactly the shape this page used to write on every navigation.
+    let older = land("?t=999999")
+    check older.asked
+    check older.notice.outcome == $poStartOfExecution
+    check older.coordinate == start
+    check "predates the content witness" in noticeHtml(older)
+    # And the grammar reported why, rather than accepting it silently.
+    check older.parseErrors.len > 0
+
+    # (c) the page knows no content hash, so the witness proves nothing.
+    let unknown = land(positionQuery(hash, 41, ""), contentHash = "")
+    check unknown.notice.outcome == $poStartOfExecution
+    check "content hash is unknown" in noticeHtml(unknown)
+
+    # The three sentences are DISTINCT, or "said plainly" would mean one
+    # sentence covering three situations.
+    var said: HashSet[string]
+    for l in [regenerated, older, unknown]: said.incl l.notice.statement
+    check said.len == 3
+
+  test "NO branch lands silently, and the assertion is the rendered sentence":
+    ## The property §8 makes load-bearing: "no combination of missing witness,
+    ## unresolvable anchor or absent artifact may produce a *silent* landing at
+    ## the wrong position".
+    ##
+    ## Driven as a matrix over every combination, with the rendered notice as
+    ## the assertion. A resolver that landed correctly and rendered nothing
+    ## passes a struct-only check and IS the defect.
+    var seen: HashSet[string]
+    var cases = 0
+    let unreachableLine = "src:" & activeDocument(session.editor).path & ":99999"
+    for artifact in [true, false]:
+      for witness in ["", good, stale]:
+        for anchor in ["", anchoredFrame.anchor, anchoredEvent.anchor,
+                       "call:9.9.9", "log:99999", unreachableLine]:
+          for coordinate in [0, 41, 999999]:
+            if coordinate == 0 and anchor.len == 0: continue  # not a link
+            var link = DeepLink(version: DeepLinkVersion, witness: witness)
+            if coordinate > 0: link.coordinate = $coordinate
+            if anchor.len > 0:
+              let (a, err) = parseAnchor(anchor)
+              check err == ""
+              link.anchor = a
+            let l = land(emitFragment(link), artifact = artifact)
+            inc cases
+            check l.asked
+            check l.notice.outcome.len > 0
+            let html = noticeHtml(l)
+            if l.notice.outcome == $poExact:
+              # The one silent branch, and it is silent only when the witness
+              # actually matched AND a coordinate was carried.
+              check witness == good
+              check coordinate > 0
+              check artifact
+              check html == ""
+            else:
+              # Everything else SPEAKS. Checked in the markup, with a real
+              # sentence in it — not merely a non-empty element.
+              check html.len > 0
+              check "class=\"dbgnotice\"" in html
+              check ("data-landing=\"" & l.notice.outcome & "\"") in html
+              let body = html[html.find("noticetext") .. ^1]
+              check body.count(' ') >= 6      # a sentence, not a token
+              check '.' in body
+              seen.incl l.notice.outcome
+    # Every non-exact outcome §6.0a defines was actually produced, or the loop
+    # above proves the property for a subset and reports it for all of it.
+    check cases > 100
+    for o in [poNoReplayableArtifact, poRecoveredByAnchor,
+              poNearestEnclosingFrame, poStartOfExecution]:
+      check $o in seen
+
+  test "the notice slot exists on every served page, and is empty on all of them":
+    ## The slot is hydration's target and `readUi`-style lookups must not fail
+    ## silently. It is always present, and always EMPTY as served: a static
+    ## route serves one file per path, so `?t=` cannot select a rendering and
+    ## the resolution necessarily happens in the browser.
+    for h in [readyTx, divergentTx, onDemandTx]:
+      let html = debugHtml(h)
+      check ("id=\"" & dbgc.PositionNoticeSlotId & "\"") in html
+      check "class=\"dbgnotice\"" notin html
+    # `:empty` is what hides it, so an empty slot must really be empty.
+    check ("<div class=\"dbgnotices\" id=\"" & dbgc.PositionNoticeSlotId &
+           "\"></div>") in debugHtml(readyTx)
+    check ".dbgnotices:empty{display:none}" in debugRouteCss
+
+  test "the served page carries the witness's subject, in every state":
+    ## §6.0's comparison happens in a browser before the engine has opened
+    ## anything, against "the artifact currently recommended". The page is the
+    ## only thing that knows which that is.
+    let readyHtml = debugHtml(readyTx)
+    check session.traceContentHash.len > 0
+    check ("data-content-hash=\"" & session.traceContentHash & "\"") in readyHtml
+    # INDEPENDENT ORACLE: the container's bytes off disk, hashed here — not the
+    # manifest read back through `reader`, which would be the producer checking
+    # itself.
+    let info = chainInfo(root, Chain)
+    let t = traceView(root, info, readyTx)
+    check t.containerPath.len > 0
+    check session.traceContentHash ==
+          contentHashSha1(readFile(workDir / t.containerPath))
+    # Present, and empty, where there is no artifact — `absent` is a value
+    # §6.0's table treats as unverifiable, not as agreement.
+    check "data-content-hash=\"\"" in debugHtml(onDemandTx)
 
 removeDir(workDir)
 removeDir(degradedDir)

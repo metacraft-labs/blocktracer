@@ -399,6 +399,24 @@ type
     costUnit*: string
     step*: int            ## the time coordinate the frame starts at
     current*: bool        ## contains the session's position
+    anchor*: string
+      ## The row's §6.0a recovery anchor, in the link's own wire spelling
+      ## (`call:0.2.6`, `src:src/shield.nr:32`). Data, like `step`: it is what a
+      ## share link from this row would carry and what
+      ## `deeplink_landing.resolveAnchor` matches an incoming link against. A
+      ## frame with no derivable anchor carries `""`, which is not an error —
+      ## the coordinate alone still names the position while the container is
+      ## the one it was taken from.
+    href*: string
+      ## Where clicking this row goes, or `""` for a row that is not a link.
+      ##
+      ## Empty on every statically exported page and non-empty only in a
+      ## hydrated one, which is the staging Debugger-Integration §3 asks for:
+      ## "until hydration lands such a link would reload the page at a
+      ## coordinate the static export cannot honour". The static export still
+      ## cannot honour one — a query string does not select a file — so the
+      ## PRODUCER decides, not the renderer, and the served page keeps rows
+      ## that are rows.
 
   CallTracePane* = object
     frames*: seq[CallFrame]
@@ -408,8 +426,121 @@ type
                           ## means "take it from the frames", so a producer
                           ## that only fills `CallFrame.costUnit` still renders
                           ## a labelled column.
-    sortedByCost*: bool   ## whether the cost-sorted view is the active one
     note*: string         ## what the pane says when `frames` is empty
+                          ##
+                          ## `sortedByCost` used to sit here, meaning "the
+                          ## cost-sorted view is the active one". Nothing ever
+                          ## read it — the two views are `:target` alternates
+                          ## and CSS decides which is shown — and the view it
+                          ## named no longer exists: the second view is now an
+                          ## aggregation by function (`selfCostRows`), not an
+                          ## ordering of frames. A field carrying a stale
+                          ## meaning that no code consults is worse than no
+                          ## field, so it is gone rather than renamed.
+
+  SelfCostRow* = object
+    ## One function in the aggregate view: its own cost, summed over every
+    ## frame of it, with the callees' cost taken out.
+    ##
+    ## Chrome DevTools' `Bottom-up` and Datadog's `Span List` are aggregations,
+    ## not orderings, and the difference is the whole feature: sorting 500
+    ## frames gives 500 rows in a new order, and aggregating gives ~30 whose top
+    ## row is the answer. A frame is an *occurrence*; this is a *function*, so
+    ## `calls` is part of the row rather than something the reader counts.
+    fn*: string
+    module*: string
+    calls*: int           ## how many frames of this function the trace has
+    cost*: int            ## summed self cost, in the pane's unit
+    unmetered*: bool
+      ## At least one frame of this function reported no numeric cost, so
+      ## `cost` is a floor rather than the total. Carried rather than hidden:
+      ## an aggregate that silently dropped an unmetered frame would rank a
+      ## function below one it may well exceed, and nothing on screen would say
+      ## the number was partial.
+
+func costValue*(f: CallFrame): int =
+  ## A frame's cost as a number, or `-1` when it has none.
+  ##
+  ## The producer has already FORMATTED the cost for display (`"1,315"`), so the
+  ## separators come back out to work with it. A cost column can legitimately
+  ## carry `—` for an unmetered frame, and that is `-1` rather than a crash or a
+  ## zero — zero would be a claim, and the pane has to be able to say it does not
+  ## know.
+  for c in f.cost:
+    if c in {'0'..'9'}: result = result * 10 + (ord(c) - ord('0'))
+    elif c notin {',', '_', ' '}: return -1
+
+func formatCost*(n: int): string =
+  ## `1315` → `1,315`, matching the spelling the producers already emit so the
+  ## aggregate column and the per-frame column read as one vocabulary.
+  if n < 0: return "—"
+  let digits = $n
+  for i, c in digits:
+    if i > 0 and (digits.len - i) mod 3 == 0: result.add ','
+    result.add c
+
+func selfCost*(frames: seq[CallFrame]; i: int): int =
+  ## Frame `i`'s cost with its DIRECT callees' cost removed, or `-1` when the
+  ## frame itself is unmetered.
+  ##
+  ## The cost a producer reports is inclusive — the demo's `main` carries the
+  ## whole trace's 1,315 — so subtracting the children is what turns "this frame
+  ## and everything under it" into "this frame". Direct children are the run of
+  ## frames after `i` at `depth + 1`, up to the first frame at `depth` or
+  ## shallower; that is the call order the pane is rendered in, and it is the
+  ## only structure the pane has.
+  let own = costValue(frames[i])
+  if own < 0: return -1
+  result = own
+  let d = frames[i].depth
+  for j in i + 1 ..< frames.len:
+    if frames[j].depth <= d: break
+    if frames[j].depth == d + 1:
+      let child = costValue(frames[j])
+      # An unmetered child cannot be subtracted, so it is not: the parent's
+      # self cost then over-reports rather than under-reports, and
+      # `SelfCostRow.unmetered` is what says the number is not exact.
+      if child > 0: result -= child
+  if result < 0: result = 0
+
+func selfCostRows*(p: CallTracePane): seq[SelfCostRow] =
+  ## The call trace aggregated by function, heaviest self cost first.
+  ##
+  ## This replaces a cost-SORTED view, and the replacement is the point rather
+  ## than the ranking. Chrome's `Bottom-up` view answers "which function is this
+  ## execution spending itself in", which a reordered frame list does not: the
+  ## demo's seven frames become five rows, `calculate_damage`'s two occurrences
+  ## become one row carrying `2` and their combined self cost, and the top row
+  ## is the answer instead of the start of a comparison.
+  ##
+  ## Rendered flat by `renderCallTrace`, for the reason the sorted view was:
+  ## these rows are not in call order and have no tree, so an indent would draw
+  ## a structure the ordering does not describe. Here it is not even a risk —
+  ## a function is not a frame and has no depth to draw.
+  var index: seq[tuple[fn, module: string]]
+  for i, f in p.frames:
+    let self = selfCost(p.frames, i)
+    var at = -1
+    for k, key in index:
+      if key.fn == f.fn and key.module == f.module: at = k
+    if at < 0:
+      index.add (f.fn, f.module)
+      result.add SelfCostRow(fn: f.fn, module: f.module)
+      at = result.len - 1
+    inc result[at].calls
+    if self < 0: result[at].unmetered = true
+    else: result[at].cost += self
+  # Insertion sort, descending by self cost — the same shape the pane's sorted
+  # view used, kept because the row count is a pane's worth and a stable sort
+  # keeps equal-cost functions in first-call order rather than in an arbitrary
+  # one that would change between renders of the same trace.
+  for i in 1 ..< result.len:
+    let cur = result[i]
+    var j = i - 1
+    while j >= 0 and result[j].cost < cur.cost:
+      result[j + 1] = result[j]
+      dec j
+    result[j + 1] = cur
 
 # ---------------------------------------------------------------------------
 # State pane
@@ -451,6 +582,9 @@ type
     label*: string
     detail*: string
     current*: bool
+    anchor*: string       ## §6.0a wire spelling — `log:3`, `sw:shields[0]#1`,
+                          ## `revert`. See `CallFrame.anchor`.
+    href*: string         ## `""` unless this row is a link. See `CallFrame.href`.
 
   EventLogPane* = object
     rows*: seq[EventRow]
@@ -589,6 +723,42 @@ type
       ## publishes none.
 
 # ---------------------------------------------------------------------------
+# Where the link landed (Debugger-Integration §6.0a)
+# ---------------------------------------------------------------------------
+
+type
+  PositionNotice* = object
+    ## §6.0a's verdict about the link this page was opened with, reduced to the
+    ## two things a pane renderer needs: a machine-readable outcome and the
+    ## sentence to show.
+    ##
+    ## Two plain strings and no import of the Client SDK, deliberately. This
+    ## module is the renderer-free projection every pane reads and is compiled
+    ## twice — by `static_export.nim` and by `nim js` — and the SDK's facade
+    ## does not compile for the second (`std/sha1`). The DECISION belongs to
+    ## `blocktracer_client_deeplink.resolvePosition`, which owns §6.0a's
+    ## precedence and writes the sentence so every consumer says the same true
+    ## thing; `deeplink_landing.nim` is what carries its answer here. What this
+    ## type must never become is a second opinion about the same question.
+    outcome*: string
+      ## `PositionOutcome`'s wire spelling — `exact`, `recoveredByAnchor`,
+      ## `nearestEnclosingFrame`, `startOfExecution`, `noReplayableArtifact` —
+      ## or `""` when no link asked for a position and there is nothing to
+      ## decide. An ORDINARY visit is `""`, not `exact`: "the link was honoured
+      ## exactly" and "there was no link" are different facts, and only the
+      ## second may render nothing.
+    statement*: string
+      ## The sentence. Non-empty for every outcome §6.0a calls visible, and
+      ## empty for `exact` — which is the one branch that is allowed to be
+      ## silent, because the page is showing precisely what was asked for.
+
+func isVisible*(n: PositionNotice): bool =
+  ## Whether the visitor must be told. §6.0a: "Every branch below (2) is
+  ## visible. The client never silently lands somewhere other than where the
+  ## link pointed."
+  n.statement.len > 0
+
+# ---------------------------------------------------------------------------
 # The session
 # ---------------------------------------------------------------------------
 
@@ -634,7 +804,28 @@ type
     timeCoordinate*: int      ## the `?t=` the URL asked for; 0 when absent
     containerPath*: string    ## the published container, for the download action
     containerBytes*: int
+    traceContentHash*: string
+      ## `traceContentHash` of the artifact this page currently recommends
+      ## (Trace-Artifacts.md §2.8), algorithm tag and all.
+      ##
+      ## Not a pin and not part of any URL. Debugger-Integration §6.0 is
+      ## explicit: the link "still resolves to whatever is currently
+      ## recommended, so a corrected trace reaches every reader", and `c` only
+      ## answers whether the coordinate transfers. This is the value a visitor's
+      ## `c` is compared against, which is why it has to be on the SERVED page —
+      ## the comparison happens in a browser, before the engine has opened
+      ## anything, and there is nowhere else it could come from.
     languages*: seq[string]
+
+    landing*: PositionNotice
+      ## What §6.0a's precedence decided about the link this page was opened
+      ## with, and the sentence the visitor is owed for it.
+    landingCoordinate*: int
+      ## The coordinate that precedence produced, or `0` for a branch that
+      ## produced none. Separate from `timeCoordinate`, which is what the URL
+      ## ASKED for: the two differ in exactly the branches the notice exists to
+      ## announce, and collapsing them would make the page unable to say that
+      ## they had.
 
     editor*: EditorPane
     calltrace*: CallTracePane

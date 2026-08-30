@@ -366,6 +366,14 @@ type
     selector*: string
     containerPath*: string
     containerBytes*: int
+    contentHash*: string
+      ## `traceContentHash` of the artifact this resolution recommends
+      ## (Trace-Artifacts.md §2.8). The debug page carries it so a browser can
+      ## check an incoming deep link's content witness against the trace it is
+      ## actually about to open (Debugger-Integration §6.0). Empty until the
+      ## manifest is in hand — the address proves the inputs and nothing about
+      ## the bytes — and an empty one resolves as "unverifiable", never as
+      ## "matches".
     steps*, frames*: int
     truncated*: bool
     sourceLevel*: bool
@@ -407,6 +415,7 @@ proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
   result.reason = t.reason
   result.containerPath = t.containerPath
   result.containerBytes = containerBytes(t)
+  result.contentHash = contentHash(t)
   result.reconstructed = t.reconstructed
   result.outcome =
     if isReplayable(t): tvReplayable

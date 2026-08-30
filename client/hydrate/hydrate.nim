@@ -119,6 +119,19 @@ proc closestFrom(ev: Event; selector: cstring): Element {.importjs: """
 proc documentIsLoading(): bool {.importjs:
   "(document.readyState === 'loading')".}
 
+proc isPlainActivation(ev: Event): bool {.importjs: """
+(function(e){
+  // A left-button click with no modifier. Everything else is the visitor
+  // asking the BROWSER for something — a new tab, a new window, a download —
+  // and a handler that cancelled those would be a page taking a gesture the
+  // platform owns. `button` is undefined on a keyboard-generated click, which
+  // is why the test is "not a non-zero button" rather than "button === 0":
+  // Enter on a link must take the in-session jump, not a page reload.
+  return !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey &&
+         !(e.button > 0);
+})(#)
+""".}
+
 proc paneBody(root: Element; id: cstring): Element =
   let pane = root.querySelector(id)
   if pane == nil: nil else: pane.querySelector(".panebody")
@@ -295,6 +308,76 @@ proc markUnavailable(ui: Ui; reason: string) =
   ui.root.setAttribute("data-engine-unavailable", reason.cstring)
 
 # ---------------------------------------------------------------------------
+# §6.0a — reading the link, not only writing it
+# ---------------------------------------------------------------------------
+#
+# The debug route existed as a deep-link TARGET that never read its own link.
+# `?t=` was written on every navigation and ignored on every arrival, so a
+# shared link opened wherever the engine happened to land — which is the
+# silent wrong position §6.0a is written to forbid, produced by the half of
+# the mechanism that was built first.
+#
+# Resolution happens HERE, before a byte of the engine is fetched, for two
+# reasons. §6.3: "Resolution happens **before first paint**, so a shared link
+# opens *at* the position rather than at the start with a visible jump" — and
+# the first paint hydration controls is the one after `goLive`, so the decision
+# has to precede it. And §6.0a's step 1, "no replayable artifact → state that",
+# is reachable ONLY on a page with no container at all, which is a page whose
+# panes do not exist and where nothing else in this file runs.
+#
+# The rows the anchor is resolved against are the SERVED ones. That is not a
+# shortcut around asking the engine: §7.0 makes this page the session's first
+# frame rendered from published data, so its call trace and event log already
+# describe the artifact the link is about, and each row carries its §6.0a
+# anchor as `data-anchor`. Asking the engine would cost a worker, an 18 MB
+# wasm and a round trip to learn something the document already states.
+
+proc rowsOf(root: Element; selector: cstring):
+    seq[tuple[step: int, anchor, module: string]] =
+  for row in root.querySelectorAll(selector):
+    let module = row.querySelector(".ctmod")
+    result.add (intAttr(row, "data-step"), attr(row, "data-anchor"),
+                (if module == nil: "" else: $module.textContent))
+
+proc servedCallTrace(root: Element): CallTracePane =
+  ## The served call trace as pane data. Only what an anchor lookup reads:
+  ## the coordinate, the anchor, and the module path a `src:` anchor is matched
+  ## against. Depth is left at 0, which `startCoordinate` handles by falling
+  ## back to the first row — and the first row of a call trace rendered in call
+  ## order IS the entry frame.
+  for r in rowsOf(root, ".ctrow"):
+    result.frames.add CallFrame(step: r.step, anchor: r.anchor, module: r.module)
+
+proc servedEventLog(root: Element): EventLogPane =
+  for r in rowsOf(root, ".evrow"):
+    result.rows.add EventRow(step: r.step, anchor: r.anchor)
+
+proc announceLanding(root: Element): LinkLanding =
+  ## Resolve the link this page was opened with, and say where it landed.
+  ##
+  ## Written into the slot `pages/debug.nim` always emits, through the SAME
+  ## renderer that page would have used — so the sentence a visitor reads is
+  ## not a second wording of the one the static export knows how to draw. The
+  ## slot is `:empty`-hidden, so an ordinary visit and an exact hit both leave
+  ## the page exactly as served.
+  result = resolveLanding(
+    linkPayload(),
+    # The page's own predicate for "there is a container here", which
+    # `pages/debug.nim` derives from `canShare` rather than from a path that
+    # may be merely derivable. Two predicates for one question is how a
+    # `data-trace` pointing at a 404 got shipped once already.
+    artifactAvailable = attr(root, "data-trace").len > 0,
+    currentContentHash = attr(root, "data-content-hash"),
+    calltrace = servedCallTrace(root),
+    eventLog = servedEventLog(root))
+  let slot = document.getElementById(PositionNoticeSlotId.cstring)
+  if slot == nil: return
+  var view: DebugSessionView
+  view.landing = result.notice
+  view.landingCoordinate = result.coordinate
+  slot.innerHTML = panes.renderPositionNotice(view).cstring
+
+# ---------------------------------------------------------------------------
 # §13 — the copy affordance, upgraded
 # ---------------------------------------------------------------------------
 
@@ -357,6 +440,7 @@ type
     started: bool            ## the DAP handshake has been issued
     live: bool               ## the engine has answered and the panes are live
     latch: PaneLatch         ## which panes the live session has ever filled
+    landing: LinkLanding     ## where §6.0a said this link puts the session
 
 proc render(h: Hydration) =
   renderPanes(h.ui, projectReplayPanes(h.session, h.base, h.ui.island), h.latch)
@@ -390,7 +474,18 @@ proc applyStop(h: Hydration; ticks: uint64; file: string; line: int) =
   # §6.3: "`t` updates on **every** navigation via `history.replaceState`".
   # The COORDINATE, so a share link from a hydrated session lands where the
   # session is rather than where it was served.
-  replaceQuery("?t=" & $ticks)
+  #
+  # The WHOLE payload, not `t` alone. It used to write `?t=128`, which this
+  # product's own reader now — correctly — treats as unverifiable: §6.0a
+  # requires `c` wherever `t` appears, and §6.3 requires a share to carry an
+  # anchor. So a visitor who copied the address bar after stepping got a link
+  # that would land at the start of the execution and say so, which is a true
+  # sentence about a link we had no reason to emit. `c` is the artifact's
+  # witness and `a` is a `src:` anchor for the line the session is ON — both
+  # recomputed here, because an anchor left at the position the page was
+  # served at would recover a regenerated trace to the wrong frame.
+  replaceQuery(positionQuery(h.base.traceContentHash, int(ticks),
+    (if file.len > 0 and line > 0: "src:" & file & ":" & $line else: "")))
   h.render()
 
 proc requestPosition(h: Hydration) =
@@ -465,8 +560,9 @@ proc invoke(h: Hydration; action: DebugAction) =
   ## means stepping the wrong way.
   h.session.controls.invokeToolbarStep(toolbarActionId(action))
 
-proc gotoTicks(h: Hydration; ticks: int) =
-  ## A row in the navigation region, clicked.
+proc gotoTicks(h: Hydration; ticks: int; onRefused: proc() = nil) =
+  ## A row in the navigation region, clicked — or the coordinate a deep link
+  ## resolved to.
   ##
   ## Debugger-Integration §3's deferred item, and §4.2's "single most valuable
   ## interaction in the product — 'take me to the line that wrote this
@@ -474,11 +570,18 @@ proc gotoTicks(h: Hydration; ticks: int) =
   ## a `ct/complete-move` for the target tick, so the position arrives back
   ## through the same event path a step does. No new protocol, exactly as §3
   ## says none is needed.
+  ##
+  ## `onRefused` exists for the deep-link caller and for nothing else. A row
+  ## click that the engine refuses leaves the session where it was, which is
+  ## correct and needs no fallback; a REFUSED deep-link seek would otherwise
+  ## leave the panes frozen at the served frame with no live position at all,
+  ## because the seek replaces the `stackTrace` that would have fetched one.
   h.service.send("ct/goto-ticks", %*{"threadId": 1, "ticks": ticks}).onComplete(
     onSuccess = proc(response: JsonNode) =
       if not response{"success"}.getBool(true):
         # The engine refused the jump. Nothing moves and nothing pretends to;
         # the row stays a row and the session stays where it was.
+        if onRefused != nil: onRefused()
         return,
     onError = proc(message: string) = h.fail(
       "The replay engine stopped answering: " & message))
@@ -502,6 +605,19 @@ proc bindGestures(h: Hydration) =
       if row == nil: return
       let step = attr(row, "data-step")
       if step.len == 0: return
+      # The row IS a link in a hydrated page, and its href is a real, valid
+      # §6.0a URL — which is what makes middle-click, "open in new tab" and
+      # copy-link-address all work, and what makes Enter activate it without a
+      # `keydown` handler here. What must not happen is the FULL NAVIGATION on
+      # an ordinary click: the session is already open at the right trace, and
+      # reloading it to move one frame would refetch an 18 MB engine to arrive
+      # where a `ct/goto-ticks` gets in a millisecond.
+      #
+      # Cancelled only when the jump is actually taken. A modified click —
+      # new tab, new window, download — is left to the browser, because the
+      # visitor asked for the navigation rather than for the seek.
+      if not isPlainActivation(ev): return
+      ev.preventDefault()
       try: h.gotoTicks(parseInt(step)) except CatchableError: discard)
 
   h.ui.controls.addEventListener("click", proc(ev: Event) =
@@ -524,16 +640,32 @@ proc bindGestures(h: Hydration) =
   # replaces the whole body on every stop and the rail with it; a listener on
   # the rail would be dropped by the first step it took.
   rowHandler(h.ui.editor, ".frseg")
-  # The rows are now controls, so they say so — but only NOW. The served
-  # markup deliberately carries no role and no tabindex, because §3's reason
-  # for deferring these was that "an affordance that cannot act is the defect
-  # this route has already removed twice".
-  for row in h.ui.calltrace.querySelectorAll(".ctrow"):
-    row.setAttribute("role", "button")
-    row.setAttribute("tabindex", "0")
-  for row in h.ui.eventLog.querySelectorAll(".evrow"):
-    row.setAttribute("role", "button")
-    row.setAttribute("tabindex", "0")
+  # The rows become controls by being RENDERED as links, not by having
+  # attributes added to them afterwards.
+  #
+  # This used to stamp `role="button"` and `tabindex="0"` onto every row here,
+  # and it was wrong twice. It was lost on the next step, because `renderPanes`
+  # replaces each pane's `innerHTML` on every stop and the attributes went with
+  # the markup — so the rows were focusable for exactly as long as the session
+  # stayed still. And `role="button"` with a click handler is a control that a
+  # keyboard cannot operate: neither Enter nor Space fires a click on a `div`,
+  # and the pair was the page's only navigation affordance while the research
+  # this arrangement is built on says selection is the PRIMARY gesture.
+  #
+  # An `<a href>` fixes both structurally. `session_project` gives every row a
+  # destination, `components/debugger` renders it as an anchor, and every
+  # re-render emits one — so focus, Enter, the focus ring, the status bar and
+  # the context menu arrive from the platform and cannot be forgotten by a
+  # later change to this file.
+  #
+  # The loop rail is the ONE surface that cannot take that fix, and
+  # `markRailNavigable` is where it is handled instead. A navigable segment is
+  # deliberately a `<span>` with no `href` (`components/debugger`): its target
+  # is not a document position but a seek to that pass's header tick, so there
+  # is no honest URL to put on it. It therefore still needs the role and the
+  # tabindex — but stamped after EVERY render rather than once here, which is
+  # exactly the bug this comment describes, avoided by putting the call inside
+  # `renderPanes` instead of in this proc.
   h.ui.root.setAttribute("data-rows-navigable", "true")
 
 # ---------------------------------------------------------------------------
@@ -603,7 +735,23 @@ proc handshake(h: Hydration) =
         h.service.send("threads", newJObject()).onComplete(
           onSuccess = proc(_: JsonNode) =
             h.goLive()
-            h.requestPosition(),
+            # §6.3: "Resolution happens before first paint, so a shared link
+            # opens AT the position rather than at the start with a visible
+            # jump." The decision was made at load (`announceLanding`); this is
+            # where it is acted on, and it is acted on INSTEAD of asking where
+            # the engine landed rather than after it — a `stackTrace` first
+            # would render the panes at the container's entry point and then
+            # move them, which is the visible jump, on the one route that
+            # exists to be deep-linked into.
+            #
+            # The fallback is the ordinary path, so an engine that refuses the
+            # seek still ends up with a live, positioned session rather than a
+            # frozen served one.
+            if h.landing.coordinate > 0:
+              h.gotoTicks(h.landing.coordinate,
+                          onRefused = proc() = h.requestPosition())
+            else:
+              h.requestPosition(),
           onError = proc(message: string) =
             h.fail("The replay engine failed to start: " & message)))))
 
@@ -657,15 +805,33 @@ proc servedFrame(ui: Ui): DebugSessionView =
   result.phase = spFetching
   result.controls.totalSteps = intAttr(ui.root, "data-total-steps")
   result.controls.step = intAttr(ui.root, "data-step")
+  # §6.0's witness needs the hash of the artifact this page recommends, and the
+  # page is the only thing that knows it — the engine can hash the bytes it was
+  # given but has no opinion about which artifact was recommended. It is read
+  # here, with the other served facts, so the rows' links and the incoming
+  # link's verdict are about one and the same trace.
+  result.traceContentHash = attr(ui.root, "data-content-hash")
 
 proc hydrate() =
-  let ui = readUi()
-  if ui.root == nil: return
+  # The root, before `readUi`, because the two things below it apply to pages
+  # `readUi` deliberately refuses: §7.0's `absent`, `unsupported` and
+  # `onDemand` rows have no panes, and a hydration that bailed first would
+  # leave a visitor who followed a link into one of them with no answer at all.
+  let root = document.querySelector(".dbg")
+  if root == nil: return
 
   # §13's copy buttons first, and unconditionally. They need no engine, no
   # worker and no wasm, so a browser that can run none of those still gains
   # them — which is the capability ladder's whole shape applied one rung down.
-  upgradeCopyAffordances(ui.root)
+  upgradeCopyAffordances(root)
+
+  # §6.0a, second, and for the same reason: it needs no engine either, and its
+  # first step — "no replayable artifact → state that; show the transaction.
+  # Terminal." — is reachable ONLY here, on a page that has none.
+  let landing = announceLanding(root)
+
+  let ui = readUi()
+  if ui.root == nil: return
 
   # §14.2's detection half, before a byte is fetched.
   let capability = detectCapability()
@@ -675,11 +841,12 @@ proc hydrate() =
 
   # No published container is not a failure — it is §7.0's `absent` row, which
   # this page already renders correctly and which offers no debugger and no
-  # pretence of one. There is nothing to say and nothing to change.
+  # pretence of one. There is nothing left to change; what there WAS to say has
+  # been said by `announceLanding` above.
   let traceUrl = attr(ui.root, "data-trace")
   if traceUrl.len == 0: return
 
-  let h = Hydration(ui: ui, base: servedFrame(ui))
+  let h = Hydration(ui: ui, base: servedFrame(ui), landing: landing)
   h.backend = newWorkerBackend(
     postProc = proc(messageJson: string) = postJson(messageJson),
     terminateProc = proc() = terminateWorker())

@@ -112,6 +112,7 @@ proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
   result = demoSession(chain, v,
     containerPath = t.containerPath,
     containerBytes = t.containerBytes,
+    contentHash = t.contentHash,
     totalSteps = (if t.steps > 0: t.steps else: 0))
   if t.languages.len > 0:
     result.languages = t.languages

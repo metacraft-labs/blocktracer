@@ -312,6 +312,29 @@ proc replaceQueryImpl(query: cstring) {.importjs: """
 })(#)
 """.}
 
+proc locationSearchImpl(): cstring {.importjs: "(location.search || '')".}
+proc locationHashImpl(): cstring {.importjs: "(location.hash || '')".}
+
+proc linkPayload*(): string =
+  ## The §6.0a payload this page was opened with — the query if it carries one,
+  ## else the fragment.
+  ##
+  ## Both, because the payload is written in both places and a reader pastes
+  ## whichever they were given. §6's URL form puts it in the fragment;
+  ## Page-Descriptions §8 and Configuration.md put `t` in the query, and the
+  ## query is what this page's own Share control and its `replaceState` write.
+  ## The grammar is identical and the SDK's parser takes either, so the only
+  ## decision here is precedence, and the query wins because it is the form
+  ## this product emits — a URL carrying both is one where the fragment is the
+  ## older half.
+  ##
+  ## A fragment that is a bare element id (`#L-src-shield-nr-32`, which every
+  ## share link also carries) contains no `=` and parses to nothing, which the
+  ## caller reads as "no link asked for a position". That is the correct
+  ## answer: the id scrolls, it does not position.
+  let q = $locationSearchImpl()
+  if q.len > 1: q else: $locationHashImpl()
+
 proc replaceQuery*(query: string) =
   ## Debugger-Integration §6.3: "`t` updates on **every** navigation via
   ## `history.replaceState`, so the back button stays a page-level control

@@ -104,3 +104,20 @@ const
     ## assert the dependency direction in both directions from one place:
     ## everything else in this package must be usable — and compilable — with
     ## no debugger anywhere near it.
+
+  BlockTracerClientDeepLinkModule* = "blocktracer_client_deeplink"
+    ## The one module a **browser** build may import instead of this facade.
+    ##
+    ## This facade's graph reaches `std/sha1` (through
+    ## `blocktracer/contract/ids`, which derives `traceArtifactId`), and
+    ## `std/sha1` does not compile on the JS backend — `std/endians` uses
+    ## `copyMem`. So a `nim js` consumer cannot have the facade at all, and the
+    ## part of this package it actually needs, §6.0a's deep-link grammar and
+    ## resolution precedence, needs nothing but `std/strutils` and `std/tables`.
+    ##
+    ## Named here for the same reason the embed handoff is: the lint reads both
+    ## names from this file, so renaming either module without renaming its
+    ## constant is caught rather than silently disarming a guard. The guard
+    ## additionally asserts that this entry point reaches **only**
+    ## `blocktracer_client/deeplink` — widening the browser-visible surface is a
+    ## deliberate edit to `ci/test/client-sdk-boundary.sh`, not a quiet import.
