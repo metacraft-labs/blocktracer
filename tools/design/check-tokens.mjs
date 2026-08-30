@@ -242,6 +242,11 @@ export const ALLOWLIST = [
     re: /\btransparent\b/g,
     why: "`transparent` is the ABSENCE of a colour, not a colour. `.btn` uses it for the base border so that every variant class must set a real border-colour token — which is what stops a variant inheriting a user-agent default, the defect that made the primary action 1.04:1.",
   },
+  {
+    id: "absolute-url",
+    re: /\bhttps?:\/\/[^\s"'`)]+/g,
+    why: "An absolute URL is a DESTINATION, not a design value: nothing is coloured, sized or spaced by it, and there is no token that could hold it. It is exempted because the classifier cannot otherwise tell one from a CSS declaration — `looksLikeCssDecl` reads `https://codetracer.com` as the property `https` with the value `//codetracer.com`, one 'word', which is the same shape as `color:red`. That misreading made the footer's three provenance links fail A5 as inline styles, so the exemption is what lets this repository say who built it and where its source is. Nothing is lost: the URL is blanked BEFORE the colour and length scans, and no absolute URL is a colour or a length. Whether a URL is a FETCH or a hyperlink is a different rule with a different owner — tests/test_explorer_breadth.externalReferences.",
+  },
 ];
 
 // Rows that record WHERE the web lineage lives rather than what it renders.

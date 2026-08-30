@@ -1,8 +1,45 @@
 ## Site footer — a single honest line about what this build is (a demo-data
-## render), plus the standing product credo.
+## render), the standing product credo, and the provenance strip: who built
+## this, what it is built on, and where the source is.
+##
+## ## Why the provenance strip is HERE and not in the nav
+##
+## The GitHub mark is in this footer and NOT in `nav.nim`, and it is in exactly
+## one of the two. The nav is a fixed bar carrying the site's own destinations
+## and the search field — it answers "where in BlockTracer do I go next", and
+## every item in it is a place inside this site. "Where is the source" is not a
+## destination inside the site; it is a fact ABOUT the site, in the same class
+## as who built it and what it is built on. The footer already holds that class
+## of statement ("Rendered from demo data … no live chain, no account, no
+## tracking"), so the repository link joins the sentence that names Metacraft
+## Labs and CodeTracer rather than displacing a navigation target from a bar
+## that is pinned to every viewport at every scroll position.
+##
+## ## Why the transaction page does not get this
+##
+## Because it never calls this procedure. `layout.pageLayout` renders the nav,
+## the body and this footer; `layout.debugLayout` renders the content and
+## nothing else, and §7.0 sends every transaction with a published trace to
+## `debugLayout`. The exclusion is therefore a property of WHICH SHELL a route
+## chose — a full-viewport debugging session and a browsable explorer page are
+## two shells, and they always were — and not a conditional inside one shell
+## that a later edit could get the wrong way round. Nothing in this file knows
+## the debug route exists, which is the point.
 
 import isonim/ssr/escape
 import isonim/dsl/ui
+import ./icons
+
+const
+  MetacraftUrl = "https://metacraft-labs.com"
+  CodeTracerUrl = "https://codetracer.com"
+  SourceUrl = "https://github.com/metacraft-labs/blocktracer"
+    ## `metacraft-labs/blocktracer` — THIS repository, verified public before
+    ## it was linked (`gh repo view --json visibility` → PUBLIC). The claim the
+    ## strip makes is that this explorer is open source, so the link has to be
+    ## the explorer's own tree; pointing it at CodeTracer's would be a true
+    ## statement about a different program. CodeTracer's repository is public
+    ## too, and it is reachable one click on from the CodeTracer link beside it.
 
 proc siteFooter*(): string =
   ui:
@@ -19,6 +56,27 @@ proc siteFooter*(): string =
             a(href = "/about"): text "About"
             a(href = "/chains"): text "Chains"
             a(href = "/settings"): text "Privacy & settings"
+        tdiv(class = "footcredit"):
+          p(class = "credo"):
+            # The heart carries the word it stands for as its accessible name,
+            # so the announced sentence is the written one. It is the only mark
+            # on this page that is a WORD rather than a decoration beside one —
+            # see `icons.heartMark`.
+            text "Built with "
+            raw heartMark("love")
+            text " by "
+            a(href = MetacraftUrl): text "Metacraft Labs"
+            text ". Powered by "
+            a(class = "ctcredit", href = CodeTracerUrl):
+              text "CodeTracer"
+              raw codeTracerMark("svgicon ct")
+          # `rel="noopener"` and nothing else. There is no `target="_blank"`:
+          # opening a new tab is a decision that belongs to the reader's own
+          # gesture, and this site has no script that could restore the one
+          # thing a new tab would have preserved.
+          a(class = "repolink", href = SourceUrl, rel = "noopener"):
+            raw githubMark()
+            text "Source on GitHub"
         tdiv(class = "muted"):
           text "Rendered from demo data ("
           span(class = "mono"):

@@ -310,10 +310,50 @@ table.tbl td .reason{white-space:normal;max-width:var(--bt-measure-narrow)}
 .footlinks{display:flex;gap:var(--bt-space-md);margin-top:var(--bt-space-xs)}
 .footlinks a{color:var(--bt-text-link);text-decoration:underline;text-underline-offset:var(--bt-space-3xs)}
 
+/* ── inline marks ───────────────────────────────────────────────────────── */
+/* The site's one icon convention (components/icons.nim). Every rule here is a
+   consequence of what an inline SVG is, not a look:
+
+   * `currentColor` on the mark means the COLOUR is whatever the surrounding
+     text is, so a mark is themed by the token that themes its sentence and
+     there is no second colour to keep in step. The heart is the one that
+     opts out, below.
+   * `display:inline-block`, overriding the `img,svg{display:block}` reset at
+     the top of this file. A block-level SVG in a run of text starts its own
+     line box; `vertical-align` needs an inline box to have anything to align
+     TO, and without it a 16px mark on a 14px line sits low by its descender.
+   * `flex:0 0 auto`, because two of the three callers are flex containers
+     (`.ctcredit`, `.repolink`) and a mark that shrinks is a mark that
+     distorts — an SVG has no intrinsic minimum the way an image does. */
+.svgicon{width:var(--bt-space-md);height:var(--bt-space-md);display:inline-block;vertical-align:text-bottom;flex:0 0 auto}
+/* The heart is smaller than the logos beside it and it is the accent rather
+   than the text colour. Both because it is a WORD in the sentence and not a
+   logo at the end of one: at the logos' size it outweighs the clause it sits
+   in, and in the text colour it reads as a dingbat someone typed. The accent
+   is the site's own colour, and deliberately not `--bt-status-danger-*`: the
+   red in this token layer means "this went wrong", and borrowing it for
+   affection would make the one red on a page mean two things. */
+.svgicon.heart{width:var(--bt-space-sm);height:var(--bt-space-sm);color:var(--bt-accent-default);vertical-align:baseline}
+
 /* ── footer ─────────────────────────────────────────────────────────────── */
 .foot{border-top:var(--bt-stroke-hairline) solid var(--bt-border-subtle);margin-top:var(--bt-rhythm-group);padding:var(--bt-rhythm-group) 0;color:var(--bt-text-subtle);font-size:var(--bt-type-body-sm-size);background:var(--bt-surface-raised)}
 .foot .inner{display:flex;justify-content:space-between;gap:var(--bt-rhythm-stack);flex-wrap:wrap}
 .foot code{color:var(--bt-text-code)}
+
+/* ── footer: the provenance strip ───────────────────────────────────────── */
+/* Who built it, what it runs on, and where the source is — one column, because
+   the three statements are one claim and a reader who has found the first has
+   found all three. */
+.footcredit{display:flex;flex-direction:column;align-items:flex-start;gap:var(--bt-space-xs)}
+.footcredit a{color:var(--bt-text-link);text-decoration:underline;text-underline-offset:var(--bt-space-3xs)}
+.footcredit a:hover{color:var(--bt-text-link-hover)}
+/* The credo is ordinary running text, NOT a flex row: "Built with ♥ by …" is a
+   sentence, and a flex container turns each run between two marks into an
+   anonymous item that can be broken and re-gapped independently of the words
+   around it. Only the two pieces that are a name PLUS a mark are flex, and
+   only so the mark cannot be separated from the name it belongs to. */
+.ctcredit,.repolink{display:inline-flex;align-items:center;gap:var(--bt-space-2xs);white-space:nowrap}
+.repolink{text-decoration:underline;text-underline-offset:var(--bt-space-3xs)}
 
 /* ── §13: below 900px the transactions table becomes stacked cards ───────── */
 /* "All tables virtualised; below 900 px they become stacked cards with the

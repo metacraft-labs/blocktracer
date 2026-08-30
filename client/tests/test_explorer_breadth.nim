@@ -72,13 +72,57 @@ const
   # make this scanner start passing external references.
   TreePrefixes = ["d/", "idx/", "registry/", "src/", "t/"]
 
+proc inAnchorTag(html: string; index: int): bool =
+  ## Is `index` inside the opening tag of an `<a …>` (or `<area …>`)?
+  ##
+  ## Walks back to the nearest `<` and forward to the nearest `>`, and reads
+  ## the tag name between them. Only an OPENING tag qualifies: text between an
+  ## `<a>` and its `</a>` is not inside the tag, which is what makes this a
+  ## statement about an attribute rather than about a region of the document.
+  var open = -1
+  for k in countdown(index, 0):
+    if html[k] == '>': return false
+    if html[k] == '<': open = k; break
+  if open < 0: return false
+  var close = -1
+  for k in index ..< html.len:
+    if html[k] == '<': return false
+    if html[k] == '>': close = k; break
+  if close < 0: return false
+  var name = ""
+  var k = open + 1
+  while k < close and html[k] notin {' ', '\t', '\n', '/', '>'}:
+    name.add html[k]
+    inc k
+  result = name.toLowerAscii in ["a", "area"]
+
 proc externalReferences*(html: string): seq[string] =
-  ## Every absolute URL in a page that is not this site's own origin.
+  ## Every absolute URL a page would FETCH from an origin that is not its own.
   ##
   ## `Static-Site-Architecture.md` §1: "The browser reads static files and
   ## nothing else. No API, no database, no third-party endpoint." A page that
-  ## names another origin is a page that would not render with every non-CDN
-  ## origin blocked, whatever the render looked like when they were reachable.
+  ## fetches from another origin is a page that would not render with every
+  ## non-CDN origin blocked, whatever the render looked like when they were
+  ## reachable.
+  ##
+  ## ## Why an `<a href>` is not one of those (revised 2026-08-30)
+  ##
+  ## A hyperlink is not a fetch. Nothing is requested until the reader chooses
+  ## to leave, the page renders identically with every foreign origin blocked,
+  ## and the claim §1 makes — that this site depends on no third party to
+  ## DISPLAY — is untouched by it. The scanner could not see the difference
+  ## because it read characters and not markup, so it counted the footer's
+  ## "Source on GitHub" as the same kind of thing as a CDN `<script src>`.
+  ## Under that reading the site could never say who built it or where its
+  ## source is, and the honest fix is for the scanner to know what an anchor
+  ## is rather than for the page to stop linking.
+  ##
+  ## The distinction is on the ELEMENT and not on the attribute name, which is
+  ## why `<link href>` (a stylesheet — a fetch) is still caught: `href` means
+  ## "go there" on `<a>` and "load this" on `<link>`, and only the tag says
+  ## which. A subresource NESTED inside an anchor — `<a><img src=…></a>` — is
+  ## still a fetch and is still caught, because it is inside the `<img>` tag
+  ## and not inside the `<a>` one.
   var i = 0
   while true:
     let at = html.find("://", i)
@@ -92,6 +136,7 @@ proc externalReferences*(html: string): seq[string] =
     let url = html[start ..< stop]
     if not url.startsWith(SiteDomain) and
        not url.startsWith("http://www.sitemaps.org") and
+       not inAnchorTag(html, at) and
        url notin result:
       result.add url
     i = stop
@@ -150,6 +195,19 @@ suite "M9 — the scanners below can fail (they are run against defects first)":
     # URL, which are the two absolute URLs the product legitimately emits.
     check externalReferences(
       "<link rel=\"canonical\" href=\"" & SiteDomain & "/aztec\">").len == 0
+    # A HYPERLINK is not a fetch: the footer's provenance strip names Metacraft
+    # Labs, CodeTracer and this repository, and the page renders identically
+    # with all three origins unreachable.
+    check externalReferences(
+      "<a href=\"https://github.com/metacraft-labs/blocktracer\">Source</a>").len == 0
+    check externalReferences("<a rel=\"noopener\" href='https://codetracer.com'>x</a>").len == 0
+    # …and the exemption is on the ANCHOR TAG, not on the region it opens and
+    # not on the attribute name. Each of these three is the way the exemption
+    # could have been written too loosely, and each must still be caught.
+    check externalReferences(
+      "<a href=\"/x\"><img src=\"https://pixel.example.com/p.gif\"></a>").len == 1
+    check externalReferences("<a href=\"/x\">https://cdn.example.com/a.js</a>").len == 1
+    check externalReferences("<link href='https://fonts.example.com/f.css'>").len == 1
 
   test "the dead-link scanner catches an href to a route that does not exist":
     let routes = ["/", "/chains"].toHashSet
@@ -260,7 +318,7 @@ suite "M9 — e2e_explorer_renders_from_published_files_only":
     check "registry" in prefixesSeen
     check "src" in prefixesSeen     # the code page resolved a source bundle
 
-  test "no rendered page names an origin other than this site's own":
+  test "no rendered page fetches from an origin other than this site's own":
     var offenders: seq[string]
     for route in routes:
       let (_, body, _) = renderRoute(plain, route)

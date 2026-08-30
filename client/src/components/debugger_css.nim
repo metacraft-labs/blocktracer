@@ -80,6 +80,17 @@ html[data-register="debugger"],
 .dbgspacer{flex:1 1 auto}
 .btn.sm{font-size:var(--bt-type-label-size);line-height:var(--bt-type-label-line);
   padding:var(--bt-space-3xs) var(--bt-space-xs)}
+/* The page's two actions, as ONE group. They wrap together or not at all —
+   `Share` alone on a row with `Download` above it is the failure mode the bar
+   spent a forced full-width break avoiding. */
+.dbgacts{flex:0 0 auto;display:flex;align-items:center;gap:var(--bt-space-xs)}
+/* An icon-only control is SQUARE: equal padding on all four sides around a
+   mark that is as wide as it is tall. `.btn.sm`'s asymmetric padding is sized
+   for a word, and inherited unchanged it produced a lozenge with a logo in it.
+   The mark is `--bt-space-md` (styles.nim sizes it), so the control is
+   16 + 2x4 + 2 borders = 26px — shorter than the 32px `.dcbtn` that sets the
+   bar's line box, so the two actions do not change the bar's height. */
+.dbgacts .btn.icon{padding:var(--bt-space-2xs);gap:0}
 /* The control group inside the bar. It takes the width its contents need and
    no more — the slack goes to `.dbgspacer` after it, NOT into the scrubber.
    That is deliberate: a uniform-step scrubber over `step / totalSteps` carries
@@ -995,31 +1006,95 @@ a.ctrow,a.evrow{cursor:pointer}
 
 /* ── narrow: its own surface, not a squeeze (Page-Descriptions §13) ─────── */
 .dbgnarrow{display:none}
-/* ── the identity bar's wrap point ──────────────────────────────────────── */
-/* Below `wide`, the bar cannot hold the identity, the controls, the scrubber,
-   the status, the phase rail and both actions on one line. Left alone it wraps
-   wherever the last item stops fitting, which left the final action alone on a
-   second line and read as a rendering fault. So the wrap point is a
-   DECISION: the spacer becomes a zero-height full-width break, giving two
-   deliberate rows — the session (identity and its controls) above, the page's
-   actions below — and the scrubber gives up the width that makes the first row
-   fit, because a uniform-step readout is the cheapest thing in the group. */
-@media (max-width:1600px){
+/* ── the identity bar below the width its full contents need ────────────── */
+/* The bar used to answer a shortfall by BREAKING. `.dbgspacer` became a
+   full-width zero-height item below 1600px, which put the language tag and
+   both actions on a second row at every laptop viewport; below 1366px the
+   control group took a THIRD row, and between 1601 and 1764 — where the
+   forced break did not apply and the full contents did not fit — the bar wrapped
+   wherever the last item stopped fitting, which is the fault the break was
+   introduced to avoid, in the band the break did not cover. A wrap point does
+   not create width. It only decides where the shortfall lands.
+
+   Measured under the rules this replaces, at 1440 (content box 1392px), the
+   row wanted 1600px:
+     identity 319 — back 53, hash 110, outcome 90, block 66
+     controls 1028 — rule+pad 25, buttons 287, scrubber 160 (already shrunk by
+                     the rule this replaces), status 256, inner gaps 32,
+                     rail 245, group gap 24
+     language 29, Share 51, Download 109, seven 8px gaps 56.
+   A 208px shortfall is not something a wrap point can fix; something has to
+   stop being on the line. Two things do, and both are things that are SAID
+   TWICE — which is the only kind of removal that costs a reader nothing:
+
+   * The scrubber. 48 uniform ticks over `step / totalSteps`, whose exact value
+     is printed as a fraction in `.dcsteps` 16px to its right. The rule this
+     replaces shrank it to 160px instead, and the comment on `.dbgctl .dctl`
+     above already says why that was the wrong half of the choice — "a readout
+     that cannot be read is worse than one that costs width". The honest end of
+     that sentence is that here it costs width the bar does not have. Removed,
+     not squeezed: −276px at its own full size, −176 at the size the rule
+     this replaces had shrunk it to, which is the number the arithmetic above
+     is against.
+   * The status PHRASE, and only while the phase rail is beside it. `.dcphase`
+     reads "Engine loading — 18 MB"; the rail immediately to its right names
+     the same three phases and marks the one in progress, and carries the 18 MB
+     on the `Fetching` chip's own title. `:not(:only-child)` is what scopes
+     this correctly rather than approximately: `renderPhaseRail` returns the
+     empty string once the engine is live, so on a hydrated session `.dc` IS
+     the only child, nothing else on the bar names the state, and the status
+     stays. −170px.
+
+   Plus the two actions becoming marks in `pages/debug.nim` (−92px). 438px
+   removed against a 208px shortfall, so 1440 is one line with ~230px of slack
+   — enough that the `Reconstructed` badge (123px on the transactions that
+   carry one) does not put it back over.
+
+   1780 is measured, not chosen: the bar's FULL contents fit from 1765px up,
+   so the reduction begins at the last width where they do not. Above it
+   nothing is removed and `wide` is the bar it has always been; below it every
+   desktop width down to 1321 is one line, which is what the 1600 rung was
+   failing to deliver at 1366, 1440, 1536, 1600 and 1680 alike. */
+@media (max-width:1780px){
+  .dbgctl .dctl{display:none}
+  .dbgctl > .dc:not(:only-child) .dcphase{display:none}
+}
+/* Below this the cuts above have run out and the bar breaks — deliberately,
+   in the one place a break reads as a break rather than as a fault.
+
+   1320 is measured, not chosen. With the three cuts above, the widest bar the
+   demo tree publishes — the transaction that also carries a `Reconstructed`
+   badge, 123px nobody may take away, since Trace-Artifacts §2.3a makes it the
+   difference between a recorded trace and a reconstructed one — stops fitting
+   between 1314px and 1318px. The rung is the next round number ABOVE the last
+   width that cannot hold it, so
+   the two regimes meet exactly where the content does instead of 285px early,
+   which is what a 1600 rung was doing to 1366 and 1440.
+
+   Below about 1230 a third row appears on that reconstructed transaction: its
+   identity cluster plus its control group no longer share a line either, so
+   the break above them is not the only one. That is unchanged from before this
+   revision and it is inside the band this rung already declares to be a
+   wrapped bar; the widths at issue are 100px above the point where §13's
+   narrow session takes the controls away entirely.
+
+   It is NOT lowered to 1280, and that is a decision rather than a limit. The
+   only remaining candidates for removal are `.dbgblock` and `.dbglang` — the
+   block height and the language — and those are two of the three things this
+   change exists to keep ON the line. Buying 1280 with them would be answering
+   "put everything on one row" with "put less on it".
+   The wrapped row TERMINATES the bar rather than starting a new one. Three
+   reviewers read the left-aligned version as an orphaned toolbar strip in
+   explorer clothing, with no rule or label and a screenful of empty canvas to
+   its right, which put the page's actions closer to the Code pane's title than
+   to the hash they act on (ledger@2026-08-29.2:debugger/laptop/light/L4/3,
+   ledger@2026-08-29.2:debugger/laptop/dark/L2/4,
+   ledger@2026-08-29.2:debugger/laptop/dark/L5/2). Pushing the group to the
+   right edge does not make the row disappear, but it makes the two rows read
+   as one bar that wrapped. `margin-left:auto` on the first item after the
+   break; `.dbglang` is that item at every width this rule applies to. */
+@media (max-width:1320px){
   .dbgspacer{flex:0 0 100%;height:0}
-  .dbgctl .dctl{flex:0 0 var(--bt-layout-label-column)}
-  /* The wrapped row TERMINATES the bar rather than starting a new one. Three
-     reviewers read it as an orphaned toolbar strip in explorer clothing,
-     because it was left-aligned with ~1100px of empty canvas to its right and
-     no rule or label, which put the page's actions closer to the Code pane's
-     title than to the hash they act on
-     (ledger@2026-08-29.2:debugger/laptop/light/L4/3,
-     ledger@2026-08-29.2:debugger/laptop/dark/L2/4,
-     ledger@2026-08-29.2:debugger/laptop/dark/L5/2). Pushing the group to the
-     right edge does not make the row disappear — see the report's tension on
-     that — but it makes the two rows read as one bar that wrapped, and it puts
-     the last action on the same vertical line as the Transaction pane's right
-     border instead of on none. `margin-left:auto` on the first item after the
-     break; `.dbglang` is that item at every width this rule applies to. */
   .dbgbar .dbglang{margin-left:auto}
 }
 @media (max-width:1100px){
@@ -1080,7 +1155,10 @@ a.ctrow,a.evrow{cursor:pointer}
   .stackpanel.p-eventlog:target ~ .stackpanel.def{display:flex}
   .stackpanel.p-eventlog:target ~ .stacktabs > .stacktab:first-child{
     color:var(--bt-text-strong);border-bottom-color:var(--bt-mark-view)}
-  .dbgbar .btn,.dbgbar .btn.disabled{display:none}
+  /* The whole action GROUP, not the two buttons inside it: hiding the buttons
+     left `.dbgacts` behind as a zero-width flex item that still claimed a gap
+     on either side of itself. */
+  .dbgbar .dbgacts{display:none}
   .dbgbar .dbglang{margin-left:0}
 }
 @media (max-width:720px){

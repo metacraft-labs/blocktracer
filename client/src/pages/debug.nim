@@ -75,7 +75,18 @@ import ../debugger/session_view
 import ../debugger/source_document
 import ../debugger/source_island
 import ../components/debugger
+import ../components/icons
 import ../viewutil
+
+# The three names the identity bar's two actions answer to. Each is the
+# `aria-label` AND the `title` of an icon-only control, so a screen-reader user
+# and a pointer user are told the same thing — written once here rather than
+# twice at each call site, where the two could drift into a control that is
+# announced as one action and tipped as another.
+const
+  SharePositionLabel = "Share this position"
+  ShareUnanchoredLabel = "Share — a share link needs a position to anchor to"
+  DownloadTraceLabel = "Download trace"
 
 type SharePosition = object
   ## What a Share control needs: the §6.0a anchor for the payload, and the
@@ -190,21 +201,57 @@ proc identityBar(s: DebugSessionView): string =
       # of a container that was never published, is exactly the "pretence of
       # one" §7.0 rules out — and `containerPath` is DERIVABLE for an
       # on-demand execution, so its non-emptiness proves nothing.
+      #
+      # ## Why they are marks and not words (revised 2026-08-30)
+      #
+      # The bar could not hold its contents on one line and had a forced wrap
+      # to prove it: `.dbgspacer` became a full-width break below 1600px, which
+      # put the language tag and both actions on a row of their own at every
+      # laptop viewport, and below 1366px the control group took a THIRD row.
+      # Measured at 1440: 1600px of content in a 1392px box.
+      #
+      # "Share" and "Download trace" were 160 of those pixels, for two
+      # SECONDARY actions sitting beside the controls that are the reason this
+      # bar exists. A mark plus an accessible name costs 68 and says the same
+      # thing to a screen reader, so this is the cheapest 92px on the line —
+      # see `debugger_css.nim` for the other two cuts and the arithmetic.
+      #
+      # They stay a real `<a>` and a real `<button>`, which is not a detail:
+      # `role="button"` on a `tdiv` is a control that neither Enter nor Space
+      # activates, and it shipped on this route once already. An `<a href>` is
+      # activated by Enter, a `<button>` by Enter and Space, both are in the
+      # tab order, and none of that is code anybody here has to write or
+      # remember. `aria-label` gives the icon-only control the name its text
+      # used to give it; `title` gives a pointer user the same words.
+      #
+      # The identity beside them is NOT re-cut to make room. It is already
+      # truncated, and it already carries `data-copy` with the full hash for
+      # the hydration that turns it into a copy button — adding a copy
+      # affordance here would be a second one of those on the same value.
       if s.canShare:
         let share = sharePosition(s)
-        if share.anchor.len > 0:
-          a(class = "btn ghost sm",
-            href = positionQuery(s.traceContentHash, s.timeCoordinate,
-                                 share.anchor) & "#" & share.element):
-            text "Share"
-        else:
-          button(class = "btn disabled sm",
-                 title = "A share link needs a position to anchor to."):
-            text "Share"
-        if s.containerPath.len > 0:
-          a(class = "btn ghost sm", href = "/" & s.containerPath,
-            download = "trace.ct"):
-            text "Download trace"
+        # One group, so the two actions cannot be separated from each other by
+        # a wrap: a bar that breaks between Share and Download reads as two
+        # unrelated strips, which is the fault the old forced break existed to
+        # avoid and is now avoided by grouping rather than by breaking.
+        tdiv(class = "dbgacts"):
+          if share.anchor.len > 0:
+            a(class = "btn ghost sm icon",
+              href = positionQuery(s.traceContentHash, s.timeCoordinate,
+                                   share.anchor) & "#" & share.element,
+              title = SharePositionLabel, `aria-label` = SharePositionLabel):
+              raw shareMark()
+          else:
+            button(class = "btn disabled sm icon",
+                   title = ShareUnanchoredLabel,
+                   `aria-label` = ShareUnanchoredLabel,
+                   `aria-disabled` = "true"):
+              raw shareMark()
+          if s.containerPath.len > 0:
+            a(class = "btn ghost sm icon", href = "/" & s.containerPath,
+              download = "trace.ct",
+              title = DownloadTraceLabel, `aria-label` = DownloadTraceLabel):
+              raw downloadMark()
 
 proc banner(s: DebugSessionView): string =
   ## Above the debugger, never inside it, and with no dismiss control.
