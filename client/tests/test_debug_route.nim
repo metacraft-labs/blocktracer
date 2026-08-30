@@ -2750,8 +2750,8 @@ suite "M8b — the metadata pane and the page cannot diverge":
     # URL. A default that reached another host would make every deployment of
     # this repository a client of an origin its operator never named. The stable
     # IDE origin a cross-origin build names is ide.codetracer.com (same
-    # web-codetracer Pages bundle as web-codetracer.pages.dev); web.codetracer.com
-    # is deliberately a different, authenticated application, not this bundle.
+    # web-codetracer Pages bundle as web-codetracer.pages.dev) — the Pages
+    # project keeps its web-codetracer name; only the hostname moved.
     check not replayEngineIsCrossOrigin()
     check ReplayEngineBase.startsWith("/")
     check "http" notin ReplayEngineBase

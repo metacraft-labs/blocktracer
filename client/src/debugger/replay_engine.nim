@@ -29,11 +29,15 @@
 ## Pages project as `https://web-codetracer.pages.dev`, so it serves the
 ## identical bundle with the right CORS headers (`access-control-allow-origin:
 ## *`, `Accept-Ranges` and `Content-Range` exposed, so range requests work) —
-## it is the origin a cross-origin build should name. `https://web.codetracer.com`
-## is deliberately NOT that host: it serves a **different, authenticated
-## application** (`/worker.js` redirects to a login page and the wasm 404s),
-## which is exactly why the IDE was given its own `ide.` name rather than a
-## rename that would have broken that app's consumers.
+## it is the origin a cross-origin build should name.
+##
+## An earlier version of this comment named `https://web.codetracer.com` as a
+## separate authenticated application that the IDE was given its own `ide.` name
+## to avoid disturbing. That is superseded: as of 2026-08-29 `ide.` is simply the
+## hosted product's domain, and `web.codetracer.com` is not a host this
+## repository targets. Note the distinction the rename did **not** touch —
+## `web-codetracer` above is the Cloudflare Pages *project*, and
+## `web-codetracer.pages.dev` its preview host; both keep those names.
 ##
 ## Even so, no domain is baked into the source: a compile-time default that
 ## reached any third-party origin would make every deployment of this repository
