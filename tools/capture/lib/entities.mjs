@@ -56,6 +56,31 @@ export function buildEntityIndex(distDir) {
     // tree's first transaction in block order happens to be an on-demand one.
     // Reading the overlay is how the view list stays semantic across a reseed
     // instead of pinning a hash that would rot.
+    // Published manifests, indexed by the transaction they belong to.
+    //
+    // A manifest lives at `/t/{a}/{b}/{traceArtifactId}/manifest.json`, and the
+    // id is DERIVED from the execution input plus the recorder pin — so finding
+    // one by transaction means either reimplementing `deriveTraceArtifactId` in
+    // JavaScript or reading what was published. This reads what was published.
+    // Duplicating the derivation would put a second implementation of a
+    // cross-repo identity rule in the capture harness, where it would rot
+    // silently: the views would still resolve, against the wrong artifacts.
+    const manifestsByTx = {};
+    const artifactRoot = join(distDir, "t");
+    if (existsSync(artifactRoot)) {
+      const walk = (dir) => {
+        for (const e of readdirSync(dir, { withFileTypes: true })) {
+          const p = join(dir, e.name);
+          if (e.isDirectory()) walk(p);
+          else if (e.name === "manifest.json") {
+            const m = readJson(p);
+            (manifestsByTx[m.tx] ??= []).push(m);
+          }
+        }
+      };
+      walk(artifactRoot);
+    }
+
     const tsv = current.traceSelectionVersion ?? "1";
     for (const t of txs) {
       const shard = t.hash.slice(2, 6);
@@ -63,6 +88,37 @@ export function buildEntityIndex(distDir) {
       t.availability = null;
       t.executions = [];
       t.reconstructed = false;
+
+      // The transaction's own immutable facts. `outcome` is what decides
+      // whether the event log's fifth kind (`evRevert`) has anything to render,
+      // and the three density figures are what let `tx-detail--dense` pick its
+      // subject by CONTENT rather than by position — the same rule the trace
+      // views already follow, for the same reason.
+      const factsPath = join(distDir, "d", chain, "tx", shard, `${t.hash}.json`);
+      t.outcome = null;
+      t.density = 0;
+      t.roleCount = 0;
+      t.costRowCount = 0;
+      t.payloadRawLength = 0;
+      if (existsSync(factsPath)) {
+        const f = readJson(factsPath);
+        t.outcome = f.outcome?.overall ?? null;
+        t.roleCount = (f.roles ?? []).length;
+        t.costRowCount = (f.cost ?? []).length;
+        t.payloadRawLength = (f.payload?.raw ?? "").length;
+        // The three axes `tx-detail--dense`'s must-show names, in one ordering
+        // key. Deliberately not just the payload length: a page is dense
+        // because of how many REGIONS it carries as well as how long the
+        // longest one is.
+        t.density = t.roleCount + t.costRowCount + t.payloadRawLength;
+      }
+
+      // §14's "Trace truncated": the recorder reached the profile's budget, so
+      // the recording's ending is missing. Published in the manifest, and read
+      // here rather than inferred — the overlay does not carry it, because it
+      // is a fact about the RECORDING and not about the selection.
+      t.truncated = (manifestsByTx[t.hash] ?? []).some((m) => m.execution?.truncated === true);
+
       if (!existsSync(overlayPath)) continue;
       const overlay = readJson(overlayPath);
       // Single-execution transactions carry `trace`; split ones carry
@@ -187,6 +243,92 @@ export const txWithAvailability = (want, { reconstructed = null } = {}) => (ix) 
       ` (present: ${seen || "none"})`);
   }
   return t;
+};
+
+/** The first transaction in block order whose OUTCOME is `want`
+ *  (`"reverted"`, `"succeeded"`, `"partial"`, `"failedWithEffects"`) and whose
+ *  trace opens a session, so the outcome has a debugging surface to appear on.
+ *
+ *  `debugger--event-log` renders five entry kinds and the fifth, `evRevert`, is
+ *  appended off this outcome. Until the demo tree carried a reverted
+ *  transaction the pane could show four, and it was RIGHT to refuse the fifth:
+ *  the Aztec split's `partial` is both halves succeeding, and drawing a failed
+ *  constraint over it would be the pane inventing an event the trace never
+ *  carried. So this selector throws rather than falling back to `partial` —
+ *  falling back is exactly the pretence the renderer already declines. */
+export const txWithOutcome = (want) => (ix) => {
+  const t = ix.chain().txs.find(
+    (t) => t.outcome === want &&
+           (t.availability === "ready" || t.availability === "divergent"));
+  if (!t) {
+    const seen = [...new Set(ix.chain().txs.map((t) => t.outcome))].join(", ");
+    throw new Error(
+      `data plane has no transaction whose outcome is "${want}" with a trace ` +
+      `that opens a session (outcomes present: ${seen || "none"})`);
+  }
+  return t;
+};
+
+/** The transaction whose RECORDING hit the profile's budget — §14's "Trace
+ *  truncated" row, read from the manifest's `execution.truncated`.
+ *
+ *  Throws rather than falling back to any session at all, because the failure
+ *  it guards against is silent: an untruncated session captured under this
+ *  name is a photograph of a page with no banner on it, filed under a view
+ *  whose whole must-show list is about the banner. That is a missing subject
+ *  reported as a design finding, which is the specific waste
+ *  `check-coverage.mjs` and these selectors exist to prevent. */
+export const txWithTruncatedTrace = (ix) => {
+  const t = ix.chain().txs.find((t) => t.truncated);
+  if (!t) {
+    throw new Error(
+      `data plane publishes no manifest with execution.truncated — the §14 ` +
+      `truncation banner would have no subject`);
+  }
+  return t;
+};
+
+/** Every transaction the transaction route serves as the METADATA PAGE rather
+ *  than as a session (Page-Descriptions §7.0 rows 2 and 3): no execution whose
+ *  trace is `ready` or `divergent`. */
+const tracelessTxs = (ix) =>
+  ix.chain().txs.filter(
+    (t) => t.availability !== "ready" && t.availability !== "divergent");
+
+/** The first traceless transaction in block order — `tx-detail`'s subject. */
+export const firstTracelessTx = (ix) => {
+  const t = tracelessTxs(ix)[0];
+  if (!t) throw new Error(`data plane has no transaction without a session`);
+  return t;
+};
+
+/** The DENSEST traceless transaction — `tx-detail--dense`'s subject.
+ *
+ *  Two properties, and the second is the point. It picks by content, so a
+ *  reseed cannot leave the dense view photographing an average page. And it
+ *  refuses to return the same transaction `firstTracelessTx` returns: after
+ *  §7.0 the metadata page is served only where there is no session, and while
+ *  the tree held exactly one such transaction this view had nowhere to point —
+ *  capturing that one URL twice would answer VD.4's
+ *  `verify_transaction_page_holds_at_extreme_content` with a duplicate of
+ *  `tx-detail`, which is a green capture that verifies nothing. */
+export const densestTracelessTx = (ix) => {
+  const all = tracelessTxs(ix);
+  if (all.length < 2) {
+    throw new Error(
+      `data plane has ${all.length} transaction(s) without a session, and the ` +
+      `dense metadata page needs a SECOND one: the first is \`tx-detail\`'s own ` +
+      `subject, so capturing it here would duplicate that view rather than ` +
+      `exercise extreme content`);
+  }
+  const densest = all.reduce((a, b) => (b.density > a.density ? b : a));
+  if (densest.hash === all[0].hash) {
+    throw new Error(
+      `the densest traceless transaction is also the first one in block order, ` +
+      `which is \`tx-detail\`'s subject — \`tx-detail--dense\` would capture the ` +
+      `same URL under a second name`);
+  }
+  return densest;
 };
 
 /** An address the tree binds CODE to, whose code hash does (`want = true`) or

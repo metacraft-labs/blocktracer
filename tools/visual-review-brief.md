@@ -116,7 +116,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 <!-- BEGIN GENERATED: expectations — do not edit by hand -->
 <!-- regenerate with: node tools/capture/render-brief.mjs -->
 
-*65 named views, 65 blocks — generated from `tools/capture/expectations.mjs`. 29 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
+*65 named views, 65 blocks — generated from `tools/capture/expectations.mjs`. 32 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
 
 #### Explorer register — entry and navigation
 
@@ -221,7 +221,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | explorer — apply rubric A (§5) |
 | **Spec** | Page-Descriptions §4 (Degraded), §14 row 1 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — the staleness treatment is rendered by `components/degraded` and resolved by `ssr.chainSnapshot`, and no chain in the demo tree is behind its tip: the generator publishes one chain with `stale: false` in its summary. This needs a behind-the-tip chain in the demo tree, not a change to the chain view |
+| **Capture status** | `pending` — the staleness treatment is rendered by `components/degraded` and resolved by `ssr.chainSnapshot`, and no chain in the demo tree is behind its tip: the generator publishes one chain with `stale: false` in its summary. Flipping that one chain's flag is not the fix — it would put the notice on `chain-overview` as well and make the two views one URL under two names. This needs a SECOND, behind-the-tip chain, which means teaching the generator to emit N chains around a hash index that is shared between them; the client, the validator and this harness already handle N chains today |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -468,19 +468,21 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 ### View: `tx-detail--dense`
 
-> The metadata page at the largest published payload — the density case the whole campaign exists to catch. Pending: after §7.0 this page is served only for a transaction with no session, and the demo tree has exactly one.
+> The metadata page at the largest published payload — the density case the whole campaign exists to catch. Its subject is the demo tree's second traceless transaction (generator txH), added on 2026-08-30 for this view: five roles, five cost rows across five named resources, and a raw payload of a selector plus sixteen ABI words. Until then this view was pending, because §7.0 serves the metadata page only where there is no session and the tree held exactly one such transaction — `tx-detail`'s own subject.
 
 | | |
 | --- | --- |
 | **Register** | explorer — apply rubric A (§5) |
 | **Spec** | Page-Descriptions §7.2, VD.4 verify_transaction_page_holds_at_extreme_content |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — after §7.0 the metadata page is served only for a transaction with no session, and the demo tree has exactly one — the on-demand transaction, which is `tx-detail`'s own subject. A dense metadata page needs a second traceless transaction with many roles, many cost rows and a long raw payload in the demo generator, not a change to the route |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
 - Everything the `tx-detail` block requires, at the fixture's largest payload.
-- A visibly long content region — many roles, many cost rows, a long raw payload — so the reviewer can confirm this is genuinely the dense case and not the same content as `tx-detail`.
+- A visibly long content region — five roles, five cost rows and a raw payload of roughly a kilobyte — so the reviewer can confirm this is genuinely the dense case and not the same content as `tx-detail`, whose subject carries one role, one cost row and a `0x` payload.
+- The roles list reading as a LIST of distinct parties: fee payer, sender, authwit provider, sequencer and portal contract are five different addresses and five different jobs, and a page that has only ever rendered one role has never been asked whether its role treatment scales.
+- The cost vector with its units and tokens intact across five rows whose magnitudes span three orders of magnitude — Data-Contract's `Cost` is a vector and this is the transaction that makes that visible.
 - Section boundaries still legible after the long regions, so the page's structure survives its own volume.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
@@ -1150,14 +1152,14 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 ### View: `debugger--event-log`
 
-> The event log with mixed entry kinds — calls, storage writes, events and a revert in one stream. It is the SECOND tab of the navigation region, paired with the call trace, and is captured through the fragment that selects it.
+> The event log with ALL FIVE entry kinds in one stream — calls, program output, storage writes, events, and the revert that ends the transaction. It is the SECOND tab of the navigation region, paired with the call trace, and is captured through the fragment that selects it. Its subject changed on 2026-08-30: the demo tree now publishes a genuinely reverted transaction (generator txF), so the fifth kind is present rather than absent. Until then this view was pending — the pane rendered four kinds and correctly refused to dress the Aztec `partial` split up as a revert, and its must-show required the fifth.
 
 | | |
 | --- | --- |
 | **Register** | debugger — apply rubric B (§6) |
 | **Spec** | Page-Descriptions §8, Debugger-Integration §4.2, VD.5 |
 | **Captured at** | wide · laptop × light · dark |
-| **Capture status** | `pending` — state not yet modelled by the client ViewModel: no transaction in the demo tree reverts, so the event log can show four of its five kinds and this view's own must-show list requires the fifth |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1166,23 +1168,25 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - What is in frame is ONE self-contained region of the session's own chrome, with its own boundary and its own content. Where that region is a pane it carries the same pane chrome as the session's other panes, its title included (§7.1's 'the same pane chrome rather than a bespoke surface'); where the clip is the identity bar it is the slim bar itself, and not the full explorer header. Content bleeding past a boundary that is not drawn, or a pane with content and no title, is the finding.
   - The region is populated, not blank and not a placeholder. A pane with nothing in it must say why rather than sit empty.
   - This capture is CLIPPED to one pane. The identity bar, the sibling panes and the rest of the viewport are out of frame by construction — their absence from this image is not a finding, and nothing here may be reported as missing on the grounds that the surrounding session is not visible.
-- All four entry kinds present in the same view: a call, a storage write, an event, and a revert.
-- The four kinds VISUALLY DISTINGUISHABLE from each other by more than their text — this is the pane's whole job and the reason it is captured with a mixed fixture.
-- The revert entry rendered as the terminal, significant event it is.
+- All five entry kinds present in the same view: a call, program output, a storage write, an event, and a revert. The revert is the one that used to be missing; if it is absent, that is a DATA failure to report as such, not a design finding.
+- The five kinds VISUALLY DISTINGUISHABLE from each other by more than their text — this is the pane's whole job and the reason it is captured against a mixed stream.
+- The revert entry rendered as the terminal, significant event it is — it is the last row and it ended the transaction, and it must read as an outcome rather than as one more row.
+- The revert naming WHAT failed — the constraint, not just the word 'revert'. The transaction's published revert reason and this row name the same assertion, and a reviewer should be able to see that they agree.
 - A position/ordering that ties entries to the trace, so the log can be read as a sequence.
 - The entry corresponding to the current position indicated.
 - A tab strip above it naming both the Call Trace and this pane, with THIS tab marked as the open one — the capture reaches it through `#pane-eventlog`, which is the same `:target` mechanism a visitor's click uses. It is paired with the CALL TRACE now (changed 2026-08-29; it used to be the non-default half of a tab pair with the state pane, which paired it with the one pane it is not an alternative to).
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
-- Four kinds rendered identically with only a differing label.
+- Five kinds rendered identically with only a differing label.
 - Kind distinguished by colour alone.
 - A log so uniformly dense that the revert does not stand out.
+- The revert rendered as a system error or a fetch failure. The transaction reverted; the RECORDING is fine, its verdict is `match`, and the session is fully usable. Dressing a chain outcome as a tool malfunction is a P1 tone failure.
 - A tab strip pairing it with the VALUES pane. Values is not an alternative way of finding a position — it answers what is true once you have arrived — and that pairing is the arrangement this change removed. Its return is a P1 against the `debugger` view's own must-show.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
-- The icon/badge/colour system across four kinds in both themes — this is the densest use of the status colour roles in the product.
+- The icon/badge/colour system across five kinds in both themes — this is the densest use of the status colour roles in the product.
 - Row height consistency when entries carry different amounts of detail.
 - It shares a region with the call trace and a column with the values pane below. Say whether the tab strip reads as a control — two peers, one open — or as a header with a stray word beside it. An inactive tab that reads as a label is the specific way this arrangement can look wrong, and it is the failure the strip this replaced actually had.
 
@@ -1345,14 +1349,14 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 ### View: `debugger--truncated`
 
-> The trace-truncated banner, with the option to request a deeper profile.
+> The trace-truncated banner over a fully usable session, with the option to request a deeper profile. Its subject is a transaction whose PUBLISHED recording stopped at the profile's budget — the demo tree sets `execution.truncated` on one manifest (generator txG) — and the route reads that flag. Until 2026-08-30 this view was pending and its URL carried a `&state=truncated` that a static file server could not act on, so capturing it would have photographed an ordinary session and been graded for the missing banner.
 
 | | |
 | --- | --- |
 | **Register** | debugger — apply rubric B (§6) |
 | **Spec** | Page-Descriptions §14 (Trace truncated) |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `pending` — the route renders the truncation banner from the manifest's `execution.truncated`, and no artifact the demo generator publishes sets it — the packaged `noir_space_ship` trace ran to completion. This needs a truncated artifact in the demo tree (M5c), not a change to the route |
+| **Capture status** | `ready` |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1360,21 +1364,24 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a way OUT of the debugger register that lands on the CHAIN, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header. The exit targets the chain and NOT the transaction's own URL, because under Page-Descriptions §7.0 that URL IS this session — for a `ready` or `divergent` trace the two routes serve byte-identical bodies, so a link to the transaction would be a link to the page the visitor is already on. A missing exit is a P1; an exit that targets the chain is CORRECT and is not a finding.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
   - Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.
-- A banner stating the trace is truncated, and where — a step count, a depth, or a size, so 'truncated' is quantified rather than asserted.
+- A banner stating the trace is truncated, and where — a step count, a depth, or a size, so 'truncated' is quantified rather than asserted. The quantity comes from the manifest, and the banner names both the step count and the frame count the recording reached.
 - The option to request a deeper profile, as an action.
-- The debugger fully usable behind the banner, with its panes populated. Truncated is not broken.
+- The debugger fully usable behind the banner, with its panes populated. Truncated is not broken, and the wording must make that plain — everything before the budget is complete and steps normally.
 - An indication in the trace surface itself — the timeline or call trace — of where the truncation falls, so the boundary is not only announced in the banner.
+- The transaction's own status unaffected: this transaction SUCCEEDED, and the degradation is in the recording of it. A reviewer must be able to tell 'the recorder ran out of budget' from 'the transaction failed'.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
 - The banner as an error.
 - A modal blocking the session.
 - A truncation announced with no quantity.
+- Any suggestion that the transaction itself failed, reverted or is untrustworthy. Truncation is a property of the recording; conflating the two is a P1 tone failure and the specific confusion this view exists to rule out.
+- A divergence treatment. This is a different §14 row from `debugger--divergent` and the two must not be reported as the same finding: divergence says the recorder and the chain disagreed, truncation says the recorder stopped early.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
-- Banner height against the session's vertical budget — the debugger is desktop-dense and every row the banner takes comes out of a pane.
-- Whether this banner and the divergence banner share one treatment; they should be one component at two severities, not two designs.
+- Banner height against the session's vertical budget — the debugger is desktop-dense and every row the banner takes comes out of a pane. This view is captured at all four viewports for that reason; say what the banner costs at 375px.
+- Whether this banner and the divergence banner share one treatment; they should be one component at two severities, not two designs. Both are now capturable against real published data, so the two images can be compared directly.
 
 ### View: `debugger--divergent`
 

@@ -21,6 +21,10 @@ import {
   firstAddress,
   txWithAvailability,
   txWithSplitExecutions,
+  txWithOutcome,
+  txWithTruncatedTrace,
+  firstTracelessTx,
+  densestTracelessTx,
   contractWithSource,
   addressWithSegments,
   segmentIdOf,
@@ -107,12 +111,27 @@ const readyTx = txWithAvailability("ready", { reconstructed: false });
 const divergentTx = txWithAvailability("divergent");
 
 /** The transaction whose URL is NOT a session (Page-Descriptions §7.0's second
- *  and third rows). The demo tree publishes one: the on-demand transaction.
- *  Selected by availability rather than by position, because after §7.0 the
- *  availability is what decides which of the two shapes `/{chain}/tx/{hash}`
- *  serves — a positional selector would silently re-point a view at the other
- *  shape the first time a block's contents changed. */
+ *  and third rows). The demo tree publishes two: the on-demand transaction the
+ *  metadata page has always been captured against, and — since the generator
+ *  gained txH — a second, much denser one. Selected by availability rather than
+ *  by position, because after §7.0 the availability is what decides which of
+ *  the two shapes `/{chain}/tx/{hash}` serves; a positional selector would
+ *  silently re-point a view at the other shape the first time a block's
+ *  contents changed. */
 const onDemandTx = txWithAvailability("onDemand");
+
+/** The transaction whose OUTCOME is a revert, which is what gives the event
+ *  log its fifth entry kind a subject, and the one whose RECORDING was cut off
+ *  at the profile's budget, which is what gives §14's truncation banner one.
+ *  Both are published facts in the demo tree (`src/blocktracer/demo/
+ *  generator.nim`, txF and txG), not query parameters asking a page to
+ *  pretend — the same rule `debugger--divergent` already follows. */
+const revertedTx = txWithOutcome("reverted");
+const truncatedTx = txWithTruncatedTrace;
+
+/** The densest transaction the METADATA page serves, and the guarantee that it
+ *  is not the one `tx-detail` already captures. See `densestTracelessTx`. */
+const denseTx = densestTracelessTx;
 
 /** The two contract-source subjects, selected by whether a bundle for their
  *  code hash is PUBLISHED — never by position. The demo tree carries one of
@@ -178,14 +197,49 @@ export const VIEWS = [
     // session's published `stale` flag, and `ChainOverviewDegradations` is the
     // sensitivity set that admits it here. What is missing is DATA — the demo
     // generator publishes one chain whose summary says `stale: false`, so no
-    // route in the tree renders the notice. Flipping this view needs a
-    // behind-the-tip chain in the demo tree (M5c), not a change to the view.
+    // route in the tree renders the notice.
+    //
+    // It cannot be fixed by flipping THIS chain's flag, which is the obvious
+    // cheap move and is wrong: with one chain in the tree, a stale `aztec`
+    // would put the notice on `chain-overview` too, and the two views would be
+    // one URL under two names — the same duplication that kept
+    // `tx-detail--dense` pending. It needs a SECOND, behind-the-tip chain.
+    //
+    // Scoped 2026-08-30, when the other three data gaps were closed, and
+    // deliberately NOT taken in the same change. What was established:
+    //
+    //   * The consumers are ready. `reader.chains`, `ssr.renderHome`,
+    //     `ssr.staticRoutes` and `pages/chains.nim` all loop over the registry
+    //     already, `validator.validateTree` walks every chain under `/d`, and
+    //     `lib/entities.mjs` builds `byChain` over all of them. A behind-the-tip
+    //     chain also links nothing dangling: only `headHeight` is ever printed,
+    //     never the head HASH, so a pointer above the highest indexed block
+    //     produces no broken link.
+    //   * The generator is not. `chain` is a module-level `const` read in ~45
+    //     places, and — the part that makes this a restructure rather than a
+    //     parameter — `/idx/hash/**` is a SHARED index across chains while each
+    //     chain's `root.json` declares the shard list, so `generate` has to
+    //     collect every chain's entities before it can write either.
+    //   * Two ordering hazards, both silent if missed: the new slug must sort
+    //     AFTER "aztec" (`primaryChain = chains[0]` re-points all 30-odd view
+    //     routes otherwise, and `publishTree(...)[0]` is assumed to be aztec in
+    //     sixteen places in `tests/tpublish.nim`), and its synthetic hashes must
+    //     be keyed by slug as well as seed or both chains publish the same
+    //     block, transaction and address hashes from one seed.
+    //
+    // That is a change to the one file whose byte-for-byte output IS the M5c
+    // regression fixture, and it is separable from the three gaps this change
+    // closes. Kept pending with the work scoped rather than half-done.
     pendingReason:
       "the staleness treatment is rendered by `components/degraded` and " +
       "resolved by `ssr.chainSnapshot`, and no chain in the demo tree is " +
       "behind its tip: the generator publishes one chain with `stale: false` " +
-      "in its summary. This needs a behind-the-tip chain in the demo tree, " +
-      "not a change to the chain view",
+      "in its summary. Flipping that one chain's flag is not the fix — it would " +
+      "put the notice on `chain-overview` as well and make the two views one " +
+      "URL under two names. This needs a SECOND, behind-the-tip chain, which " +
+      "means teaching the generator to emit N chains around a hash index that " +
+      "is shared between them; the client, the validator and this harness " +
+      "already handle N chains today",
     route: (ix) => `/${ix.primaryChain}`,
   },
   {
@@ -268,7 +322,15 @@ export const VIEWS = [
     // Pinned by AVAILABILITY, not by position. `nthTx(0)` is the on-demand
     // transaction only by accident of block order, and after §7.0 that
     // accident decides which of the two shapes this view photographs.
-    route: (ix) => `/${ix.primaryChain}/tx/${onDemandTx(ix).hash}`,
+    //
+    // `firstTracelessTx` and not `onDemandTx`, now that a second traceless
+    // transaction exists: `densestTracelessTx` guarantees `tx-detail--dense`
+    // does not return the FIRST traceless transaction, and that guarantee is
+    // only about this view if this view asks the same question. The two
+    // resolve to the same transaction today; they would not if the tree ever
+    // published an `absent`-only transaction ahead of the on-demand one, and
+    // the pair would then have been silently comparing different things.
+    route: (ix) => `/${ix.primaryChain}/tx/${firstTracelessTx(ix).hash}`,
   },
   {
     id: "tx-detail--session",
@@ -286,27 +348,25 @@ export const VIEWS = [
   },
   {
     id: "tx-detail--dense",
-    description: "The metadata page at the largest published payload — the density case",
+    description: "The metadata page at the largest published payload — five roles, five cost rows and a 1 KB raw payload",
     covers: ["tx-detail"],
     register: "explorer",
-    status: "pending",
-    // It used to capture the last transaction in block order, which has a
-    // published trace — so after §7.0 that URL is the session, and capturing
-    // it here would file a debugging surface under a view whose expectation
-    // block requires eight explorer sections.
+    status: "ready",
+    // Was pending twice over. It used to capture the last transaction in block
+    // order, which has a published trace — so after §7.0 that URL became the
+    // session, and capturing it here would have filed a debugging surface under
+    // a view whose expectation block requires eight explorer sections. And
+    // repointing it was not available: the metadata page is served only for
+    // transactions with NO session, and the tree had exactly one, which is
+    // `tx-detail`'s own subject.
     //
-    // Repointing it is not available either: the metadata page is now served
-    // only for transactions with NO session, and the demo tree has exactly one
-    // — the on-demand transaction, which is already `tx-detail`'s subject.
-    // Capturing the same URL twice would answer VD.4's
-    // `verify_transaction_page_holds_at_extreme_content` with a duplicate.
-    pendingReason:
-      "after §7.0 the metadata page is served only for a transaction with no " +
-      "session, and the demo tree has exactly one — the on-demand transaction, " +
-      "which is `tx-detail`'s own subject. A dense metadata page needs a " +
-      "second traceless transaction with many roles, many cost rows and a long " +
-      "raw payload in the demo generator, not a change to the route",
-    route: (ix) => `/${ix.primaryChain}/tx/${onDemandTx(ix).hash}`,
+    // The generator now publishes txH — traceless, and by a distance the
+    // densest transaction in the tree: five roles against one, five cost rows
+    // against one, and a raw payload of a selector plus sixteen ABI words
+    // against `0x`. `densestTracelessTx` picks it by CONTENT and refuses to
+    // return `tx-detail`'s subject, so this view cannot quietly become a
+    // duplicate of that one again.
+    route: (ix) => `/${ix.primaryChain}/tx/${denseTx(ix).hash}`,
   },
   {
     id: "tx-detail--hydrated",
@@ -593,31 +653,25 @@ export const VIEWS = [
   {
     id: "debugger--event-log",
     description:
-      "Event log with mixed calls, storage writes, events and a revert — the second tab of the navigation region, selected by its fragment",
+      "Event log with all five entry kinds — calls, program output, storage writes, events and the revert that ends the transaction — the second tab of the navigation region, selected by its fragment",
     covers: ["debugger.event-log"],
     register: "debugger",
-    status: "pending",
-    // The renderer handles all five kinds and `evRevert` is exercised against
-    // the real Embed SDK in `tests/tdebugpanes.nim`. What is missing is DATA:
-    // no transaction the demo generator produces reverts, and the pane refuses
-    // to pretend otherwise — `ooPartial` is the Aztec split with both halves
-    // succeeded, not a revert, and rendering a failed constraint against it
-    // would be the pane inventing an event the trace never carried.
+    status: "ready",
+    // Was pending, and the reason was DATA rather than code: the renderer
+    // handled all five kinds and `evRevert` was already exercised against the
+    // real Embed SDK in `tests/tdebugpanes.nim`, but no transaction the demo
+    // generator produced reverted. The pane refused to pretend otherwise —
+    // `ooPartial` is the Aztec split with BOTH halves succeeded, not a revert,
+    // and rendering a failed constraint against it would have been the pane
+    // inventing an event the trace never carried. That refusal was right and
+    // is unchanged.
     //
-    // So this view can only ever photograph four of the five kinds, and its
-    // own "must show" requires the fifth: "the revert entry rendered as the
-    // terminal, significant event it is". Capturing it `ready` would file a
-    // four-kind log under a view whose expectation names five, and spend a
-    // review round rediscovering a gap that is already written down. Same
-    // shape as `debugger--truncated` below, and given the same status.
-    //
-    // The fix is one reverted transaction in the demo generator. Then this
-    // becomes `ready` against `txWithOutcome("reverted")` and nothing about
-    // the renderer changes.
-    pendingReason:
-      `${PENDING_STATE}: no transaction in the demo tree reverts, so the ` +
-      "event log can show four of its five kinds and this view's own " +
-      "must-show list requires the fifth",
+    // The generator now publishes txF: a genuinely reverted transaction whose
+    // trace is `ready` and whose verdict is `match`, because the recorder
+    // faithfully recorded a transaction that failed its own constraint. So the
+    // subject moved from the DIVERGENT transaction — which was only ever
+    // standing in, and could show four kinds — to the reverted one, and
+    // nothing about the renderer changed.
     sizes: DESKTOP_SIZES,
     fullPage: false,
     // The event log is the ALTERNATE half of the navigation region's tab pair
@@ -625,7 +679,7 @@ export const VIEWS = [
     // so the URL carries the fragment that selects it. The tabs are
     // `:target`-driven CSS, so this is the same mechanism a visitor uses, not
     // a capture-only hook: the fragment IS the click.
-    route: debugRoute(divergentTx, {
+    route: debugRoute(revertedTx, {
       t: DEBUG_TIME_COORDINATE_MID,
       extra: "#pane-eventlog",
     }),
@@ -700,18 +754,28 @@ export const VIEWS = [
   },
   {
     id: "debugger--truncated",
-    description: "Trace-truncated banner, with the option to request a deeper profile",
+    description: "Trace-truncated banner over a fully usable session, with the option to request a deeper profile",
     covers: ["degraded.trace-truncated"],
     register: "debugger",
-    status: "pending",
-    pendingReason:
-      "the route renders the truncation banner from the manifest's " +
-      "`execution.truncated`, and no artifact the demo generator publishes " +
-      "sets it — the packaged `noir_space_ship` trace ran to completion. " +
-      "This needs a truncated artifact in the demo tree (M5c), not a change " +
-      "to the route",
+    status: "ready",
+    // Was pending because nothing published `execution.truncated`; the banner
+    // has been rendered from the manifest by `ssr.debugSessionFor` all along.
+    // The generator now publishes txG, whose manifest sets the flag.
+    //
+    // The route lost its `&state=truncated`, and that is the substance of the
+    // change rather than a tidy-up. A query parameter cannot alter what a
+    // static file server returns, so the old URL was asking a page to pretend
+    // and being served the ordinary session — this view would have photographed
+    // a session with no banner on it and been graded for the missing banner.
+    // The subject is now a transaction whose published recording really did
+    // stop at the profile's budget, exactly as `debugger--divergent` pins a
+    // genuinely divergent transaction rather than asking for a state.
+    //
+    // All four viewports, like `debugger--divergent` and unlike the pane views:
+    // the banner competes with the session for vertical space, and how it
+    // behaves at 375px is part of what is being judged.
     fullPage: false,
-    route: debugRoute(readyTx, { extra: "&state=truncated" }),
+    route: debugRoute(truncatedTx, { t: DEBUG_TIME_COORDINATE_MID }),
   },
   {
     id: "debugger--divergent",

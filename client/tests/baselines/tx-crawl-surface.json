@@ -60,10 +60,34 @@
     "body` for every transaction in both trees."
   ],
 
+  "_whyUnchangedOn20260830": [
+    "The demo generator gained three transactions on 2026-08-30 — a reverted",
+    "one, one whose recording was truncated at the profile's budget, and a",
+    "second traceless one carrying five roles, five cost rows and a kilobyte",
+    "of raw payload — so the suite above now asserts this surface over EIGHT",
+    "transactions per tree rather than five, across both trees.",
+    "",
+    "Not one recorded value moved, and that is the result rather than a",
+    "coincidence worth skipping past. The robots class, the canonical link and",
+    "both markup shapes are properties of the ROUTE, not of the transaction",
+    "in it: a revert is a status badge and a revert-reason row inside the",
+    "existing metadata grid, a truncation is a banner inside the existing",
+    "session shell, and a long payload is more bytes inside `<div id=\"raw\">`.",
+    "If any of the three had needed a new shape, this file would have had to",
+    "change and the diff would have shown a crawl-surface edit — which is",
+    "exactly what it is here to force.",
+    "",
+    "The widening is recorded because the assertion got STRONGER without the",
+    "baseline moving, and a stronger assertion over a silent file is the one",
+    "kind of improvement nobody can see in a diff."
+  ],
+
   "recordedAt": "2026-08-29",
   "recordedFrom": "client/src/ssr.nim renderTx, before /debug was served",
   "revisedAt": "2026-08-29",
   "revisedFor": "Page-Descriptions §7.0 — the transaction route lands in the session",
+  "revalidatedAt": "2026-08-30",
+  "revalidatedOver": "8 transactions per tree, including a reverted transaction, a truncated recording and the dense metadata page — no recorded value changed",
 
   "txRobots": "noindex,follow",
   "txMustContain": [

@@ -44,8 +44,8 @@ suite "M5c — demo tree conformance":
   let seed = "test-seed-1"
   let nTx = generate(DemoConfig(outDir: outDir, seed: seed, traceFixturePath: fixture, traceSourcesDir: sourcesDir))
 
-  test "the generator emits five transactions":
-    check nTx == 5
+  test "the generator emits eight transactions":
+    check nTx == 8
 
   test "the demo tree validates against the contract (walkable, no dangles)":
     let errs = validateTree(outDir)
@@ -86,6 +86,124 @@ suite "M5c — demo tree conformance":
     check ovc["trace"]["availability"].getStr == "divergent"
     check ovd["trace"]["availability"].getStr == "onDemand"
 
+  # ── §14's degraded subjects, and §8's fifth event kind, as DATA ───────────
+  #
+  # Three named capture views could not be graded because the tree held no
+  # instance of what they are named for: `debugger--event-log` needs a revert,
+  # `debugger--truncated` needs `execution.truncated`, and `tx-detail--dense`
+  # needs a SECOND transaction with no session (the first is `tx-detail`'s own
+  # subject). The renderers were already right in all three cases; only the data
+  # was missing. These checks are what stop it going missing again — each one
+  # fails if its subject is absent rather than passing over a tree without it.
+
+  proc manifestFor(outDir, tx: string): JsonNode =
+    for p in walkDirRec(outDir / "t"):
+      if p.extractFilename != "manifest.json": continue
+      let m = parseFile(p)
+      if m["tx"].getStr == tx: return m
+    nil
+
+  proc factsFor(outDir, tx: string): JsonNode =
+    parseFile(outDir / "d" / "aztec" / "tx" / hexShard(tx) / tx & ".json")
+
+  proc overlayFor(outDir, tx: string): JsonNode =
+    parseFile(outDir / "d" / "aztec" / "ts" / "1" / hexShard(tx) / tx & ".json")
+
+  test "one transaction REVERTED, and its trace is published and undisputed":
+    # `debugger--event-log`'s fifth entry kind. The pane appends `evRevert` off
+    # the outcome, so without a reverted transaction it renders four of five and
+    # correctly refuses to dress txB's `partial` split up as a revert.
+    let h = synthHash(seed, "tx", 5)
+    let facts = factsFor(outDir, h)
+    check facts["outcome"]["overall"].getStr == "reverted"
+    # Quantified, not asserted: a revert with no reason gives the metadata pane
+    # a label and nothing to put under it.
+    check facts["outcome"]["reason"].getStr.len > 0
+    # A revert is an outcome, not a recording fault — the session must still
+    # OPEN on it, or the event log has no surface to render the revert on.
+    check overlayFor(outDir, h)["trace"]["availability"].getStr == "ready"
+    check manifestFor(outDir, h)["validation"]["status"].getStr == "match"
+    # Exactly one, so the count is a fact a reader can rely on rather than a
+    # lower bound that would still pass if a later change made every tx revert.
+    var reverted = 0
+    for p in walkDirRec(outDir / "d" / "aztec" / "tx"):
+      if parseFile(p)["outcome"]["overall"].getStr == "reverted": inc reverted
+    check reverted == 1
+
+  test "one recording hit the profile's budget — `execution.truncated`":
+    # `debugger--truncated`'s subject. §14's banner is rendered from this flag by
+    # `ssr.debugSessionFor`; nothing published it before.
+    let h = synthHash(seed, "tx", 6)
+    let m = manifestFor(outDir, h)
+    check m["execution"]["truncated"].getBool
+    # …and it is the ONLY one, so `debugger--truncated` and the plain debugger
+    # views cannot both be photographing a truncated session.
+    var truncated: seq[string]
+    for p in walkDirRec(outDir / "t"):
+      if p.extractFilename != "manifest.json": continue
+      let mm = parseFile(p)
+      if mm["execution"]["truncated"].getBool: truncated.add mm["tx"].getStr
+    check truncated == @[h]
+    # The transaction SUCCEEDED. Truncation is a fact about the recording, and a
+    # truncated recording is precisely one whose ending is missing — so it must
+    # not also be the transaction whose terminal event the event log renders.
+    check factsFor(outDir, h)["outcome"]["overall"].getStr == "succeeded"
+    check factsFor(outDir, h)["outcome"]["overall"].getStr !=
+          factsFor(outDir, synthHash(seed, "tx", 5))["outcome"]["overall"].getStr
+
+  test "a SECOND transaction has no session, and it is the densest one":
+    # `tx-detail--dense`. After Page-Descriptions §7.0 the metadata page is
+    # served only where there is no session, so a dense metadata page needs a
+    # second traceless transaction — capturing the first one twice would answer
+    # VD.4's extreme-content verification with a duplicate of `tx-detail`.
+    var traceless: seq[string]
+    for p in walkDirRec(outDir / "d" / "aztec" / "ts"):
+      let ov = parseFile(p)
+      if "trace" in ov and ov["trace"]["availability"].getStr == "onDemand":
+        traceless.add ov["tx"].getStr
+    check traceless.len == 2
+    let dense = factsFor(outDir, synthHash(seed, "tx", 7))
+    let plain = factsFor(outDir, synthHash(seed, "tx", 3))
+    check synthHash(seed, "tx", 7) in traceless
+    check synthHash(seed, "tx", 3) in traceless
+    # Dense on every axis the view's must-show names, and dense RELATIVE to the
+    # other traceless transaction — which is the comparison a reviewer makes,
+    # and the one a fixed threshold would not survive a reseed of.
+    check dense["roles"].len > plain["roles"].len
+    check dense["roles"].len >= 5
+    check dense["cost"].len > plain["cost"].len
+    check dense["cost"].len >= 5
+    check dense["payload"]["raw"].getStr.len > plain["payload"]["raw"].getStr.len
+    check dense["payload"]["raw"].getStr.len > 1000
+    # Every role a DISTINCT address, or "many roles" is one address repeated.
+    var addrs: seq[string]
+    for r in dense["roles"]: addrs.add r["address"].getStr
+    check addrs.deduplicate.len == addrs.len
+
+  test "the new subjects sit in the OLDEST block, so no capture view re-points":
+    # `tools/capture/lib/entities.mjs` walks transactions newest block first and
+    # every debugger view pins its subject with `txWithAvailability(...)` — "the
+    # FIRST transaction whose trace is ready", and so on. A new ready
+    # transaction in block 102 would therefore become `readyTx` and silently
+    # move the flagship `debugger` view, `tx-detail--session` and four pane
+    # views onto a different session, superseding every review recorded against
+    # them. This asserts the placement that stops that, in the same order the
+    # harness walks.
+    for n in [5, 6, 7]:
+      check factsFor(outDir, synthHash(seed, "tx", n))["order"]["height"].getInt == 100
+    var firstReady = ""
+    for height in [102, 101, 100]:
+      let bh = synthHash(seed, "block", height)
+      for tx in parseFile(outDir / "d" / "aztec" / "block" / bh & ".json")["transactions"]:
+        let h = tx.getStr
+        let ov = overlayFor(outDir, h)
+        let execs = if "trace" in ov: @[ov["trace"]] else: ov["executions"].getElems
+        if firstReady.len == 0 and execs.anyIt(it["availability"].getStr == "ready") and
+           not execs.anyIt(it{"reconstructed"}.getBool):
+          firstReady = h
+    # txB, the private/public split at block 101 — unchanged by this milestone.
+    check firstReady == synthHash(seed, "tx", 1)
+
 suite "M5c — the published traces are the real noir_space_ship execution":
   # These tests exist because a well-formed but WRONG container passes every
   # structural check in the validator: `container.bytes`/`hash` describe whatever
@@ -103,7 +221,11 @@ suite "M5c — the published traces are the real noir_space_ship execution":
 
   test "every published container really is the noir_space_ship program":
     let cs = containers()
-    check cs.len == 4          # txA, txB-public, txC-divergent, txE-reconstructed
+    # txA, txB-public, txC-divergent, txE-reconstructed, txF-reverted,
+    # txG-truncated. Every published execution carries the SAME real container:
+    # the demo tree varies the chain facts and the published verdicts around it,
+    # never the bytes.
+    check cs.len == 6
     let want = readFile(fixture)
     for c in cs:
       let got = readFile(c)
@@ -123,7 +245,18 @@ suite "M5c — the published traces are the real noir_space_ship execution":
         check marker in got
 
   test "the manifests describe the real container, not invented numbers":
+    # `truncated` is the ONE field in `execution` that is a published claim
+    # rather than a measurement of the container, and it is deliberately checked
+    # here rather than exempted: `steps` and `frames` stay at the container's
+    # real 1315/80 on the truncated manifest too. A manifest that shrank them to
+    # look truncated would be describing a container that is not the one beside
+    # it, which is exactly the "well-formed but wrong" failure this suite exists
+    # to catch. What `truncated` says is where the recording STOPS — the
+    # profile's budget rather than the program's end — and that is demo data in
+    # the same way `validation: divergent` over the same completed container
+    # already is.
     var seen = 0
+    var truncatedSeen = 0
     for p in walkDirRec(outDir / "t"):
       if p.extractFilename != "manifest.json": continue
       inc seen
@@ -133,10 +266,13 @@ suite "M5c — the published traces are the real noir_space_ship execution":
       check m["execution"]["frames"].getInt == 80
       check m["execution"]["languages"].getElems.mapIt(it.getStr) == @["noir"]
       check m["execution"]["sourceLevel"].getBool
-      check not m["execution"]["truncated"].getBool
       check m["container"]["bytes"].getInt == readFile(fixture).len
       check m["container"]["bytes"].getInt == 147456
-    check seen == 4
+      if m["execution"]["truncated"].getBool: inc truncatedSeen
+    check seen == 6
+    # Exactly one truncated recording, and therefore five that are not: the
+    # §14 banner has a subject, and it is not on every session.
+    check truncatedSeen == 1
 
   test "the overlay advertises the container's true size":
     # The client picks its fetch strategy from this number before it has the
@@ -192,15 +328,65 @@ suite "M5c — the published traces are the real noir_space_ship execution":
     check checkedAny
 
 suite "M5c — determinism":
+  ## The property that makes the demo tree a usable regression fixture: the same
+  ## seed produces a byte-identical tree AND byte-identical `.ct` containers.
+  ## Verified by DIFFING the trees, never by asserting a recorded hash — a hash
+  ## constant is a number somebody updates when it goes red.
+  let a = tmp("det-a")
+  let b = tmp("det-b")
+  let other = tmp("det-other")
+  discard generate(DemoConfig(outDir: a, seed: "same", traceFixturePath: fixture, traceSourcesDir: sourcesDir))
+  discard generate(DemoConfig(outDir: b, seed: "same", traceFixturePath: fixture, traceSourcesDir: sourcesDir))
+  discard generate(DemoConfig(outDir: other, seed: "different", traceFixturePath: fixture, traceSourcesDir: sourcesDir))
+
   test "the same seed produces a byte-identical tree, containers included":
-    let a = tmp("det-a")
-    let b = tmp("det-b")
-    discard generate(DemoConfig(outDir: a, seed: "same", traceFixturePath: fixture, traceSourcesDir: sourcesDir))
-    discard generate(DemoConfig(outDir: b, seed: "same", traceFixturePath: fixture, traceSourcesDir: sourcesDir))
     let fa = listFiles(a)
     check fa == listFiles(b)
+    # A floor on the comparison, so this cannot pass over a tree the generator
+    # failed to write. Without it the whole suite reduces to `@[] == @[]`, which
+    # is the shape of a check that passes when its subject is absent.
+    check fa.len >= 61
+    check fa.anyIt(it.endsWith(".ct"))
+    var compared = 0
     for rel in fa:
       check readFile(a / rel) == readFile(b / rel)
+      inc compared
+    check compared == fa.len
+
+  test "a DIFFERENT seed produces a different tree — the check is not vacuous":
+    # The negative control. "Byte-identical" is only evidence of determinism if
+    # the generator is capable of producing something else; a generator that
+    # ignored its seed entirely would pass the test above perfectly.
+    let fa = listFiles(a)
+    let fo = listFiles(other)
+    check fa.len >= 61
+    check fo.len >= 61
+    # Nearly every path in the tree is hash-addressed, so the seed moves the
+    # paths themselves. The two file LISTS are not merely different — they
+    # barely overlap, and the handful that do are the fixed-name objects
+    # (`registry/…`, `index.html`, `d/aztec/current.json`, the generation maps).
+    check fa != fo
+    check fa.filterIt(it in fo).len < fa.len div 2
+    # The file COUNT is deliberately not asserted equal. The hash index emits one
+    # `.bin` per OCCUPIED two-hex prefix, so how many shards exist depends on how
+    # the seed's hashes collide — 145 at one seed and 146 at another, both
+    # correct. A test that demanded equal counts would be asserting a property
+    # the design does not have.
+    #
+    # The fixed-name objects, however, must differ in CONTENT — otherwise the
+    # trees could differ only in filenames while publishing identical facts.
+    check readFile(a / "d" / "aztec" / "current.json") !=
+          readFile(other / "d" / "aztec" / "current.json")
+    check readFile(a / "d" / "aztec" / "labels" / "0.json") !=
+          readFile(other / "d" / "aztec" / "labels" / "0.json")
+    # The containers, however, are the SAME bytes at every seed: they are
+    # vendored, not generated, and the seed keys the chain facts around them.
+    proc oneContainer(dir: string): string =
+      for p in walkDirRec(dir / "t"):
+        if p.extractFilename == "trace.ct": return readFile(p)
+      ""
+    check oneContainer(a).len > 0
+    check oneContainer(a) == oneContainer(other)
 
 suite "M5b — the contract names no producer":
   test "a hand-built EVM-shaped tree validates against the same contract version":

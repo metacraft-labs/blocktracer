@@ -198,10 +198,20 @@ proc writeSourceBundle(cfg: DemoConfig, codeHash: string,
 
 proc writeArtifact(cfg: DemoConfig, txHash, execInputId: string,
                    vs: ValidationStatus, strength: int, oracle: string,
-                   codeHash, sourceBundleId: string) =
+                   codeHash, sourceBundleId: string, truncated = false) =
   ## Emit `/t/{shard}/{shard}/{tid}/` — manifest.json + trace.ct — for one
   ## published execution. `traceArtifactId` is DERIVED (Trace-Artifacts §2.1), so
   ## the URL is exactly what the client (and the validator) compute independently.
+  ##
+  ## `truncated` is §14's "Trace truncated" row as published data: the recorder
+  ## reached the profile's budget, so the recording's ending is the budget
+  ## rather than the program's end. It does NOT change `steps` or `frames` —
+  ## those still describe the vendored container exactly (1315 / 80), because
+  ## the container really does carry that many and a manifest that shrank them
+  ## to look truncated would be describing a container that is not the one
+  ## beside it. The claim is about where the recording STOPS, not about how big
+  ## it is, and it is demo data in exactly the way `validation: divergent` on
+  ## txC already is — a published verdict over the same completed container.
   let r = recorderRef()
   let p = profileRef()
   let tid = deriveTraceArtifactId(execInputId, r.id, r.build, p.hash, traceSchema)
@@ -227,7 +237,7 @@ proc writeArtifact(cfg: DemoConfig, txHash, execInputId: string,
     container: ContainerRef(file: "trace.ct", bytes: bytes.len, blockSize: 4096,
                             hash: contentHashSha1(bytes)),
     execution: ExecutionSummary(steps: traceSteps, frames: traceFrames,
-                                truncated: false, sourceLevel: true,
+                                truncated: truncated, sourceLevel: true,
                                 languages: @[traceLanguage]),
     validation: ValidationSummary(status: vs, strength: strength),
     validationOracle: oracle,
@@ -242,7 +252,8 @@ type DemoTx = object
   txstate: JsonNode
   overlay: TraceSelection
   artifacts: seq[tuple[selector, execInputId: string, vs: ValidationStatus,
-                       strength: int, oracle: string, reconstructed: bool]]
+                       strength: int, oracle: string, reconstructed: bool,
+                       truncated: bool]]
 
 proc contractCodeHash(seed: string, contractIdx: int): string =
   ## The code hash bound to demo contract `contractIdx`.
@@ -309,7 +320,152 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
       txstate: txstateJson(true, "finalized"), overlay: ov,
       artifacts: @[(selector: "public",
         execInputId: demoExecutionInputId(chain, h, "public"),
-        vs: vsMatch, strength: 2, oracle: "avm-receipt-compare", reconstructed: false)])
+        vs: vsMatch, strength: 2, oracle: "avm-receipt-compare", reconstructed: false, truncated: false)])
+
+  # --- Block 100, continued: the three degraded subjects ---------------------
+  #
+  # These three are in the OLDEST block on purpose, and the reason is about the
+  # capture harness rather than about the chain. `tools/capture/lib/entities.mjs`
+  # walks transactions newest block first, and every debugger view pins its
+  # subject with `txWithAvailability(...)` — "the FIRST transaction whose trace
+  # is ready", "…divergent", "…on-demand". A new ready transaction in block 102
+  # would therefore become `readyTx` and silently re-point the flagship
+  # `debugger` view, `tx-detail--session` and four pane views onto a different
+  # session, superseding every review recorded against them. Placed at the
+  # bottom of the walk they add subjects without moving any existing one, which
+  # is checked by `client/tests/test_explorer_breadth.nim`.
+
+  # txF: a transaction that REVERTED, with a published, undisputed trace.
+  #
+  # `debugger--event-log` renders five kinds — call, output, storage write,
+  # event, revert — and until now the demo tree gave it four: nothing in it
+  # reverted. The pane refuses to manufacture the fifth, and it is right to:
+  # txB's `ooPartial` is the Aztec split with BOTH halves succeeded, and
+  # drawing a failed constraint over it would be the pane inventing an event
+  # the trace never carried. So the fix is a real reverted transaction, and
+  # `client/src/debugger/demo_session.nim` appends the revert row off
+  # `v.outcome in {ooReverted, ooFailedWithEffects}` with nothing else changed.
+  #
+  # A revert is a fact about the OUTCOME, not a fault in the recording — the
+  # trace is `ready` and its verdict is `match`, because the recorder faithfully
+  # recorded a transaction that failed its own constraint. The reason names the
+  # assertion the packaged program actually carries (`src/main.nr:35`,
+  # `assert(did_survive_positive == true)`), so the metadata pane's revert
+  # reason and the event log's terminal row name one constraint rather than two.
+  block:
+    let h = synthHash(seed, "tx", 5)
+    var facts = mkPublicFacts(seed, h, b100, 100, 1, 5)
+    facts.outcome = Outcome(overall: ooReverted,
+      reason: "assert(did_survive_positive == true) — constraint not satisfied " &
+              "at src/main.nr:35",
+      parts: @[])
+    # A reverted AVM call still pays: the mana it burned before the failing
+    # constraint is not refunded, so `used` is the whole limit rather than txA's
+    # partial draw. A revert that cost less than a success would be the kind of
+    # detail that makes a demo tree unusable as a fixture.
+    facts.cost = @[Cost(name: "mana", used: "100000", limit: "100000", price: "1",
+                        unit: "mana", token: "FeeJuice", refundable: false)]
+    var ov = TraceSelection(chain: chain, tx: h, hasSingle: true,
+      singleTrace: ExecTrace(availability: taReady, bytes: tbytes, hasValidation: true,
+        validation: ValidationSummary(status: vsMatch, strength: 2)))
+    result.add DemoTx(hash: h, height: 100, index: 1, facts: facts,
+      txstate: txstateJson(true, "finalized"), overlay: ov,
+      artifacts: @[(selector: "public",
+        execInputId: demoExecutionInputId(chain, h, "public"),
+        vs: vsMatch, strength: 2, oracle: "avm-receipt-compare", reconstructed: false,
+        truncated: false)])
+
+  # txG: a public call whose RECORDING hit the profile's budget — §14's "Trace
+  # truncated" row, as published data rather than as a query parameter.
+  #
+  # `client/src/ssr.nim` already turns `execution.truncated` into `siTruncated`
+  # and quantifies it from the manifest's own step and frame counts; nothing
+  # published set the flag, so the banner had no subject. It does now.
+  #
+  # The transaction SUCCEEDED. Truncation is a fact about the recording, not
+  # about the transaction, and pairing it with a revert would have made the
+  # capture ambiguous in both directions — a truncated recording is precisely
+  # one whose ending is missing, so it cannot also be showing the event that
+  # ended it. That is why this is a second transaction and not a flag on txF.
+  block:
+    let h = synthHash(seed, "tx", 6)
+    var facts = mkPublicFacts(seed, h, b100, 100, 2, 6)
+    var ov = TraceSelection(chain: chain, tx: h, hasSingle: true,
+      singleTrace: ExecTrace(availability: taReady, bytes: tbytes, hasValidation: true,
+        validation: ValidationSummary(status: vsMatch, strength: 2)))
+    result.add DemoTx(hash: h, height: 100, index: 2, facts: facts,
+      txstate: txstateJson(true, "finalized"), overlay: ov,
+      artifacts: @[(selector: "public",
+        execInputId: demoExecutionInputId(chain, h, "public"),
+        vs: vsMatch, strength: 2, oracle: "avm-receipt-compare", reconstructed: false,
+        truncated: true)])
+
+  # txH: a second TRACELESS transaction, and the densest one in the tree.
+  #
+  # After Page-Descriptions §7.0 the metadata page is served only where there is
+  # no session, and the tree had exactly one such transaction — txD — which is
+  # already `tx-detail`'s subject. `tx-detail--dense` therefore had nowhere to
+  # point: capturing txD twice would answer VD.4's
+  # `verify_transaction_page_holds_at_extreme_content` with a duplicate.
+  #
+  # So this is the density case as data: five roles rather than one, five cost
+  # rows rather than one, and a raw payload long enough that the raw section is
+  # a region rather than a line. It is `onDemand` so the route serves the
+  # metadata page, which is the shape the dense view is named for.
+  #
+  # It targets CONTRACT 0 — txA's contract, whose source bundle is already
+  # published — rather than a contract of its own, and that is deliberate.
+  # §2.1a makes source interpretation code-hash-addressed exactly so one bundle
+  # serves every call into the same bytecode, and giving this transaction a
+  # fresh contract would have published an eighth address with code and no
+  # bundle. `contractWithSource(false)` takes the lexicographically first such
+  # address, and contract 7's happens to sort ahead of contract 3's, so
+  # `contract-source--unverified` would have been re-pointed off txD's target
+  # onto this one — a named view quietly photographing a different subject,
+  # which is the silent baseline move this milestone is supposed to prevent.
+  # Verified against the built tree by diffing every selector in
+  # `lib/entities.mjs` before and after; contract 3 is still the unverified one.
+  block:
+    let h = synthHash(seed, "tx", 7)
+    var facts = mkPublicFacts(seed, h, b100, 100, 3, 0)
+    # Five distinct roles. Aztec separates who authorised a call from who pays
+    # for it and from who submitted it, and a page that only ever renders one
+    # role has never been asked whether its roles list is a list.
+    facts.roles = @[
+      Role(role: "feePayer", address: synthAddr(seed, "feepayer", 3)),
+      Role(role: "sender", address: synthAddr(seed, "sender", 7)),
+      Role(role: "authwitProvider", address: synthAddr(seed, "authwit", 7)),
+      Role(role: "sequencer", address: synthAddr(seed, "sequencer", 7)),
+      Role(role: "portalContract", address: synthAddr(seed, "portal", 7))]
+    # Cost is a vector, never a scalar (Data-Contract `Cost`), and this is the
+    # transaction that makes the vector visible: five named resources with
+    # different units, different tokens and magnitudes three orders of
+    # magnitude apart, which is what the dense view's "cost magnitudes vary"
+    # watch-for is asking a reviewer to judge.
+    facts.cost = @[
+      Cost(name: "mana", used: "1874320", limit: "2000000", price: "1",
+           unit: "mana", token: "FeeJuice", refundable: false),
+      Cost(name: "daGas", used: "412800", limit: "500000", price: "2",
+           unit: "gas", token: "FeeJuice", refundable: false),
+      Cost(name: "l2Gas", used: "938114", limit: "1000000", price: "1",
+           unit: "gas", token: "FeeJuice", refundable: false),
+      Cost(name: "proofSlots", used: "6", limit: "8", price: "1500",
+           unit: "slot", token: "FeeJuice", refundable: true),
+      Cost(name: "noteHashes", used: "24", limit: "64", price: "0",
+           unit: "count", token: "FeeJuice", refundable: false)]
+    # A long raw payload: a selector plus sixteen 32-byte ABI words, which is
+    # what a batched call actually looks like on the wire. Built by repetition
+    # from the transaction's own synthetic hash so it stays a pure function of
+    # the seed — a hand-typed blob would be one more literal to keep in step.
+    var raw = "0x7f3e21c4"
+    for i in 0 ..< 16:
+      raw.add synthHash(seed, "calldata", i)[2 .. ^1] & "000000000000000000000000"
+    facts.payloadRaw = raw
+    facts.payloadSelector = "0x7f3e21c4"
+    var ov = TraceSelection(chain: chain, tx: h, hasSingle: true,
+      singleTrace: ExecTrace(availability: taOnDemand))
+    result.add DemoTx(hash: h, height: 100, index: 3, facts: facts,
+      txstate: txstateJson(true, "finalized"), overlay: ov, artifacts: @[])
 
   # --- Block 101 ---
   # txB: the Aztec private/public split — the hardest case, from the first render.
@@ -347,7 +503,7 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
     result.add DemoTx(hash: h, height: 101, index: 0, facts: facts,
       txstate: txstateJson(true, "safe"), overlay: ov,
       artifacts: @[(selector: "public", execInputId: pubId, vs: vsMatch,
-        strength: 2, oracle: "avm-receipt-compare", reconstructed: false)])
+        strength: 2, oracle: "avm-receipt-compare", reconstructed: false, truncated: false)])
 
   # txC: a public call whose recorder verdict DIVERGED — the trace still exists and
   # remains inspectable, but the overlay is `divergent` (§ Failure Modes; §6).
@@ -362,7 +518,7 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
       txstate: txstateJson(true, "safe"), overlay: ov,
       artifacts: @[(selector: "public",
         execInputId: demoExecutionInputId(chain, h, "public"),
-        vs: vsDivergent, strength: 0, oracle: "avm-receipt-compare", reconstructed: false)])
+        vs: vsDivergent, strength: 0, oracle: "avm-receipt-compare", reconstructed: false, truncated: false)])
 
   # --- Block 102 ---
   # txD: a public call whose trace is not published yet — availability onDemand.
@@ -389,7 +545,7 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
       txstate: txstateJson(true, "pending"), overlay: ov,
       artifacts: @[(selector: "public",
         execInputId: demoExecutionInputId(chain, h, "public"),
-        vs: vsUnchecked, strength: 0, oracle: "none", reconstructed: true)])
+        vs: vsUnchecked, strength: 0, oracle: "none", reconstructed: true, truncated: false)])
 
   # --- Extra blocks (M8 incremental delta) ---
   # Each appended height carries one plain public AVM call with a ready trace — the
@@ -409,7 +565,7 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
       txstate: txstateJson(true, "finalized"), overlay: ov,
       artifacts: @[(selector: "public",
         execInputId: demoExecutionInputId(chain, h, "public"),
-        vs: vsMatch, strength: 2, oracle: "avm-receipt-compare", reconstructed: false)])
+        vs: vsMatch, strength: 2, oracle: "avm-receipt-compare", reconstructed: false, truncated: false)])
 
 proc generate*(cfg: DemoConfig): int =
   ## Emit the full demo tree. Returns the number of top-level objects written
@@ -480,7 +636,7 @@ proc generate*(cfg: DemoConfig): int =
         bundleId = cfg.writeSourceBundle(codeHash, srcFiles)
       for a in t.artifacts:
         cfg.writeArtifact(t.hash, a.execInputId, a.vs, a.strength, a.oracle,
-                          codeHash, bundleId)
+                          codeHash, bundleId, a.truncated)
     cfg.writeText(chain / "tx" / t.hash / "index.html",
                   renderTxPage(chain, t.hash, factsJson, st, ovJson))
     hashEntries.add HashEntry(hexHash: t.hash, chain: chain, kind: hkTx)

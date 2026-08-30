@@ -693,8 +693,13 @@ suite "M12a — one contract, two producers, one consumer":
     for e in a.errors: echo "  demo ERR ", e
     check a.ok
     check a.blocksChecked == 3
-    check a.transactionsChecked == 5
-    check a.tracesReplayable == 4
+    # Eight transactions, six of them replayable. Block 100 carries txA plus the
+    # three degraded subjects the capture register needs — txF (reverted, trace
+    # ready), txG (recording truncated, trace ready) and txH (traceless, the
+    # dense metadata page) — so two of the three add a replayable trace and the
+    # third does not.
+    check a.transactionsChecked == 8
+    check a.tracesReplayable == 6
 
     let b = consumerConformance(evmStore, ev.chain)
     for e in b.errors: echo "  evm ERR ", e
@@ -786,7 +791,7 @@ suite "M12a — the conformance suite does not use the reader as its own oracle"
         if errs.len > 0: echo "  MISMATCH ", txh, ": ", errs
         check errs.len == 0
         inc checked
-    check checked == 5
+    check checked == 8
 
   test "MUTATION BITE: a reader that drops a field fails against ground truth":
     let txh = synthHash("sdk-seed", "tx", 1)
