@@ -14,7 +14,7 @@
 // targets, and `--prune` removes orphans without a full recapture.
 
 import { mkdir, rm, readdir, writeFile, readFile, stat } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import { join, dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
@@ -44,11 +44,33 @@ import {
   SETTLE_BUDGET_MS,
 } from "./lib/determinism.mjs";
 import { describePinnedEnv } from "./lib/pinned-env.mjs";
+import { engineScenario, describeScenarios } from "./lib/engine-stubs.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolvePath(HERE, "..", "..");
 const DEFAULT_DIST = join(REPO_ROOT, "client", "dist");
 const DEFAULT_OUT = join(REPO_ROOT, "screenshots");
+
+// ── The hydrated build, and why it is a SECOND tree ────────────────────────
+//
+// `runExporter` below compiles `static_export.nim` with no `-d:hydrationBundle`
+// on purpose, and that has to stay true: it is what makes the 38 ready views a
+// capture of the page this site serves — no script, panes rendered from
+// published data, stepping controls visibly inert. Flipping the flag globally
+// would move every debugger image in the corpus and would file a live session
+// under the names of the pre-hydration ones.
+//
+// But two families of user-visible sentence exist ONLY under hydration: §6.0a's
+// landing notice (the payload is in the query, and a static route serves one
+// file per path, so no exported page can carry it) and the three engine-failure
+// sentences (`markUnavailable` is only reachable from the bundle). Neither had
+// ever been rendered by anything.
+//
+// So there are two trees, built from one exporter and one fixture, and a view
+// declares which it belongs to. `client/dist` stays exactly what it was —
+// which also keeps `tools/design/check-tokens.mjs`'s D1, which reads
+// `client/dist/index.html`, reading the shipped build.
+const DEFAULT_DIST_HYDRATED = join(REPO_ROOT, "client", "dist-hydrated");
 
 // ── CLI ────────────────────────────────────────────────────────────────────
 
@@ -65,6 +87,7 @@ function parseArgs(argv) {
     json: false,
     out: DEFAULT_OUT,
     dist: DEFAULT_DIST,
+    distHydrated: DEFAULT_DIST_HYDRATED,
     manifest: null,
   };
   const multi = (v) => String(v).split(",").map((s) => s.trim()).filter(Boolean);
@@ -84,6 +107,7 @@ function parseArgs(argv) {
       case "--json": opts.json = true; break;
       case "--out": opts.out = resolvePath(next()); break;
       case "--dist": opts.dist = resolvePath(next()); break;
+      case "--dist-hydrated": opts.distHydrated = resolvePath(next()); break;
       case "--manifest": opts.manifest = resolvePath(next()); break;
       case "-h":
       case "--help": opts.help = true; break;
@@ -108,6 +132,8 @@ BlockTracer capture harness (VD.0)
   --prune               delete images that no longer correspond to a view
   --out <dir>           output directory (default: screenshots/)
   --dist <dir>          built site to serve (default: client/dist)
+  --dist-hydrated <dir> the hydrated build the hydration-only views are served
+                        from (default: client/dist-hydrated)
   --manifest <file>     manifest path (default: <out>/manifest.json)
   --json                machine-readable summary on stdout
 
@@ -132,6 +158,94 @@ function runExporter(distDir) {
     throw new Error(`static exporter failed and there is no existing dist to fall back to:\n${why}`);
   }
   return true;
+}
+
+/**
+ * Build the hydrated tree at `outRoot`: the bundle first, then an export that
+ * names it.
+ *
+ * The order is `client/Justfile`'s and is the substance of it — the bundle is
+ * built FIRST and only then is the exporter told a URL for it, so a page can
+ * never carry a `<script>` for a file that was not produced
+ * (`installHydrationBundle` re-checks that and fails the build).
+ *
+ * `static_export.nim`'s output directory is the constant `dist` resolved
+ * against the PROCESS's working directory, while everything it reads — the
+ * trace fixture, the fonts, the built bundle — is resolved from
+ * `currentSourcePath`. So the tree is produced by running the same exporter
+ * from a different cwd and moving the result, rather than by teaching the
+ * exporter a second output path that only this harness would ever pass.
+ *
+ * Returns `{ ok: true }`, or `{ ok: false, reason }` — never throws. A checkout
+ * with no CodeTracer Embed SDK on its Nim path cannot build the bundle
+ * (`hydrate/build.sh` exits 3, which is `replay_engine.HydrationBundle`'s
+ * documented state, not a fault), and that must degrade to "these views were
+ * not captured, and here is why" rather than to no corpus at all.
+ */
+function runHydratedExporter(outRoot) {
+  const clientDir = join(REPO_ROOT, "client");
+  const buildDir = join(clientDir, ".hydrated-build");
+
+  const bundle = spawnSync(join(clientDir, "hydrate", "build.sh"), [], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+  });
+  if (bundle.error) return { ok: false, reason: `hydrate/build.sh: ${bundle.error.message}` };
+  if (bundle.status === 3) {
+    return {
+      ok: false,
+      reason:
+        "no CodeTracer Embed SDK on the Nim path, so there is no hydration " +
+        "bundle to export (hydrate/build.sh exit 3; the pinned commit is in " +
+        "ci/embed-sdk-pin.env, and $CODETRACER_SRC or a ../codetracer sibling " +
+        "satisfies it — the repository's own devShell sets it)",
+    };
+  }
+  if (bundle.status !== 0) {
+    const why = (bundle.stderr || bundle.stdout || "").trim().split("\n").slice(-4).join("\n");
+    return { ok: false, reason: `hydrate/build.sh failed:\n${why}` };
+  }
+
+  rmSync(buildDir, { recursive: true, force: true });
+  mkdirSync(buildDir, { recursive: true });
+  const r = spawnSync(
+    "nim",
+    [
+      "c", "-r", "--mm:orc", "-d:isServer", "-d:release", "--hints:off",
+      "-d:hydrationBundle=/assets/hydrate.js",
+      `--nimcache:${join(clientDir, "nimcache-hydrated")}`,
+      `-o:${join(buildDir, "static_export_hydrated")}`,
+      join(clientDir, "src", "static_export.nim"),
+    ],
+    { cwd: buildDir, encoding: "utf8" },
+  );
+  if (r.error || r.status !== 0) {
+    const why = r.error ? r.error.message : (r.stderr || "").trim().split("\n").slice(-5).join("\n");
+    return { ok: false, reason: `hydrated static export failed:\n${why}` };
+  }
+  const produced = join(buildDir, "dist");
+  if (!existsSync(produced)) {
+    return { ok: false, reason: `hydrated exporter wrote no tree at ${produced}` };
+  }
+  rmSync(outRoot, { recursive: true, force: true });
+  renameSync(produced, outRoot);
+  rmSync(buildDir, { recursive: true, force: true });
+  return { ok: true };
+}
+
+/** Both trees must be built from ONE fixture, or a view's subject is not the
+ *  transaction its name claims. Cheap, targeted, and about the thing that would
+ *  actually go wrong: a stale `dist-hydrated` left behind by `--no-build`. */
+function assertSameFixture(plain, hydrated) {
+  const key = (ix) =>
+    JSON.stringify({ chain: ix.primaryChain, txs: ix.chain().txs.map((t) => t.hash) });
+  if (key(plain) !== key(hydrated)) {
+    throw new Error(
+      "the plain and hydrated trees were built from different fixtures — the " +
+        "hydration-only views would be captured against different transactions " +
+        "from the ones their names resolve. Rebuild both (drop --no-build).",
+    );
+  }
 }
 
 // ── Target selection ───────────────────────────────────────────────────────
@@ -205,13 +319,24 @@ async function captureOne(browser, { view, size, theme }, ctx) {
   const sizeSpec = SIZES[size];
   if (!sizeSpec) throw new Error(`unknown size: ${size}`);
 
+  // Which tree, and — for a hydrated view — what answers at the engine's path.
+  // `originFor` throws only for a scenario name no stub implements; a hydrated
+  // build that could not be produced is reported as a per-image reason so the
+  // rest of the corpus still captures.
+  let origin;
+  try {
+    origin = ctx.originFor(view);
+  } catch (e) {
+    return { ok: false, reason: e.message, url: null };
+  }
+
   const context = await browser.newContext(contextOptions({ size: sizeSpec, theme }));
   try {
     await prepareContext(context, { theme });
     const page = await context.newPage();
 
     const path = typeof view.route === "function" ? view.route(ctx.index) : view.route;
-    const url = ctx.origin + path;
+    const url = origin + path;
 
     const response = await page.goto(url, { waitUntil: "commit", timeout: 30000 });
     const httpStatus = response ? response.status() : null;
@@ -288,6 +413,7 @@ async function main() {
       const n = sizesFor(v).length * themesFor(v).length;
       console.log(
         `  ${v.status === "ready" ? "[ready]  " : "[pending]"} ${v.id.padEnd(34)} ${String(n).padStart(2)} img  ${sz} x ${th}` +
+          (v.hydrated ? `  [hydrated · engine: ${v.engine}]` : "") +
           (v.status === "ready" ? "" : `\n              ↳ ${v.pendingReason}`),
       );
     }
@@ -317,6 +443,31 @@ async function main() {
 
   // 3. Targets.
   const allTargets = selectTargets(opts);
+
+  // 3a. The hydrated tree, if anything targeted needs one. Built only on
+  //     demand: it costs a `nim js` of the whole Embed SDK, and 63 of the 79
+  //     views do not want it.
+  const wantsHydrated = allTargets.some((t) => t.view.status === "ready" && t.view.hydrated);
+  let hydratedBuild = { ok: false, reason: "not requested by any target view" };
+  let hydratedFixture = null;
+  if (wantsHydrated) {
+    if (opts.build) {
+      hydratedBuild = runHydratedExporter(opts.distHydrated);
+      if (!hydratedBuild.ok) console.warn(`! no hydrated build: ${hydratedBuild.reason}`);
+    } else if (existsSync(opts.distHydrated)) {
+      hydratedBuild = { ok: true, reused: true };
+    } else {
+      hydratedBuild = {
+        ok: false,
+        reason: `--no-build was given and there is no hydrated tree at ${opts.distHydrated}`,
+      };
+      console.warn(`! no hydrated build: ${hydratedBuild.reason}`);
+    }
+    if (hydratedBuild.ok) {
+      assertSameFixture(index, buildEntityIndex(opts.distHydrated));
+      hydratedFixture = await digestTree(opts.distHydrated);
+    }
+  }
   const targets = opts.includePending
     ? allTargets
     : allTargets.filter((t) => t.view.status === "ready");
@@ -329,9 +480,38 @@ async function main() {
   await mkdir(opts.out, { recursive: true });
 
   // 5. Serve and capture.
-  const server = await serveDist(opts.dist);
+  //
+  // One server per (tree, engine scenario), created on demand. The plain tree
+  // needs one; each hydrated view names the scenario its image is OF, and two
+  // views that name the same one share a server.
+  const servers = { plain: await serveDist(opts.dist) };
+  const enginesUsed = new Set();
+  const originFor = (view) => {
+    if (!view.hydrated) return servers.plain.origin;
+    if (!hydratedBuild.ok) {
+      throw new Error(`hydration-only view, and no hydrated build: ${hydratedBuild.reason}`);
+    }
+    const scenario = engineScenario(view.engine);
+    const key = `hydrated:${scenario.id}`;
+    if (!servers[key]) {
+      throw new Error(`internal: no server for ${key}`);
+    }
+    enginesUsed.add(scenario.id);
+    return servers[key].origin;
+  };
+  if (hydratedBuild.ok) {
+    for (const id of new Set(
+      allTargets.filter((t) => t.view.hydrated).map((t) => t.view.engine),
+    )) {
+      const scenario = engineScenario(id);
+      servers[`hydrated:${scenario.id}`] = await serveDist(opts.distHydrated, {
+        overlay: scenario.overlay,
+      });
+    }
+  }
+
   const browser = await chromium.launch({ args: CHROMIUM_ARGS, chromiumSandbox: false });
-  const ctx = { origin: server.origin, index, outDir: opts.out };
+  const ctx = { origin: servers.plain.origin, originFor, index, outDir: opts.out };
 
   const results = [];
   const failures = [];
@@ -350,6 +530,11 @@ async function main() {
         theme: t.theme,
         register: t.view.register,
         status: t.view.status,
+        // Which tree and which engine produced this image. Recorded per image,
+        // not per run: an engine-failure image whose provenance is not on the
+        // record is one a reader has to take on trust.
+        tree: t.view.hydrated ? "hydrated" : "static",
+        engine: t.view.hydrated ? t.view.engine : null,
         ...r,
         ms: Date.now() - started,
       };
@@ -365,7 +550,7 @@ async function main() {
     }
   } finally {
     await browser.close();
-    await server.close();
+    for (const s of Object.values(servers)) await s.close();
   }
 
   // 6. Prune orphans on request (full regeneration already cleaned).
@@ -391,7 +576,30 @@ async function main() {
       rebuilt: built,
       treeDigest: fixture.digest,
       fileCount: fixture.fileCount,
+      // The second tree, and what it is FOR. Present only when a targeted view
+      // needed it, and carrying its own digest: the two trees are built from
+      // one fixture and one exporter and differ by the hydration bundle alone,
+      // so two digests that move independently is a finding.
+      hydrated: {
+        dist: opts.distHydrated,
+        built: hydratedBuild.ok,
+        reused: hydratedBuild.reused ?? false,
+        reason: hydratedBuild.ok ? null : hydratedBuild.reason,
+        treeDigest: hydratedFixture?.digest ?? null,
+        fileCount: hydratedFixture?.fileCount ?? null,
+        why:
+          "-d:hydrationBundle=/assets/hydrate.js. §6.0a's landing notice and " +
+          "the three engine-failure sentences are rendered by the bundle and " +
+          "by nothing else; the static tree above is unchanged and is what " +
+          "every other view is captured from.",
+      },
     },
+    // The stand-in engines. NOT files in either tree — the capture server
+    // answers `/replay-engine/worker.js` with these, one scenario per view, so
+    // the pages themselves stay byte-for-byte what the exporter wrote. See
+    // tools/capture/lib/engine-stubs.mjs.
+    engineScenarios: describeScenarios(),
+    engineScenariosUsed: [...enginesUsed].sort(),
     determinism: {
       frozenClock: FROZEN_TIME.toISOString(),
       settleBudgetMs: SETTLE_BUDGET_MS,
@@ -437,6 +645,13 @@ async function main() {
     console.log("");
     console.log(`mode:      ${manifest.mode}`);
     console.log(`captured:  ${manifest.counts.captured} image(s) -> ${opts.out}`);
+    if (wantsHydrated) {
+      console.log(
+        hydratedBuild.ok
+          ? `hydrated:  ${opts.distHydrated} — engine scenarios: ${[...enginesUsed].sort().join(", ") || "none"}`
+          : `hydrated:  NOT BUILT — ${hydratedBuild.reason}`,
+      );
+    }
     if (skippedPending.length) {
       const views = [...new Set(skippedPending.map((t) => t.view.id))];
       console.log(

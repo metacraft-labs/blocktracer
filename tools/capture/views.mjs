@@ -28,6 +28,11 @@ import {
   contractWithSource,
   addressWithSegments,
   segmentIdOf,
+  witnessOf,
+  staleWitnessOf,
+  currentCallAnchorOf,
+  unresolvableChildAnchorOf,
+  unresolvableLogAnchorOf,
 } from "./lib/entities.mjs";
 
 // ── Viewport set ───────────────────────────────────────────────────────────
@@ -174,6 +179,191 @@ const pagedAddress = addressWithSegments(2);
 
 const PENDING_ROUTE = "route not yet served by the client";
 const PENDING_STATE = "state not yet modelled by the client ViewModel";
+
+// ── The hydration-only half of this route (VD.7) ───────────────────────────
+//
+// Two families of user-visible sentence are drawn by the hydration bundle and
+// by nothing else, so until VD.7 neither had ever been rendered by anything:
+//
+//   * §6.0a's landing notice. The payload is in the QUERY, a static export
+//     serves one file per PATH, and `pages/debug.nim` says so where it emits
+//     the slot: "`?t=` cannot select a rendering". Four of the five branches
+//     carry a sentence, and no human had seen one.
+//   * `hydrate.markUnavailable`'s three engine-failure sentences, separated at
+//     their source because one sentence covering two faults cost hours of
+//     misdiagnosis — a separation defended entirely by unread text.
+//
+// A view below carrying `hydrated: true` is captured from `client/dist-hydrated`
+// (`capture.mjs`'s `runHydratedExporter`) instead of `client/dist`, and names
+// the `engine:` scenario the capture server runs at `/replay-engine/worker.js`
+// (`lib/engine-stubs.mjs`). The static tree and the 63 views over it are
+// untouched.
+//
+// What is substituted in these images and what is not, stated once here and
+// again in every affected expectation block: the page is the one the real
+// exporter wrote, the bundle is the real `nim js` build of `hydrate.nim`, and
+// every sentence is drawn by `components/debugger` from a string in
+// `hydrate.nim` or `blocktracer_client/deeplink.nim`. What the harness supplies
+// is the ENGINE — the 18 MB wasm worker this repository deliberately does not
+// vendor, whose absence, silence or refusal is the subject.
+
+/** Mirrors `hydrate.EngineDeadlineMs`. The watchdog is NOT shortened to suit
+ *  the harness — §8's rule that "a phase rail stuck on `opening` is a spinner
+ *  with a name" is exactly what it enforces, and a 45 s deadline that trips at
+ *  5 s would report a broken engine to a visitor whose engine was arriving.
+ *  Instead the capture advances the FROZEN clock the whole corpus is captured
+ *  under, so the deadline fires at its real value in page-time and costs no
+ *  wall-clock at all. If the product's deadline ever moves past this, the two
+ *  views that depend on it fail their post-conditions loudly rather than
+ *  photographing a page that is still loading. */
+const ENGINE_DEADLINE_ADVANCE_MS = 46_000;
+
+/** `blocktracer_client/deeplink.encodeValue`, in JavaScript. The set of
+ *  unreserved characters is the contract — `:` survives, so `a=call:0.2.6` is
+ *  written the way the product writes it and not as `a=call%3A0.2.6`. */
+const encodeLinkValue = (s) =>
+  [...s]
+    .map((c) =>
+      /[A-Za-z0-9\-._~:]/.test(c)
+        ? c
+        : "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"),
+    )
+    .join("");
+
+/** A `/debug` URL carrying a §6.0a payload in the query, exactly as
+ *  `deeplink_landing.positionQuery` writes it: `v`, then `t`, then `c`, then
+ *  `a`. `fields` is given the resolved transaction so every value can be
+ *  derived from the published trace rather than written down. */
+const positionRoute = (txSel, fields) => (ix) => {
+  const tx = txSel(ix);
+  const f = fields(tx, ix);
+  const parts = ["v=1"];
+  if (f.t) parts.push(`t=${f.t}`);
+  if (f.c) parts.push(`c=${encodeLinkValue(f.c)}`);
+  if (f.a) parts.push(`a=${encodeLinkValue(f.a)}`);
+  return `/${ix.primaryChain}/tx/${tx.hash}/debug?${parts.join("&")}`;
+};
+
+/** The URL the engine-failure views open, and it is a WHOLE §6.0a link rather
+ *  than the bare `?t=` every other debugger view pins.
+ *
+ *  Found by looking at the first capture of these views: `?t=128` alone is a
+ *  coordinate with no content witness, which §6.0 treats as unverifiable — so a
+ *  hydrated build served the corpus's own debugger URL renders step 5's notice
+ *  as well as the engine banner, and the image meant to be about one sentence
+ *  carried two. (views.mjs predicted exactly this in the comment above
+ *  `DEBUG_TIME_COORDINATE`; what it did not predict is that the first hydrated
+ *  capture would be of a different subject.)
+ *
+ *  So these three open the link this page's own Share control emits — `v`, `t`,
+ *  `c` and `a`, exact hit, notice silent — and the only thing said on the page
+ *  is the engine's verdict. `requireEngineFailure` asserts the notice stayed
+ *  silent, so the two families cannot start bleeding into each other again. */
+const engineFailureRoute = positionRoute(readyTx, (tx) => ({
+  t: DEBUG_TIME_COORDINATE_MID,
+  c: witnessOf(tx),
+  a: currentCallAnchorOf(tx),
+}));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Poll from Node until `selector`'s text contains `needle`.
+ *
+ *  Node-side, because the page's clock is frozen and faked: an in-page poll
+ *  would be waiting on timers that only advance when this harness advances
+ *  them. Throwing is the point — a capture that did not reach the state its
+ *  view is named for must fail, not produce an image filed under that name. */
+async function waitForText(page, selector, needle, what) {
+  let seen = "";
+  for (let i = 0; i < 60; i++) {
+    seen = await page.evaluate((s) => document.querySelector(s)?.innerText ?? "", selector);
+    if (seen.includes(needle)) return seen;
+    await sleep(50);
+  }
+  throw new Error(
+    `${what}: '${selector}' never said ${JSON.stringify(needle)} (it said ${JSON.stringify(seen.slice(0, 160))})`,
+  );
+}
+
+/** Every hydrated view's precondition: the bundle actually ran.
+ *
+ *  Load-bearing, and most of all for the view whose subject is an ABSENCE. An
+ *  un-hydrated page and an exact-hit page both show an empty notice slot, and
+ *  they are pixel-identical — so without a positive signal that the script ran,
+ *  `debugger--link-exact` would be satisfied by a build with no script at all,
+ *  which is precisely the thing it is there to distinguish. §13's copy buttons
+ *  are that signal: `upgradeCopyAffordances` runs first and unconditionally,
+ *  before any engine work, and adds `.copybtn` to values the served page
+ *  renders without one. */
+async function requireHydrated(page) {
+  for (let i = 0; i < 100; i++) {
+    if (await page.evaluate(() => !!document.querySelector(".dbg .copybtn"))) return;
+    await sleep(50);
+  }
+  throw new Error(
+    "the hydration bundle did not run (no `.copybtn` was upgraded) — this image " +
+      "would be a capture of the static page under a hydration-only view's name",
+  );
+}
+
+/** Post-condition for a §6.0a landing view: the branch that rendered is the
+ *  branch the view is named for, read off `data-landing` rather than off the
+ *  sentence. */
+const requireLanding = (outcome) => async (page) => {
+  await requireHydrated(page);
+  let got = "<none>";
+  for (let i = 0; i < 60; i++) {
+    got = await page.evaluate(
+      () =>
+        document
+          .querySelector("#dbg-position-notice .dbgnotice")
+          ?.getAttribute("data-landing") ?? "<none>",
+    );
+    if (got === outcome) return;
+    await sleep(50);
+  }
+  throw new Error(`§6.0a: expected landing '${outcome}', the page resolved '${got}'`);
+};
+
+/** Post-condition for the one branch that is SILENT. */
+const requireNoLanding = async (page) => {
+  await requireHydrated(page);
+  const n = await page.evaluate(
+    () => document.querySelectorAll("#dbg-position-notice .dbgnotice").length,
+  );
+  if (n !== 0) {
+    throw new Error(
+      "§6.0a step 2 is the one branch that renders nothing, and this page " +
+        "rendered a notice",
+    );
+  }
+};
+
+/** Post-condition for an engine-failure view, optionally after tripping the
+ *  deadline. `needle` is a fragment of the sentence THIS fault produces, so
+ *  the two deadline views cannot pass on each other's banner. */
+const requireEngineFailure = ({ advanceClock = false, needle }) =>
+  async (page) => {
+    await requireHydrated(page);
+    if (advanceClock) {
+      await page.context().clock.runFor(ENGINE_DEADLINE_ADVANCE_MS);
+    }
+    await waitForText(page, "#dbg-engine-failure", needle, "engine failure");
+    // One subject per image. These views open an exact-hit link precisely so
+    // §6.0a says nothing here; a notice would mean the URL stopped being one.
+    const stray = await page.evaluate(
+      () => document.querySelector("#dbg-position-notice .dbgnotice")?.innerText ?? "",
+    );
+    if (stray.length > 0) {
+      throw new Error(
+        `an engine-failure capture also rendered a §6.0a notice (${JSON.stringify(stray.slice(0, 120))}) — ` +
+          "the image would carry two unrelated subjects",
+      );
+    }
+    // The clock advance can have started a face loading in the re-rendered
+    // banner; do not screenshot mid-swap.
+    await page.evaluate(() => document.fonts.ready.then(() => undefined)).catch(() => {});
+  };
 
 // ── The named view list ────────────────────────────────────────────────────
 
@@ -436,20 +626,35 @@ export const VIEWS = [
     covers: ["tx-detail.hydrated"],
     register: "debugger",
     status: "pending",
-    // What remains missing is narrower than it was. The transaction's own URL
-    // now SERVES the session (`tx-detail--session`), so §7.0's landing rule is
-    // captured; what nothing produces is the transition — the pre-rendered
-    // frame being taken over by a live engine, in place, without the visitor
-    // seeing less at any point. That is hydration, and the client ships no
-    // JavaScript at all.
+    // Narrower again, and the old reason is now WRONG rather than merely
+    // incomplete — corrected with VD.7. It said "the client ships no JavaScript
+    // at all", which stopped being true when the hydration bundle landed and is
+    // demonstrably not true of the tree the eight `hydrated: true` views below
+    // are captured from: those pages carry the bundle, it runs, and §13's copy
+    // affordances are upgraded in every one of their images.
+    //
+    // What is still missing is the ENGINE. This view's subject is the
+    // transition — a pre-rendered frame taken over by a LIVE session, in place,
+    // without the visitor seeing less at any point — and that needs the 18 MB
+    // wasm the deploy fetches from another repository and this one deliberately
+    // does not vendor. The harness will not stand in for it: `lib/engine-stubs
+    // .mjs` supplies engines that FAIL, because a failure is a fact about the
+    // environment and the sentence about it is the product's. An engine that
+    // pretended to replay would put a fabricated session under a view whose
+    // whole claim is that the session is real, which is the one thing a fixture
+    // may never do.
     pendingReason:
-      "the transaction route now serves the session itself (see " +
-      "`tx-detail--session`), but nothing hydrates it: the client ships no " +
-      "JavaScript at all, and the SPA/hydration shell is the deferred half of " +
-      "Front-End-Architecture §2's layer 4. The engine is unfetched, so the " +
-      "panes are the pre-hydration frame and the stepping toolbar is inert — " +
-      "capturing that under the hydrated view's name would file a static " +
-      "first frame as a live session",
+      "the transaction route serves the session (`tx-detail--session`) and the " +
+      "hydration bundle now runs over it (see the `hydrated: true` views, " +
+      "captured from `client/dist-hydrated`), so what is missing is no longer " +
+      "script — it is the ENGINE. This view's subject is the live takeover, and " +
+      "the 18 MB replay wasm is published by another repository and not " +
+      "vendored here. The capture harness stands in for engines that FAIL, " +
+      "never for one that replays: a stub that pretended to step would file a " +
+      "fabricated session under the name of a real one. Point a build at a " +
+      "published engine (`just replay-engine`, or `-d:replayEngineBase=`) and " +
+      "this view becomes capturable — at the cost of a capture whose bytes " +
+      "depend on a third party's deploy",
     route: (ix) => `/${ix.primaryChain}/tx/${readyTx(ix).hash}`,
   },
   {
@@ -933,6 +1138,188 @@ export const VIEWS = [
     // Captured separately so that the missing control is judged as the subject
     // of an image rather than noticed as a difference between two paragraphs.
     route: debugRoute(absentTx),
+  },
+
+  // ──────── §6.0a: where a shared link landed, and what it said (VD.7) ─────
+  //
+  // Five branches, five views, and the fifth is the SILENT one. Splitting it
+  // out is not bookkeeping: §6.0a's whole rule is "every branch below (2) is
+  // visible — the client never silently lands somewhere other than where the
+  // link pointed", and "visible" is only a claim if the one branch that is
+  // legitimately silent is also on the record. Without `--link-exact`, four
+  // images show a notice and nothing shows that an exact hit does not.
+  //
+  // Each route's `c` and `a` are DERIVED from the published trace
+  // (`lib/entities.mjs`), so a link that is meant to disagree with the witness
+  // cannot decay into one that agrees after a reseed, and an anchor that is
+  // meant not to resolve cannot decay into one that does. Each view then
+  // asserts the branch it reached off `data-landing`, so an image can never be
+  // filed under the wrong branch's name.
+  {
+    id: "debugger--link-exact",
+    description:
+      "§6.0a step 2 — the link's witness matches and its coordinate is honoured. The ONE branch that renders no notice, captured so that 'every other branch is visible' is a comparison and not an assertion",
+    covers: ["debugger.link-landing"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    fullPage: false,
+    hydrated: true,
+    engine: "silent",
+    route: positionRoute(readyTx, (tx) => ({
+      t: DEBUG_TIME_COORDINATE_MID,
+      c: witnessOf(tx),
+      a: currentCallAnchorOf(tx),
+    })),
+    setup: requireNoLanding,
+  },
+  {
+    id: "debugger--link-recovered-by-anchor",
+    description:
+      "§6.0a step 3 — the trace was regenerated, so the coordinate is not trusted and the link's anchor is used instead; the notice names the anchor kind and the reason",
+    covers: ["debugger.link-landing"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    fullPage: false,
+    hydrated: true,
+    engine: "silent",
+    route: positionRoute(readyTx, (tx) => ({
+      t: DEBUG_TIME_COORDINATE_MID,
+      c: staleWitnessOf(tx),
+      a: currentCallAnchorOf(tx),
+    })),
+    setup: requireLanding("recoveredByAnchor"),
+  },
+  {
+    id: "debugger--link-nearest-frame",
+    description:
+      "§6.0a step 4 — the anchor names a frame this trace does not have, so the nearest enclosing frame is shown and said. A BENIGN outcome: the link worked, approximately, and the page must not read as an error",
+    covers: ["debugger.link-landing"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    fullPage: false,
+    hydrated: true,
+    engine: "silent",
+    route: positionRoute(readyTx, (tx) => ({
+      t: DEBUG_TIME_COORDINATE_MID,
+      c: staleWitnessOf(tx),
+      a: unresolvableChildAnchorOf(tx),
+    })),
+    setup: requireLanding("nearestEnclosingFrame"),
+  },
+  {
+    id: "debugger--link-start-of-execution",
+    description:
+      "§6.0a step 5 — neither the coordinate nor the anchor survives, so the session opens at the start and the notice names WHICH of the four reasons applies",
+    covers: ["debugger.link-landing"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    fullPage: false,
+    hydrated: true,
+    engine: "silent",
+    // A `log:` anchor past the last event. `resolveAnchor` gives the two
+    // consensus-recorded kinds no enclosing frame on purpose — "nothing
+    // encloses a log index that does not exist" — so this is step 5 and not
+    // step 4, which is the distinction the two views exist to keep apart.
+    route: positionRoute(readyTx, (tx) => ({
+      t: DEBUG_TIME_COORDINATE_MID,
+      c: staleWitnessOf(tx),
+      a: unresolvableLogAnchorOf(tx),
+    })),
+    setup: requireLanding("startOfExecution"),
+  },
+  {
+    id: "debugger--link-not-replayable",
+    description:
+      "§6.0a step 1 — a link into a transaction with no replayable artifact. Terminal, and the only branch that renders on a page with no panes at all",
+    covers: ["debugger.link-landing"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    fullPage: false,
+    hydrated: true,
+    engine: "silent",
+    // `absentTx`, not `onDemandTx`. Step 1's sentence is "this execution is not
+    // replayable" full stop, which is true of `absent` and is a half-truth
+    // about a transaction whose trace can still be generated — and the
+    // no-session page underneath the notice is the one with no action on it, so
+    // the pair reads consistently. Whether it reads consistently is what the
+    // block asks the reviewer.
+    route: positionRoute(absentTx, (tx, ix) => ({
+      t: DEBUG_TIME_COORDINATE_MID,
+      // This transaction publishes no container, so it has no witness of its
+      // own; the link carries a well-formed one from a trace that does exist,
+      // which is what a shared link into a since-withdrawn artifact looks like.
+      // Step 1 is reached before the witness is consulted at all — but a `t`
+      // with no `c` is a link the grammar rejects (§6.0a), and photographing a
+      // malformed link under this branch's name would test the parser rather
+      // than the branch.
+      c: witnessOf(readyTx(ix)),
+      a: currentCallAnchorOf(readyTx(ix)),
+    })),
+    setup: requireLanding("noReplayableArtifact"),
+  },
+
+  // ──────── The replay engine will not run, said on the page (VD.7) ────────
+  //
+  // Three faults, three sentences, three views — and they are three views for
+  // the reason the sentences are three strings. `hydrate.nim`: an engine that
+  // never arrived and an engine that arrived and refused the container "are
+  // different faults with different fixes, and a single sentence covering both
+  // sent a real diagnosis down the wrong path for hours". A single view could
+  // be answered by a single image and the distinction would be gradeable only
+  // against itself.
+  //
+  // What the harness supplies is the ENGINE, never the sentence: see
+  // `lib/engine-stubs.mjs`, and the `engine:` scenario each view names.
+  {
+    id: "debugger--engine-worker-missing",
+    description:
+      "The engine's worker script is not there — nothing is served at `/replay-engine/`, the module 404s, and the page says so within a second of load",
+    covers: ["degraded.engine-unavailable"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    fullPage: false,
+    hydrated: true,
+    engine: "unreachable",
+    // The state EVERY build of this repository is in until `just replay-engine`
+    // copies 18 MB of another repository's output into `dist/` — so this is the
+    // failure a first-time local preview actually meets, and it had never been
+    // photographed.
+    route: engineFailureRoute,
+    setup: requireEngineFailure({ needle: "could not be loaded" }),
+  },
+  {
+    id: "debugger--engine-never-loaded",
+    description:
+      "§8's deadline, first sentence — something answered at the engine's path but no engine ever did, so after 45 s the page stops implying one is coming",
+    covers: ["degraded.engine-unavailable"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    fullPage: false,
+    hydrated: true,
+    engine: "silent",
+    route: engineFailureRoute,
+    setup: requireEngineFailure({ advanceClock: true, needle: "never loaded from" }),
+  },
+  {
+    id: "debugger--engine-refused-container",
+    description:
+      "§8's deadline, second sentence — the engine is running and reachable and it will not open THIS container. The fault the shared sentence used to hide",
+    covers: ["degraded.engine-unavailable"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    fullPage: false,
+    hydrated: true,
+    engine: "refusing",
+    route: engineFailureRoute,
+    setup: requireEngineFailure({ advanceClock: true, needle: "would not open" }),
   },
 
   // ─────────────────── Degraded states on the transaction page ────────────

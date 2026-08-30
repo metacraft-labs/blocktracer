@@ -82,6 +82,19 @@ export const PAGES = [
   // because `spAwaitingGeneration` offers an action and `spUnavailable` must
   // offer none.
   { id: "debugger.no-session", route: "/{chain}/tx/{hash}/debug", anchor: "§7.0 / §8 — the debug address with no session" },
+  // Where a shared link put the session, and what the visitor was told about
+  // it. ONE entry for five branches, because they are five outcomes of one
+  // decision made in one place (`resolvePosition`) and a reviewer judges them
+  // as a family: whether the four visible ones are distinguishable from each
+  // other, whether the benign one reads as benign, and whether the silent one
+  // is silent. The five views that cover it are what make that comparison
+  // possible; a five-entry inventory would only have restated the view list.
+  //
+  // It is a debugger-register PAGE state and not a §14 degraded state on
+  // purpose. Nothing has gone wrong in four of the five: §6.0a's notice is
+  // `role="status"` and its own renderer says so — "nothing is wrong. A
+  // recovered position is the product working as designed."
+  { id: "debugger.link-landing", route: "/{chain}/tx/{hash}/debug?v=1&t=…&c=…&a=…", anchor: "Debugger-Integration §6.0a — the five-step resolution precedence" },
   { id: "address", route: "/{chain}/address/{address}", anchor: "§9" },
   { id: "contract-source", route: "/{chain}/address/{address}/code", anchor: "§10" },
   { id: "search", route: "/search?q=", anchor: "§11" },
@@ -112,6 +125,18 @@ export const DEGRADED_STATES = [
   { id: "degraded.no-verified-source", anchor: "§14", label: "No verified source — instruction-level stepping" },
   { id: "degraded.reorganised", anchor: "§14", label: "Reorganised away — reorg explanation, new location" },
   { id: "degraded.cdn-unreachable", anchor: "§14", label: "CDN unreachable — service worker serves the shell" },
+  // The replay engine will not run, and the page says which of three faults it
+  // is. §14's "terminal state with a reason, never a retry that cannot
+  // succeed", applied to the one dependency this route cannot do without.
+  //
+  // Distinct from `degraded.browser-cannot-debug` below, which is §14.2's
+  // capability ladder: that row is about what the BROWSER cannot do (no wasm,
+  // no workers) and is decided before a request is made. This row is about an
+  // engine the browser could have run and that did not arrive, did not answer,
+  // or would not open this container. The two share a treatment and are not
+  // the same fact, which is exactly the confusion the three sentences were
+  // separated to prevent.
+  { id: "degraded.engine-unavailable", anchor: "§8 / §14 / §14.2", label: "Replay engine unavailable — which of three faults, said on the page" },
 
   // §14.1 — on-demand generation is a job, not a spinner. Every state below is
   // reachable in the UI with its own treatment, so every one is a named view.

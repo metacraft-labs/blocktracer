@@ -1462,6 +1462,232 @@ export const EXPECTATIONS = [
     ],
   },
 
+  // ══════════ §6.0a — where the link landed, and what it said (VD.7) ══════════
+  //
+  // Five blocks for five branches of one decision. The reviewer's job across
+  // them is comparative and is stated in each `watchFor`: four sentences must
+  // be tellable apart, three of them describe a session that is FINE, and the
+  // fifth branch must produce no sentence at all.
+  //
+  // These are the first images of a hydrated page in the corpus. The brief's
+  // generated table says so per view — see `render-brief.mjs` — because a
+  // reviewer who does not know a page carries script cannot tell an intended
+  // absence from a build that never ran one.
+
+  {
+    id: "debugger--link-exact",
+    summary:
+      "§6.0a step 2: the link's content witness matched the current trace, so its coordinate was honoured exactly and NOTHING is said about it. The control image for the other four — 'every branch below (2) is visible' is a claim about a difference, and this is the other side of it.",
+    spec: "Debugger-Integration §6.0a (step 2), §6.0, §6.3",
+    register: "debugger",
+    inherits: ["debugger-shell"],
+    mustShow: [
+      "An ordinary, complete debugging session at the linked position — panes populated, the identity bar intact. This image's subject is that following a good link produces a page indistinguishable from arriving at it any other way.",
+      "The stepping controls in their pre-engine inert rendering, and the phase rail naming a phase. The engine has not answered yet, and that is the state this capture pins.",
+      "The call trace's current row and the source pane agreeing on where the session is. The link asked for a position; this is the page saying it got there, by showing it rather than by claiming it.",
+    ],
+    mustNotShow: [
+      "ANY position notice, banner or badge about the link. This is the one branch §6.0a lets be silent, and a notice here would be the noise that trains a reader to ignore the four that matter. Present ⇒ P1.",
+      "An engine-failure banner. The deadline has not been reached in this capture.",
+      "Any visible difference from `debugger` at the same size and theme other than what hydration itself adds (§13's copy affordances). If the page looks different, say how — that difference is either a hydration defect or a finding about the copy treatment.",
+    ],
+    watchFor: [
+      "Put this image beside `debugger--link-recovered-by-anchor` at the same size and theme. The ONLY difference should be the presence of the notice band. If the rest of the page also moved, the notice is displacing the session rather than sitting above it, and that is a finding about the band's cost.",
+      "§13's copy affordances arrive with hydration and this is the first captured page that has them. Judge them as design, not as a diff: whether a value that gained a button reads as a control or as a value that has been decorated.",
+    ],
+  },
+
+  {
+    id: "debugger--link-recovered-by-anchor",
+    summary:
+      "§6.0a step 3: the trace was regenerated since the link was made, so the coordinate is not trusted — but the link's recovery anchor still resolves, and the session opens exactly where it named. The best outcome after an exact hit, and it has to read that way.",
+    spec: "Debugger-Integration §6.0a (step 3), §6.0 (the content witness)",
+    register: "debugger",
+    inherits: ["debugger-shell"],
+    mustShow: [
+      "A notice stating that the position was RECOVERED, naming the anchor kind it was recovered from and the reason the coordinate was not used. All three parts: an outcome, a mechanism and a cause.",
+      "A complete, usable session behind the notice — the recovery succeeded, so nothing about the page is degraded.",
+      "A treatment that is visibly NOT the divergence banner and NOT the truncation banner. Those are verdicts about the trace and stay true; this is one sentence about the link, on arrival.",
+    ],
+    mustNotShow: [
+      "Error styling — a red or danger tone, a warning glyph, an alert role's visual vocabulary. `renderPositionNotice` is `role=\"status\"` and says why: 'nothing is wrong. A recovered position is the product working as designed.' A notice that looks like an error here is a P1.",
+      "A dismiss control that cannot act, or any control at all. The notice is a statement.",
+      "Wording that asks the reader to do something. There is nothing to do; the link worked.",
+    ],
+    watchFor: [
+      "Read the sentence as prose, out loud. It is assembled from two fragments ('recovered from the link's … anchor because …') and the seam is the risk. Say whether it reads as one sentence a person wrote.",
+      "'call' as an anchor kind is a wire spelling. Judge whether a visitor who has never read §6.0a can tell what a 'call anchor' is, or whether the sentence is true and opaque.",
+      "Both themes: the notice's surface against the identity bar above it. A sibling round found that all five dark `status.*-bg` roles resolve to one neutral, so severity in dark is carried by text colour and a hued left rail. State whether this notice is distinguishable in dark from a banner that means something is wrong.",
+    ],
+  },
+
+  {
+    id: "debugger--link-nearest-frame",
+    summary:
+      "§6.0a step 4: the anchor names a frame this trace no longer has, so the session opens on the frame that ENCLOSES it and says so. A weaker claim than step 3 and a deliberately different sentence — and still a benign outcome, not a failure.",
+    spec: "Debugger-Integration §6.0a (step 4)",
+    register: "debugger",
+    inherits: ["debugger-shell"],
+    mustShow: [
+      "A notice saying the anchor could not be resolved AND that the nearest enclosing frame is shown instead. Both halves: what did not work, and where the reader therefore is.",
+      "A complete, usable session at that enclosing frame, with the call trace's current row visible so the notice's claim is checkable on the page.",
+      "A treatment that is legible as INFORMATION about the landing, at the same weight as `debugger--link-recovered-by-anchor`'s — the two are neighbouring steps of one precedence and must not be styled as different severities.",
+    ],
+    mustNotShow: [
+      "Anything that reads as an error, a failure or a warning. This is the view that most tempts an error treatment and must not carry one: the link was honoured, approximately, and the page is fully usable. An error tone here is a P1.",
+      "An offer to retry, reload, or 'find the exact position'. There is no exact position to find; §14 forbids a retry that cannot succeed.",
+      "A sentence indistinguishable from step 3's. 'Recovered from the anchor' and 'the anchor did not resolve, here is the enclosing frame' are different facts, and a reader must be able to tell which happened.",
+    ],
+    watchFor: [
+      "THE question for this view: does a reader who lands here think something went wrong? Answer it explicitly. Consider the tone, the placement, the colour, and the first three words.",
+      "Whether the enclosing frame is identified anywhere a reader can see it — the notice says 'the nearest enclosing frame' without naming which. Say whether the page makes that discoverable or leaves it as a claim.",
+      "Compare with `debugger--link-recovered-by-anchor` side by side. If the two images are distinguishable only by reading the full sentence, that is a finding about the family, not about either image.",
+    ],
+  },
+
+  {
+    id: "debugger--link-start-of-execution",
+    summary:
+      "§6.0a step 5: neither the coordinate nor the anchor survives, so the session opens at the start of the execution and the notice names WHICH of the four reasons applies. The weakest landing, and the one whose sentence must not overclaim.",
+    spec: "Debugger-Integration §6.0a (step 5), §6.0 (the witness table)",
+    register: "debugger",
+    inherits: ["debugger-shell"],
+    mustShow: [
+      "A notice stating that the session is showing the execution FROM ITS START, and the specific reason — not a generic 'the position could not be restored'. `resolvePosition` spends a paragraph on why: 'could not be restored' is true of a regenerated trace and false of an older link whose coordinate may still be correct and merely cannot be checked.",
+      "A complete session behind the notice, with the call trace and the source pane populated. The landing is the weakest one §6.0a offers and the page is still the whole first frame the route serves.",
+      "The notice as a statement about the LINK, not about the trace. The transaction and its recording are fine.",
+    ],
+    mustNotShow: [
+      "A confident claim that the position was lost or is wrong, where the truth is that it could not be verified. This is the specific overclaim §6.0a is written to prevent.",
+      "An error or danger treatment. The session opened; the page is complete.",
+      "A retry, a 'try the original link' affordance, or anything else that cannot succeed.",
+    ],
+    watchFor: [
+      "This sentence is the longest of the four and is assembled from three clauses joined by an em dash. Judge it as copy: whether it survives being read once, and whether the reason and the outcome are both findable at a glance or only at the end.",
+      "THE SENTENCE AGAINST THE PANES, found on this view's first capture. The notice says the execution is shown from its start; the panes behind it are the SERVED frame, which is mid-trace — the call trace's current row is inside `calculate_damage` and the source pane is on the mid-trace line. §6.0a resolves before a byte of the engine is fetched, and the session is only MOVED to the resolved coordinate once the engine answers (`hydrate.goLive` → `gotoTicks(h.landing.coordinate)`). So the sentence is a statement about where the session will be, rendered beside a session that is somewhere else, for as long as the engine takes — and in this capture, which pins the pre-engine state, permanently. Say whether a reader is misled and by how much, and whether the fix belongs in the sentence's tense or in what the page does with the coordinate before the engine lands.",
+      "Whether the notice's length changes the page's composition at this size — a three-clause sentence in a band above a session is the case where the band stops being a strip.",
+      "Compare its first words with the other three notices. All four begin inside the same band with the same title; say whether the title plus first clause is enough to tell them apart without reading on.",
+    ],
+  },
+
+  {
+    id: "debugger--link-not-replayable",
+    summary:
+      "§6.0a step 1: a shared link into a transaction with no replayable artifact. Terminal, and the only branch that renders on a page with no panes — the notice lands on the no-session region, over a transaction that can never be debugged.",
+    spec: "Debugger-Integration §6.0a (step 1), Page-Descriptions §7.0 (row 3), §14",
+    register: "debugger",
+    inherits: ["debugger-shell"],
+    mustShow: [
+      "A notice saying the execution is not replayable AND that the linked position therefore cannot be shown. The link is answered, not ignored.",
+      "The reassurance the sentence carries — that the transaction itself is unchanged — landing on a page that demonstrably still shows the transaction. The claim and its evidence must be in the same frame.",
+      "The no-session region beneath it, with the identity bar and the metadata pane, exactly as `debugger--no-session-terminal` renders them.",
+    ],
+    mustNotShow: [
+      "Any stepping toolbar, phase rail, scrubber or step counter. There is no session and none is coming.",
+      "Any action — generate, retry, request. §7.0 gives this row 'no debugger, and no pretence of one'; §14 forbids a retry that cannot succeed.",
+      "Two statements saying the same thing in different words. The region already carries a titled statement about why there is no session; a notice that merely repeats it is redundancy, not honesty.",
+    ],
+    watchFor: [
+      "The stacking. This page now shows the region's own statement AND the link notice, one above the other, both about the absence of a session. Say whether they read as one account or as two systems each having their say.",
+      "Whether the notice's placement makes sense when the thing it sits above is not a session. Its slot is the same one it uses on a live page; judge whether that placement still reads deliberately here.",
+      "The tone against `debugger--link-nearest-frame`. This one IS terminal and the other is benign. If they carry the same treatment, the family has flattened five outcomes into one voice.",
+      "The sentence's scope. `resolvePosition` step 1 has ONE sentence — 'This execution is not replayable' — and reaches it from `artifactAvailable = false`, which is true of all three §7.0 rows without a container: `absent`, `unsupported` AND `onDemand`. This image is the `absent` one, where the sentence is exactly right. Verified on the same build: the same link into the on-demand transaction renders the same sentence over a page offering a Generate control, where 'not replayable' is false — it is not replayable YET. Say whether the sentence should name which of the three it is, given that §14.1a's rule is that presenting any of them as another is the failure the catalogue exists to prevent.",
+    ],
+  },
+
+  // ══════════ The replay engine will not run (VD.7) ══════════
+  //
+  // Three faults, three sentences, three blocks. The reviewer's comparative job
+  // is the reason they were separated in the source: an engine that never
+  // arrived and an engine that arrived and refused the container have different
+  // fixes, and one sentence covering both cost hours.
+  //
+  // A note each block repeats, because it decides how the image may be graded:
+  // the ENGINE in these captures is a harness stand-in and nothing in the image
+  // is drawn by it. The banner is `components/debugger.renderEngineFailure`
+  // over a string from `hydrate.nim`, on the page the real exporter wrote. The
+  // brief's table states this per view.
+
+  {
+    id: "debugger--engine-worker-missing",
+    summary:
+      "Nothing is served at the engine's path: the worker module 404s and the page says so, within a second of load, in a banner. The state every build of this repository is in until the engine is copied to its own origin.",
+    spec: "Page-Descriptions §8, §14 (terminal state with a reason), §14.2 (the ladder), CodeTracer-Embed-SDK §5.1",
+    register: "debugger",
+    inherits: ["debugger-shell"],
+    mustShow: [
+      "A banner stating that the replay engine is unavailable AND naming the path that failed. The URL is the fact that matters — a missing or misconfigured `replayEngineBase` is almost always the cause — and `startWorkerImpl` carries it precisely because the browser's own ErrorEvent has nothing in it.",
+      "The surviving rungs of §14.2's ladder still on screen and still usable: the container download in the identity bar, and the static call and event summary that is this whole page. A page that loses them has degraded below the pre-hydration page, which §7.0 forbids.",
+      "The stepping controls rendered inert and SAYING they are inert — not merely greyed while the banner explains elsewhere.",
+      "The phase rail GONE. `markUnavailable` removes it deliberately: 'a rail still pointing at Fetching beside a control that says the engine cannot start is the page contradicting itself.' Its absence here is correct and is NOT a finding.",
+    ],
+    mustNotShow: [
+      "A retry control, a reload prompt, or anything else that cannot succeed. §14: 'a terminal state with a reason, never a retry that cannot succeed'.",
+      "A spinner, a progress bar, or a phase rail still naming a phase.",
+      "The reason living only in a tooltip or on the accessibility tree. That was the defect this banner was added to fix: a pointer user had to hover an inert button, a touch user could not reach it, and a screen-reader user was told more than a sighted one.",
+      "An apology as the dominant content. The page below the banner is a useful one.",
+    ],
+    watchFor: [
+      "Read the sentence: 'The replay engine did not start: the worker script at /replay-engine/worker.js could not be loaded.' It said 'stopped' until this view was first captured, which told a reader the engine had run and died. Judge the replacement: whether the two clauses say one thing or two, and whether the second is the reason for the first.",
+      "Whether a raw URL path in a visitor-facing sentence reads as a diagnosis or as a leaked internal. It is genuinely the actionable fact for an operator; say who this sentence is written for.",
+      "The banner's weight against the divergence banner (`debugger--divergent`). Both are `role=\"alert\"` page-level verdicts; say whether a reader could tell 'the recorder and the chain disagreed' from 'the engine did not load' by treatment alone.",
+      "Both themes. A sibling round found the five dark `status.*-bg` roles all resolve to one neutral, so a danger banner and a warning banner share a surface and severity is carried by text colour plus a hued left rail. Say whether the rail is doing enough here.",
+    ],
+  },
+
+  {
+    id: "debugger--engine-never-loaded",
+    summary:
+      "§8's deadline, first sentence. Something answers at the engine's path but no engine ever does — the session would otherwise sit in a named phase for as long as the tab is open, which is a spinner with a name. After 45 s the page stops implying an engine is coming.",
+    spec: "Page-Descriptions §8 (phased, honest loading), §14, Debugger-Integration §7",
+    register: "debugger",
+    inherits: ["debugger-shell"],
+    mustShow: [
+      "A banner stating that the engine NEVER LOADED and naming the base URL it was expected from, plus what is still possible: the container can be downloaded and opened in CodeTracer.",
+      "The ladder's surviving rungs — the download affordance and the static summary — present and usable.",
+      "The stepping controls inert and saying so; the phase rail removed, for the reason `markUnavailable` removes it. Its absence is correct.",
+      "A page that is otherwise complete. This is a terminal state on a useful page, not an error screen.",
+    ],
+    mustNotShow: [
+      "Any retry, reload or 'try again' affordance.",
+      "A phase rail, a spinner or a progress indicator of any kind.",
+      "Wording that blames the visitor's connection, or that suggests waiting longer. The deadline exists precisely because waiting longer will not help.",
+      "A sentence that could equally describe `debugger--engine-refused-container`. These two faults were given different sentences after one shared sentence cost hours of misdiagnosis; if a reader cannot tell them apart, that regression has returned in the design.",
+    ],
+    watchFor: [
+      "Put this image beside `debugger--engine-refused-container` at the same size and theme and answer one question: from the page alone, could a reader tell which of the two faults occurred, and could they tell what to do differently? That comparison is the whole reason these are two views.",
+      "'Nothing answered at that path' — judge whether that is legible to a non-operator, and whether the sentence's three clauses are in the order a reader needs them.",
+      "The 45-second wait is invisible in a still image. Say whether the page reads as something that has given up after trying, or as something that never tried.",
+    ],
+  },
+
+  {
+    id: "debugger--engine-refused-container",
+    summary:
+      "§8's deadline, second sentence. The engine loaded, is running and is reachable — and it will not open THIS container. The fault the old shared sentence hid, and the reason the three sentences exist as three strings.",
+    spec: "Page-Descriptions §8, §14, Debugger-Integration §7, dap_dialect §6",
+    register: "debugger",
+    inherits: ["debugger-shell"],
+    mustShow: [
+      "A banner stating that the engine LOADED and would not open this trace container — both halves. 'The engine is running and reachable' is the half that makes this a different diagnosis from `debugger--engine-never-loaded`, and dropping it would recreate the defect.",
+      "What is still possible, stated: the container can be downloaded and opened in CodeTracer. The ladder's floor is intact.",
+      "The ladder's surviving rungs on screen — the download affordance in the identity bar, and the static call and event summary that is this page.",
+      "The stepping controls inert and saying so; the phase rail removed.",
+    ],
+    mustNotShow: [
+      "Any retry or reload affordance. The engine will refuse the same container again.",
+      "A phase rail, spinner or progress indicator.",
+      "A sentence indistinguishable from `debugger--engine-never-loaded`'s. This is the specific regression the separation prevents.",
+      "Any suggestion that the trace is corrupt or that the transaction is at fault. The container is fine; this engine build will not read it.",
+    ],
+    watchFor: [
+      "The comparative read against `debugger--engine-never-loaded` — the same question, from this side. Which of the two sentences lands faster, and does the difference between them survive being skimmed?",
+      "'it rejected the container's format' is the actionable half for whoever can fix this, and is the half a visitor can do nothing with. Judge whether the sentence serves both readers or neither.",
+      "Whether 'loaded but would not open' reads as a fault in the product or as a fault in the trace. It is the former, and a reader who concludes the latter has been misled by the copy.",
+      "Both themes, and the banner against the identity bar above it. Note whether the failure banner and the divergence banner are separable in dark.",
+    ],
+  },
+
   // ══════════ Degraded states on the transaction page (§14, §14.1, §14.1a) ══════════
 
   {

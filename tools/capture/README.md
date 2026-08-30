@@ -66,6 +66,51 @@ reviewer would mistake for a styled page. When a route lands, flipping
 `spec-inventory.mjs` is the machine-readable transcription of that spec, and
 `check-coverage.mjs` fails if any entry has no named view.
 
+### `hydrated: true` — the second tree (VD.7)
+
+Two families of user-visible sentence are drawn by the hydration bundle and by
+nothing else, so they can appear on no statically exported page: §6.0a's landing
+notice (the payload is in the query, and a static route serves one file per
+path) and `hydrate.markUnavailable`'s three engine-failure sentences. Until VD.7
+none of the eight had ever been rendered by anything.
+
+A view carrying `hydrated: true` is served from **`client/dist-hydrated`** — the
+same exporter over the same fixture, compiled with `-d:hydrationBundle` after
+`hydrate/build.sh` has produced the bundle. `client/dist` and the 63 views over
+it are untouched, deliberately: they are the capture of the page this site
+serves, and `tools/design/check-tokens.mjs`'s D1 reads that build. Both trees'
+digests go in the manifest and `capture.mjs` refuses to run if they were built
+from different fixtures.
+
+Building it costs a `nim js` of the whole Embed SDK, so it happens only when a
+targeted view asks for one. A checkout with no Embed SDK on its Nim path
+(`hydrate/build.sh` exit 3 — `replay_engine.HydrationBundle`'s documented state,
+not a fault) reports the hydration-only views as uncaptured with the reason, and
+the rest of the corpus still captures.
+
+### `engine:` — what answers at the replay engine's path
+
+A hydrated view also names an **engine scenario**, and the capture server
+answers `/replay-engine/worker.js` with it: `silent` (loads, never answers),
+`unreachable` (nothing there), `refusing` (loads, reports `wasm-loaded`, then
+answers nothing — which is what the deployed engine does when it will not open a
+container). They are defined in `lib/engine-stubs.mjs`, served by the harness and
+never written into either tree, so the pages the browser is handed stay
+byte-for-byte the pages the exporter wrote.
+
+Nothing in those images is drawn by a stub: the banner is
+`components/debugger.renderEngineFailure` over a string from `hydrate.nim`. What
+is substituted is the 18 MB wasm engine this repository deliberately does not
+vendor, whose absence, silence or refusal is the subject. The brief states this
+per view — a reviewer must never grade a stand-in believing it is real.
+
+The 45-second engine deadline is **not** shortened for the harness. The whole
+corpus is captured under a frozen clock, so the two deadline views advance it
+past `EngineDeadlineMs` in page-time; the watchdog fires at its real value and
+costs no wall-clock. If the product's deadline ever moves past the harness's
+advance, those views fail their post-conditions rather than photographing a page
+that is still loading.
+
 ## Determinism
 
 Everything that makes a capture reproducible lives in `lib/determinism.mjs`,
@@ -323,5 +368,6 @@ just design-explain      # what each check decides, and why
 | `lib/determinism.mjs` | Flags, clock, motion, fonts, theme injection |
 | `lib/pinned-env.mjs` | Detects AND VERIFIES the pinned capture environment; owns the darwin caveat |
 | `lib/entities.mjs` | Semantic route resolution over the built data plane |
-| `lib/server.mjs` | Clean-URL static server for `dist/` |
+| `lib/server.mjs` | Clean-URL static server for `dist/`, with the per-scenario overlay |
+| `lib/engine-stubs.mjs` | The three ways the replay engine can fail to run, as things the SERVER does |
 | `capture-env.nix`, `fonts-local.conf` | The pinned capture environment (flake output `.#capture-env`) |

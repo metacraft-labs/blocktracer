@@ -811,8 +811,22 @@ proc onControl(h: Hydration; message: JsonNode) =
   of "worker-status":
     if message{"status"}.getStr("") == "ready": h.handshake()
   of "worker-error":
-    h.fail("The replay engine stopped: " &
-           message{"error"}.getStr("no reason given"))
+    # "Stopped" is a claim about something that was running, and the commonest
+    # worker error by a distance is the one where nothing ever did: a module
+    # worker whose script 404s. Every build of this repository is in that state
+    # until `just replay-engine` copies the engine to its own origin, so the
+    # first time this sentence was ever rendered — VD.7's
+    # `debugger--engine-worker-missing` — it read "The replay engine stopped:
+    # the worker script at /replay-engine/worker.js could not be loaded", which
+    # tells a reader the engine ran and then died and sends them looking for why.
+    #
+    # `engineLoaded` is the same discriminator the deadline below already uses
+    # and for the same reason: the worker posts `wasm-loaded` the moment the
+    # module compiles, so its absence means nothing ever started. One field,
+    # two places, one meaning.
+    let detail = message{"error"}.getStr("no reason given")
+    h.fail((if h.engineLoaded: "The replay engine stopped: "
+            else: "The replay engine did not start: ") & detail)
   else:
     discard
 

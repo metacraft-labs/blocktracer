@@ -62,3 +62,13 @@ nimcache/
 # build output. See client/hydrate/fetch-engine.sh for why it is fetched at
 # build time and not vendored.
 /client/dist/
+
+# The capture harness's SECOND tree: the same exporter with
+# -d:hydrationBundle, built by `capture.mjs`'s runHydratedExporter so that
+# §6.0a's landing notice and the three engine-failure sentences — which are
+# rendered by the hydration bundle and by nothing else — can be photographed
+# without moving `client/dist`, which is what the other 63 views and
+# `tools/design/check-tokens.mjs`'s D1 read.
+/client/dist-hydrated/
+/client/.hydrated-build/
+/client/nimcache-hydrated/

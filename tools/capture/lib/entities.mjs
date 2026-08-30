@@ -119,6 +119,40 @@ export function buildEntityIndex(distDir) {
       // is a fact about the RECORDING and not about the selection.
       t.truncated = (manifestsByTx[t.hash] ?? []).some((m) => m.execution?.truncated === true);
 
+      // ── What a §6.0a deep link into this transaction can say ─────────────
+      //
+      // `traceContentHash` is what a link's `c` witnesses (Debugger-Integration
+      // §6.0), and the anchors are what its `a` is resolved against. Both are
+      // read from what was PUBLISHED and from what the route actually rendered,
+      // for the reason everything else in this file is: a view named "the link
+      // whose anchor no longer resolves" has to be captured against an anchor
+      // that genuinely does not resolve, and a literal `call:0.0.2.7` in
+      // views.mjs would be a claim about the fixture that nothing re-checks.
+      //
+      // The anchors come off the RENDERED debug page rather than out of the
+      // data plane because that is where they exist: `deeplink_landing`
+      // computes a frame's `call:` path from the call trace's own shape, and
+      // the served page is the only artefact that has that shape. It is also
+      // exactly the document `hydrate.announceLanding` resolves against, so
+      // what this reads and what the browser will read are one list.
+      t.traceContentHash = (manifestsByTx[t.hash] ?? [])[0]?.container?.hash ?? "";
+      t.callAnchors = [];
+      t.eventAnchors = [];
+      t.currentStep = null;
+      const debugPage = join(distDir, chain, "tx", t.hash, "debug", "index.html");
+      if (existsSync(debugPage)) {
+        const html = readFileSync(debugPage, "utf8");
+        for (const m of html.matchAll(
+          /class="(ctrow|evrow)[^"]*"[^>]*?data-step="(\d+)" data-anchor="([^"]*)"/g,
+        )) {
+          const entry = { step: Number(m[2]), anchor: m[3] };
+          if (m[3].length === 0) continue;
+          (m[1] === "ctrow" ? t.callAnchors : t.eventAnchors).push(entry);
+        }
+        const cur = /class="ctrow[^"]*\bcur\b[^"]*" data-step="(\d+)"/.exec(html);
+        if (cur) t.currentStep = Number(cur[1]);
+      }
+
       if (!existsSync(overlayPath)) continue;
       const overlay = readJson(overlayPath);
       // Single-execution transactions carry `trace`; split ones carry
@@ -377,4 +411,70 @@ export const txWithSplitExecutions = (ix) => {
   const t = ix.chain().txs.find((t) => (t.executions?.length ?? 0) > 1);
   if (!t) throw new Error(`data plane has no multi-execution transaction`);
   return t;
+};
+
+// ── §6.0a deep links, derived from the published trace ─────────────────────
+//
+// The five branches of the resolution precedence are selected by what a link
+// SAYS against what the trace IS — a witness that agrees or disagrees, an
+// anchor that resolves, one that only has an enclosing frame, one that has
+// neither. Every one of the four inputs below is computed from the tree, so
+// none of them can drift into naming a branch other than the one it selects.
+
+/** §6.0's content witness for a transaction's trace: the leading 12 hex digits
+ *  of the container hash's digest, algorithm tag dropped
+ *  (`blocktracer_client/deeplink.witnessFor`). Empty for a traceless one, which
+ *  is `absent` and is a legitimate input to step 1. */
+export const witnessOf = (tx) => {
+  const h = tx.traceContentHash ?? "";
+  if (h.length === 0) return "";
+  const i = h.indexOf(":");
+  return (i < 0 ? h : h.slice(i + 1)).toLowerCase().slice(0, 12);
+};
+
+/** A witness that is well-formed and DISAGREES — §6.0's `differs`, the verdict
+ *  that means "the trace was regenerated since this link was made".
+ *
+ *  Derived from the real one by advancing every hex digit, rather than written
+ *  down: a literal could silently become the real witness after a reseed, and
+ *  the two views that depend on disagreeing would then quietly capture an
+ *  exact hit and be graded for a sentence that was correctly absent. */
+export const staleWitnessOf = (tx) => {
+  const w = witnessOf(tx);
+  if (w.length === 0) throw new Error(`${tx.hash}: no content witness to stale`);
+  return [...w].map((c) => "123456789abcdef0"["0123456789abcdef".indexOf(c)]).join("");
+};
+
+/** The `call:` anchor of the frame the session is served AT — the anchor a
+ *  Share taken from this page would actually emit. */
+export const currentCallAnchorOf = (tx) => {
+  const at = (tx.callAnchors ?? []).find((a) => a.step === tx.currentStep);
+  const chosen = at ?? (tx.callAnchors ?? [])[0];
+  if (!chosen) throw new Error(`${tx.hash}: rendered no call-trace anchors`);
+  return chosen.anchor;
+};
+
+/** A `call:` anchor that names a frame this trace does not have, INSIDE one it
+ *  does — §6.0a step 4's "the nearest enclosing frame is shown instead".
+ *
+ *  Built by extending a real frame's path with a sibling index beyond its last
+ *  child, and asserted absent, so it stays step 4's subject and cannot decay
+ *  into step 3's. */
+export const unresolvableChildAnchorOf = (tx) => {
+  const parent = currentCallAnchorOf(tx);
+  const have = new Set((tx.callAnchors ?? []).map((a) => a.anchor));
+  for (let n = 0; n < 64; n++) {
+    const candidate = `${parent}.${n}`;
+    if (!have.has(candidate)) return candidate;
+  }
+  throw new Error(`${tx.hash}: every child index under ${parent} resolves`);
+};
+
+/** A `log:` anchor past the last event — §6.0a step 5. `log` is one of the two
+ *  kinds `resolveAnchor` deliberately gives NO enclosing frame: "nothing
+ *  encloses a log index that does not exist", so this reaches the start of
+ *  execution rather than step 4. */
+export const unresolvableLogAnchorOf = (tx) => {
+  const logs = (tx.eventAnchors ?? []).filter((a) => a.anchor.startsWith("log:"));
+  return `log:${logs.length + 9}`;
 };

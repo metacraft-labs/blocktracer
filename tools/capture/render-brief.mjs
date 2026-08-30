@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 
 import { VIEWS, VIEWS_BY_ID, sizesFor, themesFor } from "./views.mjs";
 import { EXPECTATIONS, resolveExpectation } from "./expectations.mjs";
+import { engineScenario, WORKER_PATH } from "./lib/engine-stubs.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolvePath(HERE, "..", "..");
@@ -51,6 +52,21 @@ function renderBlock(view) {
     `| **Captured at** | ${axes} |`,
     `| **Capture status** | ${state} |`,
   );
+  // The provenance rows, for the views whose sentences exist only under
+  // hydration. They are in the BRIEF and not only in a source comment because
+  // the brief is what a reviewer reads, and both facts change how the image may
+  // be graded: an absence is only meaningful if the script ran, and a page
+  // whose engine was supplied by the harness must never be graded as though a
+  // real engine produced what is on it.
+  if (view.hydrated) {
+    const scenario = engineScenario(view.engine);
+    out.push(
+      `| **Captured from** | the HYDRATED build (\`client/dist-hydrated\`, exported with \`-d:hydrationBundle\`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes |`,
+    );
+    out.push(
+      `| **Replay engine** | STAND-IN. The capture server answers \`${WORKER_PATH}\` with ${scenario.label} (\`tools/capture/lib/engine-stubs.mjs\`); it stands in for ${scenario.impersonates}. Nothing in the image is drawn by it — the banner is \`components/debugger.renderEngineFailure\` over a string from \`client/hydrate/hydrate.nim\`. Grade the sentence and the treatment; do not grade the engine |`,
+    );
+  }
   out.push("");
 
   out.push("**Must show** — absent ⇒ P1, rating ≤ 4:");

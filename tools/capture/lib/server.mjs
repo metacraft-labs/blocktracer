@@ -46,12 +46,44 @@ async function resolveFile(root, urlPath) {
   return null;
 }
 
+function cleanPath(urlPath) {
+  return normalize(decodeURIComponent(urlPath.split("?")[0]));
+}
+
 /**
  * Serve `root` on an ephemeral loopback port.
  * Returns `{ origin, close() }`.
+ *
+ * `overlay` maps a clean pathname to what this server answers there INSTEAD of
+ * the file tree — `{ type, body }` for a body, or `null` for a 404. It exists
+ * for exactly one caller: the engine-failure views, which need
+ * `/replay-engine/worker.js` to be missing, silent or refusing, one scenario
+ * per image (tools/capture/lib/engine-stubs.mjs).
+ *
+ * The overlay lives HERE and never in `dist/`, which is the property that
+ * matters: the harness's stand-in engine is not a file in the exported site,
+ * so no fixture is reachable as if it were a product route, and the pages the
+ * browser is served are byte-for-byte the pages the exporter wrote. What the
+ * scenario changes is what the page's ENVIRONMENT does, which is the fault
+ * being photographed.
  */
-export async function serveDist(root) {
+export async function serveDist(root, { overlay = null } = {}) {
   const server = createServer(async (req, res) => {
+    if (overlay) {
+      const p = cleanPath(req.url ?? "/");
+      if (Object.prototype.hasOwnProperty.call(overlay, p)) {
+        const entry = overlay[p];
+        const headers = { "Cache-Control": "no-store, max-age=0" };
+        if (entry === null) {
+          res.writeHead(404, { ...headers, "Content-Type": MIME[".txt"] });
+          res.end("not found (capture-harness engine scenario)\n");
+          return;
+        }
+        res.writeHead(200, { ...headers, "Content-Type": entry.type ?? MIME[".js"] });
+        res.end(entry.body);
+        return;
+      }
+    }
     const file = await resolveFile(root, req.url ?? "/");
     // Every response is no-store: a capture must never be served a body the
     // previous capture warmed, or the second run of the canary would be
