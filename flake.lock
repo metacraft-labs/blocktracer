@@ -5,16 +5,17 @@
       "locked": {
         "lastModified": 1787967127,
         "narHash": "sha256-Ia/JuLW+qTestHjWmxdWPn4/T9/4eOPt3SIfrWV/CzQ=",
-        "owner": "metacraft-labs",
-        "repo": "codetracer",
+        "ref": "refs/heads/stable",
         "rev": "8d1c84a85034a739804914a33f2f55329b5f051a",
-        "type": "github"
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/metacraft-labs/codetracer"
       },
       "original": {
-        "owner": "metacraft-labs",
-        "repo": "codetracer",
         "rev": "8d1c84a85034a739804914a33f2f55329b5f051a",
-        "type": "github"
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/metacraft-labs/codetracer"
       }
     },
     "codetracer-design-system": {
