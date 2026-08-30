@@ -128,7 +128,7 @@
 
 import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { readdirSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -142,6 +142,87 @@ const LAYER2_DIRS = [
   join(REPO_ROOT, "client", "src", "pages"),
 ];
 const BUILT_HTML = join(REPO_ROOT, "client", "dist", "index.html");
+
+// ── Why D1 asks how OLD the build is before it reads it ────────────────────
+//
+// D1 and D2 are the only checks that read a BUILD ARTEFACT rather than the
+// source. An artefact can be out of date, and a stale one does not report
+// "unknown" — it reports the state of an older tree with total confidence, in
+// exactly the words a real product defect would use.
+//
+// That is not hypothetical. `--require-built` once reported
+//
+//     defined but not shipped: --bt-mark-changed, --bt-syntax-keyword, …
+//
+// naming all fifteen tokens of the lexical palette, against a `client/dist`
+// written NINE MINUTES BEFORE the commit that added them. Every one of those
+// tokens was in fact declared six times over on all 61 built pages. The
+// message was true about the bytes it read and false about the product, and it
+// produced a confidently wrong diagnosis — "the checker must be scanning a
+// different stylesheet from the one these ship in" — which sent the reader
+// looking for a second stylesheet that does not exist. `siteCss()` builds ONE
+// `<style>` payload and both shells inline it, so there was never a second
+// path for the tokens to arrive by. The artefact's mtime was the whole answer.
+//
+// A gate that reports false failures is worse than no gate: it teaches people
+// to route around it, and every other number this file prints then inherits
+// that distrust. So the freshness of the artefact is now a PRECONDITION of the
+// comparison rather than an assumption inside it.
+//
+// The inputs are every `.nim` under `client/src` plus the token JSON — the
+// exporter's whole source. `result/` is deliberately NOT consulted: it is a
+// different output tree (`nix build .#default`), and rebuilding it does
+// nothing for these two checks. That confusion is half of how the incident
+// above happened, so the failure message names the directory it actually read.
+//
+// WHAT THIS DOES NOT CATCH, stated rather than hidden. The signal is the
+// mtime, so it detects a build that is OLDER than its source — which is what
+// an un-rerun `just export` leaves behind, and the whole of the incident
+// above. It does NOT detect a page whose CONTENT is old but whose timestamp is
+// new: copy a stale index.html into place without preserving times, or `touch`
+// one, and the artefact lies about its age and the token comparison runs
+// against it. Closing that needs the exporter to record a digest of its inputs
+// IN the page it writes, so the claim travels with the artefact instead of
+// being inferred from the filesystem. That is a change to `static_export.nim`
+// rather than to this file, and is left open deliberately: the failure mode it
+// would close is a copied artefact, whereas the one that actually bit — and
+// that CI and every working tree reproduce — is a build nobody re-ran.
+const BUILD_INPUT_ROOT = join(REPO_ROOT, "client", "src");
+
+function staleBuild(builtPath) {
+  /** `{ newer, builtAt, inputAt }` when a source is newer than the artefact,
+   *  else null. Equal mtimes are FRESH: a build written in the same second as
+   *  its last input is the ordinary `just export` case, and treating that as
+   *  stale would make the gate cry wolf on every clean run — the exact failure
+   *  mode this function exists to prevent. */
+  let built;
+  try { built = statSync(builtPath); } catch { return null; }
+  const newest = newestBuildInput();
+  if (newest === null || newest.mtimeMs <= built.mtimeMs) return null;
+  const when = (ms) => new Date(ms).toISOString().replace("T", " ").slice(0, 19) + "Z";
+  return { newer: newest.path, builtAt: when(built.mtimeMs), inputAt: when(newest.mtimeMs) };
+}
+
+function newestBuildInput() {
+  /** The most recently modified source the built page is a function of.
+   *  Returns `{ path, mtimeMs }`, or null when the tree cannot be read. */
+  let newest = null;
+  const walk = (dir) => {
+    let entries;
+    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) { walk(p); continue; }
+      if (!e.isFile()) continue;
+      if (!(e.name.endsWith(".nim") || e.name.endsWith(".json"))) continue;
+      let st;
+      try { st = statSync(p); } catch { continue; }
+      if (newest === null || st.mtimeMs > newest.mtimeMs) newest = { path: p, mtimeMs: st.mtimeMs };
+    }
+  };
+  walk(BUILD_INPUT_ROOT);
+  return newest;
+}
 
 const BINDINGS_BEGIN = "<!-- BEGIN GENERATED: implemented bindings -->";
 const BINDINGS_END = "<!-- END GENERATED: implemented bindings -->";
@@ -1046,10 +1127,25 @@ async function run(opts) {
         : problems.join("; "));
   }
 
-  // ── D: the shipped CSS, when there is one ───────────────────────────────
+  // ── D: the shipped CSS, when there is one AND it is current ─────────────
+  const staleness = existsSync(BUILT_HTML) ? staleBuild(BUILT_HTML) : null;
   if (!existsSync(BUILT_HTML)) {
     const detail = `no build at ${relative(REPO_ROOT, BUILT_HTML)} — run \`cd client && just export\` first. ` +
       `Without --require-built this check is REPORTED AS NOT RUN, never as a pass.`;
+    if (opts.requireBuilt) add("D1", "the shipped CSS declares exactly the derived token set", false, detail);
+    else checks.push({ id: "D1", title: "the shipped CSS declares exactly the derived token set", ok: null, detail });
+  } else if (staleness) {
+    // The artefact predates its own source. Report THAT, and never a token-set
+    // comparison against it: the comparison would be arithmetically correct and
+    // tell the reader something false about the product.
+    const { newer, builtAt, inputAt } = staleness;
+    const detail =
+      `the build is STALE — ${relative(REPO_ROOT, BUILT_HTML)} was written ${builtAt}, ` +
+      `but ${relative(REPO_ROOT, newer)} changed ${inputAt}. ` +
+      `Re-run \`cd client && just export\`, then this check again. ` +
+      `(\`nix build .#default\` writes result/, which these checks do NOT read.) ` +
+      `The token comparison is SKIPPED rather than run against an old page: it would list ` +
+      `tokens as absent that the current build ships perfectly well.`;
     if (opts.requireBuilt) add("D1", "the shipped CSS declares exactly the derived token set", false, detail);
     else checks.push({ id: "D1", title: "the shipped CSS declares exactly the derived token set", ok: null, detail });
   } else {
@@ -1188,6 +1284,12 @@ The shipped page
   D2  Both themes and both registers reach the shipped CSS.
       Without a build, D1/D2 report NOT RUN. --require-built makes that a
       failure, and \`just design-check\` passes it.
+      A build OLDER than any client/src input is reported as STALE and the
+      token comparison is skipped: run against an out-of-date page it would
+      name tokens 'defined but not shipped' that the current build ships,
+      which is a false failure and worse than no check at all.
+      Note these two read client/dist, written by \`cd client && just export\`.
+      They do NOT read result/, so \`nix build .#default\` will not refresh them.
 `;
 
 async function main(argv) {

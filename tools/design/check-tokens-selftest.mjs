@@ -90,7 +90,7 @@
 // still fails A1, because at this level it is indistinguishable from
 // `content = "Menu"`. All three are asserted below rather than described.
 
-import { readFile, writeFile, mkdtemp, rm, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdtemp, rm, mkdir, utimes, stat, rename } from "node:fs/promises";
 import { existsSync, readdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -654,6 +654,12 @@ const PLANTS = [
 for (const p of PLANTS) {
   const original = await readFile(p.file, "utf8");
   const before = sha(original);
+  // The mtime is restored along with the bytes. D1 treats a build older than
+  // any `client/src` input as STALE, so a suite that rewrote a source and left
+  // its clock at "now" would leave the tree looking un-built to the very next
+  // `--require-built` run — this suite's own footprint, reported as a defect.
+  // Restoring the timestamp is what "restored byte-identically" already claims.
+  const beforeTimes = await stat(p.file);
   let restored = false;
   try {
     if (!original.includes(p.from)) {
@@ -685,6 +691,7 @@ for (const p of PLANTS) {
   } finally {
     await writeFile(p.file, original);
     restored = sha(await readFile(p.file, "utf8")) === before;
+    await utimes(p.file, beforeTimes.atime, beforeTimes.mtime);
   }
   ok(`${p.rule} — the source is restored byte-identically`, restored, `sha256 ${before.slice(0, 12)}…`);
 }
@@ -825,6 +832,164 @@ for (const p of PLANTS) {
   ok("the emitter itself refuses an untracked literal",
     /bkLiteral and divergence\.len == 0/.test(nim) && /untracked web-lineage literal/.test(nim),
     "tokens.nim raises before emitting, so the CI lint is the second line of defence rather than the only one");
+}
+
+// ── Part 6: D1 reads the RIGHT artefact, and knows when it is out of date ──
+//
+// D1 and D2 are the only checks that read a build rather than the source, and
+// that gives them a failure mode no other rule has: an artefact can be OLD, and
+// an old one does not report "unknown" — it reports the state of an earlier
+// tree, confidently, in the same words a real product defect would use.
+//
+// This is not a hypothetical. `--require-built` once reported
+//
+//     defined but not shipped: --bt-mark-changed, --bt-syntax-keyword, …
+//
+// naming all fifteen tokens of the lexical palette, against a `client/dist`
+// written NINE MINUTES BEFORE the commit that introduced them. All fifteen were
+// in fact declared, six times over, on all 61 built pages. The reviewer
+// concluded the checker must be scanning a different stylesheet and went
+// looking for a second one; the artefact's mtime was the whole answer.
+//
+// Three cases pin the behaviour that incident needed, and each fails if a
+// future change regresses it:
+//
+//   1. the comparison BITES — a token missing from the built page is caught, so
+//      the rule cannot pass by reading nothing;
+//   2. it reads `client/dist`, and NOT `result/` — the two are different output
+//      trees and `nix build .#default` refreshes only the second, which is the
+//      other half of how the incident happened;
+//   3. a STALE build is reported as stale, and NEVER as a token mismatch.
+//
+// The build is not created here: these cases need one and are SKIPPED, loudly,
+// when there is none, so the suite stays runnable without a Nim toolchain.
+{
+  const BUILT_HTML = join(REPO_ROOT, "client", "dist", "index.html");
+
+  if (!existsSync(BUILT_HTML)) {
+    ok("D1 — SKIPPED: no client/dist to test against", true,
+      "run `cd client && just export` to exercise Part 6; the three D1 cases below need a real built page");
+  } else {
+    // If the build is genuinely out of date these cases cannot run: a stale
+    // artefact is the very condition case 3 plants, so a suite that started
+    // from one would be measuring nothing. Skip loudly rather than forcing the
+    // artefact's clock forward — quietly making the subject look fresh is how a
+    // gate ends up testing itself instead of the product.
+    //
+    // Part 4's plants restore each file's mtime as well as its bytes, so this
+    // suite does not itself create the condition it is skipping on.
+    // FIRST, and unconditionally: pin WHICH file D1 reads. This must not sit
+    // behind the staleness guard below, because the regression it catches —
+    // BUILT_HTML repointed at `result/` — would otherwise hide inside the skip:
+    // every file in the Nix store carries a 1970 mtime, so a scan moved there
+    // looks permanently stale and the whole of Part 6 would quietly skip and
+    // report green. Moving the real artefact aside and reading the "no build"
+    // message back is independent of any timestamp.
+    {
+      const aside = BUILT_HTML + ".selftest-aside";
+      let restored = false;
+      try {
+        await rename(BUILT_HTML, aside);
+        const { verdict } = runChecker(["--require-built"]);
+        const d1 = checkOf(verdict, "D1");
+        ok("D1 — the artefact under test is client/dist/index.html, and not result/",
+          d1?.ok === false && /client\/dist\/index\.html/.test(String(d1.detail)) && /no build at/.test(String(d1.detail)),
+          `with the real page moved aside, D1 says: ${String(d1?.detail ?? "").slice(0, 120)}`);
+      } finally {
+        if (existsSync(aside)) await rename(aside, BUILT_HTML);
+        restored = existsSync(BUILT_HTML) && !existsSync(aside);
+      }
+      ok("D1 — the built page is moved back", restored);
+    }
+
+    const preflight = runChecker(["--require-built"]);
+    const preD1 = checkOf(preflight.verdict, "D1");
+    if (/STALE/.test(String(preD1?.detail ?? ""))) {
+      ok("D1 — SKIPPED: client/dist is older than client/src", true,
+        "re-run `cd client && just export`, then this suite, to exercise Part 6");
+    } else {
+
+    // CONTROL. A fresh build passes, so the failures below are caused by the
+    // plant and not by the tree being broken to start with.
+    {
+      const { verdict } = runChecker(["--require-built"]);
+      const d1 = checkOf(verdict, "D1");
+      ok("D1 — CONTROL: against a CURRENT build, D1 passes",
+        d1?.ok === true,
+        `D1 ok=${d1?.ok}; ${String(d1?.detail ?? "").slice(0, 100)}`);
+    }
+
+    // 1 + 2. Delete a token declaration from the built page. D1 must name the
+    // token — which proves both that the comparison bites and that the file it
+    // reads is this one, `client/dist/index.html`. If the scan were widened to
+    // `result/` or narrowed to nothing, this case goes green-when-it-should-be-
+    // red and fails here.
+    {
+      const original = await readFile(BUILT_HTML, "utf8");
+      const before = sha(original);
+      const times = await stat(BUILT_HTML);
+      let restored = false;
+      try {
+        // A token the lexical palette contributes, chosen because it is one of
+        // the fifteen the false failure named.
+        const gone = original.replace(/--bt-syntax-keyword\s*:/g, "--bt-syntax-keywordX:");
+        ok("D1 — the plant actually changed the built page",
+          gone !== original, "--bt-syntax-keyword is declared in the built page");
+        await writeFile(BUILT_HTML, gone);
+        const { code, verdict } = runChecker(["--require-built"]);
+        const d1 = checkOf(verdict, "D1");
+        ok("D1 — a token missing from the BUILT page is caught, and named",
+          code === 1 && d1?.ok === false && String(d1.detail).includes("--bt-syntax-keyword"),
+          d1 ? `exit=${code}; D1 ok=${d1.ok}; detail: ${String(d1.detail).slice(0, 140)}` : "no D1 in the verdict");
+        ok("D1 — the artefact it reads is client/dist, not result/",
+          d1?.ok === false && !String(d1.detail).includes("STALE"),
+          "editing client/dist/index.html alone turns D1 red, so that is the file under test");
+      } finally {
+        await writeFile(BUILT_HTML, original);
+        await utimes(BUILT_HTML, times.atime, times.mtime);
+        restored = sha(await readFile(BUILT_HTML, "utf8")) === before;
+      }
+      ok("D1 — the built page is restored byte-identically", restored, `sha256 ${before.slice(0, 12)}…`);
+    }
+
+    // 3. THE REGRESSION GUARD FOR THE INCIDENT. Age the artefact past its own
+    // source and assert D1 says STALE and does NOT say "defined but not
+    // shipped". Only the artefact's mtime is touched — no source file is
+    // modified — and it is put back in the `finally`.
+    {
+      const times = await stat(BUILT_HTML);
+      let restored = false;
+      try {
+        const past = new Date(Date.now() - 1000 * 60 * 60 * 24 * 30); // 30 days
+        await utimes(BUILT_HTML, past, past);
+        const { code, verdict } = runChecker(["--require-built"]);
+        const d1 = checkOf(verdict, "D1");
+        const detail = String(d1?.detail ?? "");
+        ok("D1 — a STALE build is reported as stale, not as a token mismatch",
+          code === 1 && d1?.ok === false && /STALE/.test(detail) && !/defined but not shipped/.test(detail),
+          `D1 ok=${d1?.ok}; says STALE: ${/STALE/.test(detail)}; ` +
+          `avoids the false "defined but not shipped": ${!/defined but not shipped/.test(detail)}`);
+        ok("D1 — the stale report tells the reader which command refreshes it",
+          /just export/.test(detail) && /result\//.test(detail),
+          "naming `just export` AND saying result/ is not read is what the incident lacked");
+      } finally {
+        await utimes(BUILT_HTML, times.atime, times.mtime);
+        const now = await stat(BUILT_HTML);
+        restored = Math.abs(now.mtimeMs - times.mtimeMs) < 2;
+      }
+      ok("D1 — the built page's mtime is restored", restored,
+        "otherwise every later run of this suite would see a stale build");
+    }
+
+    // And the tree is clean again afterwards.
+    {
+      const { code, verdict } = runChecker(["--require-built"]);
+      ok("D1 — CONTROL: after every plant and restore, --require-built passes again",
+        code === 0 && verdict?.ok === true,
+        verdict?.checks?.filter((c) => c.ok === false).map((c) => c.id).join(", ") || "no failures");
+    }
+    }
+  }
 }
 
 await rm(SCRATCH, { recursive: true, force: true });
