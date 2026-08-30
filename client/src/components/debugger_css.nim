@@ -501,14 +501,38 @@ html[data-register="debugger"],
 .fv.now{display:inline-flex}
 /* The NAME recedes and the VALUE does not. A label is read for its value; the
    name is how you know which value it is, and rendering both at one weight
-   makes the run of labels an undifferentiated stripe at the end of the line. */
-.fvn{color:var(--bt-text-subtle)}
+   makes the run of labels an undifferentiated stripe at the end of the line.
+
+   AND WHICH HALF GIVES WAY when a label does not fit
+   `--bt-layout-label-column`. It is the NAME, and the previous answer was
+   the value.
+   `overflow:hidden;text-overflow:ellipsis` sat on `.fvv` alone, so the flex
+   line shrank the only item that could shrink and the label a reader was
+   given was `remaining_shield=10…` — sixteen characters of the identifier
+   they already have from the code on the same row, and an elided form of the
+   one fact the annotation exists to carry. Measured over
+   `debugger--omniscience-earlier-pass` at the pinned coordinate: 22 of the 51
+   labels on screen rendered with the VALUE cut, in both themes and at both
+   desktop widths. A value that reads `10…` is not merely less informative
+   than the full one, it is misreadable as `10`.
+   So the value does not shrink at all — `flex-shrink:0`, not a large shrink
+   factor on the name, because a ratio still gives the value away by the
+   rounding and `remaining_shield=10000` measured 106/37 against a natural
+   118/43 under 100:1. The name absorbs the whole deficit and elides:
+   `remaining_shi…=10000`. It is the recoverable half — it is a variable named
+   in the source text on the same row, 24px to its left. The value keeps a
+   `max-width` so that a value which alone overruns the column still ends in
+   an ellipsis rather than a cut glyph; the name will have collapsed to
+   nothing before that can happen. The label's `title` carries both in full
+   either way. */
+.fvn{color:var(--bt-text-subtle);flex:0 100 auto;min-width:0;
+  overflow:hidden;text-overflow:ellipsis}
 /* `x=10` closes up; `x: 10 -> 20` takes a space after the colon, because what
    follows it is a PAIR and not a single value. */
-.fvsep{color:var(--bt-text-disabled)}
+.fvsep{color:var(--bt-text-disabled);flex:0 0 auto}
 .fv.m-changed .fvsep{margin-right:var(--bt-space-3xs)}
 .fvv{color:var(--bt-text-strong);font-variant-numeric:var(--bt-numeric-features);
-  overflow:hidden;text-overflow:ellipsis}
+  flex:0 0 auto;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 /* A WRITE is the most valuable thing an inline value can say, and it gets the
    pane's own "changed at this step" hue — the same token the Values pane marks
    a changed variable with, so one fact has one colour in both places. The
@@ -552,17 +576,34 @@ html[data-register="debugger"],
    buttons — the spec draws it as `[◄ ════●══════ ►]`. */
 .frtrack{flex:1 1 auto;min-width:0;display:flex;align-items:stretch;
   gap:var(--bt-space-3xs)}
+/* The transparent border is what lets `.out` below draw its own extent
+   without becoming a different-sized segment from its neighbours. */
 .frseg{flex:1 1 0;min-width:0;display:flex;flex-direction:column;
   align-items:center;gap:var(--bt-space-3xs);
   padding:var(--bt-space-3xs) 0;border-radius:var(--bt-radius-xs);
+  border:var(--bt-stroke-hairline) solid transparent;
   background:var(--bt-mark-track);color:var(--bt-text-muted)}
 .frnum{font-variant-numeric:var(--bt-numeric-features);
   font-size:var(--bt-type-caption-size)}
 a.frseg:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
 /* A pass the session has NOT reached at this position. It is not a link and it
    does not look like one: the still frame has no values for it, and offering it
-   would be an affordance that cannot act. Hydration makes it live. */
+   would be an affordance that cannot act. Hydration makes it live.
+
+   AND IT STILL HAS TO BE A SEGMENT. In the light theme
+   `--bt-action-disabled-bg` and `--bt-surface-sunken` — the rail's own
+   background — resolve to the SAME value, so the fill was drawing at 1.00:1
+   against the strip behind it and the five unreached passes of an eight-pass
+   loop rendered as blank rail.
+   The rail read as three segments beside its own `Iteration 3 of 8`,
+   which is the label contradicting the control immediately under it; in dark
+   the same pair is 1.21:1 and the boxes are faintly there, so the rail said
+   one thing in one theme and another in the other. The EXTENT of the segment
+   is not the disabled part of it — a track a reader cannot see the end of
+   cannot say how far along it they are — so it is drawn with a border, in
+   both themes, and only the fill and the numeral recede. */
 .frseg.out{background:var(--bt-action-disabled-bg);
+  border-color:var(--bt-border-default);
   color:var(--bt-text-disabled);cursor:not-allowed}
 /* A reachable pass is marked by its NUMBER coming up to full strength, not by a
    fill. `--bt-mark-track-elapsed` was tried here and is wrong at this size: it
