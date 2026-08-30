@@ -13,3 +13,4 @@ tests/test_static_export
 tests/test_debug_route
 tests/test_chain_viewmodels
 tests/test_explorer_breadth
+tests/test_hydration_tag
