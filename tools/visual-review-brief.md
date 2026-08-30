@@ -133,6 +133,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A hero whose headline claims DEPTH — that this is the deepest view into every transaction — supported by one line naming what that depth is: stepping and rewinding instructions, the whole call trace at a glance, and tracing a value to its origin, across many chains, VMs and languages. A headline whose main claim is time-travel alone is WRONG: stepping backwards is table stakes in this category, and the positioning is depth plus breadth. One headline and one supporting line, not a paragraph and not a tagline fragment.
 - A search field, visibly the primary input of the page and visibly focused (focus ring rendered — it is focused on load).
 - A chain strip listing supported chains, each with a debug-tier badge (T0–T2). Chain names must be legible; a row of unlabelled logos is not the chain strip.
@@ -164,6 +168,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A table whose every cell is a REGISTRY fact — chain slug, recorder id and version, trace schema, coverage mode, block and transaction counters, and freshness against the tip. A placeholder or a hand-written cell means the page was not generated from the registry, which is §3's one structural requirement.
 - Coverage rendered in its own vocabulary — `eager` / `selective` / `on demand` — because that is what the Debug affordance will do on first click.
 - Freshness as a state (at tip / behind tip) WITH the head and finalized heights beside it, so the claim is checkable rather than asserted.
@@ -195,6 +203,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A head/finalized/blocks/transactions/coverage stat row, each figure labelled — the registry and pointer facts a visitor needs before reading either list.
 - Latest blocks — the newest ~10 with per-block transaction counts and a finality badge per row.
 - Latest transactions — the shared transactions table, with the Debug affordance as the FIRST column of every row (rule 1).
@@ -225,6 +237,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A staleness notice that names HOW FAR BEHIND the tip the chain is — a concrete lag (blocks or duration), not the word 'stale' on its own.
 - The complete chain overview still rendered beneath or around it: header, head, latest blocks, latest transactions. Published pages keep working; only new blocks are missing.
 - Wording that makes clear the existing pages are unaffected, so a visitor does not read the notice as 'this chain is down'.
@@ -252,6 +268,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - Five columns headed and populated: height (linked to the block) · hash · transaction count · finality badge · parent.
 - A finality badge per row, derived from the finalized height the chain pointer publishes, visually distinct from the other columns.
 - Rows in descending height order, with the newest at the top.
@@ -284,6 +304,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - Exactly one row visibly in an expanded state, with an open/closed disclosure indicator distinguishing it from its neighbours.
 - The expanded region listing that block's transaction hashes.
 - A Debug action on every transaction row inside the expansion — rule 1 applies inside the expansion as much as outside it.
@@ -312,6 +336,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A header carrying the block number and a finality badge, above a fact grid with chain, full hash, height, parent (linked), finality and transaction count.
 - Previous / next block navigation, both controls present, with a sentence stating where in the chain this block is.
 - The shared transactions table filtered to this block, with Debug as its first column.
@@ -342,6 +370,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The previous/next navigation with one direction VISIBLY DISABLED — the whole point of this view. A disabled control that looks identical to an enabled one is a P1.
 - The disabled control still present rather than removed, so the navigation's shape does not change between blocks.
 - A sentence naming WHICH edge this is: the oldest block this GENERATION indexes, not genesis. The generation's floor is a fact about this tree; genesis is a claim about the chain, and the tree does not know it.
@@ -374,6 +406,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - Eight columns, in order, headed: Debug · Tx hash · Block · From · To/target · Method · Fee · Status.
 - Debug as the FIRST column and always visible — not an icon at the end of the row (Page-Descriptions §6 states this explicitly). It must remain visible when the table scrolls horizontally.
 - The Debug cell carrying an ACTION where the trace licenses one and a STATED REASON where it does not — and never a disabled control. A row whose execution is structurally unobservable gets a labelled state, not a greyed button.
@@ -409,6 +445,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - Stacked cards, one per transaction — not a table with a horizontal scrollbar, which is the failure this view exists to rule out.
 - The Debug action LEADING each card at full width, so the primary action is the first thing in the card rather than a labelled row among others (§13: the primary action is retained).
 - The status, including its badge, present on every card.
@@ -442,6 +482,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - Hero: status with decoded revert reason if any, the full hash with a copy affordance, age, finality badge, and — on the on-demand path — Generate trace as the PRIMARY button, visually the strongest control on the page.
 - The trace's state named beside that action, and a note explaining that state in words.
 - Overview grid: from/to, value, fee breakdown, block and index, nonce, resource limits and usage, transaction type — each labelled.
@@ -479,6 +523,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - Everything the `tx-detail` block requires, at the fixture's largest payload.
 - A visibly long content region — five roles, five cost rows and a raw payload of roughly a kilobyte — so the reviewer can confirm this is genuinely the dense case and not the same content as `tx-detail`, whose subject carries one role, one cost row and a `0x` payload.
 - The roles list reading as a LIST of distinct parties: fee payer, sender, authwit provider, sequencer and portal contract are five different addresses and five different jobs, and a page that has only ever rendered one role has never been asked whether its role treatment scales.
@@ -653,6 +701,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The address in full beneath a truncated heading, with a contract badge — and, where the tree publishes a label for it, the name WITH its provenance beside it, because a curated name and a self-declared one are different claims.
 - The shared transactions table with Debug on every row, presented as COMPLETE history — no record cap, no 'showing the most recent N' apology.
 - A code section carrying the code hash, the verification status, the provider and the compiler, with a route into the source browser.
@@ -686,6 +738,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A verification panel: the code hash, the match level, the provider, the compiler and its version, the language, and the bundle id — each labelled.
 - A file list naming every source in the bundle, each linking to its own region.
 - Every source file rendered with line numbers and SYNTAX HIGHLIGHTING from the same lexical palette the debugger's source pane uses — Design-System §7 makes this the one sanctioned register crossing, and a generic web highlighter is a register error.
@@ -719,6 +775,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The verification panel present, with the code hash shown and the status reading as unverified — what IS known, rather than a page that only says 'no'.
 - The producer's own reason for there being no bundle, quoted rather than paraphrased.
 - An explicit statement that this contract is STILL DEBUGGABLE at instruction level, which is the fidelity ladder's floor and holds with no source at all. Without it the page reads as a dead end, and that is the finding.
@@ -750,6 +810,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A search field as the page's primary input.
 - A statement that this address cannot resolve a query yet and WHY — resolution runs in the browser and this deployment ships no script — phrased so that 'nothing was looked in' is legibly different from 'not found'. Search-And-Routing §8 requires a miss to name what was tried; this is that, for the case where nothing was.
 - The four resolution mechanisms as a table with their REQUEST COST — 0, 1, 2, 1–2 — and what each handles. The cost column is the point: most explorer search is identifier resolution, and three of the four compute a path rather than querying anything.
@@ -781,6 +845,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - Candidates GROUPED BY KIND with visible group headings: transaction · block · address · name.
 - More than one group populated — a single-group capture does not show the grouping this view exists to test.
 - A visible keyboard-selection state on one candidate (the active row), since the list is specified as keyboard-navigable and the selection state is the only way to see that.
@@ -809,6 +877,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A visible boundary between the active chain's results and the rest, with the 'found on other chains' group explicitly labelled.
 - Results from at least two distinct chains, each row identifying its chain.
 - The active chain's group first and visually primary.
@@ -836,6 +908,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The query, echoed.
 - WHAT WAS TRIED, enumerated: the hash index, and which chains' paths were computed. This enumeration is the entire design of this state and its absence is a P1.
 - A statement of what would change the answer — a different chain, a different scope, a transaction not yet indexed.
@@ -865,6 +941,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - Four labelled groups: Privacy · Storage · Debugger · Advanced.
 - The privacy group ANSWERED rather than described: no account, no ads, no third-party requests, telemetry off, what is logged (this deployment's own CDN logs), and no record caps. This group needs no script and must be complete.
 - For each of the other three groups, a statement of what it will control and why it cannot act yet — measuring a cache, persisting a theme and overriding a registry at run time are all script operations.
@@ -896,6 +976,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - Long-form prose with a heading hierarchy of at least two levels.
 - A constrained measure — this is the one page in the product that is purely reading, and full-viewport-width body text at 1920 px is a P2 typography failure here specifically.
 - The trust strip's five claims itemised with their EVIDENCE — no account, no ads, no tracking, complete history, no record caps — rather than restated. A claim repeated is not a privacy summary.
@@ -927,6 +1011,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The §14 treatment as a bounded notice with a named condition, not a bare heading: the statement that nothing at this address is published, and the chains that WERE checked, enumerated by name.
 - A route onward — the supported-chains index, the home page, and the resolution page.
 - The product's own header and footer — this must be a BlockTracer page, not a server error page.
@@ -1589,6 +1677,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The trace's state as a BADGE and the reason as a SENTENCE, together, in the position the primary action occupies on the on-demand page — so the eye lands on an answer where it expects a control.
 - A reason that says the absence is structural: the execution publishes no call structure, so there is nothing a recorder could have captured. 'No trace available' would be true and would not be this state.
 - The internal-calls and state-changes sections stating that they are empty PERMANENTLY rather than yet. §14.1a: "'Not now' and 'not ever' are different states."
@@ -1624,6 +1716,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The state as a badge and the reason as a sentence, in the primary action's position, exactly as `tx-detail--absent` does — the two states share a shape and that is correct.
 - A reason that locates the limitation in THIS PRODUCT rather than in the chain: no recorder exists for this VM. The transaction is observable; we cannot observe it.
 - The trace-derived sections saying that they stay empty until a recorder exists — a conditional, where `absent`'s is a permanent.
@@ -1662,6 +1758,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The named phase as a word the user can read — not a percentage, and not an indeterminate spinner on its own.
   - Elapsed time, and a coarse estimate explicitly labelled as an estimate where one is shown.
   - A statement of what the user gets on completion: whether the resulting trace is retained or windowed, and for how long.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A job surface with its phases enumerated so the visitor can see the whole sequence, not only the current step.
 - The sections that depend on the trace (internal calls, state changes) showing the specified single line rather than empty panels.
 
@@ -1695,6 +1795,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The named phase as a word the user can read — not a percentage, and not an indeterminate spinner on its own.
   - Elapsed time, and a coarse estimate explicitly labelled as an estimate where one is shown.
   - A statement of what the user gets on completion: whether the resulting trace is retained or windowed, and for how long.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The phase word 'accepted' or its plain-language equivalent, distinguishable from 'queued'.
 - A CANCEL control, enabled — accepted is cancellable and cancellation releases quota.
 - A statement that quota was consumed, and that cancelling releases it.
@@ -1729,6 +1833,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The named phase as a word the user can read — not a percentage, and not an indeterminate spinner on its own.
   - Elapsed time, and a coarse estimate explicitly labelled as an estimate where one is shown.
   - A statement of what the user gets on completion: whether the resulting trace is retained or windowed, and for how long.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The phase word 'queued'.
 - The QUEUE POSITION as a concrete number — §14.1 says 'position known', and a queued state without a position is the accepted state relabelled.
 - A cancel control, enabled.
@@ -1763,6 +1871,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The named phase as a word the user can read — not a percentage, and not an indeterminate spinner on its own.
   - Elapsed time, and a coarse estimate explicitly labelled as an estimate where one is shown.
   - A statement of what the user gets on completion: whether the resulting trace is retained or windowed, and for how long.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The phase word 'recording'.
 - NO cancel control, or a cancel control visibly disabled with the reason — the transition out of cancellability is the meaning of this state.
 - Elapsed time, and a coarse estimate labelled as an estimate.
@@ -1797,6 +1909,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The named phase as a word the user can read — not a percentage, and not an indeterminate spinner on its own.
   - Elapsed time, and a coarse estimate explicitly labelled as an estimate where one is shown.
   - A statement of what the user gets on completion: whether the resulting trace is retained or windowed, and for how long.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The phase word 'validating', with enough plain language that a visitor understands the recorder is checking itself rather than that something is wrong.
 - Position within the phase sequence, showing that recording is complete and publishing is next.
 - No cancel control.
@@ -1831,6 +1947,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The named phase as a word the user can read — not a percentage, and not an indeterminate spinner on its own.
   - Elapsed time, and a coarse estimate explicitly labelled as an estimate where one is shown.
   - A statement of what the user gets on completion: whether the resulting trace is retained or windowed, and for how long.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The phase word 'publishing'.
 - Position in the sequence showing this is the last phase before ready.
 - The retention statement — retained or windowed, and for how long — since this is the last moment before the visitor gets the trace.
@@ -1861,6 +1981,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The word 'refused' or an unambiguous plain-language equivalent, and THE REASON: out of quota, chain unsupported, or below the history floor.
 - NO retry control. §14.1: collapsing refused into failed produces a retry button that can never succeed.
 - Whatever recourse actually exists for the stated reason — a quota reset time, a link to the recorder's status — or an explicit statement that there is none.
@@ -1892,6 +2016,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A statement that generation was ATTEMPTED and did not succeed — the attempt is what distinguishes this from refused.
 - A retry control whose presence matches the fixture's `retryable` flag, with the flag's value legible from the surface (retry present, or retry absent with a statement that this is not retryable).
 - What is known about the failure, in language a visitor can act on.
@@ -1923,6 +2051,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A statement that the job exceeded its BUDGET, with the budget or the elapsed time quantified.
 - A retry control gated on `retryable`, exactly as in `job-failed`.
 - Enough distinction from `job-failed` that a visitor can see this was a time limit rather than an error.
@@ -1953,6 +2085,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A statement that replay is NOT CURRENTLY available — the 'not now' framing, explicitly distinguishable from 'not ever'.
 - A RENEW action, behind sign-in, with the sign-in requirement stated before the click.
 - The statement that renewal serves every subsequent anonymous visitor for the whole window — §14.1a requires the prompt to say this rather than imply a per-user unlock.
@@ -1985,6 +2121,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The Debug affordance ENABLED and primary — this state is functionally identical to retained, and anything that makes it look degraded is wrong.
 - A statement of the retention window and how long remains, so a visitor who bookmarks the link knows it may need regenerating.
 - The retention statement rendered as information, not as a warning.
@@ -2016,6 +2156,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A GENERATE action, behind sign-in, with the sign-in requirement and its justification stated — that generating a trace costs compute (§7.2).
 - A statement that no trace exists yet for this transaction, distinct from one having expired.
 - The retention terms the generated trace will carry, stated BEFORE the request.
@@ -2048,6 +2192,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A statement that replay is PERMANENTLY unavailable, with the reason — capsule gone, chain state unobtainable.
 - NO action at all. §14.1a: it is terminal. A retry, renew or generate control here is the P1 this view exists to catch.
 - The complete transaction still rendered, since the page never degrades.
@@ -2079,6 +2227,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The Debug affordance ABSENT — not disabled, not greyed. §14 says absent, and a greyed button is a different design decision.
 - The recorder's status named — which recorder, and where it stands.
 - A LINK TO THE RECORDER'S SPEC, present and legible.
@@ -2111,6 +2263,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The Debug affordance absent.
 - The FLOOR STATED as a concrete value — a block number, a date, or a window — not the phrase 'too old'.
 - The explanation that prestate does not exist below the floor, so a visitor understands this is a data-availability fact and not a policy.
@@ -2139,6 +2295,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A reorg explanation in plain language — what a reorganisation is and what happened to this transaction.
 - The OLD location (the block it was in) and, where it was re-included, the NEW location as a working link.
 - Where it was not re-included, an explicit statement of that, rather than silence.
@@ -2172,6 +2332,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A statement that the visitor's generation quota is exhausted — signed in, but out of allowance.
 - WHEN THE QUOTA RESETS, as a concrete time or duration. §7.2 requires this explicitly.
 - The generate affordance visibly unavailable, with the quota as the stated reason.
@@ -2204,6 +2368,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The sign-in prompt scoped to the generate action, not to the page.
 - A statement of WHAT IT IS FOR — that generating a trace costs compute — rather than a bare 'sign in to continue'.
 - Clear indication that the rest of the product, and every ready trace, needs no account.
@@ -2236,6 +2404,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The SPECIFIC failure named — WASM compilation, insufficient memory, broken/intercepted range requests, or unsupported worker behaviour. §14.2 gives each its own detection, and a generic 'your browser is unsupported' is the failure this table exists to prevent.
 - The ladder offered as ordered options, so the visitor sees there is more than one way forward.
 - The complete transaction page beneath, per §7.0 — no state renders less than the pre-hydration page.
@@ -2268,6 +2440,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A download action for the trace container, with its SIZE stated — a download of unknown size on a page that has just said the browser is constrained is a poor offer.
 - A statement that the container is self-contained and what can be done with it.
 - The remaining ladder steps visible below, so this reads as the first of several options.
@@ -2298,6 +2474,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - An 'Open in CodeTracer desktop' action.
 - A statement that the desktop application has none of these constraints — the reason this step is offered.
 - A path for a visitor who does not have the desktop app, since the action assumes it.
@@ -2329,6 +2509,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - The complete transaction page behind the state — hero with status and hash, the overview grid (from/to, value, fee, block and index, nonce, resource usage), and the raw chain-native payload. This state changes what can be done, never what is shown.
   - The state's treatment is a region inside the page, not a replacement for it. If the transaction facts are gone and only a notice remains, that is the finding.
   - The hero's Debug affordance is visibly resolved into this state — enabled, replaced by another action, or absent-with-a-reason — and not left as a generic enabled button that would lie about what happens on click.
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A CALL SUMMARY — the call structure, rendered statically from the transaction's own published data.
 - An EVENT SUMMARY — the events, likewise.
 - Both populated with real content. An empty summary defeats the entire point of the ladder having a floor.
@@ -2360,6 +2544,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - The product's shell rendered — header, navigation, footer, brand — proving the service worker served something rather than the browser showing its own offline page.
 - An explicit statement that the network is unavailable and what is still reachable: anything previously viewed.
 - A route to the cached content, so 'previously viewed' is actionable rather than a claim.
@@ -2391,6 +2579,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - An account badge rather than a contract badge, decided by whether the tree binds CODE to the address and not by the shape of the address.
 - A code section that states there is no code bound to this address and what a code binding IS — a code edge on the transactions that ran it. This is rule 2 on a section rather than on a list, and an empty panel here is the finding.
 - The shared transactions table with Debug on every row.
@@ -2420,6 +2612,10 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
 - A pager carrying BOTH a 'Newest' and an 'Older' control, since this page is neither the first nor necessarily the last.
 - A statement of which block range this page covers and which segment of how many it is — a cursor URL, unlike `?page=3`, does not tell a reader where they are, and the honest answer to that is a sentence.
 - The shared transactions table for THIS segment only, with Debug on every row.

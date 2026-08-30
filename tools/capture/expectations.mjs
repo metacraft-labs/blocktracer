@@ -128,6 +128,36 @@ export const BACKBONES = {
     ],
   },
 
+  // The explorer shell — the chrome `components/layout.pageLayout` puts around
+  // every explorer page, and the one thing in this file that is the SAME object
+  // on 47 routes rather than a property of one of them.
+  //
+  // It exists because the provenance strip shipped ungraded. The footer gained
+  // "Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>" and a
+  // GitHub mark linking the repository, in two inline-SVG marks taken from two
+  // different repositories — and no block in this file named any of it, so six
+  // reviewers per view could report `expectedElements: present` on an image in
+  // which the strip was missing, unthemed, or drawn with a mark that had not
+  // survived the token layer. A presence check that cannot see an element is
+  // not evidence about that element.
+  //
+  // The rule is mechanical rather than per-view: an explorer-register view with
+  // no `clip:` photographs the whole shell, so it inherits this; one WITH a
+  // `clip:` photographs a region and must not (check-brief F, which lists this
+  // key in VIEWPORT_BACKBONES for exactly that reason); and the debugger
+  // register inherits `debugger-shell`, whose third item already requires the
+  // opposite — "no explorer footer" — because `debugLayout` renders none.
+  // check-brief G enforces the pairing, so a view that later loses its `clip:`
+  // or a route that later lands cannot quietly skip it.
+  "site-chrome": {
+    spec: "Page-Descriptions §2, §12, Design-System §2",
+    items: [
+      "The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.",
+      "The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.",
+      "The fixed site nav, with the brand and the resolver field, above a body that does not run under it.",
+    ],
+  },
+
   // Page-Descriptions §14.1: "Phase, not percentage."
   "generation-job": {
     spec: "Page-Descriptions §14.1",
@@ -150,6 +180,7 @@ export const EXPECTATIONS = [
       "The home page: one screen that explains the product and gets a hash into the search box.",
     spec: "Page-Descriptions §2",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "A hero whose headline claims DEPTH — that this is the deepest view into every transaction — supported by one line naming what that depth is: stepping and rewinding instructions, the whole call trace at a glance, and tracing a value to its origin, across many chains, VMs and languages. A headline whose main claim is time-travel alone is WRONG: stepping backwards is table stakes in this category, and the positioning is depth plus breadth. One headline and one supporting line, not a paragraph and not a tagline fragment.",
       "A search field, visibly the primary input of the page and visibly focused (focus ring rendered — it is focused on load).",
@@ -197,6 +228,7 @@ export const EXPECTATIONS = [
       "The honest capability inventory — a table of every chain in the registry, generated from the registry so it cannot drift.",
     spec: "Page-Descriptions §3",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "A table whose every cell is a REGISTRY fact — chain slug, recorder id and version, trace schema, coverage mode, block and transaction counters, and freshness against the tip. A placeholder or a hand-written cell means the page was not generated from the registry, which is §3's one structural requirement.",
       "Coverage rendered in its own vocabulary — `eager` / `selective` / `on demand` — because that is what the Debug affordance will do on first click.",
@@ -222,6 +254,7 @@ export const EXPECTATIONS = [
       "A single chain's landing page: what it is, where its head is, and what has recently happened on it.",
     spec: "Page-Descriptions §4",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "A head/finalized/blocks/transactions/coverage stat row, each figure labelled — the registry and pointer facts a visitor needs before reading either list.",
       "Latest blocks — the newest ~10 with per-block transaction counts and a finality badge per row.",
@@ -246,6 +279,7 @@ export const EXPECTATIONS = [
       "Chain overview when the pipeline is behind the chain tip — the staleness notice.",
     spec: "Page-Descriptions §4 (Degraded), §14 row 1",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "A staleness notice that names HOW FAR BEHIND the tip the chain is — a concrete lag (blocks or duration), not the word 'stale' on its own.",
       "The complete chain overview still rendered beneath or around it: header, head, latest blocks, latest transactions. Published pages keep working; only new blocks are missing.",
@@ -266,6 +300,7 @@ export const EXPECTATIONS = [
     summary: "The block list — descending from head, cursor-paginated by block number.",
     spec: "Page-Descriptions §5.1, Static-Site-Architecture §2.2",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "Five columns headed and populated: height (linked to the block) · hash · transaction count · finality badge · parent.",
       "A finality badge per row, derived from the finalized height the chain pointer publishes, visually distinct from the other columns.",
@@ -292,6 +327,7 @@ export const EXPECTATIONS = [
       "A block list row expanded to reveal that block's transaction hashes with per-row Debug actions.",
     spec: "Page-Descriptions §5.1 (row expansion)",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "Exactly one row visibly in an expanded state, with an open/closed disclosure indicator distinguishing it from its neighbours.",
       "The expanded region listing that block's transaction hashes.",
@@ -313,6 +349,7 @@ export const EXPECTATIONS = [
     summary: "A single block: its header facts, its transactions, and its neighbours.",
     spec: "Page-Descriptions §5.2",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "A header carrying the block number and a finality badge, above a fact grid with chain, full hash, height, parent (linked), finality and transaction count.",
       "Previous / next block navigation, both controls present, with a sentence stating where in the chain this block is.",
@@ -337,6 +374,7 @@ export const EXPECTATIONS = [
       "Block detail at the oldest block this generation indexes — the boundary case where 'previous' has nowhere to go.",
     spec: "Page-Descriptions §5.2 (Navigation: disabled at genesis and head)",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "The previous/next navigation with one direction VISIBLY DISABLED — the whole point of this view. A disabled control that looks identical to an enabled one is a P1.",
       "The disabled control still present rather than removed, so the navigation's shape does not change between blocks.",
@@ -363,6 +401,7 @@ export const EXPECTATIONS = [
       "Recent transactions — the shared TransactionsTable at full width, the densest surface in the explorer register.",
     spec: "Page-Descriptions §6",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "Eight columns, in order, headed: Debug · Tx hash · Block · From · To/target · Method · Fee · Status.",
       "Debug as the FIRST column and always visible — not an icon at the end of the row (Page-Descriptions §6 states this explicitly). It must remain visible when the table scrolls horizontally.",
@@ -392,6 +431,7 @@ export const EXPECTATIONS = [
       "The transactions table collapsed to stacked cards below 900 px, with Debug and status retained.",
     spec: "Page-Descriptions §6, §13",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "Stacked cards, one per transaction — not a table with a horizontal scrollbar, which is the failure this view exists to rule out.",
       "The Debug action LEADING each card at full width, so the primary action is the first thing in the card rather than a labelled row among others (§13: the primary action is retained).",
@@ -419,6 +459,7 @@ export const EXPECTATIONS = [
       "The transaction page for a trace that opens no session — §7.0's second and third rows. The most important page in the product for a transaction the debugger cannot open, and the one a competitor comparison lands on.",
     spec: "Page-Descriptions §7.0, §7.2",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "Hero: status with decoded revert reason if any, the full hash with a copy affordance, age, finality badge, and — on the on-demand path — Generate trace as the PRIMARY button, visually the strongest control on the page.",
       "The trace's state named beside that action, and a note explaining that state in words.",
@@ -477,6 +518,7 @@ export const EXPECTATIONS = [
       "The metadata page at the largest published payload — the density case the whole campaign exists to catch. Its subject is the demo tree's second traceless transaction (generator txH), added on 2026-08-30 for this view: five roles, five cost rows across five named resources, and a raw payload of a selector plus sixteen ABI words. Until then this view was pending, because §7.0 serves the metadata page only where there is no session and the tree held exactly one such transaction — `tx-detail`'s own subject.",
     spec: "Page-Descriptions §7.2, VD.4 verify_transaction_page_holds_at_extreme_content",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "Everything the `tx-detail` block requires, at the fixture's largest payload.",
       "A visibly long content region — five roles, five cost rows and a raw payload of roughly a kilobyte — so the reviewer can confirm this is genuinely the dense case and not the same content as `tx-detail`, whose subject carries one role, one cost row and a `0x` payload.",
@@ -502,7 +544,7 @@ export const EXPECTATIONS = [
       "§7.0's third row, first half: a transaction whose execution publishes no call structure at all. There is nothing to record, and there never will be. Its subject is the demo tree's end-to-end private Aztec transaction (generator txI), published on 2026-08-30 for this view — before it, `txWithAvailability(\"absent\")` threw and this state had never been rendered by anything.",
     spec: "Page-Descriptions §7.0 (row 3), §14.1a",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "The trace's state as a BADGE and the reason as a SENTENCE, together, in the position the primary action occupies on the on-demand page — so the eye lands on an answer where it expects a control.",
       "A reason that says the absence is structural: the execution publishes no call structure, so there is nothing a recorder could have captured. 'No trace available' would be true and would not be this state.",
@@ -528,7 +570,7 @@ export const EXPECTATIONS = [
       "§7.0's third row, second half: a transaction whose execution DOES have a call structure and which this product cannot record — the demo tree's transaction under an AVM revision the pinned recorder set does not cover (generator txJ, published 2026-08-30 for this view). Reviewed beside `tx-detail--absent`, and largely FOR the comparison.",
     spec: "Page-Descriptions §7.0 (row 3), §14 (Recorder unavailable for the VM), §14.1a",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "The state as a badge and the reason as a sentence, in the primary action's position, exactly as `tx-detail--absent` does — the two states share a shape and that is correct.",
       "A reason that locates the limitation in THIS PRODUCT rather than in the chain: no recorder exists for this VM. The transaction is observable; we cannot observe it.",
@@ -686,6 +728,7 @@ export const EXPECTATIONS = [
       "The address page for a CONTRACT — scoped in V1 to get you to a transaction worth tracing, with complete history and no capability to negotiate.",
     spec: "Page-Descriptions §9",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "The address in full beneath a truncated heading, with a contract badge — and, where the tree publishes a label for it, the name WITH its provenance beside it, because a curated name and a self-declared one are different claims.",
       "The shared transactions table with Debug on every row, presented as COMPLETE history — no record cap, no 'showing the most recent N' apology.",
@@ -712,6 +755,7 @@ export const EXPECTATIONS = [
       "The address page for an ACCOUNT — no code is bound to it, so §9's code summary is a statement rather than a table.",
     spec: "Page-Descriptions §9, rule 2",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "An account badge rather than a contract badge, decided by whether the tree binds CODE to the address and not by the shape of the address.",
       "A code section that states there is no code bound to this address and what a code binding IS — a code edge on the transactions that ran it. This is rule 2 on a section rather than on a list, and an empty panel here is the finding.",
@@ -734,6 +778,7 @@ export const EXPECTATIONS = [
       "A later block-range segment of an address's history — the cursor pager with both directions live.",
     spec: "Page-Descriptions §9, Static-Site-Architecture §2.2",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "A pager carrying BOTH a 'Newest' and an 'Older' control, since this page is neither the first nor necessarily the last.",
       "A statement of which block range this page covers and which segment of how many it is — a cursor URL, unlike `?page=3`, does not tell a reader where they are, and the honest answer to that is a sentence.",
@@ -758,6 +803,7 @@ export const EXPECTATIONS = [
       "The verified source browser — a product-register element (the code view) inside a web-register page.",
     spec: "Page-Descriptions §10, Design-System §7",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "A verification panel: the code hash, the match level, the provider, the compiler and its version, the language, and the bundle id — each labelled.",
       "A file list naming every source in the bundle, each linking to its own region.",
@@ -785,6 +831,7 @@ export const EXPECTATIONS = [
       "No verified source — instruction-level stepping stated as still available, with what would resolve it.",
     spec: "Page-Descriptions §14 (No verified source), §10",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "The verification panel present, with the code hash shown and the status reading as unverified — what IS known, rather than a page that only says 'no'.",
       "The producer's own reason for there being no bundle, quoted rather than paraphrased.",
@@ -810,6 +857,7 @@ export const EXPECTATIONS = [
       "The search route — what resolution IS, which chains would be checked, and the whole published name corpus, browsable without a query.",
     spec: "Page-Descriptions §11, Search-And-Routing §1–§8",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "A search field as the page's primary input.",
       "A statement that this address cannot resolve a query yet and WHY — resolution runs in the browser and this deployment ships no script — phrased so that 'nothing was looked in' is legibly different from 'not found'. Search-And-Routing §8 requires a miss to name what was tried; this is that, for the case where nothing was.",
@@ -835,6 +883,7 @@ export const EXPECTATIONS = [
       "Ambiguous input — grouped, keyboard-navigable candidates across kinds.",
     spec: "Page-Descriptions §11",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "Candidates GROUPED BY KIND with visible group headings: transaction · block · address · name.",
       "More than one group populated — a single-group capture does not show the grouping this view exists to test.",
@@ -857,6 +906,7 @@ export const EXPECTATIONS = [
       "Cross-chain results — the active chain first, other configured chains below under a 'found on other chains' group.",
     spec: "Page-Descriptions §11",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "A visible boundary between the active chain's results and the rest, with the 'found on other chains' group explicitly labelled.",
       "Results from at least two distinct chains, each row identifying its chain.",
@@ -878,6 +928,7 @@ export const EXPECTATIONS = [
       "A miss that reads as a scoping answer rather than a dead end — what was tried and where.",
     spec: "Page-Descriptions §11, Search-And-Routing §8",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "The query, echoed.",
       "WHAT WAS TRIED, enumerated: the hash index, and which chains' paths were computed. This enumeration is the entire design of this state and its absence is a P1.",
@@ -901,6 +952,7 @@ export const EXPECTATIONS = [
       "Preferences — entirely client-side, and notably short because there is nothing about data sources to configure.",
     spec: "Page-Descriptions §12, §13",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "Four labelled groups: Privacy · Storage · Debugger · Advanced.",
       "The privacy group ANSWERED rather than described: no account, no ads, no third-party requests, telemetry off, what is logged (this deployment's own CDN logs), and no record caps. This group needs no script and must be complete.",
@@ -926,6 +978,7 @@ export const EXPECTATIONS = [
       "Static content — /about, the privacy summary the home page's trust strip links to.",
     spec: "Page-Descriptions §1 route map, §2 Trust strip",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "Long-form prose with a heading hierarchy of at least two levels.",
       "A constrained measure — this is the one page in the product that is purely reading, and full-viewport-width body text at 1920 px is a P2 typography failure here specifically.",
@@ -951,6 +1004,7 @@ export const EXPECTATIONS = [
       "Object not found — 'not on this chain', naming the chains checked, never a blank page.",
     spec: "Page-Descriptions §14 (Object not found)",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "The §14 treatment as a bounded notice with a named condition, not a bare heading: the statement that nothing at this address is published, and the chains that WERE checked, enumerated by name.",
       "A route onward — the supported-chains index, the home page, and the resolution page.",
@@ -1410,7 +1464,7 @@ export const EXPECTATIONS = [
       "Trace awaiting generation — the entry state of the generation job, with observable phases.",
     spec: "Page-Descriptions §14, §14.1",
     register: "explorer",
-    inherits: ["tx-page-intact", "generation-job"],
+    inherits: ["tx-page-intact", "generation-job", "site-chrome"],
     mustShow: [
       "A job surface with its phases enumerated so the visitor can see the whole sequence, not only the current step.",
       "The sections that depend on the trace (internal calls, state changes) showing the specified single line rather than empty panels.",
@@ -1430,7 +1484,7 @@ export const EXPECTATIONS = [
       "Generation accepted — the request was taken, quota consumed, and the visitor can still cancel.",
     spec: "Page-Descriptions §14.1 (accepted)",
     register: "explorer",
-    inherits: ["tx-page-intact", "generation-job"],
+    inherits: ["tx-page-intact", "generation-job", "site-chrome"],
     mustShow: [
       "The phase word 'accepted' or its plain-language equivalent, distinguishable from 'queued'.",
       "A CANCEL control, enabled — accepted is cancellable and cancellation releases quota.",
@@ -1450,7 +1504,7 @@ export const EXPECTATIONS = [
     summary: "Generation queued — waiting for a worker, with the queue position known.",
     spec: "Page-Descriptions §14.1 (queued)",
     register: "explorer",
-    inherits: ["tx-page-intact", "generation-job"],
+    inherits: ["tx-page-intact", "generation-job", "site-chrome"],
     mustShow: [
       "The phase word 'queued'.",
       "The QUEUE POSITION as a concrete number — §14.1 says 'position known', and a queued state without a position is the accepted state relabelled.",
@@ -1471,7 +1525,7 @@ export const EXPECTATIONS = [
       "Recording — the recorder is executing the transaction. The compute is being spent, so cancellation is gone.",
     spec: "Page-Descriptions §14.1 (recording)",
     register: "explorer",
-    inherits: ["tx-page-intact", "generation-job"],
+    inherits: ["tx-page-intact", "generation-job", "site-chrome"],
     mustShow: [
       "The phase word 'recording'.",
       "NO cancel control, or a cancel control visibly disabled with the reason — the transition out of cancellability is the meaning of this state.",
@@ -1491,7 +1545,7 @@ export const EXPECTATIONS = [
     summary: "Validating — the recorder is checking its own output.",
     spec: "Page-Descriptions §14.1 (validating)",
     register: "explorer",
-    inherits: ["tx-page-intact", "generation-job"],
+    inherits: ["tx-page-intact", "generation-job", "site-chrome"],
     mustShow: [
       "The phase word 'validating', with enough plain language that a visitor understands the recorder is checking itself rather than that something is wrong.",
       "Position within the phase sequence, showing that recording is complete and publishing is next.",
@@ -1511,7 +1565,7 @@ export const EXPECTATIONS = [
     summary: "Publishing — the artifact is being written and made visible.",
     spec: "Page-Descriptions §14.1 (publishing)",
     register: "explorer",
-    inherits: ["tx-page-intact", "generation-job"],
+    inherits: ["tx-page-intact", "generation-job", "site-chrome"],
     mustShow: [
       "The phase word 'publishing'.",
       "Position in the sequence showing this is the last phase before ready.",
@@ -1529,7 +1583,7 @@ export const EXPECTATIONS = [
       "Refused — this will not be attempted, and here is why. Distinct from failed.",
     spec: "Page-Descriptions §14.1 (refused)",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "The word 'refused' or an unambiguous plain-language equivalent, and THE REASON: out of quota, chain unsupported, or below the history floor.",
       "NO retry control. §14.1: collapsing refused into failed produces a retry button that can never succeed.",
@@ -1551,7 +1605,7 @@ export const EXPECTATIONS = [
       "Failed — we tried and it did not succeed. Retry is offered only when the pipeline says retryable.",
     spec: "Page-Descriptions §14.1 (failed)",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "A statement that generation was ATTEMPTED and did not succeed — the attempt is what distinguishes this from refused.",
       "A retry control whose presence matches the fixture's `retryable` flag, with the flag's value legible from the surface (retry present, or retry absent with a statement that this is not retryable).",
@@ -1572,7 +1626,7 @@ export const EXPECTATIONS = [
     summary: "Timed out — the job exceeded its budget.",
     spec: "Page-Descriptions §14.1 (timedOut)",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "A statement that the job exceeded its BUDGET, with the budget or the elapsed time quantified.",
       "A retry control gated on `retryable`, exactly as in `job-failed`.",
@@ -1590,7 +1644,7 @@ export const EXPECTATIONS = [
       "The replay window expired — the transaction is intact, the trace is not currently retained, and renewal is a public good.",
     spec: "Page-Descriptions §14.1a (Window expired)",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "A statement that replay is NOT CURRENTLY available — the 'not now' framing, explicitly distinguishable from 'not ever'.",
       "A RENEW action, behind sign-in, with the sign-in requirement stated before the click.",
@@ -1613,7 +1667,7 @@ export const EXPECTATIONS = [
       "Windowed but live — the debugger opens immediately, and the retention terms are stated anyway.",
     spec: "Page-Descriptions §14.1a (Windowed, live)",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "The Debug affordance ENABLED and primary — this state is functionally identical to retained, and anything that makes it look degraded is wrong.",
       "A statement of the retention window and how long remains, so a visitor who bookmarks the link knows it may need regenerating.",
@@ -1635,7 +1689,7 @@ export const EXPECTATIONS = [
       "Never generated on an on-demand chain — the same shape as an expired window, but for a trace that has not existed yet.",
     spec: "Page-Descriptions §14.1a (Never generated)",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "A GENERATE action, behind sign-in, with the sign-in requirement and its justification stated — that generating a trace costs compute (§7.2).",
       "A statement that no trace exists yet for this transaction, distinct from one having expired.",
@@ -1658,7 +1712,7 @@ export const EXPECTATIONS = [
       "Permanently unreplayable — a terminal state with a reason, and no action that could succeed.",
     spec: "Page-Descriptions §14.1a (Unreplayable)",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "A statement that replay is PERMANENTLY unavailable, with the reason — capsule gone, chain state unobtainable.",
       "NO action at all. §14.1a: it is terminal. A retry, renew or generate control here is the P1 this view exists to catch.",
@@ -1680,7 +1734,7 @@ export const EXPECTATIONS = [
       "No recorder for this VM — Debug absent, with the recorder's status and a link to its spec.",
     spec: "Page-Descriptions §14 (Recorder unavailable)",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "The Debug affordance ABSENT — not disabled, not greyed. §14 says absent, and a greyed button is a different design decision.",
       "The recorder's status named — which recorder, and where it stands.",
@@ -1703,7 +1757,7 @@ export const EXPECTATIONS = [
       "The transaction is below the history floor — Debug absent, and prestate does not exist below it.",
     spec: "Page-Descriptions §14 (Below the history floor)",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "The Debug affordance absent.",
       "The FLOOR STATED as a concrete value — a block number, a date, or a window — not the phrase 'too old'.",
@@ -1726,6 +1780,7 @@ export const EXPECTATIONS = [
       "Reorganised away — the page switches to a reorg explanation, with the new location if the transaction was re-included.",
     spec: "Page-Descriptions §14 (Reorganised away)",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "A reorg explanation in plain language — what a reorganisation is and what happened to this transaction.",
       "The OLD location (the block it was in) and, where it was re-included, the NEW location as a working link.",
@@ -1749,7 +1804,7 @@ export const EXPECTATIONS = [
       "Quota exhausted — a distinct state from not-signed-in, which says when the quota resets.",
     spec: "Page-Descriptions §7.2 Hero, §14.1",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "A statement that the visitor's generation quota is exhausted — signed in, but out of allowance.",
       "WHEN THE QUOTA RESETS, as a concrete time or duration. §7.2 requires this explicitly.",
@@ -1772,7 +1827,7 @@ export const EXPECTATIONS = [
       "The sign-in prompt on the on-demand path — stating what it is for, and appearing nowhere else.",
     spec: "Page-Descriptions §7.2 Hero",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "The sign-in prompt scoped to the generate action, not to the page.",
       "A statement of WHAT IT IS FOR — that generating a trace costs compute — rather than a bare 'sign in to continue'.",
@@ -1795,7 +1850,7 @@ export const EXPECTATIONS = [
       "The browser cannot run the debugger — entry into the capability ladder, with the specific detected cause.",
     spec: "Page-Descriptions §14.2",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "The SPECIFIC failure named — WASM compilation, insufficient memory, broken/intercepted range requests, or unsupported worker behaviour. §14.2 gives each its own detection, and a generic 'your browser is unsupported' is the failure this table exists to prevent.",
       "The ladder offered as ordered options, so the visitor sees there is more than one way forward.",
@@ -1817,7 +1872,7 @@ export const EXPECTATIONS = [
     summary: "Ladder step 1 — offer the trace download, so the user keeps something useful.",
     spec: "Page-Descriptions §14.2 (ladder 1)",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "A download action for the trace container, with its SIZE stated — a download of unknown size on a page that has just said the browser is constrained is a poor offer.",
       "A statement that the container is self-contained and what can be done with it.",
@@ -1838,7 +1893,7 @@ export const EXPECTATIONS = [
       "Ladder step 2 — open in CodeTracer desktop, the one path that always works.",
     spec: "Page-Descriptions §14.2 (ladder 2)",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "An 'Open in CodeTracer desktop' action.",
       "A statement that the desktop application has none of these constraints — the reason this step is offered.",
@@ -1860,7 +1915,7 @@ export const EXPECTATIONS = [
       "The ladder's floor — a static call and event summary rendered with no replay engine at all. The floor is a useful page, not an apology.",
     spec: "Page-Descriptions §14.2 (ladder 3)",
     register: "explorer",
-    inherits: ["tx-page-intact"],
+    inherits: ["tx-page-intact", "site-chrome"],
     mustShow: [
       "A CALL SUMMARY — the call structure, rendered statically from the transaction's own published data.",
       "An EVENT SUMMARY — the events, likewise.",
@@ -1884,6 +1939,7 @@ export const EXPECTATIONS = [
       "CDN unreachable — the service worker serves the shell and anything previously viewed.",
     spec: "Page-Descriptions §14 (CDN unreachable)",
     register: "explorer",
+    inherits: ["site-chrome"],
     mustShow: [
       "The product's shell rendered — header, navigation, footer, brand — proving the service worker served something rather than the browser showing its own offline page.",
       "An explicit statement that the network is unavailable and what is still reachable: anything previously viewed.",

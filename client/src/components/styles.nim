@@ -134,10 +134,45 @@ code,.mono,.identifier{font-family:var(--bt-font-mono),var(--bt-font-mono-fallba
 .tnum,.num,.numeric,td.num,.stat .v{font-variant-numeric:var(--bt-numeric-features)}
 .num,.numeric,td.num{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);font-size:var(--bt-type-numeric-size);line-height:var(--bt-type-numeric-line)}
 
+/* ── the explorer shell: the footer ENDS the page ───────────────────────── */
+/* `pageLayout` renders nav + `main.pagebody` + `footer.foot` as three
+   in-flow blocks, so on a page shorter than the viewport the footer stopped
+   wherever the content did and the canvas continued below it. Measured at
+   1440x1000 on `/{chain}/address/{addr}/code` for an account with no code
+   binding: the strip ran 571..767 with 233px of empty canvas under it, so the
+   raised surface that closes the page read as a band floating in the middle of
+   one. Eleven of the published routes are shorter than a 1200px viewport.
+   It is not a footer treatment — the strip is correct — it is that nothing
+   made the body fill the viewport.
+
+   `height:100%` down the chain rather than a viewport unit, for the reason
+   `debugger_css.nim` gives at its own shell: `vh` is a raw length and the
+   chain says the same thing.
+
+   The scope is `:has(.foot)` and NOT the register attribute, for two reasons
+   and neither is style. It is the precondition itself — "make the body fill
+   the viewport so the footer is pushed to the bottom of it" is a statement
+   about a page that HAS a footer, and `debugLayout` renders none, so the
+   debugger's shell (already `height:100%;overflow:hidden`) cannot acquire a
+   second, contradictory one however the registers are later rearranged. And
+   this stylesheet is INLINED into every page, so a selector keyed on the
+   explorer register would carry that attribute's own text into the bytes of
+   the DEBUG page, where `test_debug_route` reads the served document to prove
+   the explorer register is gone — the same "naming it puts it back in the
+   served bytes" trap `debugger_css.nim` calls out at its narrow rules, which
+   is why this paragraph does not spell the attribute out either.
+
+   `.nav` is `position:fixed`, so making the body a flex column moves nothing
+   that was in flow except the two blocks this rule is about. */
+html:has(.foot){height:100%}
+body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
+
 /* ── layout primitives: ONE grid for the header and the body ────────────── */
 .inner{max-width:var(--bt-layout-container);margin:0 auto;padding:0 var(--bt-layout-gutter);width:100%}
 .sec{padding:var(--bt-rhythm-group) 0;position:relative}
-.pagebody{padding-top:calc(var(--bt-layout-nav-height) + var(--bt-rhythm-group))}
+/* `flex:1 0 auto` and not `1 1 auto`: the body takes the slack a short page
+   leaves, and never gives up height on a long one. */
+.pagebody{flex:1 0 auto;padding-top:calc(var(--bt-layout-nav-height) + var(--bt-rhythm-group))}
 .stack{margin-top:var(--bt-rhythm-stack)}
 .tight{margin-top:var(--bt-space-sm)}
 .group{margin-top:var(--bt-rhythm-group)}
@@ -186,7 +221,16 @@ code,.mono,.identifier{font-family:var(--bt-font-mono),var(--bt-font-mono-fallba
 /* ── definition grid (block / tx detail) ────────────────────────────────── */
 .dl{display:grid;grid-template-columns:var(--bt-layout-label-column) minmax(0,1fr);gap:0;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-lg);overflow:hidden;background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised)}
 .dl dt{padding:var(--bt-density-cell-y) var(--bt-density-cell-x);font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);line-height:var(--bt-space-lg);letter-spacing:var(--bt-type-label-tracking);text-transform:uppercase;color:var(--bt-text-muted);background:var(--bt-surface-sunken);border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
-.dl dd{padding:var(--bt-density-cell-y) var(--bt-density-cell-x);border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);min-width:0;word-break:break-all;font-size:var(--bt-type-body-sm-size);line-height:var(--bt-space-lg);font-variant-numeric:var(--bt-numeric-features)}
+/* `overflow-wrap:anywhere` and NOT `word-break:break-all`. Both stop a 66-char
+   hash from blowing out the value column, and `anywhere` is the one that also
+   contributes to min-content sizing, so the grid track is still sized as if
+   the break were available. The difference is what they do to PROSE, and this
+   list carries both: `break-all` breaks at whatever character the line ends on
+   whether or not the word would have fitted, which on /settings at 375px
+   produced "trace op / ens anonymously", "not yet i / mplemented", "nothing
+   switc / hed on" and "any other third part / y." in one screen. `anywhere`
+   breaks a word only when it cannot fit, which is the case the rule is for. */
+.dl dd{padding:var(--bt-density-cell-y) var(--bt-density-cell-x);border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);min-width:0;overflow-wrap:anywhere;font-size:var(--bt-type-body-sm-size);line-height:var(--bt-space-lg);font-variant-numeric:var(--bt-numeric-features)}
 .dl dd .identifier,.dl dd code{font-size:inherit;line-height:inherit}
 .dl dt:last-of-type,.dl dd:last-of-type{border-bottom:0}
 .dl dd a{color:var(--bt-text-link);text-decoration:underline;text-underline-offset:var(--bt-space-3xs);transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
@@ -387,7 +431,15 @@ table.tbl td .reason{white-space:normal;max-width:var(--bt-measure-narrow)}
      status instead, so the rule is reset at matching specificity. */
   table.txtbl tbody tr.reverted td.act,table.txtbl tbody tr.partial td.act{border-left:0}
   table.txtbl tbody tr.partial{border-color:var(--bt-status-warning-border)}
-  table.txtbl td .reason{margin-left:0;max-width:none}
+  /* A revert reason is prose containing one long unbreakable token — the
+     failing expression. As a flex item beside its badge it could not shrink
+     below that token's width, so at 375px "assert(did_survive_positive" and
+     "satisfied at src/main.nr:35" ran past the card's own border, which on a
+     REVERTED row is the red border that carries the status. `min-width:0`
+     lets the item shrink; `overflow-wrap:anywhere` gives the token somewhere
+     to break when it still does not fit. `max-width:none` is unchanged: the
+     44ch measure is for the desktop table's reason column. */
+  table.txtbl td .reason{margin-left:0;max-width:none;min-width:0;overflow-wrap:anywhere}
 }
 
 /* Breakpoints are written as literals because CSS cannot read a custom

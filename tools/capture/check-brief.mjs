@@ -14,7 +14,7 @@
 // markdown back off disk and greps it, and separately proves the markdown is
 // not stale with respect to its source.
 //
-// Six checks, each failing for a distinct reason:
+// Seven checks, each failing for a distinct reason:
 //
 //   A  every view in views.mjs has a block heading in the brief
 //   B  every block heading in the brief names a real view      (no orphans)
@@ -22,6 +22,7 @@
 //   D  the brief's generated section matches expectations.mjs  (not stale)
 //   E  every block names a spec anchor and a register          (traceable)
 //   F  no CLIPPED view inherits a full-viewport backbone       (in frame)
+//   G  every UNCLIPPED explorer view inherits `site-chrome`    (chrome graded)
 
 import { readFile } from "node:fs/promises";
 
@@ -135,7 +136,7 @@ async function main(argv) {
   // The rule is on the BACKBONE, not on the view id: any backbone listed in
   // VIEWPORT_BACKBONES states requirements about the whole viewport, so no
   // clipped view may inherit one, whatever it is called.
-  const VIEWPORT_BACKBONES = new Set(["debugger-shell"]);
+  const VIEWPORT_BACKBONES = new Set(["debugger-shell", "site-chrome"]);
   const clippedWithViewportBackbone = [];
   for (const view of VIEWS) {
     if (!view.clip) continue;
@@ -144,6 +145,33 @@ async function main(argv) {
       if (VIEWPORT_BACKBONES.has(key)) {
         clippedWithViewportBackbone.push({ view: view.id, backbone: key, clip: view.clip });
       }
+    }
+  }
+
+  // ── G. the site chrome is graded on every view that photographs it ──────
+  //
+  // F's converse, and it exists for the reason F exists in the other
+  // direction: `site-chrome` is the ONE backbone whose subject is the same
+  // object on every route rather than a property of one page, so whether a
+  // view inherits it is decided by the frame and not by an author's judgement.
+  // An unclipped explorer view photographs `pageLayout`'s whole shell — nav,
+  // body and the footer with the provenance strip in it — so its reviewers are
+  // looking at that strip whether or not anything asked them to grade it, and
+  // a block that omits the backbone is a block that collects six
+  // `expectedElements: present` verdicts about an element nobody was told to
+  // look for. That is exactly how the strip shipped ungraded.
+  //
+  // Deciding it here rather than by hand is what makes it survive: a route
+  // that lands (`status` flips to `ready`) and a view that loses its `clip:`
+  // are edits in views.mjs, and neither one would remind anybody to open
+  // expectations.mjs. This fails until they do.
+  const missingSiteChrome = [];
+  for (const view of VIEWS) {
+    if (view.register !== "explorer" || view.clip) continue;
+    const exp = EXPECTATIONS_BY_ID.get(view.id);
+    if (!exp) continue; // A already reports a view with no block at all
+    if (!(exp.inherits ?? []).includes("site-chrome")) {
+      missingSiteChrome.push(view.id);
     }
   }
 
@@ -187,6 +215,14 @@ async function main(argv) {
         `\n     use a clip-scoped backbone (e.g. 'debugger-pane') for these views.`,
     );
   }
+  if (missingSiteChrome.length) {
+    problems.push(
+      `G: ${missingSiteChrome.length} unclipped explorer view(s) do not inherit 'site-chrome' —\n` +
+        `     they photograph the site nav, footer and provenance strip, and no reviewer\n` +
+        `     is asked to grade any of it:\n` +
+        missingSiteChrome.map((id) => `     ${id}`).join("\n"),
+    );
+  }
 
   const summary = {
     check: "verify_brief_has_expectation_block_per_view",
@@ -199,6 +235,7 @@ async function main(argv) {
     briefStale: stale,
     untraceable,
     clippedWithViewportBackbone,
+    missingSiteChrome,
     ok: problems.length === 0,
   };
 
@@ -218,6 +255,10 @@ async function main(argv) {
     line(
       !clippedWithViewportBackbone.length,
       `F  no clipped view inherits a full-viewport backbone (${VIEWS.filter((v) => v.clip).length} clipped view(s))`,
+    );
+    line(
+      !missingSiteChrome.length,
+      `G  every unclipped explorer view inherits 'site-chrome' (${VIEWS.filter((v) => v.register === "explorer" && !v.clip).length} such view(s))`,
     );
     console.log("");
     if (problems.length) {

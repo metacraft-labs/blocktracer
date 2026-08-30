@@ -1149,7 +1149,19 @@ a.ctrow,a.evrow{cursor:pointer}
   border-radius:var(--bt-radius-lg);overflow:hidden;
   box-shadow:var(--bt-elevation-overlay);
   background:var(--bt-surface-canvas)}
-.livedemo .dbgmain{height:var(--bt-layout-code-max-height)}
+/* The embed caps the pane region's height, and it has to CLIP at that cap.
+   Below 1100px the narrow rules turn `.dbgmain` into an auto-height column
+   (`overflow:visible`, so a pane that outgrows its share paints outside the
+   box rather than scrolling inside it) — correct for the route, where the
+   shell scrolls, and wrong here, where `.livedemo .dbgmain` keeps the cap at
+   higher specificity. The stacked panes therefore overflowed the cap and
+   painted OVER `.livedemofoot`: at 375px "stopped mid-execution at step 128 of
+   1315" and the Call Trace pane's own title occupied the same pixels, and at
+   1024px the "Open the full session" button was under a pane with only the
+   word "sion" left of it. Clipping at the cap is what makes the embed a
+   bounded preview instead of a squeezed session; the button under it is the
+   way to the whole thing. */
+.livedemo .dbgmain{height:var(--bt-layout-code-max-height);overflow:hidden}
 .livedemofoot{display:flex;align-items:center;justify-content:space-between;
   gap:var(--bt-space-md);flex-wrap:wrap;
   padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
@@ -1249,6 +1261,37 @@ a.ctrow,a.evrow{cursor:pointer}
 @media (max-width:1320px){
   .dbgspacer{flex:0 0 100%;height:0}
   .dbgbar .dbglang{margin-left:auto}
+}
+/* Where the control group STOPS sharing the identity's row, the rule between
+   them stops separating anything. `.dbgctl`'s `border-left` and its left
+   padding exist to keep eight glyph buttons from abutting a hash; once the
+   group is the first thing on a row of its own, the same rule is a stray
+   vertical stroke at the row's left edge with nothing to its left — which is
+   the "reads as a rendering fault" class the rung above exists to remove,
+   surviving in the band below it. Re-measured on the widest published bar
+   (the reconstructed transaction, whose `Reconstructed` badge is 123px of
+   identity nobody may take away): with the rule drawn, the third row appears
+   at 1203px and not at 1204, so 1203 is the last width at which the stroke can
+   be stranded and the rung is that width exactly rather than a round number
+   above it.
+
+   Removing the stroke also removes the 24px of left padding it separates
+   with, and that MOVES the boundary the rung was measured against: without
+   them the two groups share a line down to 1179 instead of 1204. Both ends of
+   that are better than what they replace, which is why the feedback does not
+   argue for a lower rung. Over 1179..1203 the bar goes from three rows with a
+   stranded stroke to two rows with none — the separation is bought back by
+   the 24px gap `.dbgbar` already puts between its top-level groups, and a row
+   is worth more than a stroke. Over 1101..1178 the third row stays, because
+   at those widths the content genuinely does not fit either way, and only the
+   stroke leaves.
+
+   The declaration is the one `max-width:1100px` already applies for the same
+   reason; this rung only starts it earlier, where the geometry that justifies
+   it starts. The narrow session below 1100 keeps its own copy because it
+   removes different things and must not depend on this rung. */
+@media (max-width:1203px){
+  .dbgbar .dbgctl{border-left:0;padding-left:0}
 }
 @media (max-width:1100px){
   /* Every flex box above turns from "share a fixed viewport" into "be as tall
