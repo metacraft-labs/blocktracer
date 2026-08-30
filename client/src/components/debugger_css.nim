@@ -582,13 +582,21 @@ html[data-register="debugger"],
    cut. `flow_view.planElision` decides what fits and counts what does not; this
    is only how the count looks and where it sits.
 
-   STICKY, and that is the half that fixes the defect. The pill is a child of
-   `.srcline`, whose box spans the whole scrolled width of the listing, so it is
-   held inside the pane even on a line whose code alone overruns it — which is
-   exactly the line whose values were all dropped and whose reader most needs to
-   be told so. `right` is `--bt-space-2xl` and not `0` because `.src` fades its
-   last `--bt-space-2xl` under a mask: a pill pinned to the true edge would be
-   pinned into the fade and would be a count rendered half-transparent.
+   IT IS NOT STICKY, and that is a correction rather than an omission. It was,
+   for one revision, pinned to the right of the scrollport so that a line whose
+   code overran the pane still showed its count. What that actually did was land
+   the chip in the MIDDLE of the visible code — the pane's right edge is nowhere
+   near the end of such a line — and the composite read as a token the program
+   does not contain: `initial_shield` under a `+3` renders as `initial_sh+3ld`.
+   Measured at 1440 over the demo session: 82 collisions, most mid-identifier.
+   A count that changes what the source says is worse than a count nobody sees.
+
+   So a pill is placed by ARITHMETIC and not by a positioning behaviour.
+   `flow_view.planElision` computes whether the row has room for it in the same
+   units it budgeted the values in — the pane's own width, via the container
+   query below — and where it has not, the pill goes on `.fvrow` beneath the
+   line, where there is no code to cover. Neither placement can leave the pane,
+   and neither overdraws.
 
    It reads as a COUNT and not as a value: the border is dashed where every
    label's is solid, and it takes the subtle foreground rather than any of the
@@ -598,18 +606,34 @@ html[data-register="debugger"],
    this route has already removed twice; the full list travels on `title`
    instead, which is what a static document can honestly offer.
 
-   And it reads as something ON TOP of the listing rather than in it, which is
-   the whole reason it takes the OVERLAY surface and a raised shadow where a
-   value chip takes the sunken one. Pinned, it lands over the tail of a line
-   that was already scrolling off — 24px of it at the worst measured — and a
-   count sharing the code's own surface at that position would read as part of
-   the source text it is sitting on. The code under it is not lost: scroll the
-   listing and the pill un-pins, because that is what `position:sticky` does
-   once the line has moved far enough to hold it. */
+   It keeps the overlay surface it was given when it could overlap, because it
+   still sits at the end of a run of value chips and has to be separable from
+   them at a glance — but it no longer needs a shadow to survive being on top of
+   something, because it is never on top of anything. */
 .fv.fvmore{border-style:dashed;color:var(--bt-text-subtle);
-  border-color:var(--bt-border-strong);background:var(--bt-surface-overlay);
-  box-shadow:var(--bt-elevation-raised);
-  position:sticky;right:var(--bt-space-2xl)}
+  border-color:var(--bt-border-strong);background:var(--bt-surface-overlay)}
+/* The row a count takes when it cannot share its line's own.
+
+   RIGHT-ALIGNED, and stopping `--bt-space-2xl` short of the edge, which is the
+   width of `.src`'s own fade mask. That puts it in the same column as every
+   count that DID fit beside its line, so "the counts are over there" holds
+   whichever row a reader is looking at — a stacked pill aligned under the code
+   instead would put the same mark in two places depending on how long the line
+   above happened to be.
+
+   It hugs the line above rather than sitting on the listing's own rhythm: a
+   label line-height, not a code one. The pair reads as one row that needed two,
+   which is what it is.
+
+   No `min-width:max-content`, unlike `.srcline`: there is no code in this row
+   to keep aligned across the scrolled width, and a row as wide as the widest
+   line would only give the pane more to scroll. It scrolls out of view to the
+   left when the listing is scrolled right, exactly as the line numbers beside
+   it do. */
+.fvrow{align-items:baseline;justify-content:flex-end;
+  gap:var(--bt-space-2xs);
+  line-height:var(--bt-type-label-line);
+  padding:0 var(--bt-space-2xl) var(--bt-space-3xs) var(--bt-density-cell-x)}
 /* One page is served to every viewport, so the count is computed per width
    regime and the regimes are switched here — see `valueWidthRegimes`, which
    generates the queries from the same constant the arithmetic reads. */
@@ -1513,15 +1537,22 @@ func valueWidthRegimes(): string =
   ## widths nobody measured, including whatever the panes resolve to after the
   ## next layout change.
   ##
-  ## ## Two families, because a floor and a band are different claims
+  ## ## Three families, because a floor, a band and a row are different claims
   ##
   ## `fvw<n>` is a label, and a label kept at a narrower pane is still kept at a
   ## wider one, so it is `min-width` and it stays on above its own rung.
-  ## `fvr<first><last>` is a count, and a count can stop being true as the pane
-  ## grows — the wider pane fits more and drops fewer — so it is turned on at
-  ## `first`'s rung and off again above `last`'s. Regime 0 has no label class,
-  ## because a label drawn everywhere needs no wrapper at all; it does have
-  ## count classes, because "+3 below 1101px" is as much a claim as any other.
+  ## `fvr<first><last>` is an INLINE count, and a count can stop being true as
+  ## the pane grows — the wider pane fits more and drops fewer — so it is turned
+  ## on at `first`'s rung and off again above `last`'s. Regime 0 has no label
+  ## class, because a label drawn everywhere needs no wrapper at all; it does
+  ## have count classes, because "+3 below 1101px" is as much a claim as any
+  ## other.
+  ##
+  ## `fvs<first><last>` is the same band for a count that had to leave its line,
+  ## and it exists separately because it gates a different kind of box. An
+  ## inline count's wrapper must generate NO box, so the chip itself is the flex
+  ## item on the code's row; a stacked count's wrapper IS the row. `contents`
+  ## and `flex` are the two answers and one class family cannot hold both.
   ##
   ## ## Why `display:contents`
   ##
@@ -1533,26 +1564,36 @@ func valueWidthRegimes(): string =
   ## ladder answers "which pass is on screen", and neither can overrule the
   ## other by accident.
   var off: seq[string] = @[]
-  var on: seq[string] = @[]
+  var onContents: seq[string] = @[]
+  var onRows: seq[string] = @[]
   for first in 0 ..< ValueWidthBuckets:
     for last in first ..< ValueWidthBuckets:
-      let sel = "." & widthBandClass(first, last)
-      if first == 0: on.add sel else: off.add sel
+      if first == 0:
+        onContents.add "." & widthBandClass(first, last)
+        onRows.add "." & widthRowClass(first, last)
+      else:
+        off.add "." & widthBandClass(first, last)
+        off.add "." & widthRowClass(first, last)
   for b in 1 ..< ValueWidthBuckets:
     off.add "." & widthFromClass(b)
-  result.add on.join(",") & "{display:contents}\n"
+  result.add onContents.join(",") & "{display:contents}\n"
+  result.add onRows.join(",") & "{display:flex}\n"
   result.add off.join(",") & "{display:none}\n"
   for b in 1 ..< ValueWidthBuckets:
     var opens: seq[string] = @[]
+    var openRows: seq[string] = @[]
     var closes: seq[string] = @[]
     for last in b ..< ValueWidthBuckets:
       opens.add "  ." & widthBandClass(b, last)
+      openRows.add "  ." & widthRowClass(b, last)
     for first in 0 ..< b:
       closes.add "  ." & widthBandClass(first, b - 1)
+      closes.add "  ." & widthRowClass(first, b - 1)
     result.add "@container (min-width:" & $ValueBucketPanePx[b] & "px){\n"
     result.add "  ." & widthFromClass(b) & "{display:contents}\n"
     result.add closes.join(",\n") & "{display:none}\n"
     result.add opens.join(",\n") & "{display:contents}\n"
+    result.add openRows.join(",\n") & "{display:flex}\n"
     result.add "}\n"
 
 const debugRouteCss* = debugRouteBaseCss & """

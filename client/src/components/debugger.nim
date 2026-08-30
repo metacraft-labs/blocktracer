@@ -187,6 +187,19 @@ func tokenClass*(k: TokenKind): string =
 
 # ── omniscience: the recorded values, beside the code ──────────────────────
 
+proc pill(e: LineElision; selected: int): string =
+  ## One `+N` chip. Shared by the two placements, so an inline count and a
+  ## stacked one cannot come to say different things or read differently.
+  let now = (if e.iteration < 0 or e.iteration == selected: " now" else: "")
+  ui:
+    # It carries `.fv` as well as `.fvmore`, so the iteration ladder moves it
+    # with the values it is a statement about — with no rung of its own to keep
+    # in step, and no way for a count from one pass to be left standing beside
+    # another pass's labels.
+    span(class = "fv fvmore " & iterationClass(e.iteration) & now,
+         title = elisionTitle(e)):
+      text "+" & $e.count
+
 proc renderAnnotations*(annotations: seq[LineAnnotation];
                         elisions: seq[LineElision];
                         selected: int): string =
@@ -229,16 +242,25 @@ proc renderAnnotations*(annotations: seq[LineAnnotation];
   ## label the reader could never have read is not information the markup owes
   ## them — but the fact that it exists is, which is the pill's whole job.
   ##
-  ## ## Why the pill is not inside `.ann`
+  ## ## Where a pill goes, and why only two answers are allowed
   ##
-  ## It is a sibling of it, and that is load-bearing rather than tidy. The pill
-  ## is `position:sticky`, so it stays inside the pane on exactly the lines that
-  ## most need it — the ones whose CODE already runs past the right edge, where
-  ## `.ann` begins off-screen and everything in it is unreachable. A sticky box
-  ## is held inside its containing block, so a pill inside `.ann` would be
-  ## pinned to a run that is itself off-screen and would go with it. As a child
-  ## of `.srcline`, whose box spans the full scrolled width of the listing, it
-  ## has the whole line to be pinned within.
+  ## Beside the values, when `planElision` says the row has room for it — which
+  ## it computed in the same arithmetic that decided the values, so an inline
+  ## pill is inside the pane by construction rather than by a positioning
+  ## behaviour that might rescue it.
+  ##
+  ## Otherwise on a row of its own, `renderElisionRows` below. There is no third
+  ## answer, and in particular the pill is never allowed to be drawn ON the code
+  ## in order to stay in view. That WAS the third answer for one revision — a
+  ## `position:sticky` chip pinned to the right of the scrollport — and it was
+  ## wrong in a way the first measurement of it missed. It looked like a chip
+  ## sitting over the tail of a line that was scrolling away; what it actually
+  ## did, on every line whose code overruns the pane, was land in the MIDDLE of
+  ## the visible text, because the pane's right edge is nowhere near the end of
+  ## such a line. Measured at 1440 over the demo session: 82 collisions, most of
+  ## them mid-identifier, of which `initial_shield` under a `+3` rendering as
+  ## `initial_sh+3ld` is the shape of the whole problem. A count that changes
+  ## what the source says is worse than a count nobody can see.
   proc chip(a: LineAnnotation): string =
     let now = (if a.iteration < 0 or a.iteration == selected: " now" else: "")
     ui:
@@ -270,23 +292,10 @@ proc renderAnnotations*(annotations: seq[LineAnnotation];
         else:
           span(class = "fvv"): text a.beforeValue
 
-  proc pill(e: LineElision): string =
-    let now = (if e.iteration < 0 or e.iteration == selected: " now" else: "")
-    ui:
-      span(class = widthBandClass(e.bucket, e.lastBucket)):
-        # It carries `.fv` as well as `.fvmore`, so the iteration ladder moves
-        # it with the values it is a statement about — with no rung of its own
-        # to keep in step, and no way for a count from one pass to be left
-        # standing beside another pass's labels.
-        span(class = "fv fvmore " & iterationClass(e.iteration) & now,
-             title = elisionTitle(e)):
-          text "+" & $e.count
-
-  # Assembled by concatenation rather than as one `ui:` block with two roots.
-  # A `ui:` block with more than one top-level element wraps them in a `div`,
-  # and that `div` would be the flex item — which puts a box between the pill
-  # and `.srcline` and takes away exactly the containing block the pill's
-  # `position:sticky` needs to stay inside the pane.
+  # Assembled by concatenation rather than as one `ui:` block with two roots: a
+  # `ui:` block with more than one top-level element wraps them in a `div`, and
+  # that `div` would become the flex item — a box between the pill and
+  # `.srcline` that neither of them asked for.
   result = ui:
     span(class = "ann"):
       for a in annotations:
@@ -296,8 +305,52 @@ proc renderAnnotations*(annotations: seq[LineAnnotation];
           raw chip(a)
         else:
           span(class = gate): raw chip(a)
+  proc inlinePill(e: LineElision): string =
+    ui:
+      span(class = widthBandClass(e.bucket, e.lastBucket)):
+        raw pill(e, selected)
+
   for e in elisions:
-    result.add pill(e)
+    if e.stacked: continue
+    result.add inlinePill(e)
+
+proc renderElisionRows*(elisions: seq[LineElision]; selected: int): string =
+  ## The rows a line's counts take when they cannot share the line.
+  ##
+  ## Emitted AFTER `.srcline` and not inside it, because `.srcline` is a flex
+  ## row that is `min-width:max-content` wide, and a flex container sized to its
+  ## own single-line content never wraps: an item asking for a line of its own
+  ## in there just makes the line wider. A sibling block gets a row because
+  ## block layout gives it one, with nothing to arrange around and nothing to
+  ## overlap.
+  ##
+  ## ## One row per REGIME, holding every pass's count
+  ##
+  ## Not one row per pass. The rail shows one pass at a time, so per-pass rows
+  ## would leave the other passes' rows on screen and empty — a listing with
+  ## blank lines in it that appear and disappear as the rail moves. `planElision`
+  ## merges its bands over the whole LINE so that every pill sharing a regime
+  ## shares a band, which is what lets them share one row here; the chips inside
+  ## carry their own iteration classes and the ladder shows one, exactly as it
+  ## does on the code's own row.
+  ##
+  ## The row is gated by `widthRowClass` and nothing else, so at any pane width a
+  ## line contributes at most one of them, and at widths where its counts fit
+  ## beside the code it contributes none.
+  proc row(first, last: int): string =
+    ui:
+      tdiv(class = "fvrow " & widthRowClass(first, last)):
+        for e in elisions:
+          if not e.stacked: continue
+          if e.bucket != first or e.lastBucket != last: continue
+          raw pill(e, selected)
+
+  var bands: seq[(int, int)] = @[]
+  for e in elisions:
+    if not e.stacked: continue
+    if (e.bucket, e.lastBucket) notin bands: bands.add (e.bucket, e.lastBucket)
+  for band in bands:
+    result.add row(band[0], band[1])
 
 proc renderFlowRail*(rail: FlowRail): string =
   ## The loop-iteration control: `[Iteration: 3/8]` and a track.
@@ -557,6 +610,13 @@ proc renderSource*(p: EditorPane): string =
             # line where saying it matters most.
             if ln.annotations.len > 0 or ln.elisions.len > 0:
               raw renderAnnotations(ln.annotations, ln.elisions, p.flow.selected)
+          # …and, AFTER the row, the counts that could not fit on it. Outside
+          # `.srcline` because `.srcline` is a `min-width:max-content` flex row,
+          # which never wraps — an item asking for a line of its own in there
+          # only makes the row wider. See `renderElisionRows`. Emits nothing at
+          # all for a line whose counts fit beside it, which is most of them.
+          if ln.elisions.len > 0:
+            raw renderElisionRows(ln.elisions, p.flow.selected)
 
   # The ACTIVE document is emitted LAST so that `.srcdoc.alt:target` can reach
   # forward and hide it. CSS has only a forward sibling combinator, and the

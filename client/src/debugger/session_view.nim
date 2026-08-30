@@ -291,6 +291,18 @@ type
       ## counts cannot be separated by a different one.
     count*: int       ## N. What `+N` says, and what `hidden` lists.
     hidden*: string   ## those N labels in full, for the pill's `title`
+    stacked*: bool
+      ## The pill does not fit on its line's own row and takes a row beneath it.
+      ##
+      ## True exactly where the CODE has already taken the row — where the pill
+      ## would have to be drawn over source text to be drawn at all. It is not a
+      ## style: a count laid over an identifier does not merely look crowded, it
+      ## produces a composite that reads as a different token (`initial_sh+3ld`
+      ## was the measured one), which is a page inventing a glyph the program
+      ## does not contain. Below the line the pill covers nothing.
+      ##
+      ## Decided per REGIME and not per pass, so that a line's rows do not
+      ## change height as the iteration rail moves.
 
 func annotationText*(a: LineAnnotation): string =
   ## The label as one string — the plain-text form of the three renderings.
@@ -342,6 +354,18 @@ func widthFromClass*(bucket: int): string =
   ## the chip exists on this viewport, and the ladder goes on deciding, for the
   ## chips that do, which pass is on screen. The two never meet.
   if bucket <= 0: "" else: "fvw" & $bucket
+
+func widthRowClass*(first, last: int): string =
+  ## The class that gates a STACKED pill's own row to a band of pane widths.
+  ##
+  ## A third family, and not a reuse of `widthBandClass`, because the two gate
+  ## different boxes and therefore need different `display` values: an inline
+  ## pill's wrapper must generate no box at all (`display:contents`) so the chip
+  ## itself is the flex item on the code's row, while a stacked pill's row is a
+  ## BLOCK — that is the whole of what makes it a row. One class family cannot
+  ## carry both answers, and the version that tried made the row a flex item on
+  ## the row it was supposed to be underneath.
+  "fvs" & $first & $last
 
 func widthBandClass*(first, last: int): string =
   ## The class that carries "drawn from this pane-width regime to that one".

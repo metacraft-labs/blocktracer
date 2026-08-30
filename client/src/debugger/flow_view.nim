@@ -340,10 +340,24 @@ func fitCount(widths: seq[float]; budget: float): int =
     if k < widths.len: need += PillGapPx + pillWidthPx(widths.len - k)
     if need <= budget: result = k
 
-func runWidthPx(widths: seq[float]; count: int): float =
+func runWidthPx*(widths: seq[float]; count: int): float =
   for i in 0 ..< count:
     if i > 0: result += LabelGapPx
     result += widths[i]
+
+func pillFitsInline*(drawnPx: float; count: int; budget: float): bool =
+  ## Whether a `+count` pill can sit at the end of a row that is already
+  ## carrying `drawnPx` of value chips. **Rule 6's whole test.**
+  ##
+  ## `fitCount` reserved room for the pill whenever it kept a label, so this can
+  ## only answer no where it kept none — on a line whose CODE has taken the row
+  ## by itself. There the pill has nowhere to go that is not on top of source
+  ## text, and `LineElision.stacked` sends it below the line instead.
+  ##
+  ## Exported because it is the rule a test has to be able to check: an inline
+  ## pill must be one that PROVABLY fits, and "provably" means against this
+  ## expression rather than against a second copy of it that agrees today.
+  drawnPx + PillGapPx + pillWidthPx(count) <= budget
 
 proc planElision*(annotations: var seq[LineAnnotation];
                   codeText: string): seq[LineElision] =
@@ -379,6 +393,8 @@ proc planElision*(annotations: var seq[LineAnnotation];
     order.insert(NoIteration, 0)
 
   var reserved: array[ValueWidthBuckets, float]  ## what `NoIteration` occupies
+  var dropped = initTable[int, array[ValueWidthBuckets, seq[string]]]()
+  var fits = initTable[int, array[ValueWidthBuckets, bool]]()
 
   for key in order:
     # Priority order inside the group, source order inside a priority — a
@@ -426,7 +442,8 @@ proc planElision*(annotations: var seq[LineAnnotation];
       for b in 0 ..< ValueWidthBuckets:
         reserved[b] = runWidthPx(widths, kept[b])
 
-    var dropped: array[ValueWidthBuckets, seq[string]]
+    var missingAt: array[ValueWidthBuckets, seq[string]]
+    var fitsAt: array[ValueWidthBuckets, bool]
     for b in 0 ..< ValueWidthBuckets:
       # Listed in SOURCE order, not in the order they were given up: the pill's
       # list is read as "the other values on this row", and a row's values read
@@ -434,26 +451,56 @@ proc planElision*(annotations: var seq[LineAnnotation];
       for idx in groups[key]:
         if annotations[idx].bucket == ElidedEverywhere or
            annotations[idx].bucket > b:
-          dropped[b].add annotationText(annotations[idx])
+          missingAt[b].add annotationText(annotations[idx])
+      # Rule 6. Does the pill fit on the row, after the labels that did?
+      #
+      # `fitCount` reserved room for it whenever it kept anything, so this can
+      # only be false where it kept NOTHING — a line whose code alone has
+      # already taken the row. There the answer is not to draw the pill anyway.
+      fitsAt[b] = pillFitsInline(runWidthPx(widths, kept[b]),
+                                 max(missingAt[b].len, 1), budgets[b])
+    dropped[key] = missingAt
+    fits[key] = fitsAt
 
-    # One pill per RUN of regimes that drop the same values, not one per regime.
-    var b = 0
-    while b < ValueWidthBuckets:
-      if dropped[b].len == 0:
-        inc b
-        continue
-      var last = b
-      while last + 1 < ValueWidthBuckets and dropped[last + 1] == dropped[b]:
-        inc last
-      # `count` is `dropped[b].len` and not `ranked.len - kept[b]`, which is the
-      # same number by construction. The point of taking it from the list is
-      # that it CANNOT stop being the same number: what `+N` says and what the
-      # pill hands over are then one value read twice, and no later edit can
+  # ── Rule 6, continued: one placement per REGIME, not one per pass ─────────
+  #
+  # A stacked pill leaves the row it belongs to and takes a row of its own, and
+  # a row is a fact about the LINE: if one pass's count has to go below, they
+  # all do. Passes are shown one at a time, so pills that disagreed about this
+  # would make the listing's rows change height as the rail moved — the same
+  # line taller in pass 1 than in pass 3, for a reason nothing on screen states.
+  var stacked: array[ValueWidthBuckets, bool]
+  for b in 0 ..< ValueWidthBuckets:
+    for key in order:
+      if dropped[key][b].len > 0 and not fits[key][b]:
+        stacked[b] = true
+
+  # One pill per RUN of regimes with the same answer — the same counts AND the
+  # same placement. Merged over the whole LINE rather than per pass, so that
+  # every pill sharing a regime shares a band, and the stacked ones can be
+  # collected into ONE row per band instead of one row per pass.
+  var b = 0
+  while b < ValueWidthBuckets:
+    var last = b
+    while last + 1 < ValueWidthBuckets and stacked[last + 1] == stacked[b] and
+          (block:
+            var same = true
+            for key in order:
+              if dropped[key][last + 1] != dropped[key][b]: same = false
+            same):
+      inc last
+    for key in order:
+      if dropped[key][b].len == 0: continue
+      # `count` is `dropped[key][b].len` and not `ranked.len - kept[b]`, which
+      # is the same number by construction. The point of taking it from the list
+      # is that it CANNOT stop being the same number: what `+N` says and what
+      # the pill hands over are then one value read twice, and no later edit can
       # make the count drift from the thing it counts.
       result.add LineElision(iteration: key, bucket: b, lastBucket: last,
-                             count: dropped[b].len,
-                             hidden: dropped[b].join("\n"))
-      b = last + 1
+                             stacked: stacked[b],
+                             count: dropped[key][b].len,
+                             hidden: dropped[key][b].join("\n"))
+    b = last + 1
 
 # ---------------------------------------------------------------------------
 # The whole overlay

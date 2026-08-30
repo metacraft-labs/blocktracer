@@ -1237,7 +1237,8 @@ export const EXPECTATIONS = [
       "That mark reading as a statement about the EXECUTION, not as a disabled control. The line is still fully readable code — dimmed, not greyed out — and the gutter carries a mark rather than merely losing one.",
       "A counted `+N` pill on the rows whose values do not all fit beside them — `Debugger-UX-Research.md` row 9's counted elision. Every value on this pane is either drawn in full or counted by one of these; nothing is cut silently. A reviewer should be able to say, for any annotated row, how many values it recorded.",
       "Every `+N` pill wholly inside the pane, including on the rows whose CODE already runs past the right edge — those are the rows with the most to withhold, and a count that scrolled away with them would be the defect it exists to report.",
-      "The pill reading as a COUNT and not as a value: dashed border where a value's is solid, no value colour, and sitting visibly ON TOP of the listing where it overlaps a long line rather than inside the code's own surface.",
+      "The pill reading as a COUNT and not as a value: dashed border where a value's is solid, and no value colour.",
+      "Counts in ONE column, at the right of the listing, whether they sit beside their line or on a row of their own beneath it. A row of one's own is what a line whose code fills the pane gets; a reviewer should be able to say which line such a count belongs to.",
     ],
     mustNotShow: [
       "Two passes' values on one line at once. Every label on screen belongs to the pass the rail names; a line carrying `remaining_shield` twice with different values would be the overlay reporting two moments as one.",
@@ -1250,6 +1251,8 @@ export const EXPECTATIONS = [
       "The label colour colliding with the syntax palette so that a value reads as a token of the code.",
       "A `+N` pill styled as a button, a link or anything else that invites a click. The page ships no script and cannot expand it; the full list is on the element's `title` and nothing on screen may promise more than that.",
       "A `+0`, or a pill on a row whose values all fit. A row with nothing withheld says so by carrying no pill.",
+      "A pill drawn ON a line of code. This is the specific defect the stacked row exists to prevent: a count landing mid-identifier produces a composite that reads as a token the program does not contain (`initial_shield` under a `+3` reading as `initial_sh+3ld`), which is the page inventing source text. Anything that looks like a chip sitting in the middle of a line is this, and is a finding.",
+      "A count's own row mistakable for a line of the program. It carries no line number and no gutter marker, and it must not read as source that has lost its number.",
     ],
     watchFor: [
       "Density. This is the highest information density anywhere in the product — code, gutter, execution markers and up to five value labels on one row — and it is the case most likely to collapse into an undifferentiated stripe. Say whether the row still has a readable structure.",

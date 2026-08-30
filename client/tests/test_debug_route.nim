@@ -1845,6 +1845,57 @@ suite "Omniscience — the recorded values, against the real zk_shields trace":
             if b >= e.bucket and b <= e.lastBucket: counted += e.count
           check counted == missing
 
+  test "a count is never placed where the code already is":
+    # The defect this rule exists for was found in a browser, not here: a pill
+    # pinned to the right of the scrollport landed in the MIDDLE of any line
+    # whose code overruns the pane, and `initial_shield` under a `+3` rendered
+    # as `initial_sh+3ld` — a composite that reads as a token the program does
+    # not contain. 82 of them at 1440 over this session.
+    #
+    # So an INLINE pill must be one that provably fits on its row, checked
+    # against `pillFitsInline` itself rather than a restatement of it, and
+    # anything else must have been sent to a row of its own.
+    let pane = flowPane()
+    var inlineSeen = 0
+    var stackedSeen = 0
+    for d in pane.documents:
+      for ln in d.lines:
+        for e in ln.elisions:
+          for b in e.bucket .. e.lastBucket:
+            var drawn = 0.0
+            var n = 0
+            for a in ln.annotations:
+              if a.iteration != e.iteration: continue
+              if a.bucket == ElidedEverywhere or a.bucket > b: continue
+              if n > 0: drawn += 4.0          # `.ann`'s --bt-space-2xs gap
+              drawn += labelWidthPx(a)
+              inc n
+            if not e.stacked:
+              check pillFitsInline(drawn, e.count, valueBudgetPx(b, ln.text))
+          if e.stacked: inc stackedSeen else: inc inlineSeen
+    # Both placements have to be exercised or the check above is vacuous: the
+    # session must contain lines whose counts fit beside them AND lines whose
+    # code has taken the row.
+    check inlineSeen > 0
+    check stackedSeen > 0
+
+  test "a line's rows do not change height as the rail moves":
+    # A stacked pill takes a row, and a row is a fact about the LINE. If one
+    # pass's count went below the line and another's stayed beside it, the
+    # listing would reflow every time the iteration rail moved — the same line
+    # one row tall in pass 3 and two in pass 1, for a reason nothing on screen
+    # states. So within one width regime, every one of a line's counts agrees
+    # about where it goes.
+    let pane = flowPane()
+    for d in pane.documents:
+      for ln in d.lines:
+        for b in 0 ..< ValueWidthBuckets:
+          var placements: seq[bool] = @[]
+          for e in ln.elisions:
+            if b < e.bucket or b > e.lastBucket: continue
+            if e.stacked notin placements: placements.add e.stacked
+          check placements.len <= 1
+
   test "a value is never given a width regime the pane cannot honour":
     # The budget is what stops a label being drawn where it cannot be read, so
     # it must be the pane's own arithmetic and not a guess: at the regime a
