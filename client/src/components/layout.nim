@@ -76,28 +76,56 @@ proc hydrationScriptTag(): string =
   ## The `<script defer>` for the hydration bundle: a proc that returns a
   ## STRING, never a top-level `if` inside `ui:`.
   ##
-  ## `ui:` renders a top-level `if` as NOTHING — the SSR codegen returns nil
-  ## for a node that is not a call. M9 met this in `debugCell`, where it
-  ## silently emitted `<td class="act"></td>` for every row and removed the
-  ## Debug affordance from the product. It was met again here: the bundle was
-  ## built and served at /assets/hydrate.js, the flake passed
-  ## `-d:hydrationBundle=…`, and no page ever referenced it, so every deployed
-  ## session was a still frame with its controls waiting on an engine nothing
-  ## would load. Both are the same defect in the same construct.
+  ## `ui:` renders a top-level `if` as NOTHING — `uiSsrImpl` sends each
+  ## top-level node through `ssrNodeExpr`, which returns nil for anything that
+  ## is not a call, and a nil is simply not concatenated. M9 met this in
+  ## `debugCell`, where it silently emitted `<td class="act"></td>` for every
+  ## row and removed the Debug affordance from the product. That precedent is
+  ## real, and it is why this proc returns a STRING.
   ##
   ## Written the other way round — a proc that returns "" when there is no
   ## bundle — it cannot fail silently: the empty string is a value the caller
   ## must place, not a node the codegen can drop.
   ##
   ## The *guard* is what has to stay out of `ui:`; the *tag* does not, and
-  ## hand-concatenating it was a second defect on top of the first. A string
-  ## spliced through `raw` is markup the isonim DSL never sees, so the token
-  ## layer cannot reach it and `tools/design/check-tokens.mjs` A7 cannot scan
-  ## it — the rule exists precisely so no attribute or value hides in one.
-  ## Inside the proc the `if` has already returned, so the `ui:` body is a
-  ## single element call, which is the shape the SSR codegen renders. The
-  ## emitted attribute is `defer=""`, which HTML defines as identical to a
-  ## bare `defer` for a boolean attribute.
+  ## hand-concatenating it was a defect of its own. A string spliced through
+  ## `raw` is markup the isonim DSL never sees, so the token layer cannot reach
+  ## it and `tools/design/check-tokens.mjs` A7 cannot scan it — the rule exists
+  ## precisely so no attribute or value hides in one. Inside the proc the `if`
+  ## has already returned, so the `ui:` body is a single element call, which is
+  ## the shape the SSR codegen renders. The emitted attribute is `defer=""`,
+  ## which HTML defines as identical to a bare `defer` for a boolean attribute.
+  ##
+  ## CORRECTION, 2026-08-30. This proc was introduced by 9f551ec, whose message
+  ## — and the first version of this comment, and a4e1606 — said the hydration
+  ## tag had been lost to that same construct. It had not. The claim is
+  ## withdrawn; the construct above is still worth avoiding, but it is not what
+  ## happened here.
+  ##
+  ## The pre-9f551ec `if HydrationBundle.len > 0:` was nested under `body:`,
+  ## not at the `ui:` body's top level, and a nested `if` never reaches
+  ## `ssrNodeExpr` — it goes through `ssrChildrenExpr`, which has rendered
+  ## `nnkIfStmt` branches into an if-expression since isonim 2026-04-07,
+  ## including in the rev this repo pins (2a24d95, byte-identical to the
+  ## sibling checkout across that region). The old form emitted the tag.
+  ##
+  ## Measured on the deployed bytes rather than argued. The live promotion of
+  ## 5d1e44a — the deploy that was fetched, and that started the investigation
+  ## — is still retrievable, and every debug and transaction page it served
+  ## ends with
+  ##     <script src="/assets/hydrate.js" defer="defer"></script>
+  ## and the bundle it names is served next to it. What that deploy did NOT
+  ## serve is /replay-engine/worker.js, which 404'd; that is what left every
+  ## session a still frame with its controls waiting on an engine nothing would
+  ## load, and 0cb840e is the commit that actually fixed it, by publishing the
+  ## engine and asserting it on the bytes about to be uploaded. The page that
+  ## genuinely carries no script tag is the home page, and that is by design:
+  ## `pageLayout` deliberately has none.
+  ##
+  ## So this proc keeps its shape on its own merits — it is the form that
+  ## cannot fail silently, and M9 proves the failure mode is not hypothetical —
+  ## but it did not restore a live session, and nobody should undo the engine
+  ## step believing this one replaced it.
   if HydrationBundle.len == 0: return ""
   ui:
     script(src = HydrationBundle, `defer` = "")

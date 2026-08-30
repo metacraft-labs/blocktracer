@@ -2,22 +2,29 @@
 ##
 ## Why this file exists, and why it is compiled twice.
 ##
-## `debugLayout` built the tag as a top-level `if` inside a `ui:` block. `ui:`
-## renders a top-level `if` as NOTHING — the SSR codegen returns nil for a node
-## that is not a call — so the tag was silently dropped. The bundle was built,
-## deployed and served at /assets/hydrate.js, and no page referenced it: every
-## session on blocktracer.org was a still frame whose controls waited on an
-## engine nothing would ever load.
-##
-## M9 met the identical defect in `debugCell`, where it emitted
-## `<td class="act"></td>` for every row and removed the Debug affordance from
-## the product. Same construct, same silent drop, twice.
-##
 ## The existing suites assert the EMPTY case — a build with no bundle emits no
 ## executable script — and three of them say in prose what a build WITH one
 ## would emit. None of them checked. An assertion about the absence of a thing
 ## cannot catch a defect that makes the thing always absent, which is exactly
-## the shape this project has now found seven times.
+## the shape this project has now found seven times. So this file compiles
+## under `-d:hydrationBundle=…` and asserts the tag is PRESENT, which is the
+## one direction nothing else covers.
+##
+## CORRECTION, 2026-08-30. This file was added by 9f551ec, which said the tag
+## had been dropped by a top-level `if` inside a `ui:` block — the construct
+## that cost M9 its `debugCell` Debug affordance. That is a real defect of the
+## SSR codegen, and `components/layout.hydrationScriptTag` is still written to
+## be immune to it, but it is NOT what happened here: the `if` in question was
+## nested under `body:`, where `ssrChildrenExpr` renders it correctly, and the
+## deploy that was diagnosed did serve
+## `<script src="/assets/hydrate.js" defer="defer"></script>` on every debug
+## and transaction page. The production symptom — sessions frozen with their
+## controls waiting on an engine — came from /replay-engine/worker.js 404ing,
+## and 0cb840e fixed that. See the correction in `layout.nim` for the evidence.
+##
+## The test stays regardless of which cause was real. It is the only assertion
+## in the tree that a declared bundle is actually referenced, and the gap it
+## covers is genuine even though the incident that prompted it was misread.
 ##
 ## Run under `-d:hydrationBundle=…` by `just test-hydration-tag`.
 

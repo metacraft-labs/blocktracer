@@ -216,6 +216,68 @@ jobs:
                       grep -oE '[0-9_]+$' | tr -d '_')"
           echo "engine wasm: vendored ${actual} bytes; page declares ${declared:-<unknown>}"
 
+      - name: Verify every script a published page asks for was published
+        # The general form of the step above. `/replay-engine/` was one asset
+        # the pages referenced and the publish dir did not contain; the
+        # hydration bundle is another that nothing checks, and a `-d:` flag or
+        # a build step that stops running would make the pages name a
+        # `/assets/hydrate.js` that is not there — served, a session that never
+        # becomes live. Neither the Nim suites nor the design gate can see this:
+        # they grade the RENDERED MARKUP, and this is a property of the markup
+        # AND the file tree together, which only exists here.
+        #
+        # It is also the check that would have settled the 2026-08-30 hydration
+        # investigation in one line instead of the wrong root cause that got
+        # committed: the page's reference and the file's presence are asserted
+        # against each other, so "the tag is missing" and "the file is missing"
+        # can never again be read as each other.
+        #
+        # Same-origin absolute `src`s only. A cross-origin script is somebody
+        # else's to serve, and a relative one is already resolved by the page's
+        # own directory, which is not a claim about this tree's layout.
+        run: |
+          set -euo pipefail
+          missing=0
+          checked=0
+          # `|| true` on both greps: no match is exit 1, and "this site has no
+          # same-origin scripts" is a legitimate state to report rather than a
+          # pipeline failure to die on.
+          refs="$(grep -rhoE '<script[^>]+src="/[^"]*"' site --include='*.html' 2>/dev/null |
+                  grep -oE 'src="/[^"]*"' | sed 's/^src="//; s/"$//' | sort -u || true)"
+          for ref in $refs; do
+            checked=$((checked + 1))
+            # Strip any ?query / #fragment before touching the file tree.
+            path="site/${ref%%[?#]*}"
+            if [ -s "$path" ]; then
+              echo "  ok: $ref ($(wc -c <"$path" | tr -d ' ') bytes)"
+            else
+              echo "  MISSING: pages reference $ref but site${ref} is absent or empty" >&2
+              missing=1
+            fi
+          done
+          echo "$checked same-origin script reference(s) resolved against the publish dir."
+
+          # And the positive direction, which is the half an "all references
+          # resolve" check cannot cover: a site that references NOTHING passes
+          # it vacuously. The debug shell is the page that must hydrate, so it
+          # is the one page required to name a script.
+          page="$(find site -path '*/tx/*/debug/index.html' -print -quit)"
+          if [ -n "$page" ]; then
+            if grep -qE '<script[^>]+src="/[^"]*"' "$page"; then
+              echo "the debug shell references its bundle: $(grep -oE 'src="/[^"]*\.js"' "$page" | head -1)"
+            else
+              echo "ERROR: $page carries no same-origin <script> — a session that can never become live" >&2
+              missing=1
+            fi
+          else
+            echo "no debug shell in the publish dir; skipping the hydration assertion." >&2
+          fi
+
+          [ "$missing" -eq 0 ] || {
+            echo "the published pages and the published files do not agree" >&2
+            exit 1
+          }
+
       - name: Deploy to Cloudflare Pages
         id: deploy
         # The self-hosted eph-* runners are Nix runners with no preinstalled

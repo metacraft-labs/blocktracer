@@ -82,8 +82,10 @@ test-debug-route:
 
 # The hydration bundle's <script> is EMITTED when one is declared. Compiled
 # WITH -d:hydrationBundle on purpose: every other suite compiles without it and
-# asserts the empty case, which is why a top-level `if` inside `ui:` silently
-# dropped the tag all the way to production.
+# asserts the empty case, so nothing else in the tree ever checks that a
+# declared bundle is actually referenced. (Corrected 2026-08-30: this recipe
+# used to say a top-level `if` inside `ui:` had dropped the tag in production.
+# It had not — see the correction in src/components/layout.nim.)
 test-hydration-tag:
     nim c -r --mm:orc --hints:off -d:hydrationBundle=/assets/hydrate.js tests/test_hydration_tag.nim
 
