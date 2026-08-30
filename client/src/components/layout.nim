@@ -72,6 +72,25 @@ proc pageLayout*(title, description, content: string,
           raw siteFooter()
   )
 
+proc hydrationScriptTag(): string =
+  ## The `<script defer>` for the hydration bundle, built as a STRING and
+  ## inserted with `raw`, never as a top-level `if` inside `ui:`.
+  ##
+  ## `ui:` renders a top-level `if` as NOTHING — the SSR codegen returns nil
+  ## for a node that is not a call. M9 met this in `debugCell`, where it
+  ## silently emitted `<td class="act"></td>` for every row and removed the
+  ## Debug affordance from the product. It was met again here: the bundle was
+  ## built and served at /assets/hydrate.js, the flake passed
+  ## `-d:hydrationBundle=…`, and no page ever referenced it, so every deployed
+  ## session was a still frame with its controls waiting on an engine nothing
+  ## would load. Both are the same defect in the same construct.
+  ##
+  ## Written the other way round — a proc that returns "" when there is no
+  ## bundle — it cannot fail silently: the empty string is a value the caller
+  ## must place, not a node the codegen can drop.
+  if HydrationBundle.len == 0: return ""
+  "<script src=\"" & escapeAttr(HydrationBundle) & "\" defer></script>"
+
 proc debugLayout*(title, description, content: string,
                   robots = "noindex,follow", canonical = ""): string =
   ## The debugging session's shell — Page-Descriptions §8: "the explorer chrome
@@ -143,7 +162,5 @@ proc debugLayout*(title, description, content: string,
           # `pageLayout` deliberately does NOT get this. The explorer shell has
           # no session to hydrate, and a script on it would be bytes fetched to
           # do nothing.
-          if HydrationBundle.len > 0:
-            script(src = HydrationBundle, `defer` = "defer"):
-              discard
+          raw hydrationScriptTag()
   )

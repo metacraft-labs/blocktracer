@@ -56,7 +56,7 @@ preview-live: export-hydrated replay-engine
 
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
-test: test-export test-viewmodels test-debug-route test-explorer-breadth
+test: test-export test-viewmodels test-debug-route test-hydration-tag test-explorer-breadth
 
 # The static-export round-trip test: compile + run the real exporter into a
 # temp dir, then assert the three view types render for the demo entities and
@@ -79,6 +79,13 @@ test-viewmodels:
 # `just debug-panes` in the repository root's Justfile.
 test-debug-route:
     nim c -r --mm:orc --hints:off tests/test_debug_route.nim
+
+# The hydration bundle's <script> is EMITTED when one is declared. Compiled
+# WITH -d:hydrationBundle on purpose: every other suite compiles without it and
+# asserts the empty case, which is why a top-level `if` inside `ui:` silently
+# dropped the tag all the way to production.
+test-hydration-tag:
+    nim c -r --mm:orc --hints:off -d:hydrationBundle=/assets/hydrate.js tests/test_hydration_tag.nim
 
 # M9: the explorer breadth slice — the milestone's three named verifications
 # (renders from published files only, pointer objects are not cached across
