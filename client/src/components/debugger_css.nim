@@ -32,6 +32,7 @@
 ## with scripting off, which is what makes the static route the debugger's
 ## honest first frame.
 
+import std/strutils
 import ../debugger/session_view
 
 const debugRouteBaseCss = """
@@ -347,7 +348,15 @@ html[data-register="debugger"],
 .src{font-family:var(--bt-font-code),var(--bt-font-mono-fallback);
   font-size:var(--bt-type-code-size);line-height:var(--bt-type-code-line);
   color:var(--bt-text-code);background:var(--bt-surface-raised);
-  padding:var(--bt-space-2xs) 0;min-width:0;flex:1 1 0;overflow:auto}
+  padding:var(--bt-space-2xs) 0;min-width:0;flex:1 1 0;overflow:auto;
+  /* A SIZE CONTAINER, so the counted-elision rules can ask this pane how wide
+     it is (see `valueWidthRegimes`). Its own width is already imposed from
+     outside — `flex:1 1 0` with `min-width:0` — so inline-size containment
+     takes nothing away: the pane sized to its parent before this line and
+     sizes to its parent after it. What it adds is that the ONE number the
+     value budget is about can be asked of the thing that has it, instead of
+     inferred from the viewport, which is not a function of it. */
+  container-type:inline-size}
 .src,.mdsec pre.raw{
   -webkit-mask-image:linear-gradient(to right,currentColor
     calc(100% - var(--bt-space-2xl)),transparent);
@@ -568,6 +577,42 @@ html[data-register="debugger"],
    whose arrow is the whole of its identity, so the arrow keeps full strength
    where a name would have been. */
 .fv.m-after .fvto{color:var(--bt-text-muted)}
+/* ── counted elision: the values that do not fit beside their line ───────── */
+/* Debugger-UX-Research row 9 — elision is DRAWN, with a count, never a silent
+   cut. `flow_view.planElision` decides what fits and counts what does not; this
+   is only how the count looks and where it sits.
+
+   STICKY, and that is the half that fixes the defect. The pill is a child of
+   `.srcline`, whose box spans the whole scrolled width of the listing, so it is
+   held inside the pane even on a line whose code alone overruns it — which is
+   exactly the line whose values were all dropped and whose reader most needs to
+   be told so. `right` is `--bt-space-2xl` and not `0` because `.src` fades its
+   last `--bt-space-2xl` under a mask: a pill pinned to the true edge would be
+   pinned into the fade and would be a count rendered half-transparent.
+
+   It reads as a COUNT and not as a value: the border is dashed where every
+   label's is solid, and it takes the subtle foreground rather than any of the
+   three value colours. It is also not a control — no accent, no underline, no
+   focus ring, and it is a `span`. The page ships no JavaScript, so an
+   expandable pill would be an affordance that cannot act, which is the defect
+   this route has already removed twice; the full list travels on `title`
+   instead, which is what a static document can honestly offer.
+
+   And it reads as something ON TOP of the listing rather than in it, which is
+   the whole reason it takes the OVERLAY surface and a raised shadow where a
+   value chip takes the sunken one. Pinned, it lands over the tail of a line
+   that was already scrolling off — 24px of it at the worst measured — and a
+   count sharing the code's own surface at that position would read as part of
+   the source text it is sitting on. The code under it is not lost: scroll the
+   listing and the pill un-pins, because that is what `position:sticky` does
+   once the line has moved far enough to hold it. */
+.fv.fvmore{border-style:dashed;color:var(--bt-text-subtle);
+  border-color:var(--bt-border-strong);background:var(--bt-surface-overlay);
+  box-shadow:var(--bt-elevation-raised);
+  position:sticky;right:var(--bt-space-2xl)}
+/* One page is served to every viewport, so the count is computed per width
+   regime and the regimes are switched here — see `valueWidthRegimes`, which
+   generates the queries from the same constant the arithmetic reads. */
 /* ── the loop iteration rail (Omniscience-Flow.md, "Loop Slider Control") ── */
 /* Above the listing rather than above the loop's own header line, because the
    served pane is a WINDOW opened at the session's position and the `for` the
@@ -1446,6 +1491,73 @@ func flowIterationLadder(): string =
     result.add t & ".srcwrap .srcline.nt-i" & $i & " .t," &
                 t & ".srcwrap .srcline.nt-any .t{opacity:var(--bt-opacity-not-run)}\n"
 
+func valueWidthRegimes(): string =
+  ## Which of an elided line's labels and which of its counts this viewport
+  ## gets — GENERATED, for `flowIterationLadder`'s reason.
+  ##
+  ## `session_view.ValueBucketPanePx` is read by `flow_view.planElision` to
+  ## decide what fits and by this function to decide where the answer applies,
+  ## and the two must be the same thresholds. Written by hand they would be the
+  ## same thresholds until somebody moved one, and the failure would be silent
+  ## in the worst way available on this surface: the page would show one
+  ## regime's labels beside another regime's `+N`, and a reader would have no
+  ## way to tell that the number beside the values was counting a different set.
+  ##
+  ## ## `@container` and not `@media`
+  ##
+  ## The budget is about the CODE PANE's width and the viewport is not a proxy
+  ## for it: the pane goes from 1090px to 518px as the viewport crosses the
+  ## debugger's 1100px stacking rung, so a viewport ladder is not even monotone
+  ## in the quantity being budgeted. `.src` declares itself a size container and
+  ## these queries ask it directly — which is also why they are right at pane
+  ## widths nobody measured, including whatever the panes resolve to after the
+  ## next layout change.
+  ##
+  ## ## Two families, because a floor and a band are different claims
+  ##
+  ## `fvw<n>` is a label, and a label kept at a narrower pane is still kept at a
+  ## wider one, so it is `min-width` and it stays on above its own rung.
+  ## `fvr<first><last>` is a count, and a count can stop being true as the pane
+  ## grows — the wider pane fits more and drops fewer — so it is turned on at
+  ## `first`'s rung and off again above `last`'s. Regime 0 has no label class,
+  ## because a label drawn everywhere needs no wrapper at all; it does have
+  ## count classes, because "+3 below 1101px" is as much a claim as any other.
+  ##
+  ## ## Why `display:contents`
+  ##
+  ## The wrapper must decide whether its chip is on this viewport WITHOUT
+  ## deciding anything about the chip's own `display`, which the iteration
+  ## ladder owns and switches from an `#id:target ~ …` selector that no plain
+  ## class could outrank. A wrapper that generates no box lets both rules be
+  ## true at once: this one answers "does this label exist at this width", the
+  ## ladder answers "which pass is on screen", and neither can overrule the
+  ## other by accident.
+  var off: seq[string] = @[]
+  var on: seq[string] = @[]
+  for first in 0 ..< ValueWidthBuckets:
+    for last in first ..< ValueWidthBuckets:
+      let sel = "." & widthBandClass(first, last)
+      if first == 0: on.add sel else: off.add sel
+  for b in 1 ..< ValueWidthBuckets:
+    off.add "." & widthFromClass(b)
+  result.add on.join(",") & "{display:contents}\n"
+  result.add off.join(",") & "{display:none}\n"
+  for b in 1 ..< ValueWidthBuckets:
+    var opens: seq[string] = @[]
+    var closes: seq[string] = @[]
+    for last in b ..< ValueWidthBuckets:
+      opens.add "  ." & widthBandClass(b, last)
+    for first in 0 ..< b:
+      closes.add "  ." & widthBandClass(first, b - 1)
+    result.add "@container (min-width:" & $ValueBucketPanePx[b] & "px){\n"
+    result.add "  ." & widthFromClass(b) & "{display:contents}\n"
+    result.add closes.join(",\n") & "{display:none}\n"
+    result.add opens.join(",\n") & "{display:contents}\n"
+    result.add "}\n"
+
 const debugRouteCss* = debugRouteBaseCss & """
+/* ── the pane-width regimes for counted elision (generated; see
+   valueWidthRegimes) ────────────────────────────────────────────────────── */
+""" & valueWidthRegimes() & """
 /* ── the loop rail's target ladder (generated; see flowIterationLadder) ──── */
 """ & flowIterationLadder()

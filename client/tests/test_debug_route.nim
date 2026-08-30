@@ -1055,9 +1055,15 @@ suite "M8a — the source pane renders real source, with stable line identity":
     for d in 0 ..< bare.documents.len:
       for i in 0 ..< bare.documents[d].lines.len:
         bare.documents[d].lines[i].annotations = @[]
+        # The overlay is the labels AND the counts of the labels that did not
+        # fit: a line stripped of its values still has something to say if its
+        # elisions are left behind, and this test's whole subject is what a
+        # pane with NO overlay renders.
+        bare.documents[d].lines[i].elisions = @[]
     bare.flow = FlowRail()
     let before = dbgc.renderSource(bare)
     check "class=\"ann\"" notin before
+    check "fvmore" notin before
 
     var doc = activeDocument(bare)
     let target = doc.lines[2].number
@@ -1767,6 +1773,101 @@ suite "Omniscience — the recorded values, against the real zk_shields trace":
     check annotationsAt(pane, "src/shield.nr", 18).len == 0
     check annotationsAt(pane, "src/shield.nr", 19).len == 0
     check annotationsAt(pane, "src/shield.nr", 35).len == 0
+
+  test "every +N counts exactly the values it withholds, at every pane width":
+    # Rule 5's whole risk in one test. A pill is the product asserting a NUMBER
+    # about its own overlay, and a `+3` where four were dropped is a confident,
+    # checkable, wrong claim on the surface least able to afford one.
+    #
+    # Three properties, over every line, every pass and every width regime of
+    # the real zk_shields session, and it takes all three: the first alone
+    # allows a pill that under-counts and lists the rest, the second allows a
+    # count that agrees with a list of the wrong labels, and the third is what
+    # rules out a value being drawn AND counted as missing — which would read
+    # to a reader as a second, different value of the same name.
+    let pane = flowPane()
+    var pillsSeen = 0
+    var withheldSeen = 0
+    for d in pane.documents:
+      for ln in d.lines:
+        for e in ln.elisions:
+          inc pillsSeen
+          # 1. the count is the length of the list the pill hands over
+          check e.count == e.hidden.split("\n").len
+          check e.count > 0
+          check elisionTitle(e).startsWith($e.count & " more value")
+
+          # 2. that list is exactly the labels of this pass that this regime
+          #    does not draw — same set, same order, nothing invented
+          var withheld: seq[string] = @[]
+          var drawn: seq[string] = @[]
+          for a in ln.annotations:
+            if a.iteration != e.iteration: continue
+            if a.bucket == ElidedEverywhere or a.bucket > e.bucket:
+              withheld.add annotationText(a)
+            else:
+              drawn.add annotationText(a)
+          check withheld == e.hidden.split("\n")
+          withheldSeen += withheld.len
+
+          # 3. and nothing is on both sides of that line
+          for t in drawn:
+            check t notin withheld
+
+          # 4. the pill's band is a real, forward range of regimes
+          check e.bucket >= 0
+          check e.lastBucket >= e.bucket
+          check e.lastBucket < ValueWidthBuckets
+
+    # Nothing above fires on a pane with no pills, so the demo session has to
+    # be one that elides — it is, at every width, because its code alone
+    # overruns the pane.
+    check pillsSeen > 0
+    check withheldSeen > 0
+
+  test "no value is dropped without being counted, at any pane width":
+    # The other half of the promise, and the one a per-pill check cannot make:
+    # not "the pills are right about what they withhold" but "nothing was
+    # withheld that no pill mentions". A label given `ElidedEverywhere` and no
+    # accompanying elision would be a value the page recorded, did not draw,
+    # and did not admit to — a silent cut, which is precisely what the counted
+    # pill exists to replace.
+    let pane = flowPane()
+    for d in pane.documents:
+      for ln in d.lines:
+        for b in 0 ..< ValueWidthBuckets:
+          var missing = 0
+          for a in ln.annotations:
+            if a.bucket == ElidedEverywhere or a.bucket > b: inc missing
+          if missing == 0: continue
+          var counted = 0
+          for e in ln.elisions:
+            if b >= e.bucket and b <= e.lastBucket: counted += e.count
+          check counted == missing
+
+  test "a value is never given a width regime the pane cannot honour":
+    # The budget is what stops a label being drawn where it cannot be read, so
+    # it must be the pane's own arithmetic and not a guess: at the regime a
+    # label is admitted in, that label and everything before it must fit the
+    # width that regime is the answer for.
+    let pane = flowPane()
+    for d in pane.documents:
+      for ln in d.lines:
+        for b in 0 ..< ValueWidthBuckets:
+          var passes: seq[int] = @[]
+          for a in ln.annotations:
+            if a.iteration notin passes: passes.add a.iteration
+          for pass in passes:
+            var used = 0.0
+            var n = 0
+            for a in ln.annotations:
+              if a.iteration != pass: continue
+              if a.bucket == ElidedEverywhere or a.bucket > b: continue
+              if n > 0: used += 4.0            # `.ann`'s --bt-space-2xs gap
+              used += labelWidthPx(a)
+              inc n
+            if n == 0: continue
+            check used <= valueBudgetPx(b, ln.text)
 
   test "no line carries a value the gutter says never executed":
     # The overlay and the executed-line set are two producers of "this ran", and

@@ -188,6 +188,7 @@ func tokenClass*(k: TokenKind): string =
 # ── omniscience: the recorded values, beside the code ──────────────────────
 
 proc renderAnnotations*(annotations: seq[LineAnnotation];
+                        elisions: seq[LineElision];
                         selected: int): string =
   ## One line's value labels — `Omniscience-Flow.md`'s three renderings.
   ##
@@ -216,37 +217,87 @@ proc renderAnnotations*(annotations: seq[LineAnnotation];
   ## one. That is what makes the iteration rail work with scripting off; see
   ## `flow_view.applyFlow`. `fv-any` is a line outside every loop and is always
   ## shown.
-  ui:
+  ##
+  ## ## Why some labels are wrapped and some are not
+  ##
+  ## `flow_view.planElision` has already decided which values fit beside this
+  ## line at each pane width, and nothing is decided again here. A label drawn
+  ## at every width is emitted bare, exactly as it always was; one that needs a
+  ## wider pane is emitted inside a `widthFromClass` wrapper the stylesheet
+  ## turns on at that width; one that fits at no width is not emitted at all and
+  ## is instead COUNTED, by the pill below and by the list the pill carries. A
+  ## label the reader could never have read is not information the markup owes
+  ## them — but the fact that it exists is, which is the pill's whole job.
+  ##
+  ## ## Why the pill is not inside `.ann`
+  ##
+  ## It is a sibling of it, and that is load-bearing rather than tidy. The pill
+  ## is `position:sticky`, so it stays inside the pane on exactly the lines that
+  ## most need it — the ones whose CODE already runs past the right edge, where
+  ## `.ann` begins off-screen and everything in it is unreachable. A sticky box
+  ## is held inside its containing block, so a pill inside `.ann` would be
+  ## pinned to a run that is itself off-screen and would go with it. As a child
+  ## of `.srcline`, whose box spans the full scrolled width of the listing, it
+  ## has the whole line to be pinned within.
+  proc chip(a: LineAnnotation): string =
+    let now = (if a.iteration < 0 or a.iteration == selected: " now" else: "")
+    ui:
+      # `.now` is the pass the SESSION is in, and it is what the stylesheet
+      # shows when no rail segment is targeted. A label outside every loop
+      # (`iteration == NoIteration`) is `.now` in every pass, because there is
+      # no other pass it could belong to.
+      span(class = "fv " & $a.slot & " m-" & $a.mode & " " &
+                   iterationClass(a.iteration) & now,
+           title = annotationText(a),
+           # The source column the value's expression occupies, or -1 when
+           # nothing in the line's text is what it names. Inert data, exactly
+           # as `data-step` is: it is what the spec's parallel-column and
+           # multiline modes need and neither is drawn today, and shipping it
+           # costs nothing while re-deriving it later would mean re-running
+           # the layout in the browser.
+           `data-col` = $a.column):
+        if a.label.len > 0:
+          span(class = "fvn"): text a.label
+          span(class = "fvsep"): text (if a.mode == vmChanged: ":" else: "=")
+        if a.mode == vmChanged:
+          span(class = "fvv was"): text a.beforeValue
+          span(class = "fvto"): text "→"
+          span(class = "fvv"): text a.afterValue
+        elif a.mode == vmAfter:
+          if a.label.len == 0:
+            span(class = "fvto"): text "→"
+          span(class = "fvv"): text a.afterValue
+        else:
+          span(class = "fvv"): text a.beforeValue
+
+  proc pill(e: LineElision): string =
+    let now = (if e.iteration < 0 or e.iteration == selected: " now" else: "")
+    ui:
+      span(class = widthBandClass(e.bucket, e.lastBucket)):
+        # It carries `.fv` as well as `.fvmore`, so the iteration ladder moves
+        # it with the values it is a statement about — with no rung of its own
+        # to keep in step, and no way for a count from one pass to be left
+        # standing beside another pass's labels.
+        span(class = "fv fvmore " & iterationClass(e.iteration) & now,
+             title = elisionTitle(e)):
+          text "+" & $e.count
+
+  # Assembled by concatenation rather than as one `ui:` block with two roots.
+  # A `ui:` block with more than one top-level element wraps them in a `div`,
+  # and that `div` would be the flex item — which puts a box between the pill
+  # and `.srcline` and takes away exactly the containing block the pill's
+  # `position:sticky` needs to stay inside the pane.
+  result = ui:
     span(class = "ann"):
       for a in annotations:
-        # `.now` is the pass the SESSION is in, and it is what the stylesheet
-        # shows when no rail segment is targeted. A label outside every loop
-        # (`iteration == NoIteration`) is `.now` in every pass, because there is
-        # no other pass it could belong to.
-        let now = (if a.iteration < 0 or a.iteration == selected: " now" else: "")
-        span(class = "fv " & $a.slot & " m-" & $a.mode & " " &
-                     iterationClass(a.iteration) & now,
-             title = annotationText(a),
-             # The source column the value's expression occupies, or -1 when
-             # nothing in the line's text is what it names. Inert data, exactly
-             # as `data-step` is: it is what the spec's parallel-column and
-             # multiline modes need and neither is drawn today, and shipping it
-             # costs nothing while re-deriving it later would mean re-running
-             # the layout in the browser.
-             `data-col` = $a.column):
-          if a.label.len > 0:
-            span(class = "fvn"): text a.label
-            span(class = "fvsep"): text (if a.mode == vmChanged: ":" else: "=")
-          if a.mode == vmChanged:
-            span(class = "fvv was"): text a.beforeValue
-            span(class = "fvto"): text "→"
-            span(class = "fvv"): text a.afterValue
-          elif a.mode == vmAfter:
-            if a.label.len == 0:
-              span(class = "fvto"): text "→"
-            span(class = "fvv"): text a.afterValue
-          else:
-            span(class = "fvv"): text a.beforeValue
+        if a.bucket == ElidedEverywhere: continue
+        let gate = widthFromClass(a.bucket)
+        if gate.len == 0:
+          raw chip(a)
+        else:
+          span(class = gate): raw chip(a)
+  for e in elisions:
+    result.add pill(e)
 
 proc renderFlowRail*(rail: FlowRail): string =
   ## The loop-iteration control: `[Iteration: 3/8]` and a track.
@@ -501,8 +552,11 @@ proc renderSource*(p: EditorPane): string =
                     text tok.text
                   else:
                     span(class = tokenClass(tok.kind)): text tok.text
-            if ln.annotations.len > 0:
-              raw renderAnnotations(ln.annotations, p.flow.selected)
+            # `elisions` and not only `annotations`: a line every one of whose
+            # values was elided still has something to say, and it is the one
+            # line where saying it matters most.
+            if ln.annotations.len > 0 or ln.elisions.len > 0:
+              raw renderAnnotations(ln.annotations, ln.elisions, p.flow.selected)
 
   # The ACTIVE document is emitted LAST so that `.srcdoc.alt:target` can reach
   # forward and hide it. CSS has only a forward sibling combinator, and the

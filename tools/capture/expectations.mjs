@@ -1235,6 +1235,9 @@ export const EXPECTATIONS = [
       "The code still legible as code with the labels present: the labels must not be what the eye lands on first.",
       "The branch this pass did NOT take marked as such: line 29 (`damage = mass * 1;`) is inside the `if` arm that pass 3 declined, and carries a `⊘` in the gutter where other lines carry `·`, plus a recession on the code itself. A reviewer should be able to say 'that statement did not run' from the row alone.",
       "That mark reading as a statement about the EXECUTION, not as a disabled control. The line is still fully readable code — dimmed, not greyed out — and the gutter carries a mark rather than merely losing one.",
+      "A counted `+N` pill on the rows whose values do not all fit beside them — `Debugger-UX-Research.md` row 9's counted elision. Every value on this pane is either drawn in full or counted by one of these; nothing is cut silently. A reviewer should be able to say, for any annotated row, how many values it recorded.",
+      "Every `+N` pill wholly inside the pane, including on the rows whose CODE already runs past the right edge — those are the rows with the most to withhold, and a count that scrolled away with them would be the defect it exists to report.",
+      "The pill reading as a COUNT and not as a value: dashed border where a value's is solid, no value colour, and sitting visibly ON TOP of the listing where it overlaps a long line rather than inside the code's own surface.",
     ],
     mustNotShow: [
       "Two passes' values on one line at once. Every label on screen belongs to the pass the rail names; a line carrying `remaining_shield` twice with different values would be the overlay reporting two moments as one.",
@@ -1245,6 +1248,8 @@ export const EXPECTATIONS = [
       "Placeholder or zeroed values on lines the session has not executed. Absent is correct there; approximate is not.",
       "A loop control that looks draggable, or arrows implying a slider gesture the page cannot perform. With no script this control is a set of links.",
       "The label colour colliding with the syntax palette so that a value reads as a token of the code.",
+      "A `+N` pill styled as a button, a link or anything else that invites a click. The page ships no script and cannot expand it; the full list is on the element's `title` and nothing on screen may promise more than that.",
+      "A `+0`, or a pill on a row whose values all fit. A row with nothing withheld says so by carrying no pill.",
     ],
     watchFor: [
       "Density. This is the highest information density anywhere in the product — code, gutter, execution markers and up to five value labels on one row — and it is the case most likely to collapse into an undifferentiated stripe. Say whether the row still has a readable structure.",
@@ -1269,6 +1274,7 @@ export const EXPECTATIONS = [
       "The two marks now SEPARATED: the session is still in pass 3 and the displayed pass is 1. A reviewer should be able to read both facts off the track.",
       "Lines whose values belong only to the session's pass now showing nothing, rather than showing the previous pass's numbers.",
       "The untaken-branch mark on a DIFFERENT line than `debugger--omniscience` shows. Pass 1 took the `if` arm and pass 3 took the `else`, so the `⊘` and the recession move from line 29 to line 32 — the two lines swap roles. Line 32 is also the session's own position, so on this capture one row carries both the current-line treatment and the untaken mark.",
+      "The `+N` pills following the rail as well: this pass carries far more values than pass 3, so more rows have something withheld and the counts on the shared rows are different numbers. A count that did not move with the labels would be pass 3's arithmetic reported over pass 1's values.",
     ],
     mustNotShow: [
       "The same values as `debugger--omniscience`. Identical panes across the two captures means the control does nothing, which is the affordance-that-lies defect this route has removed twice.",
