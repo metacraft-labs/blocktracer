@@ -467,6 +467,73 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
     result.add DemoTx(hash: h, height: 100, index: 3, facts: facts,
       txstate: txstateJson(true, "finalized"), overlay: ov, artifacts: @[])
 
+  # txI and txJ: Page-Descriptions §7.0's THIRD row, which the tree has never
+  # published — "`absent`, `unsupported` → the metadata, with the reason stated.
+  # **No debugger, and no pretence of one**".
+  #
+  # Until now the demo tree carried five `ready`, one `divergent` and two
+  # `onDemand` transactions and nothing else, so three of §7.0's five
+  # availabilities had a subject and two did not. `txWithAvailability("absent")`
+  # threw, no named view could point anywhere, and the two states the product is
+  # most careful about in prose — `pages/tx.nim` spends a 12-line comment on why
+  # they get no control at all, not even a disabled one — had never been
+  # rendered, never been captured and never been looked at by anybody.
+  #
+  # TWO transactions and not one, because they are two different facts about the
+  # world and §14.1a's rule is that presenting either as the other is the
+  # failure the catalogue exists to prevent. `absent` is "there is nothing to
+  # record"; `unsupported` is "we cannot record it". A single fixture would have
+  # made the pair gradeable only against itself.
+  #
+  # In block 100 and at the END of the walk, for the reason the three above are:
+  # `lib/entities.mjs` walks newest block first, `firstTracelessTx` is
+  # `tx-detail`'s subject and `densestTracelessTx` is `tx-detail--dense`'s, and
+  # both are resolved by CONTENT over that walk. Placed here they add subjects
+  # without moving one.
+  #
+  # Neither introduces an address. Both reuse txA's contract (index 0, whose
+  # source bundle is published) and txA's fee payer, so no new address enters
+  # `/idx/`, `contractWithSource` cannot re-point, and `addressWithSegments`
+  # cannot re-split — the three silent baseline moves txH's comment warns about.
+
+  # txI: an Aztec transaction that is private END TO END — no public component
+  # at all, where txB has one of each. The proofs, nullifiers and commitments
+  # are published and the call structure is not, and never will be: there is
+  # nothing to record, not something we failed to fetch.
+  block:
+    let h = synthHash(seed, "tx", 8)
+    var facts = mkPublicFacts(seed, h, b100, 100, 4, 0)
+    facts.roles = @[Role(role: "feePayer", address: synthAddr(seed, "feepayer", 0))]
+    facts.native = %*{"aztec": {"kind": "private", "privateFunctions": ["transfer"]}}
+    facts.executions = @[Execution(selector: "private",
+      executionInputId: demoExecutionInputId(chain, h, "private"))]
+    var ov = TraceSelection(chain: chain, tx: h, hasSingle: true,
+      singleTrace: ExecTrace(selector: "private", availability: taAbsent,
+        reason: "executed entirely client-side in the private kernel; only " &
+                "proofs, nullifiers and commitments are published, so there " &
+                "is no call structure to trace"))
+    result.add DemoTx(hash: h, height: 100, index: 4, facts: facts,
+      txstate: txstateJson(true, "finalized"), overlay: ov, artifacts: @[])
+
+  # txJ: a public call that ran under an AVM revision no recorder is built for.
+  # The execution HAS a call structure — that is the difference from txI — and
+  # this product cannot get at it. A chain that forks its VM produces exactly
+  # this, and it is why `taUnsupported` is a value rather than a synonym for
+  # `taAbsent`.
+  block:
+    let h = synthHash(seed, "tx", 9)
+    var facts = mkPublicFacts(seed, h, b100, 100, 5, 0)
+    facts.roles = @[Role(role: "feePayer", address: synthAddr(seed, "feepayer", 0))]
+    facts.native = %*{"aztec": {"kind": "public-avm-call",
+                                "contract": synthAddr(seed, "contract", 0),
+                                "avmRevision": "v0.34"}}
+    var ov = TraceSelection(chain: chain, tx: h, hasSingle: true,
+      singleTrace: ExecTrace(selector: "public", availability: taUnsupported,
+        reason: "this execution ran under AVM revision v0.34, and the pinned " &
+                "recorder set covers v0.41 and later"))
+    result.add DemoTx(hash: h, height: 100, index: 5, facts: facts,
+      txstate: txstateJson(true, "finalized"), overlay: ov, artifacts: @[])
+
   # --- Block 101 ---
   # txB: the Aztec private/public split — the hardest case, from the first render.
   # The PRIVATE part is structurally unobservable => availability: absent, with a

@@ -36,6 +36,15 @@ export const PAGES = [
   { id: "txs-list.cards", route: "/{chain}/txs", anchor: "§6 mobile stacked cards" },
   { id: "tx-detail", route: "/{chain}/tx/{hash}", anchor: "§7.2" },
   { id: "tx-detail.hydrated", route: "/{chain}/tx/{hash}", anchor: "§7.0 trace ready → hydrates" },
+  // §7.0's THIRD row, as two entries rather than one. "`absent`, `unsupported`
+  // → the metadata, with the reason stated. No debugger, and no pretence of
+  // one" names two facts about the world — there is nothing to record, and we
+  // cannot record it — and §14.1a's rule is that presenting either as the other
+  // is the failure the catalogue exists to prevent. One entry could be answered
+  // by one image, which would make the pair gradeable only against itself. The
+  // omniscience/loop-rail pair below is split for the same reason.
+  { id: "tx-detail.absent", route: "/{chain}/tx/{hash}", anchor: "§7.0 absent — structurally unobservable" },
+  { id: "tx-detail.unsupported", route: "/{chain}/tx/{hash}", anchor: "§7.0 unsupported — no recorder for the VM" },
   { id: "tx-detail.decoded-input", route: "/{chain}/tx/{hash}", anchor: "§7.2.3" },
   { id: "tx-detail.events", route: "/{chain}/tx/{hash}", anchor: "§7.2.4" },
   { id: "tx-detail.internal-calls", route: "/{chain}/tx/{hash}", anchor: "§7.2.5" },
@@ -65,6 +74,14 @@ export const PAGES = [
   { id: "debugger.loop-rail", route: "/{chain}/tx/{hash}/debug", anchor: "§8 / Omniscience-Flow loop slider" },
   { id: "debugger.loading-phases", route: "/{chain}/tx/{hash}/debug", anchor: "§8 phased loading" },
   { id: "debugger.narrow", route: "/{chain}/tx/{hash}/debug", anchor: "§13 reduced narrow session" },
+  // The `/debug` ADDRESS of a transaction that has no session. It is served —
+  // `ssr.staticRoutes` emits `/debug` for every transaction, and
+  // `pages/debug.noSession` renders the region the panes would have occupied —
+  // and it had no named view, so the one surface in the debugger register whose
+  // whole job is to NOT be a debugger had never been photographed. Two states,
+  // because `spAwaitingGeneration` offers an action and `spUnavailable` must
+  // offer none.
+  { id: "debugger.no-session", route: "/{chain}/tx/{hash}/debug", anchor: "§7.0 / §8 — the debug address with no session" },
   { id: "address", route: "/{chain}/address/{address}", anchor: "§9" },
   { id: "contract-source", route: "/{chain}/address/{address}/code", anchor: "§10" },
   { id: "search", route: "/search?q=", anchor: "§11" },

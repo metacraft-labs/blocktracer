@@ -74,6 +74,24 @@ proc renderFile(f: SourceFile, language: string): string =
                 # which words are keywords.
                 text line
 
+func sourceEyebrow(code: seq[SourceBundleView]): string =
+  ## What this page is, said before the page says whether it worked.
+  ##
+  ## It was the constant "Verified source", which put the word VERIFIED at the
+  ## top of a page whose own Status row two sections down reads `Unverified` —
+  ## the loudest label on the surface asserting the opposite of the fact it
+  ## introduces. Same defect `viewutil.outcomeReasonLabel` records for
+  ## "Revert reason" over a transaction that did not revert, and the same fix:
+  ## the label reads the value.
+  ##
+  ## Three shapes, because this page has three (see the module header) and
+  ## §14's "No verified source" row is only the third of them. The eyebrow is
+  ## the page's KIND, so an account gets a neutral one rather than an
+  ## accusation: there is no verification question to answer for it.
+  if code.len == 0: "Contract source"
+  elif code[0].resolved: "Verified source"
+  else: "Unverified source"
+
 proc codePage*(chain: string, address: string, code: seq[SourceBundleView],
                deployments: seq[string],
                degradation: ChainDegradation,
@@ -90,7 +108,7 @@ proc codePage*(chain: string, address: string, code: seq[SourceBundleView],
           span(class = "sep"): text "/"
           span: text "code"
 
-        tdiv(class = "eyebrow"): text "Verified source"
+        tdiv(class = "eyebrow"): text sourceEyebrow(code)
         # `titlerow`, for the reason `pages/address.nim` states: `.identifier`
         # is inline-block, so a bare heading and the full value beneath it
         # would share a line.

@@ -44,8 +44,10 @@ suite "M5c — demo tree conformance":
   let seed = "test-seed-1"
   let nTx = generate(DemoConfig(outDir: outDir, seed: seed, traceFixturePath: fixture, traceSourcesDir: sourcesDir))
 
-  test "the generator emits eight transactions":
-    check nTx == 8
+  test "the generator emits ten transactions":
+    # Eight until VD.6 added txI and txJ, the two subjects §7.0's third row
+    # (`absent`, `unsupported`) had never had — see `demo/generator.nim`.
+    check nTx == 10
 
   test "the demo tree validates against the contract (walkable, no dangles)":
     let errs = validateTree(outDir)

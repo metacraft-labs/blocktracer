@@ -296,6 +296,25 @@ proc markUnavailable(ui: Ui; reason: string) =
   ## The phase rail goes, because it names a sequence that is not running. A
   ## rail still pointing at "Fetching" beside a control that says the engine
   ## cannot start is the page contradicting itself.
+  ##
+  ## ## The sentence goes ON THE PAGE (added VD.6)
+  ##
+  ## Everything below this line used to be everything this proc did, and none of
+  ## it renders the reason: the sentence went into two attributes on a disabled
+  ## button and one attribute on the root, and the only visible change was the
+  ## status text becoming "Engine unavailable". A pointer user had to hover an
+  ## inert control to learn which of three faults had occurred; a touch user
+  ## could not, and a screen-reader user was told more than a sighted one.
+  ##
+  ## The three sentences this proc is called with are separated at their source
+  ## because one sentence covering two faults cost hours of misdiagnosis. That
+  ## separation only pays if the sentence is legible, so it is now drawn into
+  ## the slot `pages/debug.nim` emits, through the renderer that page would have
+  ## used. The attributes below stay: they are what a control announces about
+  ## ITSELF, and the banner is what the page says about the session.
+  let slot = ui.root.querySelector("#" & EngineFailureSlotId)
+  if slot != nil:
+    slot.innerHTML = panes.renderEngineFailure(reason).cstring
   for b in ui.controls.querySelectorAll(".dcbtn"):
     b.setAttribute("title", reason.cstring)
     b.setAttribute("aria-label", reason.cstring)

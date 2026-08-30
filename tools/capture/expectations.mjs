@@ -497,6 +497,57 @@ export const EXPECTATIONS = [
   },
 
   {
+    id: "tx-detail--absent",
+    summary:
+      "§7.0's third row, first half: a transaction whose execution publishes no call structure at all. There is nothing to record, and there never will be. Its subject is the demo tree's end-to-end private Aztec transaction (generator txI), published on 2026-08-30 for this view — before it, `txWithAvailability(\"absent\")` threw and this state had never been rendered by anything.",
+    spec: "Page-Descriptions §7.0 (row 3), §14.1a",
+    register: "explorer",
+    inherits: ["tx-page-intact"],
+    mustShow: [
+      "The trace's state as a BADGE and the reason as a SENTENCE, together, in the position the primary action occupies on the on-demand page — so the eye lands on an answer where it expects a control.",
+      "A reason that says the absence is structural: the execution publishes no call structure, so there is nothing a recorder could have captured. 'No trace available' would be true and would not be this state.",
+      "The internal-calls and state-changes sections stating that they are empty PERMANENTLY rather than yet. §14.1a: \"'Not now' and 'not ever' are different states.\"",
+      "The transaction itself completely intact — this transaction succeeded, and the page must not read as though something went wrong with it.",
+    ],
+    mustNotShow: [
+      "A control of ANY kind for the trace — including a disabled one, a greyed one, or one with a tooltip. §7.0 gives this row 'no debugger, and no pretence of one', and `pages/tx.nim` states why a disabled button is still a pretence: it occupies the primary action's position and invites the click it will refuse. A control here is a P1.",
+      "'Yet', 'not available', 'coming soon', or any other wording that implies a wait. This state is terminal.",
+      "A danger or error treatment. Nothing failed.",
+      "Wording identical to `tx-detail--unsupported`'s. If the two pages read the same, that is the finding this pair exists to produce.",
+    ],
+    watchFor: [
+      "Whether the badge-plus-sentence group holds the hero's weight now that no button anchors it. This is the layout most likely to look unfinished rather than deliberate, and the deliberateness is the whole design.",
+      "Tone: read the page as a visitor who came here expecting to debug. Does it read as a refusal, or as an explanation of how this chain works?",
+      "The badge tone: `absent` and `unsupported` both resolve to `muted` in `viewutil.availabilityClass`, so colour cannot be carrying the difference between them. Say whether anything else does.",
+    ],
+  },
+
+  {
+    id: "tx-detail--unsupported",
+    summary:
+      "§7.0's third row, second half: a transaction whose execution DOES have a call structure and which this product cannot record — the demo tree's transaction under an AVM revision the pinned recorder set does not cover (generator txJ, published 2026-08-30 for this view). Reviewed beside `tx-detail--absent`, and largely FOR the comparison.",
+    spec: "Page-Descriptions §7.0 (row 3), §14 (Recorder unavailable for the VM), §14.1a",
+    register: "explorer",
+    inherits: ["tx-page-intact"],
+    mustShow: [
+      "The state as a badge and the reason as a sentence, in the primary action's position, exactly as `tx-detail--absent` does — the two states share a shape and that is correct.",
+      "A reason that locates the limitation in THIS PRODUCT rather than in the chain: no recorder exists for this VM. The transaction is observable; we cannot observe it.",
+      "The trace-derived sections saying that they stay empty until a recorder exists — a conditional, where `absent`'s is a permanent.",
+      "The transaction itself completely intact.",
+    ],
+    mustNotShow: [
+      "A control of any kind for the trace, for the reason recorded on `tx-detail--absent`.",
+      "A retry, a 'check back later', or a generate action. §14 forbids 'a retry that cannot succeed'.",
+      "Wording that would be equally true of `tx-detail--absent`. Read the two sentences side by side: if a visitor could not tell from this page whether the chain cannot be observed or BlockTracer cannot observe it, that is a P1 against §14.1a and is the specific reason this view exists.",
+    ],
+    watchFor: [
+      "§14's row for this state asks for the recorder's status to be LINKED ('Debug absent, recorder status linked'). Say whether anything on the page lets a visitor find out when a recorder might arrive, or whether the page states a limitation and offers no way to learn more about it.",
+      "'Yet' appears in this state's sentence and not in `absent`'s. Judge whether that single word is doing enough work to separate a temporary limitation from a permanent one, or whether it reads as hedging.",
+      "Whether the two states differ anywhere a reviewer would notice at a glance — badge label, tone, section copy — or only in a sentence a visitor has to read closely.",
+    ],
+  },
+
+  {
     id: "tx-detail--hydrated",
     summary:
       "The transaction page after the debugger has hydrated over its first frame — the TRANSITION, not the landing. `tx-detail--session` is the landing, and it is captured; what nothing produces yet is a live engine taking that frame over in place.",
@@ -1298,6 +1349,56 @@ export const EXPECTATIONS = [
     watchFor: [
       "Non-dismissible means permanent screen cost; check the banner is as compact as its severity allows.",
       "The mismatch detail is technical content inside a banner — check it is legible and does not overflow the banner at laptop width.",
+    ],
+  },
+
+  {
+    id: "debugger--no-session",
+    summary:
+      "The `/debug` ADDRESS of a transaction that has no session to open — the on-demand case. The route is served for every transaction, not only for the ones with a trace, and until 2026-08-30 no named view pointed at it: the one surface in the debugger register whose job is to NOT be a debugger had never been captured.",
+    spec: "Page-Descriptions §7.0, §8; Debugger-Integration §3",
+    register: "debugger",
+    inherits: ["debugger-shell"],
+    mustShow: [
+      "The identity bar with the transaction's identity, status and block — the facts survive the register's collapse even where no session opens.",
+      "The metadata pane, populated. §8 requires it 'in every state, including the states where no session can open'.",
+      "In the region the panes would have occupied: a titled statement of what state this is, the reason in words, and the generate action with its cost stated. Not an empty region, not a debugger shell with blank panes.",
+      "A region that reads as DELIBERATE at the shell's full width — one pane where four would be is the layout most easily mistaken for a debugger that failed to load, and telling those apart is what this image is for.",
+    ],
+    mustNotShow: [
+      "A stepping toolbar, a scrubber, a phase rail or a step counter. §7.0's 'no pretence of one' means the controls are absent, not inert: `identityBar` gates the whole control group on `hasFrame`.",
+      "Share or download actions. There is no position to share and no container to download.",
+      "Empty pane frames, skeleton boxes, or a grid of blank panels where the debugger would be.",
+      "An error or danger treatment. Nothing has failed; this trace has not been generated.",
+    ],
+    watchFor: [
+      "The vertical shape: the pane region is full-height and the statement inside it is a few lines. Say whether that reads as a considered empty state or as content that failed to arrive, and where the eye goes first.",
+      "Whether the identity bar looks broken with its centre removed. The control group is the largest thing in that strip on every other debugger view, and this is the view where it is legitimately gone.",
+      "Both themes: the statement pane is the only lit surface in the region, so the surface ladder is doing all the work.",
+    ],
+  },
+
+  {
+    id: "debugger--no-session-terminal",
+    summary:
+      "The same address for a transaction whose trace can never exist — §7.0's `absent` row in the debugger register. The pair to `debugger--no-session`, and the difference between them is one control.",
+    spec: "Page-Descriptions §7.0 (row 3), §14, §14.1a",
+    register: "debugger",
+    inherits: ["debugger-shell"],
+    mustShow: [
+      "The identity bar and the populated metadata pane, as in `debugger--no-session`.",
+      "A titled statement naming the state and a reason saying the absence is structural and permanent.",
+      "NOTHING actionable in the region. The absence of the Generate control is the subject of this image — §14 forbids 'a retry that cannot succeed' and §7.0 forbids the pretence.",
+    ],
+    mustNotShow: [
+      "Any action, enabled or disabled, in the pane region or the identity bar.",
+      "A stepping toolbar, scrubber, phase rail or step counter.",
+      "Wording that implies a wait.",
+      "A treatment indistinguishable from `debugger--no-session`'s beyond the missing button — the two states differ in kind, and a reader should be able to tell which one they are on from the words.",
+    ],
+    watchFor: [
+      "Compare directly with `debugger--no-session` and state what a visitor could tell apart at a glance. If the answer is 'one button', say so — that is a finding about whether the terminal state is designed or merely stripped.",
+      "A pane region whose only content is a sentence, at full viewport height. This is the emptiest surface the product ships. Judge whether it is composed.",
     ],
   },
 

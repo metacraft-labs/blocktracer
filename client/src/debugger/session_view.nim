@@ -102,7 +102,16 @@ func phaseLabel*(p: SessionPhase): string =
   of spPositioning: "Positioning at the requested step"
   of spReady: "Stepping"
   of spAwaitingGeneration: "No trace recorded yet"
-  of spUnavailable: "No session"
+  # "No session" was this page's OWN vocabulary on the one surface where the
+  # visitor is least likely to share it: `spUnavailable` heads a region that
+  # tells a visitor why the thing they came for cannot exist, and the heading
+  # named the internal object that will not be constructed rather than the fact
+  # about the transaction. §7.0's row is about the trace. VD.1 removed the same
+  # class of leak from `availabilityState`, which used to render the serialised
+  # enum (`onDemand`) as a badge, and from `roleLabel`, which used to print
+  # `feePayer`. The two labels below now say what the sentence under them
+  # elaborates, so a reader who only reads headings still learns the state.
+  of spUnavailable: "No trace, and none possible"
 
 func phaseShortLabel*(p: SessionPhase): string =
   ## The same phase in one word, for the rail in the identity bar.
@@ -119,7 +128,7 @@ func phaseShortLabel*(p: SessionPhase): string =
   of spPositioning: "Positioning"
   of spReady: "Stepping"
   of spAwaitingGeneration: "Not recorded"
-  of spUnavailable: "No session"
+  of spUnavailable: "Not recordable"
 
 # ---------------------------------------------------------------------------
 # Editor pane — the source view
@@ -807,6 +816,19 @@ type
       ## because "loading" with no number is the indeterminate spinner §8 rules
       ## out with different words.
     unavailableReason*: string
+    unavailableDetail*: string
+      ## The PRODUCER's reason for this execution, where the tree published one.
+      ##
+      ## Separate from `unavailableReason` and never merged into it, for the
+      ## reason `components/degraded.DegradationNotice.detail` gives on the
+      ## explorer's side of the same split: the first sentence is ours and is a
+      ## function of an enum, the second is the pipeline's own words about this
+      ## transaction, and folding the two together would turn evidence into
+      ## prose. `Trace-Artifacts` requires the reason on every `absent` and
+      ## `unsupported` execution, and until VD.6 nothing on this route rendered
+      ## it — the debug address of a transaction that can never be debugged said
+      ## only what its enum said, which is the same on every such transaction on
+      ## every chain.
     integrity*: SessionIntegrity
     integrityDetail*: string
     reconstructed*: bool

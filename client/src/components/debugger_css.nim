@@ -110,14 +110,36 @@ html[data-register="debugger"],
 .dbgctl .dctl{flex:0 0 var(--bt-layout-search)}
 
 /* ── banners: one component, two severities ─────────────────────────────── */
+/* The LEFT RAIL is what makes this a band in both themes, and it is not
+   decoration. VD.6 measured the dark theme: both banners rendered at the
+   surface one step off the identity bar — 1.06:1 against the strip above them,
+   and BYTE-IDENTICAL to each other, because `theme.dark.status.{danger,warning,
+   success,info,neutral}-bg` all resolve to the one neutral `{colors.neutral
+   .850}`. So in dark a divergence band and a truncation band were the same
+   surface, and neither was a surface: severity was carried by the text colour
+   alone, which is exactly what `degraded.noticeTone` says must never happen
+   ("so colour never carries the meaning alone").
+
+   The fix is the explorer register's own, copied rather than invented:
+   `.notice` in `styles.nim` paints its body with a SURFACE token and states
+   its severity on a thick left border in the status BORDER colour — which is
+   hued in both themes. This is that, in the debugger's density. The status
+   background stays, because in light it is a real tint and worth having; the
+   rail is what survives when it is not.
+
+   The bottom hairline is not the answer and was already there: one pixel at
+   the far edge of a 1920px band is not a boundary anybody reads. */
 .dbgbanner{flex:0 0 auto;display:flex;align-items:baseline;
   gap:var(--bt-space-sm);padding:var(--bt-density-cell-y) var(--bt-layout-gutter);
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-default);
+  border-left:var(--bt-stroke-thick) solid var(--bt-border-strong);
   font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line)}
 .dbgbanner.bad{background:var(--bt-status-danger-bg);color:var(--bt-status-danger-fg);
-  border-bottom-color:var(--bt-status-danger-border)}
+  border-bottom-color:var(--bt-status-danger-border);
+  border-left-color:var(--bt-status-danger-border)}
 .dbgbanner.warn{background:var(--bt-status-warning-bg);color:var(--bt-status-warning-fg);
-  border-bottom-color:var(--bt-status-warning-border)}
+  border-bottom-color:var(--bt-status-warning-border);
+  border-left-color:var(--bt-status-warning-border)}
 .dbgbanner .bannertitle{font-weight:var(--bt-type-h3-weight);white-space:nowrap}
 .dbgbanner .bannertext{color:inherit;max-width:var(--bt-measure-prose)}
 
@@ -1038,7 +1060,35 @@ a.ctrow,a.evrow{cursor:pointer}
   border-radius:var(--bt-radius-md);padding:var(--bt-density-card-pad)}
 
 /* ── the states with no session ─────────────────────────────────────────── */
-.nostate{padding:var(--bt-density-card-pad) var(--bt-density-cell-x)}
+/* The statement is COMPOSED IN the region, not parked in its corner.
+   (VD.6 — the first round in which these two states were captured at all.)
+
+   `debugger--no-session` and `debugger--no-session-terminal` are the emptiest
+   surfaces this product ships: a full-viewport pane, roughly 1500x1000 at
+   `wide`, holding three lines of prose and at most one button. Flush to the
+   top-left of that pane, with ~900px of nothing beneath, they read as a
+   debugger that failed to load — which is the one reading §7.0's third row
+   must not have, because the region is correct and deliberate and the whole
+   claim is that this page is not pretending.
+
+   `margin:auto` on the flex child, rather than `align-items:center` on the
+   parent: the two centre identically while the content fits, and only the
+   first stays reachable when it does not — a centred flex item taller than its
+   `overflow:auto` container has its top clipped and cannot be scrolled back
+   to. This block is short at every viewport today and the narrow session is
+   where that stops being true.
+
+   The prose itself stays left-aligned. What is centred is the BLOCK. */
+.nosession .panebody{display:flex}
+.nostate{margin:auto;max-width:var(--bt-measure-prose);
+  padding:var(--bt-density-card-pad) var(--bt-density-cell-x)}
+/* Both paragraphs already carry `.panenote`'s own padding, so the second needs
+   none of its own; what it needs is to read as evidence UNDER the sentence
+   rather than as a second statement beside it. One rung quieter, and its top
+   padding removed so the pair sits as one block. Same relationship
+   `.notice .reason` gives the explorer register. */
+.nostate .panenote.reason{padding-top:var(--bt-space-2xs);
+  color:var(--bt-text-muted)}
 .norow{display:flex;align-items:center;gap:var(--bt-space-md);flex-wrap:wrap;
   margin-top:var(--bt-rhythm-stack)}
 .norow .panenote{padding:0;flex:1 1 var(--bt-measure-narrow)}

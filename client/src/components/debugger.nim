@@ -778,6 +778,51 @@ proc renderPositionNotice*(s: DebugSessionView): string =
       span(class = "noticetitle"): text "Position"
       span(class = "noticetext"): text s.landing.statement
 
+const EngineFailureSlotId* = "dbg-engine-failure"
+  ## The element `renderEngineFailure`'s output goes in. Always emitted, empty
+  ## on every served page, for the reason `PositionNoticeSlotId` is.
+
+proc renderEngineFailure*(reason: string): string =
+  ## The replay engine will not run, said ON THE PAGE.
+  ##
+  ## ## Why this exists
+  ##
+  ## `hydrate.markUnavailable` had three sentences to say and nowhere to say
+  ## them. It wrote each one into the `title` and `aria-label` of the inert
+  ## stepping buttons and into `data-engine-unavailable` on the root, and put
+  ## the two words "Engine unavailable" in the controls' status. So the whole
+  ## visible treatment of a failed engine was two words, and the diagnosis was
+  ## a tooltip: a pointer user had to hover a disabled button to read it, a
+  ## touch user could not reach it at all, and a screen-reader user got strictly
+  ## more than a sighted one.
+  ##
+  ## The three sentences are separated at their source precisely because one
+  ## sentence covering two faults — an engine that never arrived, and an engine
+  ## that arrived and refused the container — sent a real diagnosis down the
+  ## wrong path for hours. That separation is worth nothing while the sentence
+  ## it distinguishes is only in the accessibility tree.
+  ##
+  ## ## Why a `.dbgbanner` and not a `.dbgnotice`
+  ##
+  ## The two banners above are page-level verdicts about the TRACE and stay
+  ## true for as long as the page is open; `.dbgnotice` says something about the
+  ## LINK, once, on arrival, and explicitly means "nothing is wrong". This is a
+  ## verdict of the first kind: the engine is not going to run for this
+  ## document, and the sentence stays true. `role="alert"`, like divergence and
+  ## unlike truncation, because it appears after first paint and the visitor is
+  ## by then looking at controls they have some reason to believe in.
+  ##
+  ## It is deliberately NOT a retry. §14: "a terminal state with a reason, never
+  ## a retry that cannot succeed". The ladder's surviving rungs — the container
+  ## download in the identity bar, and the static summary that is this whole
+  ## page — are already on screen, and each of the three sentences names the one
+  ## that applies.
+  if reason.len == 0: return ""
+  ui:
+    tdiv(class = "dbgbanner bad", role = "alert"):
+      span(class = "bannertitle"): text "Replay engine unavailable"
+      span(class = "bannertext"): text reason
+
 proc renderPhaseRail*(s: DebugSessionView): string =
   ## §8: "Loading is phased and honest — fetching, then opening, then
   ## positioning — never an indeterminate spinner."

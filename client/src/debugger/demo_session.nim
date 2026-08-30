@@ -427,6 +427,13 @@ proc demoSession*(chain: string; v: TxView;
   of taAbsent, taUnsupported:
     result.phase = spUnavailable
     result.unavailableReason = availabilityNote(v.headline)
+    # The published reason for THIS execution, where there is exactly one and
+    # the tree carried words for it. `pages/tx.nim` renders the same value in
+    # the same position on the metadata page — §7.1's rule that the transaction
+    # page and the session say one thing about one transaction applies to the
+    # reason it cannot be debugged as much as to its facts.
+    if v.executions.len == 1:
+      result.unavailableDetail = v.executions[0].reason
     result.editor = EditorPane(availability: srcAbsent,
       reason: availabilityNote(v.headline))
     result.controls = fixtureControls(positioned = false, live = false, steps = 0)

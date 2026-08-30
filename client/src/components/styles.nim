@@ -234,6 +234,11 @@ table.tbl td.num{text-align:right}
 .debugcard .row{display:flex;align-items:center;gap:var(--bt-space-md);flex-wrap:wrap}
 .debugcard .note{color:var(--bt-text-default);font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line);margin-top:var(--bt-rhythm-stack);max-width:var(--bt-measure-prose)}
 .debugcard .note.spec{max-width:none;margin-top:var(--bt-rhythm-stack);padding-top:var(--bt-space-sm);border-top:var(--bt-stroke-hairline) solid var(--bt-border-subtle);color:var(--bt-text-default)}
+/* The producer's own words, one rung quieter than the sentence above them and
+   tightened to it, so the pair reads as statement-then-evidence rather than as
+   two paragraphs. Same relationship `.notice .reason` gives the explorer's §14
+   treatments, which is where the rule is written down. */
+.debugcard .note.reason{color:var(--bt-text-muted);margin-top:var(--bt-space-2xs)}
 .execlist{list-style:none;margin-top:var(--bt-rhythm-stack);display:flex;flex-direction:column;gap:var(--bt-space-sm)}
 .execlist li{display:flex;align-items:center;gap:var(--bt-space-sm);flex-wrap:wrap}
 .execlist .sel{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);font-size:var(--bt-type-identifier-size);color:var(--bt-text-muted);min-width:var(--bt-space-3xl)}

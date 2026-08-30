@@ -283,6 +283,10 @@ proc noSession(s: DebugSessionView): string =
         tdiv(class = "panebody"):
           tdiv(class = "nostate"):
             p(class = "panenote measure"): text s.unavailableReason
+            # The pipeline's own words beneath ours, never merged into them.
+            # See `session_view.DebugSessionView.unavailableDetail`.
+            if s.unavailableDetail.len > 0:
+              p(class = "panenote measure reason"): text s.unavailableDetail
             if s.phase == spAwaitingGeneration:
               tdiv(class = "norow"):
                 button(class = "btn primary"): text "Generate trace"
@@ -346,6 +350,18 @@ proc debugPage*(s: DebugSessionView): string =
          `data-content-hash` = s.traceContentHash):
       raw identityBar(s)
       raw banner(s)
+      # The engine's own verdict, when hydration has one. Always emitted and
+      # always empty here: a statically exported page has not tried to load an
+      # engine, so it has nothing to report and `.dbgnotices:empty` hides the
+      # slot. `hydrate.markUnavailable` writes into it through the SAME renderer
+      # that would have drawn it from here, which is the rule every surface on
+      # this route follows.
+      #
+      # ABOVE the position notice, because they answer different questions and
+      # one outranks the other: "the engine will not run" makes "the link landed
+      # on the nearest enclosing frame" a detail about a session that is not
+      # going to move.
+      tdiv(class = "dbgnotices", id = EngineFailureSlotId)
       # §6.0a's landing notice. Empty on every statically exported page, and
       # necessarily so: the payload is in the query, and a static route serves
       # one file per PATH — `?t=` cannot select a rendering. The resolution

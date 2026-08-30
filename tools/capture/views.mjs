@@ -132,6 +132,20 @@ const divergentTx = txWithAvailability("divergent");
  *  contents changed. */
 const onDemandTx = txWithAvailability("onDemand");
 
+/** §7.0's THIRD row, which had no subject in the published tree until VD.6 and
+ *  therefore no view: `txWithAvailability("absent")` threw, and the two states
+ *  `pages/tx.nim` argues hardest about — the pair that gets no control at all,
+ *  "not even a disabled one" — had never been rendered by anything. The demo
+ *  generator now publishes txI and txJ for them.
+ *
+ *  Two selectors and two views, never one. `absent` and `unsupported` are
+ *  different facts about the world — there is nothing to record, and we cannot
+ *  record it — and §14.1a is explicit that "presenting either as the other is
+ *  the failure this table exists to prevent". A single view could be answered
+ *  by a single image and the pair would be gradeable only against itself. */
+const absentTx = txWithAvailability("absent");
+const unsupportedTx = txWithAvailability("unsupported");
+
 /** The transaction whose OUTCOME is a revert, which is what gives the event
  *  log its fifth entry kind a subject, and the one whose RECORDING was cut off
  *  at the profile's budget, which is what gives §14's truncation banner one.
@@ -379,6 +393,42 @@ export const VIEWS = [
     // return `tx-detail`'s subject, so this view cannot quietly become a
     // duplicate of that one again.
     route: (ix) => `/${ix.primaryChain}/tx/${denseTx(ix).hash}`,
+  },
+  {
+    id: "tx-detail--absent",
+    description:
+      "§7.0 `absent` — the metadata page for an execution with no call structure to record: the state as a badge, the reason as a sentence, and no control of any kind",
+    covers: ["tx-detail.absent"],
+    register: "explorer",
+    status: "ready",
+    // Was unfixturable rather than unrenderable, which is the distinction that
+    // makes this a data change and not a client one: `pages/tx.nim` has always
+    // had this branch and `viewutil.availabilityNote(taAbsent)` has always had
+    // its sentence. Nothing in the demo tree ever reached them.
+    //
+    // What this image is reviewed for is the ABSENCE of a control. §7.0 gives
+    // this row "no debugger, and no pretence of one", and `pages/tx.nim` spends
+    // twelve lines on why that means no disabled button either: "a greyed `Not
+    // observable` button is still a button: it occupies the position of the
+    // primary action and invites the click it will refuse". A reviewer who sees
+    // one here is looking at a regression, not at a design choice.
+    route: (ix) => `/${ix.primaryChain}/tx/${absentTx(ix).hash}`,
+  },
+  {
+    id: "tx-detail--unsupported",
+    description:
+      "§7.0 `unsupported` — the metadata page for an execution this product cannot record: the same shape as `absent` and NOT the same sentence",
+    covers: ["tx-detail.unsupported"],
+    register: "explorer",
+    status: "ready",
+    // The point of this view is comparative and it is the only one in the list
+    // that is: read beside `tx-detail--absent`, does a visitor learn that these
+    // are two different facts about the world? Both render a muted badge and a
+    // sentence and offer nothing, so everything separating them is the wording
+    // and the tone — §14.1a's "'Not now' and 'not ever' are different states"
+    // one row further down, where the two terminal states have to be told apart
+    // from each other rather than from a wait.
+    route: (ix) => `/${ix.primaryChain}/tx/${unsupportedTx(ix).hash}`,
   },
   {
     id: "tx-detail--hydrated",
@@ -844,6 +894,45 @@ export const VIEWS = [
     // parameter asking the page to pretend. `?state=` never decided this:
     // §7.0's rule is that availability decides the landing.
     route: debugRoute(divergentTx, { t: DEBUG_TIME_COORDINATE_MID }),
+  },
+
+  {
+    id: "debugger--no-session",
+    description:
+      "The debug ADDRESS of a transaction with no session, on-demand — `pages/debug.noSession` in the region the panes would have occupied, with the generate action and no stepping toolbar",
+    covers: ["debugger.no-session"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    fullPage: false,
+    // This route is SERVED and was unphotographed. `ssr.staticRoutes` emits
+    // `/debug` for every transaction, not only for the ones that open a
+    // session, so `/{chain}/tx/{onDemand}/debug` has always resolved to a real
+    // page — and every debugger view in this file pinned a transaction with a
+    // trace, so the one surface in this register whose whole job is to NOT be a
+    // debugger had never appeared in a review round.
+    //
+    // What it is reviewed for: that the pane region reads as a deliberate
+    // statement rather than as a debugger that failed to load. It is a single
+    // pane in a four-column shell, which is the arrangement most likely to look
+    // like a broken layout when it is in fact the correct one.
+    route: debugRoute(onDemandTx),
+  },
+  {
+    id: "debugger--no-session-terminal",
+    description:
+      "The debug address of a transaction whose trace can never exist — the same region as `debugger--no-session` with NO action in it, which is the whole difference",
+    covers: ["debugger.no-session"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    fullPage: false,
+    // The pair. `spAwaitingGeneration` renders a Generate control and a
+    // sentence about quota; `spUnavailable` renders the sentence alone, because
+    // §14 forbids "a retry that cannot succeed" and §7.0 forbids the pretence.
+    // Captured separately so that the missing control is judged as the subject
+    // of an image rather than noticed as a difference between two paragraphs.
+    route: debugRoute(absentTx),
   },
 
   // ─────────────────── Degraded states on the transaction page ────────────

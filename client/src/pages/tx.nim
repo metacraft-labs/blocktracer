@@ -155,6 +155,32 @@ proc txPage*(chain: string, v: TxView): string =
           if headline == taOnDemand:
             p(class = "note spec"):
               text "Internal calls and state changes come from the execution trace."
+          # The PRODUCER's own words for this execution, where the tree
+          # published any — quoted beneath the enum's sentence rather than
+          # folded into it, which is the rule `components/degraded
+          # .DegradationNotice.detail` already states for the explorer's §14
+          # treatments: "a reason the pipeline wrote is evidence, and rewriting
+          # it in the view would make it prose."
+          #
+          # It was being dropped. `Trace-Artifacts` requires a reason on every
+          # `absent` and `unsupported` execution and `blocktracer_client
+          # /decode.nim` refuses an overlay without one, but this page rendered
+          # `e.reason` only inside the `executions.len > 1` list — so a
+          # single-execution transaction, which is every one of them except the
+          # Aztec split, showed the generic enum sentence and threw the specific
+          # one away. VD.6 captured the two terminal states for the first time
+          # and that is what the images showed: two pages whose only difference
+          # was the generic sentence, over published reasons that named a
+          # private kernel and an AVM revision respectively.
+          #
+          # This is the line that makes the state ACTIONABLE where it can be.
+          # "No recorder exists for this VM yet" tells a visitor nothing they
+          # can do anything with; "ran under AVM revision v0.34, and the pinned
+          # recorder set covers v0.41 and later" tells them what question to
+          # ask. §14's row for that state asks for the recorder's status to be
+          # reachable, and this is the half of it the published tree can supply.
+          if v.executions.len == 1 and v.executions[0].reason.len > 0:
+            p(class = "note reason"): text v.executions[0].reason
           if v.executions.len > 1:
             ul(class = "execlist"):
               for e in v.executions:
