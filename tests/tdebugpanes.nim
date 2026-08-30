@@ -45,7 +45,7 @@
 ## Build:
 ##   just debug-panes                 # resolves CODETRACER_SRC / ../codetracer
 
-import std/[strutils, unittest]
+import std/[json, strutils, unittest]
 
 import codetracer_embed
 
@@ -67,9 +67,17 @@ type Session = LiveSession
   ## `WorkerBackendService`, this passes a `MockBackendService`, and everything
   ## downstream is the same code.
 
-proc openSession(): Session =
-  openLiveSession(newMockBackendService(autoRespond = true).toBackendService(),
-                  sourceIsPublished = true)
+proc openSessionWith(): tuple[session: Session, mock: MockBackendService] =
+  ## The session AND the mock behind it.
+  ##
+  ## The mock is kept because one thing below cannot be driven any other way:
+  ## `ct/load-flow`'s real answer is a queued `ct/updated-flow` EVENT, not its
+  ## reply, and reaching the event path needs `emitEvent`. A suite that could
+  ## only write through the store would be unable to express that at all.
+  let mock = newMockBackendService(autoRespond = true)
+  (openLiveSession(mock.toBackendService(), sourceIsPublished = true), mock)
+
+proc openSession(): Session = openSessionWith().session
 
 # The source text a real session gets from a published source bundle, not from
 # the container (Trace-Artifacts §2.5: the container interns paths and
@@ -304,6 +312,152 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       check "Supply sources" in html
       check "instruction level" in html
       check "remaining_shield" notin html
+
+      s.close()
+      dispose()
+
+  test "the loop rail arrives on the EVENT path, not on the reply":
+    ## Omniscience's loop control, over the real `FlowVM`.
+    ##
+    ## `Omniscience-Flow.md` records the hazard this test is shaped around:
+    ## `ct/load-flow`'s real answer is a queued `ct/updated-flow` EVENT
+    ## (`db-backend/src/dap.rs`), so "a panel that consumed only the reply would
+    ## stay empty forever against the real engine while every mock-driven test
+    ## passed". Nothing here writes the window through a reply or through a
+    ## setter: the ONLY way it reaches the ViewModel is `emitEvent`, which is
+    ## the path a worker uses.
+    createRoot proc(dispose: proc()) =
+      let (s, mock) = openSessionWith()
+      s.store.setSourceAvailability(savVerified)
+      s.store.setSessionMode(completedReplay)
+
+      # ── before the event: no loop, and therefore no rail ─────────────────
+      # The negative first, so the assertions after it cannot be satisfied by a
+      # rail that renders unconditionally.
+      s.store.updateDebuggerPosition(175'u64, file = "src/shield.nr", line = 6)
+      check s.flow.focusedLoop.val == -1
+      check projectFlowRail(s.flow, "src/shield.nr").loopIndex == 0
+      let blank = projectSession(s, "src/shield.nr", ShieldNr, 175, 1315)
+      check blank.editor.flow.loopIndex == 0
+      check "class=\"flowrail\"" notin panes.renderSource(blank.editor)
+
+      # …and the position change DID make the VM ask. A rail that appeared
+      # without the request having been issued would be reading something else.
+      var asked = false
+      for received in mock.receivedCommands:
+        if received.command == "ct/load-flow": asked = true
+      check asked
+
+      # ── the window, delivered exactly as the engine delivers it ──────────
+      # Eight passes of `for i in 0..8 {` on line 4, with the header tick of
+      # each — the real `rrTicksForIterations` of the `zk_shields` recording.
+      # `location.rrTicks` is 175, which is INSIDE the third pass's body and not
+      # on any header: the case issue #593 got wrong by comparing for equality
+      # and freezing the counter at pass 1.
+      mock.emitEvent(%*{
+        "kind": "CtUpdatedFlow",
+        "data": {
+          "location": {"rrTicks": 175},
+          "viewUpdates": [{
+            "location": {"rrTicks": 175},
+            "loops": [
+              {},
+              {"first": 4, "last": 15, "registeredLine": 4,
+               "rrTicksForIterations": [13, 95, 175, 257, 339, 421, 503, 585]}]
+          }]
+        }})
+
+      check s.flow.focusedLoop.val == 1
+      check s.flow.totalIterations.val == 8
+      check s.flow.selectedIteration.val == 2      # the pass 175 falls inside
+
+      let rail = projectFlowRail(s.flow, "src/shield.nr")
+      check rail.loopIndex == 1
+      check rail.line == 4
+      check rail.anchor == lineAnchor("src/shield.nr", 4)
+      check rail.selected == 2
+      check rail.navigable                          # a live session SEEKS
+      check rail.iterations.len == 8
+      check rail.iterations[5].ticks == 421
+
+      # ── and it reaches the markup, through the route's own renderer ──────
+      let view = projectSession(s, "src/shield.nr", ShieldNr, 175, 1315)
+      check view.editor.flow.loopIndex == 1
+      let html = panes.renderSource(view.editor)
+      check "class=\"flowrail\"" in html
+      check "Iteration 3 of 8" in html
+      # Every segment carries its pass's header tick, which is what
+      # `hydrate.bindGestures` hands to `ct/goto-ticks` — no new protocol, the
+      # same `data-step` a call-trace row already uses.
+      check "data-step=\"421\"" in html
+      # A live segment is NOT a `:target` link. That mechanism switches which
+      # recorded pass is displayed, and a live rail does something else: it
+      # moves the debugger. Offering both would be two meanings on one control.
+      check "href=\"#fit-" notin html
+
+      s.close()
+      dispose()
+
+  test "the rail refuses a window it cannot honestly draw":
+    # Fail-closed, in the two shapes the engine can actually produce. Neither is
+    # defensive coding: a rail is "this loop, at this line, N passes", and a
+    # window missing any of those would be drawn as `line -1` or as `of 0`.
+    createRoot proc(dispose: proc()) =
+      let (s, mock) = openSessionWith()
+      s.store.setSourceAvailability(savVerified)
+      s.store.updateDebuggerPosition(175'u64, file = "src/shield.nr", line = 6)
+
+      # A loop with no recorded passes: `pickFocusedLoop` skips it, so there is
+      # no focused loop at all.
+      mock.emitEvent(%*{
+        "kind": "CtUpdatedFlow",
+        "data": {"location": {"rrTicks": 175},
+                 "viewUpdates": [{"loops": [{}, {"first": 4, "last": 15,
+                                                 "registeredLine": 4,
+                                                 "rrTicksForIterations": []}]}]}})
+      check s.flow.focusedLoop.val == -1
+      check projectFlowRail(s.flow, "src/shield.nr").loopIndex == 0
+
+      # A loop with passes but no line to attach the control to. `parseFlowLoop`
+      # defaults `registeredLine` to -1, and a rail reading "Loop line -1" is
+      # worse than no rail: half of what the control says is where the loop is.
+      mock.emitEvent(%*{
+        "kind": "CtUpdatedFlow",
+        "data": {"location": {"rrTicks": 175},
+                 "viewUpdates": [{"loops": [{}, {"rrTicksForIterations": [13, 95]}]}]}})
+      check s.flow.focusedLoop.val == 1
+      check s.flow.totalIterations.val == 2
+      check projectFlowRail(s.flow, "src/shield.nr").loopIndex == 0
+
+      s.close()
+      dispose()
+
+  test "no verified source means no rail, on this producer too":
+    # §14's row, and the same rule `flow_view.applyFlow` enforces on the static
+    # side. Two producers of one frame, and the fidelity ladder has to bind both
+    # — a rail pointing at a loop header in a file the pane is not showing would
+    # be a control addressing nothing.
+    createRoot proc(dispose: proc()) =
+      let (s, mock) = openSessionWith()
+      s.store.setSessionMode(completedReplay)
+      s.store.updateDebuggerPosition(175'u64, file = "src/shield.nr", line = 6)
+      mock.emitEvent(%*{
+        "kind": "CtUpdatedFlow",
+        "data": {"location": {"rrTicks": 175},
+                 "viewUpdates": [{"loops": [{}, {"first": 4, "last": 15,
+                                                 "registeredLine": 4,
+                                                 "rrTicksForIterations": [13, 95, 175]}]}]}})
+      # The window IS loaded — so the absence below is the availability's doing
+      # and not an empty flow window's.
+      check s.flow.focusedLoop.val == 1
+
+      s.store.setSourceAvailability(savVerified)
+      check projectSession(s, "src/shield.nr", ShieldNr, 175, 1315)
+              .editor.flow.loopIndex == 1
+      s.store.setSourceAvailability(savUnverified)
+      let degraded = projectSession(s, "src/shield.nr", ShieldNr, 175, 1315)
+      check degraded.editor.flow.loopIndex == 0
+      check "class=\"flowrail\"" notin panes.renderSource(degraded.editor)
 
       s.close()
       dispose()

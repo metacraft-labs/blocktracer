@@ -59,6 +59,18 @@ type
     state*: StateVM
     eventLog*: EventLogVM
     controls*: DebugControlsVM
+    flow*: FlowVM
+      ## The sixth, and it is not one of the five panes.
+      ##
+      ## `FlowVM` is what issues `ct/load-flow` on every debugger move and
+      ## consumes the queued `ct/updated-flow` EVENT the engine answers with —
+      ## which is the hazard `Omniscience-Flow.md` records by name: a consumer
+      ## that read only the reply stays permanently empty against the real
+      ## engine while every mock-driven test passes. Using the SDK's own applier
+      ## rather than parsing that payload here is the point. It is the code
+      ## written against the engine by the people who wrote the engine, and its
+      ## answer to "which pass is the debugger inside" is the one issue #593 was
+      ## filed and fixed on.
 
 const
   CalltraceViewportRows* = 64
@@ -112,7 +124,8 @@ proc openLiveSession*(backend: BackendService; sourceIsPublished: bool):
     calltrace: createCalltraceVM(store),
     state: createStateVM(store),
     eventLog: createEventLogVM(store),
-    controls: createDebugControlsVM(store))
+    controls: createDebugControlsVM(store),
+    flow: createFlowVM(store))
   result.calltrace.setViewportHeight(CalltraceViewportRows)
   result.eventLog.setPageSize(EventLogPageRows)
 
@@ -147,6 +160,7 @@ proc close*(s: LiveSession) =
   s.state.dispose()
   s.eventLog.dispose()
   s.controls.dispose()
+  s.flow.dispose()
   s.store.dispose()
 
 # ---------------------------------------------------------------------------
@@ -186,6 +200,60 @@ proc projectEditor*(vm: EditorVM; store: ReplayDataStore;
   else:
     result.availability = SourceAvailabilityView.srcAbsent
     result.reason = "This execution ran no contract code."
+
+proc projectFlowRail*(vm: FlowVM; path: string): FlowRail =
+  ## The loop-iteration control, from the engine's own flow window.
+  ##
+  ## ## What crosses, and what deliberately does not
+  ##
+  ## The RAIL crosses: which loop the debugger is inside, how many passes it
+  ## made, which pass this position falls in, and each pass's header tick. All
+  ## four come out of `FlowVM`, which parsed them from `ct/updated-flow` with
+  ## the SDK's own applier — so none of them is this repository's reading of a
+  ## wire format it cannot observe.
+  ##
+  ## The VALUES do not, and that is a deliberate stop rather than an oversight.
+  ## Placing them needs `FlowViewUpdate.steps` — the per-step `beforeValues` and
+  ## `afterValues`, each a CodeTracer `Value` — parsed and RENDERED TO TEXT, and
+  ## neither the parse nor the rendering can be checked against anything here: a
+  ## test written against a payload this repository invented would pass whatever
+  ## the engine actually sends, which is the shape of check this project keeps
+  ## finding. `FlowVM` does not carry them either (`applyFlowUpdate` populates
+  ## the loop shape and the selection and leaves `steps` untouched), so there is
+  ## no already-verified path to borrow.
+  ##
+  ## The consequence is stated rather than hidden: a hydrated session shows the
+  ## rail and no inline values until that payload can be read against a live
+  ## engine. The served page's values are not frozen onto the moved session in
+  ## the meantime — `renderPanes`' own latch documents why ("a step to a frame
+  ## with no locals is a true empty Values pane, and freezing the previous
+  ## frame's values there would be the worse lie"), and a value from the
+  ## position you WERE at is the same lie with a number in it.
+  let loops = vm.loops.val
+  let focused = vm.focusedLoop.val
+  if focused < 0 or focused >= loops.len: return FlowRail(loopIndex: 0)
+  let loop = loops[focused]
+  if loop.rrTicksForIterations.len == 0: return FlowRail(loopIndex: 0)
+  # `registeredLine` is the line the loop control attaches to. A window that did
+  # not carry one (the field defaults to -1 in `parseFlowLoop`) gets no rail at
+  # all rather than a rail pointing at line -1: the control's whole content is
+  # "this loop, here", and half of that is not a control.
+  if loop.registeredLine <= 0: return FlowRail(loopIndex: 0)
+  result = FlowRail(
+    loopIndex: focused,
+    line: loop.registeredLine,
+    anchor: lineAnchor(path, loop.registeredLine),
+    selected: vm.selectedIteration.val,
+    active: vm.selectedIteration.val,
+    navigable: true,
+    iterations: @[])
+  for index, ticks in loop.rrTicksForIterations:
+    # `reached` is a statement about the STATIC window, which is cut at the
+    # served position. A live session can seek to any pass, so it is true here
+    # for all of them — and `navigable` is what the renderer actually keys the
+    # segment's behaviour on.
+    result.iterations.add FlowIteration(
+      index: index, ticks: ticks, reached: true)
 
 proc projectCalltrace*(vm: CalltraceVM): CallTracePane =
   result.costLabel = "ACIR"
@@ -324,6 +392,13 @@ proc projectReplayPanes*(s: LiveSession; base: DebugSessionView;
   result.phase = spReady
   result.hasFrame = true
   result.editor = projectEditor(s.editor, s.store, island)
+  # The rail is attached to the pane, and only where the pane can host one:
+  # §14's instruction-level row has no source to point a loop header at, and
+  # `flow_view.applyFlow` refuses for the same reason on the static side. One
+  # rule, enforced on both producers rather than remembered by both.
+  if result.editor.availability == SourceAvailabilityView.srcSourceLevel:
+    result.editor.flow =
+      projectFlowRail(s.flow, s.store.debugger.val.location.file)
   result.calltrace = projectCalltrace(s.calltrace)
   result.state = projectState(s.state)
   result.eventLog = projectEventLog(s.eventLog)

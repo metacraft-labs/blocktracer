@@ -51,13 +51,27 @@ viewmodel-seam:
 debug-panes:
     ci/test/debug-panes-test.sh --require
 
-# The vendored copy of CodeTracer's `headless_app/layout_model.nim`: its bytes
-# still hash to the manifest, and it still agrees with upstream on every
-# observable. The self-test drives every failure path, so the check is one that
-# has been seen to say no.
+# The VENDORED copies of CodeTracer modules: their bytes still hash to their
+# manifests, and they still agree with upstream on every observable. Each
+# self-test drives every failure path, so neither check is one nobody has seen
+# say no.
+#
+# Two of them, and they are vendored for the same reason and pinned to
+# different things:
+#
+#   * `headless_app/layout_model.nim` — the pane arrangement. NOT in the Embed
+#     SDK's tree, so it tracks its own module's mainline.
+#   * `viewmodel/viewmodels/flow_layout.nim` + `ui/flow_loop_math.nim` — the
+#     Omniscience layout arithmetic. INSIDE the tree `ci/embed-sdk-pin.env`
+#     names, so its manifest commit must equal that pin and the check says so:
+#     the static export and the hydration bundle place inline values with this
+#     one arithmetic, and two commits would be two versions of it laying out
+#     one page.
 layout-vendor:
     ci/test/layout-model-vendor.sh --require
     ci/test/layout-model-vendor-test.sh
+    ci/test/flow-layout-vendor.sh --require
+    ci/test/flow-layout-vendor-test.sh
 
 # Generate a demo static tree into ./demo-site.
 demo-gen out="demo-site" seed="blocktracer-demo-0":

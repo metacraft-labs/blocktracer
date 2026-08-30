@@ -54,6 +54,15 @@ export const PAGES = [
   // `PaneKind` enum and is a wire format — see `views.mjs`.
   { id: "debugger.values-pane", route: "/{chain}/tx/{hash}/debug", anchor: "§8 / Debugger-Integration" },
   { id: "debugger.source-pane", route: "/{chain}/tx/{hash}/debug", anchor: "§8 / Debugger-Integration" },
+  // Omniscience — the product's stated differentiator, and the one thing in
+  // this inventory that no competitor ships: `Debugger-UX-Research.md` records
+  // Pernosco, the most sophisticated omniscient debugger extant, listing inline
+  // value display as a ROADMAP item. Two entries, because they are two claims a
+  // reviewer can judge separately and one can be right while the other is
+  // wrong: that the values are legible beside the code, and that the loop
+  // control says which pass they belong to and can move between passes.
+  { id: "debugger.omniscience", route: "/{chain}/tx/{hash}/debug", anchor: "§8 / Omniscience-Flow" },
+  { id: "debugger.loop-rail", route: "/{chain}/tx/{hash}/debug", anchor: "§8 / Omniscience-Flow loop slider" },
   { id: "debugger.loading-phases", route: "/{chain}/tx/{hash}/debug", anchor: "§8 phased loading" },
   { id: "debugger.narrow", route: "/{chain}/tx/{hash}/debug", anchor: "§13 reduced narrow session" },
   { id: "address", route: "/{chain}/address/{address}", anchor: "§9" },

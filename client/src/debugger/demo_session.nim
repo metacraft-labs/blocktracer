@@ -33,6 +33,8 @@
 import std/[algorithm, json, os, tables]
 import ../reader
 import ../viewutil
+import ./demo_flow
+import ./flow_view
 import ./replay_engine
 import ./session_view
 import ./source_document
@@ -157,11 +159,24 @@ proc executedLines(): Table[string, seq[int]] =
                               40, 42, 43, 44, 46,
                               48, 49, 50, 53, 54, 57, 58, 60, 61, 63, 64, 65, 66]
 
+proc withDemoFlow(pane: var EditorPane) =
+  ## Attach the recorded values to whatever documents the pane holds.
+  ##
+  ## Separate from `fixtureEditor` and applied again in `withPublishedSources`,
+  ## for the reason `markExecuted` is separate: the values belong to the TRACE
+  ## and not to the copy of the file being rendered. A pane whose documents were
+  ## replaced by a published bundle must come back with the same overlay — the
+  ## bundle changes where the source came from and nothing else about the frame
+  ## — and the join is by interned path, which is the same join a step uses to
+  ## resolve to a line.
+  applyFlow(pane, demoFlowInput(ShieldNr))
+
 proc fixtureEditor(): EditorPane =
   result.availability = srcSourceLevel
   result.documents = fixtureDocuments(FixtureFile, FixtureLine, executedLines())
   result.currentLine = FixtureLine
   result.activeIndex = documentIndex(result, FixtureFile)
+  withDemoFlow(result)
 
 proc fixtureCalltrace(): CallTracePane =
   ## Four frames, three depths, plus the sibling calls the loop has already
@@ -428,4 +443,9 @@ proc withPublishedSources*(session: var DebugSessionView; bundle: JsonNode) =
   markExecuted(pane, executedLines())
   if documentIndex(pane, FixtureFile) >= 0:
     focus(pane, FixtureFile, FixtureLine)
+  # The overlay is re-derived against the NEW documents. `newSourceDocument`
+  # built them with no annotations, so a bundle that won without this line would
+  # win by silently deleting the values — the same class of loss `markExecuted`
+  # above exists to prevent for the gutter, and just as invisible.
+  withDemoFlow(pane)
   session.editor = pane

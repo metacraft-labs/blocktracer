@@ -718,6 +718,50 @@ export const VIEWS = [
     clip: "#pane-editor",
   },
   {
+    id: "debugger--omniscience",
+    description: "Recorded values inline beside the code, and the loop rail above them",
+    covers: ["debugger.omniscience", "debugger.loop-rail"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    fullPage: false,
+    route: debugRoute(readyTx, { t: DEBUG_TIME_COORDINATE_MID }),
+    // The same clip as `debugger--source-pane`, and the same pixels — one pane,
+    // captured twice, judged against two different questions. That is
+    // deliberate rather than duplication: the source pane's review asks whether
+    // the CODE is legible and correctly highlighted, and this one asks whether
+    // the VALUES beside it are legible and whose pass they belong to. A single
+    // block with fourteen must-shows is a block a reviewer reads once and
+    // answers in aggregate, which is how the density findings in round 5 were
+    // missed the round before.
+    clip: "#pane-editor",
+  },
+  {
+    id: "debugger--omniscience-earlier-pass",
+    description: "The loop rail moved to an earlier pass — the values follow, with no JavaScript",
+    covers: ["debugger.loop-rail"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    fullPage: false,
+    // `#fit-0` is the rail's first segment, and following it is the whole
+    // no-JavaScript claim: the fragment is a real `:target`, the stylesheet
+    // swaps which pass's labels are displayed, and the values on screen become
+    // pass 1's. Captured as a URL rather than as a scripted click for exactly
+    // that reason — a click would prove nothing about a page that ships no
+    // script, and this proves the control WORKS in the state the ladder's
+    // bottom rung is about.
+    //
+    // It is also the one capture in this file that would not survive the
+    // control being replaced by something that needs script, which is what
+    // makes it worth its bytes.
+    route: debugRoute(readyTx, {
+      t: DEBUG_TIME_COORDINATE_MID,
+      extra: "#fit-0",
+    }),
+    clip: "#pane-editor",
+  },
+  {
     id: "debugger--loading-phases",
     description: "Phased, honest loading — fetching, opening, positioning; never a spinner",
     covers: ["debugger.loading-phases"],

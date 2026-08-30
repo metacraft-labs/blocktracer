@@ -116,7 +116,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 <!-- BEGIN GENERATED: expectations — do not edit by hand -->
 <!-- regenerate with: node tools/capture/render-brief.mjs -->
 
-*65 named views, 65 blocks — generated from `tools/capture/expectations.mjs`. 32 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
+*67 named views, 67 blocks — generated from `tools/capture/expectations.mjs`. 34 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
 
 #### Explorer register — entry and navigation
 
@@ -1261,19 +1261,99 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 - Unhighlighted plain-text source, where the file's language IS one the exporter can lex (Noir today). Plain text is the CORRECT rendering for any other language and for instruction-level content — see the next item — so judge this against the pane's stated language, never on sight alone.
 - Highlighting applied to content the exporter cannot actually lex — a bytecode or instruction listing wearing source colours, or a non-Noir file coloured by Noir's keyword list. Confident mis-tokenisation is a worse failure than plain text because it looks authoritative.
-- Colour used for anything OTHER than lexical category inside the code area — a coloured run that means 'executed', 'changed' or 'selected' would collide with the palette and make both unreadable. Execution state is carried by the row's background and gutter marker, and must stay there.
+- Colour used for anything OTHER than lexical category inside the code area — a coloured run that means 'executed', 'changed' or 'selected' would collide with the palette and make both unreadable. Execution state is carried by the row's background and gutter marker, and must stay there. The inline VALUE LABELS are outside the code area, on their own surface with their own border, and are judged on `debugger--omniscience` instead.
 - A current-line indicator that is indistinguishable from a selection or a hover.
 - Instruction-level content presented as though it were source.
 - The title `Editor`, or any affordance implying the listing can be edited.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
+- The inline value labels now share every row with the code (2026-08-30). Judge the CODE here — whether it is still the primary object on the row and still scannable down the pane — and judge the labels themselves on `debugger--omniscience`. If the labels have become what the eye lands on first, say so here, because it is the code pane's problem and not the overlay's.
 - Line-height and font-size against the desktop app's source pane — the continuity requirement is strongest here because this is the pane a CodeTracer user knows best.
 - The gutter's width budget with four-digit line numbers plus a marker.
 - Highlighting palette in light theme: the mapped editor tokens are dark-first — mapped.json's four rungs have modes.Light identical to modes.Dark — so the light half is web-lineage work and is the case most likely to be wrong.
 - Token legibility ON the current line and ON executed lines, not only against the plain code surface. Those rows have their own backgrounds, and a palette checked against one background only will fail on the row the eye goes to first.
 - Comments in the LIGHT theme specifically: the desktop's white theme paints them #eb4f64, and this lineage deliberately does not, because red is the product's revert hue. If comments read as errors, that departure was wrong.
 - Whether string and function colours are still separable — they are the closest pair in both themes, being the two warm categories.
+
+### View: `debugger--omniscience`
+
+> Recorded values shown inline against the expressions that produced them, and the loop rail that says which pass they belong to. The product's stated differentiator: `Debugger-UX-Research.md` records that nobody else in this category ships it — Pernosco lists inline value display as a roadmap item.
+
+| | |
+| --- | --- |
+| **Register** | debugger — apply rubric B (§6) |
+| **Spec** | Page-Descriptions §8, GUI/Debugging-Features/Omniscience-Flow.md |
+| **Captured at** | wide · laptop × light · dark |
+| **Capture status** | `ready` |
+
+**Must show** — absent ⇒ P1, rating ≤ 4:
+
+- *Inherited backbone `debugger-pane` (Page-Descriptions §8, §7.1, Debugger-Integration §3, Design-System §2):*
+  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1. This survives the clip — a pane is drawn in the product register whether or not the identity bar is in shot.
+  - What is in frame is ONE self-contained region of the session's own chrome, with its own boundary and its own content. Where that region is a pane it carries the same pane chrome as the session's other panes, its title included (§7.1's 'the same pane chrome rather than a bespoke surface'); where the clip is the identity bar it is the slim bar itself, and not the full explorer header. Content bleeding past a boundary that is not drawn, or a pane with content and no title, is the finding.
+  - The region is populated, not blank and not a placeholder. A pane with nothing in it must say why rather than sit empty.
+  - This capture is CLIPPED to one pane. The identity bar, the sibling panes and the rest of the viewport are out of frame by construction — their absence from this image is not a finding, and nothing here may be reported as missing on the grounds that the surrounding session is not visible.
+- Values rendered BESIDE lines of code, one label per variable, in three visibly distinct shapes: a plain read (`shield_pct=90`), a CHANGE the line performed (`damage: 0 → 2000`), and a call's return (`→90`). A reviewer should be able to say which of the three a given label is without reading the numbers.
+- The CHANGE labels distinguishable at a glance from the plain ones — this is the single most valuable thing an inline value says, and it is the one a uniform treatment would hide.
+- The direction of a change unambiguous: which value was before and which is after, carried by more than left-to-right order alone.
+- Each label attached to a specific LINE, visibly, so it is never in doubt which statement a value belongs to.
+- The loop rail above the listing, naming the loop (`iterate_asteroids`, line 4) and stating the pass as a fraction — `Iteration 3 of 8`.
+- A track with one segment per pass, and TWO marks on it that mean different things: where the SESSION is, and which pass's values are currently displayed. On this capture they coincide; a reviewer should still be able to see that they are two marks.
+- Passes the session has not reached rendered visibly INERT and distinguishable from the reachable ones — the still frame has no values for them.
+- The code still legible as code with the labels present: the labels must not be what the eye lands on first.
+
+**Must not show** — present ⇒ P1, rating ≤ 4:
+
+- Two passes' values on one line at once. Every label on screen belongs to the pass the rail names; a line carrying `remaining_shield` twice with different values would be the overlay reporting two moments as one.
+- A value with no visible relationship to any expression — a floating number, a label in the gutter, or a run of labels that could belong to the line above or the line below.
+- A label wide enough to push the code off the pane, or one truncated so hard that the value is unreadable. A value that cannot be read is worse than a value that is absent.
+- Placeholder or zeroed values on lines the session has not executed. Absent is correct there; approximate is not.
+- A loop control that looks draggable, or arrows implying a slider gesture the page cannot perform. With no script this control is a set of links.
+- The label colour colliding with the syntax palette so that a value reads as a token of the code.
+
+**Watch for** — judged after the presence check, normally P2/P3:
+
+- Density. This is the highest information density anywhere in the product — code, gutter, execution markers and up to five value labels on one row — and it is the case most likely to collapse into an undifferentiated stripe. Say whether the row still has a readable structure.
+- The label's own internal hierarchy: the NAME should recede and the VALUE should not. If they read at one weight the run of labels becomes a wall.
+- Long values. `masses=[100, 2000, 200, 100, 100, 50, 50, 14]` is a real recorded value on line 5 — describe what happens to it and whether the answer is legible.
+- Whether the rail reads as part of the Code pane or as a bar that has landed on top of it. It is above the listing rather than at the loop's own header line, because the served window usually starts below that line.
+- Light theme specifically: the change hue is the Values pane's `changed` mark, and it has to survive against the code surface as well as against the pane body.
+- Whether a reviewer can tell, from the screenshot alone, that the values are RECORDED rather than computed by the page. If nothing on screen distinguishes them from a plausible fiction, that is a finding — it is the product's central claim.
+
+### View: `debugger--omniscience-earlier-pass`
+
+> The same pane with the loop rail moved to the loop's FIRST pass, reached by following a link. The whole of it works with no JavaScript, which is what makes the iteration control available on the capability ladder's bottom rung.
+
+| | |
+| --- | --- |
+| **Register** | debugger — apply rubric B (§6) |
+| **Spec** | Page-Descriptions §8, §14.2, Omniscience-Flow.md (Loop Slider Control) |
+| **Captured at** | wide · laptop × light · dark |
+| **Capture status** | `ready` |
+
+**Must show** — absent ⇒ P1, rating ≤ 4:
+
+- *Inherited backbone `debugger-pane` (Page-Descriptions §8, §7.1, Debugger-Integration §3, Design-System §2):*
+  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1. This survives the clip — a pane is drawn in the product register whether or not the identity bar is in shot.
+  - What is in frame is ONE self-contained region of the session's own chrome, with its own boundary and its own content. Where that region is a pane it carries the same pane chrome as the session's other panes, its title included (§7.1's 'the same pane chrome rather than a bespoke surface'); where the clip is the identity bar it is the slim bar itself, and not the full explorer header. Content bleeding past a boundary that is not drawn, or a pane with content and no title, is the finding.
+  - The region is populated, not blank and not a placeholder. A pane with nothing in it must say why rather than sit empty.
+  - This capture is CLIPPED to one pane. The identity bar, the sibling panes and the rest of the viewport are out of frame by construction — their absence from this image is not a finding, and nothing here may be reported as missing on the grounds that the surrounding session is not visible.
+- The rail reading `Iteration 1 of 8` — the selection followed the link.
+- DIFFERENT values against the same lines than `debugger--omniscience` shows. This is the whole point of the capture: pass 1 wrote `remaining_shield: 10000 → 9900` where pass 3 has not written it at all.
+- The two marks now SEPARATED: the session is still in pass 3 and the displayed pass is 1. A reviewer should be able to read both facts off the track.
+- Lines whose values belong only to the session's pass now showing nothing, rather than showing the previous pass's numbers.
+
+**Must not show** — present ⇒ P1, rating ≤ 4:
+
+- The same values as `debugger--omniscience`. Identical panes across the two captures means the control does nothing, which is the affordance-that-lies defect this route has removed twice.
+- The session's own position marker moving. Selecting a pass to LOOK at is not stepping there; the current-line marker and the `here` mark must stay where the session is.
+- Any suggestion that the session has moved — a changed step counter, a changed current line, a changed call trace.
+
+**Watch for** — judged after the presence check, normally P2/P3:
+
+- Whether it is obvious that the pane is showing a pass the session is NOT in. If the two states are indistinguishable without comparing screenshots, the second mark is not carrying its weight.
+- Whether the selected segment is legible as selected at this size — it is a small target in a dense bar.
 
 ### View: `debugger--loading-phases`
 

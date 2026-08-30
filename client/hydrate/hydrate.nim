@@ -191,6 +191,18 @@ proc setControls(ui: Ui; view: DebugSessionView) =
   dc.replaceWith(panes.renderControls(view.controls).cstring)
   setRail(ui, view)
 
+proc markRailNavigable(ui: Ui) =
+  ## The rail's segments become controls once there is an engine behind them.
+  ##
+  ## Re-applied after every render rather than once in `bindGestures`, because
+  ## the rail is re-rendered with the pane and a role set on the old element is
+  ## gone with it. That is the opposite decision from the click LISTENER, which
+  ## is delegated exactly so it survives — a role is a property of the node and
+  ## a listener does not have to be.
+  for seg in ui.editor.querySelectorAll(".frseg"):
+    seg.setAttribute("role", "button")
+    seg.setAttribute("tabindex", "0")
+
 proc scrollToCurrentLine(ui: Ui) =
   ## Bring the session's line into view after the source pane is rewritten.
   ##
@@ -254,6 +266,7 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch) =
   writePane(ui.eventLog, panes.renderEventLog(view.eventLog),
             view.eventLog.rows.len > 0, latch.eventLog)
   setControls(ui, view)
+  markRailNavigable(ui)
   scrollToCurrentLine(ui)
 
 proc markUnavailable(ui: Ui; reason: string) =
@@ -501,6 +514,16 @@ proc bindGestures(h: Hydration) =
 
   rowHandler(h.ui.calltrace, ".ctrow")
   rowHandler(h.ui.eventLog, ".evrow")
+  # The loop rail's segments, through the SAME primitive. A segment's
+  # `data-step` is its pass's loop-header tick, so "show me pass 6" is
+  # `ct/goto-ticks` at that tick and needs no protocol of its own — which is
+  # `Omniscience-Flow.md`'s `SimpleLoopIterationJump` ("enter iteration number,
+  # verify cursor") reached with one line rather than a slider widget.
+  #
+  # Bound on the EDITOR pane's body and not on the rail, because `renderPanes`
+  # replaces the whole body on every stop and the rail with it; a listener on
+  # the rail would be dropped by the first step it took.
+  rowHandler(h.ui.editor, ".frseg")
   # The rows are now controls, so they say so — but only NOW. The served
   # markup deliberately carries no role and no tabindex, because §3's reason
   # for deferring these was that "an affordance that cannot act is the defect

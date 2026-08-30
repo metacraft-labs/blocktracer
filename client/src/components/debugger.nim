@@ -58,6 +58,7 @@
 import std/strutils
 import isonim/ssr/escape
 import isonim/dsl/ui
+import ../debugger/flow_view
 import ../debugger/layout_model
 import ../debugger/replay_engine
 import ../debugger/session_view
@@ -184,6 +185,192 @@ func tokenClass*(k: TokenKind): string =
   of tkNumber: "tk-number"
   of tkPunctuation: "tk-punct"
 
+# ── omniscience: the recorded values, beside the code ──────────────────────
+
+proc renderAnnotations*(annotations: seq[LineAnnotation];
+                        selected: int): string =
+  ## One line's value labels — `Omniscience-Flow.md`'s three renderings.
+  ##
+  ##     [x=10]        a value the line reads
+  ##     [x: 10 → 20]  a value the line WRITES
+  ##     [→230]        the call's return value
+  ##
+  ## ## Why each part is its own span
+  ##
+  ## The name, the separator, the old value, the arrow and the new value are
+  ## five spans, not one string. The stylesheet has to be able to recede the
+  ## name and the superseded value while keeping the current one at full
+  ## strength — a label rendered as one run of text can only be one weight, and
+  ## `10 → 20` in one weight reads as two equally-current values rather than as
+  ## a change. It is also what lets the value alone be the copy target later
+  ## without the name coming with it.
+  ##
+  ## `title` carries `annotationText`, the ONE definition of the label as a
+  ## string. Two spellings of `10 → 20` would be two chances to render it
+  ## backwards, and the direction of that arrow is the whole content of the
+  ## label.
+  ##
+  ## ## Why the pass is a class and not a filter
+  ##
+  ## Every pass the window carries is in the markup and the stylesheet shows
+  ## one. That is what makes the iteration rail work with scripting off; see
+  ## `flow_view.applyFlow`. `fv-any` is a line outside every loop and is always
+  ## shown.
+  ui:
+    span(class = "ann"):
+      for a in annotations:
+        # `.now` is the pass the SESSION is in, and it is what the stylesheet
+        # shows when no rail segment is targeted. A label outside every loop
+        # (`iteration == NoIteration`) is `.now` in every pass, because there is
+        # no other pass it could belong to.
+        let now = (if a.iteration < 0 or a.iteration == selected: " now" else: "")
+        span(class = "fv " & $a.slot & " m-" & $a.mode & " " &
+                     iterationClass(a.iteration) & now,
+             title = annotationText(a),
+             # The source column the value's expression occupies, or -1 when
+             # nothing in the line's text is what it names. Inert data, exactly
+             # as `data-step` is: it is what the spec's parallel-column and
+             # multiline modes need and neither is drawn today, and shipping it
+             # costs nothing while re-deriving it later would mean re-running
+             # the layout in the browser.
+             `data-col` = $a.column):
+          if a.label.len > 0:
+            span(class = "fvn"): text a.label
+            span(class = "fvsep"): text (if a.mode == vmChanged: ":" else: "=")
+          if a.mode == vmChanged:
+            span(class = "fvv was"): text a.beforeValue
+            span(class = "fvto"): text "→"
+            span(class = "fvv"): text a.afterValue
+          elif a.mode == vmAfter:
+            if a.label.len == 0:
+              span(class = "fvto"): text "→"
+            span(class = "fvv"): text a.afterValue
+          else:
+            span(class = "fvv"): text a.beforeValue
+
+proc renderFlowRail*(rail: FlowRail): string =
+  ## The loop-iteration control: `[Iteration: 3/8]` and a track.
+  ##
+  ## ## Two marks, because there are two facts
+  ##
+  ## `.here` is the pass the SESSION is in. It never moves, because moving the
+  ## rail does not move the debugger on a page with no script. `.showing` is the
+  ## pass whose values are on screen, and it is what a segment link changes.
+  ## Collapsing them into one mark would make a reader who looked at pass 0
+  ## believe the session had gone there — which, once hydration lands and the
+  ## click really does seek, would be true half the time and false the other
+  ## half. Two marks are correct in both states.
+  ##
+  ## ## What an unreached segment is, and why it is not hidden
+  ##
+  ## The window is cut at the session's position, so a pass the session has not
+  ## entered carries no values AT THIS COORDINATE. Its segment renders inert and
+  ## says why. Hiding it would misreport the loop's length; offering it would
+  ## promise values that a still frame cannot honestly produce. It becomes live
+  ## on hydration, because a live session can seek to it — `data-step` is its
+  ## header tick and `hydrate.bindGestures` hands that to `ct/goto-ticks`, the
+  ## same primitive a call-trace row already uses. No new protocol.
+  if rail.loopIndex <= 0 or rail.iterations.len == 0: return ""
+  let total = rail.iterations.len
+  let shown = min(total, MaxStaticIterations)
+
+  # The `:target` anchors, as siblings BEFORE the rail and the listing. CSS has
+  # only sibling combinators, so an id nested inside the rail could not reach
+  # the listing at all; the same constraint shapes `renderStack` and the source
+  # tab strip, and the same answer works here.
+  #
+  # Concatenated rather than emitted from one `ui:` block with the rail. A block
+  # with two roots is WRAPPED in an anonymous `<div>`, and that wrapper is not a
+  # cosmetic difference: it puts the anchors and the listing in different
+  # parents, so `#fit-3:target ~ .srcwrap` matches nothing and the whole control
+  # silently does nothing. It also gave `.srcwrap` an auto-height parent to
+  # resolve its `height:100%` against, which collapsed the code listing to zero
+  # rows — the pane rendered its tab strip over an empty well. Both were caught
+  # by looking at a capture, not by a test, which is why `test_debug_route` now
+  # asserts the anchors are emitted AND that they are siblings of the listing.
+  # Which passes get a counter: every one on the track, PLUS the selected one
+  # when the session is past the ladder's end. Without that second half a loop
+  # with more passes than the ladder would render its track, render its "showing
+  # the first 16 of 21" notice, and render NO `Iteration N of M` at all — the
+  # one line of the control that says where you are, missing exactly in the case
+  # the clamp exists to be honest about.
+  var counters: seq[int] = @[]
+  for i in 0 ..< shown: counters.add i
+  if rail.selected >= shown and rail.selected < total: counters.add rail.selected
+
+  var targets = ""
+  for i in 0 ..< shown:
+    let anchor = ui:
+      span(class = "frtarget", id = railTargetId(i)): text ""
+    targets.add anchor
+  let bar = ui:
+    tdiv(class = "flowrail"):
+      span(class = "frtitle"):
+        text "Loop"
+        if rail.label.len > 0:
+          span(class = "frfn"): text rail.label
+      a(class = "frline", href = "#" & rail.anchor,
+        title = "Go to the loop header"):
+        text "line " & $rail.line
+      # ONE COUNTER PER PASS, and the stylesheet shows one — the same mechanism
+      # as the labels, for the same reason. CSS can switch which element is
+      # displayed and cannot rewrite text, so a single server-rendered counter
+      # would keep saying "Iteration 3 of 8" while the rail displayed pass 1's
+      # values. That is the control contradicting the thing it controls, in the
+      # one place a reader looks to find out which pass they are looking at.
+      for i in counters:
+        span(class = "frcount num c" & $i &
+                     (if i == rail.selected: " now" else: "")):
+          text "Iteration " & $(i + 1) & " of " & $total
+      span(class = "frtrack"):
+        # Indexed rather than filtered: the `ui` DSL builds its result inside
+        # the loop body, so a `continue` past a clamped segment leaves it with
+        # unreachable code. Bounding the range says the same thing and says it
+        # once.
+        for i in 0 ..< shown:
+          let it = rail.iterations[i]
+          let mark = " s" & $it.index &
+                     (if it.index == rail.active: " here" else: "") &
+                     (if it.index == rail.selected: " showing" else: "") &
+                     (if rail.navigable or it.reached: " got" else: " out")
+          if rail.navigable:
+            # A live session SEEKS. There is no `href`, because the target
+            # mechanism switches which recorded pass is displayed and this
+            # segment does something else entirely — it moves the debugger to
+            # that pass's header tick. `hydrate.bindGestures` binds it, through
+            # the same `data-step` a call-trace row already carries.
+            span(class = "frseg" & mark, `data-step` = $it.ticks,
+                 title = "Go to pass " & $(it.index + 1) & " of this loop"):
+              span(class = "frnum"): text $(it.index + 1)
+              span(class = "frhere")
+              span(class = "frdot")
+          elif it.reached:
+            a(class = "frseg" & mark, href = "#" & railTargetId(it.index),
+              `data-step` = $it.ticks,
+              title = "Show pass " & $(it.index + 1) & " of this loop"):
+              span(class = "frnum"): text $(it.index + 1)
+              span(class = "frhere")
+              span(class = "frdot")
+          else:
+            # Not a link. `Page-Descriptions` §7.0's rule about affordances
+            # applies inside a control as well as to a whole page: this one
+            # cannot act on a page with no engine, so it does not offer to.
+            span(class = "frseg" & mark,
+                 `data-step` = $it.ticks,
+                 `aria-disabled` = "true",
+                 title = "The session has not reached pass " &
+                         $(it.index + 1) & " at this position."):
+              span(class = "frnum"): text $(it.index + 1)
+              span(class = "frhere")
+              span(class = "frdot")
+      if total > shown:
+        # Clamped, and SAYING SO — `MaxIndentDepth`'s rule. A rail that silently
+        # stopped at sixteen would misreport how many times the loop ran.
+        span(class = "frmore"):
+          text "Showing the first " & $shown & " of " & $total &
+               " passes; the rest need the live session."
+  targets & bar
+
 proc renderSource*(p: EditorPane): string =
   ## The static source renderer.
   ##
@@ -268,10 +455,7 @@ proc renderSource*(p: EditorPane): string =
                   else:
                     span(class = tokenClass(tok.kind)): text tok.text
             if ln.annotations.len > 0:
-              span(class = "ann"):
-                for a in ln.annotations:
-                  span(class = "annv " & $a.slot):
-                    text a.label & "=" & a.value
+              raw renderAnnotations(ln.annotations, p.flow.selected)
 
   # The ACTIVE document is emitted LAST so that `.srcdoc.alt:target` can reach
   # forward and hide it. CSS has only a forward sibling combinator, and the
@@ -289,9 +473,18 @@ proc renderSource*(p: EditorPane): string =
       raw tabStrip(doc.path)
       raw body(doc)
   panels.add def
-  ui:
+  # CONCATENATED, not emitted from one `ui:` block. The rail's `:target`
+  # anchors, the rail and the listing must be SIBLINGS — `#fit-3:target ~
+  # .srcwrap .fv` is the only shape CSS offers for "a control up here changes
+  # what is shown down there", and a block with two roots wraps them in an
+  # anonymous `<div>` that breaks the relationship. The wrapper also gave
+  # `.srcwrap` an auto-height parent to resolve `height:100%` against, which
+  # collapsed `.src` — a `flex:1 1 0` child of a flex column with no height —
+  # to zero rows, so the pane rendered its tab strip over an empty well.
+  let wrap = ui:
     tdiv(class = "srcwrap"):
       raw panels
+  renderFlowRail(p.flow) & wrap
 
 const MaxIndentDepth* = 8
   ## The depth the indentation ladder in `debugger_css.nim` has rules for.

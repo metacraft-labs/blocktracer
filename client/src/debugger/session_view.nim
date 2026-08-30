@@ -129,26 +129,166 @@ type
   AnnotationSlot* = enum
     ## Where a per-line value overlay attaches.
     ##
-    ## CodeTracer's omniscience shows values inline beside the expressions they
-    ## belong to (`[x=10] [y=20]`, `[x: 10→20]`, `[→230]`). Building that is a
-    ## separate workstream; reserving its attachment points is not, because
-    ## retrofitting them means restructuring every rendered line. Two slots,
-    ## because those examples are two different things: a value that belongs
-    ## *at* a column in the line, and a value that belongs to the line as a
-    ## whole.
+    ## CodeTracer's omniscience shows values beside the expressions they belong
+    ## to (`[x=10] [y=20]`, `[x: 10→20]`, `[→230]`). Two slots, because those
+    ## examples are two different things: a value that belongs *at* a column in
+    ## the line, and a value that belongs to the line as a whole.
+    ##
+    ## The distinction is DATA, not a drawing instruction, and the two are
+    ## deliberately not two visual treatments today. `renderSource` draws both
+    ## in one trailing run after the code, which is what
+    ## `Omniscience-Flow.md`'s own wireframe shows —
+    ##
+    ##     | 5  │  let mut remaining = initial_shield; │ [remaining=10000] |
+    ##     | 8  │  let damage = compute(asteroid);  [damage=850]           |
+    ##
+    ## — and what its `# [x=10] [y=20] [sum=30]` examples show. Splitting a line
+    ## of code to inject a label mid-expression is the spec's *Multiline
+    ## Visualization*, which it records as "not fully implemented" upstream
+    ## either, and it makes the code itself unreadable at the widths this pane
+    ## is served at.
+    ##
+    ## What the slot decides is whether the label CAN be pointed at an
+    ## expression: `asInline` carries the source column the value's expression
+    ## occupies and reads in that order; `asTrailing` has no column because
+    ## nothing in the line's text is what it names. That is exactly the
+    ## fidelity rule — a value whose expression `flow_layout` could not find in
+    ## the source is never given a column it might be wrong about, it is given
+    ## none.
     asInline = "inline"
     asTrailing = "trailing"
 
-  LineAnnotation* = object
-    ## One value overlay on one line. `annotations` is empty in everything this
-    ## milestone ships; the renderer handles a non-empty one, and
-    ## `tests/test_debug_route.nim` drives it so the slot is a tested path
-    ## rather than a promise.
-    slot*: AnnotationSlot
-    column*: int          ## 1-based; meaningful for `asInline`, 0 otherwise
-    label*: string        ## the expression, e.g. `remaining_shield`
-    value*: string        ## its rendered value, e.g. `10 → 20`
+  ValueMode* = enum
+    ## Which of a recorded step's two values a label shows, and therefore how it
+    ## reads. `Omniscience-Flow.md` §"Before/After Values", with its renderings:
+    ##
+    ## | Mode        | Display                     | Example      |
+    ## | ----------- | --------------------------- | ------------ |
+    ## | `vmBefore`  | value before the expression | `[x=10]`     |
+    ## | `vmAfter`   | value after the expression  | `[→230]`     |
+    ## | `vmChanged` | both                        | `[x: 10→20]` |
+    ##
+    ## Three members and the same three meanings as the Embed SDK's
+    ## `FlowValueMode`, spelled `vm*` rather than `fvm*` for the reason
+    ## `SourceAvailabilityView`'s members are spelled `src*`: the two enums live
+    ## in one scope wherever both are imported, and a distinct prefix removes
+    ## the class of mistake rather than relying on qualification at every use.
+    ##
+    ## `vmChanged` and not `vmBeforeAndAfter`: on this surface the mode's
+    ## meaning to a reader is "this line wrote this variable", and that is the
+    ## single most valuable thing an inline value can say.
+    vmBefore = "before"
+    vmAfter = "after"
+    vmChanged = "changed"
 
+  LineAnnotation* = object
+    ## One value overlay on one line: a variable, its recorded value or values,
+    ## and the loop pass it belongs to.
+    ##
+    ## `iteration` is what keeps the overlay honest across a loop. A line inside
+    ## a `for` body has one label per pass, and only the selected pass's may be
+    ## on screen — a value from pass 5 rendered while the session is in pass 2
+    ## is a value that never existed at this position. It is `-1` for a line
+    ## outside any loop, which is always shown.
+    slot*: AnnotationSlot
+    column*: int          ## 0-based source column of the expression;
+                          ## meaningful for `asInline`, `-1` otherwise
+    label*: string        ## the expression, e.g. `remaining_shield`
+    beforeValue*: string  ## its value entering the line
+    afterValue*: string   ## its value leaving the line
+    mode*: ValueMode
+    iteration*: int       ## the loop pass, or -1 for "outside any loop"
+
+func annotationText*(a: LineAnnotation): string =
+  ## The label as one string — the plain-text form of the three renderings.
+  ##
+  ## The renderer emits the same three shapes as separate spans so the name, the
+  ## arrow and the value can be styled apart; this is the single definition they
+  ## are both derived from, and it is what travels on `title` and what a test
+  ## asserts against. Two spellings of one label would be two chances to render
+  ## `10 → 20` as `20 → 10`.
+  case a.mode
+  of vmBefore: a.label & "=" & a.beforeValue
+  of vmAfter:
+    # A return value has no expression in the source at all — the spec's
+    # `[→230]`. A first assignment does, and reads better as `[shield_pct=90]`
+    # than as `[shield_pct→90]`: the arrow means "changed from", and there was
+    # nothing to change from.
+    if a.label.len == 0: "→" & a.afterValue
+    else: a.label & "=" & a.afterValue
+  of vmChanged: a.label & ": " & a.beforeValue & " → " & a.afterValue
+
+type
+  FlowIteration* = object
+    ## One pass through a loop, as the iteration rail offers it.
+    index*: int
+    ticks*: int
+      ## The trace tick of this pass's loop header — a real time coordinate,
+      ## which is what makes the rail's segments deep-linkable and what
+      ## hydration hands to `ct/goto-ticks`.
+    reached*: bool
+      ## The session has passed through it, so the window carries its values.
+      ##
+      ## The static page is a still frame at one position and the passes after
+      ## that position have not happened yet AT THAT POSITION. Their segments
+      ## render inert and say so, rather than showing nothing and looking
+      ## broken, or — the failure this field exists to make impossible —
+      ## showing the recorded future as though the session were already there.
+
+  FlowRail* = object
+    ## The loop-iteration control (`Omniscience-Flow.md` §"Loop Slider
+    ## Control"): `[Iteration: 3/8]` with a track.
+    ##
+    ## It is carried by the PANE rather than attached to the loop's header line,
+    ## and that is a departure from the spec's "a slider appears above loop
+    ## constructs" with a concrete cause: the served pane is a WINDOW of the
+    ## file opened at the session's position (`source_document.openAtCurrent`),
+    ## and the loop the session is inside is very often above that window — the
+    ## demo session sits at `src/shield.nr:32` in a body whose `for` header is
+    ## on line 4, twenty-two lines above the first line served. A control drawn
+    ## only at the header would be a control that is absent exactly when the
+    ## reader is inside the loop. `line`/`anchor` name where the loop is, and
+    ## the rail links to it.
+    loopIndex*: int       ## 0 when there is no loop; the rail renders nothing
+    line*: int            ## the loop header's source line
+    anchor*: string       ## that line's stable id, so the rail can link to it
+    label*: string        ## the enclosing function, e.g. `iterate_asteroids`
+    selected*: int        ## the pass whose labels are on screen
+    active*: int          ## the pass the SESSION is in — never moves
+    iterations*: seq[FlowIteration]
+    navigable*: bool
+      ## A click on a segment MOVES THE SESSION rather than switching which pass
+      ## is displayed.
+      ##
+      ## False on the served page and true once hydration has an engine, and the
+      ## difference is not cosmetic: with no script a segment can only change
+      ## what is shown, and `Omniscience-Flow.md`'s `SimpleLoopIterationJump`
+      ## ("enter iteration number, verify cursor") is a navigation the static
+      ## page cannot perform. Rendering a seek control that cannot seek is the
+      ## affordance-that-lies defect this route has removed twice, so the rail
+      ## renders as the thing it can actually be in each state — a display
+      ## selector, then a seek — and `FlowIteration.ticks` is what the second
+      ## one hands to `ct/goto-ticks`.
+
+const MaxStaticIterations* = 16
+  ## How many passes the rail can switch between WITHOUT JavaScript.
+  ##
+  ## The static mechanism is `:target`, which needs one pair of rules per pass in
+  ## a stylesheet written before any trace is known — so the ladder is finite
+  ## while a loop is not. Sixteen covers every loop the demo tree records.
+  ##
+  ## It lives HERE, beside the type, because it is read by two files that must
+  ## agree: `components/debugger.renderFlowRail` emits at most this many
+  ## segments, and `components/debugger_css` emits exactly this many rungs. A
+  ## rail with a seventeenth segment would target an id no rule answers and show
+  ## the wrong pass's values while looking completely normal — the same class of
+  ## silent failure `MaxIndentDepth` exists to prevent for call depth, and the
+  ## same answer: clamp, and SAY SO.
+  ##
+  ## The ceiling is on the no-JavaScript rung of the capability ladder and not
+  ## on the product. A hydrated session seeks to any pass through the engine.
+
+type
   SourceLine* = object
     ## One rendered line of source.
     ##
@@ -210,6 +350,14 @@ type
     documents*: seq[SourceDocument]
     activeIndex*: int         ## which document the pane shows
     currentLine*: int         ## 0 when the session is not positioned
+    flow*: FlowRail
+      ## The loop-iteration control, when the session is inside a loop.
+      ##
+      ## On the PANE and not on a document because it is a statement about where
+      ## the SESSION is, not about a file: the same file rendered for a session
+      ## outside the loop carries no rail. `flow_view.applyFlow` is the only
+      ## producer, and it refuses to produce one at all below source-level
+      ## fidelity — see its header.
 
 func pathSlug*(path: string): string =
   ## Path characters that are not safe in an HTML id, folded to `-`.

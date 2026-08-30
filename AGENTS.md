@@ -65,7 +65,7 @@ is now a presentation projection over the SDK, not a second reader.
 | `just sdk-boundary` | the bidirectional import lint plus its own self-test |
 | `just sdk-test-embed` | `tests/tembedhandoff.nim` against the real Embed SDK; needs `$CODETRACER_SRC` or a `../codetracer` checkout — pinned commit in `ci/embed-sdk-pin.env` |
 | `just debug-panes` | `tests/tdebugpanes.nim` — the debug route's five pane renderers over the Embed SDK's OWN `EditorVM`/`CalltraceVM`/`StateVM`/`EventLogVM`/`DebugControlsVM`, driven through `MockBackendService`. Needs the Embed SDK |
-| `just layout-vendor` | the vendored copy of CodeTracer's `headless_app/layout_model.nim` still hashes to its manifest and still agrees with upstream on every observable, plus the self-test that drives every failure path |
+| `just layout-vendor` | BOTH vendored copies of CodeTracer modules — `headless_app/layout_model.nim` (the pane arrangement) and `viewmodel/viewmodels/flow_layout.nim` + `ui/flow_loop_math.nim` (the Omniscience layout arithmetic) — still hash to their manifests and still agree with upstream on every observable, plus the self-tests that drive every failure path. The flow manifest's commit must EQUAL `ci/embed-sdk-pin.env`, because those two files are inside the tree the pin names and `client/hydrate/` compiles against it |
 
 ## 1b. `client/hydrate/` — the debug route's live session
 
@@ -116,7 +116,7 @@ Layout under **`client/src/`**:
 | `reader.nim`, `viewutil.nim` | Chain-data loading + view helpers. `viewutil.txMetadataRows` is the ONE producer of the transaction's facts — the tx page's overview grid and the debugger's metadata pane both render it (§7.1: "from one source", and they "cannot be allowed to diverge") |
 | `pages/*.nim` | `home`, `chains`, `chain`, `blocklist`, `blockview`, `txs`, `tx`, `debug`, `address`, `code`, `search`, `settings`, `about`, `notfound` |
 | `components/*.nim` | `layout` (both shells), `styles`, `debugger_css`, `nav`, `footer`, `tables` (the shared `<TransactionsTable>`), `pager` (the cursor pager — §2.2 rules out ordinal pages, so there are no page numbers anywhere), `degraded` (the ONE `case` over `ChainDegradation` in the explorer: §14's treatments, rendered from the enum `viewmodel/chain_degradation.nim` resolves), `debugger` (the pane renderers + the LayoutNode walk) |
-| `debugger/*.nim` | The debug route's renderer-free layer: `layout_model.nim` (a VENDORED copy of CodeTracer's — see `layout_model.vendor.json` and `ci/test/layout-model-vendor.sh`), `session_view.nim` (what a pane renders), `source_document.nim` (the static source renderer's input), `demo_session.nim` (the static tree's producer) |
+| `debugger/*.nim` | The debug route's renderer-free layer: `layout_model.nim` (a VENDORED copy of CodeTracer's — see `layout_model.vendor.json` and `ci/test/layout-model-vendor.sh`), `session_view.nim` (what a pane renders), `source_document.nim` (the static source renderer's input), `demo_session.nim` (the static tree's producer), `flow_view.nim` (**omniscience** — recorded values placed against the source, over the vendored `vendor/frontend/**` layout arithmetic), `demo_flow.nim` (the static tree's flow window, extracted from the REAL `zk_shields.ct` by `client/fixtures/demo-session/extract-flow.mjs`) |
 | `design_system/tokens.nim` | Design-system tokens |
 
 **Route table** (`client/src/ssr.nim`) — routes are **data-derived** (one per

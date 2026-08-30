@@ -32,7 +32,9 @@
 ## with scripting off, which is what makes the static route the debugger's
 ## honest first frame.
 
-const debugRouteCss* = """
+import ../debugger/session_view
+
+const debugRouteBaseCss = """
 /* ── the shell ──────────────────────────────────────────────────────────── */
 /* Full viewport with no page scroll. `height:100%` down the chain rather than
    a viewport unit: `vh` is a raw length, and the chain says the same thing. */
@@ -363,14 +365,128 @@ html[data-register="debugger"],
 .src .tk-string{color:var(--bt-syntax-string)}
 .src .tk-number{color:var(--bt-syntax-number)}
 .src .tk-punct{color:var(--bt-syntax-punctuation)}
-/* The inline value overlay's slot. Nothing produces annotations yet; the rule
-   exists so that when a producer does, the line does not have to change. */
-.srcline .ann{display:inline-flex;gap:var(--bt-space-2xs);
-  margin-left:var(--bt-space-md);white-space:nowrap}
-.srcline .annv{font-size:var(--bt-type-label-size);
-  padding:0 var(--bt-space-3xs);border-radius:var(--bt-radius-xs);
-  background:var(--bt-status-info-bg);color:var(--bt-status-info-fg);
-  border:var(--bt-stroke-hairline) solid var(--bt-status-info-border)}
+/* ── omniscience: the recorded values, beside the code ──────────────────── */
+/* The product's differentiator, and the pane's one place where colour does NOT
+   mean lexical category. That is not a violation of the rule above it: the
+   labels are OUTSIDE the code, after the line's text, on their own surface with
+   their own border. A reader can tell a label from the code without reading
+   either, which is the property the "colour means lexical category inside the
+   code area" rule is protecting.
+
+   The labels sit after the code rather than inside it. `Omniscience-Flow.md`'s
+   own wireframe puts them there —
+
+       | 5  │  let mut remaining = initial_shield; │ [remaining=10000] |
+
+   — and so do its `# [x=10] [y=20] [sum=30]` examples. Splitting a line to
+   inject a label mid-expression is the spec's *Multiline Visualization*, which
+   it records as not implemented upstream either, and at this pane's width it
+   would cost the code its own readability to gain the values theirs. */
+.srcline .ann{display:inline-flex;align-items:baseline;
+  gap:var(--bt-space-2xs);margin-left:var(--bt-space-lg);white-space:nowrap;
+  flex:0 0 auto}
+/* HIDDEN BY DEFAULT, shown one pass at a time. Every pass the flow window
+   carries is in the markup — that is what makes the iteration rail work with
+   scripting off — and `.now` is the pass the session is in. The `:target`
+   ladder at the end of this stylesheet is what moves it. A `.fv` with no `.now`
+   and no target is a value from another pass, and it must not be on screen. */
+/* NO gap between the parts. A label is one word — `damage: 0 → 2000` — and a
+   uniform flex gap put a space before its own colon (`damage : 0`), which reads
+   as two things rather than one. The spacing the three renderings actually need
+   is asymmetric, so it is stated per part below. */
+.fv{display:none;align-items:baseline;gap:0;
+  font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
+  font-size:var(--bt-type-label-size);line-height:var(--bt-type-label-line);
+  padding:0 var(--bt-space-2xs);border-radius:var(--bt-radius-xs);
+  background:var(--bt-surface-sunken);color:var(--bt-text-default);
+  border:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
+  max-width:var(--bt-layout-label-column);overflow:hidden}
+.fv.now{display:inline-flex}
+/* The NAME recedes and the VALUE does not. A label is read for its value; the
+   name is how you know which value it is, and rendering both at one weight
+   makes the run of labels an undifferentiated stripe at the end of the line. */
+.fvn{color:var(--bt-text-subtle)}
+/* `x=10` closes up; `x: 10 -> 20` takes a space after the colon, because what
+   follows it is a PAIR and not a single value. */
+.fvsep{color:var(--bt-text-disabled)}
+.fv.m-changed .fvsep{margin-right:var(--bt-space-3xs)}
+.fvv{color:var(--bt-text-strong);font-variant-numeric:var(--bt-numeric-features);
+  overflow:hidden;text-overflow:ellipsis}
+/* A WRITE is the most valuable thing an inline value can say, and it gets the
+   pane's own "changed at this step" hue — the same token the Values pane marks
+   a changed variable with, so one fact has one colour in both places. The
+   superseded value is quietened and the arrow carries the direction, so the
+   pair reads as a change rather than as two current values. */
+.fv.m-changed{border-color:var(--bt-mark-changed)}
+.fv.m-changed .fvv{color:var(--bt-mark-changed)}
+.fv.m-changed .fvv.was{color:var(--bt-text-subtle)}
+.fvto{color:var(--bt-mark-changed);margin:0 var(--bt-space-3xs)}
+/* A return value has no name at all — the spec's `[→230]`. It is the one label
+   whose arrow is the whole of its identity, so the arrow keeps full strength
+   where a name would have been. */
+.fv.m-after .fvto{color:var(--bt-text-muted)}
+/* ── the loop iteration rail (Omniscience-Flow.md, "Loop Slider Control") ── */
+/* Above the listing rather than above the loop's own header line, because the
+   served pane is a WINDOW opened at the session's position and the `for` the
+   session is inside is usually above it — see `session_view.FlowRail`. */
+.frtarget{display:block;height:0;overflow:hidden}
+.flowrail{flex:0 0 auto;display:flex;align-items:center;flex-wrap:wrap;
+  gap:var(--bt-space-xs);
+  padding:var(--bt-space-2xs) var(--bt-density-cell-x);
+  background:var(--bt-surface-sunken);
+  border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
+  font-size:var(--bt-type-label-size)}
+.frtitle{color:var(--bt-text-subtle);font-weight:var(--bt-type-label-weight);
+  letter-spacing:var(--bt-type-label-tracking);text-transform:uppercase}
+.frfn{margin-left:var(--bt-space-2xs);text-transform:none;
+  letter-spacing:normal;color:var(--bt-text-default);
+  font-family:var(--bt-font-mono),var(--bt-font-mono-fallback)}
+.frline{color:var(--bt-text-link);text-decoration:underline;
+  text-underline-offset:var(--bt-space-3xs)}
+/* One counter per pass, all in the markup, one displayed — see
+   `renderFlowRail`. `.now` is the pass the session is in; the target ladder
+   moves it in lock-step with the labels, so the number a reader reads and the
+   values they are looking at are always the same pass. */
+.frcount{display:none;color:var(--bt-text-strong);
+  font-variant-numeric:var(--bt-numeric-features)}
+.frcount.now{display:inline}
+/* The track. `flex:1 1 auto` so it takes the width the row has left, which is
+   what makes it read as a scrubber over the loop rather than as a row of
+   buttons — the spec draws it as `[◄ ════●══════ ►]`. */
+.frtrack{flex:1 1 auto;min-width:0;display:flex;align-items:stretch;
+  gap:var(--bt-space-3xs)}
+.frseg{flex:1 1 0;min-width:0;display:flex;flex-direction:column;
+  align-items:center;gap:var(--bt-space-3xs);
+  padding:var(--bt-space-3xs) 0;border-radius:var(--bt-radius-xs);
+  background:var(--bt-mark-track);color:var(--bt-text-muted)}
+.frnum{font-variant-numeric:var(--bt-numeric-features);
+  font-size:var(--bt-type-caption-size)}
+a.frseg:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
+/* A pass the session has NOT reached at this position. It is not a link and it
+   does not look like one: the still frame has no values for it, and offering it
+   would be an affordance that cannot act. Hydration makes it live. */
+.frseg.out{background:var(--bt-action-disabled-bg);
+  color:var(--bt-text-disabled);cursor:not-allowed}
+/* A reachable pass is marked by its NUMBER coming up to full strength, not by a
+   fill. `--bt-mark-track-elapsed` was tried here and is wrong at this size: it
+   is the scrubber's elapsed run, designed as a 4px tick, and painted across a
+   whole segment it made three saturated blocks the loudest object in the pane —
+   louder than the current line, in a bar whose entire job is to be secondary to
+   the code. The scrubber's own lesson applies unchanged: the fill says how far,
+   the MARKER says where, and only the second is a fact worth shouting. */
+.frseg.got{color:var(--bt-text-default)}
+/* TWO marks, because there are two facts. `.frhere` is where the SESSION is and
+   never moves. `.frdot` is which pass is on screen, and the rail moves it.
+   Collapsing them would tell a reader who looked at pass 1 that the session had
+   gone there. Both are shapes as well as colours, so neither depends on hue. */
+.frhere,.frdot{display:none;width:100%;height:var(--bt-stroke-thick);
+  border-radius:var(--bt-radius-full)}
+.frhere{background:var(--bt-mark-position)}
+.frdot{background:var(--bt-mark-view)}
+.frseg.here .frhere{display:block}
+.frseg.showing .frdot{display:block}
+.frseg.here{color:var(--bt-mark-position)}
+.frmore{flex:0 0 100%;color:var(--bt-text-muted)}
 .srcnone{padding:var(--bt-density-card-pad) var(--bt-density-cell-x)}
 .srcnone .btn{margin-top:var(--bt-rhythm-stack)}
 
@@ -918,3 +1034,56 @@ html[data-register="debugger"],
   .ctmod,.evdetail{display:none}
 }
 """
+
+func flowIterationLadder(): string =
+  ## The loop rail's `:target` rungs — the one part of this stylesheet that is
+  ## GENERATED rather than written.
+  ##
+  ## ## Why it is generated
+  ##
+  ## `session_view.MaxStaticIterations` is read by the renderer to decide how
+  ## many segments it may emit and by this stylesheet to decide how many rungs
+  ## exist, and the two must be the same number. Written by hand they would be
+  ## the same number until somebody changed one — and the failure would be
+  ## silent, because a segment whose id no rule answers still renders, still
+  ## looks like a link, and shows the wrong pass's values when clicked. Reading
+  ## the constant is the only form of "they agree" that cannot decay.
+  ##
+  ## ## Why it emits nothing but `display`
+  ##
+  ## Every design value stays in the written half above: the rungs toggle
+  ## `display` on elements whose appearance is already decided. That keeps the
+  ## generated CSS free of anything `tools/design/check-tokens.mjs` would have
+  ## to reason about — a raw colour inside a `for` loop is a raw colour the lint
+  ## can still see, and one it would be much harder to fix.
+  ##
+  ## ## What each rung does
+  ##
+  ## Six rules, and it takes all six:
+  ##
+  ##   1. hide the pass the SESSION is in (`.fv.now`), because a rail set to
+  ##      another pass must not leave two passes' values on one line;
+  ##   2. show the targeted pass, and with it every label outside any loop
+  ##      (`.fv-any`), which belongs to no pass and is true in all of them;
+  ##   3. move the "showing" dot off the default segment;
+  ##   4. put it on the targeted one; and
+  ##   5-6. the same swap for the `Iteration N of M` counter, because CSS can
+  ##      change WHICH element is shown and cannot rewrite text — a single
+  ##      counter would keep naming the session's pass while the pane displayed
+  ##      another one.
+  ##
+  ## The "here" mark is deliberately untouched by all four: it says where the
+  ## SESSION is, and looking at another pass does not move the session.
+  for i in 0 ..< MaxStaticIterations:
+    let t = "#fit-" & $i & ":target ~ "
+    result.add t & ".srcwrap .fv.now{display:none}\n"
+    result.add t & ".srcwrap .fv.fv-i" & $i & "," &
+                t & ".srcwrap .fv.fv-any{display:inline-flex}\n"
+    result.add t & ".flowrail .frseg.showing .frdot{display:none}\n"
+    result.add t & ".flowrail .frseg.s" & $i & " .frdot{display:block}\n"
+    result.add t & ".flowrail .frcount.now{display:none}\n"
+    result.add t & ".flowrail .frcount.c" & $i & "{display:inline}\n"
+
+const debugRouteCss* = debugRouteBaseCss & """
+/* ── the loop rail's target ladder (generated; see flowIterationLadder) ──── */
+""" & flowIterationLadder()

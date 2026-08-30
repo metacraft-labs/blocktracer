@@ -1,0 +1,1486 @@
+{
+ "_": [
+  "DERIVED, NOT WRITTEN. Every value below is a value the recorder wrote into",
+  "fixtures/trace/noir_space_ship/zk_shields.ct. Regenerate with",
+  "  ct-print --full fixtures/trace/noir_space_ship/zk_shields.ct > /tmp/zk.json",
+  "  node client/fixtures/demo-session/extract-flow.mjs /tmp/zk.json \\",
+  "    > client/fixtures/demo-session/flow.json",
+  "and see extract-flow.mjs for the three rules that decide what is in here."
+ ],
+ "path": "src/shield.nr",
+ "position": {
+  "ticks": 195,
+  "line": 32,
+  "function": "calculate_damage",
+  "iteration": 2
+ },
+ "loop": {
+  "first": 4,
+  "last": 15,
+  "registeredLine": 4,
+  "iterationTicks": [
+   13,
+   95,
+   175,
+   257,
+   339,
+   421,
+   503,
+   585
+  ]
+ },
+ "steps": [
+  {
+   "ticks": 9,
+   "line": 1,
+   "iteration": -1,
+   "function": "iterate_asteroids",
+   "order": [
+    "initial_shield",
+    "shield_regen_percentage",
+    "masses"
+   ],
+   "before": {},
+   "after": {
+    "initial_shield": "10000",
+    "shield_regen_percentage": "10",
+    "masses": "[100, 2000, 200, 100, 100, 50, 50, 14]"
+   }
+  },
+  {
+   "ticks": 12,
+   "line": 2,
+   "iteration": -1,
+   "function": "iterate_asteroids",
+   "order": [
+    "remaining_shield",
+    "initial_shield"
+   ],
+   "before": {
+    "initial_shield": "10000"
+   },
+   "after": {
+    "remaining_shield": "10000",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 13,
+   "line": 4,
+   "iteration": 0,
+   "function": "iterate_asteroids",
+   "order": [
+    "i"
+   ],
+   "before": {},
+   "after": {
+    "i": "0"
+   }
+  },
+  {
+   "ticks": 15,
+   "line": 5,
+   "iteration": 0,
+   "function": "iterate_asteroids",
+   "order": [
+    "mass",
+    "masses",
+    "i"
+   ],
+   "before": {
+    "masses": "[100, 2000, 200, 100, 100, 50, 50, 14]",
+    "i": "0"
+   },
+   "after": {
+    "mass": "100",
+    "masses": "[100, 2000, 200, 100, 100, 50, 50, 14]",
+    "i": "0"
+   }
+  },
+  {
+   "ticks": 17,
+   "line": 6,
+   "iteration": 0,
+   "function": "iterate_asteroids",
+   "order": [
+    "damage",
+    "initial_shield",
+    "remaining_shield",
+    "mass"
+   ],
+   "before": {
+    "initial_shield": "10000",
+    "remaining_shield": "10000",
+    "mass": "100"
+   },
+   "after": {
+    "damage": "100",
+    "initial_shield": "10000",
+    "remaining_shield": "10000",
+    "mass": "100"
+   }
+  },
+  {
+   "ticks": 18,
+   "line": 22,
+   "iteration": 0,
+   "function": "calculate_damage",
+   "order": [
+    "initial_shield",
+    "remaining_shield",
+    "mass"
+   ],
+   "before": {},
+   "after": {
+    "initial_shield": "10000",
+    "remaining_shield": "10000",
+    "mass": "100"
+   }
+  },
+  {
+   "ticks": 21,
+   "line": 26,
+   "iteration": 0,
+   "function": "calculate_damage",
+   "order": [
+    "shield_pct",
+    "remaining_shield",
+    "initial_shield"
+   ],
+   "before": {
+    "remaining_shield": "10000",
+    "initial_shield": "10000"
+   },
+   "after": {
+    "shield_pct": "100",
+    "remaining_shield": "10000",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 22,
+   "line": 48,
+   "iteration": 0,
+   "function": "calculate_remaining_shield_pct",
+   "order": [
+    "remaining_shield",
+    "initial_shield"
+   ],
+   "before": {},
+   "after": {
+    "remaining_shield": "10000",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 24,
+   "line": 49,
+   "iteration": 0,
+   "function": "calculate_remaining_shield_pct",
+   "order": [
+    "result",
+    "remaining_shield",
+    "initial_shield"
+   ],
+   "before": {
+    "remaining_shield": "10000",
+    "initial_shield": "10000"
+   },
+   "after": {
+    "result": "100",
+    "remaining_shield": "10000",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 29,
+   "line": 50,
+   "iteration": 0,
+   "function": "calculate_remaining_shield_pct",
+   "order": [
+    "result"
+   ],
+   "before": {
+    "result": "100"
+   },
+   "after": {
+    "result": "100"
+   },
+   "returns": "100"
+  },
+  {
+   "ticks": 31,
+   "line": 27,
+   "iteration": 0,
+   "function": "calculate_damage",
+   "order": [
+    "damage"
+   ],
+   "before": {},
+   "after": {
+    "damage": "0"
+   }
+  },
+  {
+   "ticks": 32,
+   "line": 28,
+   "iteration": 0,
+   "function": "calculate_damage",
+   "order": [
+    "shield_pct"
+   ],
+   "before": {
+    "shield_pct": "100"
+   },
+   "after": {
+    "shield_pct": "100"
+   }
+  },
+  {
+   "ticks": 33,
+   "line": 29,
+   "iteration": 0,
+   "function": "calculate_damage",
+   "order": [
+    "damage",
+    "mass"
+   ],
+   "before": {
+    "damage": "0",
+    "mass": "100"
+   },
+   "after": {
+    "damage": "100",
+    "mass": "100"
+   }
+  },
+  {
+   "ticks": 34,
+   "line": 34,
+   "iteration": 0,
+   "function": "calculate_damage",
+   "order": [
+    "damage",
+    "remaining_shield"
+   ],
+   "before": {
+    "damage": "100",
+    "remaining_shield": "10000"
+   },
+   "after": {
+    "damage": "100",
+    "remaining_shield": "10000"
+   },
+   "returns": "100"
+  },
+  {
+   "ticks": 38,
+   "line": 7,
+   "iteration": 0,
+   "function": "iterate_asteroids",
+   "order": [
+    "remaining_shield",
+    "damage"
+   ],
+   "before": {
+    "remaining_shield": "10000",
+    "damage": "100"
+   },
+   "after": {
+    "remaining_shield": "9900",
+    "damage": "100"
+   }
+  },
+  {
+   "ticks": 40,
+   "line": 9,
+   "iteration": 0,
+   "function": "iterate_asteroids",
+   "order": [
+    "regeneration"
+   ],
+   "before": {},
+   "after": {
+    "regeneration": "0"
+   }
+  },
+  {
+   "ticks": 41,
+   "line": 10,
+   "iteration": 0,
+   "function": "iterate_asteroids",
+   "order": [
+    "remaining_shield"
+   ],
+   "before": {
+    "remaining_shield": "9900"
+   },
+   "after": {
+    "remaining_shield": "9900"
+   }
+  },
+  {
+   "ticks": 42,
+   "line": 11,
+   "iteration": 0,
+   "function": "iterate_asteroids",
+   "order": [
+    "regeneration",
+    "initial_shield",
+    "remaining_shield",
+    "shield_regen_percentage"
+   ],
+   "before": {
+    "regeneration": "0",
+    "initial_shield": "10000",
+    "remaining_shield": "9900",
+    "shield_regen_percentage": "10"
+   },
+   "after": {
+    "regeneration": "100",
+    "initial_shield": "10000",
+    "remaining_shield": "9900",
+    "shield_regen_percentage": "10"
+   }
+  },
+  {
+   "ticks": 43,
+   "line": 40,
+   "iteration": 0,
+   "function": "calculate_shield_regeneration",
+   "order": [
+    "initial_shield",
+    "remaining_shield",
+    "shield_regen_percentage"
+   ],
+   "before": {},
+   "after": {
+    "initial_shield": "10000",
+    "remaining_shield": "9900",
+    "shield_regen_percentage": "10"
+   }
+  },
+  {
+   "ticks": 46,
+   "line": 42,
+   "iteration": 0,
+   "function": "calculate_shield_regeneration",
+   "order": [
+    "regen",
+    "initial_shield",
+    "shield_regen_percentage"
+   ],
+   "before": {
+    "initial_shield": "10000",
+    "shield_regen_percentage": "10"
+   },
+   "after": {
+    "regen": "1000",
+    "initial_shield": "10000",
+    "shield_regen_percentage": "10"
+   }
+  },
+  {
+   "ticks": 49,
+   "line": 43,
+   "iteration": 0,
+   "function": "calculate_shield_regeneration",
+   "order": [
+    "remaining_shield",
+    "regen",
+    "initial_shield"
+   ],
+   "before": {
+    "remaining_shield": "9900",
+    "regen": "1000",
+    "initial_shield": "10000"
+   },
+   "after": {
+    "remaining_shield": "9900",
+    "regen": "1000",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 53,
+   "line": 44,
+   "iteration": 0,
+   "function": "calculate_shield_regeneration",
+   "order": [
+    "regen",
+    "initial_shield",
+    "remaining_shield"
+   ],
+   "before": {
+    "regen": "1000",
+    "initial_shield": "10000",
+    "remaining_shield": "9900"
+   },
+   "after": {
+    "regen": "1000",
+    "initial_shield": "10000",
+    "remaining_shield": "9900"
+   },
+   "returns": "100"
+  },
+  {
+   "ticks": 56,
+   "line": 12,
+   "iteration": 0,
+   "function": "iterate_asteroids",
+   "order": [
+    "remaining_shield",
+    "regeneration"
+   ],
+   "before": {
+    "remaining_shield": "9900",
+    "regeneration": "100"
+   },
+   "after": {
+    "remaining_shield": "10000",
+    "regeneration": "100"
+   }
+  },
+  {
+   "ticks": 58,
+   "line": 14,
+   "iteration": 0,
+   "function": "iterate_asteroids",
+   "order": [
+    "i",
+    "initial_shield",
+    "remaining_shield",
+    "damage",
+    "regeneration"
+   ],
+   "before": {
+    "i": "0",
+    "initial_shield": "10000",
+    "remaining_shield": "10000",
+    "damage": "100",
+    "regeneration": "100"
+   },
+   "after": {
+    "initial_shield": "10000",
+    "remaining_shield": "10000"
+   }
+  },
+  {
+   "ticks": 59,
+   "line": 53,
+   "iteration": 0,
+   "function": "status_report",
+   "order": [
+    "iteration",
+    "initial_shield",
+    "remaining_shield",
+    "damage",
+    "regenerated_shield"
+   ],
+   "before": {},
+   "after": {
+    "iteration": "0",
+    "initial_shield": "10000",
+    "remaining_shield": "10000",
+    "damage": "100",
+    "regenerated_shield": "100"
+   }
+  },
+  {
+   "ticks": 64,
+   "line": 54,
+   "iteration": 0,
+   "function": "status_report",
+   "order": [
+    "iteration"
+   ],
+   "before": {
+    "iteration": "0"
+   },
+   "after": {
+    "iteration": "0"
+   }
+  },
+  {
+   "ticks": 67,
+   "line": 57,
+   "iteration": 0,
+   "function": "status_report",
+   "order": [
+    "damage",
+    "damage_as_u32"
+   ],
+   "before": {
+    "damage": "100"
+   },
+   "after": {
+    "damage": "100",
+    "damage_as_u32": "100"
+   }
+  },
+  {
+   "ticks": 69,
+   "line": 58,
+   "iteration": 0,
+   "function": "status_report",
+   "order": [
+    "damage_as_u32"
+   ],
+   "before": {
+    "damage_as_u32": "100"
+   },
+   "after": {
+    "damage_as_u32": "100"
+   }
+  },
+  {
+   "ticks": 72,
+   "line": 60,
+   "iteration": 0,
+   "function": "status_report",
+   "order": [
+    "regenerated_shield",
+    "regenerated_shield_as_u32"
+   ],
+   "before": {
+    "regenerated_shield": "100"
+   },
+   "after": {
+    "regenerated_shield": "100",
+    "regenerated_shield_as_u32": "100"
+   }
+  },
+  {
+   "ticks": 74,
+   "line": 61,
+   "iteration": 0,
+   "function": "status_report",
+   "order": [
+    "regenerated_shield_as_u32"
+   ],
+   "before": {
+    "regenerated_shield_as_u32": "100"
+   },
+   "after": {
+    "regenerated_shield_as_u32": "100"
+   }
+  },
+  {
+   "ticks": 77,
+   "line": 63,
+   "iteration": 0,
+   "function": "status_report",
+   "order": [
+    "remaining_shield",
+    "remaining_shield_as_u32"
+   ],
+   "before": {
+    "remaining_shield": "10000"
+   },
+   "after": {
+    "remaining_shield": "10000",
+    "remaining_shield_as_u32": "10000"
+   }
+  },
+  {
+   "ticks": 79,
+   "line": 64,
+   "iteration": 0,
+   "function": "status_report",
+   "order": [
+    "remaining_shield",
+    "remaining_shield_pct",
+    "initial_shield"
+   ],
+   "before": {
+    "remaining_shield": "10000",
+    "initial_shield": "10000"
+   },
+   "after": {
+    "remaining_shield": "10000",
+    "remaining_shield_pct": "100",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 80,
+   "line": 48,
+   "iteration": 0,
+   "function": "calculate_remaining_shield_pct",
+   "order": [
+    "remaining_shield",
+    "initial_shield"
+   ],
+   "before": {},
+   "after": {
+    "remaining_shield": "10000",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 82,
+   "line": 49,
+   "iteration": 0,
+   "function": "calculate_remaining_shield_pct",
+   "order": [
+    "result",
+    "remaining_shield",
+    "initial_shield"
+   ],
+   "before": {
+    "remaining_shield": "10000",
+    "initial_shield": "10000"
+   },
+   "after": {
+    "result": "100",
+    "remaining_shield": "10000",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 87,
+   "line": 50,
+   "iteration": 0,
+   "function": "calculate_remaining_shield_pct",
+   "order": [
+    "result"
+   ],
+   "before": {
+    "result": "100"
+   },
+   "after": {
+    "result": "100"
+   },
+   "returns": "100"
+  },
+  {
+   "ticks": 89,
+   "line": 65,
+   "iteration": 0,
+   "function": "status_report",
+   "order": [
+    "remaining_shield_pct",
+    "remaining_shield_pct_as_u32"
+   ],
+   "before": {
+    "remaining_shield_pct": "100"
+   },
+   "after": {
+    "remaining_shield_pct": "100",
+    "remaining_shield_pct_as_u32": "100"
+   }
+  },
+  {
+   "ticks": 91,
+   "line": 66,
+   "iteration": 0,
+   "function": "status_report",
+   "order": [
+    "remaining_shield_pct_as_u32",
+    "remaining_shield_as_u32"
+   ],
+   "before": {
+    "remaining_shield_pct_as_u32": "100",
+    "remaining_shield_as_u32": "10000"
+   },
+   "after": {
+    "remaining_shield_pct_as_u32": "100",
+    "remaining_shield_as_u32": "10000"
+   }
+  },
+  {
+   "ticks": 95,
+   "line": 4,
+   "iteration": 1,
+   "function": "iterate_asteroids",
+   "order": [
+    "i"
+   ],
+   "before": {},
+   "after": {
+    "i": "1"
+   }
+  },
+  {
+   "ticks": 97,
+   "line": 5,
+   "iteration": 1,
+   "function": "iterate_asteroids",
+   "order": [
+    "mass",
+    "masses",
+    "i"
+   ],
+   "before": {
+    "masses": "[100, 2000, 200, 100, 100, 50, 50, 14]",
+    "i": "1"
+   },
+   "after": {
+    "mass": "2000",
+    "masses": "[100, 2000, 200, 100, 100, 50, 50, 14]",
+    "i": "1"
+   }
+  },
+  {
+   "ticks": 99,
+   "line": 6,
+   "iteration": 1,
+   "function": "iterate_asteroids",
+   "order": [
+    "damage",
+    "initial_shield",
+    "remaining_shield",
+    "mass"
+   ],
+   "before": {
+    "initial_shield": "10000",
+    "remaining_shield": "10000",
+    "mass": "2000"
+   },
+   "after": {
+    "damage": "2000",
+    "initial_shield": "10000",
+    "remaining_shield": "10000",
+    "mass": "2000"
+   }
+  },
+  {
+   "ticks": 100,
+   "line": 22,
+   "iteration": 1,
+   "function": "calculate_damage",
+   "order": [
+    "initial_shield",
+    "remaining_shield",
+    "mass"
+   ],
+   "before": {},
+   "after": {
+    "initial_shield": "10000",
+    "remaining_shield": "10000",
+    "mass": "2000"
+   }
+  },
+  {
+   "ticks": 103,
+   "line": 26,
+   "iteration": 1,
+   "function": "calculate_damage",
+   "order": [
+    "shield_pct",
+    "remaining_shield",
+    "initial_shield"
+   ],
+   "before": {
+    "remaining_shield": "10000",
+    "initial_shield": "10000"
+   },
+   "after": {
+    "shield_pct": "100",
+    "remaining_shield": "10000",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 104,
+   "line": 48,
+   "iteration": 1,
+   "function": "calculate_remaining_shield_pct",
+   "order": [
+    "remaining_shield",
+    "initial_shield"
+   ],
+   "before": {},
+   "after": {
+    "remaining_shield": "10000",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 106,
+   "line": 49,
+   "iteration": 1,
+   "function": "calculate_remaining_shield_pct",
+   "order": [
+    "result",
+    "remaining_shield",
+    "initial_shield"
+   ],
+   "before": {
+    "remaining_shield": "10000",
+    "initial_shield": "10000"
+   },
+   "after": {
+    "result": "100",
+    "remaining_shield": "10000",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 111,
+   "line": 50,
+   "iteration": 1,
+   "function": "calculate_remaining_shield_pct",
+   "order": [
+    "result"
+   ],
+   "before": {
+    "result": "100"
+   },
+   "after": {
+    "result": "100"
+   },
+   "returns": "100"
+  },
+  {
+   "ticks": 113,
+   "line": 27,
+   "iteration": 1,
+   "function": "calculate_damage",
+   "order": [
+    "damage"
+   ],
+   "before": {},
+   "after": {
+    "damage": "0"
+   }
+  },
+  {
+   "ticks": 114,
+   "line": 28,
+   "iteration": 1,
+   "function": "calculate_damage",
+   "order": [
+    "shield_pct"
+   ],
+   "before": {
+    "shield_pct": "100"
+   },
+   "after": {
+    "shield_pct": "100"
+   }
+  },
+  {
+   "ticks": 115,
+   "line": 29,
+   "iteration": 1,
+   "function": "calculate_damage",
+   "order": [
+    "damage",
+    "mass"
+   ],
+   "before": {
+    "damage": "0",
+    "mass": "2000"
+   },
+   "after": {
+    "damage": "2000",
+    "mass": "2000"
+   }
+  },
+  {
+   "ticks": 116,
+   "line": 34,
+   "iteration": 1,
+   "function": "calculate_damage",
+   "order": [
+    "damage",
+    "remaining_shield"
+   ],
+   "before": {
+    "damage": "2000",
+    "remaining_shield": "10000"
+   },
+   "after": {
+    "damage": "2000",
+    "remaining_shield": "10000"
+   },
+   "returns": "2000"
+  },
+  {
+   "ticks": 120,
+   "line": 7,
+   "iteration": 1,
+   "function": "iterate_asteroids",
+   "order": [
+    "remaining_shield",
+    "damage"
+   ],
+   "before": {
+    "remaining_shield": "10000",
+    "damage": "2000"
+   },
+   "after": {
+    "remaining_shield": "8000",
+    "damage": "2000"
+   }
+  },
+  {
+   "ticks": 122,
+   "line": 9,
+   "iteration": 1,
+   "function": "iterate_asteroids",
+   "order": [
+    "regeneration"
+   ],
+   "before": {},
+   "after": {
+    "regeneration": "0"
+   }
+  },
+  {
+   "ticks": 123,
+   "line": 10,
+   "iteration": 1,
+   "function": "iterate_asteroids",
+   "order": [
+    "remaining_shield"
+   ],
+   "before": {
+    "remaining_shield": "8000"
+   },
+   "after": {
+    "remaining_shield": "8000"
+   }
+  },
+  {
+   "ticks": 124,
+   "line": 11,
+   "iteration": 1,
+   "function": "iterate_asteroids",
+   "order": [
+    "regeneration",
+    "initial_shield",
+    "remaining_shield",
+    "shield_regen_percentage"
+   ],
+   "before": {
+    "regeneration": "0",
+    "initial_shield": "10000",
+    "remaining_shield": "8000",
+    "shield_regen_percentage": "10"
+   },
+   "after": {
+    "regeneration": "1000",
+    "initial_shield": "10000",
+    "remaining_shield": "8000",
+    "shield_regen_percentage": "10"
+   }
+  },
+  {
+   "ticks": 125,
+   "line": 40,
+   "iteration": 1,
+   "function": "calculate_shield_regeneration",
+   "order": [
+    "initial_shield",
+    "remaining_shield",
+    "shield_regen_percentage"
+   ],
+   "before": {},
+   "after": {
+    "initial_shield": "10000",
+    "remaining_shield": "8000",
+    "shield_regen_percentage": "10"
+   }
+  },
+  {
+   "ticks": 128,
+   "line": 42,
+   "iteration": 1,
+   "function": "calculate_shield_regeneration",
+   "order": [
+    "regen",
+    "initial_shield",
+    "shield_regen_percentage"
+   ],
+   "before": {
+    "initial_shield": "10000",
+    "shield_regen_percentage": "10"
+   },
+   "after": {
+    "regen": "1000",
+    "initial_shield": "10000",
+    "shield_regen_percentage": "10"
+   }
+  },
+  {
+   "ticks": 131,
+   "line": 43,
+   "iteration": 1,
+   "function": "calculate_shield_regeneration",
+   "order": [
+    "remaining_shield",
+    "regen",
+    "initial_shield"
+   ],
+   "before": {
+    "remaining_shield": "8000",
+    "regen": "1000",
+    "initial_shield": "10000"
+   },
+   "after": {
+    "remaining_shield": "8000",
+    "regen": "1000",
+    "initial_shield": "10000"
+   },
+   "returns": "1000"
+  },
+  {
+   "ticks": 136,
+   "line": 12,
+   "iteration": 1,
+   "function": "iterate_asteroids",
+   "order": [
+    "remaining_shield",
+    "regeneration"
+   ],
+   "before": {
+    "remaining_shield": "8000",
+    "regeneration": "1000"
+   },
+   "after": {
+    "remaining_shield": "9000",
+    "regeneration": "1000"
+   }
+  },
+  {
+   "ticks": 138,
+   "line": 14,
+   "iteration": 1,
+   "function": "iterate_asteroids",
+   "order": [
+    "i",
+    "initial_shield",
+    "remaining_shield",
+    "damage",
+    "regeneration"
+   ],
+   "before": {
+    "i": "1",
+    "initial_shield": "10000",
+    "remaining_shield": "9000",
+    "damage": "2000",
+    "regeneration": "1000"
+   },
+   "after": {
+    "initial_shield": "10000",
+    "remaining_shield": "9000"
+   }
+  },
+  {
+   "ticks": 139,
+   "line": 53,
+   "iteration": 1,
+   "function": "status_report",
+   "order": [
+    "iteration",
+    "initial_shield",
+    "remaining_shield",
+    "damage",
+    "regenerated_shield"
+   ],
+   "before": {},
+   "after": {
+    "iteration": "1",
+    "initial_shield": "10000",
+    "remaining_shield": "9000",
+    "damage": "2000",
+    "regenerated_shield": "1000"
+   }
+  },
+  {
+   "ticks": 144,
+   "line": 54,
+   "iteration": 1,
+   "function": "status_report",
+   "order": [
+    "iteration"
+   ],
+   "before": {
+    "iteration": "1"
+   },
+   "after": {
+    "iteration": "1"
+   }
+  },
+  {
+   "ticks": 147,
+   "line": 57,
+   "iteration": 1,
+   "function": "status_report",
+   "order": [
+    "damage",
+    "damage_as_u32"
+   ],
+   "before": {
+    "damage": "2000"
+   },
+   "after": {
+    "damage": "2000",
+    "damage_as_u32": "2000"
+   }
+  },
+  {
+   "ticks": 149,
+   "line": 58,
+   "iteration": 1,
+   "function": "status_report",
+   "order": [
+    "damage_as_u32"
+   ],
+   "before": {
+    "damage_as_u32": "2000"
+   },
+   "after": {
+    "damage_as_u32": "2000"
+   }
+  },
+  {
+   "ticks": 152,
+   "line": 60,
+   "iteration": 1,
+   "function": "status_report",
+   "order": [
+    "regenerated_shield",
+    "regenerated_shield_as_u32"
+   ],
+   "before": {
+    "regenerated_shield": "1000"
+   },
+   "after": {
+    "regenerated_shield": "1000",
+    "regenerated_shield_as_u32": "1000"
+   }
+  },
+  {
+   "ticks": 154,
+   "line": 61,
+   "iteration": 1,
+   "function": "status_report",
+   "order": [
+    "regenerated_shield_as_u32"
+   ],
+   "before": {
+    "regenerated_shield_as_u32": "1000"
+   },
+   "after": {
+    "regenerated_shield_as_u32": "1000"
+   }
+  },
+  {
+   "ticks": 157,
+   "line": 63,
+   "iteration": 1,
+   "function": "status_report",
+   "order": [
+    "remaining_shield",
+    "remaining_shield_as_u32"
+   ],
+   "before": {
+    "remaining_shield": "9000"
+   },
+   "after": {
+    "remaining_shield": "9000",
+    "remaining_shield_as_u32": "9000"
+   }
+  },
+  {
+   "ticks": 159,
+   "line": 64,
+   "iteration": 1,
+   "function": "status_report",
+   "order": [
+    "remaining_shield",
+    "remaining_shield_pct",
+    "initial_shield"
+   ],
+   "before": {
+    "remaining_shield": "9000",
+    "initial_shield": "10000"
+   },
+   "after": {
+    "remaining_shield": "9000",
+    "remaining_shield_pct": "90",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 160,
+   "line": 48,
+   "iteration": 1,
+   "function": "calculate_remaining_shield_pct",
+   "order": [
+    "remaining_shield",
+    "initial_shield"
+   ],
+   "before": {},
+   "after": {
+    "remaining_shield": "9000",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 162,
+   "line": 49,
+   "iteration": 1,
+   "function": "calculate_remaining_shield_pct",
+   "order": [
+    "result",
+    "remaining_shield",
+    "initial_shield"
+   ],
+   "before": {
+    "remaining_shield": "9000",
+    "initial_shield": "10000"
+   },
+   "after": {
+    "result": "90",
+    "remaining_shield": "9000",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 167,
+   "line": 50,
+   "iteration": 1,
+   "function": "calculate_remaining_shield_pct",
+   "order": [
+    "result"
+   ],
+   "before": {
+    "result": "90"
+   },
+   "after": {
+    "result": "90"
+   },
+   "returns": "90"
+  },
+  {
+   "ticks": 169,
+   "line": 65,
+   "iteration": 1,
+   "function": "status_report",
+   "order": [
+    "remaining_shield_pct",
+    "remaining_shield_pct_as_u32"
+   ],
+   "before": {
+    "remaining_shield_pct": "90"
+   },
+   "after": {
+    "remaining_shield_pct": "90",
+    "remaining_shield_pct_as_u32": "90"
+   }
+  },
+  {
+   "ticks": 171,
+   "line": 66,
+   "iteration": 1,
+   "function": "status_report",
+   "order": [
+    "remaining_shield_pct_as_u32",
+    "remaining_shield_as_u32"
+   ],
+   "before": {
+    "remaining_shield_pct_as_u32": "90",
+    "remaining_shield_as_u32": "9000"
+   },
+   "after": {
+    "remaining_shield_pct_as_u32": "90",
+    "remaining_shield_as_u32": "9000"
+   }
+  },
+  {
+   "ticks": 175,
+   "line": 4,
+   "iteration": 2,
+   "function": "iterate_asteroids",
+   "order": [
+    "i"
+   ],
+   "before": {},
+   "after": {
+    "i": "2"
+   }
+  },
+  {
+   "ticks": 177,
+   "line": 5,
+   "iteration": 2,
+   "function": "iterate_asteroids",
+   "order": [
+    "mass",
+    "masses",
+    "i"
+   ],
+   "before": {
+    "masses": "[100, 2000, 200, 100, 100, 50, 50, 14]",
+    "i": "2"
+   },
+   "after": {
+    "mass": "200",
+    "masses": "[100, 2000, 200, 100, 100, 50, 50, 14]",
+    "i": "2"
+   }
+  },
+  {
+   "ticks": 179,
+   "line": 6,
+   "iteration": 2,
+   "function": "iterate_asteroids",
+   "order": [
+    "initial_shield",
+    "remaining_shield",
+    "mass"
+   ],
+   "before": {
+    "initial_shield": "10000",
+    "remaining_shield": "9000",
+    "mass": "200"
+   },
+   "after": {
+    "initial_shield": "10000",
+    "remaining_shield": "9000",
+    "mass": "200"
+   }
+  },
+  {
+   "ticks": 180,
+   "line": 22,
+   "iteration": 2,
+   "function": "calculate_damage",
+   "order": [
+    "initial_shield",
+    "remaining_shield",
+    "mass"
+   ],
+   "before": {},
+   "after": {
+    "initial_shield": "10000",
+    "remaining_shield": "9000",
+    "mass": "200"
+   }
+  },
+  {
+   "ticks": 183,
+   "line": 26,
+   "iteration": 2,
+   "function": "calculate_damage",
+   "order": [
+    "shield_pct",
+    "remaining_shield",
+    "initial_shield"
+   ],
+   "before": {
+    "remaining_shield": "9000",
+    "initial_shield": "10000"
+   },
+   "after": {
+    "shield_pct": "90",
+    "remaining_shield": "9000",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 184,
+   "line": 48,
+   "iteration": 2,
+   "function": "calculate_remaining_shield_pct",
+   "order": [
+    "remaining_shield",
+    "initial_shield"
+   ],
+   "before": {},
+   "after": {
+    "remaining_shield": "9000",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 186,
+   "line": 49,
+   "iteration": 2,
+   "function": "calculate_remaining_shield_pct",
+   "order": [
+    "result",
+    "remaining_shield",
+    "initial_shield"
+   ],
+   "before": {
+    "remaining_shield": "9000",
+    "initial_shield": "10000"
+   },
+   "after": {
+    "result": "90",
+    "remaining_shield": "9000",
+    "initial_shield": "10000"
+   }
+  },
+  {
+   "ticks": 191,
+   "line": 50,
+   "iteration": 2,
+   "function": "calculate_remaining_shield_pct",
+   "order": [
+    "result"
+   ],
+   "before": {
+    "result": "90"
+   },
+   "after": {
+    "result": "90"
+   },
+   "returns": "90"
+  },
+  {
+   "ticks": 193,
+   "line": 27,
+   "iteration": 2,
+   "function": "calculate_damage",
+   "order": [
+    "damage"
+   ],
+   "before": {},
+   "after": {
+    "damage": "0"
+   }
+  },
+  {
+   "ticks": 194,
+   "line": 28,
+   "iteration": 2,
+   "function": "calculate_damage",
+   "order": [
+    "shield_pct"
+   ],
+   "before": {
+    "shield_pct": "90"
+   },
+   "after": {
+    "shield_pct": "90"
+   }
+  },
+  {
+   "ticks": 195,
+   "line": 32,
+   "iteration": 2,
+   "function": "calculate_damage",
+   "order": [
+    "damage",
+    "mass",
+    "shield_pct"
+   ],
+   "before": {
+    "damage": "0",
+    "mass": "200",
+    "shield_pct": "90"
+   },
+   "after": {
+    "damage": "2000",
+    "mass": "200",
+    "shield_pct": "90"
+   }
+  }
+ ]
+}

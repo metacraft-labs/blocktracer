@@ -32,6 +32,8 @@ import ../src/debugger/replay_engine
 import ../src/debugger/source_document
 import ../src/debugger/source_island
 import ../src/debugger/demo_session
+import ../src/debugger/demo_flow
+import ../src/debugger/flow_view
 import ../src/components/debugger as dbgc
 import ../src/components/debugger_css
 import isonim/ssr/escape
@@ -932,24 +934,34 @@ suite "M8a — the source pane renders real source, with stable line identity":
     check hit[11] == hit[42]
     check hit[11]
 
-  test "the inline-annotation slot renders, so the overlays are additive":
-    # Nothing ships annotations. The claim being made is that adding them later
-    # needs no restructuring, and this is what makes the claim checkable now.
+  test "an overlay attaches to a line without replacing it":
+    # The structural half of the omniscience claim, kept as its own test because
+    # it is the one a future change to `renderSource` would break silently: an
+    # overlay must be ADDITIVE. The suite below asserts what the labels say;
+    # this asserts that saying it costs the line nothing.
     let s = sessionFor(readyTx)
     var pane = s.editor
-    let before = dbgc.renderSource(pane)
+    var bare = pane
+    for d in 0 ..< bare.documents.len:
+      for i in 0 ..< bare.documents[d].lines.len:
+        bare.documents[d].lines[i].annotations = @[]
+    bare.flow = FlowRail()
+    let before = dbgc.renderSource(bare)
     check "class=\"ann\"" notin before
 
-    var doc = activeDocument(pane)
+    var doc = activeDocument(bare)
     let target = doc.lines[2].number
     let anchor = doc.lines[2].anchor
-    doc.annotate(target, LineAnnotation(slot: asTrailing,
+    doc.annotate(target, LineAnnotation(slot: asTrailing, column: -1,
                                         label: "remaining_shield",
-                                        value: "10000 → 9000"))
-    pane.documents[pane.activeIndex] = doc
-    let after = dbgc.renderSource(pane)
+                                        beforeValue: "10000",
+                                        afterValue: "9000",
+                                        mode: vmChanged,
+                                        iteration: -1))
+    bare.documents[bare.activeIndex] = doc
+    let after = dbgc.renderSource(bare)
     check "class=\"ann\"" in after
-    check "remaining_shield=10000 → 9000" in after
+    check "title=\"remaining_shield: 10000 \u2192 9000\"" in after
     # The line kept its identity: an overlay attaches to the line, it does not
     # replace it.
     check ("id=\"" & anchor & "\"") in after
@@ -1431,6 +1443,535 @@ suite "VD.5 — the source pane is syntax highlighted, at export time":
     check "src/shield.nr" in html
     check "class=\"srcline cur" in html
 
+# ---------------------------------------------------------------------------
+# Omniscience — inline values against the real recorded execution
+# ---------------------------------------------------------------------------
+
+proc flowPane(): EditorPane =
+  ## The debug route's Code pane as the route builds it, unwindowed.
+  sessionFor(readyTx).editor
+
+proc annotationsAt(pane: EditorPane; path: string; line: int):
+    seq[LineAnnotation] =
+  for d in pane.documents:
+    if d.path != path: continue
+    for ln in d.lines:
+      if ln.number == line: return ln.annotations
+  @[]
+
+proc labelAt(pane: EditorPane; line: int; expression: string;
+             iteration: int): seq[LineAnnotation] =
+  ## Every label for one expression, on one line, in one pass — in the order
+  ## the renderer will draw them.
+  for a in annotationsAt(pane, "src/shield.nr", line):
+    if a.label == expression and a.iteration == iteration:
+      result.add a
+
+proc oneLabel(pane: EditorPane; line: int; expression: string;
+              iteration: int): LineAnnotation =
+  let all = labelAt(pane, line, expression, iteration)
+  doAssert all.len == 1,
+    "expected exactly one `" & expression & "` on line " & $line &
+    " in pass " & $iteration & ", found " & $all.len &
+    " — a test that accepted any number of them would pass over a duplicated" &
+    " or a missing label alike"
+  all[0]
+
+proc sourceLineText(pane: EditorPane; line: int): string =
+  for ln in activeDocument(pane).lines:
+    if ln.number == line: return ln.text
+  ""
+
+proc asInt(s: string): int =
+  ## A recorded value as a number, for the arithmetic checks below. Raises on
+  ## anything else, which is the point: a label that stopped being a number is
+  ## a label whose value has been mangled.
+  parseInt(s.strip())
+
+suite "Omniscience — the recorded values, against the real zk_shields trace":
+
+  ## Everything in this suite is checked against the program in
+  ## `client/fixtures/demo-session/src/shield.nr` and the arithmetic it
+  ## performs — never against the fixture that feeds the overlay. `flow.json`
+  ## is extracted from the real container by
+  ## `client/fixtures/demo-session/extract-flow.mjs`, so asserting the labels
+  ## match `flow.json` would assert a producer against its own input and could
+  ## not fail. The invariants below are properties of the SOURCE CODE, and an
+  ## overlay carrying plausible invented numbers fails every one of them.
+
+  test "the trace's own compound assignments are on the lines that perform them":
+    # `remaining_shield -= damage` (line 7) and `remaining_shield += regeneration`
+    # (line 12) are the writes commit `906af2f42d` restored to the recorder; the
+    # container's README says the fixture records 29 of these transitions. They
+    # are the reason this program is the demo, and an overlay that showed the
+    # shield frozen would be the bug that fix removed, drawn instead of stepped.
+    let pane = flowPane()
+    let hit = oneLabel(pane, 7, "remaining_shield", 0)
+    check hit.mode == vmChanged
+    check hit.beforeValue == "10000"
+    check hit.afterValue == "9900"
+
+    let regen = oneLabel(pane, 12, "remaining_shield", 0)
+    check regen.mode == vmChanged
+    check regen.beforeValue == "9900"
+    check regen.afterValue == "10000"
+
+  test "the labels satisfy the arithmetic of the line they sit on":
+    # The strongest available check, and the one an invented overlay cannot
+    # survive: every number is re-derived from OTHER numbers on the same line,
+    # using the operation the source performs. It needs no fixture and no
+    # recorded expectation — the program is the oracle.
+    let pane = flowPane()
+    var checkedPasses = 0
+    for pass in 0 .. 1:                       # the passes this frame completed
+      # line 7:  remaining_shield -= damage
+      let shield = oneLabel(pane, 7, "remaining_shield", pass)
+      let damage = oneLabel(pane, 7, "damage", pass)
+      check asInt(shield.beforeValue) - asInt(damage.beforeValue) ==
+            asInt(shield.afterValue)
+
+      # line 12: remaining_shield += regeneration
+      let grown = oneLabel(pane, 12, "remaining_shield", pass)
+      let regeneration = oneLabel(pane, 12, "regeneration", pass)
+      check asInt(grown.beforeValue) + asInt(regeneration.beforeValue) ==
+            asInt(grown.afterValue)
+
+      # And the two are the same variable across one pass: what line 7 left is
+      # what line 12 found. A per-line overlay that read its values from
+      # different passes would pass both lines above and fail this.
+      check shield.afterValue == grown.beforeValue
+
+      # line 29: damage = mass * 1, on the passes that took the 100% arm
+      let dmg = oneLabel(pane, 29, "damage", pass)
+      let mass = oneLabel(pane, 29, "mass", pass)
+      check dmg.mode == vmChanged
+      check asInt(dmg.afterValue) == asInt(mass.beforeValue)
+      inc checkedPasses
+    check checkedPasses == 2
+
+    # line 32: damage = mass * (100 - shield_pct) — the OTHER arm, taken only in
+    # the pass the session is in. Both arms of one conditional, each labelled on
+    # exactly the passes that took it, is the property `executedLines()` states
+    # in prose two files away.
+    let d2 = oneLabel(pane, 32, "damage", 2)
+    let m2 = oneLabel(pane, 32, "mass", 2)
+    let pct2 = oneLabel(pane, 32, "shield_pct", 2)
+    check asInt(m2.beforeValue) * (100 - asInt(pct2.beforeValue)) ==
+          asInt(d2.afterValue)
+    check labelAt(pane, 32, "damage", 0).len == 0
+    check labelAt(pane, 29, "damage", 2).len == 0
+
+  test "a value sits at the column its expression occupies in the source":
+    # `flow_layout.findExpressionColumn` decides this and the column is
+    # recomputed here from the rendered line's own text, independently. A label
+    # anchored to the wrong offset is the failure the honesty constraint names
+    # by name — "placed against the wrong expression".
+    let pane = flowPane()
+    for (line, expression) in [(7, "remaining_shield"), (7, "damage"),
+                               (12, "regeneration"), (32, "shield_pct"),
+                               (5, "mass"), (4, "i")]:
+      let text = sourceLineText(pane, line)
+      let expected = text.find(expression)
+      check expected >= 0
+      for a in annotationsAt(pane, "src/shield.nr", line):
+        if a.label == expression:
+          check a.slot == asInline
+          check a.column == expected
+
+  test "a line the loop ran twice in one pass keeps both values, in order":
+    # `calculate_remaining_shield_pct` is called twice per pass — once from
+    # `calculate_damage`, once from `status_report` — so line 49 genuinely has
+    # two `result`s in pass 1. `flow_layout.orderIterationSteps` keeps execution
+    # order, and the overlay must keep it too: 100 (at 100% shields) before 90
+    # (after the second asteroid). Deduplicating to one would DROP a recorded
+    # value, and reordering would report the pass running backwards.
+    let pane = flowPane()
+    let results = labelAt(pane, 49, "result", 1)
+    check results.len == 2
+    # `annotationText` and not a field: `let result = …` is the variable's FIRST
+    # assignment, so there is no before-value and the mode is `vmAfter`. Reading
+    # `beforeValue` here would compare two empty strings and pass whatever the
+    # overlay said.
+    check annotationText(results[0]) == "result=100"
+    check annotationText(results[1]) == "result=90"
+
+  test "a return value is a fact about the line, with no column and no name":
+    # The spec's `[→230]`. It cannot travel as a `FlowLabel` at all —
+    # `assignExpressionColumns` refuses an empty expression — so this is the
+    # path that would silently disappear if the join were rewritten.
+    let pane = flowPane()
+    var returns: seq[LineAnnotation]
+    for a in annotationsAt(pane, "src/shield.nr", 50):
+      if a.label.len == 0: returns.add a
+    check returns.len > 0
+    for a in returns:
+      check a.mode == vmAfter
+      check a.slot == asTrailing
+      check a.column == -1
+      check annotationText(a).startsWith("→")
+    # `calculate_remaining_shield_pct` returns the percentage, so the return on
+    # pass 2 is the `shield_pct` `calculate_damage` then multiplies by.
+    var pass2 = ""
+    for a in returns:
+      if a.iteration == 2: pass2 = a.afterValue
+    check pass2 == oneLabel(pane, 32, "shield_pct", 2).beforeValue
+
+  test "the overlay and the Values pane agree at the same coordinate":
+    # Two producers, one frame. `demo_session.fixtureState` derives its numbers
+    # by hand from the recorded inputs; the overlay reads them out of the
+    # container. They are the same numbers or one of them is wrong, and a reader
+    # looking at line 32 with the Values pane open can see which.
+    let s = sessionFor(readyTx)
+    var stateValues: Table[string, string]
+    for v in s.state.values: stateValues[v.name] = v.value
+    let pane = s.editor
+    check oneLabel(pane, 32, "damage", 2).afterValue == stateValues["damage"]
+    check oneLabel(pane, 32, "mass", 2).beforeValue == stateValues["mass"]
+    check oneLabel(pane, 32, "shield_pct", 2).beforeValue ==
+          stateValues["shield_pct"]
+    # Line 22 is `calculate_damage`'s SIGNATURE: the frame has no variables on
+    # the way in, so its parameters are after-values and read through
+    # `annotationText` rather than off `beforeValue`.
+    check annotationText(oneLabel(pane, 22, "remaining_shield", 2)) ==
+          "remaining_shield=" & stateValues["remaining_shield"]
+    check annotationText(oneLabel(pane, 22, "initial_shield", 2)) ==
+          "initial_shield=" & stateValues["initial_shield"]
+
+  test "the still frame carries nothing from after the position it claims":
+    # Constraint: pre-hydration the page is a still frame at one coordinate, and
+    # a value it shows must be a value at THAT coordinate. Passes 3..7 of the
+    # loop happen later in the recording and are recorded in the container — and
+    # are absent here, because at this position they have not happened.
+    let pane = flowPane()
+    var highest = -1
+    for d in pane.documents:
+      for ln in d.lines:
+        for a in ln.annotations:
+          if a.iteration > highest: highest = a.iteration
+    check highest == pane.flow.active
+    check pane.flow.active == 2
+
+    # And the same rule in the other direction: the lines AFTER the loop
+    # (`let result = remaining_shield as u32 > 0`) and the clamp arm the trace
+    # never took carry nothing, however well the recorder knows their values.
+    check annotationsAt(pane, "src/shield.nr", 18).len == 0
+    check annotationsAt(pane, "src/shield.nr", 19).len == 0
+    check annotationsAt(pane, "src/shield.nr", 35).len == 0
+
+  test "no line carries a value the gutter says never executed":
+    # The overlay and the executed-line set are two producers of "this ran", and
+    # a page that disagreed with itself about that would be worse than either
+    # answer alone. This is a cross-check, not a restatement: the executed set
+    # is enumerated in `demo_session` and the overlay comes out of the container.
+    let pane = flowPane()
+    for d in pane.documents:
+      for ln in d.lines:
+        if ln.annotations.len > 0:
+          check ln.executed
+
+  test "the loop rail states which pass, out of how many, and where":
+    let pane = flowPane()
+    let rail = pane.flow
+    check rail.loopIndex == 1
+    check rail.line == 4                      # `for i in 0..8 {`
+    check rail.label == "iterate_asteroids"
+    check rail.anchor == lineAnchor("src/shield.nr", 4)
+    check rail.iterations.len == 8            # the array has eight asteroids
+    check rail.active == 2
+    check rail.selected == rail.active
+    # Reached versus recorded: three passes have happened at this coordinate.
+    var reached = 0
+    for it in rail.iterations:
+      if it.reached: inc reached
+    check reached == 3
+    for it in rail.iterations:
+      check it.reached == (it.index <= 2)
+      # Every segment carries a real time coordinate — the pass's header tick —
+      # which is what makes it deep-linkable and what hydration hands to
+      # `ct/goto-ticks`. Strictly increasing, because the walker only moves
+      # forward; a rail whose segments were numbered 1..8 with no ticks behind
+      # them would look identical and be unable to navigate anywhere.
+      check it.ticks > 0
+    for i in 1 ..< rail.iterations.len:
+      check rail.iterations[i].ticks > rail.iterations[i - 1].ticks
+
+  test "the rail is rendered even though the loop's header is off-window":
+    # The reason the rail is on the PANE rather than on the loop's own line.
+    # `openAtCurrent` opens the served pane six lines above line 32, so line 4
+    # is twenty-two lines above the first line served — a control drawn only at
+    # the header would be missing exactly when the reader is inside the loop.
+    let s = sessionFor(readyTx)
+    let windowed = openAtCurrent(s.editor, SourceLeadIn)
+    var first = 0
+    for ln in activeDocument(windowed).lines:
+      first = ln.number
+      break
+    check first > 4
+    let html = dbgc.renderSource(windowed)
+    check "class=\"flowrail\"" in html
+    check "Iteration 3 of 8" in html
+    # …and it links back to the header line, whose id is stable whether or not
+    # the line is in this window.
+    check ("href=\"#" & lineAnchor("src/shield.nr", 4) & "\"") in html
+
+  test "exactly the session's pass is shown; the others are in the markup, inert":
+    # The `:target` mechanism's contract, checked on the markup a browser gets.
+    # Every pass the window carries is present — that is what makes the rail
+    # work with no JavaScript — and exactly one is marked `now`, which is the
+    # only one the stylesheet shows.
+    let html = debugHtml(readyTx)
+    check "class=\"fv inline m-changed fv-i0\"" in html      # pass 0, not shown
+    check "class=\"fv inline m-changed fv-i2 now\"" in html  # pass 2, shown
+    check "fv-i1 now" notin html
+    check "fv-i0 now" notin html
+    # The stylesheet is what enforces it, and it is checked in both directions:
+    # the default is hidden, `.now` is shown, and a targeted pass swaps them.
+    check ".fv{display:none" in debugRouteCss
+    check ".fv.now{display:inline-flex}" in debugRouteCss
+
+  test "every segment the rail can emit has a rung, and the rung switches":
+    # `MaxStaticIterations` is read by the renderer and by the stylesheet, and a
+    # segment whose id no rule answers would still render, still look like a
+    # link, and show the wrong pass's values on click.
+    for i in 0 ..< MaxStaticIterations:
+      let t = "#fit-" & $i & ":target ~ "
+      check (t & ".srcwrap .fv.now{display:none}") in debugRouteCss
+      check (t & ".srcwrap .fv.fv-i" & $i & ",") in debugRouteCss
+      check (t & ".flowrail .frseg.s" & $i & " .frdot{display:block}") in
+            debugRouteCss
+      check (t & ".flowrail .frcount.now{display:none}") in debugRouteCss
+      check (t & ".flowrail .frcount.c" & $i & "{display:inline}") in
+            debugRouteCss
+    # And nothing beyond the ladder is emitted, in either file.
+    check ("#fit-" & $MaxStaticIterations & ":target") notin debugRouteCss
+    check ("id=\"fit-" & $MaxStaticIterations & "\"") notin debugHtml(readyTx)
+
+    # THE ANCHORS ARE ACTUALLY EMITTED, and are SIBLINGS of the listing. Both
+    # halves, because both were wrong and neither showed up as a failure: the
+    # anchors were dropped entirely by a `for` at the top level of the `ui`
+    # DSL, and the negative above passed over their absence without noticing.
+    # Then, once emitted, a two-root `ui` block wrapped them in an anonymous
+    # `<div>`, which put them in a different parent from `.srcwrap` — so
+    # `#fit-3:target ~ .srcwrap` matched nothing and the control silently did
+    # nothing. A capture found both; this is what would have.
+    let served = debugHtml(readyTx)
+    let rail = sessionFor(readyTx).editor.flow
+    check rail.iterations.len == 8
+    for i in 0 ..< rail.iterations.len:
+      check ("id=\"fit-" & $i & "\"") in served
+    let body = "<div class=\"panebody\">"
+    let paneAt = served.find("id=\"pane-editor\"")
+    check paneAt >= 0
+    let bodyAt = served.find(body, paneAt)
+    check bodyAt >= 0
+    # Everything from the pane body's opening tag to the listing is anchors and
+    # the rail: no element opens between them that could become their parent.
+    let between = served[bodyAt + body.len ..< served.find("<div class=\"srcwrap\"", bodyAt)]
+    check between.startsWith("<span class=\"frtarget\" id=\"fit-0\">")
+    check occurrences(between, "<div") == 1          # the rail itself
+    check "class=\"flowrail\"" in between
+
+  test "a loop longer than the ladder is CLAMPED and says so":
+    # `MaxIndentDepth`'s rule, applied to passes. The failure this prevents is
+    # silent: an unclamped segment resolves to no rule, so the rail would look
+    # complete and switch to the wrong pass.
+    var rail = FlowRail(loopIndex: 1, line: 4, anchor: "L-x-4",
+                        label: "wide_loop", selected: 0, active: 0)
+    for i in 0 ..< MaxStaticIterations + 5:
+      rail.iterations.add FlowIteration(index: i, ticks: 10 + i, reached: true)
+    let html = dbgc.renderFlowRail(rail)
+    check occurrences(html, "class=\"frseg") == MaxStaticIterations
+    check ("Iteration 1 of " & $(MaxStaticIterations + 5)) in html
+    check "Showing the first 16 of 21 passes" in html
+    # …and a session PAST the ladder's end still gets its counter, which the
+    # track alone cannot give it. Clamping the track is honest; clamping away
+    # the one line that says where the session is would not be.
+    var far = rail
+    far.selected = MaxStaticIterations + 3
+    far.active = far.selected
+    let farHtml = dbgc.renderFlowRail(far)
+    check ("Iteration " & $(far.selected + 1) & " of " &
+           $(MaxStaticIterations + 5)) in farHtml
+    check occurrences(farHtml, "frcount num c") == MaxStaticIterations + 1
+    check occurrences(farHtml, " now\">Iteration") == 1
+
+    # A rail INSIDE the ladder says nothing of the sort — the announcement is a
+    # statement about a reduction, not decoration.
+    rail.iterations.setLen(4)
+    let small = dbgc.renderFlowRail(rail)
+    check "Showing the first" notin small
+    check occurrences(small, "frcount num c") == 4
+
+  test "an unreached pass is not a link, and says why":
+    let html = debugHtml(readyTx)
+    check "class=\"frseg s2 here showing got\"" in html
+    check "class=\"frseg s3 out\"" in html
+    check "The session has not reached pass 4 at this position." in html
+    # The reached ones ARE links, so the rail works with scripting off.
+    check ("<a class=\"frseg s0 got\" href=\"#fit-0\"") in html
+
+  test "the fidelity ladder: no source means no values and no rail":
+    # §14's "No verified source" row. At instruction level there is no
+    # expression to place a value against; values degrade to ABSENT rather than
+    # to approximate. The shape this rules out is one `if` away — a placement
+    # that fell back to column 0 would render a complete, confident fiction.
+    #
+    # The pane is given DOCUMENTS at the flow window's own path, which is what
+    # makes this test able to fail. An unverified pane with no documents is
+    # refused by the path join a line later, so it would report the guard
+    # working while the guard was deleted — and a §14 mixed session is exactly
+    # the case that HAS a listing (an instruction-level one) and no verified
+    # source to place a value against.
+    let shieldSource = readFile(
+      clientRoot / "fixtures" / "demo-session" / "src" / "shield.nr")
+    let input = demoFlowInput(shieldSource)
+    let listing = newSourceDocument("src/shield.nr", "noir", shieldSource)
+
+    # The document is handed in WITH an overlay already on it — the state a
+    # pane is in when the session it belongs to drops to instruction level, or
+    # when a published bundle replaces the file under it. Refusing to add is
+    # only half the rule; what must not survive is the overlay that is already
+    # there, because nothing on screen would announce that it now describes a
+    # frame the pane is no longer showing.
+    var stale = listing
+    for i in 0 ..< stale.lines.len:
+      stale.lines[i].annotations = @[LineAnnotation(
+        slot: asInline, column: 0, label: "left_over",
+        beforeValue: "1", mode: vmBefore, iteration: -1)]
+
+    var unverified = EditorPane(
+      availability: srcUnverified, activeIndex: 0, currentLine: 32,
+      reason: "No source bundle is published for the code that ran.",
+      documents: @[stale])
+    applyFlow(unverified, input)
+    check unverified.flow.loopIndex == 0
+    var annotated = 0
+    for ln in unverified.documents[0].lines:
+      annotated += ln.annotations.len
+    check annotated == 0
+
+    var absent = EditorPane(
+      availability: srcAbsent, activeIndex: 0, currentLine: 32,
+      reason: "This execution ran no contract code.",
+      documents: @[stale])
+    applyFlow(absent, input)
+    check absent.flow.loopIndex == 0
+    annotated = 0
+    for ln in absent.documents[0].lines:
+      annotated += ln.annotations.len
+    check annotated == 0
+
+    # The same pane at source level DOES get them, so the assertions above are
+    # about the availability and not about the window.
+    var verified = EditorPane(
+      availability: srcSourceLevel, activeIndex: 0, currentLine: 32,
+      documents: @[listing])
+    applyFlow(verified, input)
+    check verified.flow.loopIndex == 1
+    annotated = 0
+    for ln in verified.documents[0].lines:
+      annotated += ln.annotations.len
+    check annotated > 0
+
+    let html = dbgc.renderSource(unverified)
+    check "class=\"fv" notin html
+    check "class=\"flowrail\"" notin html
+
+  test "an expression the source does not contain gets NO column, but is kept":
+    # Rule 3. `fallbackExpressionColumn` parks such an expression past the end
+    # of the line so the value is not lost; taking that column at face value
+    # would point the label at an offset the expression has nothing to do with.
+    var input = FlowWindowInput(
+      path: "synth.nr", locationTicks: 0, functionLabel: "f",
+      window: FlowLayoutWindow(
+        sourceLines: @["let sum = a + b;"],
+        tabSize: 4,
+        loops: @[FlowLayoutLoop()],
+        steps: @[FlowLayoutStep(
+          stepCount: 1, line: 1, loopIndex: 0, iteration: 0, rrTicks: 1,
+          exprOrder: @["a", "hidden_temp"],
+          beforeValues: @[FlowValueText(expression: "a", text: "10"),
+                          FlowValueText(expression: "hidden_temp", text: "77")],
+          afterValues: @[])]))
+    var pane = EditorPane(
+      availability: srcSourceLevel, activeIndex: 0,
+      documents: @[newSourceDocument("synth.nr", "noir", "let sum = a + b;\n")])
+    applyFlow(pane, input)
+    var placed, unplaced = 0
+    for a in pane.documents[0].lines[0].annotations:
+      if a.label == "a":
+        inc placed
+        check a.slot == asInline
+        check a.column == 10                  # `a` in `let sum = a + b;`
+      elif a.label == "hidden_temp":
+        inc unplaced
+        check a.slot == asTrailing
+        check a.column == -1                  # never the fallback offset
+        check a.beforeValue == "77"           # and never dropped
+    check placed == 1
+    check unplaced == 1
+
+  test "the legend columns the desktop cannot compute ARE computed here":
+    # `Omniscience-Flow.md` records that `makeLegend` on the desktop indexes a
+    # `positions` map nothing ever writes — `calculatePositionMaxWidth` and
+    # `realignPositionWidths` were dead code with no call site — so the loop
+    # legend raises rather than laying out at 0%.
+    #
+    # BlockTracer's renderer does not read those fields: it draws labels in the
+    # source's own reading order and has no parallel band, so it cannot inherit
+    # the broken path. This test is what makes that a decision rather than an
+    # omission — the arithmetic is exercised against the real window and its
+    # answers are non-empty, so the day a parallel-column mode wants them they
+    # are computed here and not inherited.
+    let input = demoFlowInput(readFile(
+      clientRoot / "fixtures" / "demo-session" / "src" / "shield.nr"))
+    let plan = computeLoopColumnPlan(input.window, 1)
+    check plan.loopIndex == 1
+    check plan.legendChars > 0
+    check plan.legend.len > 0
+    check plan.positions.len > 0
+
+    # Line 7 — `remaining_shield -= damage;` — pinned to EXACT numbers, because
+    # ">0 somewhere" is the shape of a check that cannot fail. Two headings
+    # budgeted at `max(len, 3)` characters plus one separator each, less the one
+    # trailing separator the accumulation adds and takes back:
+    # (16 + 1) + (6 + 1) - 1 = 23, and one gap is 100/23 of the legend row.
+    var found = false
+    for position in plan.positions:
+      if position.line != 7: continue
+      found = true
+      check position.expressionChars == 23
+      check abs(position.legendGapShare - 100.0 / 23.0) < 1e-9
+      check position.iterations.len == 2       # the passes this frame reaches
+      for iteration in position.iterations:
+        check iteration.columns.len == 2
+        check iteration.maxValueChars > 0
+        for column in iteration.columns:
+          check column.legendShare > 0.0
+          check column.valueShare > 0.0
+        check abs(iteration.columns[0].legendShare - 16.0 * 100.0 / 23.0) < 1e-9
+        check abs(iteration.columns[1].legendShare - 6.0 * 100.0 / 23.0) < 1e-9
+    check found
+
+    # A line whose steps recorded no BEFORE values — `let mut damage = 0;`, a
+    # first assignment — gets a zero budget, and that is upstream's own
+    # behaviour rather than a gap here: `calculatePositionMaxWidth` accumulates
+    # `beforeValues` only. Asserted so the day it changes, this file says so.
+    for position in plan.positions:
+      if position.line == 27:
+        check position.expressionChars == 0
+
+  test "the served debug route carries the overlay a browser is given":
+    let html = debugHtml(readyTx)
+    # The current line's own write, in the spec's headline rendering.
+    check "class=\"fvn\">damage</span>" in html
+    check "class=\"fvv was\">0</span>" in html
+    check "class=\"fvv\">2000</span>" in html
+    # The rail, and the phase-independent fact that the page ships no script to
+    # drive it: the whole control is links and CSS.
+    check "class=\"flowrail\"" in html
+    check executableScripts(html) == 0
+
 suite "M8b — availability decides the landing, not a preference":
 
   test "every transaction's phase follows its published availability":
@@ -1673,8 +2214,17 @@ suite "M8b — the metadata pane and the page cannot diverge":
     check "class=\"dcbtn\"" notin html
     # …and each one says so as a CONTROL, on the accessibility tree and in its
     # own tooltip, rather than relying on a paragraph elsewhere on the page.
-    check occurrences(html, "aria-disabled=\"true\"") == s.controls.buttons.len
-    check "aria-disabled=\"false\"" notin html
+    # Counted inside the CONTROL GROUP and not across the document. The loop
+    # rail marks its unreachable passes inert with the same attribute, for the
+    # same reason, and a page-wide count would silently become a count of two
+    # different things. `renderControls`' output is embedded verbatim, so this
+    # is a stronger assertion than the page-wide one it replaces: it also
+    # establishes that the markup in the bar IS the renderer's.
+    let controlsHtml = dbgc.renderControls(s.controls)
+    check controlsHtml in html
+    check occurrences(controlsHtml, "aria-disabled=\"true\"") ==
+          s.controls.buttons.len
+    check "aria-disabled=\"false\"" notin controlsHtml
     for b in s.controls.buttons:
       check (b.label & " — inert until the replay engine loads") in html
 
