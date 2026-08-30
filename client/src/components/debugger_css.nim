@@ -338,7 +338,7 @@ html[data-register="debugger"],
    ends mid-line reads as a rendering fault once the pane is scrolled. */
 .srcline{display:flex;align-items:flex-start;gap:var(--bt-space-xs);
   padding:0 var(--bt-density-cell-x);white-space:pre;
-  min-width:max-content;
+  min-width:max-content;position:relative;
   border-left:var(--bt-stroke-thick) solid transparent}
 .srcline .n{flex:0 0 var(--bt-space-2xl);text-align:right;
   color:var(--bt-text-subtle);font-variant-numeric:var(--bt-numeric-features);
@@ -393,6 +393,68 @@ html[data-register="debugger"],
    both, in both themes — 32 pairs, and the weakest is 4.54:1 (dark comment on
    the current line). Colour is the only channel: the text is fully legible
    without it, so unlike a status badge this needs no redundant glyph. */
+/* ── a branch that was evaluated and NOT taken ───────────────────────────── */
+/* The desktop app's `flow-not-taken` / `line-flow-skip` pair, carried over with
+   two changes.
+
+   It is not RED. Desktop paints an untaken branch in a translucent crimson
+   (`FLOW_CONDITION_NOT_TAKEN`, a red in both its themes), which is
+   defensible in an editor and is not defensible here: on this product the
+   danger family means a reverted execution, and a transaction that succeeded
+   while three of its blocks were painted the failure colour would say the
+   wrong thing louder than the right one. Not taking a branch is ordinary
+   control flow.
+
+   And it is not a dim alone. Three channels, and the GLYPH is the primary one:
+   `⊘` in the not-taken role, at 9.15:1 (light) and 5.47:1 (dark), replacing the
+   line's ordinary gutter marker in exactly the passes where the claim holds. A
+   column of them down consecutive lines is also what makes the region read as a
+   BLOCK rather than as a run of unrelated dim lines, which is the whole content
+   of the desktop feature. `⊘` is distinct from the event log's `✕` — a revert,
+   which DID happen — for the same reason the colour is.
+
+   The RAIL is the second: a 2px edge down the left of every claimed line, so
+   consecutive ones draw one continuous mark and the region reads as a block.
+   It is an absolutely positioned child and not a border, because `.srcline`'s
+   border is the current-position rail and one line can carry both facts. Two
+   adjacent edges say two things; one border fought over by two rules says
+   whichever was written last.
+
+   The recession is the third, and it is an OPACITY so that every
+   syntax hue inside the region survives at reduced strength: the dimming
+   composes with the highlighting instead of contesting the same spans, which a
+   `color` override on `.t` and its descendants would do, flattening a
+   classified line into one wash.
+
+   It is deliberately GENTLE — 0.82, against desktop's 0.5. Three reasons, and
+   the first is measured: at 0.82 the weakest syntax role in the listing is
+   4.62:1 (light keyword) and 5.47:1 (dark comment), with plain code text at
+   8.67:1 and 8.88:1, so nothing in an untaken block drops below the text floor.
+   At desktop's 0.5 the light keyword would be 2.62:1. Second, the claim does
+   not depend on it — a reader who cannot resolve an 18% alpha step loses no
+   information, because the glyph carries the fact (rubric A7). Third, a heavier
+   dim reads as DISABLED, and that is the wrong sentence: an untaken branch is
+   not inert, it is a statement that did not run.
+
+   The one pair that does drop is a comment inside an untaken block ON the
+   current line — 3.57:1 in dark, from a full-strength 4.54:1 that this
+   stylesheet already records as its weakest. It is one line, it needs the
+   session's position, an untaken claim in the displayed pass and a comment on
+   that same line all at once, and it is stated here rather than discovered.
+
+   `.mn` sets its own colour rather than inheriting `.m`'s, so the glyph keeps
+   the not-taken role on the current line, where `.srcline.cur .m` would
+   otherwise repaint it in the position hue — the same reason the syntax spans
+   set theirs. A line CAN be both: the demo's line 32 is where the session
+   stands AND is the arm that passes 0 and 1 did not take, and both facts are
+   true at once. */
+.srcline .mn{display:none;color:var(--bt-mark-not-taken)}
+.srcline .ntbar{display:none;position:absolute;left:0;top:0;bottom:0;
+  width:var(--bt-stroke-thick);background:var(--bt-mark-not-taken)}
+.srcline.ntnow .mg{display:none}
+.srcline.ntnow .mn{display:inline}
+.srcline.ntnow .ntbar{display:block}
+.srcline.ntnow .t{opacity:var(--bt-opacity-not-run)}
 .src .tk-comment{color:var(--bt-syntax-comment)}
 .src .tk-keyword{color:var(--bt-syntax-keyword)}
 .src .tk-type{color:var(--bt-syntax-type)}
@@ -1183,30 +1245,50 @@ func flowIterationLadder(): string =
   ## looks like a link, and shows the wrong pass's values when clicked. Reading
   ## the constant is the only form of "they agree" that cannot decay.
   ##
-  ## ## Why it emits nothing but `display`
+  ## ## Why it emits no design value
   ##
   ## Every design value stays in the written half above: the rungs toggle
-  ## `display` on elements whose appearance is already decided. That keeps the
-  ## generated CSS free of anything `tools/design/check-tokens.mjs` would have
-  ## to reason about — a raw colour inside a `for` loop is a raw colour the lint
-  ## can still see, and one it would be much harder to fix.
+  ## `display` on elements whose appearance is already decided, and the one
+  ## non-`display` declaration among them is `opacity:1` — the identity, which
+  ## undoes a dim rather than choosing one. That keeps the generated CSS free of
+  ## anything `tools/design/check-tokens.mjs` would have to reason about — a raw
+  ## colour inside a `for` loop is a raw colour the lint can still see, and one
+  ## it would be much harder to fix.
   ##
   ## ## What each rung does
   ##
-  ## Six rules, and it takes all six:
+  ## Eleven rules, and it takes all eleven:
   ##
   ##   1. hide the pass the SESSION is in (`.fv.now`), because a rail set to
   ##      another pass must not leave two passes' values on one line;
   ##   2. show the targeted pass, and with it every label outside any loop
   ##      (`.fv-any`), which belongs to no pass and is true in all of them;
   ##   3. move the "showing" dot off the default segment;
-  ##   4. put it on the targeted one; and
+  ##   4. put it on the targeted one;
   ##   5-6. the same swap for the `Iteration N of M` counter, because CSS can
   ##      change WHICH element is shown and cannot rewrite text — a single
   ##      counter would keep naming the session's pass while the pane displayed
-  ##      another one.
+  ##      another one; and
+  ##   7-11. the same swap AGAIN for the untaken-branch treatment, in four
+  ##      parts because it has four moving pieces: the gutter glyph, the marker
+  ##      it replaces, the block rail down the left of the line, and the
+  ##      recession on the code itself.
   ##
-  ## The "here" mark is deliberately untouched by all four: it says where the
+  ## Rules 7-11 are the reason this ladder is not optional for the branch
+  ## feature. The demo trace takes `shield.nr:29` on passes 0 and 1 and
+  ## `shield.nr:32` on pass 2 — the SAME two lines swap roles between passes —
+  ## so a dimming that did not move with the rail would state pass 2's control
+  ## flow over pass 0's values. That is not a stale decoration; it is the pane
+  ## asserting that a line did not run beside the value that line recorded.
+  ##
+  ## Each triple is a RESET then a SET, in that order and at equal specificity,
+  ## so a line whose claim holds in the session's pass but not in the targeted
+  ## one comes back to full strength. Emitting them the other way round would
+  ## leave every such line dimmed in every pass, which is the direction that
+  ## fails silently — a permanently dimmed block looks exactly like a block that
+  ## never ran.
+  ##
+  ## The "here" mark is deliberately untouched by all eleven: it says where the
   ## SESSION is, and looking at another pass does not move the session.
   for i in 0 ..< MaxStaticIterations:
     let t = "#fit-" & $i & ":target ~ "
@@ -1217,6 +1299,18 @@ func flowIterationLadder(): string =
     result.add t & ".flowrail .frseg.s" & $i & " .frdot{display:block}\n"
     result.add t & ".flowrail .frcount.now{display:none}\n"
     result.add t & ".flowrail .frcount.c" & $i & "{display:inline}\n"
+    result.add t & ".srcwrap .srcline.ntnow .mn{display:none}\n"
+    result.add t & ".srcwrap .srcline.ntnow .mg{display:inline}\n"
+    result.add t & ".srcwrap .srcline.ntnow .ntbar{display:none}\n"
+    result.add t & ".srcwrap .srcline.ntnow .t{opacity:1}\n"
+    result.add t & ".srcwrap .srcline.nt-i" & $i & " .mn," &
+                t & ".srcwrap .srcline.nt-any .mn{display:inline}\n"
+    result.add t & ".srcwrap .srcline.nt-i" & $i & " .mg," &
+                t & ".srcwrap .srcline.nt-any .mg{display:none}\n"
+    result.add t & ".srcwrap .srcline.nt-i" & $i & " .ntbar," &
+                t & ".srcwrap .srcline.nt-any .ntbar{display:block}\n"
+    result.add t & ".srcwrap .srcline.nt-i" & $i & " .t," &
+                t & ".srcwrap .srcline.nt-any .t{opacity:var(--bt-opacity-not-run)}\n"
 
 const debugRouteCss* = debugRouteBaseCss & """
 /* ── the loop rail's target ladder (generated; see flowIterationLadder) ──── */

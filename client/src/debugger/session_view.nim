@@ -303,6 +303,24 @@ type
     executed*: bool       ## the trace visited this line at least once
     current*: bool        ## the session's position is on this line
     annotations*: seq[LineAnnotation]
+    notTaken*: seq[int]
+      ## The loop passes in which this line sits inside a branch that was
+      ## evaluated and **not taken**, or `[-1]` for a conditional outside every
+      ## loop. Empty — the default — means no such claim is being made.
+      ##
+      ## A SEQ and not a bool, for the reason `LineAnnotation.iteration` is not
+      ## one: the demo trace takes `shield.nr:29` on passes 0 and 1 and
+      ## `shield.nr:32` on pass 2, so the same line is untaken in some passes and
+      ## executed in others. A single flag would be wrong in half of them, and it
+      ## would be wrong *silently* — the line would render dimmed while its own
+      ## inline value for that pass sat beside it at full strength.
+      ##
+      ## EMPTY IS NOT "TAKEN". It is "nothing is claimed", which is the state of
+      ## every line the pane cannot supply positive evidence about — a branch
+      ## the session has not reached, an arm the recorder emitted no step for, a
+      ## file in a language with no lexer, and every line of an instruction-level
+      ## listing. `flow_view.notTakenPasses` is the only producer and its header
+      ## is where that distinction is argued.
     tokens*: seq[SourceToken]
       ## The line, partitioned into classified spans by `source_highlight`.
       ##

@@ -95,6 +95,7 @@ a question for the design-system authors.
 <a id="d-07"></a>
 <a id="d-08"></a>
 <a id="d-09"></a>
+<a id="d-10"></a>
 
 | # | Dimension | Web-lineage value | Product-lineage token | Notes for the authors |
 | --- | --- | --- | --- | --- |
@@ -108,6 +109,7 @@ a question for the design-system authors.
 | **D-07** | Page-grid geometry | `960px` container, `64px` nav height, `160px` label column, `260px` header search field, `700px` prose panel, `480px` code-block max height | **No token.** The brand has a spacing ramp but no layout geometry. | These numbers are what put the header and the body on ONE grid — VD.1 measured header content at x=24→1896 against a body column at x=390→1530. Is layout geometry per-product by nature, or should a shared `layout` group exist so the marketing site and the explorer agree on a container width? |
 | **D-08** | Numeric feature settings | `tabular-nums lining-nums` | **No token.** | Rubric A5 requires tabular figures in numeric columns, and this product is mostly digits. OpenType feature selection is a typographic property with no representation in any lineage. Should it become a `type` token, given the desktop app's cost columns have the same requirement? |
 | **D-09** | Font fallback stacks | `ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif` and `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace` | **No token.** The brand names one family per role. | The desktop app ships its fonts and never falls back; a web page served to an arbitrary browser must. Should fallbacks be part of the brand's font tokens, or is a fallback stack inherently a delivery-channel concern? |
+| **D-10** | Recession as opacity | `0.82` — `--bt-opacity-not-run`, the alpha a source line takes when it is inside a branch the execution evaluated and did not take | **No token.** No lineage defines an opacity ramp. The desktop app hard-codes the same idea twice in `frontend/styles/components/flow.styl` — `.line-flow-skip{opacity:0.5}` and `.line-flow-unknown{opacity:0.5}` — with no token behind either. | Every other recession in both lineages is a *colour*: a quieter text role, a sunken surface. Source code is the case that cannot use one, because each span already carries a syntax hue and overriding them all would replace the highlighting with a flat wash. Should recession-as-ratio become a shared primitive — the desktop app has two hand-written instances of it and would be its second consumer — or is opacity legitimately a per-surface decision? Note the web value is far gentler than desktop's `0.5`: it is set at the lowest ratio that keeps every syntax role above 4.5:1 in both themes (weakest 4.62:1), because a web listing is held to a text-contrast floor a desktop editor is not, and because here the recession is the second channel and not the only one.
 
 **One row is intentionally not backed by a literal: D-00**, which records where
 this lineage lives rather than what it renders. It is named in
@@ -256,6 +258,7 @@ has drifted.
 | `--bt-motion-fast` | bkLiteral | `120ms` | [D-04](#d-04) |
 | `--bt-motion-slow` | bkLiteral | `320ms` | [D-04](#d-04) |
 | `--bt-numeric-features` | bkLiteral | `tabular-nums lining-nums` | [D-08](#d-08) |
+| `--bt-opacity-not-run` | bkLiteral | `0.82` | [D-10](#d-10) |
 | `--bt-radius-full` | bkToken | `{border.border radius.full}` | — |
 | `--bt-radius-lg` | bkToken | `{border.border radius.lg}` | — |
 | `--bt-radius-md` | bkToken | `{border.border radius.sm}` | — |
@@ -349,6 +352,7 @@ has drifted.
 | `--bt-focus-ring` | bkToken | `{colors.ui.border.focus}` | — |
 | `--bt-mark-changed` | bkToken | `{colors.yellow.800}` | — |
 | `--bt-mark-executable` | bkToken | `{colors.cyan.700}` | — |
+| `--bt-mark-not-taken` | bkToken | `{colors.neutral.500}` | — |
 | `--bt-mark-position` | bkToken | `{colors.cyan.900}` | — |
 | `--bt-mark-position-surface` | bkToken | `{colors.cyan.200}` | — |
 | `--bt-mark-track` | bkToken | `{colors.neutral.300}` | — |
@@ -418,6 +422,7 @@ has drifted.
 | `--bt-focus-ring` | bkToken | `{colors.information.400}` | — |
 | `--bt-mark-changed` | bkToken | `{colors.amber.300}` | — |
 | `--bt-mark-executable` | bkToken | `{colors.cyan.500}` | — |
+| `--bt-mark-not-taken` | bkToken | `{colors.neutral.300}` | — |
 | `--bt-mark-position` | bkToken | `{colors.cyan.300}` | — |
 | `--bt-mark-position-surface` | bkToken | `{colors.slate.700}` | — |
 | `--bt-mark-track` | bkToken | `{colors.neutral.400}` | — |

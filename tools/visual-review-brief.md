@@ -1302,10 +1302,14 @@ transaction. Inherited items are presence requirements exactly like the rest.
 - A track with one segment per pass, and TWO marks on it that mean different things: where the SESSION is, and which pass's values are currently displayed. On this capture they coincide; a reviewer should still be able to see that they are two marks.
 - Passes the session has not reached rendered visibly INERT and distinguishable from the reachable ones — the still frame has no values for them.
 - The code still legible as code with the labels present: the labels must not be what the eye lands on first.
+- The branch this pass did NOT take marked as such: line 29 (`damage = mass * 1;`) is inside the `if` arm that pass 3 declined, and carries a `⊘` in the gutter where other lines carry `·`, plus a recession on the code itself. A reviewer should be able to say 'that statement did not run' from the row alone.
+- That mark reading as a statement about the EXECUTION, not as a disabled control. The line is still fully readable code — dimmed, not greyed out — and the gutter carries a mark rather than merely losing one.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
 - Two passes' values on one line at once. Every label on screen belongs to the pass the rail names; a line carrying `remaining_shield` twice with different values would be the overlay reporting two moments as one.
+- Whole regions of the listing dimmed. Exactly one line is marked untaken on this capture, because that is what the recording can prove; a pane where every unexecuted-looking line receded would be claiming 'not taken' about lines that were merely never reached.
+- An untaken line so faint that its code cannot be read, or one whose syntax colouring has been flattened to a single grey. The recession multiplies the existing hues; it does not replace them.
 - A value with no visible relationship to any expression — a floating number, a label in the gutter, or a run of labels that could belong to the line above or the line below.
 - A label wide enough to push the code off the pane, or one truncated so hard that the value is unreadable. A value that cannot be read is worse than a value that is absent.
 - Placeholder or zeroed values on lines the session has not executed. Absent is correct there; approximate is not.
@@ -1343,10 +1347,12 @@ transaction. Inherited items are presence requirements exactly like the rest.
 - DIFFERENT values against the same lines than `debugger--omniscience` shows. This is the whole point of the capture: pass 1 wrote `remaining_shield: 10000 → 9900` where pass 3 has not written it at all.
 - The two marks now SEPARATED: the session is still in pass 3 and the displayed pass is 1. A reviewer should be able to read both facts off the track.
 - Lines whose values belong only to the session's pass now showing nothing, rather than showing the previous pass's numbers.
+- The untaken-branch mark on a DIFFERENT line than `debugger--omniscience` shows. Pass 1 took the `if` arm and pass 3 took the `else`, so the `⊘` and the recession move from line 29 to line 32 — the two lines swap roles. Line 32 is also the session's own position, so on this capture one row carries both the current-line treatment and the untaken mark.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
 - The same values as `debugger--omniscience`. Identical panes across the two captures means the control does nothing, which is the affordance-that-lies defect this route has removed twice.
+- The untaken mark staying on line 29, or appearing on line 29 AND line 32 at once. Either would mean the dimming did not follow the rail — and a conditional cannot decline both of its arms.
 - The session's own position marker moving. Selecting a pass to LOOK at is not stepping there; the current-line marker and the `here` mark must stay where the session is.
 - Any suggestion that the session has moved — a changed step counter, a changed current line, a changed call trace.
 

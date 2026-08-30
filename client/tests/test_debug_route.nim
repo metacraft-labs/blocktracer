@@ -2082,6 +2082,352 @@ suite "Omniscience — the recorded values, against the real zk_shields trace":
     check "class=\"flowrail\"" in html
     check executableScripts(html) == 0
 
+suite "Omniscience — the branch that was taken, and the ones that were not":
+  ## The desktop feature, carried over with its unsound half left behind.
+  ##
+  ## Desktop CodeTracer produces `BranchState.NotTaken` two ways. One is sound:
+  ## `load_branch_for_position` marks the arm the debugger stepped into `Taken`
+  ## and its AST siblings `NotTaken`. The other, `final_branch_load`, sweeps the
+  ## file after the flow walk and stamps `NotTaken` on every branch the walk did
+  ## not reach — after all four of that walk's early exits, including a
+  ## 10,000-step budget and a stall guard, with no truncation signal reaching the
+  ## UI. Only the first is implemented here, and the tests below are what make
+  ## that a decision rather than a claim: each one asserts a region is left
+  ## UNDIMMED, and each one fails against an implementation that dimmed on
+  ## absence.
+  ##
+  ## The subject is the real recorded window (`fixtures/demo-session/flow.json`,
+  ## extracted from `zk_shields.ct`), so the passes and the lines below are the
+  ## recorder's, not this file's.
+
+  let shieldSource = readFile(
+    clientRoot / "fixtures" / "demo-session" / "src" / "shield.nr")
+  let flowInput = demoFlowInput(shieldSource)
+
+  proc verifiedPane(): EditorPane =
+    EditorPane(availability: srcSourceLevel, activeIndex: 0, currentLine: 32,
+               documents: @[newSourceDocument("src/shield.nr", "noir", shieldSource)])
+
+  proc dimmedLines(pane: EditorPane): Table[int, seq[int]] =
+    for ln in pane.documents[0].lines:
+      if ln.notTaken.len > 0: result[ln.number] = ln.notTaken
+
+  test "the subject exists: shield.nr has the four conditionals this rests on":
+    # `requireFixtures`' rule, applied to this feature. Every test below is
+    # about a specific line of a specific construct, and a lexer change that
+    # stopped finding conditionals would make all of them vacuously true —
+    # which is precisely how this module first "passed": `highlightLine`
+    # coalesces `)` and `{` into one `){` token, so the brace matcher found no
+    # braces, `findConditionals` returned nothing, and every claim about the
+    # result held over an empty seq.
+    let conditionals = findConditionals(
+      splitSourceLines(shieldSource), profileForDocument("src/shield.nr", "noir"))
+    check conditionals.len == 4
+    var byHeader: Table[int, Conditional]
+    for c in conditionals: byHeader[c.headerLine] = c
+
+    # The one `if`/`else` in the file, and the ONLY exhaustive chain: line 28's
+    # `if(shield_pct == 100){…} else {…}`.
+    check 28 in byHeader
+    check byHeader[28].exhaustive
+    check byHeader[28].arms.len == 2
+    # The INTERIORS, and not the headers. An `else if` whose condition was
+    # evaluated and came out false has executed that line; only what is inside
+    # the braces can be claimed not to have run. Desktop keys its branch table
+    # on `header_line` and therefore paints exactly the line this excludes.
+    check byHeader[28].arms[0] == BranchArm(headerLine: 28, firstLine: 29, lastLine: 29)
+    check byHeader[28].arms[1] == BranchArm(headerLine: 31, firstLine: 32, lastLine: 32)
+
+    check 34 in byHeader
+    check not byHeader[34].exhaustive        # a bare `if` with no `else`
+    check byHeader[34].arms.len == 1
+
+  test "the same two lines swap roles between passes, and the markup says so":
+    # `calculate_damage` takes the `if` on passes 0 and 1 (shield still at
+    # 100%) and the `else` on pass 2. A per-LINE answer would be wrong in one
+    # of those; the claim is per-line-per-pass.
+    var pane = verifiedPane()
+    applyFlow(pane, flowInput)
+    let dim = dimmedLines(pane)
+
+    check dim.getOrDefault(29) == @[2]        # the `if` body — untaken on pass 2
+    check dim.getOrDefault(32) == @[0, 1]     # the `else` body — untaken on 0, 1
+
+    # The negative that makes the pair meaningful: neither line is claimed
+    # untaken in a pass the other is. If both were listed for one pass the pane
+    # would be asserting that a conditional took NO arm.
+    for pass in 0 .. 2:
+      check not (pass in dim.getOrDefault(29) and pass in dim.getOrDefault(32))
+
+    # And the claim rides the same `:target` ladder the values do, so the rail
+    # moves the dimming and the values together.
+    check notTakenClasses(@[2], 2) == " nt-i2 ntnow"
+    check notTakenClasses(@[2], 0) == " nt-i2"       # not the session's pass
+    check notTakenClasses(@[-1], 5) == " nt-any ntnow"  # outside every loop
+    check notTakenClasses(@[], 2) == ""
+
+  test "a body with no recorded step ANYWHERE is not dimmed — the crux":
+    # `shield.nr:35` is the body of `if(damage as u32 > remaining_shield…)`, a
+    # clamp that never fires in this recording. Every ingredient for a dimming
+    # is present except one: the header at line 34 ran on passes 0 and 1, the
+    # execution demonstrably moved past it, and the chain has no `else` — so a
+    # rule that concluded "not taken" from the absence of a step would dim it,
+    # confidently, on both passes.
+    #
+    # It is left alone, because a body that recorded no step in the whole window
+    # is indistinguishable from a body the recorder emits no steps for. "This
+    # branch was not taken" and "this line was never instrumented" are different
+    # sentences and only one of them is about the program.
+    #
+    # THIS TEST IS THE ONE THAT FAILS FIRST if the instrumentation guard is
+    # dropped: `notTakenPasses` would then report line 35 for passes 0 and 1,
+    # the build would stay green and the pane would gain two dimmed lines that
+    # look exactly like the three true ones.
+    var pane = verifiedPane()
+    applyFlow(pane, flowInput)
+    let dim = dimmedLines(pane)
+    check 35 notin dim
+
+    # The subject is real: line 35 IS an arm interior, and it IS unexecuted.
+    var found = false
+    for c in findConditionals(splitSourceLines(shieldSource),
+                             profileForDocument("src/shield.nr", "noir")):
+      if c.headerLine == 34:
+        found = true
+        check c.arms[0].firstLine == 35 and c.arms[0].lastLine == 35
+    check found
+    for ln in pane.documents[0].lines:
+      if ln.number == 35: check not ln.executed
+
+    # And the surrounding claim IS made where the evidence exists: line 44, the
+    # body of the regeneration clamp, recorded a step on pass 0 and none on
+    # pass 1 with the chain entered and left. So the guard is not simply
+    # refusing everything.
+    check dim.getOrDefault(44) == @[1]
+
+  test "a condition the session is standing ON is not resolved, so nothing dims":
+    # The third of the three things an unrecorded line can be: not a branch
+    # declined, and not a line uninstrumented, but a line the window does not
+    # COVER yet. The served frame is cut at the session's position, and the cut
+    # can fall between evaluating a condition and entering an arm.
+    #
+    # Built synthetically so the cut can be placed exactly on that boundary.
+    # Every other ingredient is present: the arm is instrumented (pass 0 ran
+    # it), the chain has no `else`, and its header recorded a step in pass 1.
+    # The only thing missing is proof that execution moved PAST the condition,
+    # and that is the whole of the difference between "declined" and "deciding".
+    let text = """fn f() {
+    if (b) {
+        two();
+    }
+    done();
+}
+"""
+    var input = FlowWindowInput(
+      path: "cut.nr", locationTicks: 4, functionLabel: "f",
+      window: FlowLayoutWindow(
+        sourceLines: splitSourceLines(text), tabSize: 4,
+        loops: @[FlowLayoutLoop()],
+        steps: @[
+          # Pass 0 runs the whole construct, which is what makes line 3 known
+          # to be instrumented.
+          FlowLayoutStep(stepCount: 1, line: 2, loopIndex: 1, iteration: 0, rrTicks: 1),
+          FlowLayoutStep(stepCount: 2, line: 3, loopIndex: 1, iteration: 0, rrTicks: 2),
+          FlowLayoutStep(stepCount: 3, line: 5, loopIndex: 1, iteration: 0, rrTicks: 3),
+          # Pass 1 evaluates the condition and the window stops there.
+          FlowLayoutStep(stepCount: 4, line: 2, loopIndex: 1, iteration: 1, rrTicks: 4)]))
+    var pane = EditorPane(
+      availability: srcSourceLevel, activeIndex: 0, currentLine: 2,
+      documents: @[newSourceDocument("cut.nr", "noir", text)])
+    applyFlow(pane, input)
+    check dimmedLines(pane).len == 0
+
+    # One more step in pass 1, carrying a later tick, and the SAME window makes
+    # the claim — so the assertion above is about resolution and not about a
+    # fixture that could never produce a dimming.
+    input.window.steps.add FlowLayoutStep(
+      stepCount: 5, line: 5, loopIndex: 1, iteration: 1, rrTicks: 5)
+    var after = EditorPane(
+      availability: srcSourceLevel, activeIndex: 0, currentLine: 5,
+      documents: @[newSourceDocument("cut.nr", "noir", text)])
+    applyFlow(after, input)
+    check dimmedLines(after).getOrDefault(3) == @[1]
+
+  test "an exhaustive chain that recorded no arm claims nothing":
+    # If an `if`/`else` was entered, exactly one arm ran. So "no arm recorded a
+    # step" is a fact about the RECORDING — some arm ran and was not
+    # instrumented — and nothing may be concluded from it. The tempting wrong
+    # answer is to dim both arms, which would state that a chain with an `else`
+    # took neither branch.
+    let text = """fn f() {
+    if (a) {
+        one();
+    }
+    else {
+        two();
+    }
+    done();
+}
+"""
+    let input = FlowWindowInput(
+      path: "both.nr", locationTicks: 9, functionLabel: "f",
+      window: FlowLayoutWindow(
+        sourceLines: splitSourceLines(text), tabSize: 4,
+        loops: @[FlowLayoutLoop()],
+        steps: @[
+          # Both arms are instrumented — each recorded a step at SOME point —
+          # so the instrumentation guard is satisfied and cannot be what is
+          # doing the refusing here.
+          FlowLayoutStep(stepCount: 1, line: 3, loopIndex: 1, iteration: 0, rrTicks: 1),
+          FlowLayoutStep(stepCount: 2, line: 6, loopIndex: 1, iteration: 1, rrTicks: 2),
+          # Pass 2 enters the chain and leaves it, recording neither arm.
+          FlowLayoutStep(stepCount: 3, line: 2, loopIndex: 1, iteration: 2, rrTicks: 3),
+          FlowLayoutStep(stepCount: 4, line: 8, loopIndex: 1, iteration: 2, rrTicks: 4)]))
+    var pane = EditorPane(
+      availability: srcSourceLevel, activeIndex: 0, currentLine: 8,
+      documents: @[newSourceDocument("both.nr", "noir", text)])
+    applyFlow(pane, input)
+    let dim = dimmedLines(pane)
+    check 2 notin dim.getOrDefault(3)
+    check 2 notin dim.getOrDefault(6)
+    # The passes where an arm DID record are claimed, so the window is not
+    # simply producing nothing: pass 0 took line 3, so line 6 is untaken there.
+    check dim.getOrDefault(6) == @[0]
+    check dim.getOrDefault(3) == @[1]
+
+  test "a chain that went BOTH ways in one pass claims nothing for that pass":
+    # A conditional inside a function called twice in one loop pass can take
+    # one arm on the first call and the other on the second. Both arms then
+    # carry a step for the pass, and neither may be called untaken — a reader
+    # looking at that pass has two evaluations in front of them and the pane
+    # cannot say which.
+    let text = """fn f() {
+    if (a) {
+        one();
+    }
+    else {
+        two();
+    }
+}
+"""
+    let input = FlowWindowInput(
+      path: "twice.nr", locationTicks: 4, functionLabel: "f",
+      window: FlowLayoutWindow(
+        sourceLines: splitSourceLines(text), tabSize: 4,
+        loops: @[FlowLayoutLoop()],
+        steps: @[
+          FlowLayoutStep(stepCount: 1, line: 2, loopIndex: 1, iteration: 0, rrTicks: 1),
+          FlowLayoutStep(stepCount: 2, line: 3, loopIndex: 1, iteration: 0, rrTicks: 2),
+          FlowLayoutStep(stepCount: 3, line: 2, loopIndex: 1, iteration: 0, rrTicks: 3),
+          FlowLayoutStep(stepCount: 4, line: 6, loopIndex: 1, iteration: 0, rrTicks: 4)]))
+    var pane = EditorPane(
+      availability: srcSourceLevel, activeIndex: 0, currentLine: 6,
+      documents: @[newSourceDocument("twice.nr", "noir", text)])
+    applyFlow(pane, input)
+    check dimmedLines(pane).len == 0
+
+  test "the fidelity ladder: a level that cannot support the claim never dims":
+    # §14's rows, applied to the STRONGER claim. "This block did not execute" is
+    # a bigger statement than "this variable held 4000", so it must not survive
+    # a path the inline values are refused on — and it must not survive a path
+    # where the SOURCE cannot be read either, because a region with no braces to
+    # find is a region chosen by nothing.
+    #
+    # The panes are handed documents that already carry a dimming, which is what
+    # makes this able to fail. Refusing to ADD is only half the rule: a pane
+    # whose availability drops to instruction level, or whose bundle is replaced
+    # by a file in a language nothing here lexes, would otherwise keep the
+    # regions it was given for a frame it is no longer showing, and nothing on
+    # screen would announce it.
+    var stale = newSourceDocument("src/shield.nr", "noir", shieldSource)
+    for i in 0 ..< stale.lines.len:
+      stale.lines[i].notTaken = @[-1]
+
+    for availability in [srcUnverified, srcAbsent]:
+      var pane = EditorPane(
+        availability: availability, activeIndex: 0, currentLine: 32,
+        reason: "no source", documents: @[stale])
+      applyFlow(pane, flowInput)
+      var claimed = 0
+      for ln in pane.documents[0].lines: claimed += ln.notTaken.len
+      check claimed == 0
+      # And nothing reaches the markup, on either channel.
+      let html = dbgc.renderSource(pane)
+      check "nt-i" notin html
+      check "ntnow" notin html
+      check "class=\"mn\"" notin html
+
+    # A language with NO lexer profile is the same refusal one level down. The
+    # window, the steps and the fidelity are all identical to the passing case;
+    # only the document's language changes, so this cannot pass by accident.
+    var unlexed = EditorPane(
+      availability: srcSourceLevel, activeIndex: 0, currentLine: 32,
+      documents: @[newSourceDocument("src/shield.sol", "solidity", shieldSource)])
+    var solidityInput = flowInput
+    solidityInput.path = "src/shield.sol"
+    applyFlow(unlexed, solidityInput)
+    var claimed = 0
+    for ln in unlexed.documents[0].lines: claimed += ln.notTaken.len
+    check claimed == 0
+
+    # The control: the same source at source level, with its own lexer, DOES
+    # produce the three claims. Without this the four checks above would pass
+    # against a `notTakenPasses` that returned an empty table unconditionally.
+    var verified = verifiedPane()
+    applyFlow(verified, flowInput)
+    check dimmedLines(verified).len == 3
+
+  test "the markup carries both channels, and only where there is a claim":
+    let html = debugHtml(readyTx)
+    # Line 29 — the `if` body `calculate_damage` did not take on pass 2, the
+    # pass the served page opens on. Dimmed by default, and marked.
+    check "class=\"srcline hit nt-i2 ntnow\"" in html
+    # Line 32 is the session's own position AND the arm passes 0 and 1 declined.
+    # Both facts, on one row.
+    check "class=\"srcline cur hit nt-i0 nt-i1\"" in html
+    # The gutter pair: the ordinary marker and the one that replaces it.
+    check "<span class=\"mg\">" in html
+    check "<span class=\"mn\">⊘</span>" in html
+    # And the block rail, which is what makes a run of untaken lines read as a
+    # region rather than as scattered dim rows.
+    check "<span class=\"ntbar\">" in html
+    # A line with no claim is unchanged — no pair, no rail, no extra spans.
+    # Counting is what makes that checkable: three claimed lines are in the
+    # window, and each channel is emitted exactly three times.
+    check occurrences(html, "<span class=\"mn\">") == 3
+    check occurrences(html, "<span class=\"mg\">") == 3
+    check occurrences(html, "<span class=\"ntbar\">") == 3
+    # Still no script. The whole control is links and CSS.
+    check executableScripts(html) == 0
+
+  test "the target ladder resets before it sets, on every rung":
+    # The dimming has to move with the rail, because the demo's two lines swap
+    # roles between passes. Each rung is a RESET (the session's pass stops being
+    # dimmed) followed by a SET (the targeted pass starts), at equal specificity
+    # so source order decides. Emitted the other way round, every claimed line
+    # would stay dimmed in every pass — and a permanently dimmed block is
+    # indistinguishable from a correctly dimmed one on a screenshot.
+    let css = debugRouteCss
+    for i in 0 ..< MaxStaticIterations:
+      let t = "#fit-" & $i & ":target ~ "
+      let reset = t & ".srcwrap .srcline.ntnow .t{opacity:1}"
+      let setRule = t & ".srcwrap .srcline.nt-i" & $i & " .t"
+      check reset in css
+      check setRule in css
+      check css.find(reset) < css.find(setRule)
+      # `nt-any` — a conditional outside every loop — is set on every rung, so
+      # it survives whichever pass is displayed.
+      check (t & ".srcwrap .srcline.nt-any .t{opacity:var(--bt-opacity-not-run)}") in css
+      # The glyph and the rail swap with it, so the gutter, the region mark and
+      # the code never disagree about which pass is on screen.
+      check (t & ".srcwrap .srcline.ntnow .mn{display:none}") in css
+      check (t & ".srcwrap .srcline.nt-i" & $i & " .mn,") in css
+      check (t & ".srcwrap .srcline.ntnow .ntbar{display:none}") in css
+      check (t & ".srcwrap .srcline.nt-i" & $i & " .ntbar,") in css
+    # The default, before any segment is targeted: the session's own pass.
+    check ".srcline.ntnow .t{opacity:var(--bt-opacity-not-run)}" in css
+    check ".srcline .mn{display:none;color:var(--bt-mark-not-taken)}" in css
+
 suite "M8b — availability decides the landing, not a preference":
 
   test "every transaction's phase follows its published availability":

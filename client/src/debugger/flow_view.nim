@@ -51,12 +51,33 @@
 ## the fallback column at face value — would point a label at a character
 ## position in the source that has nothing to do with it, which is the "placed
 ## against the wrong expression" half of the honesty constraint.
+##
+## ## Rule 4 — a branch is "not taken" only where that is a fact, not a gap
+##
+## `notTakenPasses` below carries the taken/not-taken feature over from the
+## desktop app, and it is the rule that decides where the dimming stops. Its
+## whole reasoning is in that proc's header, because the temptation it resists —
+## "no recorded step on this line, therefore this line did not run" — is one
+## line of code away and would be wrong about two of the three things it
+## covered.
+##
+## Like the values, it reaches the STATIC page and stops at hydration.
+## `session_project.projectEditor` builds its lines from the engine and sets no
+## claim, so a hydrated pane shows the rail and neither the values nor the
+## dimming — the same stop, for the same reason, stated there: the per-step flow
+## payload cannot yet be read against a live engine, and a claim about control
+## flow derived from a payload nobody has observed would be exactly the
+## confident fiction this module exists to refuse. What must never happen is the
+## served page's dimming being FROZEN onto a moved session; it is not, because
+## the marks live on the `SourceLine`s the hydrated pane replaces wholesale.
 
 import std/tables
 
+import ./branch_regions
 import ./session_view
 import ./vendor/frontend/viewmodel/viewmodels/flow_layout
 export flow_layout
+export branch_regions
 
 const NoIteration* = -1
   ## `LineAnnotation.iteration` for a line outside every loop. Such a label is
@@ -201,6 +222,149 @@ proc buildRail(input: FlowWindowInput; loopIndex: int;
                 loop.rrTicksForIterations[i] else: 0),
       reached: carried.getOrDefault(i, false))
 
+# ---------------------------------------------------------------------------
+# Rule 4 — the branch that was not taken
+# ---------------------------------------------------------------------------
+
+func passOf(step: FlowLayoutStep): int =
+  ## Which pass a recorded step belongs to, in `LineAnnotation.iteration`'s
+  ## vocabulary. `loopIndex == 0` is the backend's placeholder loop, so such a
+  ## step is outside every loop and is `NoIteration` — true in all passes.
+  if step.loopIndex > 0: step.iteration else: NoIteration
+
+proc notTakenPasses*(window: FlowLayoutWindow;
+                     conditionals: seq[Conditional]): Table[int, seq[int]] =
+  ## For each source line, the passes in which it is inside a branch that was
+  ## evaluated and **not taken**. Line numbers to pass indices, `NoIteration`
+  ## for a conditional outside every loop.
+  ##
+  ## ## The claim this refuses to make
+  ##
+  ## A line with no recorded step is one of three things, and they are not
+  ## interchangeable:
+  ##
+  ##   1. a branch the execution evaluated and did not take;
+  ##   2. a line the recorder never emitted a step for; or
+  ##   3. a line the window does not cover — the served frame is cut at the
+  ##      session's position, so everything after it has not happened *yet*.
+  ##
+  ## Dimming all three identically tells the reader (1) about all three, and (1)
+  ## is the only one of them that is a fact about the *program*. The other two
+  ## are facts about the *recording*, and presenting them as the first is the
+  ## confident-and-sometimes-wrong answer this product cannot afford.
+  ##
+  ## So nothing here is derived from absence alone. Every dimmed region rests on
+  ## POSITIVE evidence of all three of the following, and a region that cannot
+  ## supply all three is left alone:
+  ##
+  ##   * **the arm is instrumented** — some step in this window falls on its
+  ##     interior, in some pass. This is what separates (1) from (2). Without
+  ##     it, "no step here" is a statement about the recorder and not about the
+  ##     execution, and the demo trace contains exactly such a case:
+  ##     `shield.nr:35` is the body of a clamp that never fires, and it is
+  ##     deliberately NOT dimmed, because a body that never recorded a step
+  ##     anywhere is indistinguishable from a body nothing was recorded for;
+  ##   * **the chain was entered in this pass** — a sibling arm recorded a step,
+  ##     or the chain's own header did. This is what separates (1) from (3): a
+  ##     conditional the session has not reached yet has neither;
+  ##   * **the chain was resolved in this pass** — for the sibling case that is
+  ##     implied, since a sibling that ran is the resolution. For a chain with
+  ##     no arm running it is explicit: some step in the same pass carries a
+  ##     later tick than the last header evaluation, proving execution moved
+  ##     past the condition. Without it, a session suspended ON the `if` line
+  ##     would have its untaken-so-far body dimmed while the branch was still
+  ##     being decided.
+  ##
+  ## ## What follows from the arms being mutually exclusive
+  ##
+  ## Exactly one arm of an `if` chain runs per evaluation, which is the whole
+  ## strength of the inference: "arm 2 ran" *proves* "arm 1 did not". That is the
+  ## sound half of desktop CodeTracer's mechanism — `load_branch_for_position`
+  ## marks the stepped-into arm `Taken` and its AST siblings `NotTaken`.
+  ##
+  ## Desktop has a second mechanism, `final_branch_load`, which sweeps the file
+  ## once the flow walk ends and stamps `NotTaken` on every branch the walk never
+  ## reached. That sweep runs unconditionally after all four of the walk's early
+  ## exits — a 10,000-step budget, an eight-step stall guard, a move error and a
+  ## parse error — and no truncation signal reaches the UI, so a branch the
+  ## walker simply ran out of budget before is reported to the reader as a branch
+  ## the program declined to take. That mechanism is deliberately NOT carried
+  ## over. It is precisely claim (2)/(3) rendered as claim (1).
+  ##
+  ## ## Two facts that make the answer per-pass rather than per-line
+  ##
+  ## A conditional inside a loop can go one way on pass 1 and the other on pass
+  ## 2 — the demo trace does exactly this, taking `shield.nr:29` on passes 0 and
+  ## 1 and `shield.nr:32` on pass 2 — so a line's state is a function of the
+  ## pass, and a single answer for the line would be wrong in half the passes.
+  ##
+  ## And a conditional can be evaluated MORE than once within one pass, when the
+  ## function holding it is called twice. If two arms both recorded a step in
+  ## the same pass, the chain went both ways and neither arm may be called
+  ## untaken: that case yields nothing rather than a guess about which
+  ## evaluation the reader is looking at.
+  var ranAt = initTable[(int, int), bool]()     ## (pass, line) → a step exists
+  var everLine = initTable[int, bool]()         ## line → a step exists in ANY pass
+  var passes: seq[int] = @[]
+  var lastTickAt = initTable[(int, int), int]()   ## (pass, line) → latest tick
+  var lastTickIn = initTable[int, int]()          ## pass → latest tick anywhere
+  for step in window.steps:
+    let pass = passOf(step)
+    ranAt[(pass, step.line)] = true
+    everLine[step.line] = true
+    if pass notin passes: passes.add pass
+    if step.rrTicks > lastTickAt.getOrDefault((pass, step.line), low(int)):
+      lastTickAt[(pass, step.line)] = step.rrTicks
+    if step.rrTicks > lastTickIn.getOrDefault(pass, low(int)):
+      lastTickIn[pass] = step.rrTicks
+
+  func ran(arm: BranchArm; pass: int): bool =
+    for line in arm.firstLine .. arm.lastLine:
+      if ranAt.getOrDefault((pass, line), false): return true
+    false
+
+  func instrumented(arm: BranchArm): bool =
+    ## Some step in this window lands on this arm's interior — in ANY pass, and
+    ## for any call of the function holding it. That is deliberately the weakest
+    ## form of the check that still does its job: it has to establish only that
+    ## the recorder emits steps for these lines at all.
+    for line in arm.firstLine .. arm.lastLine:
+      if everLine.getOrDefault(line, false): return true
+    false
+
+  for conditional in conditionals:
+    for pass in passes:
+      var ranCount = 0
+      for arm in conditional.arms:
+        if ran(arm, pass): inc ranCount
+
+      var dim: seq[BranchArm] = @[]
+      if ranCount == 1:
+        # A sibling ran. Every other instrumented arm is untaken, and the
+        # sibling itself is the proof that the chain resolved.
+        for arm in conditional.arms:
+          if not ran(arm, pass) and instrumented(arm): dim.add arm
+      elif ranCount == 0 and not conditional.exhaustive:
+        # No arm ran and none had to. That is a fact about the program only if
+        # the chain was entered AND left in this pass; otherwise it is a session
+        # that has not got there, or one suspended on the condition.
+        var lastHeader = low(int)
+        for arm in conditional.arms:
+          let tick = lastTickAt.getOrDefault((pass, arm.headerLine), low(int))
+          if tick > lastHeader: lastHeader = tick
+        if lastHeader > low(int) and
+           lastTickIn.getOrDefault(pass, low(int)) > lastHeader:
+          for arm in conditional.arms:
+            if instrumented(arm): dim.add arm
+      # `ranCount >= 2` (the chain went two ways in one pass) and the exhaustive
+      # `ranCount == 0` (one arm MUST have run, and none was recorded — a fact
+      # about the recording, not the program) both fall through with nothing.
+
+      for arm in dim:
+        for line in arm.firstLine .. arm.lastLine:
+          if not result.hasKey(line): result[line] = @[]
+          if pass notin result[line]: result[line].add pass
+
 proc applyFlow*(pane: var EditorPane; input: FlowWindowInput) =
   ## Attach the window's values to the pane's document, and set its rail.
   ##
@@ -234,10 +398,18 @@ proc applyFlow*(pane: var EditorPane; input: FlowWindowInput) =
   ## covers this file, would otherwise keep the values it was given for a
   ## different frame — which is the stale-value failure in its purest form,
   ## since nothing on screen would have changed to announce it.
+  ##
+  ## The branch dimming is cleared by the same loop and gated by the same
+  ## `return`, and that is not tidiness. "This block did not execute" is a
+  ## stronger claim than "this variable held 4000", so it must not be reachable
+  ## by a path the weaker one is refused on: at instruction level there is no
+  ## source, no lexer applies, and there are no braces to find, so a dimmed
+  ## region there would be a region chosen by nothing at all.
   pane.flow = FlowRail(loopIndex: 0)
   for d in 0 ..< pane.documents.len:
     for i in 0 ..< pane.documents[d].lines.len:
       pane.documents[d].lines[i].annotations = @[]
+      pane.documents[d].lines[i].notTaken = @[]
   if pane.availability != srcSourceLevel: return
   if input.path.len == 0: return
 
@@ -292,10 +464,27 @@ proc applyFlow*(pane: var EditorPane; input: FlowWindowInput) =
   for r in input.returns:
     take(r.line, returnAnnotation(r))
 
+  # Rule 4. The conditionals come from the WINDOW's `sourceLines`, which is the
+  # whole file, and not from `pane.documents[index].lines`, which is a window of
+  # it opened at the session's position (`source_document.openAtCurrent`). A
+  # brace matcher fed a file that starts at line 26 sees an unbalanced file and
+  # would either refuse everything or — far worse — match an `else`'s `}` to
+  # some later block's. The pane's line NUMBERS are what the two are joined on,
+  # and they are the file's own, which is exactly the property `lineAnchor`
+  # exists to guarantee.
+  let untaken = notTakenPasses(
+    input.window,
+    findConditionals(
+      input.window.sourceLines,
+      profileForDocument(pane.documents[index].path,
+                         pane.documents[index].language)))
+
   for i in 0 ..< pane.documents[index].lines.len:
     let number = pane.documents[index].lines[i].number
     if byLine.hasKey(number):
       pane.documents[index].lines[i].annotations = byLine[number]
+    if untaken.hasKey(number):
+      pane.documents[index].lines[i].notTaken = untaken[number]
 
 # ---------------------------------------------------------------------------
 # What the renderer asks about an annotation
@@ -306,6 +495,30 @@ func iterationClass*(iteration: int): string =
   ## `:target` ladder switches on. `-1` is `fv-any`: outside every loop, always
   ## shown.
   if iteration < 0: "fv-any" else: "fv-i" & $iteration
+
+func notTakenClass*(iteration: int): string =
+  ## The class that carries the pass a not-taken claim belongs to.
+  ##
+  ## A separate prefix from `iterationClass`'s `fv-i`, and not a reuse of it,
+  ## because the two ride the same `:target` ladder and mean opposite things: an
+  ## `fv-i2` is a value RECORDED in pass 2, an `nt-i2` is a statement that did
+  ## NOT run in pass 2. One class doing both would need the stylesheet to know
+  ## which element it was on, and a rung that got that backwards would dim the
+  ## lines that ran.
+  if iteration < 0: "nt-any" else: "nt-i" & $iteration
+
+func notTakenClasses*(passes: seq[int]; selected: int): string =
+  ## A source line's not-taken classes, including `ntnow` when the claim holds
+  ## in the pass the SESSION is in — which is what the stylesheet shows before
+  ## any rail segment is targeted, exactly as `.fv.now` is.
+  ##
+  ## Empty for a line with no claim, so the ordinary line's markup is unchanged.
+  if passes.len == 0: return ""
+  var now = false
+  for pass in passes:
+    result.add " " & notTakenClass(pass)
+    if pass < 0 or pass == selected: now = true
+  if now: result.add " ntnow"
 
 func railTargetId*(iteration: int): string =
   ## The id a rail segment targets.

@@ -387,6 +387,15 @@ proc renderSource*(p: EditorPane): string =
   ## both render plain — never mis-tokenised by whichever lexer happened to be
   ## available. A Solidity lexer over Noir would produce confident nonsense.
   ##
+  ## A line also carries what the recording says about its CONTROL FLOW: the
+  ## passes in which it sits inside a branch that was evaluated and not taken,
+  ## as `nt-i*` classes plus `ntnow` for the session's own pass. Nothing is
+  ## decided here — `flow_view.notTakenPasses` owns the claim and its header
+  ## owns the argument for when it may be made — and nothing is stamped: the
+  ## classes are re-derived from the pane on every render, so a hydrated
+  ## `renderPanes` that replaces this pane's `innerHTML` gets them again rather
+  ## than losing decorations it never applied.
+  ##
   ## `data-line` and the element `id` carry the line's stable identity
   ## (`session_view.lineAnchor`), derived from the file path and the line
   ## number rather than from render order. That id is what an inline value
@@ -433,10 +442,48 @@ proc renderSource*(p: EditorPane): string =
         for ln in d.lines:
           tdiv(class = "srcline" &
                        (if ln.current: " cur" else: "") &
-                       (if ln.executed: " hit" else: ""),
+                       (if ln.executed: " hit" else: "") &
+                       notTakenClasses(ln.notTaken, p.flow.selected),
                id = ln.anchor, `data-line` = $ln.number):
+            # The block rail. Emitted only on a line that carries a claim, and
+            # shown only in the passes where it holds, so a run of untaken lines
+            # draws one continuous edge — which is what makes the region read as
+            # a BLOCK the execution skipped rather than as a few unrelated dim
+            # rows. It is the desktop feature's actual subject: `else { … }`, not
+            # `else`.
+            #
+            # An absolutely positioned child rather than a border on the row,
+            # because the row's border is already the current-position rail and
+            # a line can be both — the demo's line 32 is where the session
+            # stands AND the arm two earlier passes declined. Two edges side by
+            # side state two facts; one edge fought over by two rules states
+            # whichever rule was written last.
+            if ln.notTaken.len > 0:
+              span(class = "ntbar")
             span(class = "n"): text $ln.number
-            span(class = "m"): text (if ln.current: "▶" elif ln.executed: "·" else: " ")
+            # The gutter marker, and — on a line inside a branch that was
+            # evaluated and not taken — the SECOND glyph that replaces it in the
+            # passes where that is true.
+            #
+            # Two glyphs in the markup and one on screen, for the reason the
+            # iteration counter carries one span per pass: CSS can change which
+            # element is shown and cannot rewrite text, so a single marker would
+            # keep saying `·` ("you can stop here") on a line the displayed pass
+            # never reached. The pair is emitted only for a line that carries a
+            # claim, so an ordinary listing is byte-identical to before.
+            #
+            # It is a redundant channel and not the only one: the code text is
+            # dimmed as well. Rubric A7 — the dimming alone would be a contrast
+            # difference, which is the signal a reader with low vision, a bad
+            # screen or a printed page loses first, and "did not run" is not a
+            # decoration.
+            span(class = "m"):
+              if ln.notTaken.len > 0:
+                span(class = "mg"):
+                  text (if ln.current: "▶" elif ln.executed: "·" else: " ")
+                span(class = "mn"): text "⊘"
+              else:
+                text (if ln.current: "▶" elif ln.executed: "·" else: " ")
             code(class = "t"):
               # No tokens means the language has no profile — render the line
               # as the ONE text node it was before highlighting existed. This

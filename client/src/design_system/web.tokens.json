@@ -108,6 +108,11 @@
       "features": { "$type": "string", "$value": "tabular-nums lining-nums", "$extensions": { "bt.divergence": "D-08" } }
     },
 
+    "opacity": {
+      "$description": "Recession as a RATIO rather than as a colour, for the one case where a colour cannot express it: source code, whose every span already carries a syntax hue. Overriding those hues to recede a region would replace the highlighting with a flat wash — the dimming would be fighting the lexer for the same spans instead of composing with it — so the recession multiplies what is there and every token keeps its identity while the block recedes as one.",
+      "not-run": { "$type": "number", "$value": "0.82", "$extensions": { "bt.divergence": "D-10" }, "$description": "A branch the execution evaluated and did not take. The value is the LOWEST one at which every syntax role in the listing still clears 4.5:1 — measured against the shipped page, weakest 4.62:1 (light keyword) and 5.47:1 (dark comment), with plain code text at 8.67:1 and 8.88:1. Desktop CodeTracer uses 0.5 for the same idea and can afford to: its listing is not a web page held to a text-contrast floor, and its dimming is the ONLY signal it carries, so it has to be loud. Here the claim is carried by the gutter glyph — `mark.not-taken`, 9.15:1 light and 5.47:1 dark — and the recession only has to push the block back, so it is set at the point where readability stops rather than at the point where the effect stops. A heavier dim would also read as DISABLED, which is the wrong sentence: these statements are not inert, they are statements that did not run." }
+    },
+
     "space": {
       "$description": "ONE spacing scale, every step from the brand scale ramp. 2·4·8·12·16·24·32·48·60·100.",
       "3xs": { "$type": "dimension", "$value": "{scale.200}" },
@@ -218,6 +223,7 @@
         "changed": { "$type": "color", "$value": "{colors.yellow.800}" },
         "view": { "$type": "color", "$value": "{colors.neutral.1000}" },
         "executable": { "$type": "color", "$value": "{colors.cyan.700}" },
+        "not-taken": { "$type": "color", "$value": "{colors.neutral.500}", "$description": "'This block was evaluated and not taken' — the gutter glyph on a line inside an untaken branch. Deliberately NOT the danger family, which on this product means a reverted execution: a branch the program declined to take is an ordinary control-flow fact and painting it red would say a transaction failed. Deliberately not the position or changed families either, both of which say something HAPPENED. Absence of execution takes the neutral it shares with the muted text role, and the meaning is carried by the glyph and by the dimming beside it rather than by hue — which is also why it does not need to be distinguishable from a line number at a glance, only readable." },
         "track": { "$type": "color", "$value": "{colors.neutral.300}" },
         "track-elapsed": { "$type": "color", "$value": "{colors.cyan.800}" }
       },
@@ -312,6 +318,7 @@
         "changed": { "$type": "color", "$value": "{colors.amber.300}" },
         "view": { "$type": "color", "$value": "{colors.neutral.50}" },
         "executable": { "$type": "color", "$value": "{colors.cyan.500}" },
+        "not-taken": { "$type": "color", "$value": "{colors.neutral.300}" },
         "track": { "$type": "color", "$value": "{colors.neutral.400}" },
         "track-elapsed": { "$type": "color", "$value": "{colors.cyan.400}" }
       },
