@@ -93,8 +93,16 @@ const HydrationBundle* {.strdefine: "hydrationBundle".} = ""
   ## which build the bundle first:
   ##   nim c -d:hydrationBundle=/assets/hydrate.js … src/static_export.nim
 
-const ReplayEngineWasmBytes* = 18_094_114
+const ReplayEngineWasmBytes* = 18_281_361
   ## The measured size of `pkg/db_backend_bg.wasm` as published.
+  ##
+  ## Re-measured 2026-08-30 against the engine this site now vendors (the
+  ## `web-codetracer` deploy of `codetracer` `cloud`@82f8f5e7; the previous
+  ## value, 18_094_114, was the build that predated the pure-Rust new-format
+  ## reader and the `wall_clock` shim). It is shown to the visitor only through
+  ## `approxMegabytes`, so drift of a few hundred KB changes no rendered text —
+  ## the deploy's engine step prints both numbers so a real divergence is
+  ## visible without making an unrelated engine bump fail this repository's CI.
   ##
   ## Recorded because it is a **design constraint, not a statistic**: 18 MB on
   ## the critical path is why Page-Descriptions §7.0 makes the transaction page

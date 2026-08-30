@@ -135,6 +135,87 @@ jobs:
           chmod -R u+w site
           echo "Staged $(find site -type f | wc -l) files, $(du -sh site | cut -f1) total."
 
+      - name: Vendor the replay engine into the publish dir
+        # WHY THIS STEP EXISTS AT ALL
+        #
+        # Every page this workflow publishes carries
+        # `data-replay-engine="/replay-engine/"` and constructs
+        # `new Worker("/replay-engine/worker.js", {type:"module"})`. Until this
+        # step existed nothing was ever published under that prefix, so the
+        # worker 404'd on every deployed page and the debugging controls were
+        # inert on a site that otherwise looked complete. The failure was fast
+        # (~1 s) and quiet, and it read as "the engine is stale" for hours.
+        #
+        # WHY VENDORED, AND NOT FETCHED CROSS-ORIGIN AT RUNTIME
+        #
+        # Not a preference — the alternative does not work as a config change.
+        # `client/hydrate/engine_transport.nim`'s `startWorkerImpl` calls
+        # `new Worker(url, {type:'module'})`, and a cross-origin script URL
+        # there throws `SecurityError`; the transport has a dedicated message
+        # for precisely that. Serving the worker from another origin would
+        # require a same-origin blob bootstrap (what CodeTracer's own
+        # `gateway-client.js` does), i.e. new transport code, not a `-d:` flag.
+        # Vendoring is also the CodeTracer-Embed-SDK.md §5.1 recommended
+        # "copy to own origin" mode.
+        #
+        # It additionally pins the page and its engine together. The page
+        # speaks a specific DAP dialect (handshake order, `ct/complete-move`,
+        # `traceFolder` as the only TraceSource); an engine that moved
+        # independently could break a page that did not change. The cost we
+        # accept for that: an engine fix now needs a BlockTracer redeploy, and
+        # each deploy carries ~18 MB more. Engine releases are far rarer than
+        # site deploys, so that is the cheaper side.
+        #
+        # The build itself stays hermetic: `nix build` cannot reach the
+        # network, so the engine is added HERE, to the staged `site/` dir,
+        # after the flake package is built and before wrangler uploads it.
+        env:
+          ENGINE_BASE: ${{ vars.REPLAY_ENGINE_BASE || 'https://web-codetracer.pages.dev' }}
+        run: |
+          set -euo pipefail
+          bash client/hydrate/fetch-engine.sh site/replay-engine "$ENGINE_BASE"
+
+      - name: Verify the published site can actually start an engine
+        # The deploy that caused this whole investigation was green. A green
+        # build that publishes a site whose worker 404s must not be able to
+        # reach production again, so the invariant is asserted on the bytes
+        # that are about to be uploaded rather than trusted.
+        run: |
+          set -euo pipefail
+          missing=0
+          for f in replay-engine/worker.js \
+                   replay-engine/pkg/db_backend.js \
+                   replay-engine/pkg/db_backend_bg.wasm; do
+            if [ ! -s "site/$f" ]; then echo "missing/empty: site/$f" >&2; missing=1; fi
+          done
+          [ "$missing" -eq 0 ] || { echo "the engine is not in the publish dir" >&2; exit 1; }
+
+          # The pages ask for a specific prefix. If someone changes
+          # `replayEngineBase`, this catches the mismatch here rather than in a
+          # visitor's console.
+          page="$(find site -path '*/tx/*/debug/index.html' -print -quit)"
+          if [ -n "$page" ]; then
+            base="$(grep -oE 'data-replay-engine="[^"]*"' "$page" | head -1 |
+                    sed 's/.*="//; s/"$//')"
+            echo "pages request their engine from: ${base:-<none>}"
+            case "$base" in
+              /replay-engine/) echo "  matches what this step published." ;;
+              http*|//*)       echo "  cross-origin base — vendored copy is unused." ;;
+              *) echo "  ERROR: published engine is at /replay-engine/ but pages ask for '$base'" >&2
+                 exit 1 ;;
+            esac
+          fi
+          # The page quotes the engine's size to the visitor
+          # (`ReplayEngineWasmBytes` -> `approxMegabytes`). Report both rather
+          # than asserting: a few hundred KB of drift changes no rendered text,
+          # and failing here would make an unrelated engine bump break this
+          # repository's deploy. A large divergence is visible in the log.
+          actual="$(wc -c <site/replay-engine/pkg/db_backend_bg.wasm | tr -d ' ')"
+          declared="$(grep -oE 'ReplayEngineWasmBytes\* = [0-9_]+' \
+                      client/src/debugger/replay_engine.nim |
+                      grep -oE '[0-9_]+$' | tr -d '_')"
+          echo "engine wasm: vendored ${actual} bytes; page declares ${declared:-<unknown>}"
+
       - name: Deploy to Cloudflare Pages
         id: deploy
         # The self-hosted eph-* runners are Nix runners with no preinstalled

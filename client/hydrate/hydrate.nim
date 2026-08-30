@@ -439,6 +439,13 @@ type
     base: DebugSessionView   ## the served frame's non-engine facts
     started: bool            ## the DAP handshake has been issued
     live: bool               ## the engine has answered and the panes are live
+    engineLoaded: bool       ## the worker compiled the wasm and said so
+      ## Recorded for ONE reason: so the deadline below can name which of two
+      ## unrelated failures it is reporting. An engine that never arrived (a
+      ## missing or misconfigured `/replay-engine/`) and an engine that arrived
+      ## and would not open this container are different faults with different
+      ## fixes, and a single sentence covering both sent a real diagnosis down
+      ## the wrong path for hours.
     latch: PaneLatch         ## which panes the live session has ever filled
     landing: LinkLanding     ## where §6.0a said this link puts the session
 
@@ -765,6 +772,9 @@ proc onControl(h: Hydration; message: JsonNode) =
   ## separation only helps if the consumer keeps it.
   case message{"type"}.getStr("")
   of "wasm-loaded":
+    # Past this point the engine demonstrably exists, so any later failure is
+    # about the TRACE, not about reaching the engine.
+    h.engineLoaded = true
     # The engine is compiled. Now the container — 144 KB, same origin, one
     # request, issued BY THE WORKER. `fetching` is still the honest phase until
     # the bytes are in, and it is still the phase the served page was showing,
@@ -868,11 +878,22 @@ proc hydrate() =
   # it short would report a broken engine to someone whose engine was merely
   # arriving. Debugger-Integration §7's 3 s p75 budget is the target; this is
   # the point past which something is wrong rather than slow.
+  # Two failures reach this deadline and they are not the same fault, so they
+  # do not get the same sentence. `engineLoaded` is the discriminator: the
+  # worker posts `wasm-loaded` the moment the module compiles, so its absence
+  # means the engine was never reached, and its presence means the engine is
+  # running and declined this container.
   afterMs(EngineDeadlineMs, proc() =
     if not h.live:
-      h.fail("The replay engine did not become ready. The trace could not be " &
-             "opened in this browser; the container can still be downloaded " &
-             "and opened in CodeTracer."))
+      if not h.engineLoaded:
+        h.fail("The replay engine never loaded from " & ReplayEngineBase &
+               ". Nothing answered at that path, so no trace could be opened; " &
+               "the container can still be downloaded and opened in CodeTracer.")
+      else:
+        h.fail("The replay engine loaded but would not open this trace " &
+               "container. The engine is running and reachable — it rejected " &
+               "the container's format; the container can still be downloaded " &
+               "and opened in CodeTracer."))
 
   if not startWorker(ReplayEngineBase & "worker.js",
                      proc(raw: string) = h.backend.deliver(raw)):
