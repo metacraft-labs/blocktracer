@@ -32,7 +32,12 @@ suite "the hydration bundle is referenced by the page that needs it":
     # below would pass vacuously on the empty branch, so fail loudly instead.
     check HydrationBundle.len > 0
     let html = debugLayout("t", "d", "<main>x</main>")
-    check "<script src=\"" & HydrationBundle & "\" defer></script>" in html
+    # `defer=""`, not a bare `defer`: the tag is built by the isonim DSL rather
+    # than concatenated, and the SSR codegen writes every attribute in the
+    # quoted form. HTML defines the two as the same boolean attribute, and the
+    # DSL is what makes the tag scannable by `tools/design/check-tokens.mjs`
+    # A7 — a hand-built fragment is markup the token layer never sees.
+    check "<script src=\"" & HydrationBundle & "\" defer=\"\"></script>" in html
 
   test "it is deferred and last in the body, so first paint is static":
     let html = debugLayout("t", "d", "<main>x</main>")

@@ -73,8 +73,8 @@ proc pageLayout*(title, description, content: string,
   )
 
 proc hydrationScriptTag(): string =
-  ## The `<script defer>` for the hydration bundle, built as a STRING and
-  ## inserted with `raw`, never as a top-level `if` inside `ui:`.
+  ## The `<script defer>` for the hydration bundle: a proc that returns a
+  ## STRING, never a top-level `if` inside `ui:`.
   ##
   ## `ui:` renders a top-level `if` as NOTHING — the SSR codegen returns nil
   ## for a node that is not a call. M9 met this in `debugCell`, where it
@@ -88,8 +88,19 @@ proc hydrationScriptTag(): string =
   ## Written the other way round — a proc that returns "" when there is no
   ## bundle — it cannot fail silently: the empty string is a value the caller
   ## must place, not a node the codegen can drop.
+  ##
+  ## The *guard* is what has to stay out of `ui:`; the *tag* does not, and
+  ## hand-concatenating it was a second defect on top of the first. A string
+  ## spliced through `raw` is markup the isonim DSL never sees, so the token
+  ## layer cannot reach it and `tools/design/check-tokens.mjs` A7 cannot scan
+  ## it — the rule exists precisely so no attribute or value hides in one.
+  ## Inside the proc the `if` has already returned, so the `ui:` body is a
+  ## single element call, which is the shape the SSR codegen renders. The
+  ## emitted attribute is `defer=""`, which HTML defines as identical to a
+  ## bare `defer` for a boolean attribute.
   if HydrationBundle.len == 0: return ""
-  "<script src=\"" & escapeAttr(HydrationBundle) & "\" defer></script>"
+  ui:
+    script(src = HydrationBundle, `defer` = "")
 
 proc debugLayout*(title, description, content: string,
                   robots = "noindex,follow", canonical = ""): string =
