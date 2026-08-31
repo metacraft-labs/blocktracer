@@ -301,6 +301,11 @@ function main(argv) {
   const incoming = [];
   for (const path of reports) incoming.push(check(blockFrom(path), path));
 
+  // The finding ids that exist BEFORE this merge, so the orphaning this run
+  // causes can be told apart from orphaning that was already there.
+  const idsBefore = new Set();
+  for (const r of ledger.reviews) for (const f of r.findings ?? []) idsBefore.add(f.id);
+
   // Merge: one entry per {view,size,theme,reviewer}; a re-ingest replaces.
   let added = 0, replaced = 0;
   for (const r of incoming) {
@@ -308,6 +313,34 @@ function main(argv) {
       (x) => x.view === r.view && x.size === r.size && x.theme === r.theme && x.reviewer === r.reviewer);
     if (i >= 0) { ledger.reviews[i] = r; replaced++; } else { ledger.reviews.push(r); added++; }
   }
+
+  // ── Resolutions this ingest just orphaned ────────────────────────────────
+  //
+  // REPORTED, never rewritten. This file does not write `resolutions` — see the
+  // header — and that rule holds in the deleting direction too: an ingest that
+  // could silently drop an engineer's claim about a change is an ingest that
+  // could erase the record of why something was closed. Pruning them is a
+  // decision, so it stays with the operator; noticing them is an observation,
+  // and that is this file's job.
+  //
+  // The gap this closes is one of TIMING rather than of detection. `gate.mjs`
+  // already fails closed on an orphan, but only when someone next runs it, and
+  // by then the round that caused it is several commits back. A round that
+  // REPLACES a triple's reviews renumbers that triple's findings, so every
+  // resolution against the old numbering stops naming anything — and the moment
+  // that happens is exactly here, where the operator can still remember which
+  // round did it and re-derive rather than guess.
+  //
+  // It is the `design-citations` argument applied to resolutions: an id that
+  // survives a round bump and a MEANING that survives one are different things,
+  // and a resolution left pointing at a renumbered finding would read as
+  // evidence that a finding was dealt with when it names a different finding
+  // entirely.
+  const idsAfter = new Set();
+  for (const r of ledger.reviews) for (const f of r.findings ?? []) idsAfter.add(f.id);
+  const orphanedNow = (ledger.resolutions ?? []).filter(
+    (r) => idsBefore.has(r.findingId) && !idsAfter.has(r.findingId));
+  const orphanedBefore = (ledger.resolutions ?? []).filter((r) => !idsBefore.has(r.findingId));
 
   // G2's "the exact image", established on bytes. Checked over the WHOLE
   // ledger, not just this batch, so a reviewer left behind by a recapture is
@@ -362,6 +395,30 @@ function main(argv) {
   console.log(`reviews now: ${ledger.reviews.length}; gateScope: ${ledger.gateScope.length} triple(s)`);
   for (const [k, rs] of byTriple) {
     console.log(`  ${k}: ${rs.length}/${ALL_LENSES.length} lenses @ ${rs[0].imageSha256.slice(0, 12)}`);
+  }
+  if (orphanedNow.length) {
+    console.log("");
+    console.log(
+      `${orphanedNow.length} resolution(s) NO LONGER NAME A FINDING — this ingest ` +
+      `renumbered the triple they belonged to:`);
+    for (const r of orphanedNow) {
+      console.log(`  ${r.findingId}  [${r.status}]`);
+    }
+    console.log(
+      `  They are left exactly as they were: this tool does not write ` +
+      `resolutions, in either direction.`);
+    console.log(
+      `  Re-derive each against the NEW finding text and re-record it, or drop ` +
+      `it deliberately. Do not re-point it at the same id — a replaced round ` +
+      `keeps the ids and changes what they mean, so that would resolve a ` +
+      `finding it was never about. \`just review-gate\` fails closed until then.`);
+  }
+  if (orphanedBefore.length) {
+    console.log("");
+    console.log(
+      `${orphanedBefore.length} resolution(s) were ALREADY orphaned before this ` +
+      `run — an earlier round renumbered them and they were never re-derived:`);
+    for (const r of orphanedBefore) console.log(`  ${r.findingId}  [${r.status}]`);
   }
   return 0;
 }
