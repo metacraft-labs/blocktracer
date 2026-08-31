@@ -1,0 +1,82 @@
+Expected elements: present
+
+Every required element is on the page and in register. The identity bar exits to the chain (`← demo`), carries both stepping directions, the 128 / 1315 readout, the scrubber and the FETCHING / OPENING / POSITIONING rail with the step buttons correctly dimmed; Call Trace and Event Log share one tab strip with Call Trace open; Values is a pane below that region, not a third tab; the `Data` row is the transaction pane's fourth row with a toned "Synthetic demo data" badge over the producer's sentences, and no band survives above the bar. No spinner, no empty pane, no explorer chrome.
+
+(a) landed: "Aztec private functions execute client-side; …" now reads as a chain family, not a slug — though its end sits under the pane's bottom fade, so the terminal stop is unverifiable here. (b) is unverifiable at this viewport: `Selector` and `Raw` are below the transaction pane's fold. (d) landed: the fade is on the Code and Transaction bodies, and AGE / COST · MANA / EXECUTIONS all read as human labels.
+
+(c) I re-file, plainly: it is still a defect. Measurement asked for by Watch-for: the tabbed region is ~492 px tall, its content ends at "By call order." ~250 px down, leaving ~245 px — half the region — empty; Values below it also has ~2 spare rows, so neither pane is the one starved.
+
+Fixes: rewrite the status reason as a sentence; label the `Partial` chip.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L5/1",
+      "severity": "P2",
+      "location": "transaction pane, third row, directly above the DATA provenance row",
+      "finding": "Re-filed from round 1 (item c). 'Status reason: private-part-succeeded-public-part-succeeded' prints a serialised kebab-case enum as prose, in the one pane whose job is to speak to the reader in sentences. It also breaks the pane's own row grammar: every other row is a left label with a right-aligned value, this one is an inline 'Label: value' sentence, so the enum is the only machine token in the pane rendered at prose weight. A tool that recorded this execution can name the outcome in words — 'Both the private and public parts succeeded.' — and the value is in any case already carried by the TYPE row's 'private + public'.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/2",
+      "severity": "P2",
+      "location": "identity bar after the truncated hash, and transaction pane first row",
+      "finding": "The orange 'Partial' chip appears twice and is never labelled, so its referent is never stated on the page. Two lines below its second appearance the status reason says both parts succeeded, which makes the chip read as contradicting it — an orange warning tone over a wholly successful transaction. If 'Partial' describes trace coverage rather than execution outcome, it needs a word saying so ('Partial trace'), because as rendered the reader binds it to the status line immediately beneath.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/3",
+      "severity": "P3",
+      "location": "transaction pane, DATA row badge versus the BLOCK row's '101:0' link and the call trace footer's 'Self cost' link",
+      "finding": "The badge primitive has no legible tone system. 'Synthetic demo data' is drawn in #2563eb while every other badge in the pane (No timestamp published, Yes, Safe, Not observable) is grey-outlined and 'Partial' is orange; #2563eb is close enough to the #818cf8 used for the page's only links that the provenance badge invites a click it does not answer. With the #60a5fa active phase and the #22d3ee scrubber that is four blue-family accents doing four jobs in one bar-and-column.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/4",
+      "severity": "P3",
+      "location": "transaction pane, COST · MANA row, unit line under the value",
+      "finding": "'mana (FeeJuice)' spells the fee asset in its code-identifier form. Aztec writes it 'Fee Juice' as two words; the closed-up PascalCase is the build-side symbol leaking into a label the rest of this round deliberately humanised. Everything else in the row is right — '88000 / 200000' and the lowercase unit — which is what makes the one concatenated noun conspicuous.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/5",
+      "severity": "P3",
+      "location": "transaction pane, EXECUTIONS row, the token to the left of the 'Not observable' badge",
+      "finding": "'private' is set lowercase in the mono face as a sub-label, while every other label in the pane is uppercase letter-spaced sans. It therefore reads as the enum member it is rather than as a label for the row beneath it. 'Private' in the pane's own label style would say the same thing in the pane's own voice.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/6",
+      "severity": "P3",
+      "location": "Code pane, source comment on line 41, and the signatures on lines 40 and 48",
+      "finding": "The flagship demo program's own text is unproofed on the register's flagship surface: line 41's comment reads 'the maxium capacity' (maximum), and line 40 declares 'initial_shield:Field' with no space after the colon where line 48 declares 'initial_shield: Field' with one. The fixture source is rendered copy here, and at this zoom both are legible.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/7",
+      "severity": "P3",
+      "location": "Code pane, position notice between the file tabs and line 26",
+      "finding": "\"Showing from line 26 — the session's position is below, and the lines above it are not in this window.\" The pronoun's nearest antecedent is 'the session's position', under which reading the sentence is false: lines 26 to 31 are visible above the pinned line 32. It is also the only UI sentence on the page set in the code face, so it reads at a glance like a source comment. 'Showing from line 26; earlier lines are outside this window.' removes both problems.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/8",
+      "severity": "P3",
+      "location": "transaction pane, second row, immediately under the truncated hash and Partial chip",
+      "finding": "The full 40-character hash is repeated unlabelled across two wrapped lines directly beneath the truncated form of the same hash, spending two rows of the densest pane on a value already on screen twice (the identity bar carries it too). Every neighbouring row has a label; this one has none, so it reads as overflow rather than as a field.",
+      "criterion": "B1"
+    }
+  ]
+}
+```

@@ -1,0 +1,82 @@
+Expected elements: present
+
+Every must-show item is here and no must-not-show item is: identity bar with chain exit, both stepping directions, scrubber, 128/1315 readout, phase rail; Code positioned at line 32; Call Trace and Event Log as one tabbed region, Call Trace open, seven frames; Values a separate pane below with ten values; the `Data` row with its `Synthetic demo data` badge leading the Transaction pane. A dense, scannable surface.
+
+Change (a) reads as continuation, and the fade is conditional, which is the part that matters: Code ghosts row 52 below line 51, Transaction dims into the EXECUTIONS sentence, while Values (content ends 23px above its floor) and Call Trace (229px above) carry none. Neither will read as clipped now.
+
+Standing observation, measured here: Call Trace body y95–558, content ends y328 — **229px empty of 463px, 49.5%**. It holds, matching laptop/light's 48.8%. But Values has only ~8% slack here, so height cannot be re-weighted inside the middle column; the starved pane, Transaction, is in column three, is also the loosest (30.5px rows against Values' 25px), and spends four lines on two unwrapped 66-char hashes with 2-char orphans. Tightening it recovers ~150px — enough to lift the humanised EXECUTIONS sentence and the Selector/Raw rows, currently unverifiable below the fade, into view.
+
+Top fixes: tighten and truncate the Transaction pane; treat the Code pane's right edge, which still hard-clips mid-token.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L4/1",
+      "severity": "P2",
+      "location": "middle column, Call Trace tabbed region below the 'By call order. / Self cost' footer",
+      "finding": "Measured at this viewport and theme: the region body runs y95-y558 (463px); content (header row, seven frames, footer) ends at y328, leaving 229px empty — 49.5% of the body, 46.7% of the region including the tab strip. This confirms the standing observation at the smallest surface this register is reviewed at, and matches laptop/light's 48.8%. The important correction is that Values is NOT the slack holder here: its content ends 23px above its floor, ~8% slack, so re-weighting the middle column buys almost nothing. The overflowing pane is Transaction, in a different column, so no vertical re-weighting can reach it. The re-weighting decision should be framed as either giving Call Trace's 229px to a taller Values (which has nothing to put there) or reducing the Call Trace region's share of its column below the current 59.6%, and separately giving Transaction more width.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/2",
+      "severity": "P2",
+      "location": "Transaction pane, metadata rows BLOCK through EXECUTIONS, and the FEE PAYER / TARGET values",
+      "finding": "The one pane whose content overflows is also the least dense on the page. Row pitch is 30.5px (BLOCK y464, TYPE y494, AGE y524, CANONICAL y555, FINALITY y586) against 25px in both Values and Call Trace and 23px in Code — four panes, three row heights, and the loosest one is the starved one. On top of that FEE PAYER and TARGET print full 66-character hashes hard-wrapped into three lines each, ending in 2-character orphans ('...32', '...4c'), and the tx hash below the identity badge wraps into two, while the identity bar directly above middle-truncates the same hash to '0xb63616...6359'. Tightening the rows to the page's 25px recovers ~66px and middle-truncating the two addresses recovers ~88px: ~150px, enough to bring the EXECUTIONS sentence and the Selector/Raw rows above the fold.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/3",
+      "severity": "P2",
+      "location": "Code pane, right edge at x~683 — lines 26, 40, 41, 48, 49",
+      "finding": "The bottom fade was added because a silent scroll edge was being read as a hard clip. The right edge has the same silent scroll region and got no treatment: line 26 cuts at 'initial_shield, re', line 48 at 'remaining_shi', line 49 at 'initial_shield as u' with a yellow token sliver bisected at the boundary. There is no horizontal fade, no scrollbar and no continuation glyph, so the identical misreading is still available on the horizontal axis — and here it costs identifier characters rather than a repeated row. Mirror the vertical treatment on the right edge.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/4",
+      "severity": "P2",
+      "location": "Transaction pane, COST · MANA row, against the Call Trace 'ACIR opcodes' column",
+      "finding": "The humanised cost row reads '88000 / 200000' with 'mana (FeeJuice)' beneath, with no thousands separators, while the ACIR opcodes column two panes to the left renders '1,315' and '1,208' with them. Two numeric columns on one screen use two grouping conventions, and it is the larger magnitude that is left ungrouped, so the six-digit figure is the hardest to read at a glance. Group both, or neither.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/5",
+      "severity": "P3",
+      "location": "Transaction pane bottom edge, EXECUTIONS sentence at y860-y890",
+      "finding": "The fade ramp is a fixed ~28px, which is about 1.2 rows of the Code pane's 23px lines but ~1.4 rows of the Transaction pane's 22px prose. The result is that the first line of the newly humanised sentence, 'Aztec private functions execute client-side;', is already dimmed rather than the clipped line only, so the sentence arrives half-legible where a repeated row would have cost nothing. Where the overflowing content is prose rather than rows, start the ramp below the last full line.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/6",
+      "severity": "P3",
+      "location": "Code pane, notice band y160-y210 above the first code line",
+      "finding": "'Showing from line 26 — the session's position is below, and the lines above it are not in this window.' wraps to two lines and costs ~46px, two code rows, in the densest pane on the page. The gutter already starts at 26 and the position marker at line 32 is visible on screen, so the sentence restates what the pane shows. The Code pane spends y95-y210, ~142px or 18% of its height, on the CODE title, loop bar, iteration chips, file tabs and this notice before the first line of code; compressing the notice to one line is the cheapest row of the five to buy back.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/7",
+      "severity": "P3",
+      "location": "identity bar, stepping control clusters x370-x655",
+      "finding": "Eight unlabelled icon buttons in four clusters carry every stepping gesture, with no keyboard hint on any of them, in a register whose reference application is keyboard-driven. There is ~126px of empty bar between the end of the phase rail at x1194 and 'NOIR' at x1320, so at laptop width there is room for at least the primary shortcuts without wrapping the bar — it currently sits at a single 54px row with no wrap at this viewport.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/8",
+      "severity": "P3",
+      "location": "identity bar, phase rail x955-x1194",
+      "finding": "The rail shows FETCHING as the live phase while every pane is fully populated and the session is positioned at 128/1315 with stepping controls that read as enabled. Scanning the bar, it is the one element whose state disagrees with the rest of the page, which costs a beat on every glance at the readout beside it. Flagging for verification rather than asserting a state error — whether the rail is a live phase or a completed-phase history is an honesty call for the colour and adversarial reviewers, but as a scanning surface the active styling on FETCHING is misleading here.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

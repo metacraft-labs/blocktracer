@@ -1,0 +1,75 @@
+Expected elements: present
+
+Every must-show item renders, no must-not item appears: identity bar with chain exit, four stepping pairs at x379–646 including reverse, scrubber, 128/1315 readout, phase rail; Code with line 32 marked and echoed in Call Trace; Call Trace and Event Log as one tabbed region, Call Trace open; Values a pane below it; the `Data` row with badge and sentences.
+
+The measurement holds. The tabbed region runs y=68–561 (493 px). Its 7 frames occupy y=124–301, the footer ends at y=320, and y=321–560 is blank: 240 px = 48.7%, last round's 48.8% within one pixel. Layout-shaped, confirmed. But the Values pane below is 89% full (content to y=860 of 895) and its list terminates with no fade, so it does not want the height either. The surplus is the column's, and the productive move is horizontal: at 452 px the region ellipsises both frame name and path on 2 of 7 rows while repeating `zk_shields` on 7/7.
+
+Bottom fade, ~20–24 px ramp. In the Transaction pane it works: a legible half-line dissolves mid-sentence (7.34:1 at y=858, 4.17 at 876, 2.05 at 884). In the Code pane it does not — the ramp is shorter than one 23 px code row, so line 52 survives only as an 8 px smudge at 1.53:1, which reads as a cut. Give Code ≥36 px.
+
+Top fixes: tighten row pitch (26 code lines in 687 px); hoist the repeated module path out of the Call Trace rows.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L4/1",
+      "severity": "P2",
+      "location": "Call Trace / Event Log tabbed region (x691-1144), whitespace y321-560",
+      "finding": "Re-measured: the tabbed region is y=68-561 (493 px tall). Seven frame rows fill y=124-301 and the 'By call order / Self cost' footer ends at y=320; y=321-560 is unbroken white — 240 px, 48.7% of the region. That reproduces last round's 48.8% to within a pixel at the same viewport, so the emptiness is layout-shaped and not a fixture artefact. New this round: the Values pane below is NOT the pane that should receive it — Values runs y=566-895 with content to y=860 (89.4% filled) and its list terminates with no bottom fade, so it has nothing more to show. Neither pane in the column wants 240 px. The column is over-allocated relative to its content, and re-weighting between the two panes would only move dead space.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/2",
+      "severity": "P2",
+      "location": "Call Trace rows, path column (x~830-1090), rows y124-301",
+      "finding": "The region is starved horizontally while 240 px of its own height goes unused. At 452 px inner width the path column repeats 'zk_shields' on 7 of 7 rows and 'src/shield.nr' on 6 of 7, and that redundancy costs the identifying column its legibility: rows 4 and 7 truncate twice in one line ('calculate_remaining_shie...' AND 'zk_shields · src/shi...'), so neither the function nor the file is fully readable. Hoist the common module/file to the region header or the tab strip and show only the differing leaf; the frame name then fits without ellipsis at this width.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/3",
+      "severity": "P2",
+      "location": "Code pane rows (23 px pitch, y218-873); Call Trace rows (25.3 px pitch, y124-301); Values rows (25 px pitch, y592-860)",
+      "finding": "Row pitch is marketing-grade for this register. Code sets 13-14 px mono (cap-height 10 px) on a 23 px pitch — line-height ~1.7 — yielding 26 visible lines in 687 px of pane body; at the 1.4-1.5 the CodeTracer editor uses, the same body shows 34-35 lines. Call Trace sets ~11 px text (cap-height 9 px) on a 25.3 px pitch, line-height ~2.3, so its seven frames spend 177 px; at 20 px the region would hold 23 frames. Contrast is ample everywhere measured (19:1 on frame names, 7.3:1 on secondary), so there is headroom to tighten without a legibility cost.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/4",
+      "severity": "P2",
+      "location": "Transaction pane hash (y132-162), FEE PAYER (y605-677), TARGET (y677-749), EXECUTIONS note (y795-895)",
+      "finding": "The transaction pane spends ~200 px — 24% of its 827 px height — wrapping three full-length hex strings to eight lines in a 268 px measure (hash 2 lines, FEE PAYER 3, TARGET 3), while the identity bar 100 px above truncates the same hash to '0xb63616...6359'. The consequence is that the EXECUTIONS note this round made a proper sentence is pushed under the bottom fade and cut mid-clause at 'only proofs, nullifiers and commitments are' — its final line falls from 4.17:1 at y=876 to 2.05:1 at y=884, so the honesty claim cannot be finished at this viewport and the fade is the only cue that it continues. Middle-ellipsis the two addresses (with copy/expand) and the note fits above the fold.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/5",
+      "severity": "P2",
+      "location": "Call Trace ACIR opcodes column (x~1095-1135) vs Transaction COST · MANA row (y749-795) vs Values value column (x~960-1025)",
+      "finding": "Three panes, two numeric conventions. Call Trace groups thousands ('1,315', '1,208'); the humanised COST · MANA row shows '88000 / 200000' ungrouped; Values shows '10000', '9000', '2000', '1000' ungrouped. Magnitudes are therefore not comparable across panes at a glance — '88000' and '1,208' cannot be size-ranked without counting digits. Columns are correctly right-aligned within each pane, so this is purely the grouping rule.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L4/6",
+      "severity": "P3",
+      "location": "Code pane bottom edge, y877-895 (fade ramp over line 52)",
+      "finding": "The new bottom fade reads as continuation in the Transaction pane and as a cut in the Code pane, and the difference is ramp length against row height. Measured ramp is ~20-24 px in both. In Transaction that is longer than the 18 px body line, so a whole line survives mid-dissolve (4.17:1 at y=876) and the sentence visibly continues. In Code the 23 px row pitch is longer than the ramp: line 51 is at full 7.34:1 through y=876 and line 52's remnant is already at 1.53:1 by y=888 and 1.25:1 by y=891 — 8 px of near-white smudge rather than a recognisable line of code. Scale the ramp to ~1.5 row-heights (~36 px) in Code so one ghost row survives at roughly 25-35% and the continuation is legible as a line. The right-edge horizontal fade (x669-685, ~16 px) is correctly present on the same pane and is not a finding.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L4/7",
+      "severity": "P3",
+      "location": "Identity bar, gap at x345-379 (identity cluster to first stepping pair)",
+      "finding": "The bar does not wrap at 1440 — the right cluster ends at x=1415 with 25 px clear — and the stepping controls are correctly grouped internally: 20-21 px within each of the four button pairs, 36 px between pairs. But the boundary between the identity cluster (ends x=345) and the controls (starts x=379) is 34 px, i.e. narrower than the 36 px between two stepping pairs, so the strip's largest semantic break is its weakest visual one. A divider rule or a >=56 px gap at x=345 would make the bar read as identity | controls | position | status | actions rather than as ten evenly spaced objects.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

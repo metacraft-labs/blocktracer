@@ -97,3 +97,49 @@ statement; re-run their reviewers against the current corpus.
 Seven reports in this directory are still not in the ledger and
 `just review-verify reviews/rounds/vd9-r2` still fails naming them. That remains
 correct and should stay failing until they are either re-run or superseded.
+
+
+## Final state of this round — four triples were never completed
+
+Dispatch was retried after the first stall and the reviewers restarted, but
+throughput collapsed a second time: sixteen agents ran for hours against a
+tightening rate limit, transcripts reaching 9 MB of image analysis apiece, and
+the last measured window had one agent active. Twenty-two of forty-two reports
+exist.
+
+INGESTED — three complete triples, all re-reviewed against the current capture:
+
+  tx-detail/wide/light                      6/6  G1 ok
+  tx-detail--mainnet-zero-trace/wide/light  6/6  G1 FAIL (see below)
+  debugger/wide/light                       6/6  G1 ok
+
+NOT INGESTED — four incomplete triples, whose ledger entries are therefore still
+vd9-r1's reviews of the PRE-FIX capture, which `gate.mjs` reports as
+G2-superseded:
+
+  debugger/wide/dark          L5, ADV        (2/6)
+  debugger/laptop/light       L1, L5         (2/6)
+  debugger/laptop/dark        none           (0/6)
+  debugger--testnet/wide/light none          (0/6)
+
+Their four loose reports are kept as evidence and are NOT in the ledger.
+`just review-verify reviews/rounds/vd9-r2` names them, correctly, and should stay
+failing until each triple is completed and ingested.
+
+The mainnet G1 failure is not a regression: L3 reported `forbidden-present`
+against an expectation that had gone stale, and the EXPECTATION was corrected in
+`40aa0e0` rather than the page. Its second P1 — the page asserting permanence
+while printing a repairable cause — survives that correction and is Q10.
+
+## To finish this round
+
+Do NOT re-capture. `screenshots/` already matches these subjects
+(`check-coverage` assertion F: 308 compared, 0 drifted), so the four incomplete
+triples can be reviewed against the corpus exactly as it stands. Dispatch the
+twenty missing reviews, ingest each triple only at 6/6, then run BOTH directions
+of `just review-verify`.
+
+The single most useful one is `debugger--testnet/wide/light`, which has not been
+reviewed at all this round: its subject publishes `transactionFee`, so the Q9
+cost-label wrap regression should reproduce there and be measurable, and it is
+the only real-chain subject in the debugger register.

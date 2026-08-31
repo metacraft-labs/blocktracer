@@ -1,0 +1,101 @@
+Expected elements: present
+
+No MUST NOT SHOW item appears, and the DATA row is the transaction pane's first labelled row, correctly toned. Position is unmistakable at code line 32 and the ACIR column is properly tabular; the weakness is several typographic systems running in parallel where one should.
+
+Round changes. (a) Landed, and better than asked: the fade runs on both axes — the Code pane fades line 52 at its foot and fades long lines out at its right edge (lines 40, 48, 49) — and is correctly absent from Call Trace and Values, where content genuinely ends, so it reads as signal, not decoration. My last-round "tail cut mid-line at y897" was wrong and is withdrawn. The proportion complaint stands on its own merits: DATA plus its four sentences still occupy y218-452, ~234px of the pane's 820px (~28%), unchanged, and the fade makes that cost more legible, not less. (b) Landed; side effect — "Status reason: private-part-succeeded-public-part-succeeded", three rows above, is now the only machine-shaped string left in the pane. (c) Capitalisation landed; the terminator sits under the fade and is not verifiable at this height. (d) Not verifiable — no Selector or Raw row is on screen at laptop height.
+
+Highest-priority fixes: one numeric convention (the call trace groups thousands, COST - MANA does not), and one hash strategy (the pane truncates its own hash then prints it in full directly beneath, while addresses wrap to two-character orphans "32" and "4c").
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L1/1",
+      "severity": "P2",
+      "location": "transaction pane identity block, y100-170, and identity bar hash at x86",
+      "finding": "The same transaction hash is set three ways on one screen with two different truncation rules. The pane shows '0xb636167a...66d46359' (8 leading hex, ~15px white) and then repeats the identical value in full immediately beneath it, wrapping to '6e766d46359' on a second line in muted grey - so the truncation buys nothing, because the untruncated string is the next line down. The identity bar uses a third form, '0xb63616...6359', with 6 leading hex instead of 8. Pick one head/tail length and one place to show the full value.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/2",
+      "severity": "P2",
+      "location": "transaction pane, FEE PAYER row y615-675 and TARGET row y680-720",
+      "finding": "Both 42-character addresses wrap to three lines with a two-character orphan on the last ('32' for FEE PAYER, '4c' for TARGET). The orphan sits alone on its own baseline, right-aligned, and reads as a separate small value rather than the tail of the address above it. This is also the opposite strategy from the pane's own hash six rows up, which truncates with an ellipsis - one pane, one data type, two treatments.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/3",
+      "severity": "P2",
+      "location": "call trace ACIR column y125-290; COST - MANA value y762; Values value column y600-850",
+      "finding": "Numeric formatting is not one system. The call trace groups thousands ('1,315', '1,208'); COST - MANA renders '88000 / 200000' ungrouped at the same magnitude one column over; the Values pane renders '10000' and '2000' ungrouped. Three digit strings of the same order on one screen, two conventions, with no rule a reader can infer. Rubric B7 asks for comparable formatting across magnitudes.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/4",
+      "severity": "P2",
+      "location": "code pane header, iteration chip strip, y100-128, x368-680",
+      "finding": "The chip strip inverts its own hierarchy. Visited iterations 1 and 2 carry a light grey fill with dark numerals, making them the two highest-contrast objects in the strip, while the CURRENT iteration 3 is a dark fill with a cyan numeral and a thin cyan underline. History outweighs position. The current chip should carry the strongest value contrast in the row; today the eye lands on 1 and 2 first and has to hunt for 3.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/5",
+      "severity": "P2",
+      "location": "code pane listing, lines 26-27 and lines 48-50",
+      "finding": "The listing has no constant baseline. Rows whose inline '+N' value chip wraps to a row of its own are roughly double height: line 26 to 27 measures 45px and 48 to 49 and 49 to 50 measure 43-44px, against a 23px step everywhere else. Scanning a code column depends on a fixed rhythm the eye can lock to; here the gutter numbers 26, 27, 48, 49, 50 sit at irregular intervals, so vertical scanning stalls at each chip row.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/6",
+      "severity": "P2",
+      "location": "identity bar, full width y0-55",
+      "finding": "The bar runs eight object groups at only two type levels - ~11px uppercase letterspaced (chain 'demo', 'block 101', the phase rail, 'NOIR') and ~13px mono (hash, '128 / 1315'). Transaction identity, trace position and transient engine status therefore read at one rank, which is the 'strip of unrelated objects' failure the Watch For item names. The accent-blue bold FETCHING is the loudest type in the bar, so a transient status outranks the identity. It does NOT wrap at 1440: everything fits one row with ~125px of slack between POSITIONING (x1195) and NOIR (x1320), which is spare capacity that could buy a third type level or grouping rules instead.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/7",
+      "severity": "P2",
+      "location": "transaction pane, 'Status reason' line, y178-205",
+      "finding": "Change (b) humanised the cost row labels and by doing so left this line as the only machine-shaped string in the pane: 'Status reason: private-part-succeeded-public-part-succeeded', a raw kebab-case slug set in the sans body face, breaking mid-token across two lines so that 'private-part-' ends line one. It sits inside the pane's most prominent block, directly under the hash and above the DATA row, where it is the third thing read.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/8",
+      "severity": "P3",
+      "location": "transaction pane, DATA row and provenance paragraph, y218-452",
+      "finding": "Restating last round's finding on its correct grounds now that (a) has landed. The pane is not cut - the fade says so clearly - but the DATA row plus its four provenance sentences still occupy ~234px of the pane's 820px visible height, about 28%, and the paragraph is the only multi-line prose in a pane otherwise built from label/value rows, set at the same size as the values, so it outweighs them by mass. The measurable consequence is that the Selector and Raw rows and the terminator of the EXECUTIONS sentence all fall below the fade at this viewport, which is why changes (c) and (d) cannot be verified here. Setting the paragraph one step down in size would keep the claim and return roughly two rows.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/9",
+      "severity": "P3",
+      "location": "code pane, 'Showing from line 26' note, y170-200",
+      "finding": "The note is set in the code's own monospace at the code's own size, so a piece of UI chrome reads as a line of the listing sitting above line 26, and it breaks to a two-word orphan, 'this window.', on its second line. Now that the pane signals continuation below wordlessly with a fade, the asymmetry is visible: one direction gets a gradient, the other spends two full code rows on a sentence. One step down in size, or a non-mono face, would separate it from the content it describes.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/10",
+      "severity": "P3",
+      "location": "Values pane, 'masses[2]' row, y715-735",
+      "finding": "The child element is nested under its parent 'masses' by a single-character indent of roughly 8px with no guide rule, so at a glance it reads as a sibling of 'mass' on the row below rather than a member of the array two rows above. The call trace expresses the same parent/child relationship with indentation plus a vertical guide; the Values pane should borrow it.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/11",
+      "severity": "P3",
+      "location": "code pane gutter, x70-85, lines 26-51",
+      "finding": "The execution markers - a small dot for executable lines and a slashed circle at line 29 for not-executed - are about 6px of ink at low contrast and are near-invisible at 1:1, and the two are hard to tell apart at that size. The current-position marker at line 32 escapes this only because the cyan line number, the row fill and the cyan left edge carry it, not the glyph.",
+      "criterion": "B2"
+    }
+  ]
+}
+```

@@ -610,8 +610,15 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
         # Capitalised rather than renamed: this chain's recorder is `aztec-avm`
         # (registry `chains.v1.json`), so it IS an Aztec-family chain and the
         # privacy model named here is the reason the private part cannot be
-        # observed. `Aztec` is the protocol; `aztec` was a slug that no longer
-        # exists. The claim is unchanged — only its sentence-hood is.
+        # observed. `Aztec` is the protocol; lowercase `aztec` read as a slug.
+        #
+        # AND THE SLUG STILL EXISTS, which is a stronger reason to capitalise
+        # rather than a weaker one. An earlier version of this comment said
+        # `aztec` was "a slug that no longer exists"; L5 checked the built site
+        # in vd9-r2 and found `/aztec` alive in the chains index — it is the REAL
+        # MAINNET now. So the lowercase token was not merely stale, it named a
+        # DIFFERENT CHAIN than the page it appears on, which is `demo`. The
+        # claim is unchanged — only its sentence-hood is.
         reason: "Aztec private functions execute client-side; only proofs, " &
                 "nullifiers and commitments are published, so there is no " &
                 "call structure to trace."),

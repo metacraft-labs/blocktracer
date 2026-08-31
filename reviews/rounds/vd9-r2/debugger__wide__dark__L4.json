@@ -1,0 +1,75 @@
+Expected elements: present
+
+At 1920 this is a genuinely dense tool — 36 code lines, 7 frames, 10 values and 14 metadata rows on one screen — and the contrast survey is clean: across 26 sampled text elements the minimum is 4.68:1 ("opcodes", x1466-1520 y107-118). Density is not the problem; allocation is.
+
+My numbers hold. Column split 913/608/383px (was 912/607/382). Call Trace tabbed region y68-669 = 602px, content ends y≈330 → 339px empty = 56.3% (was 57.0%). Values pane y674-1075 = 402px, last row ends y≈950 → 125px = 31.1% (was 29.8%). Middle-column slack 464px = 46.0% of its 1008px (was 467px/45.9%). The fade did not move the numbers; it changed what they look like. You can now see which panes are truncated, so the imbalance is legible rather than inferable — that strengthens the re-weighting case, it does not weaken it.
+
+The fade reads as "there is more", not as a cut. But it is not the same ramp everywhere: Transaction ≈14px, last line holding 15.5:1 → 4.92:1; Code ≈24px, starting above line 61's cap-height and driving its gutter number 4.36:1 → 2.24:1. The 2.19:1 figure is real, but it measures the gutter, not the code (4.61:1). Anchor the ramp to the last full line's baseline, as Transaction already does.
+
+Top fixes: (1) move ~120px from the middle column into the Transaction pane; (2) unify the ramp across panes.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L4/1",
+      "severity": "P2",
+      "location": "middle column (x921-1528): Call Trace tabbed region y68-669, Values pane y674-1075",
+      "finding": "Re-measured after the fade change and the numbers hold. Tabbed region is 602px tall and its last content row (the 'By call order. / Self cost' footer) ends at y≈330, leaving 339px empty = 56.3%. Values pane is 402px and its last row ('i / 2 / u32') ends at y≈950, leaving 125px = 31.1%. Column slack totals 464px = 46.0% of the column's 1008px. Column split is 913/608/383px. The fade has not changed the arithmetic but it has changed the reading: the Code and Transaction panes now visibly announce truncation while the two panes in the middle column visibly end in nothing, so a reader sees the misallocation at a glance instead of having to infer it. B1's named failure is 'half the pane empty while the content it holds is scrolled' — that is now literally on screen, side by side. The lever remains the column split, not the row split; ~120px moved from the middle column into the 383px Transaction pane costs the call trace nothing.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/dark/L4/2",
+      "severity": "P2",
+      "location": "bottom fade: Code pane last line 61 (y1044-1067) vs Transaction pane last line '\"aztec\": {' (y1049-1064)",
+      "finding": "The fade succeeds at its job — both panes read as 'there is more', not as a cut — but the ramp is not the same length in the two panes. Transaction: ramp ≈14px, starting at the last line's cap-height; the line runs 15.5:1 at its top to 4.92:1 at its lowest glyph row, never crossing the 4.5 floor. Code: ramp ≈24px, starting in the gap ABOVE line 61, so that line begins already dimmed (max 9.17:1, p97 6.01:1) and ends at 4.61:1 for code glyphs and 2.24:1 for the gutter line number, against a flat 5.47:1 for lines 57-60. The 2.19:1 another lens reported is confirmed, but it is the gutter number, not the code — the code text stays near the floor. My view on the disagreement: do not shorten the ramp globally, make it uniform and anchor its start to the last full line's baseline, which is exactly what the Transaction pane already does. That costs the Code pane no signal and buys back a legible line.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L4/3",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) block, y1010-1074 x1545-1908",
+      "finding": "The block shows two lines of JSON ('{' and '\"aztec\": {') in a 383px column and carries two scroll affordances at once: its own right-edge horizontal ramp (x1860 to x1905, black to pane grey) and the pane's bottom vertical ramp. Two nested scroll regions sharing one visual language, with nothing to say whether the bottom fade belongs to the block or to the pane. The heading, the block chrome and the two visible lines consume ~64px to deliver about eight characters of payload, in the only column on the page that is short of room.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/dark/L4/4",
+      "severity": "P2",
+      "location": "Transaction pane header, y104-146: truncated hash at y≈111, full hash at y≈137",
+      "finding": "The transaction hash is rendered three times on one screen: '0xb63616…6359' in the identity bar, '0xb636167a…66d46359' as the pane header, and the full '0xb636167a05b9de55bde67756bdaed6e766d46359' on the very next line, where it fits complete. The middle rendering adds nothing once the full value is one line below it, and it costs ~22px plus its leading in the narrowest column — the same column whose content is being faded out at the bottom of the viewport for lack of height. This is B1's 'space spent where it does not buy comprehension while the content it holds is scrolled'.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/dark/L4/5",
+      "severity": "P2",
+      "location": "Call Trace ACIR column (x1425-1520) vs identity bar position readout (x1120-1200) vs Transaction pane COST · MANA row (y636-652)",
+      "finding": "Numeric formatting is not consistent across the view. The Call Trace opcode column uses thousands separators — '1,315', '1,208'. The identity bar's position readout renders the same magnitude as '128 / 1315'. The Transaction pane renders '88000 / 200000 mana (FeeJuice)'. B7 asks for 'comparable formatting across magnitudes'; here one screen shows 1,315 and 1315 about 600px apart, and a six-digit cost pair with no grouping at all. The cost LABEL was humanised this round; the cost FIGURES were not, so the row now reads as half-finished.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L4/6",
+      "severity": "P2",
+      "location": "Code pane, orphaned annotation rows at y≈225 (below line 26) and y≈756 (below line 48)",
+      "finding": "When a line's inline value annotations do not fit, the overflow chip wraps onto a full row of its own at the pane's right edge. Below line 48 the resulting '+2' at x≈856 y≈756 sits directly above line 49's own '+2' at x≈840 y≈777 — two identical chips, 21px apart, belonging to different lines, with the orphan closer to the wrong one. Same pattern for '+3' below line 26. Two full line-heights (~46px) are spent on four characters in a pane that is fading its last line for want of height, and the attribution of the chip to its line is genuinely ambiguous at a glance.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/dark/L4/7",
+      "severity": "P3",
+      "location": "Transaction pane, 'Status reason:' line, y≈152-182",
+      "finding": "'Status reason: private-part-succeeded-public-part-succeeded' is a raw hyphenated enum slug set as prose, wrapping to two lines of a 383px column directly above the provenance row. In a round that humanised the cost labels and turned the EXECUTIONS note into a proper sentence, this is the string left behind. Keeping the chain's own token verbatim is defensible on honesty grounds, which is why this is P3 rather than P2 — but it should then be marked as a machine value (mono, or a chip) rather than dressed as a sentence.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

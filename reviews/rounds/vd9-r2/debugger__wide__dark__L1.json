@@ -1,0 +1,133 @@
+Expected elements: present
+
+All must-shows render; nothing forbidden. Requested measurement: the tabbed region runs y68–669 (601px), its footer ends y≈320, leaving ~346px (58%) empty; Values (y675–1075) leaves ~124px (31%). Both panes beside them overflow. Code shows 36 rows at a 23px pitch, all legible.
+
+Iteration changes. (a) Landed on the two panes that overflow, and correctly inert on Values and Call Trace — measured flat #1B1B1B to the border. But the ramp is 24px against a 23px line pitch, so it catches exactly one line and grades it inside the glyph: code line 61 falls 239→100 between ascender and baseline (findings 3, 4). (b) Not observable — this fixture's only cost dimension is `mana`, whose humanised form is the same string; the row is byte-identical to r1 (finding 14). (c) Landed. (d) Landed; `0x` is gone and the em dash is correctly quiet, but the pane now spells "absent" three ways in 400px (finding 15).
+
+Re-judged from r1: the address wrap (5), the 44px rows (6) and the mono notice strip (7) stand. The gutter rings (r1 #2) drop to P3 — hue and the row highlight carry the state; only the `ø`/zero collision remains. The mixed-face call-trace row (r1 #3) drops to P3 — the split is a defensible convention. r1 #8 rises to P2 on measurement (2).
+
+New headline: four panes, two title treatments — CODE/VALUES/TRANSACTION at #A2A2A2, the CALL TRACE tab at #F3F3F3, same 9px cap height.
+
+Fixes first: one pane-title value; move the fade mask to an inner wrapper.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L1/1",
+      "severity": "P2",
+      "location": "All four pane headers — CODE (x14,y76), CALL TRACE tab (x931,y76), VALUES (x931,y682), TRANSACTION (x1542,y76)",
+      "finding": "Four panes, two title treatments. CODE, VALUES and TRANSACTION are 9px cap-height tracked uppercase at #A2A2A2 (5.78:1 on the #282828 header band); the active CALL TRACE tab is the same 9px cap height and tracking at #F3F3F3 (13.29:1). Identical size, 2.3x apart in contrast, so the tabbed region reads as the page's ranking pane for a reason that is only a tab's active-state styling. Either the tab's active state should not outrank a pane title, or all four titles should sit at the promoted value and the tab's active state be carried by its rule alone.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L1/2",
+      "severity": "P2",
+      "location": "Transaction pane label column x1541 (DATA y200, BLOCK y371, EXECUTIONS y656, DECODED INPUT y796, SELECTOR y823, RAW y849, RAW (CHAIN-NATIVE) y986) and Call Trace column head FRAME (x932,y107)",
+      "finding": "Five structural levels share one rung of the type scale. Pane title, tab label, column head, metadata row label and sub-section label all measure a 9px cap height in tracked uppercase, and only two grey values separate them: #A2A2A2 for titles and column heads, #919191 for row labels. FRAME — a column head inside a pane body — is byte-identical to the pane titles. In the Transaction pane fourteen such labels stack down a 1000px column, and DATA, which the spec calls the pane's premise, differs from the pane's own title by 17 grey levels across that distance, which no reader detects. Raised from r1 #8: the measurement makes this a scale failure rather than the preference I filed it as.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/dark/L1/3",
+      "severity": "P2",
+      "location": "Code pane, last visible row — line 61 `println(f\"Regenerated {regenerated_shield_as_u32} energy\");`, glyph rows y1052–1066",
+      "finding": "The new bottom fade measures a 24px ramp (y1050–1074) against the listing's 23px line pitch, so it lands on exactly one line and grades the type within a single glyph body: ink falls from 239 at the ascenders to 100 at the baseline, i.e. 12.9:1 at the top of the line and 2.9:1 at the bottom of it. Descenders and the closing `);` are the part that goes. A line of type whose value changes between x-height and baseline reads as a rendering fault, and the residual reading is 'the last line is dim' — which is this pane's existing convention for de-emphasis — rather than 'there is more below'. Confirms in dark what L3/L4 measured in light. Since the ramp cannot be lengthened without worsening the ratio, the fix is positional: mask an inner wrapper and add a half-line of lead so the ramp falls between lines instead of through one.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L1/4",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) block — bottom 25px, sampled at x1700, y1051–1074",
+      "finding": "The mask sits on the scroll container, so it takes the inset block's surface with the ink: the block's #000000 fill washes to the pane's #1B1B1B across the ramp and its bottom boundary disappears, making the code block appear to end rather than continue. `\"aztec\": {` (y1049–1063) grades 221 to 128 over its own height, and the ramp's lower half (y1064–1074) carries no ink at all, so it reads as padding. Net effect on the pane the treatment exists for: 'this block ends here, with room to spare' — the opposite of the cue. Dark-theme instance of the mirror defect L3 measured in light.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L1/5",
+      "severity": "P2",
+      "location": "Transaction pane, FEE PAYER (y≈560) and TARGET (y≈586) rows, value column x1541–1905",
+      "finding": "Both 42-character addresses hard-wrap onto a second, right-aligned line (`e430d5d932`, `a59161624c`), so the continuation is ragged-left, short and reads as a separate value rather than the tail of the one above. The transaction hash 420px higher (y137) is middle-truncated with an ellipsis, so the pane runs two truncation strategies for one data type within a single scroll. Carried from r1 #1 and re-argued so the fix costs no information: left-align the wrapped continuation to the value column's left edge, or give the address its own full-width line beneath its label.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/6",
+      "severity": "P2",
+      "location": "Code pane line-number column x38–64 — rows 26→27 (y200→244) and 48→49 (y731→775)",
+      "finding": "Measured pitch is 23px on every row of the listing except those two, which are 44px, because the `+3` (y225) and `+2` (y757) overflow chips stack under the code instead of sitting on the line. Line 32's inline chips do sit on the line (pitch to 33 is 23px), so the pane runs two chip placements. The two stretched rows read as blank lines that are not in the file, immediately beside lines 39 and 52, which genuinely are.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L1/7",
+      "severity": "P2",
+      "location": "Code pane notice strip, x10–915, y≈178 — \"Showing from line 26 — the session's position is below, and the lines above it are not in this window.\"",
+      "finding": "UI prose set in the monospace code face at ~12px across the full 905px pane — a ~105-character measure, well past a readable one — 25px above a listing in the same face at 5.78:1 versus the listing's 13.29:1. A sentence about the window typesets as a line of the program. The product has a prose face and uses it 600px to the right for the provenance sentences and the DECODED INPUT note; this is the named B7 failure, code and UI in one face.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/8",
+      "severity": "P2",
+      "location": "Identity bar position readout `128 / 1315` (x1119–1203, y31) against the Call Trace ACIR column `1,315` (x≈1480, y137)",
+      "finding": "The value 1315 appears twice on one screen, 106px apart vertically, formatted two ways — grouped in the pane, ungrouped in the bar — both in the same mono face. The Values pane sides with the ungrouped form (`10000`, `2000`, `1000`), which is right for Field elements that must read verbatim, but a step count and an opcode count are counts and should not be the two that disagree. Refocused from r1 #10, which argued the weaker cross-magnitude version.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/9",
+      "severity": "P3",
+      "location": "Code pane gutter x≈76–84 — line 29 mark (y≈292) beside the line-number column at x38–64",
+      "finding": "The non-execution mark renders at ~7px as a grey slashed oval, which in this monospace face is the slashed-zero glyph, 14px to the right of a column of grey numerals set in the same face at the same value: `29 ø` is readable as `29 0`. Downgraded from r1 #2, where I argued it against the current-position ring: that pairing is not in fact ambiguous, because hue and the row highlight both carry it. Only the glyph choice remains, and a different mark (a hollow bar, a strike) would settle it.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L1/10",
+      "severity": "P3",
+      "location": "Call Trace pane, all seven frame rows, x931–1400, y130–295",
+      "finding": "Each row sets its function name in the mono face and its module and path beside it in the proportional UI face (`zk_shields · src/shield.nr`), so a file path — the kind of literal the product's mono texture exists for — is the one thing on the row not in mono. Downgraded from r1 #3 on re-inspection: the hierarchy does read without reading (bright mono name, grey sans path, bright mono count), and metadata in the UI face is a defensible convention this product could hold to. What remains is that the constant `zk_shields ·` prefix repeats on every row in the widest part of it.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/11",
+      "severity": "P3",
+      "location": "Transaction pane, first two lines (y≈111 and y≈137) against the identity bar hash (x≈86–196, y31)",
+      "finding": "Measured: both pane lines are the same 8.4px-pitch mono, but the middle-truncated `0xb636167a…66d46359` is set at 243 directly above the complete 42-character hash at 145, so the less informative form outranks the informative one and the pane opens by saying the same thing twice. The identity bar truncates the same value to a different budget (6+4 against the pane's 8+8), so the two renderings 1400px apart cannot be matched without counting characters.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/12",
+      "severity": "P3",
+      "location": "Values pane, `masses[2]` row (x938, y≈814) beneath `masses` (x931, y≈788)",
+      "finding": "The element row is indented 7px under its parent with no guide rail, so the nesting is legible only from the `[2]` in the name, not from the type. The Call Trace region 100px above expresses the same parent/child relation with a visible vertical guide plus a ~15px step, so one screen carries two conventions for depth and the weaker one is in the pane where names are longest.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/wide/dark/L1/13",
+      "severity": "P3",
+      "location": "Identity bar — \"Engine loading — 18 MB\" (ends x1105) and `128 / 1315` (x1119–1203), y31",
+      "finding": "The gap between the sans status and the bold-mono readout is 14px — the same as a word space, and the same gap that separates the readout from the scrubber on its left — while the phase rail 35px to the right gets more. The type does distinguish them, but the tightest binding on the strip is between two unrelated facts, so `18 MB 128 / 1315` typesets as one measurement run and the readout looks like the emphatic end of the loading sentence. With the rail reading FETCHING, `128 / 1315` is momentarily readable as load progress rather than trace position. The spacing half of this belongs to L2.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/dark/L1/14",
+      "severity": "P3",
+      "location": "Transaction pane, COST · MANA row — label x1541, value `88000 / 200000 mana (FeeJuice)` ending x1905, y633",
+      "finding": "The humanisation change is a no-op at this fixture: the dimension here is `mana`, whose humanised form is the same word, so the row renders identically to r1. What the row still shows is the composition it is built from — it is the only label on the page carrying a middot-joined two-part key, where every sibling (BLOCK, TYPE, AGE, CANONICAL, FINALITY, FEE PAYER, TARGET, EXECUTIONS, DECODED INPUT) is a plain noun phrase — and the value ends in the word `mana` anyway, so the dimension is stated twice in one row.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/15",
+      "severity": "P3",
+      "location": "Transaction pane — AGE (y436), EXECUTIONS `private` (y687), SELECTOR (y823) and RAW (y849)",
+      "finding": "The em dash landed and is the right glyph: quiet, right-aligned in the value column, no longer asserting empty bytes. But it makes a third convention for 'nothing here' visible within 400px of column — a toned chip carrying a sentence (`No timestamp published`, `Not observable`), a bare dash, and a paragraph. Nothing tells a reader that the dash and the chips are the same kind of statement, and the dash is the one used for the two rows the note below is explaining.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

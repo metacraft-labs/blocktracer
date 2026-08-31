@@ -1,0 +1,98 @@
+Expected elements: present
+
+All must-show items located; nothing forbidden. The provenance row is the Transaction pane's first grid row — `DATA`, `Synthetic demo data`, sentences beneath.
+
+(a) landed: the Code pane fades line 52 (min luminance 106, against 16 at line 50), the Transaction pane fades the EXECUTIONS sentence (86 → 118 → gone), and the Values pane, whose content ends at y860, is correctly untouched. (b) not observable — this subject's only cost dimension is `mana`, which humanises to itself; `COST · MANA` (y761) sets on one line, no camelCase run anywhere. (c) landed in substance — capital `Aztec` at y857 — but the new full stop sits inside the fade and cannot be read at this viewport. (d) not observable; Selector and Raw are below the fold.
+
+Caused: the ~40px ramp is set in pixels, not line boxes. In Code it lands between rows; in Transaction it starts mid-paragraph, so a whole prose line reads between 4.5:1 and 2.9:1. New P3 (10).
+
+Re-judged: all four r1 P2s stand verbatim. The DATA note is still the pane's largest type, ~14/21.5px over 193px, and is now the reason EXECUTIONS lands in the fade. `in` still washes under the code note's horizontal mask. FEE PAYER/TARGET still orphan `32` and `4c`. FETCHING still contradicts `128 / 1315` and eight enabled buttons. The Call Trace region's 231px below the y320 footer is confirmed spare, not cut.
+
+Fixes: set the DATA note at 12px/1.45; snap the fade to the line box.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L1/1",
+      "severity": "P2",
+      "location": "Transaction pane, DATA provenance note, x1158-1419, y250-443",
+      "finding": "Unchanged from vd9-r1 and re-judged on merits: still below bar. The note sets at ~14px on ~21.5px leading (1.54), the largest and loosest type anywhere in the pane, against ~11px caps labels (BLOCK, TYPE, FEE PAYER) and ~13px mono values. Nine lines at a 37-character measure cost 193px. The bottom fade added this round makes the cost legible rather than fixing it: because the note pushes COST to y761 and EXECUTIONS to y800, the EXECUTIONS sentence is the content the fade lands on, so the sentence this round capitalised and terminated dissolves at y877 with its new full stop unread. Setting the note at the pane's own 12px with ~1.45 leading recovers ~45px and pulls the sentence clear of the ramp - a fix that shows more information, not less. The note is not too quiet for the claim it makes; it is the loudest type in the pane.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L1/2",
+      "severity": "P2",
+      "location": "Code pane, window note line 1, tail at x630-660, y172-184",
+      "finding": "Unchanged from vd9-r1 and re-judged on merits: still below bar. 'Showing from line 26 - the session's position is below, and the lines above it are not in this window.' renders inside the code listing's horizontally fade-masked container, so the final word of its first line runs under the right-edge mask: 'in' is washed to roughly a third of the surrounding contrast and its 'n' is nearly white. The note wraps rather than overflows - 'this window.' begins the second line - so the horizontal mask buys nothing here and costs a word of running prose. This is now the second place on the page where a fade lands on a sentence rather than on a scroll boundary (see finding 10). Exclude the note from the masked scroll region.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L1/3",
+      "severity": "P2",
+      "location": "Transaction pane FEE PAYER (y614-670) and TARGET (y685-740); Values pane `masses` row (y672-700); Call Trace frame rows 4 and 8 (y204-215, y283-294)",
+      "finding": "Unchanged from vd9-r1 and re-judged on merits: still below bar, and now with a third strategy visible. The Transaction pane header truncates with a middle ellipsis (`0xb636167a...66d46359`, y104); 500px lower the 66-character FEE PAYER and TARGET strings are hard-wrapped and right-aligned across three lines, leaving two-character orphans ('32' at y658-667, '4c' at y730-739) that read as separate values. The Values pane's `masses` array orphans '14]' the same way. Meanwhile the Call Trace truncates with a tail ellipsis mid-identifier and mid-path (`calculate_remaining_shie...`, `src/shi...`), so one page now shows three truncation rules for the same class of value. Right-alignment plus hard wrapping is the wrong pair for long monospace strings: wrap flush-left, or apply the middle-ellipsis rule the Transaction pane already uses at its own head.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L1/4",
+      "severity": "P2",
+      "location": "Identity bar, phase rail x958-1200, against stepping controls x370-655 and readout x880-970",
+      "finding": "Unchanged from vd9-r1 and re-judged on merits: still below bar. `FETCHING` is the filled active chip while `OPENING` and `POSITIONING` sit inactive, yet the same bar reports position 128 / 1315, the scrubber thumb is placed, the Values pane holds ten live values and all eight stepping buttons render fully enabled (near-black glyphs, no dimming). The rail names a phase the rest of the bar contradicts. Either the rail advances to the phase the session is in, or the controls carry the disabled state the design assigns them while the engine loads. Typographically the three chips are also identical in size, weight, case and tracking, so the rail carries no progression at all without reading the fill - three peers, not a sequence.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/light/L1/5",
+      "severity": "P3",
+      "location": "Transaction pane, rule between the DATA label row (y215-245) and the note (y250-443)",
+      "finding": "Unchanged from vd9-r1. A full-width rule at y246 separates `DATA` and its `Synthetic demo data` badge from the sentences that explain them, so under the pane's own grammar - label left, value right, rule between rows - the provenance paragraph becomes the only unlabelled row in the pane and the badge row reads as closed. Dropping the rule between the dt and its spanning dd binds the claim to its label without changing a word.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/light/L1/6",
+      "severity": "P3",
+      "location": "Code pane gutter, glyph column x75-85, lines 27-32 (y255-395)",
+      "finding": "Unchanged from vd9-r1. Three meanings ride in one ~7px glyph slot: the executed dot on lines 27, 28, 31, the taken mark on line 32 and the not-run mark on line 29. At render size the dot and the ring differ by about two pixels of interior detail, so the taken mark reads as a slightly fatter executed dot wherever it is not also the current line. Separately the not-run row's left rail bar (x6-10, y302-326) has identical geometry to the current-position bar (x6-10, y372-396) and differs only in hue, giving the rail two candidate positions at a glance.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L1/7",
+      "severity": "P3",
+      "location": "Call Trace column head 'ACIR opcodes' (x1035-1135, y108-120); Values type column 'Field' / 'u32' / '[Field; 8]' (x1090-1140)",
+      "finding": "Unchanged from vd9-r1. Face mixing inside a single label and a single column. 'ACIR' is monospace and 'opcodes' beside it is the proportional UI sans, on one line of one column head. In the Values pane every identifier and every value is mono while the type cells are sans, so the pane's rightmost column leaves the mono texture the brief calls the product's texture. A defensible rule exists - pills and annotations in sans, data in mono - but a type name is data, and 'ACIR opcodes' obeys neither.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L1/8",
+      "severity": "P3",
+      "location": "Code pane loop rail, y95-130, x20-420",
+      "finding": "Unchanged from vd9-r1. Four type treatments share one 26px strip: 'LOOP' at ~12px grey caps, 'iterate_asteroids' at ~13px, the 'line 4' link at ~11px underlined, and 'Iteration 3 of 8' at ~14px, the largest and darkest of the four, so the counter outranks the name of the loop it counts. Two levels would carry this: the loop's identity at one size, its position at the same size in a heavier weight. The current-iteration chip '3' also carries two stacked rules of different colour beneath a 12px numeral, which reads as a doubled indicator.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/light/L1/9",
+      "severity": "P3",
+      "location": "Tabbed Call Trace / Event Log region, y62-561; last frame row ends y301, footer 'By call order. / Self cost' ends y320",
+      "finding": "Re-measured for vd9-r2 and now confirmed rather than suspected. 231px of the region's 499px - 46% - is empty below the footer, and this round's bottom fade proves it: there is no fade anywhere below y320, so the region is genuinely spare rather than scrolled, exactly as the fade correctly leaves the Values pane (content ends y860) unfaded. Meanwhile the Code pane and the Transaction pane both fade, i.e. both have more to show. Nothing in the tabbed region is starved of content that would fill the gap; the height would buy more in the Code pane, or in a Values pane that could show more rows, than it does under a seven-frame trace.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L1/10",
+      "severity": "P3",
+      "location": "Transaction pane body, bottom fade ramp, y848-888, over the EXECUTIONS sentence (lines at y857 and y877)",
+      "finding": "New this round, caused by the fade. The ramp is set in pixels (~40px) rather than in line boxes, and the four pane bodies have three different line grids: 25px code rows, 25px table rows, 21.5px prose. In the Code pane this happens to land between rows - line 51 keeps a min luminance of 72 (about 7.3:1) and only the line-52 numeral is ghosted - so the fade reads as 'more rows below'. In the Transaction pane it starts mid-paragraph: 'Aztec private functions execute client-side;' at y857 holds 86, but 'only proofs, nullifiers and commitments are' at y877 runs from 118 (4.5:1) to 153 (2.85:1) across one line, so a single sentence carries three contrast levels and appears to be going pale rather than continuing. The affordance is right and worth keeping; snap the ramp's opaque stop to the last whole line box of the body so it always begins at a row boundary.",
+      "criterion": "B2"
+    }
+  ]
+}
+```

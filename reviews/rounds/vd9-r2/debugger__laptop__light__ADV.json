@@ -1,0 +1,29 @@
+Expected elements: present
+
+All MUST SHOW items check out: slim identity bar with `← demo` exit to the chain, truncated hash, `Partial` badge and `block 101`; four stepping groups covering both directions, scrubber, `128 / 1315` readout and the FETCHING/OPENING/POSITIONING rail; Code pane with the current position unmistakable on line 32; CALL TRACE / EVENT LOG as one tabbed region with Call Trace open and seven frames; Values a separate pane below the tabs, not a third tab; Transaction pane whose first row is `DATA` with the `Synthetic demo data` badge and the producer's own sentences. No spinner, no empty pane, no prose band above the panes, no full-width pane row, no provenance band. Register is right. The new bottom fades work — the Transaction pane's EXECUTIONS sentence fades mid-line rather than stopping flat.
+
+The weakest element is the phase rail, identity bar x≈958-1205, and yes it is still the rail — but for a reason specific to 1440. The honest state is not readable here because the words that name its subject are dropped at this width. At 1920 the bar reads `…scrubber — Engine loading — 18 MB — 128 / 1315 — [FETCHING|OPENING|POSITIONING]`. At 1440 that phrase is the first thing responsive layout discards: the gap between the scrubber (ends x≈833) and the readout (x≈855) is empty. What remains is three unlabelled chips. Nothing on this page contains the word "engine". So the rail asserts a phase about an object the page never names, and its terminal chip is POSITIONING — the exact thing the panes visibly already did: line 32 highlighted, frame six selected, values at step N, 128 / 1315. The reader is handed two true facts with the noun that separates them deleted, and the two available readings are both wrong — either the rail is stale, or the populated panes are a skeleton. The inert controls cannot rescue it: their glyph ink is #565656, byte-identical to the not-yet-reached `OPENING` and `POSITIONING` chips 300px to the right, so the disabled cue and the "hasn't happened yet" cue are the same grey. I accept the HONEST adjudication and am not re-filing the P1 — the information is true; what fails is that at this viewport it is carried entirely by three unlabelled chips. Restore `Engine loading — 18 MB` at laptop width, or label the rail.
+
+Measured for the record, not filed as a second finding: 236px of the ~466px call-trace region body is void below `By call order.` — 51% — while the Transaction and Code panes both overflow. With seven fixture frames that is as much fixture as layout, and it misleads no one.
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/ADV/1",
+      "severity": "P2",
+      "location": "identity bar, phase rail at x≈958-1205, and the empty gap at x≈833-855 between the scrubber and the 128 / 1315 readout where the engine status renders at 1920",
+      "finding": "The phase rail is the only carrier of the fetching state at this viewport, and at this viewport it is unlabelled. At 1920 the bar renders 'Engine loading - 18 MB' between the scrubber and the position readout; at 1440 that phrase is dropped and the gap is empty, so three chips - FETCHING, OPENING, POSITIONING - stand with no subject. The word 'engine' appears nowhere on the page. The rail therefore asserts an unfinished phase about an object the reader cannot identify, and its terminal chip POSITIONING names precisely what the panes visibly already did: current line 32 highlighted in Code, frame six selected in Call Trace, ten values at step N, 128 / 1315 on the scrubber. Both facts are true, but the noun that keeps them from colliding was deleted by the responsive rule, leaving only two readings, both wrong: the rail is stale, or the populated panes are a skeleton. The inert controls cannot join them either - stepping glyphs are #565656, the same ink as the not-yet-reached OPENING and POSITIONING chips, so 'cannot act' and 'has not happened yet' are one grey. Fix in the bar, not in the panes: keep 'Engine loading - 18 MB' at laptop width, or give the rail a leading label so the chips read as the engine's lifecycle and not the session's.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

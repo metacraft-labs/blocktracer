@@ -402,3 +402,77 @@ and it keeps the "one overflow treatment, and it is the fade" rule the styleshee
 already commits to. Not done here because it is a structural change to every
 pane, reviewed by nobody, at the end of a session — exactly the shape of change
 this campaign keeps having to undo.
+
+## Q2 — SECOND CORRECTION, from vd9-r2. The middle column cannot fund it either
+The entry above records that the ORIGINAL premise was wrong: Values does not
+overflow, it has slack, so re-weighting the ROW split would have moved space
+between two panes that both had some. vd9-r2 corrects the correction.
+
+`debugger/laptop/dark` L4 measured the Call Trace region 229px empty of a 463px
+body — **49.5%**, so the standing observation holds at every viewport and theme
+now measured (56.3% wide/dark, 58% wide/dark ADV, ~48-49% at both laptops). But:
+
+  **Values carries only ~8% slack at laptop, not the ~30% it has at wide.**
+
+So there is no viewport-independent slack inside the middle column at all. At
+wide you could fund a re-weighting from Values; at laptop you could not. Any fix
+that reallocates within column two is therefore correct at one viewport and wrong
+at the other, which rules out the whole family of row-split answers rather than
+just the one this entry started with.
+
+L4 also names what the fade changed and did not: "the fade makes the
+misallocation visible rather than fixing it" — and adds that the overflowing pane,
+Transaction in column three, is ALSO the loosest-set on the page at 30.5px rows.
+That matters for the remedy: the pane that is short of space is spending what it
+has at a lower density than its neighbours, so a pure width increase would be
+funding looseness rather than content.
+
+Revised recommendation: the lever is the top-level COLUMN split (`weight = 3.0`
+Code / `2.0` middle / `1.0` Transaction) AND the Transaction pane's own row
+density, together. Neither alone is sufficient and the row split is now
+positively ruled out. Still queued — it is a visible design decision no reviewer
+has seen the result of — but the option space is much narrower than when this
+entry was opened.
+
+## Q6 — ESCALATED at laptop: the honest state loses the words that made it honest
+`debugger/laptop/light` ADV, vd9-r2, filed P2 and named the mechanism.
+
+At 1920 the phase rail is accompanied by `Engine loading — 18 MB`, which is the
+phrase that tells a reader what the rail is about and why a positioned session
+can still be fetching. **At 1440 that phrase is dropped**, leaving three
+unlabelled chips whose terminal phase reads `POSITIONING` beside panes that are
+visibly already positioned.
+
+So the reconciliation recorded above — that the state is honest and only its
+legibility is at issue — is viewport-dependent, and at the smaller viewport the
+element that carried the honesty is the one responsive design discards first. A
+reader at 1440 is not given the two true facts and left to assemble them; they
+are given one of them and a contradiction.
+
+That strengthens option (b): say what IS available while fetching, in words that
+survive the breakpoint. It also adds a constraint the wide-viewport analysis
+could not see — whatever carries the explanation must not be the first thing
+dropped, which is an argument against putting it in the identity bar at all.
+
+### Q2 — the conclusion the two laptop lenses reached independently
+`debugger/laptop/light` L4 re-measured the region at **48.7% empty**, against
+48.8% last round — reproducing to within one pixel, which is what makes this
+layout-shaped rather than an artefact of one capture. And it found the same thing
+`debugger/laptop/dark` L4 did, from the other side:
+
+  * laptop/light: "the Values pane below is 89.4% full with a terminating list,
+    so **neither pane in that column wants the height — the productive move is
+    horizontal, not a re-weighting**."
+  * laptop/dark: Values carries only ~8% slack, "so the slack cannot be
+    re-weighted within the middle column at all."
+
+Two lenses, two themes, one conclusion, reached without either being told the
+other's number. Combined with the wide-viewport measurements this settles the
+SHAPE of the answer even though the answer itself stays queued: the middle
+column's emptiness is real and reproducible at every viewport, and it cannot be
+spent on Values, so any fix is a change to the COLUMN widths — plus the
+Transaction pane's own row density, which laptop/dark L4 measured as the loosest
+on the page at 30.5px while being the pane that overflows.
+
+The row-split option that opened this entry is now positively excluded by
+measurement rather than merely doubted.

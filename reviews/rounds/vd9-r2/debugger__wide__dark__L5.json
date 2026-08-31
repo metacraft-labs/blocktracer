@@ -1,0 +1,103 @@
+Expected elements: present
+
+All backbone items are on the page: identity bar with truncated hash, `Partial` badge, an exit landing on the chain (`← demo`), both stepping directions, a determinate scrubber, `128 / 1315`, the phase rail; the provenance marker as the first labelled row of the Transaction pane (`DATA` + `Synthetic demo data` + the producer's own sentences); Code with line 32 highlighted; a seven-frame call trace tabbed with Event Log, Call Trace open; Values as a pane below. No provenance band, no prose band, no spinner, no empty pane. This reads unmistakably as the desktop app.
+
+(a) landed — the EXECUTIONS note is now a capitalised sentence with a terminal stop. (b) landed — SELECTOR and RAW both render an em dash, and declining "None published" was right. (d) landed and landed *conditionally*, which is better than promised: the fade appears on the Code pane and the RAW (CHAIN-NATIVE) block, and correctly does not appear over the call trace's empty lower half.
+
+Where machine vocabulary still surfaces: `Status reason: private-part-succeeded-public-part-succeeded` (re-filed, P2); `mana (FeeJuice)` in COST · MANA, where the label was humanised but the value was not (P2); `BLOCK 101:0`; two rows both labelled `RAW`. Separately, the Code pane's notice strip states something the render contradicts (P2).
+
+Highest-priority fixes: rewrite the status reason as a sentence, and fix the Code pane notice — it tells a reader to look off-screen for a marker that is on-screen six rows down.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L5/1",
+      "severity": "P2",
+      "location": "Transaction pane, third line, directly above the DATA provenance row",
+      "finding": "Re-filed as invited. `Status reason: private-part-succeeded-public-part-succeeded` is an adapter enum literal printed as prose. It wraps across two lines, hyphenates where a sentence would breathe, and is the first sentence-shaped object a reader meets in the one pane that carries this register's honesty claim — so the pane opens in the vocabulary of the pipeline rather than of the product. Every other register in this product states a state in words (`No timestamp published`, `Not observable`, `Trace ready` are all on this same page and all read correctly). Suggested: 'Both the private and the public part succeeded.'",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/dark/L5/2",
+      "severity": "P2",
+      "location": "Transaction pane, COST · MANA row",
+      "finding": "Change (d) humanised the label and stopped at the value: `88000 / 200000 mana (FeeJuice)`. Three problems in one row. `FeeJuice` is the code-identifier spelling of Aztec's Fee Juice — a build-side noun where a unit name belongs. The unit `mana` is repeated in the value after already appearing in the label. And the two figures carry no thousands separators while the ACIR opcodes column of the call trace, 400px to the left in the same viewport, prints `1,315` and `1,208` with them, so one screen shows two numeric conventions for comparable magnitudes.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L5/3",
+      "severity": "P2",
+      "location": "Code pane, notice strip between the file tabs and line 26",
+      "finding": "The notice reads 'Showing from line 26 — the session's position is below, and the lines above it are not in this window.' The session's position is line 32; it is visible, highlighted, six rows below the notice. Lines 26-31 are above it and are also in the window. On the natural reading of 'it' the sentence is false about the render it annotates, and either reading sends a reader hunting off-screen for a marker that is on-screen. The tone is also apologetic about a window that is doing its job.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L5/4",
+      "severity": "P3",
+      "location": "Transaction pane, `RAW` row under DECODED INPUT and `RAW (CHAIN-NATIVE)` label ~150px below it",
+      "finding": "Two rows labelled RAW in one pane, same label typography, different referents. Change (b) sharpened the collision rather than causing it: the first RAW now reads as an em dash while the second is followed by a populated JSON block, so at a glance the pane says 'raw: none' and then shows raw. Renaming the first to `CALL DATA` would separate them without touching the note.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L5/5",
+      "severity": "P3",
+      "location": "Transaction pane, EXECUTIONS note under the `private` row",
+      "finding": "(a) landed as copy — capitalised, terminal stop, reads as a sentence. Two residual notes on the reasoning. First, `screenshots/chains-index__wide__light.png` still lists a chain whose slug is literally `aztec` alongside `aztec-testnet` and `demo`, so the premise that `aztec` is a slug that no longer exists is not what the built site shows; a reader who has seen /chains can read this sentence's 'Aztec' as naming that other chain. Second, nothing on this page connects `demo` to Aztec except `mana (FeeJuice)` and the `\"aztec\"` key in the raw JSON, both of which are below the fold of attention. One clause — 'this chain runs the Aztec AVM' — would anchor it.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/dark/L5/6",
+      "severity": "P3",
+      "location": "Transaction pane, `Status reason:` line",
+      "finding": "Independent of its wording, this line breaks the pane's row grammar. Every other datum in the pane is a two-column labelled row with a small-caps label at the left edge and its value right-aligned. This one is inline `Label: value` prose at body weight, sitting between the full hash and the DATA row, so it reads as a stray caption rather than a field of the record.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L5/7",
+      "severity": "P3",
+      "location": "Call Trace region, footer strip below the last frame",
+      "finding": "'By call order.' is set as a sentence with a full stop at the left; 'Self cost' sits at the right in link blue. The pair reads as a caption plus an unrelated link rather than as one ordering control, and nothing marks which of the two is the current mode. The desktop app's equivalent controls state their current value; these do not.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/dark/L5/8",
+      "severity": "P3",
+      "location": "Call Trace header row and Values pane header",
+      "finding": "Header treatment differs across the two panes of the navigation column. Call Trace has a header row reading `FRAME` (all caps, tracked) beside `ACIR opcodes` (acronym in caps, second word lowercase) — two casings inside one header row. The Values pane has no header row at all, so its unlabelled third column of `Field` / `u32` / `[Field; 8]` reads at first glance as more values rather than as types.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L5/9",
+      "severity": "P3",
+      "location": "Code pane, right edge at lines 40, 48 and 53",
+      "finding": "The fade primitive from change (d) is applied on the vertical axis in every pane that overflows, and correctly withheld where nothing overflows. It is not applied on the horizontal axis, which is the axis where this page actually cuts text: line 40 stops at `shield_regen_perce`, line 53 at `damage: Field,  r`, both clipped mid-token against a hard pane edge with no fade, ellipsis or scroll marker. The same overflow condition is signalled in one direction and silent in the other.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L5/10",
+      "severity": "P3",
+      "location": "Transaction pane `BLOCK` row vs identity bar",
+      "finding": "The identity bar prints `block 101`; the Transaction pane prints the same datum as the link `101:0`. `101:0` is a block:index coordinate — compact, and defensible in this register — but it is the only place on the page where two numbers are joined by a colon with no key, and it disagrees in form with the bar 1500px to its left. Either give the bar the same coordinate or give the row a second column for the index.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/dark/L5/11",
+      "severity": "P3",
+      "location": "Call Trace tabbed region (y 68-668) and Values pane (y 676-1072)",
+      "finding": "The measurement the brief asks for. The tabbed region is 600px tall; its seven frames end at y~300 and the footer strip at y~314, leaving ~345px — 57% of the region — empty below the last frame. The Values pane is 396px tall; its eleven rows end at y~950, leaving ~122px, 31%. Neither pane is starved at this fixture, so the 3:2 split is not itself a defect and shrinking the call trace would show less. If the surplus should move, it should move to Values: the call trace's depth is fixed by the program, while the value scope grows with every step and is the pane that will overflow first on a real trace.",
+      "criterion": "B1"
+    }
+  ]
+}
+```
