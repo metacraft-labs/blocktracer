@@ -51,19 +51,58 @@ import std/[json, os, algorithm, strutils, tables]
 import ../contract/[model, ids, version]
 
 type
+  IngestScope* = enum
+    ## HOW MUCH OF A SNAPSHOT BECOMES PAGES. Not a filter and not a cap: the two
+    ## values answer two different questions, and a build has to say which one it
+    ## is asking.
+    ##
+    ## `isFull` is the explorer's answer — every block the capture enumerated and
+    ## every transaction it saw, including the ones it could not replay, each
+    ## carrying the producer's own sentence about why. That is what an explorer
+    ## owes a visitor who arrives with a hash: the transaction exists, so the page
+    ## exists, and if it cannot be debugged the page says so in words.
+    ##
+    ## `isCurated` is the DEMO's answer, and it is a different promise: every
+    ## transaction on this chain opens a container that steps. It is what the
+    ## deployed site publishes today, because the alternative was measured and it
+    ## reads badly — the Aztec mainnet capture is 994 blocks and 27 transactions
+    ## of which ZERO carry a trace, and a visitor's first click into it lands on
+    ## an honest paragraph about the retention horizon. Correct, and not a
+    ## product. One transaction per ~37 blocks is a fact about the chain (checked
+    ## against an independent indexer, not against our own scan), so breadth here
+    ## buys unreplayable rows and nothing else.
+    ##
+    ## THE HONESTY MACHINERY IS NOT WEAKENED BY THIS AND MUST NOT BE. A curated
+    ## build publishes fewer transactions; it does not publish a softer sentence
+    ## about any of them. Everything `isFull` says about a pruned or refused
+    ## transaction is still said, still tested, and still what this ingest emits
+    ## the moment the scope is `isFull` — which is the scope
+    ## `test_chain_provenance` grades those states in.
+    isFull = "full"
+    isCurated = "curated"
+
   IngestConfig* = object
     outDir*: string       ## the tree being written (shared with the demo generator)
     snapshotDir*: string  ## a directory holding snapshot.json and ct/
     generation*: string   ## "" => "1"
+    scope*: IngestScope   ## see `IngestScope`; the zero value is `isFull`
 
   IngestResult* = object
     chain*: string
+    scope*: IngestScope
     blocks*: int
     transactions*: int
     withTrace*: int        ## transactions that got a container (ready + divergent)
     divergent*: int        ## recorded, but the effects did not reproduce
     pruned*: int           ## visible to the node, no longer replayable
     containerBytes*: int   ## total bytes of published containers
+    # WHAT THE SNAPSHOT HELD, beside what was published. Equal to the four above
+    # under `isFull`; under `isCurated` they are the evidence the published set
+    # was chosen out of, and a build log that reported only the published side
+    # would be the first place the difference went missing.
+    observedBlocks*: int
+    observedTransactions*: int
+    windowFrom*, windowTo*: int
 
 const
   # THE SLUG IS DATA, NOT A CONSTANT. It comes out of the snapshot's provenance,
@@ -93,6 +132,19 @@ proc writeBytes(cfg: IngestConfig, rel: string, bytes: string) =
   let p = cfg.outDir / rel
   createDir parentDir(p)
   writeFile(p, bytes)
+
+proc orNull(n: JsonNode): JsonNode =
+  ## A missing optional key is JSON null, not a nil pointer.
+  ##
+  ## `JsonNode{"k"}` returns NIL for an absent key, and a nil node embedded in a
+  ## `%*` literal segfaults inside `pretty` — not an exception, a SIGSEGV, from a
+  ## stack that names `json.nim` and never mentions the snapshot that was short a
+  ## key. Every `{}` below is there because the key is genuinely optional, so the
+  ## absence has to have a VALUE. Found by a constructed snapshot in
+  ## `test_chain_provenance` suite 8 that omitted `preStateReadAt`; the committed
+  ## captures all carry every one of these, which is exactly why nothing had ever
+  ## reached it.
+  if n.isNil: newJNull() else: n
 
 proc shortHash(s: string): string =
   ## A short, stable label for a hash-like string — used in prose, never as an id.
@@ -129,6 +181,143 @@ proc assertSlugAvailable*(outDir, slug, claimantKind: string) =
     "' chain, and a '" & claimantKind & "' chain is claiming it. Two chains at one " &
     "slug would overwrite each other's blocks and make real and generated data " &
     "indistinguishable in a URL. Give one of them a different slug.")
+
+const SurveyBlocks* = 24
+  ## How many blocks a curated build publishes for a chain that recorded NOTHING.
+  ##
+  ## Such a chain still has to appear — it is real, it is being watched, and the
+  ## watch is the reason the site will one day have a trace from it — but 994
+  ## blocks of it is a block list, not an exhibit. Two dozen is enough for the
+  ## list to show the cadence and for the banner's numbers to be checkable
+  ## against it on the same page.
+
+type
+  CurationWindow* = object
+    ## The contiguous block range a curated build publishes.
+    lo*, hi*: int
+    found*: bool
+    why*: string   ## the rule that produced it, in words, for the banner
+
+proc curationWindow*(blockHeights: seq[int];
+                     recorded, traceless: seq[int]): CurationWindow =
+  ## The window in which EVERY transaction carries a trace.
+  ##
+  ## `blockHeights` ascending; `recorded` are the heights of transactions that
+  ## produced a container, `traceless` the heights of the ones that did not.
+  ##
+  ## THE RULE IS AN INVARIANT, NOT A PREFERENCE, and that is why it is computed
+  ## rather than configured. "Publish the last N blocks" would have been one line
+  ## and would satisfy the request on today's data by luck: the mainnet capture
+  ## happens to end in a quiet stretch, so its last 24 blocks happen to hold no
+  ## transaction. The moment a transaction settles in that stretch and is not
+  ## replayable, an N-block rule publishes it and the promise this whole change
+  ## exists to make — every transaction here opens — is silently false. So the
+  ## window is DELIMITED BY the traceless transactions rather than sized past
+  ## them, and `ingestSnapshot` re-checks the invariant over what it is about to
+  ## write rather than trusting this proc to have held it.
+  ##
+  ## Two shapes, because there are two situations:
+  ##
+  ##   * SOMETHING WAS RECORDED. The window is the span of the recordings, cut at
+  ##     whichever traceless transactions bound it. Where traceless transactions
+  ##     split the recordings into several such runs, the run holding the most
+  ##     recordings wins, and the NEWEST wins a tie — a demo should be looking at
+  ##     the most recent thing the chain let it record.
+  ##   * NOTHING WAS RECORDED. There is no span to take, so the window is the
+  ##     newest run of blocks that settled no transaction at all, capped at
+  ##     `SurveyBlocks`. It publishes real blocks and no transactions, which is
+  ##     an honest picture of a chain nothing has been recorded from yet, and it
+  ##     satisfies the invariant vacuously rather than by exception.
+  result.found = false
+  if blockHeights.len == 0: return
+  let lowest = blockHeights[0]
+  let highest = blockHeights[^1]
+
+  var isTraceless = initTable[int, bool]()
+  for h in traceless: isTraceless[h] = true
+
+  if recorded.len > 0:
+    # The delimiters around each recording, as a (below, above) pair. Recordings
+    # sharing a pair are in the same run.
+    var runs = initTable[string, seq[int]]()
+    var order: seq[string]
+    for h in recorded:
+      var below = lowest - 1
+      var above = highest + 1
+      for t in traceless:
+        if t < h and t > below: below = t
+        if t > h and t < above: above = t
+      let key = $below & ":" & $above
+      if key notin runs:
+        runs[key] = @[]
+        order.add key
+      runs[key].add h
+    var bestKey = ""
+    var bestCount = 0
+    var bestHi = 0
+    for key in order:
+      let hs = runs[key]
+      var hi = hs[0]
+      for h in hs: hi = max(hi, h)
+      # Most recordings wins; the newest run breaks a tie.
+      if hs.len > bestCount or (hs.len == bestCount and hi > bestHi):
+        bestKey = key
+        bestCount = hs.len
+        bestHi = hi
+    var lo = bestHi
+    for h in runs[bestKey]: lo = min(lo, h)
+    result = CurationWindow(lo: lo, hi: bestHi, found: true,
+      why: "This chain publishes the blocks its recordings span — blocks " &
+           $lo & "–" & $bestHi & " — so that every transaction on it opens a " &
+           "container that steps.")
+    return
+
+  # NOTHING RECORDED. Every maximal run of consecutive blocks that settled no
+  # transaction is a candidate, and the choice between them is SIZE FIRST,
+  # recency second.
+  #
+  # "The newest such run" was the first rule and it is not stable enough to
+  # publish: the run above the newest transaction shrinks by one every time the
+  # chain settles another, and it was measured doing exactly that — a mainnet
+  # transaction arrived in block 67764 and the published window went from 24
+  # blocks to 8 between two builds. At one transaction it would be a single
+  # block, which is a chain page that looks broken while being correct.
+  #
+  # So a run of at least `SurveyBlocks` wins over a shorter one however recent,
+  # and among those the newest wins; its newest `SurveyBlocks` blocks are what
+  # is published. Where no run is that long the newest run is taken whole, which
+  # is the honest floor: the alternative is publishing a block that settled a
+  # transaction nothing can open, and the size of the page is not worth that.
+  var runs: seq[tuple[lo, hi: int]]
+  var i = blockHeights.len - 1
+  while i >= 0:
+    if isTraceless.getOrDefault(blockHeights[i], false):
+      dec i
+      continue
+    let hi = blockHeights[i]
+    var lo = hi
+    while i - 1 >= 0 and blockHeights[i - 1] == blockHeights[i] - 1 and
+          not isTraceless.getOrDefault(blockHeights[i - 1], false):
+      dec i
+      lo = blockHeights[i]
+    runs.add (lo: lo, hi: hi)
+    dec i
+  if runs.len == 0: return
+  # `runs` is newest-first by construction, so the FIRST match on each pass is
+  # already the newest one and no tie-break is spelled twice.
+  var chosen = runs[0]
+  for r in runs:
+    if r.hi - r.lo + 1 >= SurveyBlocks:
+      chosen = r
+      break
+  let hi = chosen.hi
+  let lo = max(chosen.lo, hi - SurveyBlocks + 1)
+  result = CurationWindow(lo: lo, hi: hi, found: true,
+    why: "Nothing on this chain has been recorded yet, so there is no span of " &
+         "recordings to publish. What is published is a run of blocks that " &
+         "settled no transaction at all — blocks " & $lo & "–" & $hi &
+         " — which keeps the promise that every transaction here opens, and " &
+         "keeps it without publishing a transaction that does not.")
 
 proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   ## Read the snapshot and write the real chain's whole generation.
@@ -190,6 +379,73 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # the chain's own ordering, not by the order the capture happened to walk.
   blockRows.sort(proc (x, y: auto): int = cmp(x.height, y.height))
 
+  let observedBlocks = blockRows.len
+  var observedTransactions = 0
+  for t in snap["transactions"]: inc observedTransactions
+
+  # ---- the curated window --------------------------------------------------
+  # See `IngestScope`. `isFull` publishes everything and computes nothing here;
+  # `isCurated` narrows the block record FIRST, so every loop below — blocks,
+  # transactions, the height and block maps, the address segments, the head
+  # pointer — is written over the published set rather than over the enumerated
+  # one and then trimmed. A tree trimmed afterwards is a tree with two answers to
+  # "what is on this chain" in it.
+  var recordedHeights, tracelessHeights: seq[int]
+  for t in snap["transactions"]:
+    let o = t["outcome"].getStr
+    if o == "replayed" or o == "divergent": recordedHeights.add t["blockNumber"].getInt
+    else: tracelessHeights.add t["blockNumber"].getInt
+  var allHeights: seq[int]
+  for b in blockRows: allHeights.add b.height
+  var window = CurationWindow(lo: (if allHeights.len > 0: allHeights[0] else: 0),
+                              hi: (if allHeights.len > 0: allHeights[^1] else: 0),
+                              found: true, why: "")
+  if cfg.scope == isCurated:
+    window = curationWindow(allHeights, recordedHeights, tracelessHeights)
+    if not window.found:
+      raise newException(ValueError,
+        "a curated ingest of '" & chain & "' found no window in which every " &
+        "transaction carries a trace: the capture recorded none, and every " &
+        "block it enumerated settled a transaction it could not replay. There " &
+        "is nothing here that satisfies the promise a curated build makes. " &
+        "Ingest this capture with scope=isFull, which publishes each of those " &
+        "transactions with the producer's own sentence about why it has no trace.")
+    var kept: seq[typeof(blockRows[0])]
+    for b in blockRows:
+      if b.height >= window.lo and b.height <= window.hi: kept.add b
+    blockRows = kept
+    if blockRows.len == 0:
+      raise newException(ValueError,
+        "the curated window " & $window.lo & "–" & $window.hi & " for '" &
+        chain & "' selected no block; refusing to publish an empty chain")
+
+  # THE INVARIANT, RE-CHECKED OVER WHAT IS ABOUT TO BE WRITTEN. `curationWindow`
+  # is supposed to guarantee this and the check does not trust it to: a window
+  # off by one at either end publishes a transaction that cannot be opened, and
+  # that is precisely the thing a curated build promises does not happen. It is
+  # cheap and it is at the composition of the two facts — the window and the
+  # outcomes — rather than inside the proc that produced only one of them.
+  if cfg.scope == isCurated:
+    for t in snap["transactions"]:
+      let h = t["blockNumber"].getInt
+      if h < window.lo or h > window.hi: continue
+      let o = t["outcome"].getStr
+      if o != "replayed" and o != "divergent":
+        raise newException(ValueError,
+          "the curated window " & $window.lo & "–" & $window.hi & " for '" &
+          chain & "' contains transaction " & shortHash(t["txHash"].getStr) &
+          " in block " & $h & " with outcome '" & o & "', which publishes no " &
+          "container. A curated chain promises every transaction on it opens.")
+
+  # `byHeight` MAPS ONLY PUBLISHED BLOCKS, and it is rebuilt here rather than
+  # populated during enumeration. It answers two questions further down — which
+  # block a transaction sits in, and which hash the finalized pointer names — and
+  # both must be answerable only about blocks this generation actually carries.
+  # Built over the enumerated set it would resolve `finalized` to the hash of a
+  # block a curated tree does not publish, i.e. a pointer into a 404.
+  byHeight.clear()
+  for b in blockRows: byHeight[b.height] = b.hash
+
   for b in blockRows:
     let bd = BlockDetail(chain: chain, hash: b.hash, height: b.height,
                          parentHash: b.parent, transactions: b.txs)
@@ -221,6 +477,9 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   for t in snap["transactions"]:
     let txHash = t["txHash"].getStr
     let height = t["blockNumber"].getInt
+    # A transaction outside the published block record has no block to belong to.
+    # Under `isFull` the window is the whole record and this excludes nothing.
+    if height < window.lo or height > window.hi: continue
     let idx = t["txIndexInBlock"].getInt
     let outcome = t["outcome"].getStr
     # BOTH OUTCOMES THAT PRODUCED A CONTAINER. `divergent` is a complete,
@@ -254,29 +513,29 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       "l2BlockNumber": height,
       "txIndexInBlock": idx,
       "revertCode": t["revertCode"],
-      "bodyRetainedAtCapture": t{"bodyRetained"},
-      "effectVisibleAtCapture": t{"effectVisible"}}
+      "bodyRetainedAtCapture": orNull(t{"bodyRetained"}),
+      "effectVisibleAtCapture": orNull(t{"effectVisible"})}
     if replayed:
       # The replay's own measurements, republished verbatim under `native`. They
       # are chain-native truth about this execution and the contract keeps such
       # payloads whole rather than flattening them.
       native["replay"] = %*{
-        "instructionsExecuted": t{"instructionsExecuted"},
-        "hydrationRounds": t{"hydrationRounds"},
-        "preStateReadAt": t{"preStateReadAt"},
-        "effectsMatched": t["effects"]{"matched"},
-        "effectsMismatched": t["effects"]{"mismatched"},
-        "effectsReproduced": t["effects"]{"reproduced"},
+        "instructionsExecuted": orNull(t{"instructionsExecuted"}),
+        "hydrationRounds": orNull(t{"hydrationRounds"}),
+        "preStateReadAt": orNull(t{"preStateReadAt"}),
+        "effectsMatched": orNull(t["effects"]{"matched"}),
+        "effectsMismatched": orNull(t["effects"]{"mismatched"}),
+        "effectsReproduced": orNull(t["effects"]{"reproduced"}),
         # THE ROOTS DELIBERATELY DO NOT AGREE, and the divergence travels into
         # the tree rather than being dropped in transit. Replay hydrates only the
         # leaves the execution touched, so the trees it rebuilds are sparse and
         # their roots cannot equal the block's. A published recording whose roots
         # silently matched would be the surprising one.
-        "rootsAnyAgree": t{"rootsAnyAgree"},
-        "roots": t{"roots"},
-        "declaredRung": t["recording"]{"declaredRung"},
-        "stepsPositioned": t["recording"]{"stepsPositioned"},
-        "stepsUnpositioned": t["recording"]{"stepsUnpositioned"}}
+        "rootsAnyAgree": orNull(t{"rootsAnyAgree"}),
+        "roots": orNull(t{"roots"}),
+        "declaredRung": orNull(t["recording"]{"declaredRung"}),
+        "stepsPositioned": orNull(t["recording"]{"stepsPositioned"}),
+        "stepsUnpositioned": orNull(t["recording"]{"stepsUnpositioned"})}
 
     let facts = TransactionFacts(
       chain: chain,
@@ -422,9 +681,14 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   for b in blockRows: blockHashList.add b.hash
   cfg.writeJson(blocksRel, %*{"chain": chain, "epoch": 0, "blocks": blockHashList})
 
+  # THE SAME FILTER AS THE WRITE LOOP, and it has to be: this list names the
+  # txstate objects the generation root points at, and a name here for a file the
+  # transaction loop skipped is a root that points at nothing.
   var txstateRels: seq[string]
   for t in snap["transactions"]:
     let h = t["txHash"].getStr
+    let height = t["blockNumber"].getInt
+    if height < window.lo or height > window.hi: continue
     txstateRels.add "d" / chain / "g" / gen / "txstate" / hexShard(h) / h & ".json"
 
   # ---- summary, carrying the provenance ------------------------------------
@@ -575,8 +839,86 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       "none was " & $largestGap & " blocks, and " & recency &
       "Catching one needs a follower that watches the tip continuously rather " &
       "than a single scan. "
+  # THE CURATED PARAGRAPH IS A SEPARATE ARM, NOT AN EDIT TO THE ONE ABOVE.
+  #
+  # Every sentence in `middle` is a claim about the ENUMERATED range, and under
+  # `isCurated` the enumerated range is no longer what the page shows. Splicing a
+  # window clause into it would leave "across the N blocks enumerated here" next
+  # to a block list of 34, which is the shape of wrongness this module has
+  # already published twice (a nine-hour-stale window, and a negative distance).
+  # So the curated arm states the two ranges separately and says which is which:
+  # what is PUBLISHED, and what was WATCHED to choose it out of.
+  #
+  # It also states the zero explicitly instead of relying on a universal over an
+  # empty set. "Every transaction here opens a container" is true and useless of a
+  # chain with no transactions on it, and a reader who counts zero rows under that
+  # sentence has been told nothing.
+  # WHY THE UNPUBLISHED ONES ARE UNPUBLISHED, SPLIT BY WHOSE FAULT IT WAS.
+  #
+  # "their bodies were pruned before anything could re-execute them" is a fact
+  # about the CHAIN, and it is false of a refusal: a refused transaction was
+  # reached inside the window with its body still served, and the replay runtime
+  # declined. Merging the two blames the network for a fault on this side of the
+  # wire — the exact sentence commit b7cafba had to replace on the uncurated
+  # banner, and it would have come straight back here, because the curated arm
+  # is a new paragraph and `refusedCount` counts only the PUBLISHED set, which
+  # under curation can never contain a refusal at all.
+  # ONE CLAUSE PER BUCKET, and the buckets are the outcomes rather than
+  # "replayed" and "everything else". A single sentence over the remainder is
+  # what merges a refusal into a pruning; three clauses cannot, and a fourth
+  # outcome the capture starts emitting gets its own clause naming itself rather
+  # than being absorbed into whichever neighbour reads closest.
+  var observedPruned, observedRefused, observedOther = 0
+  var observedRefusalNames, otherOutcomes: seq[string]
+  for t in snap["transactions"]:
+    let o = t["outcome"].getStr
+    case o
+    of "replayed", "divergent": discard
+    of "pruned": inc observedPruned
+    of "refused":
+      inc observedRefused
+      let rn = t{"refusal"}.getStr
+      if rn.len > 0 and rn notin observedRefusalNames: observedRefusalNames.add rn
+    else:
+      inc observedOther
+      if o notin otherOutcomes: otherOutcomes.add o
+  let unpublished = observedPruned + observedRefused + observedOther
+  var whyParts: seq[string]
+  if observedRefused > 0:
+    whyParts.add $observedRefused & " WERE still replayable when the capture " &
+      "reached " & (if observedRefused == 1: "it" else: "them") &
+      " and the replay runtime refused " &
+      (if observedRefused == 1: "it" else: "them") &
+      (if observedRefusalNames.len > 0: " (" & observedRefusalNames.join(", ") & ")"
+       else: "") & ", which is a failure on the recording side and not a " &
+      "property of this chain"
+  if observedPruned > 0:
+    whyParts.add $observedPruned & " had already been pruned when " &
+      (if observedPruned == 1: "it was" else: "they were") & " first seen"
+  if observedOther > 0:
+    whyParts.add $observedOther & " carried another outcome (" &
+      otherOutcomes.join(", ") & ")"
+  let whyUnpublished =
+    if unpublished == 0: ""
+    else: " Of the " & $unpublished & " not published here, " &
+          whyParts.join("; ") & "."
+  let watched =
+    "Over the whole watch — " & $observedBlocks & " blocks, " &
+    $observedTransactions & " transaction(s), blocks " & $allHeights[0] & "–" &
+    $allHeights[^1] & " — they did not arrive evenly: the longest run with none " &
+    "was " & $largestGap & " blocks." & whyUnpublished
+  let curatedMiddle =
+    if withTrace > 0:
+      "THIS CHAIN IS PUBLISHED AS A CURATED WINDOW. " & window.why & " All " &
+      $txCount & " of them were re-executed and their traces are published " &
+      "here; " & $blockRows.len & " blocks carry them. " & watched & " "
+    else:
+      "THIS CHAIN IS PUBLISHED AS A CURATED WINDOW, AND IT CONTAINS NO " &
+      "TRANSACTION. " & window.why & " " & watched & " Catching one needs the " &
+      "follower to reach a transaction while its body is still served, which is " &
+      "a watch measured in hours rather than a scan. "
   let provDetail =
-    captured & middle &
+    captured & (if cfg.scope == isCurated: curatedMiddle else: middle) &
     "Transactions below block " & $finalizedAt & " are still visible on the " &
     "network but their bodies have been pruned, so they can no longer be " &
     "replayed and carry no trace."
@@ -597,6 +939,17 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       "tracesPublished": withTrace,
       "mostRecentTxBlock": mostRecentTxBlock,
       "longestRunWithoutTx": largestGap,
+      # THE SCOPE AND ITS TWO RANGES, AS DATA. `detail` says all of this in
+      # prose because a banner has to read as a sentence, but a consumer that
+      # wanted the numbers would otherwise have to parse that sentence — and
+      # `test_explorer_breadth`'s scanners already demonstrate what happens when
+      # a check has to read prose to learn a fact. The published set and the set
+      # it was chosen out of are both here, so "is this chain curated, and out of
+      # what" is answered by the tree.
+      "scope": $cfg.scope,
+      "publishedWindow": {"from": window.lo, "to": window.hi},
+      "observedBlocks": observedBlocks,
+      "observedTransactions": observedTransactions,
       "detail": provDetail}})
 
   let root = GenerationRoot(contractVersion: ContractVersion, chain: chain,
@@ -620,6 +973,10 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     "head": {"height": headB.height, "hash": headB.hash},
     "finalized": {"height": finalizedHeight, "hash": finalizedHash}})
 
-  IngestResult(chain: chain, blocks: blockRows.len, transactions: txCount,
+  IngestResult(chain: chain, scope: cfg.scope,
+               blocks: blockRows.len, transactions: txCount,
                withTrace: withTrace, divergent: divergentCount,
-               pruned: prunedCount, containerBytes: totalContainerBytes)
+               pruned: prunedCount, containerBytes: totalContainerBytes,
+               observedBlocks: observedBlocks,
+               observedTransactions: observedTransactions,
+               windowFrom: window.lo, windowTo: window.hi)

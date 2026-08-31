@@ -55,10 +55,11 @@ createDir(workDir)
 
 let exporterBin = workDir / "static_export_bin"
 block:
-  # `-d:publishDemoChain`: the address / code / segment route families exist only on
-  # the synthetic tree, so the breadth suite asks for it explicitly. The deployed
-  # site does not carry it.
-  let cmd = "nim c --mm:orc -d:isServer -d:release -d:publishDemoChain --hints:off --nimcache:" &
+  # No define: the address / code / segment route families exist only on the
+  # synthetic tree, and the exporter publishes that tree again by default
+  # (`static_export.nim` step 1b). Compiled with the DEPLOYED defaults so this
+  # suite walks the routes a deploy actually serves.
+  let cmd = "nim c --mm:orc -d:isServer -d:release --hints:off --nimcache:" &
     quoteShell(workDir / "nimcache") & " -o:" & quoteShell(exporterBin) & " " &
     quoteShell(clientRoot / "src" / "static_export.nim")
   let (output, code) = execCmdEx(cmd)

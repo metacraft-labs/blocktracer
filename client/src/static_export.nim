@@ -132,8 +132,20 @@ proc exportSite() =
   if snapshotDirs.len == 0:
     echo "  + live-chain snapshots: none in this checkout (synthetic demo only)"
   for snapshotDir in snapshotDirs:
+    # `isCurated`, and the choice is here rather than defaulted in the ingest —
+    # see `IngestScope`. The deployed site's promise about a real chain is that
+    # every transaction on it opens a container that steps, and the shape of the
+    # data made the uncurated tree unable to keep it: the mainnet capture is 994
+    # blocks and 27 transactions with no trace on any of them, because Aztec
+    # prunes a body at the finalized tip and the arrivals are further apart than
+    # the replay window is wide. Publishing all of it put ~30 pages of honest
+    # paragraph where the product should be. The transactions that are left out
+    # are still IN the snapshot, still counted in the banner, and still published
+    # in full by an `isFull` ingest — which is the scope their pages are graded
+    # in (`test_chain_provenance`).
     let ing = ingestSnapshot(IngestConfig(outDir: OutputDir,
-                                          snapshotDir: snapshotDir))
+                                          snapshotDir: snapshotDir,
+                                          scope: isCurated))
     # A chain with NO traces is reported as such rather than omitted. It is the
     # expected outcome on a chain whose transactions arrive further apart than
     # the replay window is wide, and a build log that quietly said nothing about
@@ -142,23 +154,44 @@ proc exportSite() =
       if ing.withTrace == 0: "NO replayable transaction in the window"
       else: $ing.withTrace & " with a published trace (" & $ing.divergent &
             " divergent, " & $ing.containerBytes & " bytes)"
-    echo "  + live-chain snapshot: /" & ing.chain & " — " & $ing.blocks &
-      " blocks, " & $ing.transactions & " transactions, " & traceNote & ", " &
-      $ing.pruned & " past the replay horizon"
+    echo "  + live-chain snapshot: /" & ing.chain & " — published " &
+      $ing.blocks & " blocks (" & $ing.windowFrom & "–" & $ing.windowTo &
+      "), " & $ing.transactions & " transactions, " & traceNote &
+      "; watched " & $ing.observedBlocks & " blocks / " &
+      $ing.observedTransactions & " transactions"
 
-  # Step 1b: the SYNTHETIC demo tree — off by default, and that default is the change.
+  # Step 1b: the SYNTHETIC demo tree — published again, and the reason is the front page.
   #
-  # The published site carries real chains only. The demo chain is a fixture: it is the
-  # subject of most of the visual-review corpus and of the exporter-driven suites, and
-  # those are reasons to keep GENERATING it, not reasons to SERVE it. Publishing and
-  # testing are separated here rather than argued about elsewhere — `-d:publishDemoChain`
-  # turns it on for the capture harness and for the two tests that render over it, and
-  # nothing turns it on for a deploy.
+  # IT WAS TURNED OFF ONE COMMIT AGO, ON A PREMISE THAT WAS TRUE AND INCOMPLETE. The
+  # premise: "the deployed site carries real chains only", because the fixture is the
+  # subject of the review corpus and of the exporter-driven suites, and those are reasons
+  # to keep GENERATING it rather than to SERVE it. What that missed is that the fixture is
+  # also the only SOURCE-LEVEL recording this tree can publish, and the home page's
+  # exhibit needs one.
   #
-  # The trace fixture is still required when it IS enabled: the real `noir_space_ship`
-  # container carries no source text, so without the Noir sources the exported site would
-  # step through code it cannot show.
-  when defined(publishDemoChain):
+  # Every real chain here is rung 3. An Aztec `ContractClassPublic` carries bytecode and
+  # no `debug_symbols`, no `file_map` and no source text, so `ingest.nim` publishes
+  # `execution.sourceLevel: false` and writes no source bundle — correctly, and it will
+  # go on doing so for every Aztec transaction this site ever records. A tree of real
+  # chains alone therefore contains nothing that can show a line of source, a function
+  # name or a named local, and the home page's `canHeadline` rule found nothing to
+  # feature. It featured a rung-3 recording instead, which is how three sentences about
+  # what cannot be shown ended up under "the deepest view into every transaction".
+  #
+  # So both halves are kept rather than traded: the real chains are the site's SUBJECT and
+  # lead the chain strip (`home.stripOrder`, keyed off published provenance), and the
+  # fixture is the site's EXHIBIT and is labelled as one everywhere it appears — the strip
+  # badges it `synthetic`, the chain banner does, and the home page's embed carries the
+  # same badge (`home.liveDemo`). A reader is never asked to tell them apart by the slug.
+  #
+  # `-d:noDemoChain` builds the real-chains-only tree, which is what the previous default
+  # produced; nothing in this repository sets it, and it exists so the question can be
+  # asked of a build rather than argued about again.
+  #
+  # The trace fixture is still required: the real `noir_space_ship` container carries no
+  # source text, so without the Noir sources the exported site would step through code it
+  # cannot show.
+  when not defined(noDemoChain):
     let fixtureDir = repoRoot() / "fixtures" / "trace" / "noir_space_ship"
     let fixture = fixtureDir / "zk_shields.ct"
     let sources = fixtureDir / "sources"
@@ -177,9 +210,9 @@ proc exportSite() =
                                 traceFixturePath: fixture,
                                 traceSourcesDir: sources))
     echo "  + synthetic demo chain: /" & DemoChainSlug & " (" & $n & " transactions) " &
-      "— NOT PUBLISHED on a deploy; this build set -d:publishDemoChain"
+      "— published, badged `synthetic`; build -d:noDemoChain to leave it out"
   else:
-    echo "  + synthetic demo chain: not published (build -d:publishDemoChain to include it)"
+    echo "  + synthetic demo chain: not published (this build set -d:noDemoChain)"
 
   # Step 2: render the explorer views over that tree, at clean URLs.
   let root = newDataRoot(OutputDir)

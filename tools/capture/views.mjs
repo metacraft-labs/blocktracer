@@ -1441,7 +1441,34 @@ export const VIEWS = [
       "Transaction on mainnet with no trace and none possible — 'Not observable', the published pruning reason, and no debug affordance",
     covers: ["tx-detail.absent", "provenance.live-capture"],
     register: "explorer",
-    status: "ready",
+    status: "pending",
+    // NOT DELETED, AND NOT RE-POINTED. The deployed tree stopped publishing this
+    // state: `static_export` ingests real chains at `IngestScope.isCurated`,
+    // which publishes the contiguous block range in which EVERY transaction
+    // opens a container — so a real chain no longer carries a transaction with
+    // no trace, and `/aztec`, which recorded none, publishes 24 blocks and no
+    // transactions at all. `zeroTraceTxOn` threw rather than resolving, which is
+    // the harness working: assertion E refuses a ready view whose subject is
+    // gone instead of letting it photograph something else.
+    //
+    // `pending` is the honest filing, and the alternatives were both worse.
+    // DELETING it would drop `tx-detail.absent`-on-real-data from the inventory
+    // silently and orphan a live review round's ledger entries. RE-POINTING it
+    // at the synthetic chain would keep the id while making its expectation
+    // block false: that block's whole subject is that the data is REAL — "the
+    // same page on the synthetic chain would be a fixture choice rather than a
+    // fact about a network" — and `tx-detail--absent` already photographs the
+    // fixture's version.
+    //
+    // The state itself is untouched and still tested: an `isFull` ingest
+    // publishes every pruned and refused transaction with the producer's own
+    // words, and `test_chain_provenance` suites 2 and 8 grade both the sentence
+    // and the scoping decision. What is pending is a SUBJECT on the deployed
+    // tree, which returns the moment a curated real chain carries one.
+    pendingReason:
+      "the deployed tree publishes real chains curated to the window where every " +
+      "transaction opens, so no real chain carries a trace-less transaction to " +
+      "photograph; `isFull` still publishes the state and it is graded there",
     route: (ix) => {
       const slug = realChain(ix, MAINNET);
       return `/${slug}/tx/${zeroTraceTxOn(slug)(ix).hash}`;

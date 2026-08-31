@@ -271,6 +271,26 @@ proc fixtureEventLog(reverted: bool): EventLogPane =
   # the call trace's: one derivation, so emitting and resolving agree.
   withEventAnchors(result)
 
+func entryStepWithin*(steps: int): int =
+  ## Where a session with no `?t=` lands, INSIDE the trace it is landing in.
+  ##
+  ## It was `FixtureStep` — 128 — for every session, which is right for the
+  ## vendored Noir recording (1315 steps) and for any real trace at least that
+  ## long. A real testnet transaction is 108 steps, and the page served
+  ## `step 128 of 1315` for it: a position past the end of its own recording,
+  ## and a TOTAL borrowed from a program that never executed under that hash.
+  ## That is the fixture asserting itself over real chain data, which this file
+  ## has already had to stop doing twice (the source pane, and the language tag).
+  ##
+  ## The rule keeps the fixture's landing wherever the trace can hold it and
+  ## lands on the trace's own last step otherwise. It does not invent a fraction:
+  ## `FixtureStep / FixtureTotalSteps` is where one recording happens to have
+  ## been photographed, not a ratio anything measured, and a session that landed
+  ## at "9.7% of wherever you are" would be a number with no referent.
+  if steps <= 0: 0
+  elif steps < FixtureStep: steps
+  else: FixtureStep
+
 proc fixtureControls(positioned, live: bool; steps: int): DebugControlsPane =
   ## `positioned` is "the panes carry a step"; `live` is "the engine can move
   ## it". They are different on the static route, where the first is true and
@@ -295,7 +315,7 @@ proc fixtureControls(positioned, live: bool; steps: int): DebugControlsPane =
   ]
   result.positioned = positioned
   result.totalSteps = steps
-  result.step = (if positioned: FixtureStep else: 0)
+  result.step = (if positioned: entryStepWithin(steps) else: 0)
   # Short, because this now renders in the identity bar beside the controls it
   # describes rather than in a pane of its own — and because the step counter
   # sits next to it (`.dcsteps`), so repeating "step 128 of 1315" here spent a
@@ -383,7 +403,15 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
   # position and the fixture's own recorded total otherwise — which resolves
   # itself the moment the tree publishes the real container, because then the
   # manifest says 1315 and the two agree.
-  let steps = if totalSteps > FixtureStep: totalSteps else: FixtureTotalSteps
+  # THE MANIFEST'S COUNT, WHENEVER THERE IS ONE. This used to read
+  # `if totalSteps > FixtureStep`, which silently substituted the FIXTURE's 1315
+  # for any real recording shorter than 128 steps — a real testnet transaction of
+  # 108 steps was published as "of 1315". The guard was there because the
+  # position was a constant that a short trace could not hold; the position is
+  # derived from the trace now (`entryStepWithin`), so the total no longer has to
+  # be inflated to accommodate it. `FixtureTotalSteps` remains the answer only
+  # where there is no manifest at all, which is the fixture's own case.
+  let steps = if totalSteps > 0: totalSteps else: FixtureTotalSteps
 
   case v.headline
   of taReady, taDivergent:
@@ -394,8 +422,12 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
     # can step yet and the page must not imply otherwise.
     result.phase = spFetching
     result.hasFrame = true
+    # The SAME derivation the controls use, so the URL coordinate the page
+    # reports and the step the toolbar shows cannot come apart — they were two
+    # spellings of `FixtureStep`, which agreed only because both were wrong in
+    # the same way.
     result.timeCoordinate =
-      if timeCoordinate > 0: timeCoordinate else: FixtureStep
+      if timeCoordinate > 0: timeCoordinate else: entryStepWithin(steps)
     result.integrity =
       if v.headline == taDivergent: siDivergent else: siValidated
     if v.headline == taDivergent:
