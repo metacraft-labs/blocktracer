@@ -1,0 +1,75 @@
+Expected elements: present
+
+All backbone items are there and legible. The identity bar carries `← aztec`, the truncated hash, `Partial`, `block 101`, both stepping directions, the scrubber, `128 / 1315`, the `FETCHING·OPENING·POSITIONING` rail and two right-hand actions. No provenance band above the bar — provenance is now the `DATA` row in the Transaction pane with a `Synthetic demo data` badge and the producer's own sentences. `CODE`, `CALL TRACE | EVENT LOG` (Call Trace open), `VALUES` and `TRANSACTION` all present; current position is line 32.
+
+Typographically this is a coherent tool. Pane titles are one tracked all-caps level, code is one monospace face, the ACIR column and the Values column are tabular and right-aligned across four magnitudes.
+
+Three things are below bar. The provenance paragraph is set flush-right over eight lines while the two other prose blocks in the same pane (EXECUTIONS, SELECTOR) are flush-left — the register's most important claim is the one paragraph you must hunt the line-start for. FEE PAYER and TARGET wrap a 42-character address mid-byte across two lines instead of using the ellipsis convention the identity bar uses. And `⊙` versus `⊘` in the code gutter differ by a 1–2px interior mark at this size, so "ran" and "did not run" are carried by almost nothing.
+
+Fixes: set the DATA paragraph flush-left with the pane's other prose; truncate FEE PAYER/TARGET rather than wrapping.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L1/1",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row — the provenance paragraph beginning \"Every block, transaction, address and hash…\"",
+      "finding": "The provenance sentences are set flush-right, ragged-left, over eight lines, because the row inherits the value column's right alignment. The two other prose blocks in the same pane — the EXECUTIONS note (\"aztec private function executed client-side…\") and the SELECTOR note (\"This selector is not in any ABI BlockTracer holds…\") — are both flush-left. So the pane uses two paragraph alignments, and the flush-right one is the longest block and the one carrying the honesty claim. Eight ragged line-starts is the worst case for a paragraph a reader is meant to actually read rather than scan.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L1/2",
+      "severity": "P2",
+      "location": "Transaction pane, FEE PAYER and TARGET rows",
+      "finding": "Both 40-hex addresses wrap onto a second right-aligned line at an arbitrary character (…e2a272b5 / e430d5d932), splitting a byte across the line break. Everywhere else on the page a long value is truncated with a middle ellipsis at a byte boundary (0xb63616…6359 in the identity bar, 0xb636167a…66d46359 in this same pane, two rows up). Two different strategies for the same data type in one pane, and the wrapping one produces a second line that is neither a full value nor a recognisable tail.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/3",
+      "severity": "P2",
+      "location": "Code pane, gutter marks at line 29 (⊘) and line 32 (⊙)",
+      "finding": "The two branch-arm glyphs render at roughly 10px as rings of the same diameter, weight and colour; the entire semantic difference between \"this arm did not run\" and \"this arm did run\" is a 1–2px interior feature (a diagonal stroke versus a dot). The three states do read as one family — all three occupy the same gutter column at the same optical size, and absence-of-mark is a legible third state — but the family's two marked members are not reliably told apart at the size they are set. A shape difference at the silhouette level (ring versus filled, or a differing rail weight) would carry it; an interior detail at 10px does not.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L1/4",
+      "severity": "P3",
+      "location": "Call Trace pane, column header row — \"FRAME\" and \"ACIR opcodes\"",
+      "finding": "One header row sets its two labels in two casings: FRAME is tracked all-caps matching the pane titles, ACIR opcodes is a caps acronym followed by lowercase. Whatever the reason (an acronym plus a noun), the effect is that the right-hand header does not read as the same level as the left-hand one, in the only row on the page where two headers sit side by side.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L1/5",
+      "severity": "P3",
+      "location": "Transaction pane, first two lines — the `Partial 0xb636167a…66d46359` badge row and the full hash directly beneath it",
+      "finding": "A middle-truncated hash is set immediately above the full hash it truncates, and the truncated one is the larger, more prominent of the two. The truncation therefore buys nothing here — the reader gets both forms in adjacent lines, and the pane spends its most prominent line on the less informative one.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/6",
+      "severity": "P3",
+      "location": "Code pane, second header strip — \"LOOP iterate_asteroids line 4 Iteration 3 of 8\"",
+      "finding": "One strip carries four type treatments at near-identical size: an all-caps label (LOOP), a monospace identifier, a link (line 4) and a body-face count (Iteration 3 of 8). Nothing in the type says which of these is the label, which is the subject and which is the position within it; the strip reads left-to-right as four peers. The iteration chips 1–8 below it, where the active 3 is underlined, do the same job far more clearly.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/dark/L1/7",
+      "severity": "P3",
+      "location": "Transaction pane, DATA row label",
+      "finding": "The provenance row's label is set identically to BLOCK, CANONICAL, FINALITY, FEE PAYER and the rest — same size, tracking, weight and emphasis. Nothing in the type marks it as the row that says what all the other rows are. Its eight-line paragraph does give it more area than any other row, so the claim is not lost; but the row is prominent by accident of content length rather than by any typographic decision, and a shorter producer statement would make it vanish into the list. Raising the DATA label one emphasis level would make the prominence intentional.",
+      "criterion": "B3"
+    }
+  ]
+}
+```

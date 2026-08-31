@@ -1,0 +1,73 @@
+Expected elements: present
+
+All MUST-SHOW items render: fixed nav with brand and resolver, breadcrumb, full hash plus `Succeeded`, the `Not observable` badge with the published pruning reason and the permanence sentence, the affirmative provenance marker as the `Data` row heading the Overview grid (one marker, no band, correct per the revision), every section present with permanent-tense empty copy, and the footer with its links, disclosure and fully-drawn provenance marks. No forbidden affordance, trace reference, blame or danger tone. Typographically the page reads as correct rather than broken: four legible levels — eyebrow, mono H1, section heading, body — and hash truncation falls on byte boundaries with the full value directly beneath.
+
+Findings. P1: the `Decoded input` note asserts "the parameters are shown as raw bytes" over a SELECTOR of `—` and a RAW of a bare `0x` — zero bytes and no selector. The empty-calldata state is typeset as the unknown-selector state, and the two rows use two different glyphs for the same nothing. P2s: the COST value is a 66-character zero-padded hex word standing in for a numeric cost, with no tabular figure and no meaningful truncation; its label uppercases a camelCase identifier into `TRANSACTIONFEE`, the only unreadable and only wrapping label in the column; `NO TRANSACTION INSIDE IT WAS REPLAYABLE` shouts in caps inside body prose on a page where caps already means "label"; and the `Data` row's nine lines sit at the same level as the one-line facts below, so mass, not hierarchy, orders the grid.
+
+Fix first: correct the Decoded-input copy, then format the fee.
+
+Rating: 4/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "reviewer": "L1",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/1",
+      "severity": "P1",
+      "location": "Decoded input section — the SELECTOR/RAW grid and the note card directly beneath it",
+      "finding": "The note reads \"This selector is not in any ABI BlockTracer holds, so the parameters are shown as raw bytes\", but SELECTOR renders the em-dash no-value glyph and RAW renders a bare `0x`. There is no selector and there are no bytes, so the sentence describes a different state than the one typeset above it. The two rows also use two different glyphs for the same absence — `—` in one and an empty `0x` in the next — so a reader cannot tell whether the em-dash means unknown and `0x` means empty, or the reverse.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/2",
+      "severity": "P2",
+      "location": "Overview grid, COST · TRANSACTIONFEE row, value cell",
+      "finding": "A cost is set as a 66-character zero-padded hex word (`0x0000…0175c1a29c1f97278 mana (FeeJuice)`), the longest unbroken token on the page, running nearly the full width of the value column. Sixty leading zeros carry no information yet occupy most of the line, the significant digits are buried at the far right, and there is no tabular decimal figure, no digit grouping and no truncation at a meaningful boundary with the full value obtainable. Every other numeric on the page (block 67113, the 67120–67144 range) is set as a readable number; this one is not.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/3",
+      "severity": "P2",
+      "location": "Overview grid, label column, COST · TRANSACTIONFEE row",
+      "finding": "The uppercase letterspaced label style is applied to a raw camelCase source identifier, producing `TRANSACTIONFEE` — a fourteen-character run with the word boundary destroyed, next to labels that are real words (DATA, BLOCK, CANONICAL, FINALITY). It is also the only label in the column that wraps to two lines, and it wraps after the middot, leaving `COST ·` hanging at the end of line one.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/4",
+      "severity": "P2",
+      "location": "Overview grid, DATA row, third line of the capture paragraph",
+      "finding": "\"NO TRANSACTION INSIDE IT WAS REPLAYABLE\" is set in full capitals inside running body prose. Capitals are the crudest emphasis device available and here they collide with an established meaning: every other capitalised run on this page is a field label or the eyebrow, so the reader has already learned that caps signals \"label\", not \"emphasis\". The effect is a shout in the middle of the one paragraph whose job is to sound calm and factual.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/5",
+      "severity": "P2",
+      "location": "Overview grid — DATA row against the BLOCK, CANONICAL and FINALITY rows",
+      "finding": "The provenance row does land first, before the empty sections, which is what the revision needed. But its nine lines of prose are set at exactly the size, weight and colour of the single-line values below it, so nothing typographic separates the claim (the `Real Aztec mainnet data` badge) from the capture narrative that supports it, and nothing separates either from the ordinary metadata. The grid therefore opens with a block roughly seven times the height of any other row at the same level, and block, canonicality and finality read as a footnote to it. One extra level — a lead sentence at a heavier weight, or the narrative at a step down — would let the row assert its claim without swamping the facts.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/6",
+      "severity": "P3",
+      "location": "Page eyebrow \"TRANSACTION\" above the H1, versus the Overview grid label column",
+      "finding": "The page's top-level kicker and the field labels three levels down share size, case, letterspacing, weight and colour. They are distinguishable only by position and by the rule that precedes the eyebrow, so the type scale spends one level twice instead of marking the difference between \"what this page is\" and \"what this cell holds\".",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/7",
+      "severity": "P3",
+      "location": "Raw (chain-native) block",
+      "finding": "Keys and values in the JSON are typographically identical — same monospace face, same weight, same colour — so the shape of the object has to be read rather than seen. A weight or emphasis split between key and value would make the five fields scannable at a glance, which is the only reason this block is on the page.",
+      "criterion": "A4"
+    }
+  ]
+}
+```

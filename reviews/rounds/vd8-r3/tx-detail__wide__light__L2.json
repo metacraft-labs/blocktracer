@@ -1,0 +1,73 @@
+Expected elements: MISSING — hero age/timestamp, the copy affordance on the full hash, and a labelled transaction type in the overview grid.
+
+That is finding #1, it is P1, and the rating is capped at 4. Everything else the block requires is on the page: fixed nav clearing the body, breadcrumb, hero, `Generate trace` as the primary control with the `On demand` state named beside it, the four trace-sourced sections each carrying a sentence instead of an empty panel, the raw JSON, the provenance strip with all three marks drawn, and the footer closing the page with its disclosure. The provenance marker is present in exactly one form — the `Data` row heading the Overview grid — so the absent band is correct, not a finding.
+
+As a layout the page is clean but not on one scale. The heading-to-content gap takes three values, the gap above a section rule takes two, and the three middle headings sit almost equidistant between the card above and their own card. Two right edges alternate five times down the column: grids and rules run to the content edge, cards stop ~295px short of it. Inside the Overview grid the 144px `Data` row sits above six 37px fact rows, so the grid's rhythm is broken by its first row.
+
+Highest-priority fixes: collapse the heading/rule gaps onto one scale, and give the notice cards the grids' right edge.
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "missing",
+  "missing": [
+    "hero: age / transaction timestamp — not present in the hero or anywhere else on the page",
+    "hero: copy affordance on the full hash — no visible control beside the 42-character value",
+    "overview grid: transaction type — not a labelled row; it appears only as \"kind\" inside the raw JSON"
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/L2/1",
+      "severity": "P1",
+      "location": "hero block between the full hash and the trace card; Overview grid rows",
+      "finding": "Three Must-show items are absent. The hero runs breadcrumb, eyebrow, truncated hash + status, full hash, and then the trace card, with no age or timestamp at any point; no timestamp appears elsewhere on the page either. The full hash line carries no visible copy control. The Overview grid's rows are Data, Block, Canonical, Finality, Fee payer, Target, Cost·Mana — transaction type is not among them and survives only as a JSON key in the raw section."
+    },
+    {
+      "id": "tx-detail/wide/light/L2/2",
+      "severity": "P2",
+      "location": "vertical rhythm across all six section headings and the four section rules",
+      "finding": "The section spacing is not one scale. The gap from a heading down to its first content block is ~22px above the Overview and Decoded input grids, ~40px above the Events / Internal calls / State changes cards, and ~48px above the raw JSON block — three values for one relationship. The gap from the block above up to a section rule is ~108px before the Overview, Decoded input and Events rules, then ~81px before the Raw (chain-native) rule. A reader scrolling eight sections is given four different measurements for the same two joints.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/3",
+      "severity": "P2",
+      "location": "the Events / Internal calls / State changes group, at the Internal calls and State changes headings",
+      "finding": "Each of these headings sits ~62px below the card belonging to the previous section and ~40px above its own card — a ratio of about 1.6. That is not enough separation for proximity to do the grouping: the heading reads as almost equidistant between the block it does not belong to and the block it does. This is the rubric's named failure case, and it is the one place on the page where three sections share a single rule-delimited band and therefore depend entirely on spacing to be told apart.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/4",
+      "severity": "P2",
+      "location": "content column right edge — trace card, ABI note, Events / Internal calls / State changes cards vs the Overview grid, Decoded input grid, raw JSON block and the four section rules",
+      "finding": "Two right edges alternate down the page. The rules, both grids and the raw block terminate at the content edge (~911px column); the trace card and the four notice cards stop ~295px short of it. The alternation happens five times, and it is not readable as a rule: the widest prose measure on the page is the provenance paragraph, which sits inside the full-width grid, while the narrower notes sit in the narrow cards. The result is a ragged right that looks like two layouts interleaved rather than a decision about measure.",
+      "criterion": "A1"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/5",
+      "severity": "P2",
+      "location": "Overview grid, the Data row against the six rows beneath it",
+      "finding": "The Data row is ~144px tall — a badge plus a four-line paragraph — sitting directly above six fact rows of ~37px each. The grid's row rhythm is therefore broken by its own first row, and the visual weight of the section is roughly half provenance prose and half facts. Block, Canonical, Finality, Fee payer, Target and Cost·Mana read as a short tail hanging off the paragraph rather than as the section's content. If the row is meant to carry the provenance claim that a band used to carry, it is doing so by importing a band's proportions into a facts grid.",
+      "criterion": "A6"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/6",
+      "severity": "P3",
+      "location": "page shell at the 1920px viewport",
+      "finding": "The page renders as a single ~911px column centred with roughly 500px of empty canvas on each side, over a 2733px scroll. Nothing in the layout distinguishes this viewport from a 1024px one — the two short grids (seven rows and two rows) and the five-line raw block all sit in one stack. The wide viewport is not being used badly, but it is not being used.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/7",
+      "severity": "P3",
+      "location": "footer, right-hand column and the footer's outer padding",
+      "finding": "The two lines of the right column start at different text left edges: the 'Built with … Powered by CodeTracer' line begins at the column edge, while 'Source on GitHub' is pushed ~14px right because the GitHub mark leads it, so the two lines do not share a left edge. Separately the footer's top padding (~53px from the top border to the first line) is noticeably larger than its bottom padding (~33px below the disclosure), so the block that closes the page sits high in its own band.",
+      "criterion": "A10"
+    }
+  ]
+}

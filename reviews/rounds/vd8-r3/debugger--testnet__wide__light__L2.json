@@ -1,0 +1,80 @@
+Expected elements: present
+
+Identity bar with hash, block 63675, exit to `aztec-testnet`, stepping groups, `128 / 345` and the phase rail; no band above it; `DATA` + `Real Aztec testnet data` + the capture's sentences as the Transaction pane's first row; all three source-less panes explained in their own words; `Supply sources` present; no invented source, no fixture content, no engine-failure banner.
+
+The removed band is a real gain — the panes now start 68px from the top and the identity bar reads as the only chrome. But the space it bought went to the panes that had nothing to put in it. The Code pane is roughly 910×1000px holding two sentences and one button in its top 280px, the Call Trace pane holds two lines above 500px of white, and the Transaction pane — the only region with content — is the narrowest at ~390px and is the one thing on the page that overflows, clipped mid-line at `"bodyRetainedAtCapture": true,` by the viewport edge. That inversion is the page's layout problem: 1500px of width is allocated to emptiness while the pane carrying the provenance claim, the fee, the executions and the raw payload is squeezed into a gutter and truncated. Within that gutter the DATA paragraph and the three-line fee both break the label/value grid, aligning to nothing.
+
+Highest-priority fixes: rebalance the split toward the Transaction pane (or reflow its rows into the empty Code pane width); give the DATA paragraph its own full-width block below the label rather than the value gutter.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L2/1",
+      "severity": "P2",
+      "location": "the three-column split — Code (x≈8–917), Call Trace/Values (x≈921–1527), Transaction (x≈1531–1912)",
+      "finding": "Space is allocated in inverse proportion to content. The Code pane gets ~910px of width for two sentences and a button that occupy its top 280px, leaving ~720px of empty pane below; the Call Trace pane gets ~600×580px for two lines; and the Transaction pane, which holds ten rows, a wrapped hash, a four-line fee, an ABI note and a JSON payload, gets the narrowest column at ~390px and is the only pane that overflows. Rebalancing costs no information and would fix the overflow in finding 2.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/2",
+      "severity": "P2",
+      "location": "Transaction pane, bottom edge of the viewport (y=1080), inside the RAW (CHAIN-NATIVE) block",
+      "finding": "The pane's content is cut by the viewport mid-line at `\"bodyRetainedAtCapture\": true,` with no scrollbar, fade, or any other edge treatment indicating that content continues. Everything after that point — including the replay telemetry the expectation names as the evidence the session is faithful — is invisible with no cue that it exists. The clip lands on a truncated JSON line, which reads as a rendering failure rather than as a scrollable region.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/3",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row (y≈178–530)",
+      "finding": "The provenance paragraph is placed in the value column of a label/value grid rather than given its own block. The label `DATA` and the badge share one line, then eleven lines of prose run beneath at ~250px wide with a ragged left edge that aligns to neither the label column (x≈1541) nor any other element in the pane, and a flush right edge at x≈1908. The row is also by far the tallest in the pane at ~350px against ~30px for its neighbours, so the grid the rest of the pane establishes visibly stops working at exactly the row that matters most.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/4",
+      "severity": "P2",
+      "location": "Transaction pane, COST · TRANSACTIONFEE row (y≈632–710)",
+      "finding": "A single-line label sits beside a four-line value block: three lines of unwrapped 64-character hex plus the unit `mana (FeeJuice)` on a line of its own. The value's wrap points are set by the column width rather than by the data, so the row's height is driven by a formatting accident and the label/value baseline pairing that holds for BLOCK, CANONICAL and FINALITY breaks here. This is the real-data formatting path the expectation asks about, and at this column width it does break the grid.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/5",
+      "severity": "P3",
+      "location": "Call Trace pane (y≈95–668) and Values pane (y≈700–1072), below their explanatory lines",
+      "finding": "Both panes place two lines of text hard against their top-left corner and leave ~500px and ~330px of unbroken white beneath, with no closing rule, no centring, and no reduction of the pane to the height its content needs. The emptiness is correct — there are no frames and no names to show — but nothing in the layout marks it as final, so at a glance the panes read as regions still waiting to paint rather than regions that are complete.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/6",
+      "severity": "P3",
+      "location": "Code pane — header `CODE` (x≈16), body paragraphs (x≈22), `Supply sources` button border box (x≈14)",
+      "finding": "Three different left edges inside one pane, roughly 8px apart. The button's label happens to align with the paragraph text, but its border box hangs 8px further left, and the pane header sits between the two, so the pane has no single content edge for the eye to hang on across ~280px of vertical travel.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/7",
+      "severity": "P3",
+      "location": "identity bar, the stepping control cluster (x≈470–760)",
+      "finding": "Four control groups are separated by unequal gaps (roughly 14px, 24px and 24px between groups against ~4px inside them), so the grouping the gaps are meant to express is not consistent: the first pair reads as more closely bound to the second than the second is to the third for no reason visible in the icons. The cluster's distance from `block 63675` on its left (~35px) is also close enough to the inter-group gaps that the boundary between metadata and controls is weaker than it should be.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/8",
+      "severity": "P3",
+      "location": "identity bar — progress bar (x≈775–1035) and phase rail (x≈1320–1570)",
+      "finding": "Two representations of one loading state sit 285px apart with the byte count and the position readout wedged between them, so the bar and the phase it is filling toward are not read as one control. Proximity currently groups `Engine loading — 18 MB` with `128 / 345`, which is a step position and belongs with the stepping controls, not with load progress.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

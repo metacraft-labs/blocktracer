@@ -1,0 +1,52 @@
+Expected elements: present
+
+The identity bar carries the truncated hash, `block 63675`, both stepping directions, `128 / 345`, the phase rail and an exit that lands on `aztec-testnet`. The provenance marker is the first row of the Transaction pane — `DATA`, a `Real Aztec testnet data` badge, and the capture's own endpoint, moment and replay window. No band above the identity bar. Code, Call Trace and Values each explain the missing symbols in their own words; `Supply sources` is present. No invented source, no fixture content, no engine banner, no unexplained blank pane. The replay telemetry is not visible in the 1080px viewport (finding 1), but the pane is a scroll region populated from real chain facts and its `RAW (CHAIN-NATIVE)` block is visibly mid-object, so I do not score it absent.
+
+On density the page is inverted. 1551px of width — Code, Call Trace, Values — carries six sentences and a button; the 369px Transaction pane carries everything else and runs off the bottom edge. Removing the band gave every pane ~190px, and the pane that needed it spent ~320px of it on a right-aligned sentence block, so the only pane with more content than height came out behind.
+
+Highest-priority fixes: widen the Transaction pane (or move provenance prose to full pane width, left-aligned) so the faithfulness telemetry is on screen; format the fee.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L4/1",
+      "severity": "P2",
+      "location": "the four-pane split: Code pane (left, x≈8-917), Call Trace and Values (centre, x≈922-1527) against the Transaction pane (right rail, x≈1531-1911, clipping at the viewport bottom mid `RAW (CHAIN-NATIVE)` JSON)",
+      "finding": "One pane is starved while three sit empty. The Code pane is ~910px wide and ~1010px tall and holds four lines of prose and one button in its top 240px; ~770px below `Supply sources` is blank. Call Trace holds two lines in a 600x580 region, Values two lines in a 600x390 region. The Transaction pane is the only region on the page whose content exceeds its box, and it is the narrowest: at 369px the provenance sentences wrap to fifteen lines, the fee wraps to three, the raw JSON wraps at four tokens a line, and the pane is cut off mid-object at y=1080. What falls off is the replay telemetry — instructions executed, effects matched and `effectsMismatched: 0`, the evidence that this replay reproduced the chain's own effects, which is the whole claim of the view. The 1080px viewport has ~1550px of horizontal space carrying six sentences and ~370px carrying everything else. Removing the provenance band returned ~190px of height to every pane; the new `DATA` row then consumed ~320px inside the Transaction pane, so the one pane that could use height is net worse off while the three panes with nothing to show got taller. A wider right rail at this viewport, or the provenance prose set across the pane's full width instead of in the value column, would put the telemetry back on screen without dropping anything.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/2",
+      "severity": "P2",
+      "location": "Transaction pane, the `DATA` row's sentence block, y≈205-525, set in the value column beneath the `Real Aztec testnet data` badge",
+      "finding": "The provenance sentences are right-aligned and ragged-left over fifteen lines at roughly a 28-character measure, inside the value column of a label/value grid. Right-aligned body prose is the least scannable text configuration available: every line starts at a different x, so the return sweep has no anchor, and at 28 characters the block breaks mid-token (`aztec-` / `testnet.drpc.org`, `2026-` / `08-31T07:40:55.566Z`) and hides its paragraph break — the sentence ending `are published here.` and the one beginning `Transactions below block` sit on adjacent lines with nothing to separate them. The same pane proves the better treatment exists: the selector explanation at y≈855-910 is left-aligned across the pane's full width and reads in three lines. This row is carrying the page's most important claim and is the hardest text on the page to read.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/3",
+      "severity": "P2",
+      "location": "Transaction pane, `COST · TRANSACTIONFEE` row between FINALITY and EXECUTIONS, y≈632-710",
+      "finding": "The fee is a 32-byte word printed raw: `0x` followed by 64 nibbles wrapping across three right-aligned lines, of which roughly 46 are literal zero padding and only `185cfcc84d2f103f` carries information, stranded at the end of the third line. A reader cannot read the quantity, compare it to another fee, or sanity-check its magnitude. The row also stands about four times the height of BLOCK, CANONICAL and FINALITY above it, so the pane's densest vertical space is spent on padding zeroes. The label is the adapter's camelCase field uppercased into the unbroken token `TRANSACTIONFEE`, sitting beside BLOCK, CANONICAL, FINALITY and DECODED INPUT, all of which are English. Decode to a decimal figure with the raw word available on demand.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/4",
+      "severity": "P3",
+      "location": "Code pane, the ~770px below the `Supply sources` button (y≈320-1075), and the Call Trace pane below its single paragraph",
+      "finding": "The page states that stepping is complete at instruction level and the identity bar proves it — the position readout reads `128 / 345`, so 345 program counters and a frame stack exist in this recording. None of it is surfaced anywhere. The panes are empty by necessity of the missing source text, not of the missing trace, and a program-counter column or an unnamed frame list would fill the emptiest regions on the page with real recorded content rather than argument for it. This is a refinement rather than a defect: what is shown is honest and each pane explains itself, and the fix adds information rather than removing it.",
+      "criterion": "B1"
+    }
+  ]
+}
+```

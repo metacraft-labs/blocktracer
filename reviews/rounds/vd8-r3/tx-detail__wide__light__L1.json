@@ -1,0 +1,66 @@
+Expected elements: MISSING — hero age/timestamp, the copy affordance on the full hash, and an overview row naming the transaction type.
+
+That is finding #1, it is P1, and the rating is capped at 4. The provenance marker is correctly present in its new form — a `Data` row at the top of the Overview grid carrying the `Synthetic demo data` badge and the producer's three sentences — and it is the only one of the three forms on the page, so the absent band is not a finding. Nav, footer, disclosure, provenance strip with drawn heart/CodeTracer/GitHub marks, `Generate trace` as the strongest control, the named `On demand` state, all four trace-sourced sections with their explanatory lines, and the raw JSON are all present. What is not present anywhere on the page is an age or timestamp, any visible copy control beside the full hash, and a labelled transaction type (it survives only inside the raw JSON). Value and nonce are also unlabelled, which may be chain-inapplicable on Aztec.
+
+Typographically the page has four honest levels but spends them badly: the largest type on the page is a truncated hash that the line beneath repeats in full, and eight sections share a single heading size so the spine cannot be ranked without reading. Badge type is not one treatment — the provenance badge is monospace and letterspaced, the four status badges are proportional sans.
+
+Highest-priority fixes: put age and transaction type on the page; give the section headings a second level.
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "L1",
+  "expectedElements": "missing",
+  "missing": [
+    "hero: age / transaction timestamp — absent from the hero and from every other region of the page",
+    "hero: copy affordance on the full hash — no visible control beside 0x27a6c250…29a6c",
+    "overview grid: transaction type — not labelled anywhere outside the raw JSON"
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/L1/1",
+      "severity": "P1",
+      "location": "hero, between the full hash line and the Generate trace card; and the Overview grid",
+      "finding": "Three Must-show items are absent. There is no age or timestamp anywhere on the page — the hero runs eyebrow, truncated hash, status badge, full hash, then straight into the trace card, and the Overview grid's seven rows are Data, Block, Canonical, Finality, Fee payer, Target, Cost·Mana. There is no visible copy affordance on the full hash. Transaction type is never labelled; it exists only as \"kind\": \"public-avm-call\" inside the raw JSON, which is not a labelled overview fact."
+    },
+    {
+      "id": "tx-detail/wide/light/L1/2",
+      "severity": "P2",
+      "location": "hero — the h1 \"0x27a6…9a6c\" and the full hash line directly beneath it",
+      "finding": "The largest type on the page carries the least information. The h1 is a 4+4-character abbreviation set at roughly 28px monospace, and the full 42-character value it abbreviates sits 20px below it at body size in the same face. Two consecutive lines of the same string at two sizes read as a duplication rather than a hierarchy, and the display slot is spent on a value the reader can already see in full.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/3",
+      "severity": "P2",
+      "location": "section headings — Overview, Decoded input, Events, Internal calls, State changes, Raw (chain-native)",
+      "finding": "All six headings are set at one size and one weight, so the eight-section scroll has a flat spine with no second level. Nothing in the type says that Events, Internal calls and State changes are three peers of the same kind while Overview and Raw are the page's bookends; that distinction is currently carried only by whether a horizontal rule happens to sit above the heading. The expectation block asks the eye to find hero → action → overview without reading, and past the fold there is no typographic ranking to navigate by.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/4",
+      "severity": "P2",
+      "location": "badges — \"Synthetic demo data\" in the Data row vs \"Succeeded\" (hero), \"On demand\" (trace card), \"Yes\" (Canonical), \"Pending\" (Finality)",
+      "finding": "One component, two type treatments. The provenance badge is monospace and letterspaced; the four status badges are proportional sans at a smaller size with no tracking. Because the provenance badge is the one graded as content, its differing face reads as a different kind of object rather than as the same badge primitive carrying the most important claim on the page.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/5",
+      "severity": "P3",
+      "location": "footer, the data-disclosure paragraph beginning \"No account, no tracking.\"",
+      "finding": "This line runs the full content width — roughly 120 characters before it wraps — while every other paragraph on the page (the trace note, the provenance sentences, the ABI note, the three section explanations) is held to a 60–75 character measure inside a card. The one paragraph set to the full column is the one the reader is least primed to read.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/6",
+      "severity": "P3",
+      "location": "Overview and Decoded input grids, label column (DATA, BLOCK, CANONICAL, FINALITY, FEE PAYER, TARGET, COST · MANA, SELECTOR, RAW)",
+      "finding": "The labels are set at roughly 10px uppercase with wide tracking in a light grey. At a 1920px viewport with this much surrounding whitespace the label column is the only wayfinding into a seven-row grid, and it is the smallest and lightest text on the page — one step up in size or one step down in tracking would let the column be scanned rather than read.",
+      "criterion": "A5"
+    }
+  ]
+}

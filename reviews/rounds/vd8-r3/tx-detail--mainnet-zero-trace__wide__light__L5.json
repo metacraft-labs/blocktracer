@@ -1,0 +1,54 @@
+Expected elements: present
+
+The provenance marker is present in its new form — the `Data` row heading the Overview grid with the `Real Aztec mainnet data` badge and the capture's sentences — and no band appears alongside it, which is the change, not an omission. `Not observable`, the published pruning reason, the permanence claim, the full hash and outcome badge, the four facts, every content section in the permanent tense, nav, footer, disclosure and the provenance strip with drawn heart, CodeTracer and GitHub marks are all present. Nothing forbidden: no retry, spinner or disabled control, no trace reference, no danger tone.
+
+On the Watch-for question the page reads as correct, not broken, and the reason is the takeaway: pruning at the finalized tip is named in plain words a reader without the term can follow. Against `tx-detail--absent` these would not collapse into one generic treatment.
+
+The register slips in the copy, which here is a design property. The `Data` row is not the product's voice but the capture tool's: shouty caps ("NO TRANSACTION INSIDE IT WAS REPLAYABLE"), `20 transaction(s)`, `6 block(s)`, `(node 5.2.0)`, and five sentences about the capture run rather than this transaction. And the `Decoded input` note tells the reader something untrue and offers a fix that cannot work — on the one page whose whole claim is that it says only what is knowable.
+
+Fixes: rewrite the Decoded input note to the pruned-body truth; put the capture narrative in product voice.
+
+Rating: 4/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/1",
+      "severity": "P1",
+      "location": "Decoded input section — the note card below the SELECTOR / RAW grid",
+      "finding": "\"This selector is not in any ABI BlockTracer holds, so the parameters are shown as raw bytes. Supplying an ABI decodes them.\" sits under `SELECTOR —` and `RAW 0x`, and the raw block at the foot of the page says `\"bodyRetainedAtCapture\": false`. There is no selector, no parameters and no raw bytes; the input is missing because the body was pruned. The copy therefore asserts a state that is not the one on screen, locates the limitation in this product's ABI holdings rather than in the chain's retention — the exact inversion the Not observable card gets right 900px above — and closes with a remedy a reader could act on that cannot succeed. Events, Internal calls and State changes each name their true, permanent reason; this section is the only one that does not, and it is the only place on the page where the voice makes a promise.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/2",
+      "severity": "P2",
+      "location": "Overview grid, DATA row — the paragraph under the `Real Aztec mainnet data` badge",
+      "finding": "The most important claim on the page is delivered in the capture tool's voice, not the product's. It shouts one sentence in caps (\"NO TRANSACTION INSIDE IT WAS REPLAYABLE\"), leaves machine plurals unresolved (`20 transaction(s)`, `6 block(s)`, `7 block(s)`), prints an internal build detail (`node 5.2.0`), and argues with an unseen sceptic (\"That is what the capture found, not a failure to record\"). Every other paragraph on the page — the Not observable card, the three section notes, the footer disclosure — is calm, third-person and specific. A marketing-grade surface cannot publish a log line at the one point where it states what its data is; the register break is most visible precisely where credibility matters most.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/3",
+      "severity": "P2",
+      "location": "Overview grid, DATA row, sentences 4–8, against the Not observable card above it",
+      "finding": "The page explains itself twice in two different voices. The Not observable card explains pruning as a fact about this transaction; the DATA row re-explains pruning plus the capture run's statistics — 400 blocks enumerated, a longest run of 309 empty blocks, advice that catching a replayable transaction \"needs a follower that watches the tip continuously rather than a single scan\". That last is an operational note to whoever runs the capture, addressed to a reader who came for one hash. The doubling weakens the single reason the expectation wants taken away, because the second telling is longer, louder and mostly about something else.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/4",
+      "severity": "P3",
+      "location": "Overview grid, label column — `COST · TRANSACTIONFEE` against `BLOCK`, `CANONICAL`, `FINALITY`, `DATA`",
+      "finding": "Four labels are the product's own vocabulary, one is the chain's camelCase field name uppercased and bolted to it with a middle dot, wrapping onto two lines. Whatever the dot is meant to disclose — the product's word and the node's field — it reads as an unfinished mapping between two vocabularies, and it appears only on the row whose value is also raw chain output. The rest of the grid establishes that this product names things in its own words; this row is where that stops.",
+      "criterion": "A8"
+    }
+  ]
+}
+```

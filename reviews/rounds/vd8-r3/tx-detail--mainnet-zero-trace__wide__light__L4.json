@@ -1,0 +1,61 @@
+Expected elements: present
+
+Every Must-show item is on the page. The provenance marker is present in form (c) — a `Data` row at the top of the Overview grid carrying the `Real Aztec mainnet data` badge and the capture's own sentences — and it is the only one of the three forms present, so the absent band is correctly not a finding. `Not observable` badge, the published pruning reason, the permanence claim, full hash, outcome badge, block/canonical/finality/cost, all four content sections with permanent-tense statements, nav, footer, disclosure and provenance strip are all there. Nothing forbidden appears: no debug/retry/spinner, no trace reference, no danger tone.
+
+Density is the page's weakness. The `Data` row is ~260px tall against ~40px for each of Block, Canonical, Finality and Cost, so 62% of the facts grid is one narrative cell and the four scannable facts are compressed into the last fifth of the card. The page then uses 911px of a 1920px viewport at its widest and 697px for every notice card — two right edges 213px apart — so a 9-line paragraph is stacked above facts that a second column would have carried beside it.
+
+The `Decoded input` note is worse than dense: it is wrong. Over `SELECTOR —` and `RAW 0x`, with `bodyRetainedAtCapture: false` in the raw block, it claims parameters are shown as raw bytes and offers a fix that cannot work.
+
+Fixes: correct the Decoded input note; move the capture narrative out of the first grid row.
+
+Rating: 4/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/1",
+      "severity": "P1",
+      "location": "Decoded input section — the note card directly below the SELECTOR / RAW grid",
+      "finding": "The note reads \"This selector is not in any ABI BlockTracer holds, so the parameters are shown as raw bytes. Supplying an ABI decodes them.\" Directly above it, SELECTOR is an em dash and RAW is `0x`: there is no selector, there are no parameters, and no raw bytes are shown. The Raw (chain-native) block at the foot of the page states `\"bodyRetainedAtCapture\": false` — the input is unavailable because the body was pruned, which is the same fact the page explains carefully twice elsewhere. Here that absence is instead attributed to BlockTracer's ABI holdings and closed with a remedy that cannot succeed. Three of the page's four content sections state the correct permanent reason; this one states a wrong, transient-sounding one, and `RAW 0x` presents unavailable calldata as empty calldata.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/2",
+      "severity": "P2",
+      "location": "Overview grid, DATA row — the first row, against the BLOCK / CANONICAL / FINALITY / COST rows beneath it",
+      "finding": "The DATA row is roughly 260px tall; the four fact rows below it are roughly 40px each. One row is 62% of the card's height and the four values a reader came for occupy the bottom fifth. Row rhythm in the grid is therefore set by a nine-line paragraph in an unrelated cell, and the label column runs DATA … then 200px of empty grey before BLOCK, so the label spine is unscannable exactly where scanning is the point. The expectation asks whether the marker lands before a reader concludes anything about the empty sections; it does, but it lands by displacing the metadata the same expectation calls 'not a consolation prize'.",
+      "criterion": "A6"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/3",
+      "severity": "P2",
+      "location": "page content column — Overview / Decoded input grids end at x≈1416, every notice card (Not observable, ABI note, Events, Internal calls, State changes) ends at x≈1203, in a 1920px viewport",
+      "finding": "The widest thing on the page is 911px and most of it is 697px, so 47% of a wide viewport carries all the content and the remainder is canvas on both sides. Nothing is dropped for the viewport and nothing is gained by it: the page is the mobile stack at desktop size. At this width the capture narrative and the four facts could sit side by side instead of the narrative pushing the facts 260px down, and the five single-paragraph notice cards each consume a full band of vertical space to carry two lines of text.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/4",
+      "severity": "P2",
+      "location": "Overview grid, COST · TRANSACTIONFEE row — the value `0x00000000000000000000000000000000000000000000000175c1a29c1f97278 mana (FeeJuice)`",
+      "finding": "A 64-digit hex word is printed in full to carry roughly 15 significant characters; the first 46 are zeros. There is no magnitude a reader can take from it at a glance and no comparison it supports against any other transaction, which is what a cost column is for. The label is the chain's camelCase field name uppercased and wrapped onto two lines with the separator dangling at the end of the first (\"COST ·\" / \"TRANSACTIONFEE\"), so the least legible value on the page also has the least legible label.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/5",
+      "severity": "P3",
+      "location": "Overview grid, DATA row prose vs the Not observable card above it",
+      "finding": "The pruning fact is told twice: the notice card explains that getTxByHash prunes at the finalized tip (block 67119) and this transaction settled at 67113, and the DATA paragraph roughly 350px below restates that transactions below 67119 have had their bodies pruned. Between the two restatements the DATA paragraph adds five sentences of capture statistics — 400 blocks enumerated, 20 transactions, a longest run of 309 empty blocks, advice about needing a follower that watches the tip — which are facts about the capture run, not about this transaction, and they are the densest text on a page whose reader is here for one hash.",
+      "criterion": "A1"
+    }
+  ]
+}
+```

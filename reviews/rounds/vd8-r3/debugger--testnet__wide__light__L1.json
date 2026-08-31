@@ -1,0 +1,80 @@
+Expected elements: present
+
+Identity bar carries the truncated hash, `Succeeded`, `block 63675`, four stepping groups, the `128 / 345` readout and the phase rail, and exits to `aztec-testnet`. There is no band above it, correctly. The provenance marker is the first row of the Transaction pane — `DATA`, a `Real Aztec testnet data` badge, and the capture's own sentences. All three source-less panes explain themselves in their own words; `Supply sources` is present; no file tab, line number or invented name anywhere.
+
+Typographically the page is honest but under-ranked. Its most important claim is typeset exactly like `CANONICAL`: same 10px tracked uppercase label, same small badge, fourth in a run of ten identical rows — nothing in the type says this row is content and the rest is metadata. Worse, the provenance sentences inherit the value column's right alignment, so eleven lines of prose run ragged-left at a ~28-character measure: the one paragraph a reader must actually read is the hardest to read on the page. The same collapse hits section vs row (`DECODED INPUT` and `RAW (CHAIN-NATIVE)` are styled as `SELECTOR` is), and the faithfulness evidence sits undifferentiated inside the raw JSON. Truncation strategy is applied in the identity bar (`0x0858d6…7fb2`) and abandoned in the pane, where a 64-character zero-padded fee prints in full across three lines.
+
+Highest-priority fixes: left-align the provenance paragraph and widen its measure; give the `DATA` row and the section headers a second type level.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L1/1",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row — the provenance sentences beginning \"Captured from aztec-testnet.drpc.org\"",
+      "finding": "Eleven lines of running prose are set right-aligned, inheriting the value column's alignment from the label/value rows above. Ragged-left prose gives the eye no fixed return edge, and the measure is roughly 28 characters, so the sentence that carries the page's central claim breaks mid-phrase eleven times (\"(50\" / \"blocks) at that moment. 6\" / \"transaction(s) inside it were\"). This is the one paragraph in the pane a reader is meant to read end to end and it is the least readable text on the page.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/2",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row label and badge, vs the BLOCK / CANONICAL / FINALITY rows beneath it",
+      "finding": "The provenance row has no typographic promotion. Its label is the same ~10px tracked uppercase grey as CANONICAL and FINALITY, its badge is the same small pill as `Yes` and `Pending`, and it sits fourth in a run of ten visually identical rows. Graded as content rather than decoration, the type ranks it as one metadata row among ten — a reader scanning the pane without reading will not learn that this is the row telling them the data is real.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/3",
+      "severity": "P2",
+      "location": "Transaction pane, COST · TRANSACTIONFEE row",
+      "finding": "The 32-byte fee prints as 64 hex characters in full, wrapping across three right-aligned monospace lines that are almost entirely zeros, with the unit `mana (FeeJuice)` orphaned on a fourth line at a smaller grey size. No truncation is applied at a meaningful boundary and no digit grouping separates the leading zero run from the significant tail `185cfcc84d2f103f`, even though the identity bar 40px above demonstrates the product's own truncation idiom (`0x0858d6…7fb2`). Four lines of type are spent on one number whose informative part is sixteen characters.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/4",
+      "severity": "P2",
+      "location": "Transaction pane — `DECODED INPUT` and `RAW (CHAIN-NATIVE)` against the row labels `SELECTOR`, `RAW`, `BLOCK`, `EXECUTIONS`",
+      "finding": "Section headers and row labels share one treatment (same size, weight, tracking, case and colour), so DECODED INPUT reads as a row whose value is missing rather than as a heading owning SELECTOR and RAW beneath it. The pane's ten rows are therefore one flat list at one level, when the content is two levels deep. EXECUTIONS has the same ambiguity — it looks like a label whose value is the `public` line below rather than beside it.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/5",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) block at the pane's foot",
+      "finding": "The replay telemetry — the instruction count and the matched/mismatched effect counts that are the evidence this session reproduced the chain — is rendered only as more keys inside the raw JSON payload, typeset identically to `l2BlockNumber` and `revertCode` and beginning below the viewport edge. The load-bearing claim of the whole view gets no type-level status: it is the same 12px mono at the same weight as the payload's bookkeeping fields.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/6",
+      "severity": "P3",
+      "location": "Code pane body copy vs Transaction pane body copy (the DATA sentences and \"This selector is not in any ABI BlockTracer holds…\")",
+      "finding": "The same role — an explanatory sentence written by the product about a limitation — is set at two sizes and two leadings: roughly 15px with open leading in Code, Call Trace and Values, and roughly 13px in the Transaction pane. One role should have one size; as set, the Code pane's explanation reads a full step more important than the provenance sentences.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/7",
+      "severity": "P3",
+      "location": "Transaction pane, full hash line beneath the `Succeeded` badge",
+      "finding": "The full 64-character hash wraps at an arbitrary column across two lines with no byte grouping and no indent on the continuation line, directly beneath a truncated form of the same value in the row above. Two renderings of one hash sit four lines apart, and the complete one is the harder of the two to read back against a node.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/8",
+      "severity": "P3",
+      "location": "Code pane, the two paragraphs above `Supply sources`",
+      "finding": "The explanation is set at a marketing measure — roughly 575px, 70+ characters, with generous leading — inside a tool pane whose neighbour 600px to the right is 12px monospace at tight leading. It reads well on its own but it is the explorer register's body typography sitting in the debugger's largest pane, which weakens the continuity with the desktop app that this register is judged on.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

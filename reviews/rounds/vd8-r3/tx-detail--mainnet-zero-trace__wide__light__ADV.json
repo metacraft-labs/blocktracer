@@ -1,0 +1,29 @@
+Expected elements: present
+
+The provenance marker is present as the `Data` row at the head of the Overview grid, badge and capture sentences together, and it is the only one of the three forms on the page — the absent band is the change, not a gap. `Not observable`, the published pruning reason, the permanence claim, the full hash, the outcome badge, the four facts, all content sections in the permanent tense, nav, footer, disclosure and provenance strip are present, and nothing forbidden appears.
+
+The single weakest element is the note card in the **Decoded input** section, immediately below the `SELECTOR / RAW` grid. It reads: "This selector is not in any ABI BlockTracer holds, so the parameters are shown as raw bytes. Supplying an ABI decodes them." The two rows it explains say `SELECTOR —` and `RAW 0x`. There is no selector. There are no parameters. No raw bytes are shown. And the page's own raw block, 1,300px lower, gives the real reason: `"bodyRetainedAtCapture": false`. The body was pruned — the same fact this page states twice, carefully, elsewhere.
+
+It is the weakest because it is the only element on a page built entirely to be honest about what cannot be known that says something untrue, blames this product's ABI holdings for the chain's retention policy, and hands the reader an action ("Supplying an ABI decodes them") that cannot work. Every other empty section on this page names its true, permanent reason. This one does not.
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/ADV/1",
+      "severity": "P1",
+      "location": "Decoded input section — the bordered note card directly beneath the SELECTOR / RAW two-row grid",
+      "finding": "The note asserts a state that is not the one rendered 40px above it. `SELECTOR` is an em dash and `RAW` is `0x`, yet the note says the selector is unknown to BlockTracer's ABIs, that the parameters are therefore shown as raw bytes, and that supplying an ABI would decode them. No selector exists, no parameters are shown, no bytes are present, and no ABI can decode a body the chain no longer serves — the page's own Raw (chain-native) block states `\"bodyRetainedAtCapture\": false`. This is the pruned-body absence, presented as a missing-ABI absence, with an offered remedy that cannot succeed; `RAW 0x` compounds it by rendering unavailable calldata as empty calldata. On a page whose entire purpose is to distinguish 'permanently unknowable' from 'not fetched yet' — and which does that correctly in the Not observable card, Events, Internal calls and State changes — this is the one paragraph that misinforms, and it is the weakest thing on the page for exactly that reason.",
+      "criterion": "A9"
+    }
+  ]
+}
+```

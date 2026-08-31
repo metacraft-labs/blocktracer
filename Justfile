@@ -188,6 +188,20 @@ review-prompt args="":
 review-ingest args="":
     node tools/capture/ingest-review.mjs {{args}}
 
+# Does every ledger entry still match the report it was built from?
+#
+# `imageSha256` establishes that six reviewers looked at the same pixels;
+# nothing established that the LEDGER still matches the round file it claims to
+# have been built from — and that gap is not hypothetical. A reviewer agent that
+# stalled and was relaunched finished 68 minutes later and rewrote its round
+# file after the ingest had run, leaving a committed ledger entry and a file on
+# disk that disagreed while every check in the pipeline stayed green: the gate
+# re-hashes the IMAGE, and ingest had already finished.
+#
+# Reports NO VERDICT rather than PASS over a ledger with nothing to check.
+review-verify:
+    node tools/capture/ingest-review.mjs --verify
+
 # Proof that the ingest refuses — one case per rule, plus a base case that must
 # be ACCEPTED so the file cannot pass by rejecting everything.
 review-ingest-selftest:
@@ -234,6 +248,20 @@ design-explain:
 # Regenerate the implemented-binding table in the divergence document.
 design-bindings:
     node tools/design/check-tokens.mjs --write-bindings
+
+# What each STALE `ledger@<revision>:<id>` citation points at, then and now.
+#
+# B4 says whether a citation resolves; it cannot say whether the finding at that
+# id still MEANS what the comment citing it says. That is the difference between
+# a revision bump you may fix by re-stamping and one you may not: a round that
+# REPLACES reviews on a triple leaves the ids intact and the meanings different,
+# so a bulk re-stamp would make every one of them resolve to a finding it was
+# never written about — and B4 would pass over all of them.
+#
+# Prints the finding as it stood at the cited revision beside the finding at
+# that id now, and classifies each site SAFE-RESTAMP or MEANING-CHANGED.
+design-citations:
+    node tools/design/citation-evidence.mjs
 
 # Proof that the token lint DECIDES: every rule driven against the real product
 # source carrying one deliberate violation, restored byte-identically after.

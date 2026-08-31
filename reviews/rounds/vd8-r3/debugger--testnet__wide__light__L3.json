@@ -1,0 +1,73 @@
+Expected elements: present
+
+Identity bar with the real hash, `block 63675` and an exit to `aztec-testnet`; stepping groups, `128 / 345`, phase rail; no band above the bar; the provenance marker is the Transaction pane's first row — `DATA`, a green-toned `Real Aztec testnet data` badge, the capture's own sentences. Code, Call Trace and Values each explain the missing symbols; `Supply sources` is present; no fixture content, no invented source, no engine-failure banner.
+
+The badge's tone is affirmative and does not contradict its label, so it is not a presence failure — but it is the same green pill as `Succeeded` and `Trace ready`, so one hue now carries three unrelated meanings (execution outcome, replay readiness, data provenance) within 500px, and the provenance claim is coloured as a status. Beneath that, this light theme reads as inherited rather than designed for the register: canvas, pane body and pane header sit within a few percent of white and are separated only by hairlines, so across two mostly empty panes the structure nearly disappears and the emptiness has no tone distinguishing "nothing to show" from "not yet painted" — with `Engine loading` visible in the bar, that ambiguity is live. Three different blues do loading and navigation work in one bar, and the raw JSON block is the only tinted surface yet carries no token colour at all.
+
+Highest-priority fixes: give provenance its own tone, distinct from status green; separate canvas from pane surface.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L3/1",
+      "severity": "P2",
+      "location": "Transaction pane — `Real Aztec testnet data` badge (DATA row), `Succeeded` badge (hash row) and `Trace ready` badge (EXECUTIONS row); plus `Succeeded` in the identity bar",
+      "finding": "One green, three meanings, all visible at once in a 390px column: the transaction's execution outcome, the readiness of a trace, and the provenance of the data. The provenance badge additionally borrows the exact pill vocabulary of the status chips — same pale green fill, same green border, same size — so the page's central claim is coloured as a status value rather than as a claim about the data's origin. The tone is affirmative and so does not contradict the label, but a reader cannot learn from colour that this badge is answering a different question from the two around it.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/2",
+      "severity": "P2",
+      "location": "surface levels across the whole page — canvas behind the panes, pane bodies, and the CODE / CALL TRACE / TRANSACTION / VALUES header strips",
+      "finding": "Canvas, pane body and pane header are all within a few percent of white, and the only separation is a light-grey hairline. Over the Code pane's ~720px of empty area and the Call Trace pane's ~500px, the boundary between one pane and the next is a single 1px line on a field of near-identical whites, so the pane structure — the thing this register is built on — is the weakest visual signal on the page. A designed light theme for this register would give the pane body one step of separation from the canvas and the header strip a second, as the desktop app's surfaces do.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/3",
+      "severity": "P2",
+      "location": "Transaction pane row labels (DATA, BLOCK, CANONICAL, FINALITY, COST · TRANSACTIONFEE, EXECUTIONS, SELECTOR, RAW) and the `mana (FeeJuice)` unit line",
+      "finding": "The label column and the fee's unit line are a light grey on white at roughly 10px. At that size the contrast reads at or below the floor — the labels are visibly fainter than the values they name, and `mana (FeeJuice)` is the faintest text on the page while being the only thing that says what the 64-digit number is. This is the pane's only wayfinding and it is the lowest-emphasis text in it.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/4",
+      "severity": "P3",
+      "location": "identity bar — progress bar fill (x≈775–865), active phase chip `FETCHING` (x≈1320–1400), and the link colours on `aztec-testnet` and `63675:0`",
+      "finding": "Three distinct blues appear in one bar and one pane: a dark teal-navy for the progress fill, a mid blue on pale blue for the active phase, and a brighter link blue. The first two express the same concept — how far the engine has loaded — in different hues 450px apart, and neither matches the accent used for navigation. Whether these are three roles or one hue family drifting is not readable from the page.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/5",
+      "severity": "P3",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) block (y≈945 to the viewport edge)",
+      "finding": "This is the only tinted surface in the pane — a pale grey-blue panel — yet its content is rendered in a single near-black with no token colour: keys, numbers and booleans (`63675`, `0`, `true`) are indistinguishable by hue. In the register whose reference is the CodeTracer editor, a chain-native payload is the one place a reader scans for a value's type, and the palette that exists for exactly that is not applied.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/6",
+      "severity": "P3",
+      "location": "Code pane below `Supply sources`, and Call Trace / Values panes below their explanatory lines",
+      "finding": "The empty regions are the same flat white as the populated ones, so nothing tonal marks them as deliberately empty. With `Engine loading — 18 MB` and an active `FETCHING` phase in the bar directly above, a plain white void is exactly what a not-yet-painted pane would look like, and the visual treatment therefore undercuts sentences that say the emptiness is the chain's limitation and final. A faint recessed tone for the region — the desktop app's treatment for an inert pane — would make the emptiness read as an answer.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/7",
+      "severity": "P3",
+      "location": "Transaction pane — `Yes` (CANONICAL) and `Pending` (FINALITY) badges",
+      "finding": "Both render as the same neutral grey pill, so an established affirmative fact and a state that has not yet resolved share one tone while a resolved outcome two rows above gets green. Neutral for `Pending` is right; neutral for `Yes` leaves the badge family with no legible rule about when tone is applied.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

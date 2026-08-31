@@ -1,0 +1,82 @@
+Expected elements: present
+
+Identity bar (exit to `aztec`, truncated hash, `Partial`, `block 101`, both stepping directions, scrubber, `128 / 1315`, phase rail, two right-hand actions), `CODE` with the position on line 32, `CALL TRACE | EVENT LOG` as one tab strip with Call Trace open, `VALUES` below it as its own pane, and the `TRANSACTION` pane whose first labelled row is `DATA` with the `Synthetic demo data` badge. No band above the bar, no full-width pane row, no spinner, no empty pane.
+
+The three-column split holds and the three pane headers share a baseline, which is the strongest structural thing here. Below that the page is unbalanced in a specific way: the widest column is the one clipping content and the narrower ones are the ones with slack. Three code lines (40, 48, 53) are cut mid-identifier at the Code pane's right edge with no scrollbar or wrap marker, while the middle column carries roughly 470px of vertical void — about 340px of it under `By call order.` in a 600px tabbed region.
+
+The identity bar is the other weak structure. The gaps inside the stepping cluster are about the size of the gaps between the status string, the position readout and the phase rail, so proximity does no grouping; and a ~320px void sits between the phase rail and the right-hand actions, next to a 260px scrubber that would use it.
+
+Fixes: give the Code pane horizontal overflow affordance; spend the bar's right-hand void on the scrubber.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L2/1",
+      "severity": "P2",
+      "location": "Code pane, right edge (~x=917) at lines 40, 48 and 53",
+      "finding": "Three source lines are cut at the pane's right edge mid-identifier — line 40 ends at \"shield_regen_perce\", line 53 ends at \"damage: Field, r\". There is no horizontal scrollbar, no fade, no wrap glyph and no ellipsis, so nothing on screen says the line continues. This is the widest pane on the page (roughly 47% of the viewport) and it is the only one whose primary content is being cut, while the two narrower columns beside it both have vertical slack. Either the pane needs a visible overflow affordance or the column split needs to move width toward it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/2",
+      "severity": "P2",
+      "location": "Call Trace tabbed region, area below the \"By call order. / Self cost\" footer",
+      "finding": "The tabbed region runs about 600px tall. Its content — header row, seven frames, footer — ends roughly 250px in, leaving about 340px (≈57% of the region) empty. The Values pane below it holds ten rows and ends about 125px short of the viewport, so the column as a whole carries roughly 470px of void out of about 1010px. Nothing in either pane is scrolled, so no reallocation between them recovers anything; the measurement the brief asks for is that at this fixture volume the whole middle column is under half full, and the height it is holding is height the Code pane cannot borrow because it is in another column.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/dark/L2/3",
+      "severity": "P2",
+      "location": "Identity bar, from the stepping cluster (~x=375) to the phase rail (~x=1478)",
+      "finding": "The bar reads as a strip of objects rather than as grouped clusters. The gaps separating the three stepping sub-groups (◀▶ / |← →| / |←← →→|) are close in size to the gap between the last stepping group and the scrubber, and to the gaps between \"Engine loading — 18 MB\", the \"128 / 1315\" readout and the FETCHING·OPENING·POSITIONING rail. So a status string, a position readout and a phase rail — three unrelated objects — sit at the same proximity as two halves of one control cluster. The only gap that does group anything is the ~320px void before the right-hand actions.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/dark/L2/4",
+      "severity": "P2",
+      "location": "Identity bar, scrubber (~x=675–935) and the empty span from the phase rail to the NOIR badge (~x=1490–1795)",
+      "finding": "The scrubber is about 260px wide and expresses a position of 128 in 1315 steps — roughly five steps per pixel, and a filled portion about 22px long. Immediately to its right the bar holds about 320px of nothing before the right-hand actions. The one element on the page whose usefulness scales directly with its length is the shortest thing in its row, and the dead space that would more than double it is nine pixels of gap away in the same container.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/dark/L2/5",
+      "severity": "P2",
+      "location": "Transaction pane, label/value grid — DATA, EXECUTIONS and SELECTOR rows compared with BLOCK, CANONICAL, FINALITY",
+      "finding": "One grid runs three alignment regimes. Short values (Yes, Safe, 101:0, 88000 / 200000) are right-flush to the pane edge. The DATA provenance paragraph is also right-flush, so its eight lines are ragged on the left. But the EXECUTIONS note and the SELECTOR note break out of the value column entirely and set flush-left from the label column's own left edge, and the `private` / `public` sub-rows put their badges at a third x position that matches neither the label edge nor the value edge. Scanning the pane top to bottom, the reader's eye has no stable edge to return to.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/6",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) code block at the bottom of the pane",
+      "finding": "The JSON block's longest line (\"contract\": \"0x1b31c04d5920b0b5936f12…) is cut at the pane's right edge mid-value, and the block also continues below the viewport fold. Neither overflow direction has an affordance — no scrollbar, no fade, no wrap. It is the second instance of the same pattern as the Code pane, and here the clipped content is a hash, where a cut with no ellipsis convention is indistinguishable from a value that simply ends.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/7",
+      "severity": "P3",
+      "location": "Code pane, left rail at the pane edge (~x=8) versus the branch glyphs at ~x=78, lines 29 and 32",
+      "finding": "Each branch-arm mark is drawn as two pieces — a short rail flush against the pane's outer edge and a glyph in the gutter — with the right-aligned line number sitting between them. The two halves of one signal are about 70px apart with an unrelated element in the gap, so the rail reads as pane furniture rather than as part of the mark it belongs to. Moving the rail inboard of the line number, or dropping it in favour of a heavier gutter glyph, would make the mark one object.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L2/8",
+      "severity": "P3",
+      "location": "Transaction pane, FEE PAYER and TARGET rows",
+      "finding": "Most rows in the pane sit on an even ~30px rhythm (BLOCK, CANONICAL, FINALITY). FEE PAYER and TARGET each wrap their address onto a second line and take roughly 50px, so the rhythm breaks twice in the middle of the list and then resumes. Because the wrap is right-aligned, the second line starts at an unpredictable x, which is where the even-rhythm scan visibly stalls.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

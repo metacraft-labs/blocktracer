@@ -1,0 +1,52 @@
+Expected elements: present
+
+Identity bar: truncated hash, `Succeeded`, `block 63675`, both stepping directions grouped, `128 / 345`, the named phase rail, and an exit to `aztec-testnet`. Provenance is the first row of the Transaction pane — `DATA`, an affirmative `Real Aztec testnet data` badge toned like `Succeeded` and `Trace ready`, then the capture's endpoint, moment and replay window. No band above the identity bar. Code, Call Trace and Values each explain the absent symbols in their own words; `Supply sources` present. No invented source, no fixture content, no engine banner.
+
+The copy is the strongest thing here. All three panes put the limitation on the chain, not on the product — bytecode without debug symbols — and none of them apologises or renders as an error. The band's removal is a clear register win: the shell is now identity bar plus panes, exactly the desktop vocabulary, with no full-width interruption. What it did not fix is the pane interiors. The explanations are set as web-register paragraphs at a ~590px measure, top-left of otherwise empty panes, with no empty-state treatment; the shell reads as the tool and the pane contents read as a document dropped into it.
+
+Highest-priority fixes: give the source-starved panes a designed empty state in the desktop idiom rather than free prose; rename `COST · TRANSACTIONFEE` from the product vocabulary, not the adapter field.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L5/1",
+      "severity": "P2",
+      "location": "the three source-starved pane interiors: Code pane paragraph at y≈120-250, Call Trace paragraph at y≈115-155, Values paragraph at y≈715-755",
+      "finding": "The explanations are correct content in the wrong register. Each is set as flowing body prose at roughly a 590px measure, flush to the top-left of an otherwise empty pane, with no framing of any kind — no muted block, no rule, no centring, no icon, nothing that says `this pane has a state`. That is the explorer register's treatment of a paragraph, and the panes it sits in are 910x1010 and 600x580. A CodeTracer desktop user reads a pane whose entire content is a left-aligned essay as an unstyled or failed render, not as a designed empty state; the desktop idiom for `this pane cannot fill` is compact, muted and visibly a status, not a document. The shell around it is right — slim identity bar, uppercase pane headers, grouped stepping controls, underline tabs on CALL TRACE / EVENT LOG — which makes the crossing inside the panes read as unintentional rather than deliberate. The fix is presentation, not content: keep every sentence, give it the tool's empty-state treatment.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/2",
+      "severity": "P2",
+      "location": "Transaction pane, the `COST · TRANSACTIONFEE` label in the label column, between FINALITY and EXECUTIONS at y≈640",
+      "finding": "The label is the adapter's camelCase field name uppercased into the unbroken token `TRANSACTIONFEE`, sitting in a column whose other entries — BLOCK, CANONICAL, FINALITY, EXECUTIONS, DECODED INPUT, SELECTOR — are all product English. Copy is a design property in this product and this is a vocabulary leak from the data layer onto the surface. It is more pointed here than it would be elsewhere, because the same pane already has a sanctioned home for chain-native identifiers: the `RAW (CHAIN-NATIVE)` block at the pane's foot, where `l2BlockNumber`, `txIndexInBlock` and `bodyRetainedAtCapture` are camelCase precisely because they are the chain's own field names and are labelled as such. `TRANSACTIONFEE` has escaped that block into the label column, so the one boundary the pane draws between product vocabulary and adapter vocabulary is broken by a single row.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/3",
+      "severity": "P3",
+      "location": "Transaction pane, the provenance row's label `DATA` at y≈185",
+      "finding": "With `debugLayout` dropping the nav and the footer, this row is now the only place on the page that answers whose data the reader is looking at, and its label is the most generic word in the pane. `BLOCK`, `CANONICAL`, `FINALITY` and `SELECTOR` each name the question their value answers; `DATA` does not — the badge beside it carries the whole burden of saying that this is a real testnet capture. The row is not too quiet in size or tone — it is first in the pane, the badge is affirmative and matches `Succeeded` and `Trace ready`, and the capture's own sentences follow it — but a label such as `SOURCE` or `PROVENANCE` would make it findable by a reader scanning the label column for the question rather than noticing the badge.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/4",
+      "severity": "P3",
+      "location": "Code pane, the standalone line `Stepping continues at instruction level.` at y≈240, one paragraph gap below the main explanation",
+      "finding": "The main paragraph already ends `Stepping is complete; only the text is missing.` The standalone line restates it in weaker words a paragraph later, so the pane's last word on the subject is its least specific one. Separated by a full paragraph gap and set at the same size and weight as the paragraph above, it reads as a second thought appended to a finished statement rather than as a designed two-part message. Either make it a distinct register — a quiet status line under the explanation, tied to the `Supply sources` affordance below it — or drop it, since the sentence it repeats is stronger.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

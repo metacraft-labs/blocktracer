@@ -1,0 +1,61 @@
+Expected elements: MISSING — transaction age; transaction type in the overview grid.
+
+Two Must-show items are absent, so those are findings #1 and #2, both P1, and the rating is capped at 4. Nothing anywhere on the page states when this transaction happened: the hero carries the eyebrow, truncated hash, `Succeeded` badge and full hash, and the Overview grid runs DATA / BLOCK / CANONICAL / FINALITY / FEE PAYER / TARGET / COST·MANA. No age, no timestamp. Separately, transaction type is not a labelled grid row, though the raw block prints `"kind": "public-avm-call"` — the reader must decode the JSON to learn what kind of transaction this is.
+
+Everything else required is present and I checked provenance independently: the marker is the `Data` row at the top of the facts grid, badge `Synthetic demo data` plus the producer's sentences, exactly one form, no band and none expected. Nav, footer, disclosure and the three drawn marks are all there.
+
+On density: the facts grid delivers six values, so a 1920 viewport holds a page that is mostly canvas and prose. Events / Internal calls / State changes spend roughly 500 px of scroll on three sentences, one of which the trace card already printed. The `Data` row's four-line paragraph is 3.5x the height of every other row, so the grid opens on prose.
+
+Fixes: put age in the hero beside the finality state, and give transaction type its own grid row.
+
+Rating: 4/10
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "missing",
+  "missing": [
+    "Hero: age — no timestamp or relative age appears anywhere on the page",
+    "Overview grid: transaction type — no labelled row, though the raw JSON carries \"kind\": \"public-avm-call\""
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/L4/1",
+      "severity": "P1",
+      "location": "hero, between the `Succeeded` badge and the full hash line, and the Overview grid",
+      "finding": "The transaction's age is absent from the whole page. The hero shows only eyebrow, truncated hash, status badge and full hash; the Overview grid's seven rows are DATA, BLOCK, CANONICAL, FINALITY, FEE PAYER, TARGET, COST·MANA. There is no timestamp and no relative age in either place, so nothing on this page says when the transaction happened — the one fact a reader uses to decide whether `Pending` finality is a second old or a week old."
+    },
+    {
+      "id": "tx-detail/wide/light/L4/2",
+      "severity": "P1",
+      "location": "Overview grid, missing row (would sit near BLOCK / COST·MANA)",
+      "finding": "Transaction type is not a labelled row in the Overview grid. The value exists on the page — the Raw (chain-native) block at the foot prints \"kind\": \"public-avm-call\" — so the page holds the fact but only in the preformatted region a reader is least likely to parse. The labelled-facts surface is the place the expectation puts it."
+    },
+    {
+      "id": "tx-detail/wide/light/L4/3",
+      "severity": "P2",
+      "location": "Events, Internal calls and State changes sections, the vertical run below the Decoded input note",
+      "finding": "Three consecutive sections each spend an H2 plus a full-width bordered card on a single two-line sentence, and the run costs roughly 500 px of scroll — about half a viewport at 1080 — to deliver 46 words. One of those sentences, 'Internal calls come from the execution trace', restates a line already printed inside the trace card near the top of the page, so the reader scrolls half a screen to be told something the page told them at the fold. The statements are required and correct; the space they are given is not proportional to what they carry, and the identical card shape three times makes the run read as one repeated block rather than three sections.",
+      "criterion": "A1"
+    },
+    {
+      "id": "tx-detail/wide/light/L4/4",
+      "severity": "P3",
+      "location": "Overview grid, DATA row (first row)",
+      "finding": "The DATA row is a badge plus four lines of prose set at the same size as the value column, making it roughly 3.5x the height of every other row in the grid. The eye entering 'Overview' meets a paragraph, and the six scannable facts begin about 130 px into the grid. The provenance sentences are content and belong on the page; setting them at value-column size inside the facts grid is what breaks the grid's row rhythm at its head, and a smaller secondary size under the badge would keep both the claim and the scan."
+    },
+    {
+      "id": "tx-detail/wide/light/L4/5",
+      "severity": "P3",
+      "location": "hero, H1 and the monospace line directly beneath it",
+      "finding": "The same identifier is printed twice about 30 px apart: `0x27a6…9a6c` as the H1 and the full 42-character hash immediately below it. At this viewport the content column is roughly 910 px wide and the full hash would fit as the heading, so the truncated form buys nothing here and costs a line of vertical in the densest part of the page. Truncation earns its place in a table row; in a hero that also prints the full value it is a duplicate.",
+      "criterion": "A5"
+    }
+  ]
+}
+```

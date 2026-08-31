@@ -55,7 +55,7 @@
 
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
+import { join, resolve, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { VIEWS_BY_ID, SIZES, THEMES, imageName } from "./views.mjs";
@@ -172,6 +172,21 @@ function check(r, path) {
     theme: r.theme,
     image: expectImage,
     imageSha256: sha256(abs),
+    // THE REPORT'S OWN HASH, and the path it was ingested from.
+    //
+    // `imageSha256` establishes that six reviewers looked at the same pixels;
+    // nothing established that the ledger entry still matches the report it
+    // claims to have been built from. That gap is not hypothetical: a reviewer
+    // agent that stalled and was relaunched finished 68 minutes later and
+    // rewrote its round file AFTER the ingest had run, leaving a committed
+    // ledger entry and a round file on disk that disagreed — and every check in
+    // the pipeline stayed green, because `gate.mjs` re-hashes the IMAGE and
+    // ingest had already finished. The round README's rule that a ledger entry
+    // no report accounts for is a defect had no way to notice its own converse.
+    //
+    // `--verify` below re-hashes these and says so.
+    reportPath: relative(ROOT, path),
+    reportSha256: sha256(path),
     reviewer: r.reviewer,
     expectedElements: r.expectedElements,
     missing: r.missing ?? [],
@@ -186,11 +201,77 @@ function check(r, path) {
   };
 }
 
+function verify(ledgerPath) {
+  // Does every ledger entry still match the report it was built from?
+  //
+  // Three verdicts, not two — a missing report and a CHANGED report are
+  // different defects and only one of them is someone overwriting evidence.
+  // A pre-`reportSha256` entry is a third: it cannot be checked and must not be
+  // reported as clean, for the reason `gate.mjs` refuses to invent a G2 verdict
+  // for a review that carries no image hash.
+  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  const rows = ledger.reviews ?? [];
+  let checked = 0, unverifiable = 0;
+  const missing = [], changed = [];
+  for (const r of rows) {
+    if (!r.reportSha256 || !r.reportPath) { unverifiable++; continue; }
+    const abs = join(ROOT, r.reportPath);
+    if (!existsSync(abs)) { missing.push(`${r.view}/${r.size}/${r.theme}/${r.reviewer} -> ${r.reportPath}`); continue; }
+    checked++;
+    const now = sha256(abs);
+    if (now !== r.reportSha256) {
+      changed.push(`${r.view}/${r.size}/${r.theme}/${r.reviewer} -> ${r.reportPath}\n      ingested ${r.reportSha256.slice(0, 12)}  on disk ${now.slice(0, 12)}`);
+    }
+  }
+  console.log(`ledger:        ${ledgerPath}`);
+  console.log(`revision:      ${ledger.ledgerRevision}`);
+  console.log(`reviews:       ${rows.length}`);
+  console.log(`verified:      ${checked}`);
+  if (unverifiable) {
+    console.log(`unverifiable:  ${unverifiable} (ingested before report hashing; NOT a pass)`);
+  }
+  if (missing.length) {
+    console.log(`\nREPORT FILE MISSING (${missing.length}):`);
+    for (const m of missing) console.log(`  - ${m}`);
+  }
+  if (changed.length) {
+    console.log(`\nREPORT CHANGED SINCE INGEST (${changed.length}):`);
+    for (const c of changed) console.log(`  - ${c}`);
+    console.log(`\nThe ledger and the round file disagree. The ledger entry is what the`);
+    console.log(`gate decided over; the file is what the tree says it decided over. Restore`);
+    console.log(`the file, or re-ingest so the two agree — do not leave them disagreeing.`);
+  }
+  // A CLEAN SCAN OF NOTHING IS NOT A PASS. The first version of this printed
+  // `PASS — 0 report(s) still hash to what was ingested` over a ledger in which
+  // every entry predated report hashing — universal quantification over an
+  // empty set, which is the cheapest false green there is
+  // (Verification-Harness-Traps §4). The count is asserted, not the emptiness
+  // of the failure lists.
+  const clean = missing.length === 0 && changed.length === 0;
+  if (!clean) {
+    console.log(`\nFAIL — ${missing.length} missing, ${changed.length} changed`);
+    return 1;
+  }
+  if (checked === 0) {
+    console.log(`\nNO VERDICT — nothing in this ledger carries a report hash, so`);
+    console.log(`there is no claim to check. Re-ingest the round to record them.`);
+    return 1;
+  }
+  if (unverifiable) {
+    console.log(`\nPARTIAL — ${checked} report(s) verified, ${unverifiable} unverifiable.`);
+    console.log(`The unverifiable ones are not clean; they are unexamined.`);
+    return 1;
+  }
+  console.log(`\nPASS — all ${checked} report(s) still hash to what was ingested`);
+  return 0;
+}
+
 function main(argv) {
   const reports = [];
   const scope = [];
   let revision = null;
   let dryRun = false;
+  let verifyOnly = false;
   let ledgerPath = LEDGER;
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
@@ -206,9 +287,11 @@ function main(argv) {
       case "--gate-scope": scope.push(argv[++i]); break;
       case "--revision": revision = argv[++i]; break;
       case "--dry-run": dryRun = true; break;
+      case "--verify": verifyOnly = true; break;
       default: refuse(`unknown argument: ${argv[i]}`);
     }
   }
+  if (verifyOnly) return verify(ledgerPath);
   if (!reports.length) refuse("no reports given (--report <file> or --dir <dir>)");
 
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
