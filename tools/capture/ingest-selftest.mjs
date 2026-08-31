@@ -392,6 +392,32 @@ function main() {
         rmSync(pC);
       }
 
+      // 3b. A report whose SLOT is held by a later round's file is SUPERSEDED,
+      //     not un-ingested, and must not fail. Without this the check goes red
+      //     on every completed round the moment the next one re-reviews one of
+      //     its triples — `vd9-r1` went clean -> "12 of 42 unaccounted for" for
+      //     exactly that reason — and a check that breaks whenever the campaign
+      //     progresses is one people learn to skip.
+      {
+        const rD = base({ reviewer: "L5" });
+        const pD = write("older__L5.json", rD);
+        // The later round's file must EXIST, because `--verify` runs first and
+        // would otherwise report the ledger's report as missing — a real failure
+        // for a different reason, which would mask what this case is testing.
+        const laterDir = join(dir, "a-later-round");
+        mkdirSync(laterDir, { recursive: true });
+        const pLater = join(laterDir, "newer__L5.json");
+        writeFileSync(pLater, "prose\n\n```json\n" + JSON.stringify(rD, null, 2) + "\n```\n");
+        // The ledger's entry for this triple+lens points at that DIFFERENT file,
+        // as it would after a later round replaced it.
+        const eD = entryFor(pLater, rD);
+        const supLedger = ledgerWith("lg-superseded.json", [entryFor(pA, rA), eD]);
+        const r = verifyRound(supLedger, roundDir);
+        if (r.ok) { console.log("  ✓ a report superseded by a later round passes, and is named as superseded"); pass++; }
+        else { console.log(`  ✗ a superseded report FAILED, which would redden every finished round:\n      ${r.out.trim().split("\n").slice(-6).join("\n      ")}`); fail++; }
+        rmSync(pD);
+      }
+
       // 4. An empty round directory is NO VERDICT, not a pass — the same rule
       //    `--verify` applies to a ledger with nothing to check.
       {

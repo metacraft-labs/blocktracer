@@ -234,13 +234,24 @@ function check(r, path) {
 function verifyRound(ledgerPath, roundDir) {
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   const byPath = new Map();
-  for (const r of ledger.reviews ?? []) if (r.reportPath) byPath.set(r.reportPath, r);
+  // Also indexed by the TRIPLE+LENS a report is for, so a file whose slot in the
+  // ledger is held by a LATER round can be told apart from one nobody ingested.
+  // Without that distinction this check cries wolf on every completed round the
+  // moment the next one lands — `vd9-r1` went from clean to "12 of 42
+  // unaccounted for" purely because `vd9-r2` re-reviewed two of its triples —
+  // and a check that is wrong whenever the campaign makes progress is one people
+  // learn to skip. That is a worse failure than the one it was written to catch.
+  const bySlot = new Map();
+  for (const r of ledger.reviews ?? []) {
+    if (r.reportPath) byPath.set(r.reportPath, r);
+    bySlot.set(`${r.view}/${r.size}/${r.theme}/${r.reviewer}`, r);
+  }
 
   const files = readdirSync(roundDir)
     .filter((f) => f.endsWith(".md") || f.endsWith(".json"))
     .sort();
 
-  const unparseable = [], notIngested = [], countMismatch = [];
+  const unparseable = [], notIngested = [], countMismatch = [], superseded = [];
   let ok = 0;
   for (const f of files) {
     const abs = join(roundDir, f);
@@ -254,9 +265,43 @@ function verifyRound(ledgerPath, roundDir) {
     }
     const entry = byPath.get(rel);
     if (!entry) {
+      const slot = `${block.view}/${block.size}/${block.theme}/${block.reviewer}`;
+      const holder = bySlot.get(slot);
+      if (holder && holder.reportPath && holder.reportPath !== rel) {
+        // The slot is held by a different file, and WHICH WAY ROUND decides
+        // whether this is fine. If the holder is NEWER, this file is a previous
+        // round's report that has since been re-reviewed — the pipeline working,
+        // because the archive is immutable and the ledger holds only the current
+        // round. If the holder is OLDER, this file is a newer report that has
+        // not been ingested yet, which is precisely the gap this check exists to
+        // find and must fail.
+        //
+        // Decided on mtime rather than on the round directory's name: `vd9-r1` <
+        // `vd9-r2` happens to sort correctly today and is a naming convention,
+        // not a guarantee, and this check is the one thing standing between a
+        // silently-dropped review and a green pipeline. It should not rest on a
+        // filename.
+        const holderAbs = join(ROOT, holder.reportPath);
+        let holderNewer = false;
+        try {
+          holderNewer = statSync(holderAbs).mtimeMs >= statSync(abs).mtimeMs;
+        } catch {
+          // The holder's file is gone; `--verify` reports that as MISSING and it
+          // is not this assertion's to double-report. Treat the slot as unheld.
+        }
+        if (holderNewer) {
+          superseded.push(`${rel}\n      -> ${holder.reportPath}`);
+          continue;
+        }
+        notIngested.push(
+          `${rel}\n      parses as ${slot}, and is NEWER than the report the ` +
+          `ledger holds for that slot (${holder.reportPath}) — so this review ` +
+          `has not been ingested, not superseded`);
+        continue;
+      }
       notIngested.push(
-        `${rel}\n      parses as ${block.view}/${block.size}/${block.theme}/${block.reviewer}, ` +
-        `but no ledger entry names it`);
+        `${rel}\n      parses as ${slot}, but no ledger entry names it` +
+        (holder ? ` and nothing holds that slot` : ``));
       continue;
     }
     const nBlock = (block.findings ?? []).length;
@@ -271,6 +316,10 @@ function verifyRound(ledgerPath, roundDir) {
   console.log(`round:         ${relative(ROOT, roundDir)}`);
   console.log(`report files:  ${files.length}`);
   console.log(`in the ledger: ${ok}`);
+  if (superseded.length) {
+    console.log(`superseded:    ${superseded.length} (ingested, then re-reviewed by a later round)`);
+    for (const s of superseded) console.log(`  - ${s}`);
+  }
   if (unparseable.length) {
     console.log(`\nUNPARSEABLE (${unparseable.length}) — a file that is not a report:`);
     for (const u of unparseable) console.log(`  - ${u}`);
@@ -297,7 +346,9 @@ function verifyRound(ledgerPath, roundDir) {
     console.log(`no claim to check.`);
     return 1;
   }
-  console.log(`\nPASS — all ${files.length} report file(s) parse and are in the ledger`);
+  console.log(
+    `\nPASS — all ${files.length} report file(s) parse and are accounted for` +
+    (superseded.length ? ` (${ok} current, ${superseded.length} superseded)` : ``));
   return 0;
 }
 

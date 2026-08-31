@@ -66,7 +66,7 @@
     "round reports FAILED on exactly those two conditions and on nothing else.",
     "That is the honest ceiling of an agent-run round, and it is where VD.2 stops."
   ],
-  "ledgerRevision": "2026-08-31.9",
+  "ledgerRevision": "2026-08-31.10",
   "gateScope": [
     {
       "view": "tx-detail",
@@ -2722,7 +2722,7 @@
       "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
       "imageSha256": "0873bd037c119f3d20fe642157ee7a5498be87fffddf8c3c2bfc97640460da91",
       "reportPath": "reviews/rounds/vd9-r2/tx-detail--mainnet-zero-trace__wide__light__L3.json",
-      "reportSha256": "d069e52e45a32630a1a12f75ecd742311d08ccd9e2d8b1129dc13cb04ee36c21",
+      "reportSha256": "d3931589642dedf5135b5236a6520ba689ff180ce57aa006f8979f5e8aa4fbc7",
       "reviewer": "L3",
       "expectedElements": "forbidden-present",
       "missing": [
