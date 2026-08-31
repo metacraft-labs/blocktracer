@@ -147,7 +147,9 @@ cost-label wrap regression should reproduce there and be measurable, and it is
 the only real-chain subject in the debugger register.
 
 
-## Actual final state — 30 of 42, and the four outstanding triples sit at 4/6
+## (Superseded again — see the last section. Dispatch was retried a third time.)
+
+## Second stall — 30 of 42
 
 Dispatch was retried a second time after capacity recovered, and most of the
 round ran. Thirty reports exist.
@@ -201,3 +203,53 @@ twelve missing reviews — six of them are `debugger--testnet/wide/light`, which
 has not been reviewed at all this round and is the only real-chain subject in the
 debugger register, so the Q9 cost-label wrap regression should be measurable
 there. Ingest each triple only at 6/6.
+
+
+## TRUE FINAL STATE — 35 of 42, five triples ingested
+
+Dispatch was retried a third time and most of the round completed.
+
+INGESTED — five complete triples, all re-reviewed against the CURRENT capture:
+
+  tx-detail/wide/light                      6/6  G1 ok
+  tx-detail--mainnet-zero-trace/wide/light  6/6  G1 FAIL (stale expectation, corrected in 40aa0e0)
+  debugger/wide/light                       6/6  G1 ok
+  debugger/wide/dark                        6/6  G1 ok
+  debugger/laptop/light                     6/6  G1 ok
+
+NOT INGESTED:
+
+  debugger/laptop/dark           L1 L2 L3 L4 L5   (5/6 — ADV never returned)
+  debugger--testnet/wide/light   none             (0/6 — six reviewers dispatched,
+                                                   alive for over an hour, no output)
+
+**G1 6/7, G2 5/7.** Both G2 failures are the two triples above, where the ledger
+still holds vd9-r1's reviews of the pre-fix capture — which `gate.mjs` reports as
+superseded, correctly.
+
+`just review-verify reviews/rounds/vd9-r2` FAILS, naming the five loose
+`laptop/dark` reports. That is the check working and it should stay failing.
+
+## Why it stopped
+
+Not convergence. Subagent throughput collapsed three separate times against a
+rate limit; in the final window eight reviewers were alive and produced nothing
+measurable for over an hour, with individual transcripts reaching 9 MB of image
+analysis. The seven outstanding reviews are a throughput problem, not a decision
+problem.
+
+## To finish — seven reviews, no re-capture
+
+`screenshots/` already matches these subjects (assertion F: 308 compared, 0
+drifted), so dispatch straight into review:
+
+  * `debugger/laptop/dark` ADV — one review completes an ingestable triple.
+  * `debugger--testnet/wide/light` all six lenses. **This is the highest-value
+    gap in the campaign right now.** It is the only real-chain subject in the
+    debugger register, its subject publishes `transactionFee` so the Q9
+    cost-label wrap regression should reproduce and be measurable there, and it
+    is the one view where the Call Trace emptiness was previously measured at
+    91% — a figure now known to be content-shaped (a source-less trace) rather
+    than layout-shaped, and worth confirming against the corrected analysis.
+
+Ingest each triple only at 6/6, then run BOTH directions of `just review-verify`.
