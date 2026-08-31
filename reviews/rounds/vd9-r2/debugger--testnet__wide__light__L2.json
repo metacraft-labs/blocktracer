@@ -1,0 +1,86 @@
+Expected elements: present
+
+Identity bar exits to `aztec-testnet`, carries the real hash and block 63675, both stepping directions, `128 / 345` and the phase rail; the `Data` row with the `Real Aztec testnet data` badge is the first row of the Transaction pane and no band sits above the bar; Code, Call Trace and Values each explain the absent symbols; `Supply sources` present; no invented source.
+
+(a) The fade works. In the Transaction pane the code panel ramps 236→255 across y1052–1074, terminating exactly on the body edge (border y1075) with no unfaded band beneath it — nothing is spent on padding here — and the last JSON line (y1060–1068) renders at ~45% ink versus 36/255 for every line above it. That reads as continuation, not a cut. Not a finding.
+
+(b) Not reproduced on this subject. The label `COST · TRANSACTION FEE` is ONE line (x1542–1695); only the value wraps, to two right-aligned lines at x1906. Row = 46px against 30px (BLOCK, TYPE) and 32px (AGE, CANONICAL, FINALITY): 1.44–1.53x, not 2.2–2.3x. ~70px more pane width unwraps it.
+
+(c) Em dashes at x1896–1905, right-aligned to the value column edge. Correct.
+
+Emptiness, re-measured: Code 12.2% of its 911×980 body used, 765px (78%) empty below the button; Call Trace 5.7% used, 517px (90%) empty; Values 8.6% used, 323px (86%) empty. The Transaction pane is 381px wide and overflows, pushing `effectsMismatched` below the fold.
+
+Fix: move width from Code to Transaction.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L2/1",
+      "severity": "P2",
+      "location": "three-column pane split: Code x5-915, Call Trace/Values x922-1527, Transaction x1534-1914",
+      "finding": "Measured pane bodies at this viewport: Code 911x980px holding a 586x186px content box = 12.2% of its area, 765px (78%) empty below the Supply sources button; Call Trace 606x573px holding 569x35px = 5.7%, 517px (90%) empty; Values 606x374px holding 575x34px = 8.6%, 323px (86%) empty. The three symbol-free panes together offer 1.47M px2 of body area and use 10.1% of it, while the Transaction pane gets 381px of width (20% of the viewport) and overflows its 980px body. The lever is column WIDTH, not the row split: the middle column's prose already spans 569 of its 606px (94%), so narrowing it forces a reflow, whereas the Code pane's paragraph is capped at 578px inside 895px of usable width and has ~317px of dead width that nothing in that pane can grow into. Take the width from Code.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/2",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) code block, bottom of viewport (y856-1074)",
+      "finding": "The replay telemetry that is this view's evidence is split by the fold. `\"instructionsExecuted\": 345` and `\"hydrationRounds\": 6` are visible (the latter already ghosted inside the fade), and `effectsMatched`/`effectsMismatched` fall below y1074. This is B1's named failure exactly: the content the layout holds is scrolled out of sight while three sibling panes stand 78-90% empty. The fade now signals it honestly, so it is no longer a clipping bug, but the strongest claim on the page still costs a scroll. Widening the Transaction pane by ~200px (available from Code, finding 1) puts the mismatch count on screen.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/3",
+      "severity": "P2",
+      "location": "all four pane bodies, gap between the header rule and the first content pixel",
+      "finding": "Four panes, four different body top insets: Code header rule y94, first ink y124 = 29px; Call Trace rule y95, first ink y117 = 21px; Values rule y700, first ink y718 = 17px; Transaction rule y94, Succeeded pill top y99 = 4px. Call Trace and Values render the same explanation component and still differ by 4px. The Transaction pane's 4px reads as the pill colliding with its header while the Code pane's 29px reads as a dropped-out first row. This is not one spacing scale.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/4",
+      "severity": "P3",
+      "location": "Transaction pane, COST · TRANSACTION FEE row (y543-587)",
+      "finding": "Measured, since three lenses reported otherwise: the humanised label occupies ONE line at x1542-1695; the value wraps to two lines, `1755555891986239551` at x1747-1906 and `mana (FeeJuice)` at x1812-1906, both right-aligned to the same x1906 edge as every other value. Row height 46px against 30px for BLOCK and TYPE and 32px for AGE, CANONICAL and FINALITY: 1.44-1.53x, not 2.2-2.3x, and not three lines. The 19-digit figure occupies 160px, exactly the value column's width, so the unit alone is displaced; label 154px + 24px gap + ~255px for value and unit needs 433px against the 364px of content width this pane has, i.e. ~70px more pane width collapses the row back onto the grid. It is a grid break, but a tidy one, and no formatting is broken: no raw 32-byte hex appears on this real-chain subject.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/5",
+      "severity": "P3",
+      "location": "Transaction pane, row separators",
+      "finding": "Two rule conventions in one pane. The DATA/BLOCK/TYPE/AGE/CANONICAL/FINALITY/COST separators (y204, 386, 416, 446, 478, 510, 542, 588) are full-bleed, x1534-1914, ignoring the pane's 8px content padding; the DECODED INPUT sub-rows SELECTOR and RAW (y688, y713) use inset rules at x1542-1906, matching the padding. Those sub-rows also run a 25px pitch against the main grid's 30-32px. The pane therefore contains two grids that differ in both inset and rhythm; pick one.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/6",
+      "severity": "P3",
+      "location": "Code pane, explanation paragraph vs Supply sources button (x13 vs x21)",
+      "finding": "The pane's only control and the pane's only text disagree on the left edge. The `Supply sources` button box starts at x13, aligned with the `CODE` header label at x13 (8px padding, the same 8px used by Call Trace at x931, Values at x930 and Transaction at x1542). The paragraph starts at x21 - an extra 8px indent that makes it the one body text in the layout that is not in the column its own header and button establish.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/7",
+      "severity": "P3",
+      "location": "top edge of the pane row, Call Trace header vs Code and Transaction headers",
+      "finding": "The Call Trace pane's header band is 1px taller than its neighbours' (y69-94 with its rule at y95, against y69-93 with rules at y94 for Code and Transaction), because the active-tab underline is inside the header box. The three pane header rules therefore do not sit on one line across the top of the layout, and the middle pane's body starts 1px lower than the panes either side of it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/8",
+      "severity": "P3",
+      "location": "identity bar vs pane grid, left and right page edges",
+      "finding": "The identity bar spans the full viewport with its content between x25 and x1895, while the pane grid below is inset 4px from the viewport and puts its content between x13 and x1906. The page therefore has two outer margins stacked vertically: the back-arrow sits 12px right of the CODE label beneath it, and the share/download icons stop 11px short of the Transaction pane's value column. Vertical centring inside the bar is clean by comparison - controls, badge, progress meter, phase rail and icons all centre on y31.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

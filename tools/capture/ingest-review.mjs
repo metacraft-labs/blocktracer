@@ -247,8 +247,16 @@ function verifyRound(ledgerPath, roundDir) {
     bySlot.set(`${r.view}/${r.size}/${r.theme}/${r.reviewer}`, r);
   }
 
+  // `README.md` is the round's own record, not a report. It is excluded by NAME
+  // rather than by trying to parse it, because "has no ```json block" is exactly
+  // the signal the unparseable case above is watching for, and a round directory
+  // that documents itself would otherwise fail this check forever — which is the
+  // cry-wolf failure that makes a check ignorable. `ingest --dir` has the same
+  // blind spot and would refuse the README as a malformed report; the exclusion
+  // is here because this is where the whole directory is enumerated.
+  const NOT_A_REPORT = new Set(["README.md"]);
   const files = readdirSync(roundDir)
-    .filter((f) => f.endsWith(".md") || f.endsWith(".json"))
+    .filter((f) => (f.endsWith(".md") || f.endsWith(".json")) && !NOT_A_REPORT.has(f))
     .sort();
 
   const unparseable = [], notIngested = [], countMismatch = [], superseded = [];

@@ -1,0 +1,84 @@
+Expected elements: present
+
+Every must-show item renders and no must-not-show item appears: identity bar with `← aztec-testnet`, `0x0858d6…7fb2`, `Succeeded`, `block 63675`, both-direction stepping, `128 / 345`, phase rail; the `DATA` / `Real Aztec testnet data` provenance row with endpoint, capture moment and replay window; instruction-level explanations in Code, Call Trace and Values in their own words; `Supply sources`. No invented source, no fixture content, no blank pane.
+
+**Cost row measured — the regression is REFUTED here.** Rules bound the row at y=542 and y=588: **46px**. Sibling rows measure 30px (BLOCK, TYPE) and 32px (AGE, CANONICAL, FINALITY). That is **1.53× the 30px text row, 1.44× the 32px badge row** — below the 1.6× baseline the claim cites, not 2.2–2.3×. The label `COST · TRANSACTION FEE` sets on ONE line (x1542–1695, 153px) with a 53px gap before the value; nothing wraps. Two lines total, both in the value column: digits, then `mana (FeeJuice)`. The 380px pane gives the label room the mainnet grid evidently does not.
+
+Also resolved: the fee is a formatted decimal with a unit, not the raw hex the block predicted. The pane fade works — `"hydrationRounds": 6,` washes out and its descenders meet the edge; the pane plainly continues.
+
+Hierarchy is the weak axis. In the Transaction pane the pane title, section headings and field labels share one 9px-cap uppercase level at identical ink, so 14 rows read flat.
+
+Highest-priority fixes: separate section headings from field labels; group `128 / 345` with the stepping controls.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L1/1",
+      "severity": "P2",
+      "location": "Transaction pane (x1534-1914), label column, y76-850",
+      "finding": "Three structural levels share one typographic level. The pane title `TRANSACTION` (cap band y76-84), the section headings `EXECUTIONS` (y596), `DECODED INPUT` (y647) and `RAW (CHAIN-NATIVE)` (y838), and the field labels `BLOCK` (y394), `TYPE`, `AGE`, `CANONICAL`, `FINALITY`, `COST · TRANSACTION FEE`, `SELECTOR`, `RAW` all measure a 9px cap height in uppercase letterspaced sans at the same ink (darkest luminance 86 for every one of them; the pane title is 72). Only the header's grey band distinguishes it; headings and labels are distinguished by nothing at all. The result is that 14 rows read as one flat list and the reader cannot tell which labels open a section and which name a value without reading the words. Give section headings a distinct level - heavier weight, or a rule above, or a step down in size for the field labels.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/2",
+      "severity": "P2",
+      "location": "identity bar, y20-45, `Engine loading — 18 MB  128 / 345` at x1050-1300",
+      "finding": "The position readout is typographically annexed by the engine loader. `128 / 345` sits on the same baseline as `Engine loading — 18 MB`, immediately to its right, at a comparable size, with no label, no divider and no weight break between the two - while the stepping controls it belongs to sit ~260px away at x475-755. Proximity and shared baseline make the phrase read as `Engine loading — 18 MB, 128 / 345`, i.e. 128 of 345 units of loading progress, rather than as instruction 128 of 345. This is the only current-position indicator on a page whose entire claim is that stepping works, and it is the one number a reader is most likely to misparse. Move it into the stepping-control group, or set it apart with a divider and a label.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/3",
+      "severity": "P2",
+      "location": "Transaction pane, `COST · TRANSACTION FEE` row, value line 1 at y550-562, x1748-1905",
+      "finding": "The fee value `1755555891986239551` is 19 digits set as one unbroken monospace run with no digit grouping, no separators and no abbreviation. The magnitude is unreadable without counting glyphs - 1.7 quintillion and 17 quintillion are indistinguishable at a glance - and it is the largest number on the page. Rubric B7 asks for comparable formatting across magnitudes; an ungrouped 19-digit run is not comparable with anything. Group the digits, or lead with an abbreviated magnitude and keep the exact figure secondary. Note separately that the humanised label is a clear improvement over `TRANSACTIONFEE` and that the fee renders as a formatted decimal with a `mana (FeeJuice)` unit rather than the raw 32-byte hex the expectation block's watch-for item predicted - that watch-for is resolved.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/4",
+      "severity": "P2",
+      "location": "identity bar x145-250 and Transaction pane y100-165",
+      "finding": "The same hash is set three times within 700px of vertical space, at two different truncation ratios and once in full. The identity bar shows `0x0858d6…7fb2` (6+4 hex characters); the Transaction pane header shows `0x0858d644…22e67fb2` (8+8); and the untruncated 66-character value is set directly beneath the latter, wrapping across two lines at y137-165. A truncation immediately above the full string it truncates buys nothing, and two truncation lengths for one value on one screen means the product has no single truncation rule. Pick one head/tail length for the system, and drop the pane's truncated copy since the full value sits directly below it.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/5",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) JSON block, below the fade at y>1050",
+      "finding": "`effectsMismatched: 0` - which the expectation block calls the evidence the session is faithful - has no typographic level of its own. Every other chain fact earns a labelled row in the field grid (BLOCK, TYPE, AGE, CANONICAL, FINALITY, COST). The replay telemetry instead lives as bare keys inside the raw JSON dump: `\"instructionsExecuted\": 345` is visible at y1040 and the effects counters fall below the fade entirely, so the page's strongest claim is the one number a reader cannot see. The information is present and scrollable, so this is presentation rather than broken information, but it is inverted: the least load-bearing content (the raw dump) is where the most load-bearing number was put. Promote effects matched/mismatched and instructions executed to labelled rows in the field grid above `EXECUTIONS`.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/6",
+      "severity": "P3",
+      "location": "Transaction pane, `SELECTOR` row y671-679 and `RAW` row y696-704, em dash at x~1880-1905",
+      "finding": "The new no-payload em dash renders as a 2px-tall, ~24px-wide light-grey bar (luminance 138) sitting roughly 6px above a full-width 1px row rule (luminance 200). At reading distance it reads as a stray divider fragment rather than as a character carrying the meaning `no payload held`. The convention is right and is a clear improvement on a bare `0x`; the rendering needs a typographic anchor. Set it in the value column's monospace face at the value ink weight so it reads as a glyph, not as a rule.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/7",
+      "severity": "P3",
+      "location": "Transaction pane bottom edge, y1046-1072",
+      "finding": "The pane-bottom fade does its job - it is the right fix for the `clipping mid-JSON` misread and the pane now visibly continues - but its ramp is only ~22px, one text line. Measured darkest ink per line: 36 (full strength) through y1046, then 123 rising to 196 across y1060-1068. The full-strength line and the near-invisible line are adjacent with no intermediate step, so `\"hydrationRounds\": 6,` reads as a single disabled row rather than as a gradient into more content. A 40-50px ramp spanning two lines would read unambiguously as continuation.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/8",
+      "severity": "P3",
+      "location": "Code pane prose y124-202 (widest line x21-597) and Call Trace prose y117-152 (x931-1498)",
+      "finding": "Body prose runs to a ~84-character measure (576px at ~6.85px per character in the Code pane; 567px in the Call Trace). That is above the comfortable 45-75 range, and it applies to the explanatory sentences that carry this view's whole argument about why there is no source. Line-height (21.5px on 13px ink) is generous enough that it stays readable, so this is a refinement rather than a defect. Constrain the explanation paragraphs to ~65 characters.",
+      "criterion": "B2"
+    }
+  ]
+}
+```

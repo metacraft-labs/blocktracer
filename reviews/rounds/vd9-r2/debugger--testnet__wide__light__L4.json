@@ -1,0 +1,84 @@
+Expected elements: present
+
+Every MUST SHOW item is present; no MUST NOT SHOW item is. No invented source anywhere — Code, Call Trace and Values carry prose only, with no tab, listing, line number, function name or variable name. The exit reads `← aztec-testnet`; provenance is the first Transaction row (`DATA` / `Real Aztec testnet data`) with no band above the identity bar; `Supply sources` sits at y298.
+
+(b) The cost row does not reproduce the three-line report. `COST · TRANSACTION FEE` sets `1755555891986239551` on line one and `mana (FeeJuice)` on line two — two lines, ~46px against a ~31px grid row (BLOCK/TYPE/FINALITY), so 1.45x. Better than the 1.6x before, nowhere near 2.2x. The defect here is the 19 unseparated digits, not the wrap.
+
+(a) The fade works. `"hydrationRounds": 6,` at y1064 is visibly dimmed against `"instructionsExecuted": 345,` above it, and the pane now reads as continuing rather than clipping. The ramp is only ~30px — one and a half mono lines — so a P3 remains.
+
+Emptiness re-measured: the Call Trace body is 606x571px holding a 570x37px ink box, ~94% empty by bounding-box area, materially unchanged from the 91% of last round. It is CONTENT-shaped, decisively. The sentence fills 6.5% of the vertical, so ~91 of the 94 points are "no frames exist"; narrowing the column to 380px rewraps it to three lines and moves the figure only to ~91%, so width buys three points. I cannot reproduce a 1010px middle column: I measure 606px wide, 1003px tall.
+
+The split remains the L4 story: 908/606/378px, inverted for this subject. Code is widest and ~92% empty; Transaction is narrowest and the only overflowing column, cutting `effectsMismatched: 0` below the fold where it exists only as a JSON key.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L4/1",
+      "severity": "P2",
+      "location": "the three-column split — Code x8-916, Call Trace/Values x921-1527, Transaction x1533-1911",
+      "finding": "The split is fixed at 908/606/378px (47/32/20% of the 1920 viewport) and is inverted for this subject. Code, the widest column, holds two paragraphs and a button ending at y311 and measures ~92% empty over its ~980px body. Call Trace holds 37px of ink in a 571px body. Values holds 37px of ink in a 373px body. Transaction, the narrowest column at 378px, is the ONLY column whose content exceeds the viewport: its RAW (CHAIN-NATIVE) block is cut at y1073 mid-object. The layout allocates its width to the source-bearing case and does not adapt when no source exists, so the pane carrying every real chain fact on the page is the one that is starved. This is the re-measurement of last round's finding: the 91% Call Trace figure is not the problem — the 20% width given to the only full column is.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/2",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) block, x1543-1911 y858-1073",
+      "finding": "The replay telemetry named in the expectation — instructions executed, effects matched, effects mismatched — is present ONLY as keys inside the raw JSON dump. It gets no label/value rows of its own, unlike BLOCK, TYPE, AGE, CANONICAL, FINALITY and COST directly above it. `instructionsExecuted: 345` is visible at y1042; `effectsMatched` and `effectsMismatched: 0` fall below the viewport cut and appear nowhere else on the page. `effectsMismatched: 0` is the spec's named evidence that this replay reproduced the chain's own effects, i.e. the load-bearing claim of the whole view, and at 1920x1080 — the largest viewport this product captures — it is the single item furthest below the fold, reachable only by scrolling the narrowest column and then parsing a JSON blob. Considered as a presence P1 and rejected: the pane scrolls and the item is in it, so this is an information-priority failure rather than an absence. Promote the three counters to labelled rows above RAW.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/3",
+      "severity": "P2",
+      "location": "Transaction pane, COST · TRANSACTION FEE row, value column x1773-1907 y546-589",
+      "finding": "The humanised label is a real improvement — the value is a decimal integer with a unit, not the raw hex quantity the expectation warned about, and the row is 46px against a ~31px grid row (1.45x), so it does not blow up the label/value grid. But `1755555891986239551` is nineteen digits with no thousands grouping and no scaling to a readable magnitude. It is the densest numeric string on the page and the least scannable: a reader cannot tell 1.75e18 from 1.75e17 without counting glyphs, and it is not comparable across magnitudes with any other cost the product shows. Rubric B7 asks for comparable formatting across magnitudes; unseparated base units are the opposite. Group the digits or scale the unit. Note also the value column has only ~202px of room and the number already consumes ~133px of it, so this row is one order of magnitude away from a hard overflow.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/4",
+      "severity": "P3",
+      "location": "Call Trace pane body y100-671, Values pane body y700-1073, Code pane body y95-1073",
+      "finding": "Emptiness re-measured and decomposed. Call Trace: 606x571px body, 570x37px ink box, ~94% empty by area (91% by the vertical-only method used last round — the figure is unchanged, not worsened). Values: ~91%. Code: ~92%. This is CONTENT-shaped, not layout-shaped, and the arithmetic settles it: two lines of text occupy 6.5% of the available vertical, so ~91 of the 94 points are 'no frames exist' and cannot be recovered by any resize. Narrowing the middle column from 606px to 380px would rewrap the sentence to three lines and move the figure from ~94% to ~91% — three points. The residual layout defect is composition, not proportion: in all three panes the sole content is pinned to the top-left corner of a body ten to fifteen times its height, which is the silhouette of a failed render. Anchoring the explanation in the pane's optical centre, or bounding it in a card, would make the emptiness read as deliberate at no cost in information. (Separately: I cannot reproduce the 1010px middle-column figure cited from another lens; this column measures 606px wide and 1003px tall.)",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/5",
+      "severity": "P3",
+      "location": "Transaction pane, bottom edge of RAW (CHAIN-NATIVE) at y1050-1073",
+      "finding": "The bottom fade is present and it does its job: `\"hydrationRounds\": 6,` at y1064 is visibly dimmed against the full-strength `\"instructionsExecuted\": 345,` at y1042, and the pane reads as content continuing below rather than the flat clip reported last round. Two residual weaknesses. The ramp is only ~30px, about one and a half monospace lines, so exactly one line carries the entire signal; at 64px it would be unambiguous. And the fade is applied to the text while the JSON block's own tinted background panel still terminates flush at the viewport edge, so a soft text edge sits inside a hard panel edge. There is still no scrollbar and no count of what lies below, which matters more here than elsewhere because what lies below is the replay telemetry (see finding 2).",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/6",
+      "severity": "P3",
+      "location": "Transaction pane, SELECTOR row y666-689 and RAW row y691-713, value column at x~1900",
+      "finding": "Both rows correctly render an em dash where no payload is held, and the paragraph beneath RAW explains why in the product's own words, so the treatment is honest. The density objection is that an ~8px low-contrast glyph at the far right of a 378px row is the smallest information-bearing mark on the page, and in a light theme at 1920 it is easy to read as a rendering gap rather than as an asserted 'no value'. A toned `none` chip, matching the `No timestamp published` chip already used on the AGE row twelve rows above, would say the same thing in the vocabulary this pane has already established and would cost no additional height.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/7",
+      "severity": "P3",
+      "location": "identity bar, stepping control cluster x476-755, and the void x1570-1840",
+      "finding": "Eight icon-only stepping buttons are packed into ~280px in four groups, with no keyboard hints indicated, while ~270px of the identity bar between the end of the phase rail (x~1570) and the share/download icons (x~1848) is empty. At this viewport the bar has room to spend and is not spending it: key hints on the primary step-forward/step-back pair, or a group label, would raise the information carried by the bar without crowding it. Rubric B10 asks for keyboard affordances to be indicated; none are.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/8",
+      "severity": "P3",
+      "location": "identity bar phase rail x1050-1570 versus Transaction pane EXECUTIONS row y592-640",
+      "finding": "The identity bar reads `Engine loading — 18 MB` with `FETCHING` active on the three-step rail and a partially-filled progress bar, while the Transaction pane's EXECUTIONS row reads `public` / `Trace ready` and the position readout in the same bar reads `128 / 345`. Three indicators in view at once describe three different session states: still fetching, already positioned, and ready. Each is individually defensible for a static page hydrating progressively, but a reader scanning left to right across the bar and then into the pane has no way to reconcile them. Either qualify the pane badge (`Trace ready — engine loading`) or suppress the position readout until the rail leaves FETCHING.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

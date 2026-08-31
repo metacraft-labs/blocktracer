@@ -288,6 +288,52 @@ async function main() {
           }
         }
 
+        // ── IS THIS DIST EVEN THE TREE THE CORPUS WAS CAPTURED AGAINST? ────
+        //
+        // F re-resolves every ready view against `client/dist` and compares. It
+        // therefore assumes dist is the tree capture built — and capture builds
+        // with `-d:publishDemoChain`, which the DEPLOY build deliberately omits.
+        // `cd client && just export` and `just design-check` are both documented
+        // workflows and both leave a dist WITHOUT the synthetic chain.
+        //
+        // The consequence is not a small one. With `demo` absent, every view
+        // that resolves through the primary chain re-resolves to `aztec`, and F
+        // reports 72 images as having drifted from `/demo` to `/aztec` — an
+        // alarming, specific, entirely false result about a corpus that is
+        // perfectly correct. I produced exactly that this session by rebuilding
+        // dist between a capture and a check, and spent the time to find out it
+        // was my own build rather than the corpus.
+        //
+        // A check that cries wolf whenever someone runs the project's own export
+        // recipe teaches people to disbelieve it, and F is the assertion that
+        // exists because nobody could see a stale corpus. So the mismatch is
+        // detected and named BEFORE the comparison rather than expressed as
+        // drift: if the corpus was photographed against a chain this dist does
+        // not publish, the dist is the wrong tree and F cannot decide anything.
+        const capturedChains = new Set(
+          (manifest.images ?? [])
+            .filter((i) => i && i.ok === true && i.chain)
+            .map((i) => i.chain));
+        const absentChains = [...capturedChains].filter((c) => !ix.chains.includes(c));
+        if (absentChains.length) {
+          problems.push(
+            `F: this dist does not publish ${absentChains.map((c) => `"${c}"`).join(", ")}, ` +
+            `but ${(manifest.images ?? []).filter((i) => i && i.chain && absentChains.includes(i.chain)).length} ` +
+            `image(s) in the corpus were captured from it — so this dist is NOT the tree ` +
+            `the corpus was captured against and F cannot compare them. The capture tree is ` +
+            `built with \`-d:publishDemoChain\` and the deploy tree is not; \`just export\` ` +
+            `produces the deploy shape. Rebuild the capture tree before trusting this ` +
+            `assertion:\n` +
+            `       cd client && nim c -r --mm:orc -d:isServer -d:release -d:publishDemoChain \\\n` +
+            `         --hints:off src/static_export.nim`);
+          report.subjects = {
+            status: "not-run",
+            reason:
+              `dist is missing ${absentChains.join(", ")}, which the corpus was captured ` +
+              `from — wrong tree, so no comparison was attempted`,
+          };
+        } else {
+
         const drifted = [];
         const unrecorded = [];
         for (const img of manifest.images ?? []) {
@@ -341,6 +387,7 @@ async function main() {
           unrecorded: unrecorded.length,
           detail: drifted,
         };
+        }
       }
     }
   }

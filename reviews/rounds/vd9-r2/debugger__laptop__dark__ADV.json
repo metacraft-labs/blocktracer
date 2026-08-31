@@ -1,0 +1,27 @@
+Expected elements: present
+
+Every must-show item is on the page and carries real content: the slim identity bar (chain exit `← demo`, truncated hash, `Partial` badge, block 101), eight stepping buttons in four groups covering both directions, the scrubber and the `128 / 1315` readout; the Code pane positioned at line 32 with a gutter marker, a highlighted row and a `damage: 0→2000` chip; Call Trace and Event Log as one tab strip with Call Trace open above a separate Values pane; and the provenance marker as a `DATA` row inside the transaction pane with a toned `Synthetic demo data` badge and the producer's own sentences beneath it. No forbidden item is present — no spinner, no empty pane, no prose band above the panes, no provenance band, no full-width pane row, Values is not a tab. The bottom fades work and the code pane fades at its right edge too.
+
+The weakest element is the phase rail in the identity bar, immediately right of the `128 / 1315` readout. It renders `FETCHING` in accent blue with a blue current-phase bar against its left edge, with `OPENING` and `POSITIONING` dimmed — the page's own load-state readout announcing the first of three phases as the one in progress. Everything else on the screen contradicts it: the trace length is known, the call trace has seven frames, the Values pane is populated, and the Code pane is positioned at line 32 with a live value chip. This session is not fetching; it is open and positioned. The muted grey of the stepping glyphs, the same grey as the rail's inactive phases, only reinforces the reading that the engine is still coming up. The expectation block makes the rail one of the three carriers of engine state, so this is not a decorative slip: the one element on the page whose job is to say where the session is says something false, and a reader who trusts it will not trust the position readout either. `debugger--loading-phases` is a separate view; the default view must show the rail settled.
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/ADV/1",
+      "severity": "P1",
+      "location": "identity bar, phase rail immediately right of the `128 / 1315` position readout",
+      "finding": "The phase rail shows FETCHING in accent blue with a current-phase marker while OPENING and POSITIONING sit dimmed, so the page's load-state readout announces a session still in its first loading phase — but the trace length is known, the call trace holds seven frames, the Values pane is populated and the Code pane is positioned at line 32 with a value chip. The session is open and positioned, and the one element whose job is to report that state contradicts it.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

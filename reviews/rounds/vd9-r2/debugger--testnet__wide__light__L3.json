@@ -1,0 +1,98 @@
+Expected elements: present
+
+Identity bar (exit `← aztec-testnet`, hash, `Succeeded`, `block 63675`, stepping controls, `128 / 345`, phase rail); three prose-only panes each explaining the missing source; `Supply sources`; provenance as a `DATA` row with a `Real Aztec testnet data` badge. No band above the identity bar, no invented source, no fixture content.
+
+No `⊙`/`⊘` glyphs render anywhere — the trace is source-less and the left panes hold prose only, so the recorded glyph question is untestable here.
+
+(a) The fade. Identical ramp in both themes: alpha 1.0 at y1051 to 0 at y1074, stopping 1px above the pane border at y1075 — anchored to the padding box, nothing spent on padding here. But its 24px height matches the 23px line-height, so the boundary line is consumed whole. TRANSACTION pane, `RAW (CHAIN-NATIVE)`, last line `"hydrationRounds": 6,` — 3.85:1 at its topmost glyph row (y1060, sampled against clean block background at x1800), 2.74:1 at x-height, 1.84:1 at baseline, 1.16:1 at descender (y1072). It never meets 4.5:1 at any row, while sitting entirely inside the box. The same line in the dark capture reads 6.17:1 at cap row: light pays 1.6x because the mask composites toward white.
+
+(b) Each badge tone means three things — green (6.49:1) for `Succeeded`, `Real Aztec testnet data`, `Trace ready`; neutral (6.61:1) for `No timestamp published`, `Yes`, `Pending`. The new em dash is #8A8A8A, 3.45:1.
+
+Fixes: floor the mask alpha at ~0.75 in light or clip it to line boxes; split the green tone.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L3/1",
+      "severity": "P2",
+      "location": "TRANSACTION pane, RAW (CHAIN-NATIVE) code block, last line `\"hydrationRounds\": 6,` at x1590-1760, y1059-1072",
+      "finding": "The new pane-body fade is not theme-aware and pushes a whole line below the contrast floor before that line leaves the box. Geometry sampled at x=1800 (clean code-block background, clear of text and of the block's separate right-edge horizontal fade at x1860-1906): the mask is at full opacity through y=1051 and reaches alpha 0 at y=1074, one pixel above the pane's bottom border at y=1075 — so in this pane it is anchored to the padding box and spends nothing on padding. The defect is the ramp height: 24px against a 23px code line-height, so there is no partially-dimmed regime and whichever line lands on the boundary is consumed end to end. Unmasked code text is #242424 on #ECECEB = 13.13:1 (every line down to y=1048). The boundary line reads 3.85:1 at its topmost glyph row (y1060, #7B7B7B on #F4F4F3), 2.74:1 at x-height (y1063), 1.84:1 at baseline (y1067) and 1.16:1 at descender (y1072) — its maximum over the entire line is 3.85:1, so unlike the cases the other lenses measured it never meets 4.5:1 at any row. The same mask, same ramp and same alpha on the same line in debugger--testnet__wide__dark reads 6.17:1 at its cap row and only crosses 4.5:1 at y1063, because dark composites toward #1B1B1B while light composites toward #FFFFFF, the top of the luminance range where contrast collapses fastest per unit of alpha. The mask was tuned in dark and inherited by light. Fix: floor the mask alpha at ~0.75, shorten the ramp to roughly 10px, or clip it to whole line boxes so the last line is either full-contrast or gone.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/2",
+      "severity": "P2",
+      "location": "identity bar `Succeeded` (x262-348, y20-42); TRANSACTION pane `Succeeded` (x1543-1632, y100-121), `Real Aztec testnet data` (x1735-1908, y178-198), `Trace ready` (x1594-1690, y614-635)",
+      "finding": "One green tone carries three orthogonal meanings. All four chips are pixel-identical: fill #DCFCE7, text #166534 (6.49:1), border #16A34A. But `Succeeded` is an execution outcome, `Real Aztec testnet data` is a provenance/authenticity claim, and `Trace ready` is replay availability. A reader cannot learn anything from the tone because it does not select between those axes, and the provenance claim — the whole reason this view exists — is rendered in the same green as a routine status, which is precisely why it reads too quiet. Give provenance its own treatment (an outlined chip or a distinct hue) and move trace-availability to the informational tone, keeping green for outcome only.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/3",
+      "severity": "P2",
+      "location": "TRANSACTION pane value column: `No timestamp published` (AGE, x1715-1908, y451-473), `Yes` (CANONICAL, x1868-1906, y483-505), `Pending` (FINALITY, x1834-1908, y515-537)",
+      "finding": "The neutral badge tone also carries three meanings — data absent, an affirmative fact, and an in-progress state — in one identical treatment: fill #F3F3F3, text #565656 (6.61:1), border #C8C8C8. `CANONICAL: Yes` is a positive assertion about the chain and reads exactly like `AGE: No timestamp published`, which is a hole in the data, while `Succeeded` two rows above gets green. Across the whole label/value stack the badge tone therefore encodes nothing; the badge is doing decoration where it looks like it is doing semantics. Either restrict badges to rows where tone discriminates, or add a third (absent/unknown) tone so `No timestamp published` is visibly not an answer.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/4",
+      "severity": "P2",
+      "location": "TRANSACTION pane, `SELECTOR` and `RAW` value column, x1897-1905, y676-677 and y701-702",
+      "finding": "The humanised em dash that replaced `0x` is below the text floor. It renders as a 2px rule: the core row is #8A8A8A = 3.45:1 on white, the antialias row beneath it #B0B0B0 = 2.34:1. That is the lowest ratio of any unmasked text on the page. This dash is the only thing distinguishing 'this field has no value' from 'this field failed to render', it is right-aligned at the extreme edge of the pane with no neighbouring glyphs to anchor it, and at 3.45:1 on a light surface it disappears at a glance. Use the label token #565656 (7.34:1) at minimum; a word (`None`) would carry the meaning the dash is being asked to carry.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/5",
+      "severity": "P2",
+      "location": "identity bar engine-load progress bar, x775-1035, y28-35; fill/track boundary at x=868",
+      "finding": "Fill #155E75 against track #919191 is 2.31:1, below the 3:1 floor for a non-text element whose boundary is the information. That boundary at x=868 is the only pixel-level encoding of 128/345 progress. Compounding it, the empty track at #919191 is darker and heavier than every chip beside it, so the unfilled remainder is the most prominent thing in the bar and the bar reads as roughly two-thirds dark rather than one-third complete. Lighten the track toward #D4D4D4 (the filled/unfilled ratio then clears 3:1 comfortably) rather than darkening the fill.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/6",
+      "severity": "P2",
+      "location": "identity bar: `aztec-testnet` link (x22-133) and `63675:0` link (x1845-1908) indigo #4F46E5; `FETCHING` chip (x1320-1400) blue #1E40AF on #DBEAFE; progress fill (x775-1035) cyan #155E75; badges green #16A34A family",
+      "finding": "Four unrelated stock hue families are carrying the accents — indigo 244deg, blue 226deg, cyan 195deg and green 143deg — against brief section 2's requirement that the accent hue family is shared across registers. The sharpest instance is 300px wide: the progress bar and the phase rail describe one process, engine loading, and do it in cyan and blue respectively, so nothing links the filled portion of the bar to the `FETCHING` chip it is reporting. Every value here is an untouched Tailwind default (green-100/600/800, blue-100/800, indigo-600, cyan-800), which is the mechanism behind the incoherence. Pick one cool accent family and derive the phase-rail and progress tones from it.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/7",
+      "severity": "P2",
+      "location": "pane header strip #DDDDDD: `CODE` (x14-50, y72-92), `VALUES` (x928-980, y678-698), `TRANSACTION` (x1540-1630, y72-92) versus `CALL TRACE` / `EVENT LOG` (x928-1090, y72-92)",
+      "finding": "Header title emphasis is set at three different levels for one role. `CODE`, `VALUES` and `TRANSACTION` render at #484848 (6.73:1 on the #DDDDDD header), the active tab `CALL TRACE` at #101010 (14.01:1) and the inactive tab `EVENT LOG` at #565656 (5.40:1) — so a pane that happens to have tabs gets a title twice as emphatic as a pane that does not, and the eye reads Call Trace as the dominant pane for a reason unrelated to its content. Separately, two of the body text levels are not separable: prose #484848 (9.15:1 on white) and field labels #565656 (7.34:1) are 14 sRGB units apart and do not read as distinct emphasis. Collapse the header titles to one level, and open a real gap between prose and labels or merge them.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/8",
+      "severity": "P2",
+      "location": "CODE pane, `Supply sources` button, x14-119, y287-309",
+      "finding": "The button is a transparent fill with a 1px #A2A2A2 border, which is 2.55:1 against the white pane body — below the 3:1 floor for the visual boundary of a control, and the border is the only thing that makes this a control at all (the label #101010 is otherwise indistinguishable from body copy). This is the affordance the spec names as the route out of the missing-source limitation, so it is the one control on the page that must not read as text. Give it a filled or accented treatment, or take the border to at least #767676.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/9",
+      "severity": "P3",
+      "location": "all four pane borders (#A2A2A2, e.g. x=1528 and x=1915 in the TRANSACTION pane); pane header strip #DDDDDD against the page canvas #ECECEB; badge borders #C8C8C8",
+      "finding": "The non-text separation values are all thin. Pane border #A2A2A2 is 2.55:1 against the pane body and 2.16:1 against the page canvas; the pane header strip #DDDDDD is 1.15:1 against the canvas #ECECEB, so the headers barely detach from the gutter they sit next to; badge borders #C8C8C8 are 1.67:1 on white. The surface ladder itself is coherent — canvas #ECECEB, pane #FFFFFF, header #DDDDDD, recessed code block #ECECEB, and the direction of each step is preserved in dark (#000000 / #1B1B1B / #282828 / #000000), which is genuine theme design rather than inversion. It is the steps' magnitudes that were not re-derived for the compressed light range.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/10",
+      "severity": "P3",
+      "location": "TRANSACTION pane, RAW (CHAIN-NATIVE) block, below y1072",
+      "finding": "Graded as present rather than missing, and flagged for adjudication: the replay telemetry the section-4 block calls out is rendering, but only `\"instructionsExecuted\": 345` and `\"hydrationRounds\": 6,` are visible, and the second of those is the line the fade dissolves. `effectsMismatched: 0` — which that block names as the evidence the session is faithful — appears nowhere on this screenshot. It is also given no colour distinction from the surrounding JSON, so even when scrolled to it will read at the same #242424 as `txIndexInBlock`. The single fact that substantiates the flagship claim is the only real-chain fact on the page with no toned treatment of its own, while three routine statuses get green badges.",
+      "criterion": "B3"
+    }
+  ]
+}
+```

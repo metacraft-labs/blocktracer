@@ -1,0 +1,119 @@
+Expected elements: present
+
+Identity bar (exit to `aztec-testnet`, both step directions, `128 / 345`, phase rail), the `Data` row with its `Real Aztec testnet data` badge first in the transaction pane, no band above the bar, `Supply sources`, and — the thing that matters most — not one invented file tab, line number, function or variable name anywhere.
+
+(a) landed: `COST · TRANSACTION FEE`, correctly word-split under the pane's caps style. (b) landed and is a clear improvement. (c) is a no-op here — the fade is white-on-white in the three empty panes and reads only over the transaction pane's JSON card.
+
+(d) plainly: not re-filed, because `Status reason` does not render on this image at 1080px. My view of the string is unchanged — an enum given an English label — but a finding against pixels that are not here would be noise.
+
+Re-judging last round's three interiors: the copy is now right. All three are proper sentences and each attributes the limitation to the chain, not the product — the lowercase-opener defect corrected on the demo chain does not recur. What is still wrong is the withholding, not the words: Call Trace says frames are recorded and shows none of them; the raw block says 345 instructions executed and the pane lists none. This register's answer to "no symbols" is unnamed data, not prose.
+
+Fix first: promote the replay telemetry out of the JSON dump; then `6 transaction(s)`.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L5/1",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) card (x 1545-1905, y 855-1080), and the missing row that should sit between EXECUTIONS (y 600) and DECODED INPUT (y 652)",
+      "finding": "The evidence this whole view exists to carry is published only as adapter field names inside a JSON dump. 'instructionsExecuted: 345' is legible but is a camelCase key, and 'effectsMismatched' — the claim that this replay reproduced the chain's own effects — is below the 1080px fold entirely, so at this viewport the flagship proof is not on screen in any form. Every other real chain fact in this pane earned a labelled row: BLOCK, TYPE, AGE, CANONICAL, FINALITY, COST. The replay telemetry, which is the only fact here that no other explorer could show, is the one demoted to a machine dump. It needs its own rows in the register's voice — 'Instructions executed 345', 'Effects matched 6', 'Effects mismatched 0' — above DECODED INPUT, with the JSON left as corroboration rather than as the primary rendering.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/2",
+      "severity": "P2",
+      "location": "Transaction pane, Data provenance sentences, fourth line (x 1545-1905, y 288-300)",
+      "finding": "'6 transaction(s) inside it were re-executed' prints a build-side pluralisation dodge in the middle of the one paragraph carrying this register's honesty claim. The count is known and it is 6, so the parenthesised 's' is decided at render time by a template that declined to decide. It reads as a string that was never proofread, which is the worst possible texture for the sentence whose job is to convince a reader the data is real. '6 transactions inside it were re-executed'.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/3",
+      "severity": "P2",
+      "location": "Call Trace pane body (x 925-1525, y 95-660) and Values pane body (x 925-1525, y 700-1075)",
+      "finding": "RE-FILED from vd9-r1 with a changed reason. The copy is no longer the defect — both are proper sentences and both blame the chain correctly. The defect is that each states data exists and then shows none of it. Call Trace says 'Frames are recorded, and without a file map they carry no function names or source positions' above 520px of white; the recorded frames are never listed, so the reader is told the structure survives and shown nothing of it. Values says naming a local needs symbols, and shows no slot indices either. This register's answer to missing symbols is unnamed data — 'frame 0, pc 0x0000-0x0a3c', 'slot 3: 0x00...01' — not a sentence and a void. Prose where the pane holds data is the explorer register answering a debugger question.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/4",
+      "severity": "P2",
+      "location": "Transaction pane, DECODED INPUT prose (x 1545-1905, y 720-825), against the RAW (CHAIN-NATIVE) card 30px below it",
+      "finding": "'Whether none was published or the body was pruned before it was captured is not something this section can tell; where that is known, it is stated above.' The page knows. Four lines below this sentence the same pane prints '\"bodyRetainedAtCapture\": true', which answers the exact question the sentence declines. A register whose selling point is that it does not overclaim should also not underclaim: hedging in front of data you are simultaneously displaying reads as boilerplate rather than as honesty. 'this section' is also a build-side noun for a UI region, and 'it is stated above' points at nothing a reader can locate — the paragraph above is about pruning at block 63628, not about this transaction.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/5",
+      "severity": "P2",
+      "location": "Transaction pane, COST · TRANSACTION FEE row, value column (x 1770-1905, y 548-582)",
+      "finding": "The humanised label landed and is correct. The value did not: '1755555891986239551' is 19 ungrouped digits filling the value column edge to edge and forcing its unit onto a second line, and that unit is 'mana (FeeJuice)' — a gas unit and an asset name in one value, which is the mixed-units failure named in B7. 'FeeJuice' is additionally the camel-cased machine spelling of an asset Aztec writes as 'Fee Juice'. This is the formatting path only real chain data reaches, and beside the synthetic chain's formatted mana figure it is the clearest place where the real trace looks less finished than the fixture.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/6",
+      "severity": "P2",
+      "location": "Transaction pane, RAW row (x 1545-1905, y 701) against RAW (CHAIN-NATIVE) heading (y 843)",
+      "finding": "One pane, two rows labelled RAW, 140px apart, with opposite contents: the first holds an em dash meaning nothing exists, the second heads a full JSON payload. A reader scanning the caps column sees the product assert that RAW is empty and then print RAW. The disambiguator '(CHAIN-NATIVE)' is itself a hyphenated build adjective in a label slot rather than a human name for the thing. Name the first 'Call data' and the second 'Record from the node', or scope them under their group headings so one label primitive is not doing two structural jobs.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/7",
+      "severity": "P2",
+      "location": "Code pane, Supply sources button (x 12-120, y 287-310)",
+      "finding": "The one route out of the view's central limitation is a hairline outline pill, ~108x24px, rendered at the same weight as an inert phase chip in the identity bar, alone in a 940x990px pane that is otherwise empty. It is also the only interactive affordance in the left two-thirds of the canvas. The tone the copy sets — the text is missing, and you could supply it — is contradicted by giving that offer less visual weight than the 'Pending' badge in the transaction pane. Give it the register's primary-action treatment; there is nothing on this canvas competing with it.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/8",
+      "severity": "P3",
+      "location": "Transaction pane, Data provenance sentences, first line (x 1545-1905, y 208-232)",
+      "finding": "'at 2026-08-31T07:40:55.566Z' sets a raw ISO-8601 instant with milliseconds inside an English sentence. The endpoint and the node version beside it are content the spec asks for; the millisecond precision is a serialiser's default, not a moment a reader was meant to read. 'at 07:40 UTC on 31 August 2026' keeps the fact and drops the machine format. Defensible to decline if the exact instant is wanted for reproducibility, in which case it belongs in the raw record rather than the sentence.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/9",
+      "severity": "P3",
+      "location": "Code pane, second paragraph (x 24-290, y 232-248)",
+      "finding": "'Stepping continues at instruction level.' restates 'The recording is therefore at instruction level' and 'Stepping is complete' from the paragraph 40px above it. Three sentences carry one idea. In a pane this empty the repetition is conspicuous rather than reassuring — it reads as two independent templates that both fired. Cut the second paragraph, or replace it with the fact the reader actually lacks: how many instructions the recording holds.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/10",
+      "severity": "P3",
+      "location": "Transaction pane, BLOCK row, value column (x 1848-1905, y 398)",
+      "finding": "The value renders as '63675:0', a colon-joined block-and-index composite under a label that says only BLOCK. The identity bar 350px away writes the same block as 'block 63675', so the same fact appears in two notations on one screen and the ':0' is never explained. Either label the row 'Block : index' or write the position out.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/11",
+      "severity": "P3",
+      "location": "Transaction pane, TYPE row (y 429) and EXECUTIONS row (y 618)",
+      "finding": "'public' is printed twice, 190px apart, in the same lowercase monospace, under two different labels. It is the chain's own vocabulary so it is not an enum leak, but the duplication makes the second occurrence look like a value that failed to differ from the first. If EXECUTIONS lists execution phases, the row wants a count or a phase list; if there is only one, fold it into TYPE.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/12",
+      "severity": "P3",
+      "location": "Transaction pane, Data provenance sentences, lines 5-6 (x 1545-1905, y 305-330)",
+      "finding": "The window is stated as 'blocks 63629-63678' and the next sentence says 'Transactions below block 63628 are still visible on the network but their bodies have been pruned'. Block 63628 is therefore neither inside the window nor described by the pruning sentence, and the two numbers are off by one against each other. In the paragraph making this register's factual claim, an arithmetic inconsistency a reader can check in three seconds is expensive. It should read 'below block 63629'.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/13",
+      "severity": "P3",
+      "location": "Code pane, Call Trace pane and Values pane, bottom 24px of each body",
+      "finding": "The new bottom fade is a white-to-transparent gradient, so in the light theme it is invisible over the three empty pane bodies — sampled pixels at the bottom of the Code and Values bodies are flat 255,255,255 while the transaction pane's fade is measurable from y~1052. The change reads only where content already continues, which is correct behaviour but means it buys nothing in the three panes whose emptiness is this view's actual composition problem. Worth recording so the change is not credited with softening panes it never touched.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

@@ -205,7 +205,9 @@ debugger register, so the Q9 cost-label wrap regression should be measurable
 there. Ingest each triple only at 6/6.
 
 
-## TRUE FINAL STATE — 35 of 42, five triples ingested
+## (Superseded — the round completed. See the last section.)
+
+## Third stall — 35 of 42
 
 Dispatch was retried a third time and most of the round completed.
 
@@ -253,3 +255,38 @@ drifted), so dispatch straight into review:
     than layout-shaped, and worth confirming against the corrected analysis.
 
 Ingest each triple only at 6/6, then run BOTH directions of `just review-verify`.
+
+
+## COMPLETE — 42 of 42, all seven triples ingested
+
+The round finished. Every triple is 6/6 against the CURRENT capture and the whole
+round is in the ledger at revision 2026-08-31.14.
+
+  triple                                    G1  G2   P1
+  tx-detail/wide/light                      ok  ok    0
+  tx-detail--mainnet-zero-trace/wide/light  x   ok    3
+  debugger/wide/light                       ok  ok    0
+  debugger/wide/dark                        ok  ok    0
+  debugger/laptop/light                     ok  ok    1
+  debugger/laptop/dark                      ok  ok    1
+  debugger--testnet/wide/light              ok  ok    0
+
+**G1 6/7, G2 7/7.** Both directions of `review-verify` PASS: 42/42 reports still
+hash to what was ingested, and all 42 files parse and are accounted for. vd9-r1
+is now reported 42/42 SUPERSEDED, which is the correct description of a round
+whose every triple has been re-reviewed.
+
+The single G1 failure is `tx-detail--mainnet-zero-trace` L3's
+`forbidden-present`, and it is **stale rather than live**: L3 judged the page
+against the expectation as it stood, that expectation was found to be wrong about
+the world and corrected in `40aa0e0`, and the ledger still holds the verdict
+formed under the old text. The triple needs one re-review to clear it. L3's
+SECOND P1 is not stale and is Q10 — the page claims permanence while printing a
+repairable cause.
+
+`debugger--testnet/wide/light` was reviewed last, deliberately, to test whether
+the Q9 cost-label regression reproduced on a second surface publishing
+`transactionFee`. Three lenses measured it at 1.44-1.53x — BELOW the 1.6x
+pre-change baseline — so it **refutes** the regression on this register and
+scopes Q9 to the explorer's narrower grid. That is the round doing what the loop
+is for: a fix, a suspected regression, and a subject chosen to falsify it.

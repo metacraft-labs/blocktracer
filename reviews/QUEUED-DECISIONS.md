@@ -669,3 +669,74 @@ Cyan's role count also rose again and the lenses do not agree on the number —
 six across three tints (wide/dark), six across five values (laptop/light), eight
 across three tints (laptop/dark). They agree it is more than one thing and that
 `#67E8F9` means both "current position" and "type token" inside a single pane.
+
+## Q14 — RESOLVED IN THIS SESSION, recorded because the failure was instructive
+Not a queued decision; a note about how assertion F nearly lied to me.
+
+After the fixes I ran `cd client && just export` several times to check the built
+markup. `check-coverage` then reported **72 images drifted from `/demo` to
+`/aztec`** — an alarming, specific result about a corpus that was perfectly
+correct. The corpus had not moved. The DIST had: capture builds the tree with
+`-d:publishDemoChain` and `just export` does not, so with the synthetic chain
+absent from the registry every view resolving through the primary chain
+re-resolved to `aztec`, and F dutifully compared the corpus against the wrong
+tree.
+
+I would have shipped a convergence report claiming F green — I verified it green
+earlier in the session — while the check as it then stood reported 72 false
+drifts to whoever ran it next. F exists BECAUSE nobody could see a stale corpus;
+a version of it that cries wolf whenever someone runs the project's own export
+recipe teaches people to disbelieve exactly the assertion that was written to be
+believed.
+
+Fixed: the wrong tree is now detected and named BEFORE the comparison, F reports
+NOT RUN rather than inventing drift, and the message carries the exact rebuild
+command. Verified both ways — correct tree PASSES 308/0, wrong tree produces the
+diagnosis and **zero** drift lines where it previously produced 72.
+
+The general lesson, which is the reason this is written down: F's verdict depends
+on an input it does not control and did not check. Any assertion that reads a
+BUILD rather than the source of truth has this shape, and E reads the same dist.
+
+## Q9 — REFUTED on the debugger register. The regression is not universal
+`debugger--testnet/wide/light` was the last triple reviewed and it was reviewed
+precisely to test this, because its subject also publishes `transactionFee`.
+Three lenses measured the cost row independently and all three refute it:
+
+  * L1: 46px between bounding rules against 30px text rows — **1.53x / 1.44x**.
+    "the label sets on one line (153px wide, 53px clear of the value) and only
+    the unit `mana (FeeJuice)` takes a second line, so it is a two-line row, not
+    three, and it is **below the 1.6x pre-change baseline** rather than at
+    2.2-2.3x."
+  * L2: "one-line label + two-line value at 46px = 1.44-1.53x the 30/32px grid
+    rows (not three lines, not 2.2x)".
+  * L4: 46px, 1.45x, and names the real defect: "**the defect is 19 unseparated
+    digits, not the wrap**."
+
+So the humanised label is an IMPROVEMENT here — the row is shorter than before
+the change — and Q9 is specific to the explorer's `tx-detail` grid, whose 163px
+label column is narrow enough to break "Transaction fee" into three lines. The
+debugger's metadata pane has room for it.
+
+Revised: Q9 stands as a real regression on `tx-detail` only, and the fix must be
+scoped to that grid rather than to `costLabel`, which is doing the right thing.
+L4's point is the more valuable one for both surfaces: a 19-digit ungrouped
+decimal is the defect the base-ten conversion left behind, and it was filed
+independently by L1 on mainnet in the previous round.
+
+## Q11 — the mask costs far more in LIGHT than in DARK, measured on one line
+`debugger--testnet/wide/light` L3 produced the cleanest comparison in the
+campaign: the lowest text-on-surface ratio on the page is **1.16:1**, at the
+descender of `"hydrationRounds": 6,` in the masked RAW block — and **the
+identical mask on the identical line in the DARK capture measures 6.17:1**.
+
+Same rule, same content, same position; a 5x difference in what it costs. That
+explains why `wide/dark` L2 could reasonably call the fade "the affordance
+working" while three light-theme lenses called it a legibility failure: in dark
+the text starts at 5.47:1 and the mask crosses the floor at 12.5% opacity loss,
+while in light it starts near-black on white and the same alpha ramp destroys it.
+
+This is a strong additional argument for option (a) — mask the ink via an inner
+wrapper rather than the scroll container — because it also implies any
+ramp-length answer would have to differ per theme, which the token layer has no
+mechanism for and which would be two designs rather than one.
