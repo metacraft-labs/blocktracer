@@ -204,8 +204,22 @@ review-ingest args="":
 # re-hashes the IMAGE, and ingest had already finished.
 #
 # Reports NO VERDICT rather than PASS over a ledger with nothing to check.
-review-verify:
-    node tools/capture/ingest-review.mjs --verify
+#
+# Pass a round directory to ALSO check the other direction — that every report
+# FILE in it parses and reached the ledger:
+#
+#   just review-verify reviews/rounds/vd9-r1
+#
+# The two are different questions and the second one is not implied by the
+# first. `--verify` walks the LEDGER, so a report that was never ingested leaves
+# nothing to iterate over and the round looks complete from that side while a
+# reviewer's judgement is missing from the evidence the gate decides over. In
+# vd9-r1 a report was written with its json fence opened and never closed;
+# ingest refused it, correctly and loudly, and had that refusal scrolled past,
+# every remaining check would have been green over a five-lens "six-lens" triple.
+# It is the file-existence-is-not-completion hazard once more, one step later.
+review-verify round="":
+    node tools/capture/ingest-review.mjs {{ if round == "" { "--verify" } else { "--verify-round " + round } }}
 
 # Proof that the ingest refuses — one case per rule, plus a base case that must
 # be ACCEPTED so the file cannot pass by rejecting everything.

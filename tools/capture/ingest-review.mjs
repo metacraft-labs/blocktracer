@@ -201,6 +201,106 @@ function check(r, path) {
   };
 }
 
+/**
+ * Every report FILE in a round directory reached the ledger, and still parses.
+ *
+ * `verify` below walks the LEDGER and asks whether each entry's report is
+ * unchanged. That direction cannot see the converse, and the converse is a real
+ * failure that has now happened: a report that was never ingested leaves no
+ * ledger entry, so there is nothing for `verify` to iterate over and the round
+ * looks complete at 41 files and 41 verified rows while one reviewer's judgement
+ * is absent from the evidence the gate decides over.
+ *
+ * That is exactly the shape the round README already forbids in the other
+ * direction — "a ledger entry that no report accounts for is a defect" — and it
+ * is the same mistake as counting files instead of parses, which is how "6/6
+ * because all six files existed" got past a completeness check while one writer
+ * was still running.
+ *
+ * It is not hypothetical. In vd9-r1 `debugger/laptop/dark/L2` was written with
+ * its fenced json block opened and never closed. `ingest` refused it, correctly
+ * and loudly — but a refusal is a line on a terminal, and if it had scrolled
+ * past, every remaining check in the pipeline would have been green over a
+ * six-lens triple carrying five lenses.
+ *
+ * So this asserts three things per file, and the middle one is the point:
+ *
+ *   1. the report PARSES — a closing fence and valid JSON;
+ *   2. a ledger entry names it by `reportPath`, so it actually reached the
+ *      evidence rather than merely existing beside it;
+ *   3. the entry's finding count equals the block's, so a partially-merged
+ *      entry is not mistaken for a whole one.
+ */
+function verifyRound(ledgerPath, roundDir) {
+  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  const byPath = new Map();
+  for (const r of ledger.reviews ?? []) if (r.reportPath) byPath.set(r.reportPath, r);
+
+  const files = readdirSync(roundDir)
+    .filter((f) => f.endsWith(".md") || f.endsWith(".json"))
+    .sort();
+
+  const unparseable = [], notIngested = [], countMismatch = [];
+  let ok = 0;
+  for (const f of files) {
+    const abs = join(roundDir, f);
+    const rel = relative(ROOT, abs);
+    let block = null;
+    try {
+      block = blockFrom(abs);
+    } catch (e) {
+      unparseable.push(`${rel}\n      ${e.message.replace(`${abs}: `, "")}`);
+      continue;
+    }
+    const entry = byPath.get(rel);
+    if (!entry) {
+      notIngested.push(
+        `${rel}\n      parses as ${block.view}/${block.size}/${block.theme}/${block.reviewer}, ` +
+        `but no ledger entry names it`);
+      continue;
+    }
+    const nBlock = (block.findings ?? []).length;
+    const nEntry = (entry.findings ?? []).length;
+    if (nBlock !== nEntry) {
+      countMismatch.push(`${rel}\n      block has ${nBlock} finding(s), ledger entry has ${nEntry}`);
+      continue;
+    }
+    ok++;
+  }
+
+  console.log(`round:         ${relative(ROOT, roundDir)}`);
+  console.log(`report files:  ${files.length}`);
+  console.log(`in the ledger: ${ok}`);
+  if (unparseable.length) {
+    console.log(`\nUNPARSEABLE (${unparseable.length}) — a file that is not a report:`);
+    for (const u of unparseable) console.log(`  - ${u}`);
+  }
+  if (notIngested.length) {
+    console.log(`\nNEVER REACHED THE LEDGER (${notIngested.length}):`);
+    for (const n of notIngested) console.log(`  - ${n}`);
+    console.log(`\nThese reviewers' judgement is not in the evidence the gate decides over.`);
+    console.log(`Ingest them, or say in the round record why they are excluded — do not`);
+    console.log(`leave a round that looks complete on disk and is not complete in the ledger.`);
+  }
+  if (countMismatch.length) {
+    console.log(`\nFINDING COUNT DISAGREES (${countMismatch.length}):`);
+    for (const c of countMismatch) console.log(`  - ${c}`);
+  }
+  const bad = unparseable.length + notIngested.length + countMismatch.length;
+  if (bad) {
+    console.log(`\nFAIL — ${bad} of ${files.length} report file(s) are not accounted for`);
+    return 1;
+  }
+  // Same rule as `verify`: a clean scan of nothing is not a pass.
+  if (files.length === 0) {
+    console.log(`\nNO VERDICT — no report files in ${relative(ROOT, roundDir)}, so there is`);
+    console.log(`no claim to check.`);
+    return 1;
+  }
+  console.log(`\nPASS — all ${files.length} report file(s) parse and are in the ledger`);
+  return 0;
+}
+
 function verify(ledgerPath) {
   // Does every ledger entry still match the report it was built from?
   //
@@ -272,6 +372,7 @@ function main(argv) {
   let revision = null;
   let dryRun = false;
   let verifyOnly = false;
+  let verifyRoundDir = null;
   let ledgerPath = LEDGER;
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
@@ -288,10 +389,22 @@ function main(argv) {
       case "--revision": revision = argv[++i]; break;
       case "--dry-run": dryRun = true; break;
       case "--verify": verifyOnly = true; break;
+      case "--verify-round": verifyOnly = true; verifyRoundDir = resolve(argv[++i]); break;
       default: refuse(`unknown argument: ${argv[i]}`);
     }
   }
-  if (verifyOnly) return verify(ledgerPath);
+  if (verifyOnly) {
+    const a = verify(ledgerPath);
+    if (verifyRoundDir === null) return a;
+    console.log("");
+    // BOTH directions are reported, and the exit code is the worse of the two.
+    // They answer different questions — "does the ledger still match its
+    // reports" and "did every report reach the ledger" — and a run that passed
+    // one while failing the other would be the more dangerous of the pair
+    // silently, which is the whole reason the second one exists.
+    const b = verifyRound(ledgerPath, verifyRoundDir);
+    return a || b;
+  }
   if (!reports.length) refuse("no reports given (--report <file> or --dir <dir>)");
 
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));

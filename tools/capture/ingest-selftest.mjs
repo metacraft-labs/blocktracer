@@ -23,9 +23,9 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, statSync, utimesSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, statSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve, dirname } from "node:path";
+import { join, resolve, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -285,6 +285,120 @@ function main() {
           " stamp a fresh capture's hash onto a review of the image it replaced"); fail++;
       } else {
         console.log(`  ✗ refused for the wrong reason:\n      ${r.out.trim()}`); fail++;
+      }
+    }
+
+    // ── `--verify-round`: every report FILE reached the ledger ─────────────
+    //
+    // `--verify` walks the LEDGER and asks whether each entry's report is
+    // unchanged. It cannot see a report that was never ingested, because there
+    // is no entry to iterate over — so a round with a refused report looks
+    // complete from that direction while a reviewer's judgement is missing from
+    // the evidence the gate decides over. In vd9-r1 that happened: a report was
+    // written with its json fence opened and never closed, `ingest` refused it,
+    // and nothing downstream would have noticed if the refusal had scrolled by.
+    //
+    // Each case doctors ONE property of an otherwise-good round and asserts the
+    // check says no, with the undoctored round asserted to PASS in the same
+    // breath so a check that rejected everything could not satisfy this.
+    console.log("\n--verify-round — a report that exists is not a report that counted");
+    {
+      const roundDir = join(dir, "round");
+      mkdirSync(roundDir, { recursive: true });
+
+      // One good report on disk, and a synthetic ledger that names it exactly
+      // as `ingest` would: `reportPath` relative to ROOT, `reportSha256` over
+      // the bytes.
+      const write = (name, report) => {
+        const p = join(roundDir, name);
+        writeFileSync(p, "prose\n\n```json\n" + JSON.stringify(report, null, 2) + "\n```\n");
+        return p;
+      };
+      const entryFor = (p, report) => ({
+        view: report.view, size: report.size, theme: report.theme,
+        reviewer: report.reviewer, expectedElements: report.expectedElements,
+        image: `screenshots/${report.view}__${report.size}__${report.theme}.png`,
+        imageSha256: "0".repeat(64),
+        reportPath: relative(ROOT, p),
+        reportSha256: createHash("sha256").update(readFileSync(p)).digest("hex"),
+        findings: report.findings ?? [], rating: report.rating ?? null, missing: [],
+      });
+      const ledgerWith = (name, entries) => {
+        const p = join(dir, name);
+        writeFileSync(p, JSON.stringify({
+          ledgerRevision: "selftest.1", gateScope: [], reviews: entries,
+          resolutions: [], referenceParity: [], signOffs: [],
+        }, null, 2) + "\n");
+        return p;
+      };
+      const verifyRound = (ledger, rd) => {
+        try {
+          execFileSync("node", [TOOL, "--ledger", ledger, "--verify-round", rd],
+            { encoding: "utf8", stdio: "pipe" });
+          return { ok: true, out: "" };
+        } catch (e) { return { ok: false, out: (e.stderr || "") + (e.stdout || "") }; }
+      };
+      const decides = (name, ledger, rd, expect) => {
+        const r = verifyRound(ledger, rd);
+        if (r.ok) { console.log(`  ✗ ${name} — PASSED, and must not have`); fail++; }
+        else if (expect && !r.out.includes(expect)) {
+          console.log(`  ✗ ${name} — failed for the wrong reason (wanted ${JSON.stringify(expect)}):\n      ${r.out.trim().split("\n").slice(-6).join("\n      ")}`);
+          fail++;
+        } else { console.log(`  ✓ ${name}`); pass++; }
+      };
+
+      const rA = base({ reviewer: "L1", findings: [] });
+      const pA = write("good__L1.json", rA);
+      const goodLedger = ledgerWith("lg-good.json", [entryFor(pA, rA)]);
+
+      // BASE CASE — must PASS, so nothing below passes by rejecting everything.
+      {
+        const r = verifyRound(goodLedger, roundDir);
+        if (r.ok) { console.log("  ✓ an undoctored round passes (the base case)"); pass++; }
+        else { console.log(`  ✗ an undoctored round FAILED:\n      ${r.out.trim().split("\n").slice(-6).join("\n      ")}`); fail++; }
+      }
+
+      // 1. A file that does not parse — the vd9-r1 case, an unclosed fence.
+      {
+        const p = join(roundDir, "truncated__L2.json");
+        writeFileSync(p, "prose\n\n```json\n" + JSON.stringify(base({ reviewer: "L2" }), null, 2) + "\n");
+        decides("an unparseable report is caught, not skipped", goodLedger, roundDir, "UNPARSEABLE");
+        rmSync(p);
+      }
+
+      // 2. A parseable report that no ledger entry names — refused at ingest,
+      //    or simply never passed to it. This is the one `--verify` is blind to.
+      {
+        const rB = base({ reviewer: "L3" });
+        const pB = write("orphan__L3.json", rB);
+        decides("a report that never reached the ledger is caught", goodLedger, roundDir,
+          "NEVER REACHED THE LEDGER");
+        rmSync(pB);
+      }
+
+      // 3. An entry that names the file but carries fewer findings than the
+      //    block does — a partially merged entry mistaken for a whole one.
+      {
+        const rC = base({ reviewer: "L4", findings: [
+          { id: `${VIEW}/${SIZE}/${THEME}/L4/1`, severity: "P2", location: "a", finding: "b" },
+          { id: `${VIEW}/${SIZE}/${THEME}/L4/2`, severity: "P2", location: "c", finding: "d" },
+        ] });
+        const pC = write("short__L4.json", rC);
+        const e = entryFor(pC, rC);
+        e.findings = e.findings.slice(0, 1);
+        const shortLedger = ledgerWith("lg-short.json", [entryFor(pA, rA), e]);
+        decides("a ledger entry with fewer findings than its report is caught",
+          shortLedger, roundDir, "FINDING COUNT DISAGREES");
+        rmSync(pC);
+      }
+
+      // 4. An empty round directory is NO VERDICT, not a pass — the same rule
+      //    `--verify` applies to a ledger with nothing to check.
+      {
+        const empty = join(dir, "round-empty");
+        mkdirSync(empty, { recursive: true });
+        decides("an empty round directory is no verdict, not a pass",
+          goodLedger, empty, "NO VERDICT");
       }
     }
 
