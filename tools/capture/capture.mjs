@@ -146,7 +146,14 @@ function runExporter(distDir) {
   const clientDir = join(REPO_ROOT, "client");
   const r = spawnSync(
     "nim",
-    ["c", "-r", "--mm:orc", "-d:isServer", "-d:release", "--hints:off", "src/static_export.nim"],
+    // `-d:publishDemoChain`: the CAPTURE tree carries the synthetic fixture; the
+    // DEPLOYED tree does not. Publishing and grading are different decisions, and this
+    // is where they part. Thirty of the views below need states no real chain has yet —
+    // an on-demand trace, a divergence, a truncated recording, a verified source bundle,
+    // a multi-segment address history — and the fixture is the only publisher of any of
+    // them. Capturing them requires the fixture in the tree; shipping it does not follow.
+    ["c", "-r", "--mm:orc", "-d:isServer", "-d:release", "-d:publishDemoChain",
+     "--hints:off", "src/static_export.nim"],
     { cwd: clientDir, encoding: "utf8" },
   );
   if (r.error || r.status !== 0) {
@@ -212,6 +219,8 @@ function runHydratedExporter(outRoot) {
     "nim",
     [
       "c", "-r", "--mm:orc", "-d:isServer", "-d:release", "--hints:off",
+      // Same reason as `runExporter`: the eight hydrated views are all fixture-driven.
+      "-d:publishDemoChain",
       "-d:hydrationBundle=/assets/hydrate.js",
       `--nimcache:${join(clientDir, "nimcache-hydrated")}`,
       `-o:${join(buildDir, "static_export_hydrated")}`,

@@ -130,7 +130,12 @@ const debugRoute = (txSel, { t = DEBUG_TIME_COORDINATE, extra = "" } = {}) => (i
 // view fails loudly at resolve time, which is the behaviour every other
 // selector in this harness has.
 const TESTNET = "aztec-testnet";
-const MAINNET = "aztec-mainnet";
+// The Aztec mainnet IS `/aztec` — the canonical slug, not a qualified one. It used to be
+// `aztec-mainnet` while the synthetic fixture held `aztec`; the fixture has moved to
+// `demo` and is no longer published on the site at all. `realChain` still checks the
+// published provenance rather than trusting this string, which is what makes the rename
+// a one-line change here instead of a silent re-point of two views.
+const MAINNET = "aztec";
 
 const realChain = (ix, slug) => {
   const c = ix.chain(slug); // throws when the chain is not in the tree

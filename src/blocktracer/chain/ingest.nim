@@ -68,13 +68,17 @@ type
 const
   # THE SLUG IS DATA, NOT A CONSTANT. It comes out of the snapshot's provenance,
   # because a second real chain must be a capture-and-publish job rather than a
-  # second producer — which is the property the two-producer split was built for
-  # and the first chance to prove it. What IS fixed is that a real chain never
-  # takes the slug `aztec`: the synthetic demo owns that one, and two chains a
-  # reader cannot tell apart in a URL is the confusion this design exists to
-  # prevent. `ingestSnapshot` refuses that collision rather than trusting the
-  # capture not to have caused it.
-  syntheticChain* = "aztec"
+  # second producer — which is the property the two-producer split was built for.
+  #
+  # WHAT USED TO BE FIXED HERE, AND WHY IT NO LONGER IS. This module used to refuse the
+  # slug `aztec` outright, on the grounds that the synthetic demo owned it. The hazard it
+  # named is real and unchanged — "two chains at one slug would overwrite each other's
+  # blocks and make real and generated data indistinguishable in a URL" — but the
+  # OWNERSHIP has changed: `aztec` is the Aztec mainnet, served at blocktracer.org/aztec,
+  # and the fixture is the one that has to move. Deleting the guard would have thrown away
+  # a correct rule along with a stale premise, so it is inverted instead and made general:
+  # `assertSlugAvailable` refuses a collision in EITHER direction, and the demo is now the
+  # producer most likely to trip it.
   recorderId = "aztec-avm"
   traceSchema = "ctfs/v4"
   profileName = "default"
@@ -94,6 +98,38 @@ proc shortHash(s: string): string =
   ## A short, stable label for a hash-like string — used in prose, never as an id.
   if s.len <= 12: s else: s[0 .. 9] & "…"
 
+proc publishedProvenanceKind*(outDir, slug: string): string =
+  ## What has already been published under `slug` in this tree, or "" for nothing.
+  ##
+  ## Read from the generation's own `summary.json` rather than guessed from the slug,
+  ## which is the rule the product follows everywhere else: keying on a name survives
+  ## exactly until someone renames a chain.
+  let cur = outDir / "d" / slug / "current.json"
+  if not fileExists(cur): return ""
+  let gen = parseJson(readFile(cur)){"generation"}.getStr
+  if gen.len == 0: return ""
+  let summary = outDir / "d" / slug / "g" / gen / "summary.json"
+  if not fileExists(summary): return ""
+  parseJson(readFile(summary)){"provenance"}{"kind"}.getStr
+
+proc assertSlugAvailable*(outDir, slug, claimantKind: string) =
+  ## Refuse to publish `slug` over a chain another producer already published there.
+  ##
+  ## THE RULE, NOT THE SLUG. The old form of this guard named `aztec` and protected the
+  ## demo; naming a slug made it a statement about one chain that went stale the moment
+  ## ownership moved. This one states the invariant instead — one slug, one producer —
+  ## so it keeps holding whichever producer is the incumbent.
+  ##
+  ## Re-publishing the SAME kind over itself is allowed: that is a regeneration, which is
+  ## what every build does, and what the determinism check diffs.
+  let incumbent = publishedProvenanceKind(outDir, slug)
+  if incumbent.len == 0 or incumbent == claimantKind: return
+  raise newException(ValueError,
+    "the slug '" & slug & "' is already published in this tree by a '" & incumbent &
+    "' chain, and a '" & claimantKind & "' chain is claiming it. Two chains at one " &
+    "slug would overwrite each other's blocks and make real and generated data " &
+    "indistinguishable in a URL. Give one of them a different slug.")
+
 proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   ## Read the snapshot and write the real chain's whole generation.
   let snapPath = cfg.snapshotDir / "snapshot.json"
@@ -111,11 +147,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   if chain.len == 0:
     raise newException(ValueError,
       "the snapshot names no chain in provenance.chain; refusing to guess a slug")
-  if chain == syntheticChain:
-    raise newException(ValueError,
-      "a live capture claims the slug '" & syntheticChain & "', which the " &
-      "synthetic demo owns. Two chains at one slug would overwrite each other's " &
-      "blocks and make real and generated data indistinguishable in a URL.")
+  assertSlugAvailable(cfg.outDir, chain, "live-capture")
   let win = snap["window"]
   let finalizedAt = win["finalized"].getInt
   let tipAt = win["tip"].getInt
@@ -412,6 +444,36 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   for i in 1 ..< txHeights.len:
     largestGap = max(largestGap, txHeights[i] - txHeights[i - 1])
 
+  # HOW FAR THE NEWEST TRANSACTION SAT FROM THE WINDOW IT MISSED — and the arithmetic
+  # only means that when it is actually below it.
+  #
+  # `replayableFrom - mostRecentTxBlock` was written when a snapshot was one scan, where
+  # the newest transaction is necessarily at or below the tip that scan read. A WATCHED
+  # snapshot breaks that: the follower keeps extending the block record, so the newest
+  # transaction can sit far ABOVE the window recorded at the last catch, and the
+  # subtraction goes negative. It did: the first grown mainnet snapshot published
+  # "the most recent one settled in block 67511 — -391 block(s) below the window", a
+  # sentence that is not merely ugly but false, on the one element of the page whose
+  # entire job is to be believed.
+  #
+  # Three arms, because there are three states of the world and each says something
+  # different to a reader: nothing settled at all, the newest is below the window and
+  # therefore pruned, or the newest is inside it and simply was not replayable when the
+  # capture reached it.
+  let replFrom = win["replayableFrom"].getInt
+  let belowBy = replFrom - mostRecentTxBlock
+  let recency =
+    if txHeights.len == 0:
+      "no transaction settled in the enumerated range at all. "
+    elif belowBy > 0:
+      "the most recent one settled in block " & $mostRecentTxBlock & " — " &
+      $belowBy & " block(s) below that window, so it had already been pruned " &
+      "when this capture ran. "
+    else:
+      "the most recent one settled in block " & $mostRecentTxBlock &
+      ", at or above the last window recorded here — it carries no trace " &
+      "because its body was already gone when the capture reached it. "
+
   # The label a reader sees on the banner and on the home page's chain strip.
   # The capture supplies it; this is a fallback for a snapshot that named none,
   # and it deliberately does NOT try to prettify the slug beyond saying the data
@@ -446,11 +508,30 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # state the pruning boundary, and neither apologises: "no transaction inside
   # the window was replayable" is a measurement, and the density that explains
   # it is published beside it.
+  #
+  # A SNAPSHOT MAY BE THE PRODUCT OF MORE THAN ONE MOMENT. `capture-chain.mjs` writes one
+  # scan and its `capturedAt` is that scan; `follow-chain.mjs` WATCHES, and the snapshot it
+  # grows spans every moment it was extended. "at that moment" is then a false sentence
+  # about a true timestamp — the blocks run to the latest poll and the reader is told the
+  # whole chain was read hours earlier.
+  #
+  # So the phrasing follows the snapshot. A single-moment capture reads exactly as it
+  # always did, byte for byte; a watched one says it was watched, and names both ends.
+  # `firstCapturedAt` is what distinguishes them, and it is absent from a one-shot
+  # snapshot rather than equal to `capturedAt`, so this cannot misclassify a scan.
+  let firstAt = prov{"firstCapturedAt"}.getStr
+  let lastAt = prov{"capturedAt"}.getStr
   let captured =
-    "Captured from " & endpointHost & " at " & prov["capturedAt"].getStr &
-    " (node " & prov["nodeVersion"].getStr & "). The replay window was blocks " &
-    $win["replayableFrom"].getInt & "–" & $tipAt & " (" & $win["blocks"].getInt &
-    " blocks) at that moment. "
+    if firstAt.len > 0 and firstAt != lastAt:
+      "Captured from " & endpointHost & " over a watch that began " & firstAt &
+      " and was last extended " & lastAt & " (node " & prov["nodeVersion"].getStr &
+      "). The replay window was blocks " & $replFrom & "–" & $tipAt & " (" &
+      $win["blocks"].getInt & " blocks) when it was last looked at. "
+    else:
+      "Captured from " & endpointHost & " at " & lastAt &
+      " (node " & prov["nodeVersion"].getStr & "). The replay window was blocks " &
+      $replFrom & "–" & $tipAt & " (" & $win["blocks"].getInt &
+      " blocks) at that moment. "
   let middle =
     if withTrace > 0:
       $withTrace & " transaction(s) inside it were re-executed and their " &
@@ -461,11 +542,9 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       "found, not a failure to record. Across the " & $blockRows.len &
       " blocks enumerated here this chain settled " & $txCount &
       " transaction(s), and they did not arrive evenly: the longest run with " &
-      "none was " & $largestGap & " blocks, and the most recent one settled in " &
-      "block " & $mostRecentTxBlock & " — " & $(win["replayableFrom"].getInt -
-      mostRecentTxBlock) & " block(s) below the window, so it had already been " &
-      "pruned when this capture ran. Catching one needs a follower that watches " &
-      "the tip continuously rather than a single scan. "
+      "none was " & $largestGap & " blocks, and " & recency &
+      "Catching one needs a follower that watches the tip continuously rather " &
+      "than a single scan. "
   let provDetail =
     captured & middle &
     "Transactions below block " & $finalizedAt & " are still visible on the " &

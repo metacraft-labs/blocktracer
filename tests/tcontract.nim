@@ -13,6 +13,10 @@ import ../src/blocktracer/contract/[model, version, ids, searchidx, entrypage]
 import ../src/blocktracer/validator
 import ../src/blocktracer/demo/generator
 
+# The synthetic demo tree's slug. It is no longer `aztec`: that slug is the Aztec
+# MAINNET's, served at blocktracer.org/aztec, and the fixture moved off it.
+const DemoChain = "demo"
+
 proc synthHash(seed, kind: string, n: int): string =
   "0x" & toLowerAscii($secureHash(seed & "|" & kind & "|" & $n))[0 .. 39]
 proc synthAddr(seed, kind: string, n: int): string =
@@ -59,7 +63,7 @@ suite "M5c — demo tree conformance":
     # txB is the private+public split at block 101, index 0.
     let h = "0x" & toLowerAscii($secureHash(seed & "|tx|1"))[0 .. 39]
     let sh = hexShard(h)
-    let ov = parseFile(outDir / "d" / "aztec" / "ts" / "1" / sh / h & ".json")
+    let ov = parseFile(outDir / "d" / DemoChain / "ts" / "1" / sh / h & ".json")
     check "executions" in ov
     var sawAbsent, sawReady = false
     for e in ov["executions"]:
@@ -75,7 +79,7 @@ suite "M5c — demo tree conformance":
 
   test "immutable facts carry no mutable interpretation":
     let h = "0x" & toLowerAscii($secureHash(seed & "|tx|1"))[0 .. 39]
-    let facts = parseFile(outDir / "d" / "aztec" / "tx" / hexShard(h) / h & ".json")
+    let facts = parseFile(outDir / "d" / DemoChain / "tx" / hexShard(h) / h & ".json")
     for forbidden in ["trace", "validation", "finality", "canonical"]:
       check forbidden notin facts
 
@@ -83,8 +87,8 @@ suite "M5c — demo tree conformance":
     # txC divergent (block 101 idx1), txD onDemand (block 102 idx0)
     let hc = "0x" & toLowerAscii($secureHash(seed & "|tx|2"))[0 .. 39]
     let hd = "0x" & toLowerAscii($secureHash(seed & "|tx|3"))[0 .. 39]
-    let ovc = parseFile(outDir / "d" / "aztec" / "ts" / "1" / hexShard(hc) / hc & ".json")
-    let ovd = parseFile(outDir / "d" / "aztec" / "ts" / "1" / hexShard(hd) / hd & ".json")
+    let ovc = parseFile(outDir / "d" / DemoChain / "ts" / "1" / hexShard(hc) / hc & ".json")
+    let ovd = parseFile(outDir / "d" / DemoChain / "ts" / "1" / hexShard(hd) / hd & ".json")
     check ovc["trace"]["availability"].getStr == "divergent"
     check ovd["trace"]["availability"].getStr == "onDemand"
 
@@ -106,10 +110,10 @@ suite "M5c — demo tree conformance":
     nil
 
   proc factsFor(outDir, tx: string): JsonNode =
-    parseFile(outDir / "d" / "aztec" / "tx" / hexShard(tx) / tx & ".json")
+    parseFile(outDir / "d" / DemoChain / "tx" / hexShard(tx) / tx & ".json")
 
   proc overlayFor(outDir, tx: string): JsonNode =
-    parseFile(outDir / "d" / "aztec" / "ts" / "1" / hexShard(tx) / tx & ".json")
+    parseFile(outDir / "d" / DemoChain / "ts" / "1" / hexShard(tx) / tx & ".json")
 
   test "one transaction REVERTED, and its trace is published and undisputed":
     # `debugger--event-log`'s fifth entry kind. The pane appends `evRevert` off
@@ -128,7 +132,7 @@ suite "M5c — demo tree conformance":
     # Exactly one, so the count is a fact a reader can rely on rather than a
     # lower bound that would still pass if a later change made every tx revert.
     var reverted = 0
-    for p in walkDirRec(outDir / "d" / "aztec" / "tx"):
+    for p in walkDirRec(outDir / "d" / DemoChain / "tx"):
       if parseFile(p)["outcome"]["overall"].getStr == "reverted": inc reverted
     check reverted == 1
 
@@ -159,7 +163,7 @@ suite "M5c — demo tree conformance":
     # second traceless transaction — capturing the first one twice would answer
     # VD.4's extreme-content verification with a duplicate of `tx-detail`.
     var traceless: seq[string]
-    for p in walkDirRec(outDir / "d" / "aztec" / "ts"):
+    for p in walkDirRec(outDir / "d" / DemoChain / "ts"):
       let ov = parseFile(p)
       if "trace" in ov and ov["trace"]["availability"].getStr == "onDemand":
         traceless.add ov["tx"].getStr
@@ -196,7 +200,7 @@ suite "M5c — demo tree conformance":
     var firstReady = ""
     for height in [102, 101, 100]:
       let bh = synthHash(seed, "block", height)
-      for tx in parseFile(outDir / "d" / "aztec" / "block" / bh & ".json")["transactions"]:
+      for tx in parseFile(outDir / "d" / DemoChain / "block" / bh & ".json")["transactions"]:
         let h = tx.getStr
         let ov = overlayFor(outDir, h)
         let execs = if "trace" in ov: @[ov["trace"]] else: ov["executions"].getElems
@@ -281,7 +285,7 @@ suite "M5c — the published traces are the real noir_space_ship execution":
     # object, so a stale value mis-sizes the request.
     let want = readFile(fixture).len
     var checkedAny = false
-    for p in walkDirRec(outDir / "d" / "aztec" / "ts"):
+    for p in walkDirRec(outDir / "d" / DemoChain / "ts"):
       let ov = parseFile(p)
       var traces: seq[JsonNode]
       if "trace" in ov: traces.add ov["trace"]
@@ -302,7 +306,7 @@ suite "M5c — the published traces are the real noir_space_ship execution":
       let m = parseFile(p)
       check m["sourceBundles"].len == 1
       for codeHash, idNode in m["sourceBundles"]:
-        let cur = parseFile(outDir / "src" / "aztec" / codeHash / "current.json")
+        let cur = parseFile(outDir / "src" / DemoChain / codeHash / "current.json")
         check cur["sourceBundleId"].getStr == idNode.getStr
         let bundle = parseFile(outDir / cur["bundle"].getStr)
         check bundle["codeHash"].getStr == codeHash
@@ -377,10 +381,10 @@ suite "M5c — determinism":
     #
     # The fixed-name objects, however, must differ in CONTENT — otherwise the
     # trees could differ only in filenames while publishing identical facts.
-    check readFile(a / "d" / "aztec" / "current.json") !=
-          readFile(other / "d" / "aztec" / "current.json")
-    check readFile(a / "d" / "aztec" / "labels" / "0.json") !=
-          readFile(other / "d" / "aztec" / "labels" / "0.json")
+    check readFile(a / "d" / DemoChain / "current.json") !=
+          readFile(other / "d" / DemoChain / "current.json")
+    check readFile(a / "d" / DemoChain / "labels" / "0.json") !=
+          readFile(other / "d" / DemoChain / "labels" / "0.json")
     # The containers, however, are the SAME bytes at every seed: they are
     # vendored, not generated, and the seed keys the chain facts around them.
     proc oneContainer(dir: string): string =
@@ -481,31 +485,31 @@ suite "M5c — /idx search indices and HTML entry pages":
   discard generate(DemoConfig(outDir: outDir, seed: seed, traceFixturePath: fixture, traceSourcesDir: sourcesDir))
 
   test "the render + idx layers are emitted and declared in the generation root":
-    let root = parseFile(outDir / "d" / "aztec" / "g" / "1" / "root.json")
+    let root = parseFile(outDir / "d" / DemoChain / "g" / "1" / "root.json")
     check "idx" in root and "render" in root
     check fileExists(outDir / "index.html")
-    check fileExists(outDir / "idx" / "aztec" / "names" / "meta.json")
+    check fileExists(outDir / "idx" / DemoChain / "names" / "meta.json")
     # at least one hash shard and one name shard exist
     var hashShards, nameShards = 0
     for p in walkDirRec(outDir / "idx" / "hash"):
       if p.endsWith(".bin"): inc hashShards
-    for p in walkDirRec(outDir / "idx" / "aztec" / "names"):
+    for p in walkDirRec(outDir / "idx" / DemoChain / "names"):
       if p.endsWith(".bin"): inc nameShards
     check hashShards > 0 and nameShards == 2
 
   test "the tx entry page inlines its data as a materialised view of /d":
     let h = synthHash(seed, "tx", 0)
-    let page = outDir / "aztec" / "tx" / h / "index.html"
+    let page = outDir / DemoChain / "tx" / h / "index.html"
     check fileExists(page)
     let html = readFile(page)
     check "content=\"noindex,follow\"" in html          # N1 addressable-only
-    check (siteBase & "/aztec/tx/" & h) in html          # canonical
+    check (siteBase & "/" & DemoChain & "/tx/" & h) in html          # canonical
     let (payload, found) = extractInlineData(html)
     check found
     let data = parseJson(payload)
     check data["kind"].getStr == "tx"
     check data["txHash"].getStr == h
-    let onDisk = parseFile(outDir / "d" / "aztec" / "tx" / hexShard(h) / h & ".json")
+    let onDisk = parseFile(outDir / "d" / DemoChain / "tx" / hexShard(h) / h & ".json")
     check data["facts"] == onDisk                        # a view, not a second truth
 
   test "the home page is the one index,follow page (§5 class I0)":
@@ -514,7 +518,7 @@ suite "M5c — /idx search indices and HTML entry pages":
     check (siteBase & "/\">") in html or (siteBase & "/\"") in html
 
   test "the hash index resolves every entity (tx, block, address)":
-    let root = parseFile(outDir / "d" / "aztec" / "g" / "1" / "root.json")
+    let root = parseFile(outDir / "d" / DemoChain / "g" / "1" / "root.json")
     let hi = root["idx"]["hash"]
     let ver = hi["version"].getStr
     let pfx = hi["prefixLen"].getInt
@@ -522,14 +526,14 @@ suite "M5c — /idx search indices and HTML entry pages":
       let shard = outDir / "idx" / "hash" / ver / hashPrefix(hexHash, pfx) & ".bin"
       if not fileExists(shard): return false
       for e in lookupHash(readFile(shard), hexHash):
-        if e.chain == "aztec" and e.kind == kind: return true
+        if e.chain == DemoChain and e.kind == kind: return true
       false
     check resolves(synthHash(seed, "tx", 0), hkTx)
     check resolves(synthHash(seed, "block", 100), hkBlock)
     check resolves(synthAddr(seed, "feepayer", 0), hkAddress)
 
   test "name shards decode, place terms correctly, and carry provenance (§6.2)":
-    let meta = parseFile(outDir / "idx" / "aztec" / "names" / "meta.json")
+    let meta = parseFile(outDir / "idx" / DemoChain / "names" / "meta.json")
     let shardBits = meta["shardBits"].getInt
     var sawCurated, sawSelf = false
     for sp in meta["shards"]:
@@ -556,14 +560,14 @@ suite "M5c — the new /idx + entry-page assertions bite":
   test "flipping a tx entry page to index,follow fails":
     let d = freshIdx("bite-robots")
     let h = synthHash("bite", "tx", 0)
-    let page = d / "aztec" / "tx" / h / "index.html"
+    let page = d / DemoChain / "tx" / h / "index.html"
     writeFile(page, readFile(page).replace("noindex,follow", "index,follow"))
     check validateTree(d).len > 0
 
   test "tampering with a tx entry page's inlined data fails (view drift)":
     let d = freshIdx("bite-view")
     let h = synthHash("bite", "tx", 0)
-    let page = d / "aztec" / "tx" / h / "index.html"
+    let page = d / DemoChain / "tx" / h / "index.html"
     # Corrupt the inlined outcome so the page disagrees with /d — the materialised
     # view is no longer faithful.
     writeFile(page, readFile(page).replace("\"succeeded\"", "\"reverted\""))
@@ -585,12 +589,12 @@ suite "M5c — the new /idx + entry-page assertions bite":
 
   test "corrupting a name shard's bytes fails":
     let d = freshIdx("bite-namebytes")
-    writeFile(d / "idx" / "aztec" / "names" / "0.bin", "not a name shard")
+    writeFile(d / "idx" / DemoChain / "names" / "0.bin", "not a name shard")
     check validateTree(d).len > 0
 
   test "dropping shardBits from names meta.json fails":
     let d = freshIdx("bite-meta")
-    let mp = d / "idx" / "aztec" / "names" / "meta.json"
+    let mp = d / "idx" / DemoChain / "names" / "meta.json"
     var m = parseFile(mp)
     m.delete("shardBits")
     writeFile(mp, m.pretty & "\n")
@@ -602,7 +606,7 @@ suite "M5b — malformed trees fail conformance":
     discard generate(DemoConfig(outDir: result, seed: "neg", traceFixturePath: fixture, traceSourcesDir: sourcesDir))
 
   proc firstTxFactsPath(dir: string): string =
-    for p in walkDirRec(dir / "d" / "aztec" / "tx"):
+    for p in walkDirRec(dir / "d" / DemoChain / "tx"):
       if p.endsWith(".json"): return p
     ""
 
@@ -618,7 +622,7 @@ suite "M5b — malformed trees fail conformance":
     let d = freshDemo("neg-absent")
     # txB overlay (private+public) — drop the private reason.
     let h = "0x" & toLowerAscii($secureHash("neg" & "|tx|1"))[0 .. 39]
-    let ovp = d / "d" / "aztec" / "ts" / "1" / hexShard(h) / h & ".json"
+    let ovp = d / "d" / DemoChain / "ts" / "1" / hexShard(h) / h & ".json"
     var ov = parseFile(ovp)
     for e in ov["executions"]:
       if e["selector"].getStr == "private": e.delete("reason")
@@ -645,7 +649,7 @@ suite "M5b — malformed trees fail conformance":
 
   test "an unsupported contract version in root.json fails":
     let d = freshDemo("neg-version")
-    let rp = d / "d" / "aztec" / "g" / "1" / "root.json"
+    let rp = d / "d" / DemoChain / "g" / "1" / "root.json"
     var n = parseFile(rp)
     n["contractVersion"] = %(ContractVersion + 99)
     writeFile(rp, n.pretty & "\n")
@@ -654,7 +658,7 @@ suite "M5b — malformed trees fail conformance":
   # --- the M5c real-trace edges, each verified to bite -----------------------
 
   proc firstOverlayWithTrace(dir: string): string =
-    for p in walkDirRec(dir / "d" / "aztec" / "ts"):
+    for p in walkDirRec(dir / "d" / DemoChain / "ts"):
       if parseFile(p){"trace"} != nil: return p
     ""
 
@@ -678,7 +682,7 @@ suite "M5b — malformed trees fail conformance":
     let n = parseFile(mp)
     # Delete the bundle the manifest recommends, leaving the reference dangling.
     for codeHash, _ in n["sourceBundles"]:
-      removeDir(d / "src" / "aztec" / codeHash)
+      removeDir(d / "src" / DemoChain / codeHash)
     let errs = validateTree(d)
     check errs.len > 0
     check errs.anyIt("with no published" in it)
@@ -690,7 +694,7 @@ suite "M5b — malformed trees fail conformance":
       if p.endsWith("current.json"): cp = p; break
     check cp.len > 0
     var n = parseFile(cp)
-    n["bundle"] = %"src/aztec/nope/deadbeef.json"
+    n["bundle"] = %("src/" & DemoChain & "/nope/deadbeef.json")
     writeFile(cp, n.pretty & "\n")
     let errs = validateTree(d)
     check errs.len > 0

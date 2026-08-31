@@ -53,6 +53,10 @@ type
                               ## (Source-Resolution.md §5). Its layout under
                               ## `src/` must match the paths the container
                               ## interns, or a step resolves to no source line.
+    chain*: string            ## the slug the demo tree publishes under; "" =>
+                              ## `DemoChainSlug`. It is a parameter because `aztec`
+                              ## now belongs to the real mainnet capture, and a
+                              ## fixture must be able to be told where to stand.
     generation*: string       ## generation label; "" => "1" (the M5c default).
     extraBlocks*: seq[int]     ## heights appended after 102, each carrying one new
                                ## public transaction. Empty => the byte-identical
@@ -91,10 +95,30 @@ proc writeBinary(cfg: DemoConfig, rel, bytes: string) =
   createDir parentDir(p)
   writeFile(p, bytes)
 
+# The demo chain's slug.
+#
+# IT IS NO LONGER `aztec`, AND THAT IS AN OWNERSHIP CHANGE RATHER THAN A RENAME.
+# `aztec` is the Aztec MAINNET's slug — the real chain, captured from a node and served at
+# `blocktracer.org/aztec`. The synthetic tree is a fixture, and a fixture that occupies the
+# canonical name of the network it imitates is the exact confusion this repository has
+# always refused: "two chains at one slug would overwrite each other's blocks and make real
+# and generated data indistinguishable in a URL". That sentence was written to keep a real
+# chain OFF this slug; it now keeps the demo off it, because the ownership moved and the
+# hazard did not.
+#
+# A `var`, not a `const`, so `generate` can be told which slug to write under; the default
+# is what every consumer that does not care should get. `ingest.nim` enforces the
+# collision rule in both directions — see `assertSlugAvailable`.
+const DemoChainSlug* = "demo"
+
+var chain = DemoChainSlug
+
 # The Aztec recorder pin, as it would appear in the chain registry. The real
 # values come from M5a; these are deterministic stand-ins.
+#
+# `recorderId` is NOT the slug: `aztec-avm` names the recorder, and `ingest.nim` publishes
+# the same id for the real chains. It stays as it is.
 const
-  chain = "aztec"
   recorderId = "aztec-avm"
   recorderVersion = "0.0.0-demo"
   traceSchema = "ctfs/v4"
@@ -130,16 +154,23 @@ proc profileRef(): ProfileRef =
   ProfileRef(name: profileName, hash: profileHash(profileName))
 
 proc writeRegistry(cfg: DemoConfig) =
-  let reg = %*{
-    "version": ContractVersion,
-    "chains": {
-      chain: {
-        "recorder": {"id": recorderId, "build": recorderBuildHash(recorderId, recorderVersion),
-                     "version": recorderVersion},
-        "profile": {"name": profileName, "hash": profileHash(profileName)},
-        "traceSchema": traceSchema
-      }
-    }
+  ## ADD this chain to the registry; never replace the file.
+  ##
+  ## It used to write the whole registry, which was correct while the demo ran first and
+  ## was the only producer to have written one. It is not correct now: the live captures
+  ## publish BEFORE the demo, so an overwrite here would silently delete `aztec` and
+  ## `aztec-testnet` from the registry and leave a tree whose pages exist and whose
+  ## chain list does not mention them. `ingest.nim` has merged for exactly this reason
+  ## since it was written; this is the same rule, arriving at the other producer.
+  let path = cfg.outDir / "registry" / "chains.v" & $ContractVersion & ".json"
+  var reg =
+    if fileExists(path): parseJson(readFile(path))
+    else: %*{"version": ContractVersion, "chains": {}}
+  reg["chains"][chain] = %*{
+    "recorder": {"id": recorderId, "build": recorderBuildHash(recorderId, recorderVersion),
+                 "version": recorderVersion},
+    "profile": {"name": profileName, "hash": profileHash(profileName)},
+    "traceSchema": traceSchema
   }
   cfg.writeJson("registry" / "chains.v" & $ContractVersion & ".json", reg)
 
@@ -638,6 +669,9 @@ proc generate*(cfg: DemoConfig): int =
   ## Emit the full demo tree. Returns the number of top-level objects written
   ## (for the CLI's summary line).
   let seed = cfg.seed
+  # The slug this tree publishes under, set before anything is written. Every proc below
+  # reads the module-level `chain`, so this one assignment scopes the whole generation.
+  chain = if cfg.chain.len > 0: cfg.chain else: DemoChainSlug
   # The generation label and the generation-versioned hash index. Both default to
   # "1" (the M5c tree) and move together when a new generation is emitted, so a
   # sealed generation's `/idx/hash/{gen}/**` is immutable at a distinct path rather

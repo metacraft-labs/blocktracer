@@ -28,7 +28,7 @@ import ../src/blocktracer_client_embed
 import ../src/blocktracer/demo/generator
 
 const
-  Chain = "aztec"
+  Chain = "demo"
   Base = "https://blocktracer.org"
   FixtureDir = currentSourcePath().parentDir.parentDir / "fixtures" / "trace" /
                "noir_space_ship"

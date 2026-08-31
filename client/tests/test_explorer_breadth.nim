@@ -42,7 +42,7 @@ import ../src/viewutil
 import ../src/components/degraded
 import ../src/components/tables as viewTables
 
-const Chain = "aztec"
+const Chain = "demo"
 
 # ── a real exported tree, produced by the real exporter ────────────────────
 
@@ -55,7 +55,10 @@ createDir(workDir)
 
 let exporterBin = workDir / "static_export_bin"
 block:
-  let cmd = "nim c --mm:orc -d:isServer -d:release --hints:off --nimcache:" &
+  # `-d:publishDemoChain`: the address / code / segment route families exist only on
+  # the synthetic tree, so the breadth suite asks for it explicitly. The deployed
+  # site does not carry it.
+  let cmd = "nim c --mm:orc -d:isServer -d:release -d:publishDemoChain --hints:off --nimcache:" &
     quoteShell(workDir / "nimcache") & " -o:" & quoteShell(exporterBin) & " " &
     quoteShell(clientRoot / "src" / "static_export.nim")
   let (output, code) = execCmdEx(cmd)

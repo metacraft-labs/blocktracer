@@ -24,6 +24,10 @@ import ../src/blocktracer/demo/generator
 import ../src/blocktracer/publish/objectstore
 import ../src/blocktracer/publish/publisher
 
+# The synthetic demo tree's slug. It is no longer `aztec`: that slug is the Aztec
+# MAINNET's, served at blocktracer.org/aztec, and the fixture moved off it.
+const DemoChain = "demo"
+
 # The REAL `noir_space_ship` trace: a CTFS container recorded by `nargo trace`
 # (see fixtures/trace/noir_space_ship/README.md), plus the Noir sources the
 # generator publishes as content-addressed source bundles.
@@ -65,7 +69,7 @@ suite "M8 — generation 1 publishes fully and is crawlable":
 
   test "one chain, resumed from nothing, pointer flipped to generation 1":
     check res.len == 1
-    check res[0].chain == "aztec"
+    check res[0].chain == DemoChain
     check res[0].resumedFrom.present == false
     check res[0].publishedGeneration == "1"
     check res[0].pointerFlipped
@@ -87,7 +91,7 @@ suite "M8 — generation 1 publishes fully and is crawlable":
     let s2 = newLocalObjectStore(d2)
     discard publishTree(s2, tree1, defaultOptions())
     var someBlock = ""
-    for p in walkDirRec(d2 / "d" / "aztec" / "block"):
+    for p in walkDirRec(d2 / "d" / DemoChain / "block"):
       if p.endsWith(".json"): someBlock = p; break
     removeFile(someBlock)
     check validateTree(d2).len > 0
@@ -105,7 +109,7 @@ suite "M8 — idempotency: re-publishing a generation uploads zero content":
     check second.contentSkipped.len == first.contentUploaded.len
     check second.determinismIncidents.len == 0
     # The pointer is still rewritten unconditionally (idempotent rewrite).
-    check "d/aztec/current.json" in second.pointersWritten
+    check ("d/" & DemoChain & "/current.json") in second.pointersWritten
     check second.pointerFlipped
 
   test "MUTATION BITE: a single missing object makes the idempotent re-run upload it":
@@ -115,7 +119,7 @@ suite "M8 — idempotency: re-publishing a generation uploads zero content":
     let s2 = newLocalObjectStore(d2)
     discard publishTree(s2, tree1, defaultOptions())
     var oneTx = ""
-    for p in walkDirRec(d2 / "d" / "aztec" / "tx"):
+    for p in walkDirRec(d2 / "d" / DemoChain / "tx"):
       if p.endsWith(".json"): oneTx = p; break
     removeFile(oneTx)
     let redo = publishTree(s2, tree1, defaultOptions())[0]
@@ -142,12 +146,12 @@ suite "M8 — incremental delta: generation 2 uploads only the new block":
     check g2.contentUploaded.len < g1.contentUploaded.len   # a genuine delta
     check g2.contentSkipped.len > 0                         # gen-1 objects skipped
     # The new sealed generation root IS in the delta; no generation-1 map is.
-    check "d/aztec/g/2/root.json" in g2.contentUploaded
-    check not g2.contentUploaded.anyIt(it.startsWith("d/aztec/g/1/"))
+    check ("d/" & DemoChain & "/g/2/root.json") in g2.contentUploaded
+    check not g2.contentUploaded.anyIt(it.startsWith(("d/" & DemoChain & "/g/1/")))
 
   test "the delta contains exactly the new block's data and its one new trace":
     let b103 = synthHash(seed, "block", 103)
-    check ("d/aztec/block/" & b103 & ".json") in g2.contentUploaded
+    check (("d/" & DemoChain & "/block/") & b103 & ".json") in g2.contentUploaded
     # one new ready trace ⇒ its container + manifest (2 input-addressed objects)
     check g2.contentUploaded.filterIt(it.startsWith("t/")).len == 2
 
@@ -156,8 +160,8 @@ suite "M8 — incremental delta: generation 2 uploads only the new block":
     if errs.len > 0:
       for e in errs: echo "  ERR ", e
     check errs.len == 0
-    check fileExists(dest / "d" / "aztec" / "g" / "1" / "root.json")  # not deleted
-    check fileExists(dest / "d" / "aztec" / "g" / "2" / "root.json")
+    check fileExists(dest / "d" / DemoChain / "g" / "1" / "root.json")  # not deleted
+    check fileExists(dest / "d" / DemoChain / "g" / "2" / "root.json")
 
   test "re-publishing generation 2 uploads zero content (idempotent delta)":
     let again = publishTree(store, tree2, defaultOptions())[0]
@@ -190,7 +194,7 @@ suite "M8 — resumability: killed before the pointer flip":
     check halted.pointerFlipped == false
     check halted.contentUploaded.len > 0
     # Reconstructed from published output: the pointer still names generation 1.
-    check readSyncState(store, "aztec").generation == "1"
+    check readSyncState(store, DemoChain).generation == "1"
     # Extra unreferenced content is harmless — the store is still crawlable at gen 1.
     check validateTree(dest).len == 0
 
@@ -212,7 +216,7 @@ suite "M8 — resumability: killed before the pointer flip":
     var opts = defaultOptions()
     opts.haltBeforePointer = true
     discard publishTree(s2, tree2, opts)
-    removeFile(d2 / "d" / "aztec" / "g" / "2" / "root.json")
+    removeFile(d2 / "d" / DemoChain / "g" / "2" / "root.json")
     let resumed = publishTree(s2, tree2, defaultOptions())[0]
     check resumed.contentUploaded.len == 1
 
@@ -232,7 +236,7 @@ suite "M8 — resumability: killed mid-content, no gap or double-count":
     check crash.contentUploaded.len == 3
     check crash.haltedBeforePointer
     check crash.pointerFlipped == false
-    check readSyncState(store, "aztec").generation == "1"
+    check readSyncState(store, DemoChain).generation == "1"
 
   test "the restart uploads exactly the remainder — union is complete and disjoint":
     # Compute the full delta from a clean run against a separate gen-1 store.
@@ -265,16 +269,16 @@ suite "M8 — single-writer lease per chain":
   let store = newLocalObjectStore(dest)
 
   test "a second publisher is refused while the lease is held":
-    check acquireLease(store, "aztec", "writer-1")
+    check acquireLease(store, DemoChain, "writer-1")
     var opts = defaultOptions()
     opts.writer = "writer-2"
     expect PublishError:
       discard publishTree(store, tree1, opts)
 
   test "after release, the lease can be re-acquired and publishing proceeds":
-    releaseLease(store, "aztec", "writer-1")
-    check acquireLease(store, "aztec", "writer-2")
-    releaseLease(store, "aztec", "writer-2")
+    releaseLease(store, DemoChain, "writer-1")
+    check acquireLease(store, DemoChain, "writer-2")
+    releaseLease(store, DemoChain, "writer-2")
     let res = publishTree(store, tree1, defaultOptions())[0]
     check res.pointerFlipped
 
@@ -283,8 +287,8 @@ suite "M8 — single-writer lease per chain":
     # exists-then-put would return true here — this asserts it does not.
     let d2 = tmp("lease-bite-store")
     let s2 = newLocalObjectStore(d2)
-    check acquireLease(s2, "aztec", "w1")
-    check acquireLease(s2, "aztec", "w2") == false
+    check acquireLease(s2, DemoChain, "w1")
+    check acquireLease(s2, DemoChain, "w2") == false
 
 suite "M8 — determinism incident on input-addressed objects":
   let tree1 = tmp("det-tree")

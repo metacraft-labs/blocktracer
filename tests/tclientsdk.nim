@@ -39,7 +39,7 @@ import ../src/blocktracer/validator
 import ../src/blocktracer/demo/generator
 
 const
-  Chain = "aztec"
+  Chain = "demo"
   FixtureDir = currentSourcePath().parentDir.parentDir / "fixtures" / "trace" /
                "noir_space_ship"
   # The REAL `noir_space_ship` CTFS container recorded by `nargo trace`.
@@ -414,8 +414,8 @@ suite "M12a — the client carries no identity":
     let probe = newObjectStore("probe", proc(path: string): ObjectResponse =
       seen.add path
       ObjectResponse(found: false))
-    discard probe.get("d/aztec/current.json")
-    check seen == @["d/aztec/current.json"]
+    discard probe.get(("d/" & Chain & "/current.json"))
+    check seen == @[("d/" & Chain & "/current.json")]
 
   test "a path escaping the published tree is refused, not fetched":
     var attempted = 0

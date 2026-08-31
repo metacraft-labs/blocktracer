@@ -233,13 +233,34 @@ export function buildEntityIndex(distDir) {
     };
   }
 
+  // ── The chain the UNQUALIFIED selectors resolve against ────────────────────
+  //
+  // Was `chains.sort()[0]`, and that was never a decision — it was an accident that
+  // happened to name the fixture while the fixture's slug sorted first. VD.8 already
+  // caught one half of this: three chains shipped and all 232 chain-scoped images were of
+  // whichever sorted first, silently. The fix then was four views that name their chain.
+  //
+  // The other half arrived when the Aztec MAINNET took the slug `aztec`. `sort()[0]` then
+  // named a real chain with no traces, no addresses and no source bundles, and all thirty
+  // fixture-driven views threw at resolve time — loudly, which is the harness working, but
+  // for a reason no rename should have caused.
+  //
+  // So it is chosen by PROVENANCE, which is the rule the product and the other four views
+  // already follow: the slug is renameable and the published kind is the fact. These views
+  // are the ones whose subjects only the fixture publishes; naming that is more honest
+  // than sorting. The fallback keeps a fixture-less tree working rather than throwing here,
+  // because a view that genuinely has no subject should fail in ITS selector, with ITS
+  // reason, not in the index constructor.
+  const syntheticChains = chains.filter((c) => byChain[c].provenanceKind === "synthetic");
+  const defaultChain = syntheticChains[0] ?? chains[0];
+
   return {
     distDir,
     chains,
-    primaryChain: chains[0],
+    primaryChain: defaultChain,
     byChain,
     chain(name) {
-      const c = byChain[name ?? chains[0]];
+      const c = byChain[name ?? defaultChain];
       if (!c) throw new Error(`no such chain in the data plane: ${name}`);
       return c;
     },

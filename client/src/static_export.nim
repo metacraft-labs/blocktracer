@@ -104,28 +104,16 @@ proc exportSite() =
   if dirExists(OutputDir): removeDir(OutputDir)
   ensureDir(OutputDir)
 
-  # Step 1: emit the demo data plane + entry pages into dist/.
-  # The REAL `noir_space_ship` trace, plus the Noir sources published as
-  # content-addressed source bundles. The container carries no source text, so
-  # without the sources the exported site would step through code it cannot show.
-  let fixtureDir = repoRoot() / "fixtures" / "trace" / "noir_space_ship"
-  let fixture = fixtureDir / "zk_shields.ct"
-  let sources = fixtureDir / "sources"
-  if not fileExists(fixture):
-    stderr.writeLine "trace fixture not found: " & fixture
-    quit 2
-  if not dirExists(sources):
-    stderr.writeLine "trace sources not found: " & sources
-    quit 2
-  let n = generate(DemoConfig(outDir: OutputDir, seed: DefaultSeed,
-                              traceFixturePath: fixture,
-                              traceSourcesDir: sources))
-  echo "  + data plane: /d /idx /t /registry + entry pages (" & $n & " transactions)"
-
-  # Step 1b: ingest the captured live-chain snapshot as a SECOND chain, if this
-  # checkout carries one. Two producers, one tree, one contract — everything
-  # below (route enumeration, reader, the five §7.0 views, the validator) is
-  # shared, because a second chain is data rather than a second explorer.
+  # Step 1: ingest every captured live-chain snapshot. Two producers, one tree, one
+  # contract — everything below (route enumeration, reader, the five §7.0 views, the
+  # validator) is shared, because a second chain is data rather than a second explorer.
+  #
+  # THE REAL CHAINS GO FIRST, AND THE ORDER IS THE POINT. They used to go second, behind
+  # the demo, which was harmless while the demo owned a slug of its own. It is not
+  # harmless now that the Aztec mainnet IS `/aztec`: whoever writes second is the one
+  # able to overwrite, so the producer that must never overwrite a real chain is the one
+  # that has to run last and check. The real chains are the site's subject; the fixture
+  # is a guest.
   #
   # ITS ABSENCE IS A VALID BUILD, and deliberately so: a checkout without a
   # capture serves exactly the synthetic demo it always did. What must never
@@ -157,6 +145,41 @@ proc exportSite() =
     echo "  + live-chain snapshot: /" & ing.chain & " — " & $ing.blocks &
       " blocks, " & $ing.transactions & " transactions, " & traceNote & ", " &
       $ing.pruned & " past the replay horizon"
+
+  # Step 1b: the SYNTHETIC demo tree — off by default, and that default is the change.
+  #
+  # The published site carries real chains only. The demo chain is a fixture: it is the
+  # subject of most of the visual-review corpus and of the exporter-driven suites, and
+  # those are reasons to keep GENERATING it, not reasons to SERVE it. Publishing and
+  # testing are separated here rather than argued about elsewhere — `-d:publishDemoChain`
+  # turns it on for the capture harness and for the two tests that render over it, and
+  # nothing turns it on for a deploy.
+  #
+  # The trace fixture is still required when it IS enabled: the real `noir_space_ship`
+  # container carries no source text, so without the Noir sources the exported site would
+  # step through code it cannot show.
+  when defined(publishDemoChain):
+    let fixtureDir = repoRoot() / "fixtures" / "trace" / "noir_space_ship"
+    let fixture = fixtureDir / "zk_shields.ct"
+    let sources = fixtureDir / "sources"
+    if not fileExists(fixture):
+      stderr.writeLine "trace fixture not found: " & fixture
+      quit 2
+    if not dirExists(sources):
+      stderr.writeLine "trace sources not found: " & sources
+      quit 2
+    # The guard, at the composition root — the one place both producers meet. It refuses
+    # rather than trusting the slugs not to have collided, which is what the rule it
+    # replaced did in the other direction.
+    assertSlugAvailable(OutputDir, DemoChainSlug, "synthetic")
+    let n = generate(DemoConfig(outDir: OutputDir, seed: DefaultSeed,
+                                chain: DemoChainSlug,
+                                traceFixturePath: fixture,
+                                traceSourcesDir: sources))
+    echo "  + synthetic demo chain: /" & DemoChainSlug & " (" & $n & " transactions) " &
+      "— NOT PUBLISHED on a deploy; this build set -d:publishDemoChain"
+  else:
+    echo "  + synthetic demo chain: not published (build -d:publishDemoChain to include it)"
 
   # Step 2: render the explorer views over that tree, at clean URLs.
   let root = newDataRoot(OutputDir)

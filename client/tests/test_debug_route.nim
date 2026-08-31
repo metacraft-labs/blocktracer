@@ -43,7 +43,7 @@ import ../src/pages/tx as txPg
 import blocktracer/demo/generator
 import blocktracer/contract/ids   # `contentHashSha1`, as an independent oracle
 
-const Chain = "aztec"
+const Chain = "demo"
 
 # ── a real tree, generated in-process ──────────────────────────────────────
 

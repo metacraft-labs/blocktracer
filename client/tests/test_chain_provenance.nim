@@ -102,7 +102,7 @@ doAssert prunedTx.len > 0, "the snapshot carries no pruned transaction"
 
 const
   RealChain = "aztec-testnet"
-  DemoChain = "aztec"
+  DemoChain = "demo"
   # Strings that exist ONLY in the vendored Noir fixture. If any of them
   # reaches a real transaction's page, the page is showing another program's
   # execution.
@@ -307,8 +307,21 @@ suite "2c — a chain with NO replayable transaction says so":
       # The measured facts that explain it — and NOT a bare average, which on a
       # bursty chain is true and predicts the wrong thing.
       check "longest run with none was" in detail
-      check "below the window" in detail
+      check "the most recent one settled in block " in detail
       check "follower" in detail
+      # A GROWN SNAPSHOT MUST NOT PUBLISH A NEGATIVE DISTANCE.
+      #
+      # The clause used to be an unguarded `replayableFrom - mostRecentTxBlock`, which
+      # holds only while a snapshot is a single scan: the newest transaction is then at
+      # or below the tip that scan read. `follow-chain.mjs` keeps extending the block
+      # record, so the newest transaction can sit far ABOVE the window recorded at the
+      # last catch — and the first watched mainnet snapshot published "settled in block
+      # 67511 — -391 block(s) below the window" on the one element of the page whose
+      # whole job is to be believed.
+      #
+      # This arm only ever sees one of the three shapes, so it is a REGRESSION witness
+      # rather than the proof; suite 6 builds all three deliberately.
+      check "- block(s)" notin detail
 
   test "and no page of that chain offers a trace it does not have":
     var zero: IngestResult
@@ -748,3 +761,189 @@ suite "5 — a language tag is a claim about source":
 
   test "assertion count":
     expectCount(22)
+
+# ── 6 — a WATCHED snapshot's provenance line is true at both ends ────────────
+#
+# `follow-chain.mjs` grows a snapshot instead of replacing it, and that breaks two
+# sentences the one-shot capture could always write safely:
+#
+#   * "Captured … at T. The replay window was blocks A–B at that moment." A watched
+#     snapshot has no single moment; the blocks run to the latest poll while `capturedAt`
+#     named the first one, so the reader was told the whole chain was read hours earlier
+#     than it was.
+#   * "…settled in block N — `replayableFrom - N` block(s) below the window." That
+#     subtraction is only a distance while the newest transaction is at or below the tip
+#     the scan read. A follower keeps extending the block record, so the newest
+#     transaction can sit ABOVE the last recorded window and the difference goes negative.
+#     It did: the first grown mainnet snapshot published "-391 block(s) below the window".
+#
+# DRIVEN WITH A CONSTRUCTED SNAPSHOT, NOT THE COMMITTED ONE. The committed capture happens
+# to have its newest transaction below the window, so it exercises exactly one of the three
+# arms — an assertion written against it passes whether the guard is there or not, which
+# was measured: removing the guard did NOT redden the suite. Verification-Harness-Traps §4,
+# in its "the fixture never reaches the branch" form. Each arm is therefore built here.
+suite "6 — a watched snapshot says something true about both ends":
+  asserted = 0
+
+  # One snapshot, parameterised on the two facts that decide the wording.
+  proc snapshotWith(dir: string, tip, finalized, txBlock: int,
+                    firstCapturedAt: string): string =
+    let dest = dir / ("w" & $tip & "-" & $txBlock & "-" & $firstCapturedAt.len)
+    createDir(dest / "ct")
+    var prov = %*{
+      "kind": "live-capture", "chain": "watched", "label": "Real watched data",
+      "endpoint": "https://node.example", "capturedAt": "2026-08-31T16:51:38.480Z",
+      "nodeVersion": "5.2.0", "l1ChainId": 1, "runtimeCommit": "abc123def456"}
+    if firstCapturedAt.len > 0: prov["firstCapturedAt"] = %firstCapturedAt
+    var blocks = newJArray()
+    var txs = newJArray()
+    # The range must cover `txBlock`: a fixture whose transaction falls outside the
+    # blocks it publishes exercises the "no transaction settled at all" arm instead
+    # of the one the case is named for, and passes for the wrong reason.
+    for n in min(txBlock, tip - 3) .. tip:
+      var b = %*{"number": n, "hash": "0x" & align($n, 40, '0'),
+                 "timestamp": 1000 + n, "totalManaUsed": "0x0",
+                 "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
+                 "archiveRoot": "0x" & repeat('2', 40),
+                 "parentArchiveRoot": "0x" & repeat('3', 40),
+                 "transactions": newJArray()}
+      if n == txBlock:
+        let h = "0x" & align($n, 40, 'a')
+        b["totalManaUsed"] = %"0x2710"
+        b["transactions"].add %h
+        txs.add %*{"txHash": h, "blockNumber": n, "txIndexInBlock": 0,
+                   "revertCode": 0, "transactionFee": "0x1",
+                   "bodyRetained": false, "effectVisible": true, "firstInBlock": true,
+                   "outcome": "pruned",
+                   "reason": "The node still serves this transaction's effects but no " &
+                             "longer serves its body."}
+      blocks.add b
+    writeFile(dest / "snapshot.json", $(%*{
+      "format": "blocktracer/chain-snapshot@1", "provenance": prov,
+      "window": {"tip": tip, "finalized": finalized,
+                 "replayableFrom": finalized + 1, "replayableTo": tip,
+                 "blocks": tip - finalized},
+      "blocks": blocks, "transactions": txs}))
+    dest
+
+  proc detailOf(snapDir: string): string =
+    let tree = snapDir / "tree"
+    createDir(tree)
+    discard ingestSnapshot(IngestConfig(outDir: tree, snapshotDir: snapDir))
+    chainInfo(newDataRoot(tree), "watched").provenanceDetail
+
+  let wd = getTempDir() / ("bt-watched-" & $getCurrentProcessId())
+  removeDir(wd); createDir(wd)
+
+  test "the newest transaction BELOW the window reads as a distance":
+    # The positive twin. Without it, "no negative number appears" would be satisfied by a
+    # clause that had stopped printing a number at all.
+    let d = detailOf(snapshotWith(wd, tip = 200, finalized = 180, txBlock = 150,
+                                  firstCapturedAt = ""))
+    ck "the most recent one settled in block 150" in d
+    ck "31 block(s) below that window" in d      # replayableFrom 181 - 150
+    ck "already been pruned" in d
+
+  test "the newest transaction ABOVE the window does NOT print a negative distance":
+    # The arm the committed fixture never reaches, and the one the defect lived in.
+    let d = detailOf(snapshotWith(wd, tip = 200, finalized = 180, txBlock = 199,
+                                  firstCapturedAt = ""))
+    ck "the most recent one settled in block 199" in d
+    ck "at or above the last window recorded here" in d
+    ck "block(s) below" notin d                  # no distance is claimed at all
+    ck "-" & $18 notin d                         # and specifically not "-18"
+    # MUTATION BITE: the pre-fix expression over the same inputs. Asserted to produce
+    # exactly the sentence that shipped, so the guard above is shown to be load-bearing
+    # rather than merely present.
+    ck $(181 - 199) == "-18"
+
+  test "a watched snapshot names both ends of the watch":
+    let d = detailOf(snapshotWith(wd, tip = 200, finalized = 180, txBlock = 150,
+                                  firstCapturedAt = "2026-08-31T07:39:12.420Z"))
+    ck "over a watch that began 2026-08-31T07:39:12.420Z" in d
+    ck "was last extended 2026-08-31T16:51:38.480Z" in d
+    ck "when it was last looked at" in d
+    ck "at that moment" notin d                  # the one-shot phrasing is NOT used
+
+  test "a one-shot snapshot keeps the single-moment phrasing, byte for byte":
+    # The negative above ("at that moment" is absent) is only meaningful beside a case
+    # where it is present — otherwise a build that deleted the phrase entirely would pass.
+    let d = detailOf(snapshotWith(wd, tip = 200, finalized = 180, txBlock = 150,
+                                  firstCapturedAt = ""))
+    ck "at 2026-08-31T16:51:38.480Z" in d
+    ck "blocks) at that moment. " in d
+    ck "over a watch that began" notin d
+
+  test "assertion count":
+    expectCount(15)   # 3 + 5 + 4 + 3
+
+# ── 7 — one slug, one producer, enforced in BOTH directions ──────────────────
+#
+# `ingest.nim` used to refuse the slug `aztec` by name, protecting the synthetic demo from
+# a live capture landing on it. The hazard it named is real and unchanged — two chains at
+# one slug overwrite each other's blocks and become indistinguishable in a URL — but the
+# OWNERSHIP inverted: `aztec` is the Aztec mainnet now, and the fixture is the one that
+# had to move. A guard that names a slug is a statement about one chain and goes stale
+# with it; `assertSlugAvailable` states the invariant instead, so it holds whichever
+# producer is the incumbent.
+#
+# Both directions are asserted, and the "same kind may republish itself" arm is asserted
+# too — without it, a guard that simply refused everything would satisfy both negatives.
+suite "7 — a slug belongs to one producer":
+  asserted = 0
+
+  let gd = getTempDir() / ("bt-slug-guard-" & $getCurrentProcessId())
+  removeDir(gd); createDir(gd)
+
+  proc treeWithRealChain(dir: string): string =
+    ## A tree with the committed mainnet-shaped capture ingested under its own slug.
+    let tree = dir / "tree"
+    createDir(tree)
+    discard ingestSnapshot(IngestConfig(outDir: tree,
+                                        snapshotDir: chainFixtures / "aztec-testnet"))
+    tree
+
+  test "a real chain publishes, and the tree records WHOSE data it is":
+    # The positive control. Every refusal below is about a slug being occupied, so the
+    # suite has to establish that occupying it works at all — otherwise the two negatives
+    # would pass over an empty tree.
+    let tree = treeWithRealChain(gd)
+    ck publishedProvenanceKind(tree, RealChain) == "live-capture"
+    ck publishedProvenanceKind(tree, "nobody-published-this") == ""
+
+  test "the SYNTHETIC demo may not publish over a live capture":
+    # The direction that matters now, and the one the old guard could not express.
+    let tree = treeWithRealChain(gd)
+    var raised = false
+    try: assertSlugAvailable(tree, RealChain, "synthetic")
+    except ValueError as e:
+      raised = true
+      ck "already published in this tree by a 'live-capture' chain" in e.msg
+      ck "indistinguishable in a URL" in e.msg
+    ck raised
+
+  test "and a live capture may not publish over the synthetic demo":
+    # The original direction, still enforced — inverting the guard did not drop it.
+    let tree = gd / "syn"
+    createDir(tree)
+    discard generate(DemoConfig(outDir: tree, seed: "guard-test", chain: DemoChain,
+                                traceFixturePath: fixture, traceSourcesDir: fixtureSources))
+    ck publishedProvenanceKind(tree, DemoChain) == "synthetic"
+    var raised = false
+    try: assertSlugAvailable(tree, DemoChain, "live-capture")
+    except ValueError: raised = true
+    ck raised
+
+  test "a producer may republish its OWN slug — that is a regeneration, not a collision":
+    # Load-bearing: every build regenerates in place, and a guard that refused this would
+    # make the determinism check impossible to run. It is also the arm that proves the two
+    # refusals above are about the KIND rather than about the slug being occupied at all.
+    let tree = treeWithRealChain(gd)
+    assertSlugAvailable(tree, RealChain, "live-capture")   # must not raise
+    ck true
+    # An unoccupied slug is free to anyone.
+    assertSlugAvailable(tree, "brand-new-chain", "synthetic")
+    ck true
+
+  test "assertion count":
+    expectCount(9)

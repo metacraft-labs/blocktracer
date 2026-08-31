@@ -36,7 +36,7 @@ import ../src/reader
 import ../src/design_system/tokens
 
 const
-  Chain = "aztec"
+  Chain = "demo"
   BrandIndigo600 = "#4f46e5"  # colors.brand.600 → colors.indigo.600 in the pinned DS
   # (no palette constant needed: the theme checks below are properties)
 
@@ -55,7 +55,11 @@ createDir(workDir)
 
 let exporterBin = workDir / "static_export_bin"
 let compileCmd =
-  "nim c --mm:orc -d:isServer -d:release --hints:off --nimcache:" &
+  # `-d:publishDemoChain`: this suite's subject IS the synthetic tree, which the
+  # exporter no longer publishes by default. Publishing and testing are separate
+  # decisions — the deployed site carries real chains only, and this build asks for
+  # the fixture explicitly rather than depending on it being everyone's default.
+  "nim c --mm:orc -d:isServer -d:release -d:publishDemoChain --hints:off --nimcache:" &
   quoteShell(workDir / "nimcache") & " -o:" & quoteShell(exporterBin) &
   " " & quoteShell(exporterSrc)
 let (compileOut, compileCode) = execCmdEx(compileCmd)
