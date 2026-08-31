@@ -302,13 +302,31 @@ suite "2c — a chain with NO replayable transaction says so":
     if zero.chain.len == 0: skip()
     else:
       let detail = chainInfo(root, zero.chain).provenanceDetail
-      check "NO TRANSACTION INSIDE IT WAS REPLAYABLE" in detail
-      check "not a failure to record" in detail
-      # The measured facts that explain it — and NOT a bare average, which on a
-      # bursty chain is true and predicts the wrong thing.
+      # WHICH SENTENCE IS CORRECT DEPENDS ON THE DATA, so the assertion reads the data
+      # rather than pinning one arm. A chain with no traces has two distinct reasons for
+      # it and they are opposite claims: nothing in the window was replayable (a fact
+      # about the CHAIN), or something was and the replay refused (a fact about the
+      # RECORDER). Asserting the first unconditionally is what made this test fail the
+      # moment the follower caught two transactions and the runtime refused them — the
+      # test was demanding the page keep saying the thing that had stopped being true.
+      let snapZero = parseJson(readFile(
+        chainFixtures / (if zero.chain == "aztec": "aztec" else: zero.chain) /
+        "snapshot.json"))
+      var refused = 0
+      for t in snapZero["transactions"]:
+        if t{"outcome"}.getStr == "refused": inc refused
+      if refused > 0:
+        check "WERE still replayable and were caught in time" in detail
+        check "failure on the recording side" in detail
+        check "NO TRANSACTION INSIDE IT WAS REPLAYABLE" notin detail
+      else:
+        check "NO TRANSACTION INSIDE IT WAS REPLAYABLE" in detail
+        check "not a failure to record" in detail
+        check "the most recent one settled in block " in detail
+        check "follower" in detail
+      # Measured facts, and NOT a bare average — which on a bursty chain is true and
+      # predicts the wrong thing. Present in both arms.
       check "longest run with none was" in detail
-      check "the most recent one settled in block " in detail
-      check "follower" in detail
       # A GROWN SNAPSHOT MUST NOT PUBLISH A NEGATIVE DISTANCE.
       #
       # The clause used to be an unguarded `replayableFrom - mostRecentTxBlock`, which
@@ -874,8 +892,59 @@ suite "6 — a watched snapshot says something true about both ends":
     ck "blocks) at that moment. " in d
     ck "over a watch that began" notin d
 
+  # A snapshot whose window held a transaction that WAS replayable and was refused.
+  proc refusedSnapshot(dir: string): string =
+    let dest = dir / "refused"
+    createDir(dest / "ct")
+    let h = "0x" & repeat('b', 40)
+    writeFile(dest / "snapshot.json", $(%*{
+      "format": "blocktracer/chain-snapshot@1",
+      "provenance": {
+        "kind": "live-capture", "chain": "watched", "label": "Real watched data",
+        "endpoint": "https://node.example", "capturedAt": "2026-08-31T18:44:30.452Z",
+        "nodeVersion": "5.2.0", "l1ChainId": 1, "runtimeCommit": "abc123def456"},
+      "window": {"tip": 200, "finalized": 180, "replayableFrom": 181,
+                 "replayableTo": 200, "blocks": 20},
+      "blocks": [{"number": 199, "hash": "0x" & align("199", 40, '0'),
+                  "timestamp": 1199, "totalManaUsed": "0x2710",
+                  "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
+                  "archiveRoot": "0x" & repeat('2', 40),
+                  "parentArchiveRoot": "0x" & repeat('3', 40),
+                  "transactions": [h]}],
+      "transactions": [{
+        "txHash": h, "blockNumber": 199, "txIndexInBlock": 0,
+        "revertCode": 0, "transactionFee": "0x1",
+        "bodyRetained": true, "effectVisible": true, "firstInBlock": true,
+        "outcome": "refused", "refusal": "AvmToolchainRegression",
+        "reason": "This transaction could not be re-executed: the replay runtime " &
+                  "refused with AvmToolchainRegression. No trace was recorded for it."}]}))
+    dest
+
+  test "a refusal is NOT reported as 'no transaction was replayable'":
+    # The defect this arm exists for. Two mainnet transactions were caught INSIDE the
+    # window with their bodies still served and refused by the replay runtime, and the
+    # page said "NO TRANSACTION INSIDE IT WAS REPLAYABLE ... not a failure to record".
+    # That blames the chain for a fault on the recording side and tells the reader the
+    # opposite of what happened: the follower reached them in time.
+    let d = detailOf(refusedSnapshot(wd))
+    ck "WERE still replayable and were caught in time" in d
+    ck "AvmToolchainRegression" in d
+    ck "failure on the recording side" in d
+    # The negative that matters, and it has a positive twin two tests below.
+    ck "NO TRANSACTION INSIDE IT WAS REPLAYABLE" notin d
+    ck "not a failure to record" notin d
+
+  test "twin: a purely pruned window DOES still say nothing was replayable":
+    # Without this, the two negatives above would be satisfied by an ingest that had
+    # stopped emitting the zero arm at all.
+    let d = detailOf(snapshotWith(wd, tip = 200, finalized = 180, txBlock = 150,
+                                  firstCapturedAt = ""))
+    ck "NO TRANSACTION INSIDE IT WAS REPLAYABLE" in d
+    ck "not a failure to record" in d
+    ck "WERE still replayable" notin d
+
   test "assertion count":
-    expectCount(15)   # 3 + 5 + 4 + 3
+    expectCount(23)   # 3 + 5 + 4 + 3 + 5 + 3
 
 # ── 7 — one slug, one producer, enforced in BOTH directions ──────────────────
 #

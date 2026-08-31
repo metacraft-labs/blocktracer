@@ -197,6 +197,14 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
 
   # ---- transactions --------------------------------------------------------
   var txCount, withTrace, divergentCount, prunedCount, totalContainerBytes = 0
+  # REFUSALS ARE COUNTED SEPARATELY FROM PRUNING, because they are opposite facts
+  # about the same window and the page must not merge them. A pruned transaction was
+  # never replayable when it was reached; a REFUSED one was — its body was still
+  # served — and the replay declined. Saying "no transaction inside the window was
+  # replayable" over a refusal is false in the direction that matters: it blames the
+  # chain for a fault on this side of the wire.
+  var refusedCount = 0
+  var refusalNames: seq[string]
   var addrTxsByHeight = initTable[string, Table[int, seq[string]]]()
   var addrOrder: seq[string]
 
@@ -356,6 +364,10 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # Not replayed. The snapshot wrote the sentence; it is published verbatim
       # so the page states the measured reason rather than a generic one.
       if outcome == "pruned": inc prunedCount
+      if outcome == "refused":
+        inc refusedCount
+        let rn = t{"refusal"}.getStr
+        if rn.len > 0 and rn notin refusalNames: refusalNames.add rn
       # THE REASON IS NOT OPTIONAL. `blocktracer_client/decode.nim` refuses an
       # overlay whose `absent` execution carries no reason, and the validator
       # refuses it at publish time — both deliberately, because "absent with no
@@ -536,6 +548,24 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     if withTrace > 0:
       $withTrace & " transaction(s) inside it were re-executed and their " &
       "traces are published here. "
+    elif refusedCount > 0:
+      # THE HONEST DISTINCTION, and the reason this arm exists. The other arm says the
+      # window held nothing replayable — a fact about the CHAIN. That sentence was
+      # published over a snapshot in which two mainnet transactions had been caught
+      # inside the window with their bodies still served, and refused by the replay
+      # runtime for a toolchain reason on this side of the wire. Reporting that as "no
+      # transaction inside it was replayable" blames the chain for our own fault, and
+      # tells a reader the opposite of what happened: the follower reached them in time.
+      $refusedCount & " transaction(s) inside it WERE still replayable and were " &
+      "caught in time, and the replay runtime refused " &
+      (if refusedCount == 1: "it" else: "them") &
+      (if refusalNames.len > 0: " (" & refusalNames.join(", ") & ")" else: "") &
+      ", so no trace was recorded. That is a failure on the recording side, not a " &
+      "property of this chain, and it is stated here rather than shown as an absence. " &
+      "Across the " & $blockRows.len &
+      " blocks enumerated here this chain settled " & $txCount &
+      " transaction(s), and they did not arrive evenly: the longest run with " &
+      "none was " & $largestGap & " blocks. "
     else:
       "NO TRANSACTION INSIDE IT WAS REPLAYABLE, so this chain publishes real " &
       "blocks and real transactions and no traces. That is what the capture " &
