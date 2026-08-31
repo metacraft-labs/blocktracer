@@ -7,10 +7,15 @@ result-*
 .env
 
 # Compiled Nim binaries (no extension, left by nim c -r)
+#
+# By PATTERN, not by name. The by-name list this replaces had to be extended
+# for every new suite, and it was not: `test_hydration_tag` reached the index
+# as a tracked 538 KB Mach-O, and `test_entry_state` and
+# `test_chain_provenance` were untracked-but-unignored the night they landed.
+# A `.nim` source keeps its extension, so the extensionless sibling beside it
+# is always the compiler's output.
 src/static_export
 src/dev
-tests/test_static_export
-tests/test_debug_route
-tests/test_chain_viewmodels
-tests/test_explorer_breadth
-tests/test_hydration_tag
+tests/test_*
+!tests/test_*.nim
+!tests/test_*/
