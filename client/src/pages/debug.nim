@@ -164,7 +164,7 @@ proc identityBar(s: DebugSessionView): string =
         text "← " & s.chain
       # Truncated for the bar, so the full value rides on `title` and
       # `data-copy` rather than being selectable as an ellipsis. See
-      # `components/debugger.Copyable`.
+      # `debugger/session_view.Copyable`.
       span(class = "dbgid identifier", title = s.txHash,
            `data-copy` = s.txHash): text truncatedHash(s.txHash)
       span(class = "badge " & s.outcomeBadge): text s.outcomeLabel

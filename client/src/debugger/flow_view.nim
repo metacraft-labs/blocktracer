@@ -785,7 +785,7 @@ proc applyFlow*(pane: var EditorPane; input: FlowWindowInput) =
   ##
   ## The served page ships no JavaScript, so a rail that could only be moved by
   ## script would be an affordance that cannot act — the defect this route has
-  ## already removed twice (`components/debugger.Copyable`, the old `.ctsort`).
+  ## already removed twice (`session_view.Copyable`, the old `.ctsort`).
   ## Every pass the window carries is therefore in the markup, tagged with its
   ## iteration, and the stylesheet shows one of them; the rail's segments are
   ## `:target` links, on the same no-JavaScript mechanism the pane stack's tabs

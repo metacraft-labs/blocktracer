@@ -51,7 +51,18 @@ proc metaValue(r: MetaRow): string =
       elif r.badge.len > 0:
         span(class = "badge " & r.badge): text r.value
       elif r.identifier:
-        span(class = "identifier"): text r.value
+        # Rendered in FULL — an address, a target, a selector, a cost pair — so
+        # one click selects the whole of it. IDENTICAL to
+        # `components/debugger.metaValue`, and that is the point: §7.1 renders
+        # these rows on two surfaces "from one source, and the two cannot be
+        # allowed to diverge", and this affordance is where they had. The pane
+        # marked every identifier copyable and this page marked none, over the
+        # same `MetaRow` seq — so the divergence was in the presentation of one
+        # source rather than in the source, which is the harder kind to see.
+        #
+        # A LINKED value is deliberately not marked, here and in the pane: the
+        # click belongs to the link, and `user-select:all` would take it.
+        span(class = "identifier " & Copyable): text r.value
       else:
         text r.value
       if r.suffix.len > 0:
@@ -147,16 +158,58 @@ proc txPage*(chain: string, v: TxView, info: ChainInfo): string =
           span(class = "sep"): text "/"
           span: text "tx"
           span(class = "sep"): text "/"
-          span: text truncHash(v.hash)
+          # Truncated, so NOT `Copyable` — selecting `0x27a6…9a6c` yields a
+          # string that is not the hash. The full value rides on `title` for a
+          # reader today and on `data-copy` for hydration, exactly as the
+          # debugger's identity bar carries it.
+          span(title = v.hash, `data-copy` = v.hash): text truncHash(v.hash)
 
         # ── Hero ──────────────────────────────────────────────
+        #
+        # §7.2 section 1 asks for "hash with copy". §13, revised 2026-08-29,
+        # says what that can honestly mean before hydration: "the affordance is
+        # one click to select the whole value, on every value rendered in full;
+        # a value rendered *truncated* is not offered as copyable, because what
+        # a selection would yield is not the value."
+        #
+        # So the hero states the hash twice and treats the two differently. The
+        # H1 is the page's title and is truncated to stay a title; it carries
+        # the full value as data and offers no selection. The line beneath it IS
+        # the full value, and it is the copy target.
+        #
+        # The metadata pane has rendered exactly this pair since VD.6
+        # (`components/debugger.renderMetadata`). This page — which is the
+        # OTHER surface §7.1 binds to the same source — rendered the same two
+        # lines with neither treatment, and all six reviewers of vd8-r3 filed
+        # the absence as a must-show failure on `tx-detail/wide/light`.
         tdiv(class = "eyebrow"): text "Transaction"
         tdiv(class = "titlerow"):
-          h1(class = "h1 identifier"): text truncHash(v.hash)
+          h1(class = "h1 identifier", title = v.hash, `data-copy` = v.hash):
+            text truncHash(v.hash)
           span(class = "badge lg " & outcomeClass(v.outcome)):
             text outcomeLabel(v.outcome)
-        p(class = "identifier lead tight"):
-          text v.hash
+        # The full value, BOUNDED, with the gesture named beside it.
+        #
+        # `Copyable` alone is invisible in a still image: `user-select:all` has
+        # no resting appearance and `debugger_css` gives it a treatment only on
+        # `:hover`. That is enough for the metadata pane, whose expectations do
+        # not ask about copying — and it is precisely why six reviewers looking
+        # at a PNG of THIS page all reported "no visible control beside the
+        # 42-character value" while the mechanism was, on the pane, already
+        # there. An affordance a reader cannot see at rest is one they will not
+        # use, and this page's §7.2 must-show asks for it by name.
+        #
+        # So the hero's full hash gets a resting boundary — the border and the
+        # raised surface make it read as ONE object that can be taken, which is
+        # what a click actually does — and a caption naming the gesture. The
+        # caption is words rather than a glyph on purpose: an icon here would
+        # have to be either a clipboard, which promises a clipboard write this
+        # route cannot perform, or a new mark to add to the ⊙/⊘ pair whose
+        # legibility is already an open question.
+        tdiv(class = "copyfield"):
+          p(class = "identifier lead tight " & Copyable):
+            text v.hash
+          span(class = "copyhint"): text "click to select"
         if v.outcomeReason.len > 0:
           p(class = "muted stack"):
             text outcomeReasonLabel(v.outcome) & ": " & v.outcomeReason

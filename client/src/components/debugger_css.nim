@@ -1286,7 +1286,7 @@ a.ctrow,a.evrow{cursor:pointer}
    value, and the platform's copy gesture takes it from there. It is what a
    page with NO JavaScript can offer; a copy BUTTON here would be a control
    that cannot succeed, which is the defect two affordances on this surface
-   were already removed for. `components/debugger.Copyable` carries the whole
+   were already removed for. `debugger/session_view.Copyable` carries the whole
    argument — and carries it there rather than here because this stylesheet is
    INLINED into the page, so naming a removed affordance in a comment would
    put its name back into the served bytes.
@@ -1294,7 +1294,11 @@ a.ctrow,a.evrow{cursor:pointer}
    behaviour: the value gains a surface and a border on hover, so it reads as a
    single object you can take, and `cursor` says which gesture is on offer.
    Applied only to values rendered IN FULL — see `Copyable` for why a
-   truncated identifier carries `title`/`data-copy` instead. */
+   truncated identifier carries `title`/`data-copy` instead.
+   This block is concatenated into every page by `components/layout.nim`, so
+   the rule serves the explorer's transaction page as well as the pane — which
+   is what §7.1's "from one source" requires of the affordance and not only of
+   the facts. */
 .copyable{user-select:all;cursor:copy;border-radius:var(--bt-radius-xs);
   transition:background var(--bt-motion-fast) var(--bt-motion-ease)}
 .copyable:hover{background:var(--bt-surface-hover);

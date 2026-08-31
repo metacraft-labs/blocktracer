@@ -175,6 +175,28 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
 .pagebody{flex:1 0 auto;padding-top:calc(var(--bt-layout-nav-height) + var(--bt-rhythm-group))}
 .stack{margin-top:var(--bt-rhythm-stack)}
 .tight{margin-top:var(--bt-space-sm)}
+/* ── the hero's copyable full value (§7.2 s1 "hash with copy", §13) ─────── */
+/* The MECHANISM is `.copyable` in the debugger stylesheet, which layout.nim
+   concatenates into every page; `user-select:all` is all a page with no script
+   can offer and it is not a lie about being a clipboard button. What is added
+   here is a RESTING appearance, because that mechanism has none: the hover
+   treatment cannot be seen in a still image, and six reviewers of this page
+   reported the affordance absent while it was already present.
+   A border and a raised surface, so the value reads as one object that can be
+   taken — which is exactly what one click does to it — and a caption naming
+   the gesture, aligned to the value's baseline rather than stacked under it so
+   the pair reads as one line of the hero. `align-items:baseline` and not
+   `center`: the value is 18px mono and the caption is a 12px label, and
+   centring two type sizes puts neither on the page's grid. */
+.copyfield{display:flex;align-items:baseline;gap:var(--bt-space-sm);
+  flex-wrap:wrap;margin-top:var(--bt-space-sm)}
+.copyfield .lead.tight{margin-top:0;
+  padding:var(--bt-space-3xs) var(--bt-space-xs);
+  border:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
+  border-radius:var(--bt-radius-sm);background:var(--bt-surface-raised)}
+.copyhint{font-size:var(--bt-type-label-size);
+  line-height:var(--bt-type-label-line);
+  letter-spacing:var(--bt-type-label-tracking);color:var(--bt-text-subtle)}
 .group{margin-top:var(--bt-rhythm-group)}
 .titlerow{display:flex;gap:var(--bt-space-sm);align-items:center;flex-wrap:wrap}
 .badgerow{display:inline-flex;gap:var(--bt-space-xs);align-items:center;flex-wrap:wrap}

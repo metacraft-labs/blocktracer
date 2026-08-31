@@ -1115,5 +1115,74 @@ func truncHash*(h: string, lead = 6, tail = 4): string =
   if h.len <= lead + tail + 1: return h
   h[0 ..< lead] & "…" & h[h.len - tail ..< h.len]
 
+# ── copying a value out (§13: "every hash, address and identifier is copyable
+#    with one click") ───────────────────────────────────────────────────────
+
+const Copyable* = "copyable"
+  ## The class that makes a machine value selectable **in one click**.
+  ##
+  ## ## Why this is a CSS affordance and not a button
+  ##
+  ## These pages ship no JavaScript, and `navigator.clipboard.writeText` is the
+  ## only way markup can put a string on the clipboard. A `<button>Copy</button>`
+  ## here would therefore be a control that cannot succeed — the exact defect
+  ## `panedismiss` and the inert `.ctsort` span were removed for, and one the
+  ## debugger surface had already made twice. Page-Descriptions §13, revised
+  ## 2026-08-29, says so directly: "writing to the clipboard requires script,
+  ## and the pre-hydration page ships none, so a copy *button* there would be a
+  ## control that cannot succeed — which this product does not ship."
+  ##
+  ## `user-select: all` is the affordance that *does* work with scripting off:
+  ## one click selects the whole value, and the platform's own copy gesture
+  ## takes it from there. It is less than a copy button and it is not a lie
+  ## about being one. `debugger_css.nim` gives it a hover treatment and a
+  ## `cursor` so it is discoverable rather than a hidden behaviour, and
+  ## `components/layout.nim` concatenates that stylesheet into EVERY page, so
+  ## the treatment is available to both registers rather than to the debugger
+  ## alone.
+  ##
+  ## ## Why it lives here and not in `components/debugger.nim`
+  ##
+  ## Because §7.1 makes the transaction's facts render on TWO surfaces "from
+  ## one source, and the two cannot be allowed to diverge" — and this affordance
+  ## is the place they had diverged. The metadata pane marked its full hash,
+  ## its execution selectors and every identifier value copyable; the explorer's
+  ## own transaction page, rendering the same rows from the same `MetaRow` seq,
+  ## marked nothing. Six reviewers across the vd8-r3 round independently filed
+  ## the missing copy affordance on `tx-detail/wide/light` as a must-show
+  ## absence. A class constant that only one of the two surfaces could reach was
+  ## how one surface got the affordance and the other did not, so it moved to
+  ## the module both already import. `viewutil` re-exports `session_view`, so
+  ## the explorer pages reach it with no new import and no new edge to the
+  ## filesystem — the same property that brought `truncHash` here.
+  ##
+  ## ## Where it is applied, and where it deliberately is not
+  ##
+  ## Only on values rendered **in full**: a frame name, an event label, a
+  ## variable's value, an execution selector, a metadata identifier, the hero's
+  ## full-hash line. A `user-select: all` on a value that is displayed TRUNCATED
+  ## would select and copy `0xa45907…9296` — a string that is not the value and
+  ## cannot be pasted anywhere useful. Truncated identifiers (`.dbgid`,
+  ## `.mdhash`, the transaction page's `h1` and its breadcrumb) therefore carry
+  ## `title` and `data-copy` with the full value instead: the first makes it
+  ## readable on hover today, the second is what hydration reads when it
+  ## upgrades these into real one-click copy buttons.
+  ##
+  ## Source lines are not marked either, and that is a judgement rather than an
+  ## omission: `user-select: all` on a line of code would make selecting a
+  ## sub-expression impossible, and the line is already copyable — `.srcline .n`
+  ## and `.srcline .m` are `user-select: none`, so a drag across the pane yields
+  ## the code without the gutter, which is what a reader of code actually wants.
+  ##
+  ## ## The one thing a copy affordance must not do
+  ##
+  ## Copying must not launder a *deduced* value into a *verified* one. Where a
+  ## value's provenance is in question the qualifier travels with it in the same
+  ## row — the execution rows carry their availability badge and reason beside
+  ## the selector, the identity bar carries `Reconstructed` beside the hash, and
+  ## the source pane states `srcUnverified` before it shows anything. Nothing
+  ## marks a value copyable in a place where its qualifier is not already
+  ## adjacent to it.
+
 func joinLanguages*(v: DebugSessionView): string =
   v.languages.join(", ")

@@ -128,6 +128,23 @@ type
     payloadRaw*, payloadSelector*, payloadTarget*: string
     executions*: seq[ExecView]
     headline*: TraceAvailability   ## the strongest availability among `executions`
+    executionSelectors*: seq[string]
+      ## The parts this transaction ran in, from the IMMUTABLE FACTS —
+      ## `TransactionFacts.executions[].selector`, which is required and always
+      ## populated ("public", "private", …).
+      ##
+      ## Deliberately NOT read off `executions` above, and the difference is not
+      ## cosmetic: that seq is projected from the TraceSelection OVERLAY, and
+      ## `ExecView.selector` is documented as `""` for a single-execution
+      ## transaction. Deriving §7.2's transaction type from it would therefore
+      ## have produced a type for the Aztec private/public split and an em dash
+      ## for every other transaction in the tree — nine of the demo's ten and
+      ## every single one on both live chains — while looking correct in the one
+      ## case a reviewer would think to check.
+      ##
+      ## Two seqs because they answer two questions. What a transaction IS comes
+      ## from the permanent facts; whether its parts can be REPLAYED comes from
+      ## a versioned overlay that is rewritten as traces appear.
     canonical*: bool
     finality*: string
     native*: JsonNode
@@ -308,6 +325,8 @@ proc txView*(r: DataRoot, info: ChainInfo, hash: string): TxView =
       selector: e.selector, availability: e.availability, reason: e.reason,
       bytes: e.bytes,
       validationStatus: (if e.hasValidation: $e.validation.status else: ""))
+  for e in v.facts.executions:
+    result.executionSelectors.add e.selector
   result.headline = headlineAvailability(v)
 
 proc txRow*(r: DataRoot, info: ChainInfo, hash: string): TxRow =

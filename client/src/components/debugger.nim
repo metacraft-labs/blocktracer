@@ -114,52 +114,14 @@ proc paneNote(note: string): string =
   ui:
     p(class = "panenote"): text note
 
-# ── copying a value out (§13: "every hash, address and identifier is copyable
-#    with one click") ───────────────────────────────────────────────────────
-
-const Copyable* = "copyable"
-  ## The class that makes a machine value selectable **in one click**.
-  ##
-  ## ## Why this is a CSS affordance and not a button
-  ##
-  ## This page ships no JavaScript, and `navigator.clipboard.writeText` is the
-  ## only way markup can put a string on the clipboard. A `<button>Copy</button>`
-  ## here would therefore be a control that cannot succeed — the exact defect
-  ## `panedismiss` and the inert `.ctsort` span were removed for, and one this
-  ## surface has now made twice.
-  ##
-  ## `user-select: all` is the affordance that *does* work with scripting off:
-  ## one click selects the whole value, and the platform's own copy gesture
-  ## takes it from there. It is less than a copy button and it is not a lie
-  ## about being one. `debugger_css.nim` gives it a hover treatment and a
-  ## `cursor` so it is discoverable rather than a hidden behaviour.
-  ##
-  ## ## Where it is applied, and where it deliberately is not
-  ##
-  ## Only on values rendered **in full**: a frame name, an event label, a
-  ## variable's value, an execution selector, a metadata identifier. A
-  ## `user-select: all` on a value that is displayed TRUNCATED would select and
-  ## copy `0xa45907…9296` — a string that is not the value and cannot be pasted
-  ## anywhere useful. Truncated identifiers (`.dbgid`, `.mdhash`) therefore
-  ## carry `title` and `data-copy` with the full value instead: the first makes
-  ## it readable on hover today, the second is what hydration reads when it
-  ## upgrades these into real one-click copy buttons.
-  ##
-  ## Source lines are not marked either, and that is a judgement rather than an
-  ## omission: `user-select: all` on a line of code would make selecting a
-  ## sub-expression impossible, and the line is already copyable — `.srcline .n`
-  ## and `.srcline .m` are `user-select: none`, so a drag across the pane yields
-  ## the code without the gutter, which is what a reader of code actually wants.
-  ##
-  ## ## The one thing a copy affordance must not do
-  ##
-  ## Copying must not launder a *deduced* value into a *verified* one. Where a
-  ## value's provenance is in question the qualifier travels with it in the same
-  ## row — the execution rows carry their availability badge and reason beside
-  ## the selector, the identity bar carries `Reconstructed` beside the hash, and
-  ## the source pane states `srcUnverified` before it shows anything. Nothing
-  ## below marks a value copyable in a place where its qualifier is not already
-  ## adjacent to it.
+# ── copying a value out (§13) ──────────────────────────────────────────────
+#
+# `Copyable` — and the whole argument for why this is a CSS affordance and not
+# a button — now lives in `../debugger/session_view`, which this module already
+# imports. It moved because §7.1's "one source" applies to the AFFORDANCE as
+# well as to the facts: the explorer's transaction page renders the same
+# `MetaRow` seq this pane does, and a class constant only the pane could reach
+# is how the pane got one-click selection and the page did not.
 
 # ── the five replay panes ──────────────────────────────────────────────────
 

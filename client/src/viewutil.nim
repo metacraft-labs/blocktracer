@@ -17,6 +17,13 @@ import ./components/provenance
 # hydration build cannot follow.
 export session_view.truncHash
 
+# The copy affordance's class, re-exported for the same reason and by the same
+# route. §7.1 binds the explorer's transaction page and the metadata pane to one
+# source for the FACTS; the affordance those facts are presented with has to
+# come from one place too, or one surface acquires it and the other does not —
+# which is exactly what had happened. See `session_view.Copyable`.
+export session_view.Copyable
+
 # ── clean-URL route builders (mirror the exporter) ─────────────────────────
 
 proc chainsUrl*(): string = "/chains"
@@ -273,10 +280,92 @@ proc availabilityNote*(a: TraceAvailability): string =
 # It lives in `viewutil` rather than in either view because a shared source
 # owned by one of its two consumers is a source with a preferred consumer.
 
+proc txTypeRow*(v: TxView): MetaRow =
+  ## §7.2 section 2's **transaction type**, from the executions the tree
+  ## publishes and from nothing else.
+  ##
+  ## ## Why the executions and not `native`
+  ##
+  ## Six reviewers of `tx-detail/wide/light` filed the same must-show absence
+  ## and four of them named where the answer was hiding: `"kind":
+  ## "public-avm-call"`, inside the chain-native JSON at the foot of the page.
+  ## Reading it from there is the obvious fix and is the wrong one twice over.
+  ##
+  ## `native` is the family's verbatim payload — §7.2 section 8 — and `kind` is
+  ## a key the demo generator happens to write. It is not a contract field, so
+  ## nothing checks it: the REAL Aztec mainnet transactions in this tree publish
+  ## `l2BlockNumber`, `txIndexInBlock`, `revertCode`, `bodyRetainedAtCapture`
+  ## and `effectVisibleAtCapture`, and no `kind` at all. A row derived from it
+  ## would therefore have rendered on the synthetic chain, where a reviewer
+  ## could see it, and silently vanished on the two real ones — which is the
+  ## precise shape of the `costAmount` defect this module already carries a
+  ## comment about: a divergence invisible for exactly as long as the corpus had
+  ## no real chain in it.
+  ##
+  ## `TransactionFacts.executions[].selector` is a contract field, is required,
+  ## and is what the adapter calls the parts this transaction ran in —
+  ## "public", "private", or both. On Aztec that IS the transaction's type, and
+  ## it is the same string the trace URLs are keyed by, so the overview row and
+  ## the per-execution rows cannot come to disagree.
+  ##
+  ## `v.executionSelectors` and NOT `v.executions`: the second is projected from
+  ## the trace overlay and its selector is empty for a single-execution
+  ## transaction, so it names the type of the split transaction and of nothing
+  ## else. See the field's own comment in `reader.nim`.
+  ##
+  ## Emitted VERBATIM, and deliberately not mapped through a lookup: a family
+  ## whose selectors are `0`, `1`, `2` will render `0` here and look wrong,
+  ## which is what `roleLabel` already chooses for unknown roles — "a new chain
+  ## family must show up as an unstyled label to be noticed, not vanish".
+  var parts: seq[string]
+  for sel in v.executionSelectors:
+    if sel.len > 0 and sel notin parts:
+      parts.add sel
+  MetaRow(label: "Type",
+          value: (if parts.len > 0: parts.join(" + ") else: "—"),
+          identifier: parts.len > 0)
+
+proc txAgeRow*(): MetaRow =
+  ## §7.2 section 1's **age**, which this product cannot state and says so.
+  ##
+  ## ## The field does not exist, at any layer, on any chain
+  ##
+  ## `TransactionFacts` has no timestamp. Neither has `BlockDetail`, so one
+  ## cannot be borrowed from the block either, and neither has the txstate
+  ## overlay. That is not a gap in the synthetic fixture: the Aztec MAINNET
+  ## objects in this tree carry `height`, `parentHash` and a transaction list
+  ## and no time of any kind. There is nothing to read.
+  ##
+  ## ## So the row states the absence rather than being omitted
+  ##
+  ## `pages/blocklist.nim` settled this for §5.1's identical Age column and the
+  ## rule it applied is the review brief's Rule 2 — "data or a statement, never
+  ## nothing": three of that table's seven columns have no published source, and
+  ## they are *named* rather than mocked, with "Nothing here is derived from the
+  ## height to stand in for one" written next to them.
+  ##
+  ## The transaction page had taken the other option, which is neither of the
+  ## two Rule 2 allows: age was simply not there. All six reviewers of vd8-r3
+  ## reported it as absent "from the hero and from every other region of the
+  ## page" — and an absence with no statement beside it is indistinguishable
+  ## from an oversight, which is why six independent readers all filed it.
+  ##
+  ## A ROW rather than a line in the hero, for two reasons. It is a labelled
+  ## overview fact in §7.2's own list, so the grid is where a reader looks for
+  ## it; and the grid is the surface §7.1 shares, so the statement reaches the
+  ## metadata pane too rather than living on one of the two surfaces.
+  ##
+  ## The reason travels as the row's SUFFIX and not as its `note`. A `note`
+  ## renders as a full-width paragraph, and the pane's one existing paragraph —
+  ## provenance — was already measured at 39% of the pane's height; a second
+  ## would answer a review finding by creating the one beside it.
+  MetaRow(label: "Age", value: "Not published", badge: "muted",
+          suffix: "— no timestamp is published for this chain's blocks")
+
 proc txMetadataRows*(chain: string, v: TxView, info: ChainInfo): seq[MetaRow] =
   ## §7.2's overview facts, in spec order: WHERE THE DATA CAME FROM, then block
-  ## position, canonical, finality, the roles the adapter reported, the payload
-  ## target, and the cost rows.
+  ## position, the transaction's type, its age, canonical, finality, the roles
+  ## the adapter reported, the payload target, and the cost rows.
   ##
   ## `info` is here for the provenance row and for nothing else. It is a
   ## parameter rather than a lookup because this proc is the one source §7.1
@@ -296,6 +385,8 @@ proc txMetadataRows*(chain: string, v: TxView, info: ChainInfo): seq[MetaRow] =
   result.add provenanceRow(info)
   result.add MetaRow(label: "Block", value: $v.height & ":" & $v.index,
                      identifier: true, href: blockUrl(chain, v.blockHash))
+  result.add txTypeRow(v)
+  result.add txAgeRow()
   result.add MetaRow(label: "Canonical", value: yesNo(v.canonical),
                      badge: (if v.canonical: "muted" else: "bad"))
   result.add MetaRow(label: "Finality", value: sentenceCase(v.finality),
