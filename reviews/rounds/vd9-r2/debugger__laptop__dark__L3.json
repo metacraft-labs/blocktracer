@@ -1,0 +1,89 @@
+Expected elements: present
+
+This is a designed dark theme, not an inversion: the muted and hairline tokens swap roles between themes (#565656 is the pane rule in dark and muted text in light; #919191 is muted text in dark and the rule in light), and the surface ladder — #000000 canvas, #1B1B1B pane, #282828 pane header, #202020 chip, #565656 rule — holds across all four panes.
+
+(a) Fade — confirmed, with one part refuted. The EXECUTIONS note's own token is #919191 = 5.47:1, only 1.2x above the floor, so the mask crosses 4.5:1 after just 12.5% opacity loss (white #F3F3F3 needs 52%). Its second line (y 874–885) sits 9px clear of the transaction pane's inner bottom — fully inside the box — and renders 4.07:1 at the ascender, 3.53→2.46:1 across the x-height, 2.10:1 at the baseline. That confirms the light lens's 2.19–2.22:1. Refuted here: no nested surface falls inside any ramp, and all four pane bottom rules render #565656 intact (2.35:1 on pane, 2.86:1 on canvas). The Code pane escapes — its last full line (51) is unfaded at 5.47/10.29:1. Values has no fade.
+
+Glyphs, re-measured independently: ⊙ vs ⊘ IoU 0.842 (coverage-normalised, best-fit aligned), ink differs 12.6% — separated by hue alone. ⊙ and the neutral · are the identical hex #06B6D4. ⊙ on the current line has a 4.26:1 ceiling, median 2.29:1, flanks 2.10–2.67:1.
+
+Fixes: lift the note's token or start the ramp one line-height lower; give ⊙ a filled centre.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L3/1",
+      "severity": "P2",
+      "location": "Transaction pane, EXECUTIONS note, second line (\"only proofs, nullifiers and commitments are\"), y 874-885, pane inner bottom y 894",
+      "finding": "The new bottom fade pushes text below the contrast floor while that text is still entirely inside the pane. The note's native token is #919191 on #1B1B1B = 5.47:1, only 1.2x above 4.5:1, so the mask crosses the floor at 12.5% opacity loss; primary #F3F3F3 (15.52:1) does not cross until 52%. Measured on the rendered line: 4.07:1 at the ascender (peak 123), 3.53:1 falling to 2.46:1 across the x-height (y 877-882), 2.10:1 at the baseline (peak 79) — mean about 2.9:1. The line's top is 20px above the inner bottom edge and its baseline 9px above, so nothing about it is leaving the box. This confirms the light-theme measurement of 2.19-2.22:1 in dark at 1440x900. Two parts of the light finding are REFUTED at this viewport: no nested surface (chips #202020/#282828, badges) falls inside any ramp, and all four pane bottom rules render #565656 at full strength (2.35:1 against the pane, 2.86:1 against the canvas). The Code pane is unharmed for the same reason the Transaction pane is harmed — line 51 is fully inside and unfaded at 5.47:1 (number) and 10.29:1 (brace); only line 52, already clipped by the border, is dimmed to 2.35:1 and 1.01:1. The Values pane draws no fade because it does not overflow. Fix: either scope the ramp to content whose base contrast has headroom, or shorten it so its start clears the last full line (transaction-pane ramp currently begins around y 864, roughly 30px above the inner bottom against a 19px line pitch).",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/2",
+      "severity": "P2",
+      "location": "Code pane current-line gutter bar (x 5-61, y 371-393); Call Trace selected-row accent (x 692-693, y 251-275); scrubber handle (x 686-687, y 25-38); active iteration-tab underline (x 447-479, y 120-121); type tokens Field/u32 in Code (8 runs, y 424-850)",
+      "finding": "Cyan-300 #67E8F9 is exactly one hex carrying five roles, and two of them are different kinds of thing. Four are position roles — where you are in the trace (scrubber handle), which frame is selected, which line is current, which iteration is open. The fifth is a plain syntax token for types. Inside the Code pane the current-line accent bar at x 5-61 and the word Field on line 37 at x 215-253 are the same value, so the colour that means \"you are here\" also means \"this is a type name\" eight times in the same pane. Counting the family: #67E8F9 (5 roles), #22D3EE (scrubber elapsed fill), #06B6D4 (coverage dot and current-step marker) — three tints, eight roles. Independently confirms and slightly exceeds last round's count of seven. Fix: reserve one cyan tint for position and move the type token to a different family in the editor palette.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/3",
+      "severity": "P2",
+      "location": "Code pane marker column, x 73-85 — line 29 (⊘, y 309-317), line 31 (·, y 359-361), line 32 (⊙, y 379-387)",
+      "finding": "Re-measured independently and the result is worse than recorded. Rendering each glyph as a coverage map with its own foreground and background normalised out, then aligning by best fit, ⊙ and ⊘ score IoU 0.842 at threshold 0.35 (the previous dark measurement was 0.79) and their total ink differs by only 12.6% (32.77 vs 28.63 covered-pixel units). At this size the entire distinction is 4-6 interior pixels: ⊘ carries a diagonal, ⊙ a 2px vertical. The pair is therefore separated by hue alone — ⊘ is #919191, ⊙ is #06B6D4 — so any reading that loses hue loses the distinction. The second collision is the mirror image: ⊙ and the neutral · are the identical hex #06B6D4, ΔE zero, and are separated only by form (IoU 0.118, ink differs 88.3%, 9px ring vs 2px dot). Neither channel separates all three markers: colour separates ⊙ from ⊘ but not ⊙ from ·, form separates ⊙ from · but not ⊙ from ⊘. Ranking the ⊙/· pair first remains correct, but the fix must move both — a filled centre for ⊙ would separate it from ⊘ by form and from · by mass at once.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/4",
+      "severity": "P2",
+      "location": "Code pane, ⊙ marker on the current-line highlight, x 76-84 y 379-387, over surface #334155",
+      "finding": "The current-step marker has a hard contrast ceiling below the floor on the one row where it matters. Cyan-500 #06B6D4 on the current-line surface #334155 is 4.26:1 even at full pixel coverage; the same marker on the plain pane surface #1B1B1B would be 7.09:1, so the highlight costs the marker 40% of its contrast. Measured across the rendered glyph: max 4.26:1, median 2.29:1, core mean 3.42:1, ring flanks 2.67:1 and 2.24:1 at x 77/81 and 2.10-1.91:1 at the inner edge. This confirms the other lens's 2.40:1/2.23:1 flank figures; the caps do reach the ceiling but the ceiling is 4.26:1, so \"caps improved\" cannot resolve it. The highlight band itself is only 1.66:1 against the pane, so the row is carried almost entirely by the cyan gutter bar rather than by the fill. Fix: the marker needs a different value on the highlighted row, not a different alpha.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/5",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row, \"Synthetic demo data\" badge (x 1274-1428, y 218-238) against the identity bar phase rail, FETCHING (x 958-1032, y 24-40)",
+      "finding": "The page's single content-integrity claim is drawn in the same two hexes as a transient loading status. The badge is text #60A5FA on fill #202020 with border #2563EB; the active phase label FETCHING is text #60A5FA and its leading bar is #2563EB. Nothing in the colour system distinguishes \"this data is not real\" from \"the engine is still fetching\", and the two sit 250px apart in the same eyeline. The tone does not contradict the label so this is not a presence failure, but it is not reserved either — and it is quieter than the lesser claim beside it: the Partial trace badge gets its own orange at 7.20:1 text and a 4.84:1 border, while the provenance badge reads 6.41:1 text on a 3.33:1 border. The producer sentences beneath at #A2A2A2 (6.75:1) are one step below the pane's primary text. Fix: give provenance a reserved hue that appears nowhere else, and stop blue-400 doing double duty in the phase rail.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/6",
+      "severity": "P3",
+      "location": "Call Trace pane, column header row, y 104-126 — FRAME at x 700-745 and ACIR opcodes at x 1004-1140",
+      "finding": "Two column headers in the same header row use two different text-emphasis tokens: FRAME is #A2A2A2 (5.78:1 on the #282828 header) and ACIR opcodes is #DDDDDD (10.85:1), a 1.9x difference. Both are labels of the same rank, so the right-hand header reads as the more important of the two purely by tone. Fix: one header token.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/7",
+      "severity": "P3",
+      "location": "Code pane, function names on lines 40 and 48 (x 116-300 y 560-576; x 116-330 y 750-766) against the value-diff marks — damage: 0→2000 chip (x 488-604, y 371-390) and the Values pane changed cells 9000 (y 622-638) and 2000 (y 790-806)",
+      "finding": "The amber family carries two unrelated meanings on one screen. #FCD34D is the diff role — value changed at step N, used on the inline chip and on the two changed Values cells with a matching 2px left accent at x 692-693. #FBBF24, one step away and indistinguishable at this size, is the syntax token for a function identifier. In the Code pane the two appear 190px apart. The syntax palette is a sanctioned separate vocabulary under §3, which is why this is a nitpick rather than a role failure, but the diff role is the one the debugger register most needs to be unambiguous. Fix: move the diff role out of amber, or shift the function token within the editor palette.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/8",
+      "severity": "P3",
+      "location": "Identity bar, all eight stepping-control glyphs, x 384-654 y 20-44, against the position readout (x 1105-1180) and the inactive phase names OPENING / POSITIONING (x 1036-1200)",
+      "finding": "Every stepping glyph renders at #919191, 5.47:1 — the identical token used for the position readout, the inactive phase names, the NOIR label, the inactive EVENT LOG tab, the code line numbers, the DATA/BLOCK/TYPE/AGE labels and the values inside the neutral badges (Yes, Safe, Not observable). Colour therefore draws no line between interactive and inert anywhere in the bar, and while the rail reports FETCHING there is no disabled tone to say whether the controls are live. The two icon actions at the right (x 1358-1416) are the exception at 15.52:1, so within one bar the least consequential controls are the brightest. Fix: separate the interactive token from the secondary-text token.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/9",
+      "severity": "P3",
+      "location": "Pane gutters — x 683-689 between Code and the navigation column, x 1143-1151 between navigation and Transaction, y 559-565 between Call Trace and Values",
+      "finding": "The gutters are pure #000000, the only pure black on the page and the widest non-pane area in the layout. The pane surface #1B1B1B is 1.22:1 against it, so surface value contributes almost nothing to pane separation and the whole job falls to the 1px #565656 rule (2.35:1 against the pane, 2.86:1 against the canvas). Rubric B4 wants pane boundaries clear rather than distinguished only by a hairline; here they effectively are, with a hard black seam doing the rest. Fix: lift the canvas off pure black so the ladder has a bottom step, and let surface level share the work with the rule.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

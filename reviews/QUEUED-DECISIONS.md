@@ -523,3 +523,149 @@ correctly and the Transaction pane does not: `.src` carries its own mask on the
 content element, so the Code pane was already doing (a) by accident.
 
 Unchanged conclusion, much better grounded: fix the anchor, not the length.
+
+### Q11 — I called this "fully specified" and was wrong within the hour
+An earlier version of this section, written on `debugger/laptop/light` L2's
+measurement alone, concluded that the fix was settled: anchor to the content box,
+lengthen to ~46-50px, align to a line boundary. Two reports that landed minutes
+later contradict the middle item, and the overconfident version is replaced
+rather than quietly amended, because the reason it was wrong is instructive — I
+generalised from the first lens to report a number.
+
+**AGREED across every lens: the anchor is wrong.**
+  * laptop/dark L2: the mask is "anchored to the pane border rather than the
+    content box", spending its first 9px on padding.
+  * laptop/light L3: text sitting "nine pixels clear of the pane border at y895"
+    still ramps 4.54:1 -> 2.05:1, with a further line masked to 1.10:1.
+Both describe the same fault from opposite ends.
+
+**AGREED: nested surfaces are masked, and pane borders are NOT.**
+  * wide/dark L2 confirms the RAW block's `#000` is lifted to `#1a1a1a` against a
+    `#1b1b1b` pane, so its edges "stop being detectable from y≈1066".
+  * laptop/light L3 REFUTES the stronger claim: all four pane bottom borders
+    measure `#A2A2A2` at full strength, identical to their top borders.
+These are consistent, not contradictory, and together they confirm the CSS
+comment's own reasoning: the pane's surface and border belong to `.pane`, so they
+survive; anything nested INSIDE `.panebody` does not. The RAW block is content;
+the border is chrome.
+
+**CONTESTED, and it is the length.**
+  * laptop/light L2 wants ~46-50px: at ~1.2 line-pitches the ramp "dissolves
+    inside a single line" and "reads as a smudge, not as recession".
+  * wide/dark L2 says explicitly DO NOT lengthen it, and gives the better
+    argument: the disputed 2.19:1 "is that line's y=1066 tail; the same line
+    measures 9.2:1 at cap height, so it is the affordance working, not a
+    legibility failure", and lengthening "would dim a second line in a register
+    where density is the virtue".
+
+That second reading also reframes L3's numbers: a ratio sampled across a glyph's
+x-height or its descender tail is not the ratio a reader experiences if the cap
+height is clean. Whether the low figures are a defect or the treatment doing its
+job is the actual open question, and no measurement so far settles it because
+none of them agree on where to sample.
+
+Revised recommendation: fix the ANCHOR, which every lens agrees on and which is
+the one change that cannot make anything worse, then RE-REVIEW before touching
+the length. Anchoring alone moves the ramp off 9px of padding and onto the ink
+boundary, which may resolve the length question without a decision — and if it
+does not, the next round will be arguing about a treatment that is at least
+positioned correctly.
+
+## Q13. The horizontal fade does not reach, and two lenses found it independently
+`debugger/wide/dark` L2 filed it as the round's most pointed new finding: the
+Code pane "hard-clips line 40 mid-identifier at its right border x=916 with no
+fade, ellipsis or gutter — the exact complaint the vertical fade answered,
+unaddressed on the horizontal axis." `debugger/laptop/light` L5 reported the same
+shape earlier in the round: "the Code pane's real overflow at 1440 is horizontal
+and clipped mid-token."
+
+This is awkward, because `.src` DOES carry a `to right` mask and has since before
+this campaign — laptop/light L3 even measures the Code pane fading "only the
+genuinely clipped line 52", so the treatment is present and works on some lines.
+Something is defeating it on others.
+
+Worth noting the irony precisely: the vertical fade was added this session
+BECAUSE five reviewers read a silent scroll region as a hard clip, and the
+horizontal axis — the one that already had the treatment — is now the one
+producing that exact complaint.
+
+Not diagnosed, and deliberately not guessed at. It needs someone to establish
+whether the mask is being defeated (a nested element painting over it, a line
+that overflows its container rather than the scroller), or whether these lines
+are clipped by `.pane`'s `overflow:hidden` before `.src` ever sees them — which
+would be a different bug in a different place. Both are cheap to check against
+the built page and neither should be fixed before it is known which.
+
+### Q2 — the row split is now PROVABLY not the lever
+`debugger/wide/dark` L2 supplied the figure that ends the argument rather than
+narrowing it: **total content in the middle column is 542px of 1010**, so no
+redistribution between the tabbed region and Values can recover any of the 468px
+void. There is not enough content in that column to fill it at any ratio.
+
+It also measured where the space actually is: the widest Call Trace row wastes
+152px HORIZONTALLY and Values 158px, while Code has 14px of slack and Transaction
+wraps hashes. So the middle column is too WIDE, not badly divided — which is the
+same conclusion both laptop lenses reached from Values being nearly full, arrived
+at independently by a third route.
+
+Re-measurement also holds to within a pixel across rounds: columns 913/608/383
+against 912/607/382, tabbed region 57.2% empty against 57.0%.
+
+### Q1 — the `⊙` / `·` collision, stated exactly
+`debugger/laptop/light` L3 found the sharpest form of it: the neutral coverage
+dot `·` is `#1A7B95`, three levels from `⊙`'s ink, and **it IS `⊙`'s own centre**
+— 2.9 against 3.27 alpha-px, 11% apart. So the only thing distinguishing "this
+branch arm ran" from "nothing to say about this line" is `⊙`'s ring, which
+measures 1.60-2.71:1 on its flanks (mean 2.16, area-weighted 1.39:1).
+
+The affirmative mark is the neutral mark plus a sub-3:1 ring. That is the failure
+the affirmative mark was introduced to prevent, stated as a measurement rather
+than an impression, and it is why the `⊙`/`·` collision is ranked above the
+`⊙`/`⊘` one in this entry's recommendation.
+
+Same lens re-measured the pair itself at IoU 0.781 and a 14.7% ink difference at
+laptop, against 0.79 and 23% at wide — so the two glyphs are, if anything,
+slightly harder to tell apart at the smaller viewport.
+
+### Q1 — three L3 lenses, and they do NOT agree about the `⊙` / `·` collision
+Reported as a disagreement rather than resolved, because the earlier Q11 entry in
+this file was written as settled on one lens's evidence and contradicted within
+the hour. The same mistake is available here and is being declined.
+
+  * `debugger/laptop/light` L3: `·` is `#1A7B95`, three levels from `⊙`'s ink,
+    and **is `⊙`'s own centre** (2.9 vs 3.27 alpha-px, 11% apart) — "only the
+    sub-3:1 ring separates the two".
+  * `debugger/wide/dark` L3: the collision is **NOT real in dark** — "`·` is not
+    neutral, it is the same cyan at 7.09:1, and 2x2 vs a 9x9 ring separates
+    cleanly"; the real cost is that cyan already means "covered" in that gutter,
+    "so `⊘`/`⊙` has no colour left".
+  * `debugger/laptop/dark` L3: `⊙` and `·` are "the identical hex `#06B6D4`,
+    separated only by form (IoU 0.118)" — i.e. the forms are very different.
+
+What all three actually agree on: the two marks share a HUE, and their FORMS
+differ (a 2x2 dot against a 9x9 ring). The disagreement is whether the ring
+registers. Where `⊙` sits on the current-line band in the LIGHT theme its ring
+flanks measure 1.60-2.71:1, so the ring may not be seen at all and what is left
+is a dot beside a dot; in dark on the plain pane the ring reads at 7.09:1 and the
+distinction is obvious. That would make the collision REAL BUT CONDITIONAL — a
+function of the band the glyph lands on rather than of the glyph — and it is a
+hypothesis this file records, not a finding.
+
+**The decisive measurement is separate and is not contested.** laptop/dark L3:
+`⊙` on the current-line `#334155` has "a hard 4.26:1 ceiling — median 2.29:1,
+flanks 2.67:1/2.24:1 — versus 7.09:1 on the plain pane, **so improving its caps
+cannot fix it**."
+
+That reframes the whole entry. Every previous option here proposed changing the
+GLYPH — retint it, redraw it, drop it. The glyph is fine where it lands on the
+pane. It fails on one background, and the ceiling is imposed by that background,
+so a fourth option belongs on the list and is probably the right one:
+
+  (e) change what `⊙` lands ON — lighten or retint the current-line band under a
+      mark, or give the mark its own chip, so the gutter's marks are not being
+      asked to carry meaning against a tint chosen for a different purpose.
+
+Cyan's role count also rose again and the lenses do not agree on the number —
+six across three tints (wide/dark), six across five values (laptop/light), eight
+across three tints (laptop/dark). They agree it is more than one thing and that
+`#67E8F9` means both "current position" and "type token" inside a single pane.

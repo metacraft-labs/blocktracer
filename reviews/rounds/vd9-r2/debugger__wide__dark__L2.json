@@ -1,0 +1,103 @@
+Expected elements: present
+
+No MUST-SHOW item absent, no MUST-NOT item present. A dense, optically well-centred tool surface whose widest column is its emptiest.
+
+Pane fade (a): it works; do not lengthen it. The ramp is a fixed 24px anchored to the pane bottom (black leaves at y=1051, border 1075) — one 23px line. In Code, 16 of those px land on glyph rows, so line 61 is half-dissolved and reads as continuation, not a cut. The 2.19:1 figure is that line's y=1066 tail; the same line is 9.2:1 at cap height — the affordance working, not a legibility failure. A longer ramp dims a second line in a register where density is the virtue. The third lens is right only about surfaces: the mask washes the RAW (CHAIN-NATIVE) block's #000 to #1a1a1a against a #1b1b1b pane, so its edges (x=1543/1905) vanish 10px early. Overlay each scroller in its own colour instead.
+
+Re-measurement holds. Columns 913/608/383. Tabbed region interior 605px, last content y=322 → 346px empty (57.2%); Values 405px, 122px empty (30.1%). Column content totals 542px of 1010, so no row re-split recovers any of the 468px void — the row split is provably not the lever. Call Trace's widest row wastes 152px horizontally (path ends 1353, opcodes start 1505); Values wastes 158px. Code meanwhile hard-clips line 40 mid-identifier at x=916 with no fade; Transaction wraps 42-char hashes.
+
+Top fixes: move ~150px of middle-column width to Code and Transaction; give Code a right-edge overflow signal.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L2/1",
+      "severity": "P2",
+      "location": "Code pane, right border x=916, line 40 at y=549",
+      "finding": "Code is hard-clipped at the pane's right border with no overflow signal. Max text luminance holds at 0.896 from x=372 all the way to x=915, then the border sits at x=916 — no fade, no ellipsis, no gutter. Line 40 reads 'fn calculate_shield_regeneration(initial_shield:Field, remaining_shield:Field, shield_regen_perce', sliced mid-identifier. This round added a bottom fade so vertical overflow reads as continuation; the same pane's horizontal axis still reads as a cut, and here the cut is genuinely mid-token. Mirror the 24px body fade onto the inline-end edge.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/2",
+      "severity": "P2",
+      "location": "middle column (x=921-1528): tabbed region y=64-668 and Values pane y=670-1074",
+      "finding": "Re-measured, my last-round numbers hold. Tabbed region interior 605px, last content (the 'By call order.' / 'Self cost' footer) ends y=322, so 346px empty = 57.2%. Values interior 405px, last content y=952, so 122px empty = 30.1%. Column outer widths are 913/608/383 (was 912/607/382). The decisive number is new: total content in this column is 542px of 1010, so re-splitting the two rows cannot recover ANY of the 468px void — it only moves it. The lever is width. The widest Call Trace row leaves 152px of dead space between the end of its path (x=1353) and the start of the opcode column (x=1505); the widest Values row leaves 158px (name ends 974, value starts 1132). The middle column can surrender ~150px with zero truncation, while Code has 14px of slack and clips, and Transaction wraps its hashes.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/dark/L2/3",
+      "severity": "P2",
+      "location": "Transaction pane, all labels at x=1542",
+      "finding": "Five structural levels share one left edge. Section headings (EXECUTIONS y=654, DECODED INPUT y=796), their child rows (private y=676, public y=768, SELECTOR y=820, RAW y=846), ordinary data rows (BLOCK y=368), the provenance row (DATA y=196) and the block heading (RAW (CHAIN-NATIVE) y=988) all begin at exactly x=1542. Nothing in the layout says SELECTOR and RAW belong to DECODED INPUT, or private and public to EXECUTIONS. The rules contradict it: EXECUTIONS gets a rule above it at y=650, DECODED INPUT gets none, while SELECTOR (y=841) and RAW (y=867) get rules exactly like top-level data rows. Hierarchy is carried by type styling alone with no help from indentation or proximity.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/dark/L2/4",
+      "severity": "P2",
+      "location": "Call Trace frame list, guide column x=936",
+      "finding": "Depth is drawn with one guide column for all three depths. A single vertical guide sits at x=936 on every indented row (confirmed at y=160, 185, 210, 235, 287); depth 1 (iterate_asteroids, ink 954), depth 2 (calculate_damage, 970) and depth 3 (calculate_remaining_shield_pct, 986) are then separated by indentation alone. B6 asks for indentation AND a guide; at depth three there is already only one. A forty-frame trace has no structure to hold onto.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/wide/dark/L2/5",
+      "severity": "P2",
+      "location": "Code pane line-number gutter x=38-72, gaps 26-27 and 47-48",
+      "finding": "The code listing's line pitch breaks twice. Line-number band centres give a 23px pitch for 33 of 35 gaps but 44px between lines 26 and 27 and again between 47 and 48, because the '+3' and '+2' value-chip overflow badges are pushed onto a half-row of their own (the '+3' sits at y~219-232, right-aligned near x=855). A code listing's constant line pitch is its most basic grid promise; two double-height rows stop the gutter numbers reading as a ruler. Set the badges inside the line box or reserve the trailing chip column.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/6",
+      "severity": "P2",
+      "location": "Transaction pane, FEE PAYER row y=518-568 and TARGET row y=569-619",
+      "finding": "A 42-character hash is wrapped into two right-aligned fragments ('0x01c8f081e2abedf0184953e2a272b5' / 'e430d5d932'), leaving a ragged left edge that has to be read backwards. The identity hash 400px above it in the same pane renders unbroken on one line at x=1542-1894 (352px). The wrapped values are set roughly 44% larger (363px carries only ~30 chars against 352px for 42), so the pane wraps a value its own 364px content width could carry whole. Two treatments of one object in one pane; drop these values to their own full-width line under the label, as the identity block already does.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L2/7",
+      "severity": "P3",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) block, x=1543-1905, y=1064-1074",
+      "finding": "The fade is a mask over the pane body, so it dissolves nested surfaces as well as text. The RAW block's own #000000 surface is lifted through #0f0f0f at y=1064 to #1a1a1a at y=1074, against a #1b1b1b pane background, so from about y=1066 its left and right edges are no longer detectable and the container boundary disappears ~10px before the pane boundary. The block stops looking contained and starts looking like it ended. Render the fade as an overlay in each scroll container's own surface colour rather than masking the body.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/8",
+      "severity": "P3",
+      "location": "Code pane y=1051-1074 and Transaction pane y=1051-1074",
+      "finding": "The fade's perceived strength is a function of scroll phase, not of content. The ramp is a fixed 24px anchored to the pane bottom in both panes. In the Code pane 16 of those px land on glyph rows, so line 61 is visibly half-dissolved and the cue is unmistakable. In the Transaction pane only 12 do: the last line '\"aztec\": {' occupies y=1049-1063 and still measures 15.5:1 at its top and 4.9:1 at its bottom, so the cue there is a soft grey gutter rather than a broken line. Same ramp, two signal strengths. Anchoring the ramp to the last line box rather than the pane edge would make it consistent without lengthening it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/9",
+      "severity": "P3",
+      "location": "Transaction pane, EXECUTIONS block, 'private' row y=676-700 and 'public' row y=768-792",
+      "finding": "The two sibling badges do not share a left edge: 'Not observable' starts at x=1590, 'Trace ready' at x=1594, because each pill flows inline after a label of different length. Every other value in the pane is right-aligned to x=1906. That makes three value alignments in one pane — right-aligned text, right-aligned pill, inline-left pill — for two rows that are explicitly peers.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/10",
+      "severity": "P3",
+      "location": "Transaction pane, SELECTOR row (rules y=841, 867) and RAW row (rule y=867)",
+      "finding": "The em-dash rows introduced this round are 26px tall against 30px for plain rows (BLOCK 363-393, TYPE 393-423, COST 620-650) and 31-32px for pill rows (AGE 423-455, CANONICAL 455-487, FINALITY 487-518). Replacing '0x' with an em dash removed whatever was holding those rows to the pane's row height, so two rows now sit 4px short of the rhythm. Give the row a min-height rather than letting the value set it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/11",
+      "severity": "P3",
+      "location": "Code pane header strips, y=96-190",
+      "finding": "Four stacked full-width strips, three left edges. 'LOOP iterate_asteroids' starts at x=14 and 'Showing from line 26 —' at x=13, but the file-tab strip's first tab 'Nargo.toml' starts at x=21 because the tab's own horizontal padding is not compensated in the strip's inset. One strip in a stack of four reads as ragged. (The iteration chips on the LOOP row are, by contrast, exact: eight 66px chips with 3px gaps from x=366 to x=907, ending on the pane's 8px right inset.)",
+      "criterion": "B4"
+    }
+  ]
+}
+```

@@ -1,0 +1,89 @@
+Expected elements: present
+
+Dark reads as a designed theme in its ramp — #f3f3f3/#dddddd/#a2a2a2/#919191 all land 4.68:1+ and surfaces form a real ladder (page #000, pane #1b1b1b, row #282828, badge #202020, current-line #334155) — but three colour roles are overloaded and the new fade costs measurable contrast.
+
+Re-measuring the glyph pair independently: `⊘` (line 29) #919191 on #1b1b1b = 5.47:1; `⊙` (line 32) #06b6d4 on #334155 = 4.26:1. Normalising hue and background to alpha and binarising at 0.5, the two 9×9 glyphs share 23 of 29 lit cells — IoU 0.793, 75/81 cells agree. Unchanged. `⊙`'s ring flanks measure 1.91–3.34:1 against caps at 3.95–4.26:1, so it degrades toward two dashes — the part identical to `⊘`. The `⊙`/`·` collision is NOT real: `·` is not neutral in dark, it is the same cyan at 7.09:1, and 2×2 vs a 9×9 ring separates cleanly. Cyan carries six meanings in three tints: scrubber fill, active iteration chip, current-line rail, coverage dots, selected call-trace rail, source type tokens.
+
+The fade is a 24px linear ramp (alpha 1.0 at y=1050 → 0.04 at y=1074). Code line 61 is the last rendered line, fully inside, nothing below it: 9.17:1 → 5.47:1 (x-height) → 3.38:1 (baseline) → 2.20:1 (descender); its coverage dot 2.43:1 vs 6.86:1 on line 60. Both light-theme figures confirmed. The RAW block's 1.22:1 surface step drops to 1.02:1 — bottom boundary erased.
+
+Fix first: exempt the last line and marker glyphs from the mask; redesign `⊘`.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L3/1",
+      "severity": "P2",
+      "location": "Code pane, gutter column x78-83, line 29 vs line 32",
+      "finding": "The not-executed marker and the current-position marker are separated by hue alone. Independently re-measured: the line-29 glyph is #919191 on #1b1b1b (5.47:1), the line-32 glyph is #06b6d4 on the current-line tint #334155 (4.26:1). Normalising both to a 0-1 alpha map against their own backgrounds and binarising at 0.5, the two 9x9 glyphs share 23 of 29 lit cells - IoU 0.793, 75 of 81 cells identical; the only difference is a 6-cell diagonal slash versus a centre dot. Worse, the ring is not evenly legible: the line-32 glyph's left and right flanks measure 1.91-3.34:1 while its top and bottom caps measure 3.95-4.26:1, so at 1x it collapses toward two horizontal dashes - precisely the part the two glyphs share. And the grey used for the not-executed state is #919191, the page's generic muted tone (line numbers, metadata labels, the inactive EVENT LOG tab, all eight control icons, chip labels, 'By call order.'), so it does not read as a state colour at all. Reproduces the previous round's 5.47 / 4.26 / 0.79 exactly; nothing changed.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/2",
+      "severity": "P2",
+      "location": "page-wide: identity-bar scrubber x673-696; iteration chip x503-566 y105-121; Code pane current-line rail x5-8 y352-374 and line number x47-64; Code gutter dots x78-79; Call Trace selected-frame rail x922-923 y251-276; Code pane type tokens (Field, u32)",
+      "finding": "Clustering every cyan-family pixel on the page returns six unrelated meanings carried by three tints, and the tint boundaries do not follow the meaning boundaries. #22d3ee is the scrubber's elapsed fill (replay progress); #67e8f9 is simultaneously the active loop-iteration chip and its underline, the Code pane's current-line rail and current line number, the Call Trace selected-frame rail, and the source syntax colour for type tokens; #06b6d4 is both the trace-coverage dot and the current-position glyph. Two of those six - 'this line was covered' and 'this is where you are' - sit in the same 9px-wide gutter column in the same hue, which is why finding 1 has no colour left to spend. Unchanged from last round.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/3",
+      "severity": "P2",
+      "location": "Code pane, last line (line 61) at y1051-1066 and its coverage dot at x78-79 y1058-1059; pane bottom border at y1075",
+      "finding": "The new bottom fade pushes text below the contrast floor while that text is still entirely inside the box. Measured on the RAW block's flat surface, the mask is a 24px linear alpha ramp: 1.00 at y=1050 falling to 0.04 at y=1074. Line 61 spans y1051-1066, nine pixels clear of the pane border, and it is the LAST rendered line - there is no ink at all between y=1067 and the border, so the fade is not softening a cut edge, it is dimming a complete line for nothing. Its row-peak contrast ramps 9.17:1 (y1052) to 5.47:1 at the x-height middle (y1058) to 3.38:1 at the baseline (y1063) to 2.20:1 at the descender (y1066); everything below the baseline is under 3:1. The line-61 coverage dot measures 2.43:1 on its upper row and 3.62:1 on its lower, against 6.86:1 for the identical dot on line 60 - the fade halves a state marker that has no redundant encoding. This confirms the light-theme lens's 2.19-2.22:1 and 2.43:1 to two decimals in dark. The mask should stop at the last full line box, or exempt gutter marker glyphs.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L3/4",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) code block, x1543-1906 y1009-1075",
+      "finding": "Confirmed in dark: masking the pane body fades the RAW block's own surface and erases its bottom boundary. The block is separated from the pane by a tone step only - #000000 against #1b1b1b, 1.22:1, with no border - and the bottom fade lifts it to #191919 by y=1073, i.e. 1.02:1 against the pane. The block's bottom edge and its two bottom rounded corners are gone; a 46px horizontal fade does the same to its right edge (x1859 to x1905). Dark is the worse case because the un-faded separation is already only 1.22:1, so there is no margin to spend. Either exclude nested surfaces from the pane mask or give the block a border that survives it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L3/5",
+      "severity": "P2",
+      "location": "Transaction pane: AGE 'No timestamp published' (y430-448), CANONICAL 'Yes' (y462-480), FINALITY 'Safe' (y494-512), EXECUTIONS 'Not observable' (y678-698)",
+      "finding": "The neutral badge tone does not exist in dark. All four use fill #202020 on pane #1b1b1b (1.06:1) and border #3a3a3a (1.43:1), so neither the fill nor the outline is visible and they read as loose text. Every toned badge in the same system does read: 'Trace ready' green border #16a34a 4.94:1 (in the very same EXECUTIONS group, twelve pixels away), 'Partial' orange #ea580c 4.58:1, 'Synthetic demo data' blue #2563eb 3.15:1. The neutral variant is 2.2x to 3.5x weaker than every sibling. This is the clearest place the dark theme reads as inherited by inversion rather than designed: a near-white fill with a light-grey border separates from white, its inverse does not separate from #1b1b1b.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L3/6",
+      "severity": "P3",
+      "location": "identity bar phase rail 'FETCHING' (x1228-1302) and Transaction pane DATA row badge 'Synthetic demo data' (x1750-1910 y198-215)",
+      "finding": "Blue #60a5fa carries two unrelated meanings: the active engine phase (6.77:1 on the identity bar) and the provenance claim. The tone does not contradict the DATA label - blue reads as informational, which is defensible for 'this data is not real' - but sharing it with a transient loading phase means the page's honesty marker borrows the colour of a status that will disappear in a second. The provenance badge is the one badge on the page whose tone is graded as content, so it should own its tone.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/7",
+      "severity": "P3",
+      "location": "Code pane, inline value chips: 'damage: 0->2000', 'mass=200', 'shield_pct=90' on the current line 32 (y353-372) versus 'damage=0' (y238-257), 'result=90' (y768-790)",
+      "finding": "The inline chip inverts its surface relationship on the current line. The chip fill is #282828 everywhere, which sits one level ABOVE the pane background #1b1b1b (1.17:1 lighter) on ordinary lines but one level BELOW the current-line tint #334155 (1.30:1 darker) on line 32. The same component therefore reads as raised on thirty-five lines and recessed on the one line the reader is looking at. Give the chip a tint relative to its row rather than a fixed fill.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L3/8",
+      "severity": "P3",
+      "location": "identity bar, scrubber unplayed track, x700-932 y28-36",
+      "finding": "The scrubber's unplayed track is #727272, 3.58:1 against the bar - the brightest surface anywhere in the theme, above the pane border (#565656, 2.35:1) and every content surface (#282828 1.17:1, #334155 1.66:1). The elapsed cyan fill occupies about nine percent of the track's width and has to out-shout a bar four times its size. In a dark theme the not-yet-reached region should be the recessive element; a track around #3a3a3a would let the fill carry the reading.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L3/9",
+      "severity": "P3",
+      "location": "identity bar, all eight stepping-control icons, x374-652 y22-42",
+      "finding": "There is no disabled colour level in the dark theme. All eight control icons measure exactly #919191 / 5.47:1 against #1b1b1b and every button face is identical, while the status reads 'Engine loading - 18 MB' and the phase rail shows FETCHING active with OPENING and POSITIONING pending. The expectation block relies partly on 'the buttons' disabled state' to carry the loading state, but the neutral ramp stops at #919191 - which is already the enabled control tone - so any disabled step would have to fall below 4.5:1. The ramp needs a defined disabled level (and the pending phase-rail entries need one distinct from the generic muted label they currently share).",
+      "criterion": "B10"
+    }
+  ]
+}
+```

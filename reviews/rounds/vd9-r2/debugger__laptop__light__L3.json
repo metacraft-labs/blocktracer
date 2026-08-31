@@ -1,0 +1,96 @@
+Expected elements: present
+
+Four panes, the Call Trace/Event Log tab strip with Call Trace open, Values outside that strip, both stepping directions, scrubber, phase rail, the chain exit, and the `Data` row with its `Synthetic demo data` badge are all present. Body text is strong (7.3–19:1). The faults are decoration and role reuse.
+
+(a) Confirmed, narrowly. In the TRANSACTION pane the fade lands on a line fully inside the box — "only proofs, nullifiers and commitments are", y874–885, nine pixels clear of the border at y895 — ramping 4.54:1 to 2.05:1 (x-height mean 3.11:1); a further line at y892 sits at 1.10:1. That is the honesty prose, graded as content. Refuted: every pane bottom border measures #A2A2A2 at full strength, identical to its top border; the mask does not erase the boundary. Code fades only the genuinely clipped line 52; Values does not fade. No RAW block at 900px, so that claim is untestable here.
+
+Glyphs, re-measured independently: ⊙/⊘ IoU 0.781, ink mass 26.5 vs 30.7 alpha-px (14.7%), 7 differing pixels inside a 4×4 interior, identical at 1×, separated only by colour (#484848 vs #0E7490). ⊙ ring flanks 1.60–2.71:1, caps 4.29:1. The coverage dot `·` is #1A7B95 — same hue, three levels apart — and is ⊙'s own centre. Cyan carries six meanings across five values.
+
+Fixes: exempt the last full line from the mask; redesign the position glyph.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L3/1",
+      "severity": "P1",
+      "location": "Transaction pane, EXECUTIONS note, last two lines (x1157-1430, y874-894)",
+      "finding": "The new pane-body fade drives body text below the contrast floor BEFORE that text leaves the box. The line 'only proofs, nullifiers and commitments are' occupies y874-885; the pane's inner content edge is y894 and its border y895, so the line has nine clear pixels below it and is not clipped. Its darkest ink ramps monotonically at +7 grey levels per row: 4.54:1 at y875, 3.11:1 at y879, 2.41:1 at y882, 2.22:1 at y883, 2.05:1 at y884 — an x-height mean of 3.11:1 against the 4.5:1 floor for 13px prose. A further line at y892-894 is masked to 1.10:1, present but invisible. This confirms the wide-viewport measurement (2.19-2.22:1) at laptop and worsens it slightly. The text being erased is the producer's own honesty prose, which the brief grades as content rather than decoration; the fade also makes a truncated sentence look like a finished one. The line above it, y856-865, is unmasked at 7.34:1, so the gradient reaches roughly the last 22px of the pane body — which in the Code pane clears line 51 (7.34-9.15:1, unmasked) and only touches the genuinely clipped line 52, and in the Values pane touches nothing (last row 'i / 2 / u32' at 15.5-19:1). The defect is specific to panes whose line-height is shorter than the gradient.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L3/2",
+      "severity": "P2",
+      "location": "Code pane gutter marker column, x75-82: circle-dot at line 32 (y379-387) versus slashed-circle at line 29 (y309-317)",
+      "finding": "Re-measured independently at this viewport and the previously determined defect holds. Alpha-coverage masks of the two glyphs give IoU 0.781 at threshold 0.5 with only 7 differing pixels out of a 32-pixel union, and total ink of 26.53 versus 30.73 alpha-px — a 14.7% difference on a 28.6 alpha-px mean, smaller than the 23% measured at wide. Every differing pixel lies in the 4x4 interior; the outer ring rows are identical to within 0.06 alpha. At 1x the pair reads as two identical small circles; they separate only by colour here — the slashed circle is neutral #484848 at 9.15:1 on white, the circle-dot is #0E7490 on the #A5F3FC current-line band. That is a use-of-colour dependency for the primary position marker, and it is a different encoding from the dark theme, where both were reported cyan. Separately, the circle-dot's own ring fails as a graphical object: its left and right flanks measure 2.13, 2.23, 2.49, 1.92, 2.71, 1.60, 1.79, 2.40, 2.15, 2.15, 2.40 and 1.96:1 against its band (mean 2.16:1), and only the top and bottom caps reach 3.71-4.29:1. Its area-weighted contrast over a 10x10 cell is 1.39:1. Needs a glyph whose silhouette differs at 1x, and ink at or below #0E5A70.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/3",
+      "severity": "P2",
+      "location": "Code pane gutter, x75-82: the per-line coverage dots (lines 27, 28, 31, 34, 37, 41, 42, 44, 46, 48, 50 — e.g. y222-224) versus the current-position circle-dot at line 32",
+      "finding": "The dot that marks EVERY executed line and the glyph that marks the ONE current line are the same colour in the same 8px-wide column. Coverage dot core is #1A7B95 (26,123,149); the circle-dot's ink is #0E7490 (14,116,144). Same hue (194 vs 193 degrees), three grey levels apart in luminance, indistinguishable side by side. Worse, the circle-dot's interior IS a coverage dot: its centre carries about 2.9 alpha-px of ink against the coverage dot's 3.27 — an 11% difference — so the only thing separating 'you are here' from 'this line ran' is the surrounding ring, and that ring's flanks were measured above at 1.60-2.71:1, below the 3:1 floor for a graphical object. A reader who loses the row band has no reliable second cue. The coverage dot is also weak on its own terms: core 4.87:1 on white but an area-weighted 2.18:1 over its 3x2 lit box and 1.31:1 over its 4x4 cell, with its top row at 2.43:1 — matching the 2.43:1 coverage-dot figure reported at wide. Give the current-position marker a different hue or a filled silhouette, not a ring around the neutral mark.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/4",
+      "severity": "P2",
+      "location": "whole view — accent role census: Code pane current-line band (y371-393), Call Trace selected row (y251-275), Code gutter (x75-82), identity bar scrubber (x673-832, y31), iteration chip 3 (x445-478)",
+      "finding": "The cyan family carries six meanings across five distinct values, and its luminance ordering does not track meaning. #A5F3FC is the Code pane's current-line band AND the Call Trace's selected row — that pairing is correct and is the one cross-pane correspondence the register wants. But #0E7490 is the current-position glyph, #1A7B95 is 'this line executed' (a different concept, and the closest value of all to #0E7490), #155E75 is the scrubber's elapsed portion, and #164E63 is the current loop iteration's numeral and rule. Three separate values encode variants of 'where you are' (#0E7490, #155E75, #164E63) while the fourth concept, coverage, is given the value nearest to the first. A reader cannot learn the family because darker does not mean more current, more selected or more elapsed. Collapse to at most three: one band tint, one position ink, one neutral-hue coverage mark.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/5",
+      "severity": "P2",
+      "location": "Code pane header, the 'Iteration 3 of 8' chip strip, x366-678, y99-128",
+      "finding": "Two problems in one control. Contrast: chips 4-8 (iterations not yet reached) render their numerals as #727272 on the #DDDDDD strip — 3.54:1, below the 4.5:1 floor for 11px text — with anti-aliased strokes falling to 2.35:1 on chip 4 and 1.95:1 on chip 7. Their hairline borders are #A2A2A2 on #DDDDDD at 1.88:1, and the filled chips 1-3 are #919191 on #DDDDDD at 2.32:1; both are below the 3:1 floor for a control boundary, so the chips have no perceivable edge. Semantics: the tone assignment is inverted for a light surface. Chips 1-3 (visited and current) carry a heavy mid-grey FILL that reads as disabled everywhere else in this UI, while chips 4-8 (unreachable from here) are open and white and read as available. This is the clearest evidence that the light theme was derived by flipping the dark one — a raised mid-grey fill signals 'active' on a dark surface and 'inert' on a light one.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/6",
+      "severity": "P2",
+      "location": "identity bar — scrubber track (x688-832, y31) versus iteration chips 1-3 (x366-478, y99-128)",
+      "finding": "#919191 carries two opposite meanings within 300px of each other. In the scrubber it is the UNFILLED remainder of the track — 'not yet reached'. In the iteration strip it is the FILL of chips 1, 2 and 3 — 'already visited, and the current one'. Same value, opposite semantics, both in the top band of the page, both expressing position within the same trace. Compounding it, the scrubber's elapsed segment #155E75 is only 13px of a 160px track, so the eye reads the mid-grey remainder as the dominant mark and the control appears mostly 'filled' at 9.7% progress.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/7",
+      "severity": "P2",
+      "location": "all four pane boundaries (borders at y68 and y895; Call Trace/Values split at y561/y566) and the inter-pane gutters at x1145-1148 and x686-690",
+      "finding": "The light theme's surface levels have collapsed to almost nothing and the entire pane structure rests on one hairline. Page background #ECECEB against the pane surface #FFFFFF is 1.18:1; the pane header band #DDDDDD is 1.36:1; in-pane row rules #C8C8C8 are 1.67:1; status-pill fills #F3F3F3 are 1.11:1. The only element doing structural work is the #A2A2A2 pane border, at 2.55:1 against the pane surface and 2.16:1 against the page — below the 3:1 floor for a boundary, and carrying four panes on its own. Rubric B4's failure case is 'panes distinguished only by a hairline', which is literally the case here. Either drop the pane surface below the page background or take the border to at least #8A8A8A.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L3/8",
+      "severity": "P2",
+      "location": "Code pane current-line band (line 32, y371-393) and Call Trace selected row (calculate_damage, y251-275)",
+      "finding": "The primary current-position signal in two panes is carried by hue with almost no luminance step. #A5F3FC against the #FFFFFF pane surface is 1.25:1. It is highly visible to normal colour vision because it is saturated, but to a low-vision or monochrome reader the current line and the selected frame are nearly invisible — and per finding 2 the gutter glyph that should be the redundant cue is itself hue-dependent and its ring is under 3:1. In a dark theme the same token carries a real luminance step against the surface; here the inversion left the tint without one. Add a luminance component (a darker band, or a 2-3px left edge rule at 3:1 or better) so position survives without colour.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/9",
+      "severity": "P3",
+      "location": "'Partial' badge (identity bar x206-260, and Transaction pane x1160-1218) versus changed values in the Values pane (9000 at y623-637, 2000 at y790-804) and the 'damage: 0 to 2000' chip in the Code pane",
+      "finding": "Two oranges, two unrelated meanings, close enough in hue to read as one role. #9A3412 on #FFEDD5 means trace completeness ('Partial'); #854D0E on white means 'this value changed at this step'. Hues are roughly 15 and 32 degrees. Both are legible in isolation (6.38:1 and 6.85:1), but a reader scanning the page will attach 'partial/warning' to changed values. Move the changed-value role out of the warm family, or give the badge a distinctly redder tone.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/10",
+      "severity": "P3",
+      "location": "identity bar scrubber, x673-832, y31",
+      "finding": "The boundary between the elapsed segment #155E75 and the track #919191 measures 2.31:1, below the 3:1 floor for adjacent parts of one control, while the track against the white bar is 3.15:1 — so the inert part of the scrubber has more contrast against its container than the meaningful part has against the inert part. Lighten the track to about #C8C8C8 so the elapsed fill carries the emphasis. The numeric readout '128 / 1315' beside it at 19:1 covers the information, which is why this is a nitpick rather than a P2.",
+      "criterion": "B5"
+    }
+  ]
+}
+```

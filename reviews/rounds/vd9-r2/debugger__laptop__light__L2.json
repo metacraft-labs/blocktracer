@@ -1,0 +1,96 @@
+Expected elements: present
+
+Verified: identity bar (`← demo` chain exit, hash, `Partial`, `block 101`, both stepping directions x370–656, scrubber x673–832, `128 / 1315`, phase rail); Code with line 32 marked; CALL TRACE | EVENT LOG as one tabbed region, Call Trace open; VALUES a pane below it, not a tab; DATA labelled with its toned badge in the Transaction pane. No band above the panes, no full-width pane row, no page scrollbar. Columns 683/454/287px on a uniform 4px outer margin and 4px gutter — one scale, confirmed by measurement.
+
+(a) The fade landed but does not yet read as "there is more below". The ramp is 24–26px against a 19–23px line pitch, so exactly one line falls inside it and it dissolves *within* that line's glyphs instead of stepping down between lines. Transaction's last line (y874–885) runs alpha 0.81 at cap-height to 0.44 at baseline — 4.54:1 down to 2.05:1 inside one line, worse than the 2.19:1 measured at wide. The Code pane's only affected line is a 9px sliver peaking at 0.31 alpha: a 4px grey smear. About 2 line-pitches (46–50px), started at a line boundary, gives two stepped lines and matches the 46px right-edge ramp already in the Code pane.
+
+(b) Cost row and the EXECUTIONS sentence verified; Selector/Raw sit below the Transaction pane's fold at this viewport.
+
+Call Trace emptiness re-measured: region y68–561 (494px), last ink y320, 239px empty = 48.4%. It holds. Values does not overflow either — 42px slack.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L2/1",
+      "severity": "P2",
+      "location": "All pane bodies, bottom edge — measured at Transaction pane y870–894 and Code pane y870–894",
+      "finding": "Change (a) landed but the ramp is geometrically too short to read as recession. Measured alpha: Transaction pane, the EXECUTIONS sentence's last line 'only proofs, nullifiers and commitments are' (y874-885) goes 0.81 alpha at y875 to 0.44 at y884, linear, reaching 0 at y896; base text is 86-grey on white, so contrast falls 4.54:1 to 2.05:1 ACROSS ONE LINE — a glyph's ascender is legible and its baseline is not, which reads as a smear rather than as depth. That is worse than the 2.19:1 one lens measured at wide, so the concern is not a wide-viewport artefact; at laptop it lands on the provenance/EXECUTIONS prose that brief 4 grades as content. The ramp is 24-26px against a 19px pitch in the Transaction pane and 23px in the Code listing — about 1.1-1.4 line-pitches — so at most one line is ever inside it. In the Code pane the only line inside is line 52's 9px sliver, whose realised peak opacity is 0.31: a 4px grey trace that reads as a rendering artefact, not as continuation. In the Values pane content ends at y851, 19px above the ramp, so the fade is invisible there (correct, nothing continues). Fix: ramp about 2 line-pitches, 46-50px, with the ramp's top anchored to a line boundary so two lines step down at roughly per-line-uniform alpha (about 0.7 then about 0.3). 46-50px also matches the 46px horizontal ramp already used in this same Code pane, making it one device at one scale, and costs one line of legible content rather than the three a 3-pitch ramp would cost at 900px tall.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/2",
+      "severity": "P2",
+      "location": "Call Trace tabbed region, x691-1144, y68-561",
+      "finding": "The queued emptiness holds, re-measured: the tabbed region is 494px of the middle column's 828px (59.7%); its last ink is the 'By call order. / Self cost' footer at y309-320; y321-559 is pure white (255,255,255 sampled every 20px) — 239px, 48.4% of the region, 51.5% of the body below the tab strip. Last round's 48.8%/48.2% therefore stands essentially unchanged, and it is layout-shaped: the split is a fixed share of the column, not a consequence of this fixture, and the Values pane below it does NOT absorb the difference — its last row ('i', ends y851) leaves 42px of slack (12.7%) before the pane border at y895. So the middle column as a whole is about 281px taller than the content it holds, and the surplus sits in the one column where neither pane can spend it. The two panes that genuinely overflow at this viewport are Code (6 of 27 visible lines clipped at the right, line 52 cut at the bottom) and Transaction (cut mid-sentence in EXECUTIONS) — both in other columns. Within this column the honest weighting is content-driven rather than 60/40: size the tabbed region to its content plus two rows and let Values take the remainder, because Values' row count grows as the user steps while trace depth here is fixed at 7 frames. The re-weighting remains a taste call; the measurement is not.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L2/3",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row — label band y219-241, hairline y246, paragraph y256-438",
+      "finding": "Unresolved from the previous round and unchanged by this one. The DATA label and its 'Synthetic demo data' badge sit inside the SAME cell as the transaction identity and the two-line status reason: rules in this pane are at y94, 246, 450, 480, 510, 542, 573, 605, 677, 749, 795, and there is no rule anywhere between the status-reason block (ends y208) and the DATA label (starts y219). The only rule near the label is the 200-grey full-width hairline at y246, which sits BETWEEN the label and the sentences it introduces, 5px below the label against 10px of open whitespace above it. Proximity therefore binds DATA upward to the identity block and fences it off from its own body copy, so nine lines of producer prose (y256-438) read as an unlabelled row. This answers the 'is the row now too quiet' question in layout terms: it is not too quiet, it is mis-bracketed. Fix: move the hairline to y213 (above the label) and delete the one at y246, so the dt/dd pair is one cell.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/4",
+      "severity": "P2",
+      "location": "Code pane right edge, x638-684 — notice band y165-210 and current-line highlight y371-393",
+      "finding": "The Code pane's right-edge fade is applied to the whole scroll container rather than to the glyph layer, so it dissolves backgrounds that are not overflowing. The notice band's own grey (221) ramps 221 at x636 to 254 at x684, yet the notice WRAPS — 'Showing from line 26 ... are not in' / 'this window.' — so it has no horizontal overflow at all; a full-width banner that fades out at its right edge reads as a truncated band, which is a false affordance. Worse, the current-line highlight on line 32 (165,243,252) ramps to 245,254,255 over x640-680, so the strongest positional cue in the pane stops 46px short of the pane border and its right terminus is indeterminate. Neither the Call Trace's selected-frame band (full strength 165,243,252 to x1140) nor any pane divider elsewhere is treated this way, so the same highlight primitive terminates two different ways in two panes. Fix: apply the horizontal mask to the text layer only, leaving row backgrounds and banner surfaces full-bleed to the pane border.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L2/5",
+      "severity": "P2",
+      "location": "Transaction pane, FEE PAYER row y605-677 and TARGET row y677-749",
+      "finding": "66-character hashes are right-aligned and hard-wrapped into a 287px column, breaking 32 / 32 / 2. Both rows end in a two-character orphan line on a line of its own — '32' at y655-670 and '4c' at y727-742 — each with roughly 270px of white to its left, because right-alignment pushes the orphan to the far edge instead of leaving it beside its parent. The result is two 72px-tall rows whose final third is a two-glyph fragment, in the narrowest column of the page and immediately above the COST row, which also wraps its unit ('mana (FeeJuice)') onto a second right-aligned line. Fix: middle-truncate these to a single line (0x01c8f0...5d932) with the full value available on interaction, or left-align them as a monospace block so the wrap points are even.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/6",
+      "severity": "P2",
+      "location": "Call Trace list, frame rows y130-301, x695-800",
+      "finding": "Depth is carried by exactly one guide rule. Scanning every frame row for vertical ink in x695-800 returns a single column at x706 on all six nested rows, and nothing else: frame text starts at x702 (depth 1, 'main'), x724 (depth 2, 'iterate_asteroids'), x740 (depth 3, 'calculate_damage' and 'status_report') and x756 (depth 4, 'calculate_remaining_shie...'). So depths 3 and 4 are expressed by indentation alone, against B6's requirement of indentation AND a guide, and at depth 4 a reader has no rule to trace back to the parent frame. The indent scale is also not one scale: the first step is 22px (702 to 724) and every subsequent step is 16px (724 to 740 to 756), so the depth-1-to-2 step is 1.4x the others and the ladder is uneven. Fix: one guide per level at a uniform 16px pitch, with the first step brought to 16px too.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/laptop/light/L2/7",
+      "severity": "P3",
+      "location": "Identity bar, x370-933",
+      "finding": "The bar reads as an evenly-spaced strip rather than as groups. Measured object extents and gaps: step pair x370-427, then 16px, pair x444-496, then 16px, pair x513-576, then 16px, pair x593-656, then 16px, scrubber x673-832, then 16px, readout '128' x849-873. The gap that separates one stepping pair from the next is the identical 16px that separates the last stepping pair from the scrubber and the scrubber from the position readout, so 'the stepping controls' is never delimited as a unit from the position machinery. The only stronger separator is 24px (before the first pair at x370, and before the phase rail at x958) — a 1.5x step, too small to register as a level. By contrast the identity cluster on the left is internally spaced at a consistent 8-9px, so the bar has 8px, 16px and 24px doing grouping work with no clear hierarchy between the last two. Fix: keep 16px inside the stepping group and take the group-to-group gap to 32px, so the bar reads as identity / stepping / position / phase / actions.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/laptop/light/L2/8",
+      "severity": "P3",
+      "location": "Identity bar left edge x24 versus Code pane title 'CODE' at x13",
+      "finding": "There is no shared left rail down the page. Every pane insets its title 9px from its own border — 'CODE' at x13 in a pane starting at x4, 'CALL TRACE' at x700 in a pane starting at x691, 'TRANSACTION' at x1158 in a pane starting at x1149 — a consistent 9px. The identity bar's first ink ('the arrow of the demo exit') is at x24, 11px right of 'CODE' and 20px right of the pane edge below it. At laptop width the eye reads a vertical edge down the left of the viewport and the topmost element steps out of it. Fix: bring the identity bar's content inset to 13px so its first glyph aligns with the Code pane's title.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/9",
+      "severity": "P3",
+      "location": "Code pane — horizontal mask x638-684 versus vertical mask y870-894",
+      "finding": "One overflow-fade device is implemented twice with two scales and two scopes, in the same pane. The horizontal ramp is 46px and covers the container (it dims the notice band's grey and the current-line cyan, see finding 4); the vertical ramp is 24-26px and covers content only (pane borders hold 162-grey to y891 and row dividers hold 200-grey to y860, unfaded). A reader cannot learn one meaning for 'fading edge' when its length differs by 1.8x and its subject differs by axis. Fix: settle on a single ramp length (the 46-50px recommended in finding 1) and a single subject (the content layer) for both axes.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/10",
+      "severity": "P3",
+      "location": "Code pane line-number gutter x40-80 — lines 26, 48 and 49",
+      "finding": "The code listing's line pitch is 23px throughout (line-number band centres 266.5, 289.5, 312.5, 336.5, 359.5, ... 734.5) except on three lines where an annotation chip that does not fit inline drops to a half-row and doubles the pitch to 44px: line 26 (centre 222.5 to line 27 at 266.5), line 48 (757.5 to 801.5) and line 49 (801.5 to 845.5). Lines 48 and 49 are consecutive, so an 88px block of the pane carries two code lines. The chips themselves are column-consistent — all four, including line 32's inline '+2', sit on one right rail at x612-637 — so the rail is fine; the cost is 63px of pane height for three chips and a line-number gutter that loses its even rhythm at exactly the point a reader uses it to count lines. Fix: place the wrapped chip on the same 23px row, right-aligned past the fade, rather than opening a second sub-row.",
+      "criterion": "B4"
+    }
+  ]
+}
+```
