@@ -1,8 +1,11 @@
 ## The provenance banner — which data a visitor is actually looking at.
 ##
 ## WHY THIS EXISTS, AND WHY IT IS ON EVERY PAGE RATHER THAN ON ONE. This tree
-## publishes two chains from two producers: a synthetic demo generated from a
-## fixed seed, and a real capture taken from an Aztec testnet node. They render
+## publishes three chains from two producers: a synthetic demo generated from a
+## fixed seed, and real captures taken from Aztec testnet and mainnet nodes.
+## The count is deliberately not load-bearing anywhere below — the banner reads
+## whatever the generation published and says so, so a fourth chain needs no
+## edit here. They render
 ## through the same views, the same reader and the same debugger, because a
 ## second chain is DATA rather than a second explorer — which is the right design
 ## and which also means nothing about a page's shape tells a reader which one
@@ -27,13 +30,23 @@ import isonim/ssr/escape
 import isonim/dsl/ui
 import ../reader
 
+func isLiveCapture*(kind: string): bool =
+  ## The one kind that names data taken off a network.
+  ##
+  ## A predicate rather than a bare comparison at each call site, because the
+  ## string is a wire value published by the producer and two places that spell
+  ## it independently can come to disagree about it. `provenanceTone` below and
+  ## the home strip's ordering both ask this question, and they must get the
+  ## same answer for the same tree.
+  kind == "live-capture"
+
 func provenanceTone*(kind: string): string =
   ## `live-capture` is the only kind that earns the affirmative tone. Anything
   ## else — including a kind this build has never heard of — is reported
   ## neutrally rather than being presented as real chain data, because the
   ## dangerous error here has a direction: calling synthetic data real is worse
   ## than declining to vouch for real data.
-  if kind == "live-capture": "ok" else: "info"
+  if isLiveCapture(kind): "ok" else: "info"
 
 proc provenanceBanner*(info: ChainInfo): string =
   ## The banner for one chain, or `""` when the generation published none.

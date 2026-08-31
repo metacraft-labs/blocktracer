@@ -48,6 +48,27 @@ proc siteCss(): string =
   ## and the pane rules are class-scoped to markup no explorer page emits.
   emitTokensCss() & fontFaceCss & globalCss & debugRouteCss
 
+proc provenanceRegion(provenance: string): string =
+  ## The banner placed in the page's OWN content column.
+  ##
+  ## `.pagebody` is full-bleed and every section inside it opens an `.inner`
+  ## (`max-width:--bt-layout-container;margin:0 auto`). A notice spliced
+  ## straight into the body therefore ran from viewport edge to viewport edge
+  ## while the breadcrumb directly beneath it started at the gutter — so at
+  ## 1920px the one element on the page that says whether the data is real was
+  ## also the only element not aligned to the column it belongs to, with its
+  ## left rounded corner sheared off at x=0. It read as a rendering fault on a
+  ## banner whose entire job is to be believed.
+  ##
+  ## Returns "" for a site-level page rather than an empty container, which is
+  ## the rule `hydrationScriptTag` below already follows and for the same
+  ## reason: an empty `.inner` is a box with the section's margins and none of
+  ## its content, and the next reader would have to prove it was harmless.
+  if provenance.len == 0: return ""
+  ui:
+    tdiv(class = "inner"):
+      raw provenance
+
 proc pageLayout*(title, description, content: string,
                  robots = "index,follow", canonical = "",
                  provenance = ""): string =
@@ -55,6 +76,11 @@ proc pageLayout*(title, description, content: string,
   ## has no chain and therefore makes no claim about whose data it shows. Every
   ## chain-scoped route passes one — see `components/provenance.nim` for why the
   ## marker has to be on the page rather than somewhere a reader might not go.
+  ##
+  ## It is wrapped by `provenanceRegion` so it lands in the same column as the
+  ## content it qualifies. The DEBUGGER shell deliberately does not wrap it:
+  ## that register has no centered column, and there the banner spanning the
+  ## viewport is the correct full-width treatment rather than an escape from one.
   let css = siteCss()
   "<!doctype html>\n" & renderToString(proc(): string =
     ui:
@@ -73,7 +99,7 @@ proc pageLayout*(title, description, content: string,
         body:
           raw siteNav()
           main(class = "pagebody"):
-            raw provenance
+            raw provenanceRegion(provenance)
             raw content
           raw siteFooter()
   )

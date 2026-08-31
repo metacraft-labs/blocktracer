@@ -22,6 +22,13 @@
 //      left behind, so it is also the assertion behind
 //      verify_full_regen_removes_stale_images.
 //
+//   E. CHAIN COVERAGE — every chain the BUILT TREE publishes, and every
+//      provenance kind it publishes, is the subject of a ready view. Unlike A
+//      this is derived from the registry rather than from a list in this
+//      repository, because A is a by-name list and a by-name list is exactly
+//      what failed: three chains shipped, all 280 images were of one of them,
+//      and A said 67/67. NOT RUN without a build, never passed.
+//
 // Pending views — those whose route the client does not serve yet — are
 // REPORTED, with counts and reasons, and do not fail C. The alternative is
 // either to drop them from the list (losing the coverage guarantee A gives) or
@@ -29,8 +36,11 @@
 // for a styled page). Neither is better than saying so.
 
 import { readdir, readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join, dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { buildEntityIndex } from "./lib/entities.mjs";
 
 import {
   VIEWS,
@@ -141,6 +151,75 @@ async function main() {
     problems.push(`D: stale image ${f} — ${why}`);
   }
 
+  // ── E. CHAIN COVERAGE ────────────────────────────────────────────────────
+  //
+  // Every chain the tree publishes, and every distinct provenance KIND it
+  // publishes, is the subject of at least one READY view.
+  //
+  // This assertion is derived from the built data plane rather than from a list
+  // in this file, and that is the whole point of it. A by-name list is what A
+  // already is, and A is what failed: the tree gained `aztec-testnet` and
+  // `aztec-mainnet`, every named view kept resolving through
+  // `chains.sort()[0]`, and the 2026-08-31 corpus contained 232 images of the
+  // synthetic chain and none of either real one — while A reported 67/67,
+  // because there was no per-chain entry for it to find missing. A list cannot
+  // notice a chain nobody added it to. The registry can.
+  //
+  // Read from the same `dist/` the capture ran against, so a chain that exists
+  // only in someone's intention does not count. With no build present this is
+  // NOT RUN rather than passing, for the reason C refuses to pass on a missing
+  // output directory: a check that goes green for lack of anything to inspect
+  // is worse than one that says it could not look.
+  report.chains = { status: "not-run" };
+  const distDir = resolvePath(REPO_ROOT, "client", "dist");
+  if (!existsSync(join(distDir, "registry", "chains.v1.json"))) {
+    report.chains = { status: "not-run", reason: `no built data plane at ${distDir}` };
+  } else {
+    const ix = buildEntityIndex(distDir);
+    const readyViews = VIEWS.filter((v) => v.status === "ready");
+    const subjectChains = new Set();
+    const unresolved = [];
+    for (const v of readyViews) {
+      let url;
+      try {
+        url = typeof v.route === "function" ? v.route(ix) : v.route;
+      } catch (e) {
+        unresolved.push(`${v.id}: ${e.message}`);
+        continue;
+      }
+      const first = String(url ?? "").split("?")[0].split("/").filter(Boolean)[0];
+      if (first && ix.chains.includes(first)) subjectChains.add(first);
+    }
+    for (const u of unresolved) problems.push(`E: ready view route did not resolve — ${u}`);
+
+    const uncoveredChains = ix.chains.filter((c) => !subjectChains.has(c));
+    for (const c of uncoveredChains) {
+      problems.push(
+        `E: no ready view is captured from chain "${c}" ` +
+        `(provenance: ${ix.byChain[c].provenanceKind || "none published"}) — ` +
+        `every image would be of another chain while this one shipped ungraded`);
+    }
+
+    const kinds = ix.provenanceKinds();
+    const coveredKinds = new Set(
+      [...subjectChains].map((c) => ix.byChain[c].provenanceKind).filter(Boolean));
+    const uncoveredKinds = kinds.filter((k) => !coveredKinds.has(k));
+    for (const k of uncoveredKinds) {
+      problems.push(
+        `E: no ready view is captured from a chain whose provenance is "${k}" — ` +
+        `the banner's "${k}" treatment has no subject in the corpus`);
+    }
+
+    report.chains = {
+      status: "checked",
+      published: ix.chains,
+      subjects: [...subjectChains].sort(),
+      uncovered: uncoveredChains,
+      provenanceKinds: kinds,
+      uncoveredProvenanceKinds: uncoveredKinds,
+    };
+  }
+
   const pendingViews = VIEWS.filter((v) => v.status !== "ready");
   report.views = {
     total: VIEWS.length,
@@ -167,6 +246,13 @@ async function main() {
     console.log(`themes:           ${THEMES.join(", ")}`);
     console.log(`expected images:  ${expectedReady.length} for ready views (+${expectedPending.length} blocked on pending routes)`);
     console.log(`present images:   ${present.length}`);
+    if (report.chains.status === "checked") {
+      console.log(`chains published: ${report.chains.published.join(", ")}`);
+      console.log(`chains captured:  ${report.chains.subjects.join(", ") || "(none)"}`);
+      console.log(`provenance kinds: ${report.chains.provenanceKinds.join(", ") || "(none published)"}`);
+    } else {
+      console.log(`chain coverage:   NOT RUN — ${report.chains.reason}`);
+    }
     console.log("");
     if (pendingViews.length) {
       console.log(`PENDING (${pendingViews.length} views, ${expectedPending.length} images) — named, not yet capturable:`);
@@ -179,6 +265,12 @@ async function main() {
     } else {
       console.log("PASS — verify_capture_covers_named_view_list");
       console.log("PASS — no stale images (verify_full_regen_removes_stale_images)");
+      if (report.chains.status === "checked") {
+        console.log(
+          `PASS — every published chain and provenance kind has a ready view ` +
+          `(${report.chains.published.length} chain(s), ` +
+          `${report.chains.provenanceKinds.length} kind(s))`);
+      }
     }
   }
   return problems.length ? 1 : 0;

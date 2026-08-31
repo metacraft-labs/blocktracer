@@ -12,6 +12,31 @@ import ../debugger/session_layout
 import ../debugger/session_view
 import ../components/debugger
 
+func stripOrder*(infos: seq[ChainInfo]): seq[ChainInfo] =
+  ## The order the home strip offers chains in: captured chains first, then
+  ## everything else, stable within each group.
+  ##
+  ## WHY THIS IS WRITTEN DOWN AT ALL. Until now the strip's order was whatever
+  ## `chains()` returned, which is the registry's key order — lexicographic. The
+  ## synthetic demo chain led the strip because `aztec` sorts before
+  ## `aztec-mainnet`, so the first thing a first-time visitor was offered was
+  ## three blocks of data that exists on no network, ahead of two chains with
+  ## four hundred. Nothing decided that; the alphabet did.
+  ##
+  ## What a visitor sees first is a product decision, and a product decision
+  ## that is a byproduct of a sort key changes silently the moment a chain is
+  ## renamed — which is the exact failure `provenanceBanner` refuses when it
+  ## declines to key off the slug. So the ordering is stated here, keyed off the
+  ## same published provenance the badges are, and a chain the generation says
+  ## nothing about sorts with the synthetic ones rather than ahead of them.
+  ##
+  ## The demo chain is NOT hidden and does not lose its badge. It stops leading,
+  ## which it only ever did by accident.
+  for info in infos:
+    if isLiveCapture(info.provenanceKind): result.add info
+  for info in infos:
+    if not isLiveCapture(info.provenanceKind): result.add info
+
 proc liveDemo(demo: DebugSessionView): string =
   ## The embedded, pre-baked debugging session (VD.3's `home--live-demo`).
   ##
@@ -70,7 +95,7 @@ proc homePage*(infos: seq[ChainInfo];
           # badge comes from the same published `provenance` block the chain's
           # own banner renders, and a chain whose generation published none gets
           # no badge rather than a guessed one.
-          for info in infos:
+          for info in stripOrder(infos):
             a(class = "chaincard", href = chainUrl(info.slug),
               `data-provenance` = info.provenanceKind):
               tdiv(class = "name"): text info.slug

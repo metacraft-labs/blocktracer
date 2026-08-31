@@ -103,6 +103,24 @@ export const PAGES = [
   { id: "search.not-found", route: "/search?q=", anchor: "§11 / Search-And-Routing §8" },
   { id: "settings", route: "/settings", anchor: "§12" },
   { id: "static-content", route: "/about, /docs/*", anchor: "§1 route map" },
+
+  // ── The provenance banner, as TWO entries ────────────────────────────────
+  //
+  // `components/provenance.nim` renders a standing statement of whose data the
+  // reader is looking at, on every chain-scoped route — 814 of the 819 pages
+  // this tree exports. It is split in two for the reason `tx-detail.absent`
+  // and `tx-detail.unsupported` are split: they are two different claims, a
+  // reviewer can judge them separately, and one can be right while the other
+  // is wrong. They are also the pair whose CONFUSION is the failure the
+  // component exists to prevent — `provenanceTone` says so directly ("calling
+  // synthetic data real is worse than declining to vouch for real data"), and
+  // a single entry could be satisfied by an image of either one.
+  //
+  // Before these existed the inventory had no per-chain dimension at all, and
+  // that is exactly how a 280-image corpus came to contain zero images of
+  // either real chain while this file reported 67/67 covered.
+  { id: "provenance.synthetic", route: "/{chain}/**", anchor: "§2, §4 — 'Synthetic demo data', neutral tone" },
+  { id: "provenance.live-capture", route: "/{chain}/**", anchor: "§2, §4 — 'Real Aztec … data', affirmative tone" },
 ];
 
 // ── Degraded-state catalogue (Page-Descriptions §14, §14.1, §14.1a, §14.2) ──

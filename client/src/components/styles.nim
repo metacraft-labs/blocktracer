@@ -237,7 +237,36 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
 .dl dd a:hover{color:var(--bt-text-link-hover)}
 
 /* ── tables ─────────────────────────────────────────────────────────────── */
-.tablewrap{overflow-x:auto;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-lg);background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised)}
+/* The right-edge fade, and it is the SAME declaration `.src` and `pre.raw`
+   carry in `debugger_css.nim` — deliberately copied rather than adapted,
+   because that file states the rule this one has to obey: "ONE overflow
+   treatment, and it is the fade". Round 5 already rejected a page that masked
+   one scroll container and hard-clipped another.
+
+   What it fixes here is worse than the case it was invented for. `.tablewrap`
+   scrolls (`overflow-x:auto`), but a scrollbar is the only thing that said so,
+   and the transactions table is wider than `--bt-layout-container` on every
+   route that renders it — so the Fee column was cut at the wrap's rounded edge
+   with the header label already out of frame. A truncated hash is recognisably
+   truncated; `42000 / 100000` cut to `42000 / 10` is a DIFFERENT NUMBER, read
+   as a fact about the chain. That is why this is the one overflow in the
+   explorer that had to stop being silent.
+
+   The fade is paired with the last-cell padding below and neither works alone:
+   the mask dims the final `--bt-space-2xl` of the scroll port whether or not
+   anything is scrolled, so without a gutter to land on it would dim the last
+   digits of a table that FITS and manufacture the defect it removes. */
+.tablewrap{overflow-x:auto;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-lg);background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised);
+  -webkit-mask-image:linear-gradient(to right,currentColor
+    calc(100% - var(--bt-space-2xl)),transparent);
+  mask-image:linear-gradient(to right,currentColor
+    calc(100% - var(--bt-space-2xl)),transparent);
+  -webkit-mask-clip:padding-box;mask-clip:padding-box}
+/* The gutter the fade lands on when there is nothing to scroll. Applied to the
+   last column in BOTH rows so the header label and its values keep sharing an
+   edge — `th.num`/`td.num` are right-aligned, so a gutter on one and not the
+   other would misalign the column that is hardest to misread. */
+table.tbl th:last-child,table.tbl td:last-child{padding-right:var(--bt-space-2xl)}
 table.tbl{width:100%;border-collapse:collapse;font-size:var(--bt-density-data-size)}
 table.tbl th{text-align:left;font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);line-height:var(--bt-type-label-line);letter-spacing:var(--bt-type-label-tracking);text-transform:uppercase;color:var(--bt-text-muted);padding:var(--bt-density-cell-y) var(--bt-density-cell-x);background:var(--bt-surface-sunken);border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-default);white-space:nowrap}
 table.tbl th.num{text-align:right}
@@ -410,7 +439,17 @@ table.tbl td .reason{white-space:normal;max-width:var(--bt-measure-narrow)}
    status closes it, which is the pair §13 names — and the horizontal scroll
    that would otherwise hide the far columns is gone rather than tightened. */
 @media (max-width:900px){
-  .tablewrap:has(table.txtbl){overflow-x:visible;border:0;background:none;box-shadow:none}
+  /* The fade goes with the scroll it annotates. In the card layout there is no
+     horizontal overflow at all — `overflow-x:visible`, `thead` gone, every
+     value on its own row — so a mask here would dim the right edge of cards
+     that have nothing hidden, which is a fade that means nothing and trains a
+     reader to ignore the one that does. The last-cell gutter goes with it: a
+     card row is a flex line with its label at the left and its value at the
+     right, and 32px of dead space would push that value out of alignment with
+     every row above it. */
+  .tablewrap:has(table.txtbl){overflow-x:visible;border:0;background:none;box-shadow:none;
+    -webkit-mask-image:none;mask-image:none}
+  table.txtbl th:last-child,table.txtbl td:last-child{padding-right:0}
   table.txtbl{display:block;font-size:var(--bt-type-body-sm-size)}
   table.txtbl thead{display:none}
   table.txtbl tbody{display:block}

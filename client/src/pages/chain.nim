@@ -95,5 +95,5 @@ proc chainPage*(chain: string, info: ChainInfo,
           dd:
             span(class = "identifier"): text info.generation
             span(class = "muted"):
-              text " every read on this page is pinned to it, so nothing here "
+              text " — every read on this page is pinned to it, so nothing here "
               text "mixes two views of the chain."

@@ -33,6 +33,8 @@ import {
   currentCallAnchorOf,
   unresolvableChildAnchorOf,
   unresolvableLogAnchorOf,
+  zeroTraceTxOn,
+  tracedTxOn,
 } from "./lib/entities.mjs";
 
 // ── Viewport set ───────────────────────────────────────────────────────────
@@ -116,6 +118,29 @@ export const DEBUG_TIME_COORDINATE_MID = "128";
 const debugRoute = (txSel, { t = DEBUG_TIME_COORDINATE, extra = "" } = {}) => (ix) => {
   const tx = txSel(ix);
   return `/${ix.primaryChain}/tx/${tx.hash}/debug?t=${t}${extra}`;
+};
+
+// ── The two real chains, named once ────────────────────────────────────────
+//
+// A slug appears here and nowhere else in the view list, and it never appears
+// without `realChain` around it. The slug alone would be the guess
+// `components/provenance.nim` refuses to make; `realChain` turns it into a
+// checked claim by asserting the chain is present AND that its generation
+// published `live-capture`. If a rename or a re-capture makes either untrue the
+// view fails loudly at resolve time, which is the behaviour every other
+// selector in this harness has.
+const TESTNET = "aztec-testnet";
+const MAINNET = "aztec-mainnet";
+
+const realChain = (ix, slug) => {
+  const c = ix.chain(slug); // throws when the chain is not in the tree
+  if (c.provenanceKind !== "live-capture") {
+    throw new Error(
+      `chain "${slug}" publishes provenance kind "${c.provenanceKind || "(none)"}", ` +
+      `not "live-capture" — this view's subject is REAL chain data and would ` +
+      `otherwise photograph something else under that name`);
+  }
+  return slug;
 };
 
 /** The transaction the plain debugger views open: the first one in block order
@@ -397,7 +422,11 @@ export const VIEWS = [
   {
     id: "chain-overview",
     description: "Chain overview — header, head, latest blocks, latest transactions, chain notes",
-    covers: ["chain-overview"],
+    // Also the synthetic half of the provenance pair: this route resolves
+    // through `primaryChain`, which is the demo chain, so it is where the
+    // neutral-tone banner is graded. Its `--testnet` and `--mainnet` siblings
+    // below carry the affirmative-tone half.
+    covers: ["chain-overview", "provenance.synthetic"],
     register: "explorer",
     status: "ready",
     route: (ix) => `/${ix.primaryChain}`,
@@ -1365,6 +1394,66 @@ export const VIEWS = [
     pendingReason: `${PENDING_STATE}: no service worker is registered yet`,
     route: () => "/",
     offline: true,
+  },
+
+  // ───────────────────── The real chains (VD.8) ──────────────────────────
+  //
+  // Every view above resolves through `ix.primaryChain` — `chains.sort()[0]`,
+  // which is `aztec`, the SYNTHETIC chain. That was correct while the tree
+  // published one chain. The 2026-08-31 regeneration published three and still
+  // captured 232 images of `/aztec`, 48 site-level images and NOT ONE of
+  // `/aztec-testnet` or `/aztec-mainnet` — while `check-coverage` reported
+  // 67/67, because the inventory had no per-chain entry to be missing.
+  //
+  // These four views are the other arm. They are selected by the provenance the
+  // GENERATION published, never by slug, because that is the rule the product
+  // itself follows (`components/provenance.nim`: "keying the banner off the
+  // chain's name would be a guess that survives exactly until someone renames a
+  // chain"). A harness that selected by slug while the product selected by tree
+  // would be able to disagree with it, silently, about which chain it had
+  // photographed.
+  {
+    id: "chain-overview--testnet",
+    description:
+      "Chain overview on a REAL chain — the live-capture provenance banner, and a head that came from a node",
+    covers: ["chain-overview", "provenance.live-capture"],
+    register: "explorer",
+    status: "ready",
+    route: (ix) => `/${realChain(ix, TESTNET)}`,
+  },
+  {
+    id: "chain-overview--mainnet",
+    description:
+      "Chain overview on the zero-trace real chain — every transaction in the window is below the node's pruning floor",
+    covers: ["chain-overview", "provenance.live-capture"],
+    register: "explorer",
+    status: "ready",
+    route: (ix) => `/${realChain(ix, MAINNET)}`,
+  },
+  {
+    id: "tx-detail--mainnet-zero-trace",
+    description:
+      "Transaction on mainnet with no trace and none possible — 'Not observable', the published pruning reason, and no debug affordance",
+    covers: ["tx-detail.absent", "provenance.live-capture"],
+    register: "explorer",
+    status: "ready",
+    route: (ix) => {
+      const slug = realChain(ix, MAINNET);
+      return `/${slug}/tx/${zeroTraceTxOn(slug)(ix).hash}`;
+    },
+  },
+  {
+    id: "debugger--testnet",
+    description:
+      "A debugging session over REAL testnet chain data — the same panes, a live-capture banner, and a trace recorded from a node",
+    covers: ["debugger", "provenance.live-capture"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    route: (ix) => {
+      const slug = realChain(ix, TESTNET);
+      return `/${slug}/tx/${tracedTxOn(slug)(ix).hash}/debug?t=${DEBUG_TIME_COORDINATE}`;
+    },
   },
 ];
 

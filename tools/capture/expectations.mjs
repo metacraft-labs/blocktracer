@@ -85,7 +85,8 @@ export const BACKBONES = {
     items: [
       "A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a way OUT of the debugger register that lands on the CHAIN, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header. The exit targets the chain and NOT the transaction's own URL, because under Page-Descriptions §7.0 that URL IS this session — for a `ready` or `divergent` trace the two routes serve byte-identical bodies, so a link to the transaction would be a link to the page the visitor is already on. A missing exit is a P1; an exit that targets the chain is CORRECT and is not a finding.",
       "Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.",
-      "Every pane region below the identity bar is a pane: no full-width explanatory band, no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar.",
+      "Every pane region below the identity bar is a pane: no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar. The ONE full-width band this register admits is the provenance banner ABOVE the identity bar, described in the next item — it is not a pane and must not be judged as one.",
+      "THE PROVENANCE BANNER, first in the shell and above the identity bar. `debugLayout` drops the nav and the footer, so this register has no other place a reader could learn whose data they are looking at — and it is the register where they are most likely to forget, because a trace recorded from a real node and a Noir program published under a synthetic hash step identically here. Grade it as content: badge, tone, chain slug and the producer's own sentences, legible in both themes. Missing, mislabelled, or a tone that contradicts the label is a P1. What is FAIR to raise as design is its cost — it is full-width by design here, and the rows it takes come out of the panes, which is the register's scarcest resource.",
     ],
   },
 
@@ -152,9 +153,11 @@ export const BACKBONES = {
   "site-chrome": {
     spec: "Page-Descriptions §2, §12, Design-System §2",
     items: [
-      "The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the demo-data disclosure naming `blocktracer-demo-gen`. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath.",
+      "The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the data disclosure — \"No account, no tracking\", plus a statement that each chain says on its own pages whether its data is synthetic (`blocktracer-demo-gen`) or captured from a network. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath. The disclosure must NOT assert that this page is demo data: it is rendered on real-chain pages too, and until 2026-08-31 it claimed the opposite of the banner directly above it on 632 of the tree's 819 pages.",
       "The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.",
       "The fixed site nav, with the brand and the resolver field, above a body that does not run under it.",
+      "THE PROVENANCE BANNER, on a chain-scoped page: a badge naming what this data IS — `Synthetic demo data` in the neutral tone, or `Real Aztec <network> data` in the affirmative tone — the chain's slug beside it, and the producer's own sentences below. It is the only thing on the page that tells a reader whether the hashes in front of them exist on any network, so it is graded as content and not as decoration: a banner that is missing, that names the wrong chain, that carries a tone contradicting its label, or whose text is unreadable against its surface in either theme is a P1. It sits in the page's own content column, aligned with the breadcrumb below it — a banner running edge to edge while everything it qualifies is inset reads as a rendering fault on the one element whose job is to be believed.",
+      "On a SITE-LEVEL page — `/about`, `/settings`, `/search`, `/chains`, 404 — the banner is correctly ABSENT, because those pages show no chain's data and `provenanceBanner` returns \"\" rather than inventing a claim on a producer's behalf. Its absence there is not a finding, and reporting it as one is the error this item exists to prevent in the other direction.",
     ],
   },
 
@@ -1261,6 +1264,7 @@ export const EXPECTATIONS = [
       "Whether the rail reads as part of the Code pane or as a bar that has landed on top of it. It is above the listing rather than at the loop's own header line, because the served window usually starts below that line.",
       "Light theme specifically: the change hue is the Values pane's `changed` mark, and it has to survive against the code surface as well as against the pane body.",
       "Whether a reviewer can tell, from the screenshot alone, that the values are RECORDED rather than computed by the page. If nothing on screen distinguishes them from a plausible fiction, that is a finding — it is the product's central claim.",
+      "You are looking at the SAME PIXELS as `debugger--source-pane` at this size and theme — the two views share a clip and the captures are byte-identical by design. That is one pane judged against two questions, and yours is the VALUES question only: are the recorded values legible beside the code, and does the rail say which pass they belong to? Do not re-report the source renderer's findings here; they belong to the other block, and a finding filed twice is counted twice by the gate.",
     ],
   },
 
@@ -1492,11 +1496,12 @@ export const EXPECTATIONS = [
     mustNotShow: [
       "ANY position notice, banner or badge about the link. This is the one branch §6.0a lets be silent, and a notice here would be the noise that trains a reader to ignore the four that matter. Present ⇒ P1.",
       "An engine-failure banner. The deadline has not been reached in this capture.",
-      "Any visible difference from `debugger` at the same size and theme other than what hydration itself adds (§13's copy affordances). If the page looks different, say how — that difference is either a hydration defect or a finding about the copy treatment.",
+      "ANY visible difference from `debugger` at the same size and theme. This capture is expected to be BYTE-IDENTICAL to it, and in the 2026-08-31 regeneration it was — same sha256, all four size/theme combinations. Anything you can see that `debugger` does not have is therefore a finding, not an allowance.",
     ],
     watchFor: [
       "Put this image beside `debugger--link-recovered-by-anchor` at the same size and theme. The ONLY difference should be the presence of the notice band. If the rest of the page also moved, the notice is displacing the session rather than sitting above it, and that is a finding about the band's cost.",
-      "§13's copy affordances arrive with hydration and this is the first captured page that has them. Judge them as design, not as a diff: whether a value that gained a button reads as a control or as a value that has been decorated.",
+      "This block previously asked you to judge §13's copy affordances here, on the grounds that this was the first captured page carrying hydration. That instruction was WRONG and has been removed rather than left to be discovered: the engine scenario for this view is `silent`, the affordances do not render until the engine answers, and the capture is byte-identical to the non-hydrated `debugger`. There are no copy affordances in this image. Do not look for them, and do not report their absence — the corpus has no view that shows them, which is a coverage gap recorded against the harness and not a defect in this page.",
+      "What this image IS good for is the negative claim, and it is a strong one: following a link that resolved exactly must leave no trace of itself. Read the page as a first-time visitor and say whether anything at all hints that a coordinate was supplied.",
     ],
   },
 
@@ -2189,6 +2194,112 @@ export const EXPECTATIONS = [
     watchFor: [
       "This is the only view whose correctness is partly about WHAT SERVED IT. State whether what you see is plausibly the product's shell or the browser's fallback.",
       "The constrained-navigation treatment: it must read as temporary, not as a broken build.",
+    ],
+  },
+
+  // ──────────────────── The real chains (VD.8) ─────────────────────────────
+  //
+  // Four views whose subject is data this product did not generate. Everything
+  // else in this file is captured from `/aztec`, a chain that is a pure
+  // function of a seed; these are captured from two snapshots taken off Aztec
+  // nodes. The distinction is the entire reason `components/provenance.nim`
+  // exists, and until 2026-08-31 no image in the corpus contained the
+  // affirmative half of it.
+  {
+    id: "chain-overview--testnet",
+    summary:
+      "A chain overview whose data came off a node. The same page as `chain-overview`, and the point is that it IS the same page: a second chain is data, not a second explorer.",
+    spec: "Page-Descriptions §4, §2; components/provenance.nim",
+    register: "explorer",
+    inherits: ["site-chrome"],
+    mustShow: [
+      "The provenance banner in its AFFIRMATIVE tone: `Real Aztec testnet data`, the slug `aztec-testnet`, and the capture's own account of itself beneath it — the endpoint, when it was taken, and the block range it covers. Those sentences are the producer's, quoted; a paraphrase that could go stale against the snapshot is the finding.",
+      "A head height, block count and transaction count that are plainly a real chain's rather than a fixture's — five-figure heights, an irregular transaction distribution.",
+      "The chain notes: coverage mode, generation, and the recorder pin, exactly as the synthetic overview renders them. This view is partly a CONTROL — the surrounding page must not have changed because the data is real.",
+    ],
+    mustNotShow: [
+      "Any suggestion that this chain is a demo, a sample or a preview. The neutral `Synthetic demo data` treatment appearing here would be the product telling a reader that real chain data is fake, which is a P1 in its own right even though it is the safer of the two directions.",
+      "A layout that differs from `chain-overview` in any way not caused by the DATA. A second chain is data; a page that reshaped itself for it is a finding.",
+    ],
+    watchFor: [
+      "Put this beside `chain-overview` at the same size and theme. The banner's tone should be the most visible difference. If the affirmative and neutral tones are hard to tell apart at a glance, say so — `provenanceTone` treats the confusion between them as the failure the component exists to prevent, and colour alone must not be what separates them.",
+      "Whether the capture detail reads as reassuring provenance or as debug output that escaped into the product.",
+    ],
+  },
+  {
+    id: "chain-overview--mainnet",
+    summary:
+      "The overview of a real chain on which NOTHING can be replayed — the honest aggregate view of a snapshot whose every transaction is below the node's pruning floor.",
+    spec: "Page-Descriptions §4, §14; components/provenance.nim",
+    register: "explorer",
+    inherits: ["site-chrome"],
+    mustShow: [
+      "The affirmative provenance banner naming `Real Aztec mainnet data`, and — in the producer's own words — why this snapshot carries no traces: the node prunes transaction bodies at the finalized tip, and every transaction in the captured window is below it.",
+      "Latest blocks and latest transactions populated. The chain is not empty and must not look empty; what it lacks is REPLAYABILITY, which is a different claim and belongs to the transactions rather than to the chain.",
+      "The transactions table with its Debug column rendering a stated reason rather than an action, on every row — the aggregate form of §7.0's rule that a row whose execution is unobservable gets a labelled state and never a greyed button.",
+    ],
+    mustNotShow: [
+      "An error, an empty state, or any treatment that reads as a failed load. This page is a successful render of a chain that genuinely has no traces, and the risk it carries is being mistaken for a broken one.",
+      "A Debug affordance on any row, or a disabled control standing in for one.",
+      "A staleness or degradation notice about the PIPELINE. Nothing is behind here; the data is current and the traces are absent by the node's design.",
+    ],
+    watchFor: [
+      "This is the page most likely to be read as a bug while being exactly correct. Say plainly whether, on first look, you took it for a broken page — that judgement is the finding, more than any single element.",
+      "Whether a reader could come away believing BlockTracer cannot debug Aztec mainnet at all, rather than that these particular transactions have aged out of the window.",
+    ],
+  },
+  {
+    id: "tx-detail--mainnet-zero-trace",
+    summary:
+      "§7.0's `absent` on real chain data: the node still serves this transaction's effects but no longer serves its body, so no trace can be produced for it — ever, not just now.",
+    spec: "Page-Descriptions §7.0 (absent), §7.2, §14; components/provenance.nim",
+    register: "explorer",
+    inherits: ["site-chrome"],
+    mustShow: [
+      "A `Not observable` badge on the execution, and beside it the PUBLISHED reason in the producer's own words — that `getTxByHash` prunes at the finalized tip and this transaction is below it. The reason must locate the limitation in the CHAIN's retention rather than in this product's capability: nothing here failed.",
+      "The transaction's ordinary metadata, complete and unapologetic — the full hash, an outcome badge, and an Overview carrying block, canonicality, finality and cost. §7.0's second row is 'the metadata, with the reason stated', and the metadata half is not a consolation prize. Note that a real chain publishes FEWER fields than the fixture (no fee payer, no target): their absence is the snapshot's, not the page's, and is not a finding.",
+      "Every content section present and each one saying why it is empty IN THE PERMANENT TENSE — internal calls and state changes must say the section is empty \"permanently, not yet\". A section that reads as pending would promise a trace that can never arrive.",
+      "The affirmative provenance banner. That this is REAL data is what makes the absence meaningful; the same page on the synthetic chain would be a fixture choice rather than a fact about a network.",
+      "A permanence claim distinguishable from a transient one: 'a permanent answer rather than a failed fetch'. A reader must be able to tell that returning tomorrow will not help.",
+    ],
+    mustNotShow: [
+      "A Debug button, a 'Generate trace' affordance, a retry, a spinner, or a disabled control of any kind. There is nothing to retry and nothing to generate; an affordance here would promise something the chain cannot supply.",
+      "Any trace reference, artifact id, container link or download. Zero, not empty-but-present.",
+      "Language blaming the recorder, the engine or BlockTracer. The recorder never had the chance.",
+      "An error colour or a danger tone. This is a normal, correct page about a limitation, not a failure.",
+    ],
+    watchFor: [
+      "The single most important judgement in this round: does this page read as CORRECT, or as broken? It is the state most likely to be mistaken for a defect while being exactly right, and it is the first time it has ever been captured.",
+      "Read it beside `tx-detail--absent`, which is the same §7.0 state on the synthetic chain with a different reason (a private kernel execution, not a pruned body). Two reasons, one state: does the page make the REASON the thing a reader takes away, or do both pages collapse into one generic 'no trace' treatment? The reasons are published separately precisely so they do not.",
+      "Whether the pruning explanation is legible to someone who does not know what a finalized tip is.",
+    ],
+  },
+  {
+    id: "debugger--testnet",
+    summary:
+      "A debugging session over a trace recorded from a real testnet transaction — the flagship claim, on data this product did not manufacture.",
+    spec: "Page-Descriptions §8, §7.1, Debugger-Integration §3; components/provenance.nim",
+    register: "debugger",
+    inherits: ["debugger-shell"],
+    mustShow: [
+      "The affirmative provenance banner above the identity bar, naming `aztec-testnet`, with the capture's endpoint, moment and replay window. In this register the banner is the only provenance marker there is — no nav, no footer.",
+      "The identity bar carrying a real transaction hash and a real block height, and a way out that lands on `aztec-testnet` rather than on the synthetic chain.",
+      "AN INSTRUCTION-LEVEL SESSION, AND ITS EXPLANATION. This is the part that makes the view worth capturing and it is NOT what the synthetic session shows. An Aztec contract class publishes bytecode and no debug symbols — no file map, no source text, no local names — so this trace has no source to display. Each affected pane must say so IN ITS OWN WORDS rather than sitting blank: the Code pane that the recording is at instruction level and stepping is complete while only the text is missing; the Call Trace that frames are recorded but carry no function names or source positions; the Values pane that naming a local needs debug symbols this contract class does not publish.",
+      "A route OUT of that limitation — a `Supply sources` affordance — so the missing text reads as something a user could supply rather than a wall.",
+      "The transaction pane populated from real chain facts, including the replay telemetry the capture recorded (instructions executed, effects matched and mismatched). `effectsMismatched: 0` is the claim that this replay reproduced the chain's own effects, and it is the evidence the session is faithful.",
+    ],
+    mustNotShow: [
+      "The synthetic banner, the `aztec` slug, or any content from the demo fixture. This view exists to prove the session is not the fixture wearing a different hash; fixture content leaking into it is a P1.",
+      "INVENTED SOURCE. A file tab, a listing, a line number, a function name or a variable name has to have come from published debug symbols; this contract class publishes none, so any of them appearing here would be the debugger fabricating the one thing it does not have. That is the most serious failure this page could contain.",
+      "A blank pane with no explanation. Empty is correct here; unexplained is not.",
+      "An engine-failure banner. This is the static, server-rendered session and it is complete as served.",
+    ],
+    watchFor: [
+      "Put this beside `debugger` at the same size and theme and note what a REAL trace costs. The fixture is a Noir program with sources, names and a loop rail; this is bytecode with none of them. Does the product degrade to instruction level with its dignity intact, or does it look broken?",
+      "The panes are largely empty by necessity and the explanations are short. Judge the composition: a 900px pane holding two sentences at its top edge is honest but may read as a failed render. Say whether the empty regions look deliberate.",
+      "Whether a reader learns that the LIMITATION IS THE CHAIN'S rather than this product's. The sentences say so; check that the visual treatment agrees and does not read as an error state.",
+      "The banner's cost in this register specifically. It is full-width above a session whose value is measured in visible rows.",
+      "The COST · TRANSACTIONFEE row. On real chain data the fee arrives as a 32-byte hex quantity and is rendered raw, wrapping across several lines and breaking the label/value grid — where the synthetic chain shows a formatted mana figure. Report what you see; this is a formatting path only real data reaches.",
     ],
   },
 ];

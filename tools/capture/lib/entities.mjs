@@ -32,6 +32,18 @@ export function buildEntityIndex(distDir) {
   for (const chain of chains) {
     const current = readJson(join(distDir, "d", chain, "current.json"));
 
+    // The generation's own statement about WHOSE DATA this is
+    // (`components/provenance.nim`). Read from the published summary rather
+    // than guessed from the slug, for the same reason the product reads it
+    // there: keying on the name would survive exactly until a chain was
+    // renamed, at which point every view selected by "the real one" would
+    // silently be capturing the synthetic one. `kind` is the field that
+    // decides the banner's tone, so it is the field the harness selects on.
+    const summaryPath = join(distDir, "d", chain, "g", current.generation, "summary.json");
+    const provenance = existsSync(summaryPath)
+      ? (readJson(summaryPath).provenance ?? null)
+      : null;
+
     // Blocks, newest first, from the on-disk block objects.
     const blockDir = join(distDir, chain, "block");
     const blockHashes = existsSync(blockDir)
@@ -215,7 +227,10 @@ export function buildEntityIndex(distDir) {
       details[address] = entry;
     }
 
-    byChain[chain] = { chain, current, blocks, txs, addresses, addressDetails: details };
+    byChain[chain] = {
+      chain, current, blocks, txs, addresses, addressDetails: details, provenance,
+      provenanceKind: provenance?.kind ?? "",
+    };
   }
 
   return {
@@ -227,6 +242,40 @@ export function buildEntityIndex(distDir) {
       const c = byChain[name ?? chains[0]];
       if (!c) throw new Error(`no such chain in the data plane: ${name}`);
       return c;
+    },
+
+    /** The distinct provenance kinds the tree publishes, sorted.
+     *
+     *  `check-coverage.mjs` asserts a view exists for every one of them. That
+     *  is the assertion that would have caught the gap this function was added
+     *  for: the tree gained two `live-capture` chains, every named view still
+     *  resolved through `primaryChain` — `chains.sort()[0]`, the synthetic one
+     *  — and the inventory check reported full coverage because it had no
+     *  per-chain entry to miss. A kind with no view is now a failure. */
+    provenanceKinds() {
+      return [...new Set(chains.map((c) => byChain[c].provenanceKind).filter(Boolean))].sort();
+    },
+
+    /** The single chain whose generation published `kind`, or a throw.
+     *
+     *  Throws on BOTH zero and more than one, because both make the view's
+     *  name a lie in a way a fallback would hide: no chain means the image
+     *  would be of something else, and two means the view silently picks one
+     *  and re-points the first time a chain is added. */
+    chainWithProvenance(kind) {
+      const hits = chains.filter((c) => byChain[c].provenanceKind === kind);
+      if (hits.length === 0) {
+        const seen = [...new Set(chains.map((c) => byChain[c].provenanceKind || "(none)"))];
+        throw new Error(
+          `no chain in the data plane publishes provenance kind "${kind}" ` +
+          `(present: ${seen.join(", ")})`);
+      }
+      if (hits.length > 1) {
+        throw new Error(
+          `${hits.length} chains publish provenance kind "${kind}" (${hits.join(", ")}) — ` +
+          `a view selecting by kind alone would be ambiguous; name the slug`);
+      }
+      return byChain[hits[0]];
     },
   };
 }
@@ -477,4 +526,74 @@ export const unresolvableChildAnchorOf = (tx) => {
 export const unresolvableLogAnchorOf = (tx) => {
   const logs = (tx.eventAnchors ?? []).filter((a) => a.anchor.startsWith("log:"));
   return `log:${logs.length + 9}`;
+};
+
+// ── Chain-scoped selection (VD.8) ──────────────────────────────────────────
+//
+// Everything above resolves through `ix.chain()` with no argument, which is
+// `chains.sort()[0]`. That was invisible while the tree published one chain
+// and became a silent, total gap when it published three: 232 of 280 images in
+// the 2026-08-31 regeneration were of `/aztec`, the SYNTHETIC chain, and none
+// at all were of `/aztec-testnet` or `/aztec-mainnet`. The real chains are the
+// reason the provenance banner exists, and the mainnet arm carries the one
+// state the product most needs looked at — a transaction the node still serves
+// whose body has been pruned, so it can never be replayed.
+//
+// The selectors below name their chain. They do not fall back, for the reason
+// every selector in this file does not fall back: a view called
+// "the mainnet transaction with no trace" that quietly captured a synthetic one
+// would be a fabricated image filed under a real name.
+
+/** An index whose UNQUALIFIED chain is `slug`.
+ *
+ *  Lets every selector above be reused against a named chain instead of being
+ *  written twice — `nthTx`, `headBlock` and the rest ask `ix.chain()`, so
+ *  rebinding that one method scopes all of them at once. `primaryChain` moves
+ *  with it because the route builders interpolate it. */
+export const onChain = (slug) => (ix) => ({
+  ...ix,
+  primaryChain: slug,
+  chain: (name) => ix.chain(name ?? slug),
+});
+
+/** The chain the generation labelled with provenance `kind`, as a slug. */
+export const slugWithProvenance = (kind) => (ix) => ix.chainWithProvenance(kind).chain;
+
+/** A transaction on `slug` that has NO session and never can — the subject of
+ *  the zero-trace arm.
+ *
+ *  It asserts the chain publishes no replayable transaction at all before
+ *  picking one, rather than merely finding a traceless transaction on a chain
+ *  that has both. The distinction is the whole point of the view: the mainnet
+ *  snapshot's own summary says `tracesPublished: 0` because every transaction
+ *  in the window is below the node's pruning floor, and the page's job is to
+ *  say that permanently rather than to look like a fetch that failed. If that
+ *  chain ever gains a trace, this throws and the view is re-pointed by a
+ *  person instead of quietly becoming a photograph of an ordinary page. */
+export const zeroTraceTxOn = (slug) => (ix) => {
+  const c = ix.chain(slug);
+  const replayable = c.txs.filter(
+    (t) => t.availability === "ready" || t.availability === "divergent");
+  if (replayable.length > 0) {
+    throw new Error(
+      `chain "${slug}" publishes ${replayable.length} replayable transaction(s), ` +
+      `so it is no longer the zero-trace arm — re-point this view`);
+  }
+  const t = c.txs[0];
+  if (!t) throw new Error(`chain "${slug}" publishes no transactions at all`);
+  return t;
+};
+
+/** The first transaction on `slug` whose trace opens a session — the subject of
+ *  a debugger view captured against REAL chain data rather than the fixture. */
+export const tracedTxOn = (slug) => (ix) => {
+  const c = ix.chain(slug);
+  const t = c.txs.find((t) => t.availability === "ready");
+  if (!t) {
+    const seen = [...new Set(c.txs.map((t) => t.availability || "(none)"))].join(", ");
+    throw new Error(
+      `chain "${slug}" has no transaction whose trace is "ready" ` +
+      `(availabilities present: ${seen || "none"})`);
+  }
+  return t;
 };
