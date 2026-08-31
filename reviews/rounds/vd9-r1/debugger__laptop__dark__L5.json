@@ -1,0 +1,88 @@
+Expected elements: present
+
+Every must-show item is on the page and no must-not-show item is. The surface reads as the desktop app: dark, dense, four panes, no explorer chrome.
+
+Iteration changes. (1) Landed — the provenance sentences span the pane and set flush-left at x≈1157 under the `DATA`/badge row. (4) Landed — line 29 carries a dim `⊘`, line 32 a cyan `⊙`. (5) Landed in the identity bar (`← demo`, x≈22–75). (2) Not assessable: only `COST · MANA` (y≈762) is above the fold at 1440×900; `COST · TRANSACTIONFEE` is below it. (3) Not present in view.
+
+Confirmed at this viewport: the raw enum `Status reason: private-part-succeeded-public-part-succeeded` (tx pane, y≈188–210); the lowercase-slug opening of the EXECUTIONS sentence (y≈853); `mana (FeeJuice)` in the unit slot (y≈783). The terminal-full-stop question is unverifiable — the sentence is cut by the viewport edge.
+
+Change (5) caused a new fault: the identity bar and badge now say `demo` while the EXECUTIONS prose still says `aztec`, so one page names two chains. Change (1) relocated the band's cost rather than removing it — the paragraph runs y≈228–450, about a quarter of the viewport, set larger and looser than every other row in a 292px pane, and pushes COST and EXECUTIONS to the fold. It is not too quiet; it is too loud here.
+
+Highest-priority fixes: humanise the status reason, and reconcile `aztec`/`demo`.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L5/1",
+      "severity": "P2",
+      "location": "Transaction pane, line under the truncated hash, x≈1157-1425 y≈188-210",
+      "finding": "`Status reason: private-part-succeeded-public-part-succeeded` prints a kebab-case enum literal where a sentence belongs. It is the only explanation offered for the `Partial` badge directly above it, it wraps to two lines, and it is the last thing a reader passes before the provenance row. Confirmed present at laptop, not only at wide. It should read as prose, e.g. `The private part succeeded and the public part succeeded.`",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/2",
+      "severity": "P2",
+      "location": "Transaction pane, EXECUTIONS prose, first word, x≈1157 y≈853",
+      "finding": "The sentence opens `aztec private function executed client-side; ...` — a lowercase chain slug used as the first word of a sentence. Worse after this iteration: the identity bar exit now reads `demo` and the provenance badge reads `Synthetic demo data`, so the page names two different chains. Either capitalise and keep it as the protocol noun (`Aztec`) or take the name from the same source the identity bar uses."
+    },
+    {
+      "id": "debugger/laptop/dark/L5/3",
+      "severity": "P2",
+      "location": "Transaction pane, COST · MANA row, unit line under the value, x≈1300-1425 y≈783",
+      "finding": "`mana (FeeJuice)` puts a camelCase token identifier in a unit slot, beside a value (`88000 / 200000`) that is otherwise formatted for a human. Every other unit and label in this pane is either a domain word or small caps. Render it `Fee Juice`, or drop the parenthetical since the row is already labelled MANA.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/4",
+      "severity": "P2",
+      "location": "Transaction pane, provenance paragraph under the DATA row, x≈1157-1425 y≈228-450",
+      "finding": "The move off the band landed, but the cost moved with it. In a 292px pane the three sentences run ten lines and about 222px — roughly a quarter of the 900px viewport — set at a visibly larger size and looser leading than every other row in the pane, so the pane's largest and softest run of type is its prose. It outranks BLOCK, TYPE, COST and EXECUTIONS and pushes the last of those past the fold. The sentences themselves are well judged and should stay; the register fix is to set them at the pane's own density, not the explorer's.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/5",
+      "severity": "P3",
+      "location": "Code pane gutter, lines 28-32, x≈70-86",
+      "finding": "The new branch marks give the gutter three glyphs with no legend anywhere on the page: `·` on executed lines 28 and 31, `⊘` on the arm that did not run (29), `⊙` on the arm that did (32). Two marks now mean `this ran`. The `⊙` is also cyan and sits inside the cyan current-line highlight, so at this size it reads as part of the position indicator rather than as a branch verdict.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/6",
+      "severity": "P3",
+      "location": "Code pane, inline value chips, lines 27/28 (x≈325-450) versus line 32 (x≈490-602)",
+      "finding": "One annotation primitive, two syntaxes: `damage=0` and `shield_pct=90` use an equals sign with no spacing, while the current line uses `damage : 0→2000` with a colon and spaces. Pick one separator so the chips read as one vocabulary.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/7",
+      "severity": "P3",
+      "location": "Code pane, window note above line 26, x≈12-680 y≈172-200",
+      "finding": "`Showing from line 26 — the session's position is below, and the lines above it are not in this window.` is well written but set in the mono code face, while the other prose run on the page (the provenance paragraph) is sans. Two prose treatments in one register; the note is UI copy, not listing content.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/8",
+      "severity": "P3",
+      "location": "Transaction pane, CANONICAL and FINALITY rows, y≈548-598",
+      "finding": "`Canonical: Yes` and `Finality: Safe` are asserted unqualified four rows below a paragraph stating that none of these values exists on any network. The badges carry the same treatment they would on a real chain, so the pane's own provenance claim and its finality claim pull against each other. A toned-down badge on a synthetic chain would keep the tone honest."
+    },
+    {
+      "id": "debugger/laptop/dark/L5/9",
+      "severity": "P3",
+      "location": "Call Trace pane footer, x≈700-1140 y≈314",
+      "finding": "`By call order.` carries a terminal full stop as a control caption, while `Self cost` beside it at the right edge does not. Same strip, two punctuation conventions; drop the period."
+    }
+  ]
+}
+```

@@ -1,0 +1,27 @@
+Expected elements: present
+
+Every must-show item is on the page and nothing forbidden is. The `Data` row is now the transaction pane's first labelled row, flush-left under a blue-toned `Synthetic demo data` badge with four sentences at readable contrast — it is not too quiet; it is the most legible prose block in the frame, and last round's 190px band is gone. Call Trace and Event Log share one tab strip with Call Trace open, Values sits below as its own pane, the current line 32 carries a `⊙` and the untaken arm at 29 a `⊘`, and the exit reads `← demo`.
+
+The weakest element is the trace scrubber in the identity bar, between the jump-to-start/end button group and the `Engine loading — 18 MB` readout (roughly x 675–935, y 26–37). It is the one unthemed control on the page: a square-cornered ~260×10 slab of flat mid-grey, no border, no radius, no ticks, sitting in a bar where every other control is a small radius chip on near-black with a hairline border. Worse, it is the largest high-luminance area in the whole 1920×1080 frame, so emphasis is inverted — the ~90% of the trace you have *not* reached shouts, while the cyan 9.7% that is your actual position, and the muted navy current-line band in the Code pane, both lose the contrast contest to it. On a surface whose entire premise is "where am I in this trace", the loudest object is the part that is not the answer.
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/ADV/1",
+      "severity": "P2",
+      "location": "identity bar, trace scrubber between the jump-to-start/end button group and the 'Engine loading — 18 MB' readout (x approx. 675-935, y 26-37)",
+      "finding": "The scrubber is the only unthemed control on the page - a square-cornered flat mid-grey track about 260x10px with no border, radius or tick marks, among controls that are all small-radius chips on near-black with hairline borders. It is also the largest high-luminance block in the entire frame, so the emphasis is inverted: the unvisited ~90% of the trace outshouts both the cyan 9.7% marking the current position and the muted navy current-line band in the Code pane, making position the hardest thing to find on a surface whose premise is position.",
+      "criterion": "B3"
+    }
+  ]
+}
+```

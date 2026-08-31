@@ -1,0 +1,75 @@
+Expected elements: present
+
+Identity bar (y0-63) carries `← aztec-testnet`, hash, `Succeeded`, `block 63675`, four stepping pairs (x472-758), scrubber, `128 / 345`, phase rail. Provenance is the Transaction pane's first row (`DATA` + `Real Aztec testnet data`, y177-196). All three panes state their own limitation; `Supply sources` present. No band above the bar, no invented source, no demo content.
+
+All four changes landed. (1) The provenance note now sets flush-left at x1542 across the full pane measure to x1906 (y214-378) — 209px against last round's ~352px. (2) `COST · TRANSACTIONFEE` reads `1755555891986239551 mana (FeeJuice)`, right-aligned to x1906, row y543-588 (46px, was ~78px). (3) Three sentences, y728-826, same flush-left treatment. (4) Exit targets `aztec-testnet`. ~175px reclaimed, nothing regressed.
+
+The split is unchanged: Code x4-917, Call Trace/Values x921-1529, Transaction x1533-1916 (48/32/20), with a consistent 4px gutter. The reclaimed 175px did not cure the clip — the Transaction pane still cuts `"hydrationRounds": 6,` mid-descender at the pane border y1075, putting `effectsMatched`/`effectsMismatched` below the fold, while Code is blank y310-1071 (76%), Call Trace y155-665 (85%) and Values y755-1071 (80%). The allocation is inverted against the content.
+
+Fix first: give the Transaction column width or move the raw JSON into the empty left pane; then unify the header-to-content gap (currently 4/18/22/29px across four panes).
+
+Rating: 5/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 5,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L2/1",
+      "severity": "P2",
+      "location": "Transaction pane RAW (CHAIN-NATIVE) card, x1543-1906, bottom edge y1075",
+      "finding": "The JSON card is cut by the pane's bottom border: the line \"hydrationRounds\": 6, occupies y1065-1075 and is sliced through its descenders, and the keys the expectation names as the evidence — effectsMatched / effectsMismatched — fall below the cut. There is no bottom fade, no bottom card edge and no visible scroll track, so it reads as clipped rather than scrollable. The affordance is inverted: the same card carries a right-edge fade from lum 236 to 255 across x1860-1906 for a horizontal overflow that does not exist (the longest line ends at x1834), while the axis that genuinely overflows is unmarked. Filed P2 rather than P1 because the content is reachable inside a scroll container — the failure is allocation and affordance, not lost information.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/2",
+      "severity": "P2",
+      "location": "three-column split: Code x4-917, Call Trace x921-1529 y68-669, Values x921-1529 y674-1075, Transaction x1533-1916",
+      "finding": "The 48/32/20 split is inverted against the content. Code is 914px wide and 1008px tall but holds ink only in y124-309 / x13-597 — blank from y310 to y1071 (76% of its height) with 318px of unused width on every line. Call Trace holds ink only in y117-151 and is blank y155-665 (85%). Values holds ink only in y718-751 and is blank y755-1071 (80%). The one pane with real content, Transaction, is the narrowest at 384px and is the only one that overflows. The middle column's own 602/401 vertical split is likewise unmotivated: two panes, two lines of prose each, and a 200px difference in the space they get.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/3",
+      "severity": "P2",
+      "location": "all four pane headers: rule at y94-95 (Code, Call Trace, Transaction) and y700 (Values)",
+      "finding": "Four panes use four different gaps between the header rule and their first content: Transaction 4px (rule y95 to badge box top y99), Values 18px (y700 to y718), Call Trace 22px (y95 to y117), Code 29px (y95 to y124). Call Trace and Values hold the same content type in the same column and still differ by 4px. This is not one spacing scale, and the 4px in the Transaction pane makes its first row collide with its own header while the Code pane's first line floats.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/4",
+      "severity": "P2",
+      "location": "Transaction pane row dividers, y204-y718",
+      "finding": "The pane runs two divider systems and then abandons both. Rows DATA through COST use full-bleed rules edge to edge, x1534-1914, at y204, 386, 416, 446, 478, 510, 542 and 588. SELECTOR and RAW use inset rules at x1542-1906 (y688, y718) — inset by exactly the 8px content padding. The EXECUTIONS section (label y596-604) and the DECODED INPUT section (label y647-655) get no rule at all, so the grid stops halfway down the pane. Row pitch drifts with it: label tops run 394, 424, 454, 486, 518, 550 (30-32px) above, but SELECTOR y671 to RAW y696 is only 25px, for rows of the same construction.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/5",
+      "severity": "P2",
+      "location": "Code pane, x4-917: header label x13, body paragraphs x21-22, Supply sources button box x13-119",
+      "finding": "Three stacked elements in one pane use two left edges. The CODE header sits at x13 and the Supply sources button box starts at x13 — both at the 8px pane inset used by every other pane (Call Trace x930, Values x930, Transaction x1542, each 8-9px from its border). The two body paragraphs between them start at x21-22, 8px further right. The result is that the button visibly hangs left of the sentence it resolves, and the pane's only vertical stack has no single left edge.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/6",
+      "severity": "P3",
+      "location": "Transaction pane, full-bleed rule at y204 between the DATA badge row (y177-196) and the provenance sentences (y214-378)",
+      "finding": "The move to a grid-spanning dd landed and is correct — the note sets flush-left at x1542 to the full pane measure at x1906 and the label gutter beside it is gone. What remains is a grouping problem: a full-bleed rule at y204 sits between the Real Aztec testnet data badge and the sentences that qualify it, and in a pane where every rule means 'next fact' that reads the sentences as a labelless row rather than as the badge's own text. The sentences are 18px from their badge and 8px from the next rule at y386, so proximity argues the same way the rule does.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/7",
+      "severity": "P3",
+      "location": "identity bar y0-63 versus the pane grid below y68",
+      "finding": "The bar and the panes share no edge. The bar's first element (back arrow) starts at x24 and its last (download icon) ends at x1894; the pane grid runs x4-1916 with content at x13 and x1906. So the exit affordance sits 11px right of the CODE header directly beneath it, and the bar's right-hand icons stop 12px short of the Transaction pane's value column. Two page insets (24px for chrome, 4px for panes) on the only two full-width structures on the page. Vertical centring inside the bar is otherwise exact — every item centres on y31 within 1px.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

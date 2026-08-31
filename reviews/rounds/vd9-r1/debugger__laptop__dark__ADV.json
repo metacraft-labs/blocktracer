@@ -1,0 +1,27 @@
+Expected elements: present
+
+All must-show items verified on the pixels: identity bar with `← demo` exiting to the chain, truncated hash, `Partial`, block, eight stepping controls in both directions, scrubber, `128 / 1315`, phase rail; Code pane with the current-position highlight on line 32; Call Trace and Event Log as one tabbed region with Call Trace open and seven frames at 60% of its column; Values as a separate pane below the tabs with ten values; Transaction pane carrying the `DATA` row — label, `Synthetic demo data` badge, and the provenance sentences now set flush-left at 6.75:1 over ten lines. That row is no longer the weakest element: it is legible, it is not too quiet, and it has given back roughly 110px. No must-not-show item is present.
+
+The weakest element is the phase rail in the identity bar, x≈960–1200, immediately right of the `128 / 1315` readout. It marks `FETCHING` active in #60A5FA with `OPENING` and `POSITIONING` dim, on a surface that has demonstrably finished positioning — a cyan scrubber thumb at step 128, seven resolved frames, ten resolved values, a highlighted current line. Under the charitable reading the engine really is still loading behind a statically rendered page; but then the bar's two other loading channels should agree, and they do not — all eight control glyphs sit at a uniform #919191 with no disabled treatment, and there is no controls status text. Whichever side is right, the one device on this page whose job is to state the engine's state is the only element contradicting everything around it, and it does so with no corroboration inside its own bar.
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/ADV/1",
+      "severity": "P2",
+      "location": "Identity bar, phase rail at x≈960–1200, y≈18–42 — immediately right of the `128 / 1315` position readout",
+      "finding": "The rail marks `FETCHING` as the active phase in #60A5FA while `OPENING` and `POSITIONING` stay dim, on a page that has demonstrably completed all three: the scrubber carries a cyan thumb at step 128 of 1315, the Call Trace holds seven resolved frames, Values holds ten resolved values, and the Code pane has a current-position highlight on line 32 — all of which are POSITIONING's output. The charitable reading is that this is a statically rendered session with the replay engine still loading behind it, which this register explicitly permits; but the expectation block says that state is carried by three devices together — the phase rail, the controls' own status, and the buttons' disabled state — and only one of the three is firing. All eight stepping glyphs render at a uniform #919191 with no disabled treatment, and no controls status text appears anywhere in the bar. So the rail is either wrong about the engine or unsupported by the two elements sitting 500px to its left. It is the weakest element because it is the page's single dedicated state indicator, it is the only thing on the surface asserting something the rest of the surface contradicts, and a status device that cannot be told apart from a not-yet-loaded session is reporting nothing. Named phases are the right primitive; the active-phase mark has to land on the phase the panes are actually showing, and the controls have to agree with it.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

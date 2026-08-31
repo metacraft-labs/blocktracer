@@ -1,0 +1,66 @@
+Expected elements: present
+
+Structurally sound: three panes on a uniform 4px gutter (borders at x=4/686/691/1144/1149/1435), 9px content insets in all four panes, numeric columns sharing a right edge at x=1134, identity bar optically centred (ink y18-44 in a 0-63 band) and not wrapping at 1440.
+
+Iteration changes. (1) Landed: the provenance sentences set flush-left at x=1158, the same edge as every row label; the DATA row now spans y208-450 = 29% of the pane's 827px visible height (prose alone 24.7%), down from 39-41%. It brought finding 2. (2) Not verifiable: no `COST · TRANSACTIONFEE` row is on screen — the pane clips first (finding 1). No zero-padded hex word appears in any visible row. (3) Not on this surface. (4) Landed: `⊘` on line 29, `⊙` on line 32, both centred at x≈78 with the `·` marks, no shift to the code's left edge (x=130 throughout). (5) Landed: the exit reads `← demo`.
+
+Call Trace emptiness, measured here: the tabbed region is y68-561 = 494px; the last content pixel is y=320; 241px, 48.9%, is empty. Against the frame list below the column header (y126-561) it is 53.1%. The 47-57% observation holds; 76-91% does not reproduce at laptop. But half the premise fails: Values does not overflow — content ends y=851 in a pane ending y=895, 87% full. The pane that overflows is Transaction, in the other column, which this weight cannot feed.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L2/1",
+      "severity": "P2",
+      "location": "Transaction pane, bottom edge — x1158-1426, y885-895 (EXECUTIONS note)",
+      "finding": "The pane's content is taller than the pane: a prose line of the EXECUTIONS note starts at y=892 and is sliced by the pane border at y=895, mid-x-height, with no fade, no gradient and no scrollbar anywhere in the strip x1426-1435. The product already owns a vertical-overflow-adjacent treatment — the Code pane fades its horizontal overflow across x660-686 — so the hard slice reads as unfinished rather than as a scroll cue. Consequence beyond aesthetics: every row after EXECUTIONS is off-screen, including the COST · TRANSACTIONFEE row this iteration reformatted, which cannot be seen at this viewport. Not P1 because the pane is presumably scrollable and the information is therefore reachable; the finding is that nothing on screen says so.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/2",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row — hairline at y=246, label y219-241, prose y256-443",
+      "finding": "Moving the provenance note into its own grid-spanning dd gave it its own row rule. A full-width hairline now runs at y=246, between the `DATA` label + `Synthetic demo data` badge and the sentences those two introduce, while there is NO rule above the label (the first separator in the pane is this one). Proximity therefore groups the DATA label upward with the status-reason line, and leaves eight lines of provenance prose (y256-443, 24.7% of the pane) sitting as an unlabelled block that reads as preamble to BLOCK. The row is the register's only provenance marker; splitting the label from its claim by a rule is the wrong side to draw. Suppress the separator inside the DATA row and add one above the label.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/3",
+      "severity": "P2",
+      "location": "Code pane — overflow chips at x615-637, y236-250 (after line 26), y771-785 (after 48), y815-829 (after 49)",
+      "finding": "The listing runs on a 23px line pitch (measured off the gutter digits from line 26 to line 51), but the `+3` / `+2` overflow chips wrap onto a line of their own and force a 44px pitch three times inside one 28-line window — line 26 to 27, 48 to 49 and 49 to 50. That is two spacing values for one repeating element, it costs about 63px of the pane, and each orphaned chip lands under the faded, clipped tail of the line it annotates, so it reads as belonging to nothing. Either reserve the chip a fixed right-hand column that does not wrap, or let it truncate in place.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/4",
+      "severity": "P2",
+      "location": "Call Trace / Event Log tabbed region — empty band y320-561, x692-1144",
+      "finding": "Measured at this viewport: the tabbed region is y68-561 = 494px; the last content pixel is y=320 (the 'By call order. / Self cost' footer, with the last frame row ending y≈303); 241px, 48.9% of the region, is empty. Measured against the frame list alone (y126-561 = 435px, i.e. below the FRAME/ACIR opcodes header) it is 231px, 53.1%. The queued 47-57% figure holds; the 76-91% reported on other subjects does not reproduce at laptop. The queued fix does not follow from the numbers, though: the Values pane below it is 87% full (content ends y=851, pane ends y=895, 44px spare) and does not overflow, so shifting the middle column's 60/40 weight (494px vs 330px of an 828px column) moves dead space between two panes that both currently fit. The pane that is actually starved is Transaction, in the right column, which this weight cannot reach. The finding stands as 29.1% of the middle column rendering blank while a sibling column clips text.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/5",
+      "severity": "P3",
+      "location": "Transaction pane, value column right edge — badges at y510-542 (AGE), y542-573 (CANONICAL), y573-605 (FINALITY) vs y219-241 (DATA)",
+      "finding": "Badges in this pane sit on two right edges. The `Synthetic demo data` badge's border ends at x=1426, flush with the pane's 9px content inset and with the plain values (`101:0` 1426, `private + public` 1426, the fee-payer hash 1426). The `No timestamp published`, `Yes` and `Safe` badges stop at x=1416-1417. Same component, 9-10px apart, in one 12-row column, so the column's right edge reads ragged across the badge rows.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/6",
+      "severity": "P3",
+      "location": "Code pane header stack — CODE title y74-90, LOOP row y109-120, file tabs y140-152, note y173-197",
+      "finding": "Four stacked header rows in the pane, three left edges. The CODE title sets at x=13, the LOOP / iteration row at x=13 and the 'Showing from line 26…' note at x=14, but the file-tab row (Nargo.toml / Prover.toml / src/main.nr / src/shield.nr) starts at x=21 — an 8px stagger visible because the tab row sits directly under the LOOP row. If the tabs need inner padding, give the strip a negative inline offset so the first tab's glyph edge lands on x=13.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

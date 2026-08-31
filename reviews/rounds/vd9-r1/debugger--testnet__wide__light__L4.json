@@ -1,0 +1,75 @@
+Expected elements: present
+
+All four changes are visible and three landed cleanly. The provenance note is now flush-left in a grid-spanning `dd` (Transaction pane, y204–386); `COST · TRANSACTIONFEE` reads `1755555891986239551` / `mana (FeeJuice)` on two lines at y553–582 instead of a wrapped hex word, and it no longer breaks the label/value grid; the exit reads `← aztec-testnet` and no demo-fixture content leaks in. No invented source anywhere — no file tab, listing, line number, function or variable name. Each affected pane explains itself in its own words, and `Supply sources` is present at y285–311.
+
+Through the density lens the split is the story, and the queued observation is worse, not resolved. Measured: the Code pane is 912px wide with last ink at y309 — 78% of its 980px body empty; Call Trace is 574px tall holding 32px of ink, 91% empty; Values 86% empty. The Transaction pane is the narrowest column at 382px and the only one overflowing: its `RAW (CHAIN-NATIVE)` JSON is sliced mid-glyph by the pane border at y1075 on `"hydrationRounds": 6,` with no scrollbar or fade, and `effectsMismatched` — the expectation's evidence the replay was faithful — falls below that cut and appears nowhere else on the page.
+
+The band's removal has not paid off at 1920: the DATA row costs 216px, 22% of the Transaction pane body, because a 42-character measure wraps the note to eight lines — and that cost now lands on the one starved pane.
+
+Fixes: take width from the 912px Code pane; promote the replay counters to labelled rows above RAW.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L4/1",
+      "severity": "P2",
+      "location": "the four-pane split — Code x4–916, Call Trace x921–1528 y95–669, Values x921–1528 y700–1075, Transaction x1533–1915",
+      "finding": "The split allocates width and height in inverse proportion to content. The Code pane is the widest region on the page at 912px and its last ink is at y309, leaving 765px of its 980px body — 78% — empty. Call Trace is 574px tall and carries 32px of ink (two lines, y117–148): 91% empty. Values is 375px tall carrying 33px of ink (y718–751): 86% empty. The Transaction pane is the narrowest column at 382px and is the only one whose content exceeds its box. At 1920 the layout has roughly 1500px of horizontal room it is spending on three panes that have almost nothing to show, and it is starving the one pane that does. This is the standing observation re-measured: the Call Trace region is not 47–57% empty here, it is 91% empty, because a bytecode trace removes everything the middle column normally holds.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/2",
+      "severity": "P2",
+      "location": "Call Trace pane, body y95–669; Values pane, body y700–1075",
+      "finding": "Both panes state that the data exists and then show none of it. Call Trace says \"Frames are recorded, and without a file map they carry no function names or source positions\" — so frames are recorded, with indices and program counters, and 574px of pane renders not one of them. The page elsewhere shows the trace has 345 instructions and 6 hydration rounds, so anonymous frame rows (`#0 pc 0x…`) and step-indexed value slots are information this recording demonstrably has. Rendering only the sentence is the lowest-density reading of an honest constraint: the correct claim is \"no names\", not \"no rows\". As drawn, a 574px pane holding one 32px sentence at its top edge reads as a failed render rather than a deliberate degradation.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/3",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) block — header y848, code block y870 to the pane's bottom border at y1075",
+      "finding": "The JSON block is cut horizontally through the glyphs of `\"hydrationRounds\": 6,` by the pane border at y1075, with no scrollbar track, no fade and no indication that the object continues. Last round this clipped in the same place; the two rows above it did shorten (the provenance note by ~145px, the fee row by its hex wrap), and the space bought eight more JSON lines rather than closure. The consequence is an information-priority failure, not just an overflow: `effectsMatched` / `effectsMismatched: 0` — named in the expectation as the evidence this replay reproduced the chain's own effects — sit below the cut and appear nowhere else on the rendered page, while first-class label/value rows above spend 30px each on `TYPE public` (y416–446) and `CANONICAL Yes` (y478–510). The replay counters should be labelled rows near the top of the pane; the raw dump can stay last and clip.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/4",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row — label and badge y~170–204, provenance sentences y204–386",
+      "finding": "The move to a grid-spanning flush-left dd landed and is a clear improvement on the flush-right setting: the paragraph now has one left edge at x1543 and reads as prose. But it did not recover the space the band's removal was supposed to buy. The DATA row now occupies 216px of the Transaction pane's 980px body — 22% of the pane, against the ~190px of a 1080px viewport (17%) the band cost — because the 382px column gives a ~42-character measure and wraps the note to eight lines where a full-width band wrapped it to about three. The vertical cost is therefore roughly unchanged and has been transferred from the whole page onto the single pane that is already overflowing, next to 912px of empty Code pane. The right fix is not to shorten the sentences but to give this column width, or to set the note across two columns of the pane.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/5",
+      "severity": "P2",
+      "location": "Transaction pane, COST · TRANSACTIONFEE row, value at x1748–1905 y553–562",
+      "finding": "Base ten landed and the row is now single-line, right-aligned in the same monospace and size as the rest of the value column (8.2px pitch, matching `63675:0`), so the grid break is gone. What replaced it is unreadable as a quantity: nineteen ungrouped digits, `1755555891986239551`, which no reader can resolve to a magnitude without counting glyphs — quintillions and hundreds of quadrillions look identical here. The same field on the synthetic chain renders as a formatted mana figure, so one column now carries two formats depending on which chain is loaded. Digit grouping, or an exact value with a scaled secondary reading, costs no information and is the difference between a number that can be scanned and one that can only be diffed.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/6",
+      "severity": "P3",
+      "location": "Transaction pane, provenance note, first two lines y~215–255 — \"…at 2026-08-\" / \"31T07:40:55.566Z (node 5.2.0)…\"",
+      "finding": "The capture timestamp breaks mid-token across the line boundary, splitting the ISO date after `2026-08-`. It is the one machine-readable value in the paragraph and the only place a reader checks precisely when this data was taken, and the 42-character measure guarantees this wrap will land somewhere in it on most content. Keeping the timestamp unbreakable, or giving it its own line, costs one line and removes the only reading stumble in an otherwise well-set block.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/7",
+      "severity": "P3",
+      "location": "identity bar — progress track x775–1035, \"Engine loading — 18 MB\" x1050–1210, `128 / 345` x1222–1300, phase rail x1320–1568",
+      "finding": "Four indicators sit in one uninterrupted 793px run — 41% of the bar's width — with no separator or grouping between them, and only one of them is labelled. Three of the four narrate the same thing (engine hydration: the fill, the byte count, the FETCHING/OPENING/POSITIONING rail) while the fourth, `128 / 345`, is the trace position and belongs with the stepping controls that end at x757. Set adjacently and unlabelled, the readout reads as part of the download and the eye has to test each element to find where it is in the trace. Grouping the position with the stepping cluster, or ruling it off from the loading run, resolves it without dropping anything.",
+      "criterion": "B3"
+    }
+  ]
+}
+```

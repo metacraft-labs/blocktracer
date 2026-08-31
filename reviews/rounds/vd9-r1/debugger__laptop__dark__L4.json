@@ -1,0 +1,73 @@
+Expected elements: present
+
+Every must-show item renders and no must-not-show item appears: Call Trace and Event Log are one tabbed region with Call Trace open, Values is a separate pane below it, and the provenance marker is the Transaction pane's first row.
+
+Three of the five changes verify. (1) landed — the `Synthetic demo data` badge sits on the `DATA` label line and the producer's sentences occupy a full-width row beneath, flush-left at x=1157; that block is now 234px of the pane's 827px visible height, 28.3%, down from 39-41%. (4) landed — line 29 carries a grey ⊘, line 32 a cyan ⊙. (5) landed — the exit reads `← demo`. (2) and (3) cannot be verified: no `COST · TRANSACTIONFEE` row and no decoded-input note appears above y=895, because the Transaction pane's content is cut mid-line at its bottom border.
+
+The standing observation half-holds. Call Trace interior is y69-560 (492px); last ink is the footer at y=320, so 240px is empty — 48.8%, or 52.6% measured from the last frame divider at y=301. Inside the 47-57% band, nowhere near the 76-91% found on other subjects. But Values does not overflow here: its last row ends at y=860, leaving 34px and a dangling divider. The nav column holds 274px of dead height (33.1%) while the only overflowing pane, Transaction, sits in the other column and cannot receive it. Re-weighting the split moves slack, it does not fix the overflow.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L4/1",
+      "severity": "P2",
+      "location": "Transaction pane (x1149-1435), bottom border y=895",
+      "finding": "The pane's content is cut mid-line at its bottom border: the EXECUTIONS note's third line is sliced in half by the border and nothing below it is reachable, with no visible scrollbar, fade or overflow marker. Consequences are concrete this round: no COST · TRANSACTIONFEE row and no decoded-input note appears anywhere in the pane, so two of the five changes shipped this iteration cannot be seen at the smallest viewport this register is reviewed at. The pane needs roughly 100-150px more than the 827px it gets, and the only slack on the page is 274px in the adjacent nav column.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/2",
+      "severity": "P2",
+      "location": "identity bar, phase rail pill x950-1200, y20-42",
+      "finding": "FETCHING is rendered as the live segment (blue #4a9eff on a raised segment ground) while OPENING and POSITIONING sit grey, on a page whose readout says 128 / 1315, whose Call Trace holds seven frames, whose Values pane holds ten values and whose stepping buttons are not disabled. The rail is the surface's own statement of engine phase and it contradicts every other element around it. Flagged P2 rather than P1 only because a still frame cannot settle whether the lit segment means current or completed; if it means current this is an honesty failure and should be escalated.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/3",
+      "severity": "P2",
+      "location": "nav column x692-1143: Call Trace region y69-560 and Values pane y593-894",
+      "finding": "Measured at this viewport: the Call Trace interior is 492px tall, its last ink is the 'By call order. / Self cost' footer ending at y=320, so y321-560 is 240px of empty pane, 48.8% of the region (52.6% if measured from the last frame's divider at y=301). That confirms the queued 47-57% band and refutes the 76-91% figures reported on other subjects. The second half of the standing observation does not hold here: Values does not overflow, its last row ('i', 2, u32) ends at y=860 and leaves 34px plus a trailing divider with nothing under it — more than the 25px row pitch, so nothing is being clipped. Total dead height in the column is 274px of 827px, 33.1%, and the empty Call Trace block alone is 452x240px, 8.4% of the viewport. The implication for the layout weight: shifting height from Call Trace to Values would move slack from one empty pane to another. The pane that needs the height is Transaction, in the other column, so the one-line split weight cannot fix the overflow — the Call Trace region should instead be capped to its content and the recovered height given to the column, not to Values.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/4",
+      "severity": "P3",
+      "location": "Code pane right border x=685; lines 26 (y221), 40 (y562), 48 (y753), 52 (y890)",
+      "finding": "Four of the 27 visible code lines run into the pane border and are cut mid-token — line 40's signature stops at 'remaining_shiel' — with no ellipsis, no edge fade and no visible scrollbar. The pane goes to the trouble of explaining its vertical window in prose at y172-204 ('Showing from line 26 — the session's position is below...') and then performs a horizontal truncation silently. An edge fade or a per-line ellipsis would cost no vertical space.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/5",
+      "severity": "P3",
+      "location": "Transaction pane, provenance prose y251-450",
+      "finding": "The four provenance sentences set at 21px leading on a ~10px cap height (~1.6), the loosest line-height on the page, against 25px rows in Values and Call Trace and 30px rows elsewhere in this same pane. Nine lines at 21px is 189px of the 234px block. Set at the pane's own row leading it would occupy ~162px and read as part of the tool rather than as imported marketing body copy — about 27px recovered without dropping a word, in the pane that is currently overflowing. The claim itself is not too quiet: the outlined blue badge carries the salience and the #a2a2a2 prose at 6.75:1 supports it legibly.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/6",
+      "severity": "P3",
+      "location": "code gutter x75-83, line 31 (·) versus line 32 (⊙)",
+      "finding": "The new taken-branch ⊙ and the ordinary executed-line · are both cyan #06b6d4 in an 8x9px glyph, so the distinction between them is a ~2px ring that I could only resolve at 2.75x. The distinction that matters — ran versus did not run — is carried by both shape and colour (grey ⊘ on line 29 versus cyan on 31/32) and does read at 1:1, which is why this is a nitpick rather than a defect; the low-value half of the encoding is the illegible half.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/7",
+      "severity": "P3",
+      "location": "Transaction pane, hairline divider at y=246 between the DATA label row and the prose row",
+      "finding": "The move put a full row divider between the DATA label/badge line and the sentences beneath it, identical to the dividers separating BLOCK from TYPE from AGE. The provenance marker therefore reads as two unrelated rows rather than one claim with its supporting text; dropping that one hairline would group them without changing the height.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

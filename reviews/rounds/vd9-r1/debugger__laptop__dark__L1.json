@@ -1,0 +1,101 @@
+Expected elements: present
+
+Every must-show item is on screen and nothing forbidden appears. The fold question is answered: the scrubber (x673–832, y31) and the position readout "128 / 1315" (x849–933, y31) are both in the identity bar, and the fill is 9.4% of the track against a true 128/1315 = 9.7%. This iteration's changes: (1) landed — the DATA note now sets flush-left in its own full-width row at a ~34-character measure; (2) unverifiable here — COST · TRANSACTIONFEE sits below y900, though the visible COST · MANA row reads "88000 / 200000" in base ten with no hex word; (3) unverifiable — no decoded-input note appears in this view; (4) landed — ⊘ on line 29, ⊙ on line 32; (5) landed — the exit reads "← demo", the badge "Synthetic demo data".
+
+Typographically this is a dense, competent tool surface let down by one type treatment doing too many jobs. Pane titles (CODE, VALUES, TRANSACTION), the FRAME column header and the metadata row labels (DATA, BLOCK, TYPE) are all 9px-cap letterspaced caps separated only by a 162-vs-145 grey step, so three hierarchy levels look identical. The same total renders "1315" in the bar and "1,315" in the call trace. The DATA note is the pane's tallest block (193px, 23%) yet its quietest body text, and it is why the pane's tail is cut mid-line at y897.
+
+Highest-priority fixes: split the caps scale into two levels; pick one thousands-separator rule.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L1/1",
+      "severity": "P2",
+      "location": "all four panes — pane titles CODE (x10,y81), VALUES (x707,y579), TRANSACTION (x1157,y81); call-trace column header FRAME (x700,y107); transaction row labels DATA (x1157,y227), BLOCK (y463), TYPE (y494), EXECUTIONS (y808)",
+      "finding": "Three distinct levels of the hierarchy — pane title, column header, and metadata row label — share one type treatment: 9px cap height, all caps, letterspaced, same weight. The only separation is a grey step from peak luminance 162 (titles) to 145 (row labels), about 7% lightness. Nothing in size, weight or tracking says 'this is a pane' versus 'this is one row inside it', so the transaction pane reads as eleven equal-rank caps labels stacked, and the eye has to read DATA and TRANSACTION to learn which one owns the other. Give the pane title a distinct level — heavier weight or a one-step size increase — and leave row labels where they are.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/2",
+      "severity": "P2",
+      "location": "identity bar position readout (x849–933, y31) versus call-trace 'main' row opcode count (x1100, y138); also Values pane value column (x940–1030) and COST · MANA (x1290, y762)",
+      "finding": "One screen renders the same magnitude two ways. The position readout is '128 / 1315' with no separator; the call trace prints the same 1315 as '1,315' 400px away, and 1,208 below it. The Values pane then uses 10000, 9000, 2000, 1000 unseparated and COST · MANA uses '88000 / 200000' unseparated. So the call trace is the only place on the page with thousands separators, and the one number that appears twice appears in both formats. Pick one rule for four-digit-and-up integers and apply it to the readout, the trace column, the Values column and the cost row.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/3",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row provenance note (x1157–1428, y251–444)",
+      "finding": "The provenance note is now the single tallest block in the pane — 8 lines at a ~34-character measure, y251 to y444, 193px of the pane's 840px, 23% of its height — while being set one emphasis step BELOW the routine metadata it introduces: #A2A2A2 on #1B1B1B, about 6.7:1, against 12.7:1 for 'private + public' (x1315,y494) directly beneath it and for the Values pane identifiers. That is the wrong pairing of size and emphasis for content the spec grades as content: it is the loudest thing in the pane by area and the quietest by emphasis. The consequence is measurable — the pane's tail, including COST · TRANSACTIONFEE and the rest of the EXECUTIONS note, falls past y900 and is cut mid-x-height at the pane border (y897) with no scroll affordance or fade. The band was removed for costing ~190px of viewport; the row now costs ~193px of the pane. Answering the brief's fair question directly: the row is not too quiet in size, it is too quiet in emphasis and too long in lines. Shorten the copy to two or three sentences and raise it to the value emphasis level.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/4",
+      "severity": "P2",
+      "location": "Code pane gutter, execution column at x≈78 — line 29 ⊘ (y313), line 32 ⊙ (y383), executed-line dots on lines 26, 27, 28, 31",
+      "finding": "The new branch marks do not survive their rendered size and the taken mark is confounded with the position indicator. Both glyphs are ~9px circles; ⊘ and ⊙ differ by a 1px diagonal versus a 1px centre dot, which is not separable at 100% — I could only tell them apart at 2.4x. Worse, the only ⊙ on screen sits on the current line (y383) and is drawn in the same cyan as that row's left rail and line number, so a reader cannot tell whether ⊙ means 'this branch ran' or 'you are here'. The gutter now carries four states in one 9px column: ⊙, ⊘, the executed-line ·, and blank on brace-only lines. The dimming already applied to line 29's text (peak 204 against 243 on executed lines) is the more legible signal and is doing more of the work than the glyph is. Differentiate the two marks by form, not by a single stroke, and do not give the taken mark the current-position colour.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/5",
+      "severity": "P2",
+      "location": "Code pane, line-number column — line 26→27 (y224→267), 48→49 (y758→802), 49→50 (y802→843) against lines 28–39",
+      "finding": "The listing loses its constant line pitch. Where an inline value chip does not fit beside its statement it wraps to a row of its own ('+3' under line 26 at x626,y243; '+2' under 48 at y778; '+3' under 49 at y822), so the line numbers step 43px, 44px and 41px at those points against a 23px pitch everywhere else. A code listing's left column is a numeric ruler and the reader scans it ballistically; a pitch that varies by 1.9x with no visual explanation in the number column itself breaks that scan. Reserve a fixed-height chip lane, or clip the chip and reveal on hover, rather than letting it change the row height.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/6",
+      "severity": "P2",
+      "location": "Code pane window note, 'Showing from line 26 — the session's position is below, and the lines above it are not in this window.' (x30–683, y172–198)",
+      "finding": "A UI annotation is set in the code face at the code size — the same monospace, the same ~13px, immediately above line 26 — so it reads as a line of the file rather than as the pane speaking. It also runs the full pane width at roughly an 88-character measure and wraps to two lines, which is the longest measure of any prose on the page. Set it in the UI face at the pane's secondary size, or inset it so it cannot be mistaken for source.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/7",
+      "severity": "P2",
+      "location": "identity bar phase rail, FETCHING / OPENING / POSITIONING (x968–1192, y31)",
+      "finding": "The rail's three labels are one type treatment — 9px caps, same weight, same tracking — so the only thing expressing which phase is which state is colour: FETCHING blue at peak 154, the other two grey. With the session fully positioned at 128/1315, values populated and stepping buttons enabled, a reader cannot tell from the type whether the lit label means 'fetching is happening now' or 'fetching is done'. Three states carried by one type treatment plus a colour is not enough to be read without reading. Distinguish completed from current from pending in weight or with a mark, not by hue alone.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/8",
+      "severity": "P3",
+      "location": "identity bar hash (x85–193, y31) versus Transaction pane header hash (x1180–1389, y110) and the full value below it (y158–198)",
+      "finding": "The same hash is truncated by two different rules 1100px apart: 0xb63616…6359 in the bar (6 leading, 4 trailing hex digits) and 0xb636167a…66d46359 in the pane (8 and 8). The pane then prints the value in full on the next two lines, so its truncated form buys nothing and costs a line. Use one truncation rule product-wide, and in the pane show either the truncation or the full value, not both.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/9",
+      "severity": "P3",
+      "location": "Values pane — 'masses' row (y680) and 'masses[2]' (y722)",
+      "finding": "Nesting is expressed by a single monospace space, about 8px, so at this size masses[2] does not read as a child of masses; the bracket in the name is doing the work the indent should do. In the same rows the array value is the only left-set value in an otherwise right-aligned numeric column — it begins at x745 while every scalar ends at x1025 — and its wrap ('14]') is right-aligned on the second line, leaving a gap mid-array. Indent children by a full step with a guide, and set wrapped array literals to one alignment.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/10",
+      "severity": "P3",
+      "location": "Transaction pane, EXECUTIONS note (x1157, y831–890)",
+      "finding": "'aztec private function executed client-side; only proofs, nullifiers and commitments are …' is the only sentence on the page that begins lowercase; the DATA note four rows above is sentence-cased throughout. Capitalise it, or if the lowercase is protocol vocabulary rather than a sentence, set it so it does not open the sentence.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/11",
+      "severity": "P3",
+      "location": "Call Trace tabbed region (y68–556); last frame row y289, footer 'By call order. / Self cost' y314; empty from y325 to y556",
+      "finding": "Recording the measurement the brief asks for: the tabbed region is 488px tall, its content ends at y314, and 232px — 47% of the region — is empty below the footer. Nothing in that column is starved by it (the Values pane's ten rows fit in y565–890), so the height is not stolen from anything adjacent; but the Transaction pane in the next column is clipped at y897 while half this region sits blank. Primarily a layout and density call rather than a typographic one, logged so the measurement exists.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

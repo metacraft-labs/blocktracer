@@ -1,0 +1,96 @@
+Expected elements: present
+
+A genuinely dense tool surface in a light theme — Code pane full, mono texture consistent, nothing below 4.8:1 — undermined by a column composition that leaves 46% of the middle column white while the Transaction pane runs past the viewport bottom.
+
+This round: (1) landed — the provenance note sets flush-left in its own full-width row (y 224–363); the DATA section (y≈191–363, 173px) is 17% of the pane's 1013px visible height, down from 39–41%. (3) landed for the one state this fixture exercises. (4) landed — line 32 carries a teal ⊙, line 29 a grey ⊘ — but on 2 of 36 rows. (5) landed; the exit reads "← demo". (2) is not verifiable here: no `COST · TRANSACTIONFEE` row is on screen, `COST · MANA` reads `88000 / 200000 mana (FeeJuice)` in base ten, and the pane is cut at y=1075 mid-JSON.
+
+Call Trace measurement: the tabbed region is y 63–668 (606px); content ends at the "By call order. / Self cost" footer, y≈328. Empty = 340px = 56% of the region, 59% below the tab strip — 13.6 unused 25px rows. The standing observation holds, at the top of its range. But height is not the lever: the Values pane below is also 30% empty (122px of 407px). Width is. The widest frame row leaves a 152px dead band before the opcode column (`main` leaves 382px), while the 381px Transaction pane breaks two 42-char addresses across two lines each and wraps three prose blocks to 6/5/3 lines. ~120–130px moved from the middle column costs the call trace nothing.
+
+Fixes: reweight the column split; raise the executed-line marker above a 2×2px dot.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L4/1",
+      "severity": "P2",
+      "location": "Call Trace / Event Log tabbed region, middle column, y 63-668 (x 922-1527)",
+      "finding": "The queued observation still holds and has not improved. The tabbed region is 606px tall (top border y=63, Values pane top border y=669). Its content ends at the 'By call order. / Self cost' footer, last ink y=320, footer box ending y~328. Everything from y=329 to y=668 is empty white: 340px, 56.1% of the region, 59.3% of the region below the tab strip, 62.5% below the FRAME header — room for 13.6 more frame rows at the 25px pitch. Seven frames occupy y 125-300.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L4/2",
+      "severity": "P2",
+      "location": "column split: Code x 5-915 (911px), middle column x 922-1527 (606px), Transaction pane x 1534-1914 (381px)",
+      "finding": "The lever the layout weight should move is horizontal, not the vertical Call Trace/Values split: the Values pane below the tabbed region is itself 30% empty (122px of 407px, content ends y=952, pane bottom y=1075), so giving it the region's height would leave both under-filled. The middle column has a permanent dead horizontal band — the deepest frame row's text ends at x=1353 with the opcode figure at x=1506-1518 (152px of nothing), the `main` row ends at x=1102 (382px). The 381px Transaction pane meanwhile pays for that width: FEE PAYER (y 519-569) and TARGET (y 570-620) each break a 42-character address across two right-aligned lines, which cannot be compared by eye, and its three prose blocks wrap to 6, 5 and 3 lines at a ~46-character measure. The deepest frame row plus its opcode column needs only ~468px, so ~120-130px can move from the middle column to the Transaction pane with no call-trace truncation; that unwraps both addresses (~50px) and removes roughly four prose lines (~100px) from the pane that currently overflows.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L4/3",
+      "severity": "P2",
+      "location": "Code pane execution gutter, x 75-82, e.g. line 31 at y=340 and line 26 at y=204",
+      "finding": "The executed-line marker is a 2x2 pixel teal dot (rgb 26,123,149) — four pixels of ink — and it is the only gutter mark on 22 of the 36 visible rows. At this size it reads as a rendering speck rather than a state, and it sits in a 20px-wide gutter that has room for a marker three times its size at no layout cost. The two new marks are 8x7px by comparison, so the most frequent state is drawn smallest.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L4/4",
+      "severity": "P2",
+      "location": "Transaction pane, DATA provenance prose y 234-352, against the executions note y 713-756 and the decoded-input note y 886-1006",
+      "finding": "The move out of the band worked proportionally (17% of the pane, down from 39-41%), but the row is now under-differentiated rather than merely quieter. The six provenance sentences are set at the same ~14px size, the same rgb(72,72,72), the same measure and the same left edge as the two other explanatory notes in the same pane, so the pane holds three interchangeable grey prose blocks and the one asserting that every value on the page is synthetic carries no more weight than the one explaining an empty ABI. Nothing outside this 381px pane carries the claim anywhere in the 1920px viewport. A weight or rule difference on the prose itself, not just the outline badge, would restore the hierarchy without spending pixels.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L4/5",
+      "severity": "P2",
+      "location": "Code pane, overflow chips '+3' at x 845-870 y 218-232 (below line 26) and '+2' at x~858 y~756 (below line 48)",
+      "finding": "Two inline-value overflow chips wrap onto rows of their own, each costing a full 21px row whose left 820px is empty, and pushing the line-26 to line-27 and line-48 to line-49 gaps from the standard 23px pitch to 44px. The chips fit inline: line 26's code ends at x~820 and the chip is only ~30px wide, and line 49's identical '+2' does sit inline beside its 'result=90' chip. The wrap also orphans the chip, which now sits closer to the following line than to the one it belongs to.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L4/6",
+      "severity": "P2",
+      "location": "identity bar, status cluster 'Engine loading — 18 MB' at x~950-1120 and the FETCHING chip at x~1230-1305, y 20-42",
+      "finding": "The bar's right half announces a loading engine with FETCHING active while every pane below shows a fully populated, positioned session — 36 code rows, seven call frames, ten values, a current position at line 32. The two halves of the same bar assert different states and nothing on the surface reconciles them: no wording says the trace is steppable while the remainder streams, and the stepping buttons are not disabled. If this is the designed incremental-load state it needs one clause saying so; if the load is finished the status is stale.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/light/L4/7",
+      "severity": "P3",
+      "location": "Code pane gutter: ⊙ at x 75-82 y 361-367 (line 32), ⊘ at x 75-82 y 291-299 (line 29)",
+      "finding": "The new branch marks landed and are correct, but they are 8x7px and 8x9px glyphs whose distinguishing interior — a dot versus a slash — is 2-3px wide, so at 100% the only reliable difference is hue (teal 14,116,144 versus grey 72,72,72). There is no legend anywhere on the page, and the pair appears on exactly 2 of the 36 visible rows, so a reader cannot infer the vocabulary from this window. Line 35, whose condition on line 34 is false at this step (damage 2000, remaining_shield 9000), carries no mark at all, so 'did not run' and 'not yet reached' are not separable in the gutter.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/light/L4/8",
+      "severity": "P3",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) code block y 1019-1074, cut at the pane's bottom border y=1075",
+      "finding": "The pane's content continues past the viewport and the only sign is a JSON block truncated after '{' and '\"aztec\": {' — no scrollbar, no fade, no count of what is below, where the Code pane does mask its horizontal overflow with a fade. One consequence for this round: the changed `COST · TRANSACTIONFEE` row cannot be verified from the gated capture. The only cost row on screen is `COST · MANA` (y 621-650) reading '88000 / 200000 mana (FeeJuice)', which is base ten and correct; a TRANSACTIONFEE row is either below the fold or absent for this fixture, and either way the change ships unreviewable at this viewport.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L4/9",
+      "severity": "P3",
+      "location": "Transaction pane, DECODED INPUT section: SELECTOR row y 812-846, RAW row y 847-876, note y 886-1006",
+      "finding": "Two full 30px rows are spent rendering the two characters '0x' each, above a five-line note that already says the section is empty — about 160px to state one fact, in the pane that is the only one overflowing the viewport. Pairing SELECTOR and RAW on a single row keeps both values and returns ~30px to the content below.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L4/10",
+      "severity": "P3",
+      "location": "tab strip y 69-95: CALL TRACE x 933-1010, EVENT LOG x 1030-1090; VALUES pane header y 669-700",
+      "finding": "Neither tab carries a count, so nothing tells a reader whether the Event Log holds three entries or three hundred — the one number that would make the closed tab worth opening, in a region with 340px of spare height to print it. The VALUES header likewise carries no step reference, so the pane showing values at step 128 does not say which step it is showing while the position readout lives 600px away in the identity bar.",
+      "criterion": "B1"
+    }
+  ]
+}
+```

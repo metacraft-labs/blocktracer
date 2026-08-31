@@ -1,0 +1,75 @@
+Expected elements: present
+
+All must-show items render and no must-not-show item appears: identity bar with truncated hash, `← demo` chain exit, both stepping directions, 128 / 1315 readout, phase rail; Code pane pinned at line 32; Call Trace + Event Log as one tab strip with Call Trace open; Values as a separate pane below; provenance as the transaction pane's first row. The surface reads as the tool, not the marketing site.
+
+Iteration changes: (1) landed — the provenance paragraph is flush-left at x=1157, aligned with the hash above it, no value-column indent. (4) landed — line 29 carries `⊘`, line 32 `⊙`. (5) landed — the bar exits to `demo`. (2) is not exercised: this subject publishes `mana`, shown `88000 / 200000` in base ten; no `COST · TRANSACTIONFEE` row exists here. (3) is unverifiable: the transaction pane is cut mid-sentence at y=897, and the decoded-input note sits below that cut.
+
+Lens findings, all confirmed at this viewport: the raw enum `private-part-succeeded-public-part-succeeded` (y≈181), the lowercase `aztec` opening the EXECUTIONS sentence (y≈858) — which change (5) has now put in direct contradiction with `← demo` — and `FeeJuice` in the unit slot (y≈783). One more: the pane's own full hash is set in the proportional sans while FEE PAYER and TARGET below it are monospace.
+
+Fixes: translate `outcome.reason` for display; capitalise and punctuate the execution reason.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L5/1",
+      "severity": "P2",
+      "location": "transaction pane, Status reason line, y≈181-201, x≈1157-1420",
+      "finding": "The value reads `Status reason: private-part-succeeded-public-part-succeeded` — a raw kebab-case enum literal printed where a sentence belongs. The label half was translated into the product's vocabulary; the value half was not, so one line carries two languages. It sits 50px above a fully written, fully punctuated provenance paragraph in the same face, which makes the leak conspicuous rather than merely technical. Present at laptop, not only at wide.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/light/L5/2",
+      "severity": "P2",
+      "location": "transaction pane, EXECUTIONS row, sentence beginning y≈858, x≈1157",
+      "finding": "The producer's reason renders as `aztec private function executed client-side; only proofs, nullifiers and commitments are …`, opening with a lowercase chain slug rather than the protocol's name. Change (5) made this worse: the identity bar 850px above now says `demo`, so the only two places the page names a chain name two different chains. The sentence is also clipped by the pane's bottom edge at y≈897, so its terminal punctuation cannot be judged at this viewport.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/light/L5/3",
+      "severity": "P2",
+      "location": "transaction pane, full transaction hash at y≈166-201 versus FEE PAYER at y≈612-670 and TARGET at y≈680-745",
+      "finding": "The same primitive — a hash — is set in two faces inside one pane. The transaction's own full hash is proportional sans (unslashed zero, variable advance); FEE PAYER and TARGET 450px below are monospace, as is the truncated hash in the identity bar. Brief §2 makes the monospace treatment the product's texture, and the one identifier the reader is most likely to compare against a URL is the one that opts out of it.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L5/4",
+      "severity": "P3",
+      "location": "transaction pane, COST · MANA row, unit suffix at y≈776-790, x≈1300-1425",
+      "finding": "The unit reads `mana (FeeJuice)` — a camelCase adapter token name in a slot that otherwise carries human units. The label half of this same row was translated (`COST · MANA`), so the row shows the leak surviving one field over from where it was fixed. Confirmed present at laptop.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L5/5",
+      "severity": "P3",
+      "location": "identity bar, exit link `← demo`, x≈22-78, y≈24-40",
+      "finding": "The chain exit is labelled with the bare route slug in lowercase. It is the only naming of the chain in the bar, and the registry publishes no display name beside the slug, so a build-side path segment is doing a human label's work. Every other chain-facing string on this page is either title-cased prose or an uppercased pane label.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/light/L5/6",
+      "severity": "P3",
+      "location": "Code pane, note above line 26, y≈171-200, x≈10-685",
+      "finding": "`Showing from line 26 — the session's position is below, and the lines above it are not in this window.` is a UI sentence set in the code face at the listing's size, and it therefore inherits the listing's right-edge overflow mask: the word `in` at x≈655-685 is washed out to near-invisible even though the sentence wraps rather than scrolls. A wrapping sentence is being greyed as if it were clipped code.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/light/L5/7",
+      "severity": "P3",
+      "location": "Code pane gutter, x≈74-84, lines 29 (y≈313) and 32 (y≈383)",
+      "finding": "Change (4) landed, but the two marks carry opposite meanings in near-identical shapes — `⊘` (did not run) and `⊙` (taken) — at the same size, same neutral grey, in the same column as the `·` executed-line dot on lines 28 and 31, with no key anywhere on the page. Three gutter states whose vocabulary exists only in the source is a symbol set a desktop-app user must guess at.",
+      "criterion": "B5"
+    }
+  ]
+}
+```

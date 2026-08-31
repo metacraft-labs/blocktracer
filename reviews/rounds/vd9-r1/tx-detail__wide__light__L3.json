@@ -1,0 +1,68 @@
+Expected elements: present
+
+All five changes landed on this view. The `Age` row states "No timestamp published" rather than deriving one; a `Type` row reads `public`; the full hash sits in a bordered white box with a "click to select" caption. The provenance note is flush-left in a full-width white `dd` at a ~95-character measure. `COST · MANA` reads `42000 / 100000 mana (FeeJuice)` in base ten. The decoded-input note is the no-selector-and-no-calldata sentence, correctly with no "supply an ABI" action, which here could not succeed. The breadcrumb reads `Home / demo / tx`. The provenance marker is form (c), the `Data` row, correctly alone. No P1. Value/nonce rows are absent because this chain has neither; inventing them would be the honesty failure.
+
+Contrast is clean: every text-on-surface pair I sampled is ≥5.4:1 (placeholder #565656 on #DDDDDD = 5.40; grid labels #484848 on #DDDDDD = 6.73; footer marks and heart all drawn in #4F46E5 at 6.29). This light theme is designed, not inverted.
+
+The failures are colour-role discipline. One neutral chip carries three meanings in three consecutive grid rows. The hero puts indigo #4F46E5 14px from blue #2563EB. The raw block is the only panel with no fill.
+
+Highest-priority fixes: give `Canonical: Yes` the affirmative tone and `Finality: Pending` a distinct one; retune the info blue away from the brand indigo, or fill the `On demand` pill.
+
+Rating: 7/10
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/L3/1",
+      "severity": "P2",
+      "location": "Overview grid, the AGE / CANONICAL / FINALITY value chips (x678-860, y994-1098)",
+      "finding": "One neutral tone (#F3F3F3 fill, #C8C8C8 border, #565656 text) carries three different semantic categories in three consecutive rows: an absence of data ('No timestamp published'), an affirmative fact ('Yes'), and an unresolved state ('Pending'). The page proves an affirmative tone exists forty rows above - 'Succeeded' in green #166534 on #DCFCE7 at y232-264 - and never reaches for it here, so within the grid colour carries no meaning at all. 'Pending' and 'Yes' are opposite kinds of answer painted identically.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/2",
+      "severity": "P2",
+      "location": "Hero action row: 'Generate trace' button (#4F46E5, x530-680, y385-435) and the 'On demand' pill (#2563EB border, #1E40AF text and dot, x694-805, y396-426)",
+      "finding": "Two blue-violets sit 14px apart and are close enough in hue to read as one colour rendered inconsistently rather than as two roles. The semantic ramp is stock and untuned to the brand: success #16A34A/#DCFCE7 and info #2563EB/#DBEAFE are default ramps, and the info blue in particular lands just off the brand indigo used for the button, links (breadcrumb, 102:0, footer) and all three footer marks. The page therefore reads as brand indigo plus borrowed semantics.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/3",
+      "severity": "P2",
+      "location": "Raw (chain-native) block, x505-1416, y2319-2531",
+      "finding": "The only panel on the page with no fill: its interior samples #ECECEB, exactly the page canvas, where the seven other panels (trace card, decoded-input note, the three section notes, the overview grid, the hash box) are all #FFFFFF. Its sole containment is the #A2A2A2 hairline, which measures 2.16:1 against the canvas on both sides - below the 3:1 non-text floor - so the block reads as unfilled rather than as a deliberate recess. This is the surface and containment the 'Watch for' item names, and it is the one panel where the surface ladder breaks.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/4",
+      "severity": "P3",
+      "location": "Hero, the new full-hash copy affordance box, x505-922, y278-307",
+      "finding": "Its border is #C8C8C8, the token used for chrome and internal divisions (nav underline y63, footer top y2600, grid row separators, chip borders), while every other raised container on the page uses #A2A2A2. The new affordance sits one border step lighter than the containers it is meant to read alongside, which weakens the 'raised box' cue it was added to provide.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/5",
+      "severity": "P3",
+      "location": "Overview grid, TYPE row value 'public' (x684-760, y962-980)",
+      "finding": "The new Type row renders its value as bare #242424 monospace while its three immediate neighbours - AGE, CANONICAL, FINALITY - render theirs as chips. It is the one categorical enum in the grid, the kind of value the badge vocabulary exists for, and it is the only one not admitted to it, so the rule governing which values get a chip is not readable from the grid.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/6",
+      "severity": "P3",
+      "location": "Overview grid, the provenance note row, x505-1004, y817-915",
+      "finding": "The #DDDDDD label rail runs from the DATA row at y790 to y816, breaks for the full-width white note, then resumes at BLOCK at y915. The recessed label level therefore reads as an interrupted column rather than one continuous rail down the left of the grid. Extending the rail behind the note, or insetting the note so the rail is visibly ceded rather than cut, would keep the surface levels legible.",
+      "criterion": "A10"
+    }
+  ]
+}
+```

@@ -1,0 +1,31 @@
+Expected elements: present
+
+Every MUST SHOW item is on the page and nothing on the MUST NOT SHOW list is. The `DATA` row is now the first labelled row of the Transaction pane, correctly toned, and its note sets flush-left across the full pane width — that element is fixed and is no longer the weakest. `COST · MANA` reads `88000 / 200000 mana (FeeJuice)` in base ten. Line 32 carries `⊙` and line 29 `⊘`. The exit reads `← demo`.
+
+The single weakest element is the **phase rail in the identity bar**, immediately right of the `128 / 1315` position readout. It renders `FETCHING` as a filled accent-blue segment with `OPENING` and `POSITIONING` plain — the unambiguous vocabulary of a segmented current-step control — on a session that has demonstrably finished all three phases: the Code pane is listing, line 32 is the highlighted current position, the call trace holds seven frames, Values holds eleven, and all eight stepping buttons are enabled rather than disabled. The bar therefore asserts the engine is still fetching over a fully positioned replay. It is not a fixture accident: the identity bar of `debugger--loading-phases__laptop__light.png` renders this rail pixel-identically, so the rail never changes and is a static ornament shaped like a live status indicator. The expected-elements block names the phase rail as one of the three carriers that justified deleting the loading paragraph; that carrier is reporting a state the page is not in, which is broken information, not presentation.
+
+Fix: drive the rail's active segment from the session state, and mark all three complete (or retire the rail) once positioned.
+
+Rating: n/a — presence check passed.
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/ADV/1",
+      "severity": "P1",
+      "location": "identity bar, phase rail — right of the `128 / 1315` position readout, left of the NOIR label",
+      "finding": "The phase rail highlights FETCHING as the active segment on a fully positioned session: Code is listing with line 32 marked current, the call trace holds seven frames, Values holds eleven, and every stepping button is enabled. The filled-first-segment treatment reads as a current-step indicator, so the bar states the engine is still fetching while the panes show a completed replay. The rail is pixel-identical in debugger--loading-phases__laptop__light.png, confirming it never reflects state at all — it is static decoration styled as live status. Since the loading paragraph was removed on the grounds that the phase rail carries this information, the designated carrier is reporting a state the page is not in.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

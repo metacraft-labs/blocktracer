@@ -1,0 +1,68 @@
+Expected elements: present
+
+Every must-show renders: nav (brand x504, resolver right edge x1415, body starts y164 well below the nav's y63 edge), breadcrumb `Home / aztec / tx / 0x14d6…fa6c`, full hash, `Succeeded`, the `Not observable` badge with the published pruning reason, the Overview grid whose first row is the sole provenance marker (green `Real Aztec mainnet data` + capture sentences), Block/Type/Age/Canonical/Finality/Cost, permanent-tense empty sections, the Raw block, and the footer closing the page at y2732–2950. Exactly one marker form — no band, no chip. Nothing forbidden: no retry, spinner, disabled control, trace reference, and zero reddish pixels in the whole body.
+
+All five changes landed. (1) Cost is `3906250659561864576 mana (FeeJuice)`, one line at x690–962, where the 66-char hex word could not have fit. (2) The decoded-input note now says there is no call data. (3) Age and Type are 37–38px rows on the grid's rhythm. (4) The provenance note spans x504–1415 flush-left at x530 with a 589px measure — a real improvement on the 39–41% row. (5) Breadcrumb reads `aztec`.
+
+The previous round's filing stands, measured exactly: every notice card ends at x1203, everything else at x1415.
+
+Highest-priority fixes: widen `.notice` to the content column, and give the Not observable card's paragraphs a real gap — 25px against a 22px line pitch is not a paragraph break.
+
+Rating: 7/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/1",
+      "severity": "P2",
+      "location": "all five notice cards — Not observable (y354-600), decoded-input note (y1563-1661), Events (y1841-1917), Internal calls (y2020-2097), State changes (y2200-2276); right border x1203",
+      "finding": "The page has two right edges. Section rules, the Overview grid, the Decoded-input grid, the Raw block, the nav resolver field and the footer all end at x1415; every notice card stops at x1203, 212px short. The previous round's measurement is unchanged. It is worst in the Events / Internal calls / State changes band (y1762-2276), where three cards sit under a rule that runs to x1415 and leave a 212x514px empty gutter down the right of the band. The underlying inconsistency is that the same ~65-character measure is applied to the TEXT inside the Overview grid (the provenance prose wraps at x1119 inside a container that still runs to x1415) but to the CONTAINER in the notices. Cap the measure, not the card.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/2",
+      "severity": "P2",
+      "location": "Not observable card (x504-1203, y354-600), between the line ending y473 and the line starting y486",
+      "finding": "The permanence claim ('a permanent answer rather than a failed fetch') and the published reason ('The node still serves this transaction's effects...') are separated by 25px against a 22px within-paragraph line pitch — 3px of extra space. The two statements fuse into one six-line block, so the chain's specific reason, which is the thing this page exists to make a reader take away, gets no visual separation from the generic sentence above it. By contrast the badge above is given a 30px gap. Related things are not closer than unrelated things here.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/3",
+      "severity": "P2",
+      "location": "Overview grid, last row COST · TRANSACTIONFEE, y1239-1300",
+      "finding": "The row is 61px tall against 37-38px for its six siblings (BLOCK 1051-1088, TYPE 1088-1125, AGE 1125-1163, CANONICAL 1163-1201, FINALITY 1201-1239). Row height is driven entirely by the label column: 'COST · TRANSACTIONFEE' does not fit the 160px label column (x504-664, ~135px of usable text width) and wraps, stranding the '·' at the end of line one, while the single-line value is top-aligned at y1249. The result is a grid whose rhythm is even for six rows and then breaks on the seventh, with an empty band under the value. Widening the label column or not breaking on the separator restores it.",
+      "criterion": "A6"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/4",
+      "severity": "P3",
+      "location": "Overview grid, provenance dd spanning y802-1051",
+      "finding": "The grid-spanning dd interrupts the label column's grey fill (#ddd, x504-664) for 249px, leaving the DATA label as an isolated 38px grey tab above a white void and a 249px grey run resuming at BLOCK. It also starts its prose at x530 — the label column's text inset — while every other value in the grid starts at x690, so for a quarter of the grid's height the value column has no left edge. Both are side effects of moving the note into its own dd, which was otherwise the right call. Extending the label fill behind the dd, or indenting the dd to x690, would keep the grid one structure.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/5",
+      "severity": "P3",
+      "location": "section headings: Overview (baseline y748 -> grid y764), Decoded input (y1448 -> y1464), Raw (y2423 -> y2440) versus Events (y1809 -> card y1841), Internal calls (y1988 -> y2020), State changes (y2168 -> y2200)",
+      "finding": "One relationship, two values: a heading sits 16px above the grid or block it labels, and 32px above a notice card. Combined with finding 1 the notice cards read as detached asides rather than as their section's content — narrower and twice as far from their own heading. One value for heading-to-content would put the whole page on one scale.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/6",
+      "severity": "P3",
+      "location": "Not observable badge (box left x529, text x538) versus Overview grid badges (box left x680, text x690)",
+      "finding": "The same badge primitive is aligned by two different conventions on one page. In the Overview grid the badge box is optically outdented 10px so its text lands on the value column's x690 with the plain values — correct, and worth keeping. In the Not observable card the box is aligned instead (x529 against the paragraph's x530), so the badge's text sits 8px inside the card's text edge. Pick the optical convention in both places.",
+      "criterion": "A10"
+    }
+  ]
+}
+```

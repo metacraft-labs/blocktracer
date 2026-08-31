@@ -1,0 +1,89 @@
+Expected elements: present
+
+This is a designed dark theme, not an inversion: a real surface ladder (#1b1b1b pane / #282828 header / #202020 chip / #000000 raw panel), a slate selection band #334155 shared correctly by the Code current line and the Call Trace selected row, and editor tokens tuned for dark. Most text sits 5.4–15.5:1. The failures are all in the small semantic marks.
+
+The five changes: (1) landed — the provenance note is its own flush-left row under `DATA`, no band above the identity bar; (2) not observable — this pane carries `COST · MANA 88000 / 200000`, no hex word anywhere visible; (3) one of the three sentences renders (the no-call-data variant), coherent; (4) landed, ⊙ contrast is now 4.26:1 not 2.40:1; (5) landed — `← demo` at x26–75, though prose at x1540 y706 still says "aztec".
+
+THE GLYPH VERDICT. Exactly one of each exists: ⊘ x75–83 y291–299 (#919191 on #1b1b1b, 5.47:1); ⊙ x75–83 y360–368 (#06b6d4 on #334155, 4.26:1 — above the 3:1 graphic floor, below the 4.5:1 text floor). Both clear the floor now. But normalise away hue and background and the two 9×9 cells share IoU 0.79: 23 of 29 lit pixels identical, 6 differ, 5 of those being ⊘'s slash tails. Achromatic dissimilarity is 22% of mean ink mass. They are NOT distinguishable without colour.
+
+Highest-priority fixes: give the branch pair distinct silhouettes, and lift the iteration-chip digits above 4.5:1.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L3/1",
+      "severity": "P2",
+      "location": "Code pane gutter, x75-83: the ⊘ mark at y291-299 (line 29) and the ⊙ mark at y360-368 (line 32, on the current-line band)",
+      "finding": "The branch-state pair is separated almost entirely by hue. Contrast is now adequate on both — ⊘ is #919191 on #1b1b1b at 5.47:1, ⊙ is #06b6d4 on the current-line band #334155 at 4.26:1, up from the 2.40:1 measured last round, so that half of change (4) landed. Shape does not carry the distinction. Normalising each 9x9 cell to its own background and peak so hue and band colour are removed, the two glyphs share an intersection-over-union of 0.79 at a 0.5 threshold: 23 of 29 lit pixels are identical, only 6 differ, and 5 of those 6 are the antialiased tails of ⊘'s slash. Total achromatic dissimilarity is 22% of mean ink mass. The outer ring is pixel-identical in both. A reader without colour discrimination, or anyone at 100% zoom not already looking for it, sees the same small ring on both arms. Compounding it, neither mark has a colour of its own: ⊘ is drawn in #919191, the page's generic muted-text grey (line numbers x44-66, call-trace paths, 'By call order.', the DATA/BLOCK/SELECTOR labels, the step-button glyphs, the OPENING and POSITIONING chips, the '+3' chip, the '[Field; 8]' column), so 'this branch did not run' reads as de-emphasised chrome; and ⊙ is drawn in the overloaded cyan of finding 2. Give the two arms different silhouettes — a filled disc versus an open ring, or different outer diameters — so the state survives greyscale.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/2",
+      "severity": "P2",
+      "location": "cyan #67e8f9 / #06b6d4 / #05b3d0 across all three panes",
+      "finding": "One hue still means several things, and change (4) added a sixth consumer rather than reducing the count. The cyan family carries: the current-line rail in the Code pane (x5-8, y352-374); the selected-row rail in the Call Trace (x922-923, y251-275); the active loop-iteration underline (x504-565, y120-121); the per-line 'has step data' dot · in the gutter (x79, on 20 rows); the new taken-branch mark ⊙ (x76-81, y361-367); and the syntax token for type names in the source itself (e.g. 'Field' at x501-540 y544-553, x704-742 y544-553). Three of those six sit inside the single row y352-374 at once — rail, mark, and 'Field' tokens — so on the current line cyan simultaneously means where-you-are, this-arm-ran, and this-is-a-type. Reserve cyan for position and selection, and move the branch mark and the step-data dot onto tokens of their own.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/3",
+      "severity": "P2",
+      "location": "loop-iteration selector strip in the Code pane header, x366-906 y100-128; worst at chips 4-8, x574-906",
+      "finding": "Every one of the eight iteration digits falls below the 4.5:1 text floor, and this strip is the lowest-contrast text on the page. Past iterations 1-2: #dddddd on the #727272 fill, 3.54:1 peak with most stroke mass at 2.7:1. Current iteration 3: #67e8f9 on #727272, 3.32:1, and its cyan underline is also 3.32:1 against the fill. Not-yet-run iterations 4-8: #202020 fill with digits whose brightest antialiased pixel reaches only #6f-#72, i.e. 3.24-3.39:1, and whose bulk stroke sits at 1.4-2.9:1 — chips 5, 6 and 7 have no pixel above 3.4:1 at all. Their 1px border is also #202020-adjacent at 1.06:1 against the pane, so the chip outlines are carried by antialiasing alone. Rendered at roughly 11px these numerals are visibly ghosted; the register rewards density but not density bought at this contrast.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L3/4",
+      "severity": "P2",
+      "location": "Code pane — the value-change chip 'damage: 0→2000' at x490-600 y352-372 versus function-name and string tokens on lines 40, 48, 53, 54 (e.g. x121-192 y544-553, x214-253 y984-996)",
+      "finding": "Three amber tokens carry three unrelated meanings inside the same pane and are luminance-identical, so nothing but hue separates them. #fcd34d is 'value changed' (the inline chip and its 1px border at y352, and the Values pane change rails at x922-923 y726-749 and y877-900 plus the changed numbers 9000/2000). #fbbf24 is the function-name syntax token. #fdba74 is the string-literal token. Measured against each other: #fcd34d vs #fbbf24 = 1.16:1, #fbbf24 vs #fdba74 = 1.01:1, #fcd34d vs #fdba74 = 1.17:1. The editor palette is a sanctioned separate vocabulary, but the UI's change token was picked from inside that palette's amber range and is then painted on top of the code, eight lines above amber function names. Move the change token off the amber ramp, or shift it far enough in lightness that it separates from the editor ambers without colour.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L3/5",
+      "severity": "P2",
+      "location": "Call Trace pane, the depth guide rail at x936, running y128-300",
+      "finding": "The one depth guide the pane draws is #565656, which is 2.35:1 against the #1b1b1b row background and drops to 1.28:1 where it crosses the selected row band #334155 at y255-271 — below the 3:1 floor for a structural graphic in both cases, and effectively erased on the selected row. There is also only this single rail at x936 serving frames at every depth: main, iterate_asteroids, calculate_damage, calculate_remaining_shield_pct and status_report at depths 1 through 4 all get the same one guide at the same x, so depth beyond the first level is expressed by indentation alone. The rubric asks for indentation and a guide; at 1.28-2.35:1 this guide contributes almost nothing.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/wide/dark/L3/6",
+      "severity": "P2",
+      "location": "Transaction pane — the 'Synthetic demo data' badge at x1753-1906 y197-219 against the 'Partial' status badge at x1542-1601 y99-121, 80px above it",
+      "finding": "Now that the provenance note has moved into the pane, the two badges sit in the same column and their tones rank the wrong claims. 'Partial' is warm and loud — #ea580c text with #fb923c stroke on #202020, 4.58:1. 'Synthetic demo data' is cool and calm — #60a5fa on #202020 with a #2563eb border, 6.41:1 but at an informational blue that reads as a neutral tag. The blue does not contradict the label, so it is not the P1 the expectation block guards against, but the badge announcing that none of these values exists on any network is given the quieter of the two tones while a routine status qualifier gets the alert tone. The note beneath it compounds this at #a2a2a2, the same secondary grey used for the 'Status reason' line and for the ordinary decoded-input note lower down, so the whole provenance row reads at the pane's default emphasis. This is the row being too quiet for the claim it carries, expressed in tone.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/dark/L3/7",
+      "severity": "P3",
+      "location": "link indigo #818cf8 ('demo' x26-75 y29-35, 'Self cost' x1468-1518 y310-320, '101:0' x1865-1906 y374-386) versus badge blue #60a5fa (provenance badge x1763-1893 y204-213, FETCHING phase chip x1246-1295 y27-34)",
+      "finding": "The two blues are 1.17:1 apart in luminance — the same brightness, 26 degrees of hue apart — so 'this is a link' and 'this is a badge or an active phase' are distinguished by hue alone, and the underline is doing all the work that survives greyscale. Separately, #60a5fa itself carries two roles: the provenance badge in the Transaction pane and the active loading phase in the identity bar. The indigo link role is otherwise clean and consistent across all three instances.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/8",
+      "severity": "P3",
+      "location": "Transaction pane, DECODED INPUT block — the SELECTOR value at x1884-1908 y820-840 and the RAW value at the same x, y858-878",
+      "finding": "Both rows render a bare '0x' in #dddddd at 12.68:1, the pane's top text-emphasis level — byte for byte the same token used for the real FEE PAYER hash, the TARGET address and the COST · MANA figures. An absent value is therefore given the emphasis of present data, and only the note below it (change 3, which reads clearly and sets flush-left) tells the reader the stub means nothing was there. Drop these two values to the #919191 muted level so the emphasis ladder matches the honesty of the prose.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/dark/L3/9",
+      "severity": "P3",
+      "location": "Transaction pane, EXECUTIONS note at x1540-1906 y706-762, first word",
+      "finding": "A consequence of change (5). The chain is now reached as 'demo' — the identity bar exit at x26-75 reads '← demo' — but this sentence still opens 'aztec private function executed client-side; only proofs, nullifiers and commitments are published'. Lowercase and unqualified, mid-sentence, next to a chain the page elsewhere calls demo, it reads as an unsubstituted template token rather than a protocol name. The '\"aztec\"' key in the RAW (CHAIN-NATIVE) panel at x1580-1650 y1058-1074 is chain-native payload and is correct as-is. Flagged for the register and copy lens; noted here because it is fallout from this round's rename.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

@@ -1,0 +1,89 @@
+Expected elements: present
+
+Every MUST SHOW item is there and no MUST NOT SHOW item is: nav with resolver, footer closing the page with the correct disclosure, the three drawn provenance marks, exactly one provenance marker (the `Data` row, no band and no chip), the `Not observable` badge with the chain's published pruning reason, full hash, outcome, block/type/age/canonicality/finality/cost, and "permanently, not yet" on both trace-derived sections. It reads as correct, not broken.
+
+This iteration's changes land: cost is base ten (y≈1250), the decoded-input note now states no call data exists (y≈1600), `Age` and `Type` rows exist (y≈1150/1100), the provenance note sets flush-left in its own spanning `dd` (y≈805).
+
+Two of them created type problems. The base-ten cost `3906250659561864576` is set in the proportional body sans while `67511:0`, `public` and the badges beside it are monospace — the one value that most needs the code face lost it — and 19 digits carry no grouping, so its magnitude is uncountable. And the new note did not change the rows above it: `SELECTOR —` / `RAW 0x` keep the page's highest-emphasis card treatment while the sentence carrying the section's whole meaning is demoted beneath, so the section scans as two missing values.
+
+Highest-priority fixes: put the cost back in the mono face with thin-space grouping; demote the 10-line capture note below the badge so the grid's six one-line facts stay scannable.
+
+Rating: 6/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/1",
+      "severity": "P2",
+      "location": "Overview grid, COST · TRANSACTIONFEE row, value at x≈685-820, y≈1250",
+      "finding": "The base-ten cost `3906250659561864576` is set in the proportional body sans — the same face as the `mana (FeeJuice)` unit beside it — while every other value in the same grid is monospace (`67511:0` y≈1063, `public` y≈1100, `No timestamp published` y≈1140, `Finalized` y≈1213). The hex-to-decimal change fixed the content but moved the value out of the product's numeric texture; the one value on the page that most needs a code face is the only machine value that does not have one.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/2",
+      "severity": "P2",
+      "location": "Overview grid, COST · TRANSACTIONFEE value, x≈685-820, y≈1250",
+      "finding": "Nineteen digits run undelimited. A reader cannot count `3906250659561864576` to a magnitude at any glance length, so base ten is only marginally more readable than the hex word it replaced. Group in threes (thin space or hair space, not a comma if the unit is an integer base unit), or state a scaled figure with the exact integer available on hover/selection as the full hash does at y≈198.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/3",
+      "severity": "P2",
+      "location": "Decoded input section — facts card x≈503-1414, y≈1465-1530, note card x≈503-1203, y≈1555-1660",
+      "finding": "The revised note is correct, but the rows above it were not revised with it. `SELECTOR —` and `RAW 0x` occupy the page's highest-emphasis treatment (bordered full-width facts card, tinted label column, mono values) while the sentence carrying the entire section's information sits below in the secondary card at body size. Scanned without reading, the section reads as two missing values with a footnote; the hierarchy is inverted relative to where the information actually is.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/4",
+      "severity": "P2",
+      "location": "Overview grid, Data row provenance note, x≈527-1135, y≈805-1035",
+      "finding": "The capture note is ten lines of prose at full body size and weight — the same size as the reason card's prose at y≈435 — and it occupies about 230px of the grid's 380px height, more than the six one-line facts below it combined. As the grid's first row it does land before the empty sections are read, which is the point of moving it here, but nothing demotes it: no smaller size, no secondary weight. The Overview reads as a paragraph with a small table under it rather than a facts grid with a provenance preamble.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/5",
+      "severity": "P2",
+      "location": "Overview grid, COST · TRANSACTIONFEE label, x≈510-600, y≈1245-1285",
+      "finding": "`TRANSACTIONFEE` is a camelCase field name pushed through an uppercase transform, so the word boundary that made `transactionFee` readable is gone and it renders as one 14-letter run. It overflows the 127px label column and wraps after the separator, orphaning the `·` at the end of line one and making this row 1.6x taller than every other row in the grid. At a 1920px viewport with the grid's right half empty, a label that cannot fit its own column reads as a prototype. Set it as `Cost · Transaction fee` in the caps style, or widen the column.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/6",
+      "severity": "P2",
+      "location": "Not observable card, paragraphs at x≈527-1130, y≈435-465 and y≈480-560; same pattern in the Data row, y≈760 badge vs y≈805 note",
+      "finding": "BlockTracer's own framing sentence and the chain's published reason are set identically — same face, size, weight and colour — separated only by about 6px of extra leading (paragraph gap ≈26px against a ≈19.5px line gap). Nothing marks where the product stops speaking and the node operator starts. On a page whose entire argument is that the limitation belongs to the chain and not to this tool, the attribution is carried by wording alone, with no typographic support. The same holds in the Data row, where the badge and the capture's verbatim sentences share one treatment.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/7",
+      "severity": "P3",
+      "location": "Overview grid, Data row note, line 4-5, x≈527-1090, y≈855-880",
+      "finding": "`NO TRANSACTION INSIDE IT WAS REPLAYABLE` is set as all caps inside running prose. All caps is this page's label idiom everywhere else — the `TRANSACTION` eyebrow (y≈140), `DATA`, `BLOCK`, `TYPE`, `AGE`, `CANONICAL`, `FINALITY`, `SELECTOR`, `RAW` — so one typographic device carries two meanings on one page, and the emphasised clause momentarily reads as a field label. If the producer's emphasis must be preserved verbatim, render it with weight or italic rather than case.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/8",
+      "severity": "P3",
+      "location": "Raw (chain-native) block, first key, x≈545-700, y≈2497",
+      "finding": "In the monospace face the lowercase `l` and the digit `1` are the same shape — a vertical stem with a top-left flag and a full base bar. `\"l2BlockNumber\"` therefore reads as `12BlockNumber` when compared against the `1`s in `67511` on the same line. The zero is dotted, so the face does disambiguate `0`/`O`; `l`/`1` was missed. One occurrence here, but the face is the product's texture everywhere.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/9",
+      "severity": "P3",
+      "location": "Data row note (x≈527-1135, y≈805-1035) and Not observable card (x≈527-1130, y≈480-560)",
+      "finding": "Both explanatory blocks set to roughly 88 characters per line at a ≈14.5px body size — measures at the top of the comfortable range, and the capture note holds that measure for ten consecutive lines. Tightening to about 70-75 characters would cost nothing at this viewport, where both blocks already stop well short of the container's right edge.",
+      "criterion": "A3"
+    }
+  ]
+}
+```

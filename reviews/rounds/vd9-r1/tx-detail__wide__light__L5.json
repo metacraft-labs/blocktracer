@@ -1,0 +1,74 @@
+Expected elements: MISSING — Decoded input: the 'supply an ABI' action
+
+That is finding #1, it is P1, and my rating is 4. Four of the five iteration changes landed on this view. Age (`AGE / No timestamp published`, y≈1006) states the absence instead of inventing a time. Type (`TYPE / public`, y≈969) is a labelled row. The full hash carries a resting affordance — bordered box at (505–921, 278–309) plus caption. The provenance sentences now span the grid and set flush left, though flush to the label gutter (x≈528) rather than to the badge they explain (x≈688) — L2's call. Fee/cost is base ten (`42000 / 100000 mana (FeeJuice)`), no hex word anywhere. Breadcrumb reads `demo` and the badge reads `Synthetic demo data`: the URL move introduced no contradiction, and exactly one provenance marker is present. The note card at y≈1478 no longer promises a remedy it cannot give — but the section still shows raw bytes with no control that supplies an ABI, so the element remains unsatisfied.
+
+In register terms the page is a credible 2026 explorer surface. What the new elements cost is primitive discipline: the copy affordance wears the nav resolver's input costume, the Age statement wears the status chips' costume, and monospace — the face that means "this is chain data" — now sets five strings of ordinary English.
+
+Highest-priority fixes: add the ABI control; give absence-of-data its own treatment, distinct from the Canonical/Finality chips.
+
+Rating: 4/10
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "missing",
+  "missing": [
+    "Decoded input: the 'supply an ABI' action — the section shows SELECTOR 0x1a2b3c4d and RAW 0x with a note explaining the state, but no button, link or upload control that supplies an ABI"
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/L5/1",
+      "severity": "P1",
+      "location": "Decoded input section — the bordered note card at (505-1204, 1478-1548), below the SELECTOR / RAW rows at y≈1390 and y≈1425",
+      "finding": "The must-show item is 'raw bytes with a supply an ABI action when the selector is unknown'. The selector 0x1a2b3c4d is unknown to BlockTracer's ABIs — the note says so — and no control anywhere in the section performs the named action. This iteration fixed the honesty half of the vd8-r3 finding: the note now reads 'This selector is not in any ABI BlockTracer holds, and no call data accompanies it here, so there are no parameters to decode', which describes the rendered state and no longer offers a remedy it cannot deliver. The action itself is still absent, so neither branch of the element is satisfied — no decoded entry point and parameters, and no ABI affordance beside the raw value."
+    },
+    {
+      "id": "tx-detail/wide/light/L5/2",
+      "severity": "P2",
+      "location": "hero — the full-hash box at (505-921, 278-309), against the nav resolver field at (1155-1416, 8-52)",
+      "finding": "The new copy affordance is a rounded, hairline-bordered, monospace box about 30px tall containing a left-aligned mono string — which is exactly the costume of the resolver field 230px above it, the page's only real text input. Two elements with the same form and opposite behaviour: one accepts typing, one is a static value. The site has one input primitive and the hero has now borrowed it for a read-only fact. Distinguish them — the value box should read as a value surface (fill without a stroke, or the same treatment the grid gives hashes) and keep the stroked, inset form for things you can type into.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail/wide/light/L5/3",
+      "severity": "P2",
+      "location": "hero caption 'click to select' at (935-1027, 285-300); Overview grid AGE chip 'No timestamp published' at (687-855, 998-1015); DATA badge 'Synthetic demo data' at (687-830, 790-808); CANONICAL 'Yes' and FINALITY 'Pending' chips at y≈1045 and y≈1083; nav placeholder 'block · tx · address' at (1180-1300, 22-38)",
+      "finding": "Monospace is this product's texture for chain data — hashes, selectors, heights, raw JSON — and on this page it now sets five strings that are not chain data: an instruction to the reader, a statement that a timestamp does not exist, a provenance claim, and two status words. Both elements this iteration added extend the pattern. The proportional body face already handles English everywhere else on the page (the trace note, the provenance sentences, the three section notes, the footer disclosure), so the mono strings read as machine output rather than as the product speaking, and the face stops being a signal that a value came off a chain.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail/wide/light/L5/4",
+      "severity": "P2",
+      "location": "Overview grid — the AGE row value at (687-855, 998-1015), against CANONICAL 'Yes' (687-760, 1037-1054) and FINALITY 'Pending' (687-780, 1075-1092)",
+      "finding": "The new Age statement is rendered in the identical grey chip — same radius, fill, border, mono face and size — as the two rows directly beneath it, which carry status values the chain actually published. Three consecutive rows, one primitive, two meanings: 'Yes' and 'Pending' are facts about the transaction, 'No timestamp published' is a fact about the tree's coverage. Dressed as a peer of the status chips it reads as a third status the chain reported, which is the thing the element exists to avoid. Give a stated absence its own quiet treatment — the grid's muted text without a chip is enough, and it also removes a sentence from the chip vocabulary.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail/wide/light/L5/5",
+      "severity": "P3",
+      "location": "Overview grid rows DATA (y≈798), TYPE (y≈969), CANONICAL (y≈1045), FINALITY (y≈1083)",
+      "finding": "Four enumerated values across nine rows get four treatments: an indigo outlined badge, a bare lowercase mono token ('public'), and two grey chips. The new TYPE row is the bare token, so the one value derived from the executions reads like a JSON field pasted into the grid rather than a labelled fact. Pick one treatment for 'this value is one of a small set' and let the tone (neutral / affirmative) do the differentiating.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail/wide/light/L5/6",
+      "severity": "P3",
+      "location": "Overview grid — the COST · MANA row at (528-1000, 1186-1203)",
+      "finding": "Base ten landed and is a clear improvement on the 256-bit hex word. Two idioms remain off-register for an explorer: the label is the only middot-joined compound among eight single-phrase labels, and the value sets '42000 / 100000' without digit grouping, so the used-against-limit comparison has to be read digit by digit. Comparable explorer surfaces group thousands; the mono face already gives tabular figures to align them. 'mana (FeeJuice)' in the proportional face after mono digits is the right split and should stay.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail/wide/light/L5/7",
+      "severity": "P3",
+      "location": "trace card note at (505-1204, 398-412); Internal calls card at (505-1204, 1368-1400); State changes card at (505-1204, 1515-1548)",
+      "finding": "'…come from the execution trace' is said three times in three wordings within one scroll — the specified line in the trace card, then a per-section paraphrase in each of the two sections it named. The specified line is required and correctly placed beside Generate trace; the two paraphrases then restate it as boilerplate, and the reader who has read the card learns nothing from either. Either let the sections point at the card's statement, or differentiate them the way the Events card does — it says something the card does not (receipts, not a trace).",
+      "criterion": "A9"
+    }
+  ]
+}
+```

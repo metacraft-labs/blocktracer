@@ -1,0 +1,82 @@
+Expected elements: present
+
+Identity bar (exit to `demo`, both step directions, scrubber, readout, phase rail), Code with the position on line 32, Call Trace + Event Log as one tabbed region with Call Trace open, and a separate Values pane below it are all present; no provenance band, no prose band, no full-width pane. The surface reads as the desktop tool, not as marketing chrome. What it does not yet read as is a product that finished writing its sentences.
+
+This iteration: (1) landed — the provenance sentences set flush-left in their own spanning row (1542–1905, y 232–355) and are the pane's best copy; (2) unverifiable here — no `COST · TRANSACTIONFEE` row is on this screenshot, though `COST · MANA` (y 633) is base ten; (3) landed — the decoded-input note (y 885–980) is specific to this state; (4) landed — line 32 carries `⊙`, line 29 `⊘` (gutter x 79); (5) landed in the chrome — `← demo`, though the copy at y 715 still says "aztec".
+
+The queued observation stands: `Status reason: private-part-succeeded-public-part-succeeded` (y 155–182) is a raw enum given an English label, three rows above the badge claiming this pane tells you what the data is. Three more machine leaks sit under it: "aztec", "This tree", and `0x` printed twice as a value the note beneath denies exists.
+
+Fix first: rewrite the four leaked strings as sentences; then separate the position readout from the engine-loading status in the bar.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L5/1",
+      "severity": "P2",
+      "location": "Transaction pane, identity block, third line (x 1542-1900, y 155-182), directly above the DATA row",
+      "finding": "A raw enum is printed as prose: 'Status reason: private-part-succeeded-public-part-succeeded'. The label is English, the value is a hyphenated adapter identifier that wraps across two lines, and it sits three rows above the badge whose job is to tell the reader what this data is. In the one pane that carries this register's honesty claim, the first explanatory line on the page is untranslated machine output. It should read as a sentence, e.g. 'The private part and the public part both succeeded.'",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/light/L5/2",
+      "severity": "P2",
+      "location": "Transaction pane, EXECUTIONS section, note under the 'private / Not observable' row (x 1542-1900, y 708-760)",
+      "finding": "'aztec private function executed client-side; only proofs, nullifiers and commitments are published — no call structure to trace' fails three ways as a sentence: it opens with a lowercase chain identifier where a capitalised word belongs, it has no terminal full stop, and it names 'aztec' on a chain this iteration renamed to 'demo' (the identity bar reads '← demo' at x 22-76). The provenance paragraph 20 rows above is fully punctuated prose, so the pane sets two different standards for a sentence within 500px.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/light/L5/3",
+      "severity": "P2",
+      "location": "Transaction pane, DECODED INPUT note (x 1542-1900, y 885-980), first three words",
+      "finding": "'This tree holds no call data for this transaction' uses the build-side noun for the fixture set as the subject of reader-facing prose. The rest of the sentence is the best-toned copy on the page — 'Whether none was published or the body was pruned before it was captured is not something this section can tell' is exactly the register's voice — which makes the opening noun the only word a visitor cannot resolve. It should be 'This chain' or 'This transaction'.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/light/L5/4",
+      "severity": "P2",
+      "location": "Transaction pane, DECODED INPUT rows SELECTOR (y 830) and RAW (y 859), value column at x 1890",
+      "finding": "Both rows print a bare '0x' — a hex prefix with nothing after it — as their value, while the note 26px below them states there is no call data at all. Two rows assert a value exists and the paragraph under them denies it, and the assertion is made in machine notation rather than a word. Under the product's second rule an absent value must say why it is absent; 'None published' or suppressing the rows would both do that, '0x' does neither.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/light/L5/5",
+      "severity": "P2",
+      "location": "Identity bar, between the scrubber (x 675-935) and the phase rail (x 1225-1480): 'Engine loading — 18 MB' at x 950-1105 and the position readout '128 / 1315' at x 1120-1205",
+      "finding": "The position readout is separated from its own scrubber by the engine-loading status and then set 15px from that status's last token, while the gap to the phase rail on its right is wider. The two objects that express position are split by an unrelated one, and the readout reads as a continuation of the download figure — '18 MB 128 / 1315'. Only the mono face keeps them apart. Moving the readout adjacent to the scrubber would make the bar read as three groups rather than a strip.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/light/L5/6",
+      "severity": "P3",
+      "location": "Code pane gutter, x 79: '⊘' on line 29, '⊙' on line 32, '·' on lines 26-28, 31 and 34 onward",
+      "finding": "The new branch marks land and are the right idea, but the pane now runs a three-glyph vocabulary with no key anywhere on the page and no hover text visible in a static capture. Two ringed glyphs distinguished only by dot-versus-slash at roughly 10px is a distinction a first-time visitor has to guess at. A legend in the pane header, or spelling the state once in the executed-line strip, would make the mark self-teaching.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L5/7",
+      "severity": "P3",
+      "location": "Call Trace footer (y 314): 'By call order.' at x 930-1005 and 'Self cost' at x 1465-1520",
+      "finding": "One control's two states are typeset in two vocabularies: the active sort as a two-word sentence fragment carrying a full stop, the alternative as an underlined blue web link. The link primitive itself is the explorer register's, and it appears three times inside debugger panes ('101:0' at y 379, 'line 4' at y 114, 'Self cost'); a dense tool usually carries the accent without the document underline. Making both sort states the same object would settle it.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L5/8",
+      "severity": "P3",
+      "location": "Transaction pane, COST · MANA row, unit suffix at x 1845-1905 (y 633)",
+      "finding": "The unit reads '88000 / 200000 mana (FeeJuice)'. The parenthetical is a camelCase chain identifier in a slot where the unit name beside it is lowercase prose, so one row shows both conventions. 'Fee Juice' is the chain's own spelling and would sit correctly next to 'mana'.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

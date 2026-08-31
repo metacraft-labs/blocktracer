@@ -1,0 +1,82 @@
+Expected elements: present
+
+Every MUST SHOW item is on the image and no MUST NOT SHOW item is: exit `← aztec-testnet` (x25,y27), both-direction stepping pairs, position readout `128 / 345`, the phase rail, the `DATA` provenance row with its green `Real Aztec testnet data` badge, instruction-level explanations in Code/Call Trace/Values, `Supply sources` (y298), a real hash and `block 63675`. No source text, file tabs, line numbers, invented names or fixture content.
+
+The four changes: (1) landed cleanly — the note is flush left at x1543, spans the grid, runs a 48-character measure over 8 lines (~175px, ~17% of the pane, was 39–41%). It is no longer this page's weakest element. (2) landed — the fee is decimal, tabular, right-aligned, no grid break; the hex word is gone. (3) landed — the decoded-input sentence is state-specific. (4) no `aztec` slug or demo content.
+
+Through the type lens the page is flat. Measured character advance is ~8.4px for the pane header `TRANSACTION`, the section headings, every row label and every value alike: four structural levels at one size, differentiated only by colour. The provenance row is not too quiet, but its rank comes from the badge, not the type. The faithfulness evidence sits unranked inside a raw JSON dump below the fold while two panes hold ~900px of white.
+
+Highest-priority fixes: one size step down for row labels (or up for section headings), and digit grouping on the 19-digit fee.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L1/1",
+      "severity": "P2",
+      "location": "Transaction pane, x1538-1910 — pane header `TRANSACTION` (y76), section headings `EXECUTIONS` (y596), `DECODED INPUT` (y647), `RAW (CHAIN-NATIVE)` (y844), row labels `DATA`/`BLOCK`/`TYPE`/`SELECTOR`/`RAW`, and all values",
+      "finding": "Four structural levels render at one type size. Measured glyph advance is ~8.4px/char for the pane header, the section headings, the row labels and the values alike, in one mono face; only colour and the header's grey fill separate them. Consequence: `SELECTOR` and `RAW` are indistinguishable from the `DECODED INPUT` heading that owns them, so the nesting is invisible, and the provenance row's `DATA` label carries no more weight than `AGE`. Give section headings one step of size or weight above row labels, and row labels one step below values.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/2",
+      "severity": "P2",
+      "location": "Transaction pane, `COST · TRANSACTIONFEE` value, x1748-1905 y553-562",
+      "finding": "`1755555891986239551` is a 19-digit integer with no grouping separators (verified: 19 uniform glyph cells, no wider gaps). The zero-padded hex word is correctly gone and the figure is tabular and right-aligned, but at this length an ungrouped decimal cannot be read, counted or compared across magnitudes — a reader cannot tell 1.7e18 from 1.7e17 without counting glyphs. It also consumes the value column edge to edge, pushing `mana (FeeJuice)` onto a second line.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/3",
+      "severity": "P2",
+      "location": "Transaction pane, `RAW (CHAIN-NATIVE)` block, y844 to the 1080px fold",
+      "finding": "The replay telemetry — the evidence the session is faithful — has no typographic rank. `instructionsExecuted: 345` (y1046) is the last line visible; `effectsMatched`/`effectsMismatched` fall below the fold. Inside the block every key is the same size, weight and colour, so the load-bearing counts read exactly like `txIndexInBlock`. Meanwhile the Code and Call Trace panes hold ~900px of empty white each. Promote the replay counts to labelled rows in the pane's own grid and leave the JSON as the appendix.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/4",
+      "severity": "P3",
+      "location": "Transaction pane, full transaction hash, x1542-1903 y132-160",
+      "finding": "The 64-character hash wraps mid-byte: line one carries `0x` plus 41 hex characters (measured 43 glyph cells), so the break falls inside the byte `06` — line one ends `…aabc0`, line two opens `6ef9…`. Nothing is lost, but a hash should break at an even offset so each line is a whole number of bytes.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/5",
+      "severity": "P3",
+      "location": "Transaction pane, provenance note, lines 1-2 at x1543 y214-243",
+      "finding": "Machine identifiers inside the note get prose treatment. The ISO timestamp splits across the line break at a hyphen — line one ends `2026-08-`, line two opens `31T07:40:55.566Z` — so the reader reassembles it. In the same sentence `aztec-testnet.drpc.org` and the heights `63629-63678`/`63628` are set in the sans face, while the identical kind of value (`63675:0`) appears in mono 180px below in the `BLOCK` row. Set the endpoint, timestamp and heights in the mono face with the timestamp non-breaking.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/6",
+      "severity": "P3",
+      "location": "Transaction pane, `SELECTOR` (y676) and `RAW` (y701) value column",
+      "finding": "Two adjacent rows of one grid use two conventions for the same absence: `SELECTOR` shows an em dash, `RAW` shows a bare `0x`. After the new decoded-input sentence states there is no call data, `0x` reads as a truncated value rather than as nothing. Use the em dash in both, or the empty-hex form in both.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/7",
+      "severity": "P3",
+      "location": "Identity bar, `Engine loading — 18 MB` (ends x1207) and `128 / 345` (x1222-1296)",
+      "finding": "The position readout is unlabelled and sits 15px from the byte count — about the same gap as the word spaces inside `Engine loading — 18 MB` itself — so `18 MB 128 / 345` scans as one numeric run. Face and weight differ, but the readout a stepping user reads constantly should not have to be picked out of a loading string. Add a separator or a step-count label.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/8",
+      "severity": "P3",
+      "location": "Transaction pane, truncated hash `0x0858d644…22e67fb2` (y106-115) directly above the full hash (y132-160)",
+      "finding": "The truncation and the value it truncates are stacked, at identical face and identical measured size (~8.4px advance, 10px digit height in both), so neither reads as the title and neither as the detail. Two lines of a dense pane restate one value. Either set the truncated form one step larger as the pane's subject, or drop it and keep the full hash alone.",
+      "criterion": "B3"
+    }
+  ]
+}
+```

@@ -1,0 +1,68 @@
+Expected elements: present
+
+All five changes touching this view landed: labelled `Age` (y988–1026) and `Type` (y951–988) rows; a resting copy affordance — bordered box x506–920 / y278–305 plus a "click to select" caption 29px to its right; the provenance note now a grid-spanning `dd` (y816–914) setting flush-left from x529 at a 592px measure; `Cost · Mana` = `42000 / 100000 mana (FeeJuice)` in base ten, no longer overrunning its column; breadcrumb `Home / demo / tx / …`. Exactly one provenance marker (the `Data` row); no Debug button, empty panel or disabled control. Value and nonce are absent — §7.2's "rows come from the adapter" clause covers it — and no "supply an ABI" action is right where RAW is `0x`.
+
+The left edge is exact: nav brand, breadcrumb, eyebrow, copy box, hero card, both grids, the raw block and the footer all start at x504; grid rows are an even 37–38px; every content-to-rule gap is 101px. The right edge is not.
+
+Five bordered panels stop at x1203 while the rules, grids and raw block run to x1415 — a 212px overhang, worst where the Decoded input grid and the note 25px beneath it disagree (P2). Heading-to-content is 15/17/16px above the grid/pre sections but 31/31/33px above the three note sections, where the heading also sits only 55px below the previous box (P2). Finality sits 800px from the status badge it qualifies (P2). Three P3s follow: ragged badge left edges, an unused wide viewport, a 12px h1-to-badge gap.
+
+Fixes: give the note panels the column's right edge; pick one heading-to-content value.
+
+Rating: 6/10
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/L2/1",
+      "severity": "P2",
+      "location": "page right edge — hero card (x504–1203, y354–615), decoded-input note (x504–1203, y1476–1552), Events note (y1732–1808), Internal calls note (y1911–1988), State changes note (y2091–2167), against the section rules (y716, 1314, 1653, 2268), both grids and the raw block, all of which run x504–1415",
+      "finding": "The page has two right edges 212px apart. Every bordered white panel that holds prose stops at x1203; every rule, grid and the raw <pre> run to x1415. Left edges agree exactly at x504, so the mismatch reads as a broken container rather than as a measure decision. It is sharpest in Decoded input, where the grid's right border is at x1415 and the note's right border, 25px directly below it at y1476, is at x1203 — two panels of the same border weight and fill, stacked, 212px out of register. In the Events / Internal calls / State changes region the rule at y1653 spans to x1415 while all three boxes below it stop at x1203, leaving a 212px dead band down 515px of page height.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/2",
+      "severity": "P2",
+      "location": "section headings — Overview (baseline y764, grid top y779), Decoded input (y1360 / y1377), Raw (y2315 / y2331) versus Events (y1701 / y1732), Internal calls (y1880 / y1911), State changes (y2058 / y2091)",
+      "finding": "One relationship is set at two values. The gap from a section heading's baseline to the top border of its first content is 15px, 17px and 16px where that content is a grid or the raw <pre>, and 31px, 31px and 33px where it is a note panel — a 2x difference for the same heading-to-content join, with the headings at one size throughout. The consequence is a weaker grouping signal in the second group: Events sits 31px above its own box and 55px below the box that precedes it (a 1.8:1 proximity ratio), where Overview sits 15px above its grid and 131px below the previous content (8.7:1). Six peer sections therefore read as three tiers of belonging that the content does not support.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/3",
+      "severity": "P2",
+      "location": "hero — status badge \"Succeeded\" at x724–833, y231–263 — versus the Overview grid's FINALITY row at y1064–1102",
+      "finding": "Status and finality are one judgement about whether this transaction counts, and they are 800px apart. §7.2 puts the finality badge in the hero beside the status; here the hero carries status, hash and action, and finality is the sixth row of a grid the reader reaches after scrolling past the trace card. Both badges are the same pill treatment, so the split is not signalled as deliberate — proximity is doing the opposite of the grouping the two values need.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/4",
+      "severity": "P3",
+      "location": "Overview grid, value column, x680 versus x690, rows y779–1213",
+      "finding": "The value column has a ragged left edge over nine rows. Badge-bearing rows (Data, Age, Canonical, Finality) put their badge border at x680; plain-value rows (Block, Type, Fee payer, Target, Cost·Mana) start their text at x689–690. The badge text itself lands at x690, so the badges are optically aligned to the plain values and the 9–10px overhang is only the pill's own padding — a defensible treatment, but with four badges interleaved among five plain rows the visible left edge of the column alternates all the way down.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/5",
+      "severity": "P3",
+      "location": "whole page at 1920px — content column x504–1415; Overview grid label column x504–664, value column x664–1415",
+      "finding": "The wide viewport buys nothing this page uses. The content column is 912px of 1920 and inside it the grid is emptier still: the label column is 160px for a longest label of 78px (COST · MANA, x529–607) and the value column is 751px for a longest value of 352px (the addresses, x690–1042), so roughly 40% of the grid's width is empty in all ten rows while the page runs to 2818px — 2.6 screens. The generous canvas is on-brief for the register, but the two facts grids and the raw block are the elements that could have used the width and did not.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/6",
+      "severity": "P3",
+      "location": "hero — h1 ends x712, \"Succeeded\" badge starts x724; compare Generate trace button ends x679, \"On demand\" chip starts x696",
+      "finding": "The two control-plus-chip pairs in the hero use different gaps: 12px between the 44px h1 and its status badge, 17px between the button and its state chip 150px below. The page is otherwise on an 8px scale (16px h1-to-copy-box, 24/25px panel padding, 48px copy-box-to-card, 101px content-to-rule), so 12px is the one off-scale value, and it is the tightest pairing on the page against the largest type on it.",
+      "criterion": "A2"
+    }
+  ]
+}
+```

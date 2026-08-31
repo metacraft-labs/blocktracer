@@ -1,0 +1,91 @@
+Expected elements: present
+
+All must-show items located; nothing forbidden present. Scrubber (x673–833, y27–35) and the readout `128 / 1315` (x880–970) both sit in the identity bar, above the fold — the regression of two rounds ago has not returned.
+
+This iteration: (1) landed — the `DATA` note sets flush-left in its own full-width row, x1158–1419, y250–443, ~37-char measure; (2) landed so far as visible — `COST · MANA` (y757–789) reads `88000 / 200000 mana (FeeJuice)` in base ten and no hex word appears anywhere, but the `TRANSACTIONFEE` row is below the fold and unverifiable here; (3) unverifiable — no decoded-input note above the fold; (4) landed — line 29 `⊘`, line 32 `⊙`; (5) landed — the exit reads `← demo`.
+
+Measurement requested: the Call Trace region (y62–561) ends its last frame at y295, footer at y320, leaving 240px — 48% — empty; the Values pane (y566–895) has 44px slack and Code is cut mid-line at the fold. The height belongs to Code, not the tabbed region.
+
+The register is typographically right — mono texture, an 11px caps label scale, tabular right-aligned numerics. Below bar: the provenance note is the largest type in the Transaction pane (14px/21.5px, 193px tall); a word of the Code pane's note dissolves under the code viewport's overflow mask; 66-char hex wraps to two-character orphans; and `FETCHING` reads active over a positioned session with enabled controls.
+
+Fixes: set the note at 12px/1.45 — it recovers ~45px and shows more, not less; and exclude it from the overflow mask.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L1/1",
+      "severity": "P2",
+      "location": "Transaction pane, DATA provenance note, x1158–1419, y250–443",
+      "finding": "The note is set at ~14px on a ~21.5px leading (1.54), which makes it the largest and loosest type anywhere in the pane — the row labels (BLOCK, TYPE, FEE PAYER) are ~11px caps and the values ~13px mono. Nine lines at a 37-character measure cost 193px, about two thirds of the height of the seven metadata rows below it (BLOCK–TARGET, y450–745), so COST lands at y757 and EXECUTIONS is cut mid-sentence at the fold. The move out of the band fixed the alignment and the 28-character measure, but it did not fix the ~190px: it relocated it. Setting the note at the pane's own 12px with ~1.45 leading recovers ~45px and pulls a further row above the fold — a fix that shows more information, not less. The note is not too quiet; it is the loudest type in the pane.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L1/2",
+      "severity": "P2",
+      "location": "Code pane, window note line 1, tail at x630–660, y173–183",
+      "finding": "The note 'Showing from line 26 — the session's position is below, and the lines above it are not in this window.' is rendered inside the code listing's horizontally scrolling, fade-masked container, so its wrapped first line runs under the right-edge overflow mask: 'in' is washed to roughly a third of the surrounding contrast and the final 'n' is nearly white. The note wraps rather than overflows, so the mask buys nothing here and costs a word of running prose. Exclude the note from the masked scroll region.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L1/3",
+      "severity": "P2",
+      "location": "Transaction pane FEE PAYER (y614–670) and TARGET (y685–740); VALUES pane `masses` row (y672–700)",
+      "finding": "Two truncation strategies for the same kind of value inside one pane. The pane header truncates with a middle ellipsis (`0xb636167a…66d46359`, y104), but 500px lower the 66-character FEE PAYER and TARGET hex strings are hard-wrapped and right-aligned across three lines, leaving two-character orphan lines ('32' at y658–667, '4c' at y730–739) that read as separate values. The `masses` array in the Values pane does the same, orphaning '14]' on its own right-aligned line. Right-alignment plus hard wrapping is the wrong pair for long monospace strings: either wrap flush-left, or apply the middle-ellipsis rule the same pane already uses.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L1/4",
+      "severity": "P2",
+      "location": "Identity bar, phase rail x958–1200 vs stepping controls x370–655 and readout x880–970",
+      "finding": "`FETCHING` is the filled, active chip while `OPENING` and `POSITIONING` sit inactive, yet the same bar reports position 128 / 1315, the Values pane holds ten live values and all eight stepping buttons render fully enabled (near-black glyphs, no dimming). The rail therefore names a phase the rest of the bar contradicts. Either the rail should advance to the phase the session is actually in, or the controls should carry the disabled state the design assigns them while the engine loads; as rendered the two disagree. Typographically the three chips are also identical in size, weight, case and tracking, so the rail carries no progression at all without reading the fill.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/light/L1/5",
+      "severity": "P3",
+      "location": "Transaction pane, rule between the DATA label row (y215–245) and the note (y250–443)",
+      "finding": "A full-width rule at y246 separates `DATA` and its `Synthetic demo data` badge from the sentences that explain them, so under the pane's own grammar — label left, value right, rule between rows — the provenance paragraph becomes the only unlabelled row in the pane and the badge row reads as closed. Dropping the rule between the dt and its spanning dd would bind the claim to its label without changing a word.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/light/L1/6",
+      "severity": "P3",
+      "location": "Code pane gutter, glyph column x≈75–85, lines 27–32 (y255–395)",
+      "finding": "Three meanings ride in one ~7px glyph slot: the executed dot `·` (lines 27, 28, 31), the taken mark `⊙` (line 32) and the not-run mark `⊘` (line 29). At render size the dot and the ring differ by about two pixels of interior detail, so the taken mark reads as a slightly fatter executed dot wherever it is not also the current line. Separately, the not-run row's left rail bar (x6–10, y302–326) has identical geometry to the current-position bar (x6–10, y372–396) and differs only in hue, giving the rail two candidate positions at a glance.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L1/7",
+      "severity": "P3",
+      "location": "Call Trace column head 'ACIR opcodes' (x1035–1135, y108–120); VALUES type column 'Field' / 'u32' / '[Field; 8]' (x1090–1140)",
+      "finding": "Face mixing inside a single label and a single column. 'ACIR' is monospace and 'opcodes' beside it is the proportional UI sans, on one line of one column head. In the Values pane every identifier and every value is mono while the type cells are sans, so the pane's rightmost column leaves the mono texture the brief calls the product's texture. A defensible rule exists here — pills and annotations in sans, data in mono — but a type name is data, and 'ACIR opcodes' obeys neither.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L1/8",
+      "severity": "P3",
+      "location": "Code pane loop rail, y95–130, x20–420",
+      "finding": "Four type treatments share one 26px strip: 'LOOP' at ~12px grey caps, 'iterate_asteroids' at ~13px, the 'line 4' link at ~11px underlined, and 'Iteration 3 of 8' at ~14px, the largest and darkest of the four. The counter therefore outranks the name of the loop it counts. Two levels would carry this: the loop's identity at one size, its position at the same size in a heavier weight. The current-iteration chip '3' also carries two stacked rules of different colour beneath a 12px numeral, which reads as a doubled indicator.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/light/L1/9",
+      "severity": "P3",
+      "location": "Tabbed Call Trace / Event Log region, y62–561; last frame row ends y295, footer 'By call order. / Self cost' ends y320",
+      "finding": "The requested measurement, offered for L2/L4's lane: 240px of the region's 499px — 48% — is empty below the footer, while the Values pane beneath it (y566–895) ends 44px short of its own edge and the Code pane is cut mid-line at the viewport fold. Nothing here is starved of content that would fill the gap; the height would buy more in the Code pane, or in a Values pane that could show more rows, than it does under a seven-frame trace.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

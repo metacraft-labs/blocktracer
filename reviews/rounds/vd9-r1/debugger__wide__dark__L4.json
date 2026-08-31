@@ -1,0 +1,89 @@
+Expected elements: present
+
+Every required item renders: tabbed Call Trace (open) + Event Log, Values as a pane below it, Code with line 32 marked, `← demo` exiting to the chain, bidirectional stepping + scrubber + phase rail in the bar, and the provenance row inside the Transaction pane. No band above the bar, no spinner, no empty pane, no Values tab.
+
+Changes: (1) landed — the DATA note now spans the grid flush-left; the whole row is 169px of the pane's 1016 visible px (16.6%), down from 39–41%. (2) unverifiable — no `COST · TRANSACTIONFEE` row exists above the clip; `COST · MANA 88000 / 200000` is the only cost row and `EXECUTIONS` follows it directly. (3) landed for the one observable state. (4) landed but inverted — see finding 5. (5) landed in the bar only — see finding 9.
+
+Call Trace: region y63–670 = 607px; content ends y322; empty = 346px = **57.0%**. The 47–57% observation holds, at the top of that band. But Values is also 121/406 = 29.8% empty, so the column carries 467px of slack (45.9%) and re-splitting the two rows only moves whitespace between two slack panes. The lever is the column weight: middle column 607px (31.6%) with 46% vertical slack versus the Transaction pane at 382px (19.9%), the page's only clipped region.
+
+Top fixes: rebalance column widths, not the row split; raise iteration-chip contrast.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L4/1",
+      "severity": "P2",
+      "location": "Call Trace tabbed region, middle column x922-1528, y63-670",
+      "finding": "The tabbed region is 607px tall and its content (tab strip, FRAME header, 7 frames, the 'By call order / Self cost' footer) ends at y322, leaving 346px = 57.0% empty. The Values pane beneath it (y669-1075, 406px) is also empty from y953 = 29.8%, so the middle column holds 467px of vertical slack, 45.9% of its 1017px. Meanwhile the Transaction pane is the only clipped region on the page. Shifting height from Call Trace to Values therefore fixes nothing: both rows are slack. The one-line weight worth changing is the COLUMN split - 912/607/382px (47.5/31.6/19.9%) - moving width from the middle column to the 382px Transaction pane.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/dark/L4/2",
+      "severity": "P2",
+      "location": "Code pane header, iteration chip row x370-906, y100-128",
+      "finding": "The eight loop-iteration chips render their numerals below the 4.5:1 floor at ~9px cap height: chips 1-2 (visited) 3.54:1 on their #727272 fill, chip 3 (current) 4.34:1, chips 4-8 (unvisited) 3.29-3.39:1 on #202020. Visited and unvisited differ by 0.15 in contrast, so the state this control encodes is carried by fill alone and the digits - the only thing that says which iteration - are the least legible text on the page.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L4/3",
+      "severity": "P2",
+      "location": "Code pane, rows for source lines 26 (y196-240) and 48 (y726-770)",
+      "finding": "The inline value rail and the code text share one horizontal band, so on long lines the rail's `+N` overflow badge wraps to a second row and doubles the row pitch from the listing's uniform 23px to 43px (line 26) and 44px (line 48). Two rows of ~40px each are spent on a two-glyph badge, and the line-number column stops being a constant-rate ruler, which is what makes a listing scannable at a glance.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L4/4",
+      "severity": "P2",
+      "location": "Transaction pane, DECODED INPUT block, y846-998",
+      "finding": "SELECTOR (y846-876) and RAW (y876-884) both render a bare `0x`, and the 122px note beneath them (y884-998) then says the same thing in prose. Roughly 182px of the page's only clipped pane restates one fact - there is no call data - three times. Collapsing the two stub rows into the note would return that height to the rows currently pushed below the fold.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/dark/L4/5",
+      "severity": "P2",
+      "location": "Code pane gutter, x74-86, lines 29 (y288-302) and 32 (y357-371)",
+      "finding": "The new branch marks invert the hierarchy. The not-run mark on line 29 is a 7x7px grey ring-and-slash at 5.47:1, while the ordinary executed marker on lines 27/28/31 is a 2x2px cyan dot - so the line that did NOT run carries the loudest gutter mark on the page apart from the current-position highlight. The taken mark on line 32 is an 8x8px ring-and-dot in the same cyan as the executed dot and appears exactly once, on the current line, so it cannot be read as meaning 'taken' rather than 'you are here'. No legend distinguishes the three gutter states.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L4/6",
+      "severity": "P3",
+      "location": "Code pane right edge x906-916, source lines 40 (y549) and 53 (y873)",
+      "finding": "Long lines fade to background at the pane border mid-identifier ('shield_regen_perce...') with no ellipsis and no horizontal scroll affordance, so the reader cannot tell whether one character or forty is missing. This is a second, different overflow treatment for the same collision handled by wrapping four rows away (finding 3).",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L4/7",
+      "severity": "P3",
+      "location": "Identity bar, x1473-1798, y8-54",
+      "finding": "A 326px unbroken empty run - 17% of the bar's width - sits between the end of the phase rail and the NOIR label, directly above the Transaction pane, the only clipped region on the page. On the densest strip of a tool surface this is the one place where reclaimed space costs nothing.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/dark/L4/8",
+      "severity": "P3",
+      "location": "Call Trace rows, module-path column ~x1030-1175, y125-302",
+      "finding": "Six of the seven frames repeat the identical string `zk_shields - src/shield.nr` at ~143px each, 23.5% of the 607px region width, at the same optical size as the frame name it sits beside. In a region that is 57% empty vertically the repetition is not paying for itself; eliding the shared prefix or promoting it to a column header would let the depth guides and the ACIR column carry the row instead.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/dark/L4/9",
+      "severity": "P3",
+      "location": "Transaction pane, EXECUTIONS note y706-762 and RAW (CHAIN-NATIVE) block y1030-1080",
+      "finding": "The /aztec to /demo rename landed in the identity bar (`<- demo`) but not in the pane copy: the executions note opens 'aztec private function executed client-side...' and the chain-native payload keys on \"aztec\". A reader on a chain labelled `demo` meets the word `aztec` twice in the same pane, which reads as a stale fixture rather than a deliberate chain-native detail.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

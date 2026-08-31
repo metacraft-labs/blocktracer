@@ -1,0 +1,110 @@
+Expected elements: present
+
+All must-shows verified; no must-not-show present. Light here is dense, hairline, monospace-led — not a marketing surface, so no register error. Most text is strong (6.3–19:1). The failures are role discipline and state emphasis.
+
+Glyph verdict (the open question): exactly two instances in the viewport. `⊘` at (74–83, 291–299), core #484848 on #FFFFFF = **9.15:1**. `⊙` at (74–83, 360–368), core #0E7490 on band #A5F3FC = **4.29:1** — up from the reported 2.40:1, but zero pixels reach 4.5:1. The rings are pixel-identical; the interiors are not "two pixels apart" — `⊘` carries a corner-to-corner diagonal touching both walls, `⊙` an isolated 2×3 central pip. Desaturated at 1× and at 14× they read as a barred ring versus a target. **Distinguishable without colour: yes — with zero margin.** The pip survives on a single-pixel counter each side; any fractional DPR or heavier weight closes it. `⊙` also shares its cyan with the twenty neutral `·` coverage marks (#1A7B95).
+
+Systemic: "current" is the lowest-contrast state in every triad — iteration chip `3` #164E63 on #919191 = 2.89:1 versus completed 4.93:1; current-line rule outer #0E7490 5.36:1 versus the not-taken rule's #484848 9.15:1.
+
+Top fixes: raise every "current" token above its "done"/"not-run" sibling; stop sharing hexes between editor tokens and status roles (#166534, #155E75).
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L3/1",
+      "severity": "P2",
+      "location": "Code pane gutter, the two branch marks: circled-slash at (74-83, 291-299) on line 29, circled-dot at (74-83, 360-368) on line 32",
+      "finding": "Measured verdict on the open question. The two marks ARE distinguishable without colour, but with no margin, and their contrast is badly unequal. Circled-slash core #484848 on #FFFFFF = 9.15:1, 22 pixels at or above 4.5:1. Circled-dot core #0E7490 on the current-line band #A5F3FC = 4.29:1, with ZERO pixels reaching 4.5:1 (14 reach 3:1). The rings are pixel-identical 8x9; the interiors differ by orientation and position, not by 'about two pixels of stroke': the slash spans the interior diagonal wall-to-wall (9 ink px, up to 9.9:1), the dot is an isolated 2x3 pip (6 ink px, best pixel 4.21:1, outer rows 1.87:1). Desaturated, they read as a barred ring versus a target. The margin is one background pixel column on each side of the pip; at fractional DPR or a heavier weight that counter closes and the dot collapses into a filled ring. Two further problems: the mark meaning 'this ran' is at less than half the contrast of the mark meaning 'this did not run'; and the dot's cyan #0E7490 is the same hue as the twenty neutral coverage middots #1A7B95 (4.87:1) on lines 26-61, so hue separates the dot from the slash but not from the mark that means nothing. Also, the only circled-dot on the page sits inside the current-line band, so its meaning is never seen apart from 'you are here'.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/2",
+      "severity": "P2",
+      "location": "Code pane iteration strip chip 3 (x 505-568, y 99-128) and the current-line left rule at x 5-8, y 351-375 versus line 29's rule at x 7-8, y 283-305",
+      "finding": "The 'current' role is systematically the lowest-contrast state in its own triad. Iteration chip 3 (current) sets its digit in #164E63 on the #919191 chip fill = 2.89:1, below the 3:1 non-text floor at a ~12px cap height, while chips 1-2 (completed, same #919191 fill) set theirs in #242424 = 4.93:1 and chips 4-8 (future) set #727272 on #DDDDDD = 3.54:1. So the current iteration is the least legible chip in the strip. The same inversion recurs in the gutter rules: the current-position rule's outer 2px is #0E7490 = 5.36:1 against white, while line 29's not-taken-branch rule is #484848 = 9.15:1. In greyscale the not-taken line's rule is the darker of the two. Fix by ordering the tokens so current > done > future in contrast, on both channels.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/3",
+      "severity": "P2",
+      "location": "Code pane versus Transaction pane and identity bar: comments on lines 41 and 56 versus the 'Trace ready' badge at (1600-1684, 768-790); type tokens 'Field'/'u32' (e.g. x 216-258, y 472-492) versus the scrubber fill and thumb at (673-694, 28-46)",
+      "finding": "The editor syntax palette and the UI status palette draw the same hex values, so one colour means two unrelated things on one screen. #166534 is both the code-comment token and the 'Trace ready' badge text. #155E75 is both the type-identifier token and the scrubber's filled range and thumb, i.e. both 'this is a type' and 'this is where you are in the trace'. Brief section 3 sanctions carrying editor tokens across the register boundary; it does not license reusing those exact tokens for status semantics. Adjacent to this, #713F12 (function names, 8.67:1) and #854D0E (changed values, 6.85:1) are two near-identical browns on the same white code surface with unrelated meanings. Separate the two ramps: give status roles their own steps.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L3/4",
+      "severity": "P2",
+      "location": "Transaction pane DATA row badge 'Synthetic demo data' (1758-1906, 196-220) and identity bar phase chip 'FETCHING' (1230-1305, 20-44)",
+      "finding": "The provenance badge and the active phase chip are the identical token pair: fill #DBEAFE, text #1E40AF, both at 7.15:1. So one blue means both 'this data is synthetic and exists on no network' and 'the engine is currently fetching'. The provenance marker is the row this view grades as content; borrowing an in-progress status token for it is a role collision. Compounding it, the badge's #2563EB 1px border reads as a button, and the underlined navigable link '101:0' directly beneath at (1856-1908, 370-390) is #4F46E5 - two saturated blue-violets 170px apart, one static and one clickable. Give provenance its own token distinct from both the phase rail and the link colour.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/5",
+      "severity": "P2",
+      "location": "Identity bar: eight stepping buttons (x 370-660, y 18-46), share and download buttons (x 1836-1898), the three phase chips (x 1226-1470), and iteration chips 4-8 (x 571-906, y 99-128)",
+      "finding": "Every control boundary on the page is below the 3:1 floor for user-interface component boundaries. Button and chip borders are #C8C8C8: 1.67:1 against the #FFFFFF bar, and 1.23:1 against the #DDDDDD chrome strip for iteration chips 4-8. The icons inside are fine at #565656 = 7.34:1, so the controls are findable by glyph, but the box that says 'this is a button' is not. Raise the border token to at least #949494 on white.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/light/L3/6",
+      "severity": "P2",
+      "location": "Identity bar, all ten buttons (x 370-660 and x 1836-1898, y 18-46) while the phase rail reads FETCHING at (1230-1305, 20-44)",
+      "finding": "There is no loading or disabled colour state anywhere in the bar. All ten buttons render identically - icon #565656 at 7.34:1, border #C8C8C8, white fill - with no variant distinguishing an available control from an unavailable one, while the phase rail asserts the engine is still fetching and the readout says 128 / 1315. The expected-elements block states the loading state is carried by the controls' status, the phase rail AND the buttons' disabled state; that third channel is carrying nothing, leaving one 60px chip to make the claim. Either add a disabled token or drop the claim that the buttons carry it.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/light/L3/7",
+      "severity": "P2",
+      "location": "Transaction pane, SELECTOR value at (1878-1908, 822-840) and RAW value at (1878-1908, 852-870)",
+      "finding": "Two empty values are set at the pane's strongest emphasis. Both read '0x' in #242424 on #FFFFFF = 15.52:1, the identical ink used for real values such as 'private + public', '88000 / 200000' and the fee-payer hash. The pane already has a designed absence treatment - the grey pill, #565656 on #F3F3F3 with a #C8C8C8 border, used for 'No timestamp published' and 'Not observable' - and it is not applied to the two rows that are actually empty. The prose below even explains that there is nothing to decode, so the emphasis contradicts the copy. Set absent values in the absence token.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/light/L3/8",
+      "severity": "P2",
+      "location": "Whole page: app background between panes (e.g. x 917-921), pane bodies, and the four stacked chrome strips in the Code pane at y 72-96, 98-133, 135-164 and 166-192",
+      "finding": "Three near-identical neutrals carry all the structure. App background #ECECEB against pane #FFFFFF is 1.18:1; chrome strip #DDDDDD against the pane body is 1.36:1; strip against app background is 1.15:1. Pane separation therefore rests almost entirely on the #A2A2A2 hairline at 2.55:1, which is rubric B4's named failure. The cost is visible in the Code pane, where four consecutive strips at the identical #DDDDDD - pane header, loop strip, file tabs and the 'Showing from line 26' notice - stack into one undifferentiated ~120px grey mass with only hairlines between them, so nesting depth is not expressed at all. Introduce a real second surface step, or tone the notice band away from the header greys.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L3/9",
+      "severity": "P3",
+      "location": "Whole page palette",
+      "finding": "Every chromatic token is a stock ramp step - #4F46E5 indigo, #1D4ED8 / #1E40AF / #2563EB blue, #0E7490 / #155E75 / #164E63 / #A5F3FC cyan, #166534 / #16A34A green, #EA580C / #9A3412 orange, #854D0E amber, #713F12 yellow - seven hue families with no single accent family, set against a custom but purely achromatic neutral ramp (#101010 / #242424 / #484848 / #565656 / #919191 / #A2A2A2 / #C8C8C8 / #DDDDDD / #ECECEB / #F3F3F3 / #FFFFFF, all R=G=B). A light theme designed as the counterpart of a dark-first tool would normally tint its neutrals toward the product hue and narrow the accent set; untinted greys plus seven default ramps is what a theme inherited rather than designed looks like.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L3/10",
+      "severity": "P3",
+      "location": "Code pane current-line band, y 351-375, from x 12 to the pane edge at x 915",
+      "finding": "The band #A5F3FC is only 1.25:1 against the #FFFFFF code surface, so in greyscale or for a monochrome viewer it does almost no work and the current position rests entirely on the 4px left rule. Credit where due: that rule exists and matches the call-trace selected row's rule, so cross-pane correspondence survives desaturation. Two smaller costs: the band fades to white across its last ~50px (measured #A5F3FC at x 868 through #F1FDFF at x 908) as part of the horizontal overflow mask, so the position highlight dissolves before it reaches the pane edge; and the same fade is applied to the #DDDDDD notice band above.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/11",
+      "severity": "P3",
+      "location": "Call Trace pane depth guide, x 936, all frame rows y 128-300",
+      "finding": "The depth guide is #A2A2A2 at 2.55:1 - the same token as the pane border and the same weight - so a hierarchy line and a structural line are indistinguishable by colour. It is also drawn at the single x 936 for every depth (verified identical at depth 1, y 188, and depth 3, y 213), so beyond the first level the colour channel adds nothing to the indentation.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/wide/light/L3/12",
+      "severity": "P3",
+      "location": "Transaction pane RAW (CHAIN-NATIVE) code well, x 1552-1900 from y 1022 to the viewport edge",
+      "finding": "The well is filled #ECECEB, the identical token used for the application background outside every pane (measured at x 917-921). One surface value therefore denotes both 'outside all panes' and 'recessed one level inside a pane'. Give the in-pane well its own step, or reuse the #F3F3F3 already established for recessed pills.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

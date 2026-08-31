@@ -1,0 +1,71 @@
+Expected elements: present
+
+All four changes touching this view landed. `AGE / No timestamp published` (y≈1008) and `TYPE / public` (y≈970) are labelled grid rows; the full hash sits in a bordered raised box at (506–921, y≈278–309) with a `click to select` caption at x≈934 — a resting affordance, not a hover one. The provenance note now spans the grid flush-left from x≈528 (was flush-right at ~28ch), `COST · MANA 42000 / 100000 mana (FeeJuice)` is base ten, the decoded-input note states the third case ("no call data accompanies it here") and so no longer promises an ABI remedy with no control — that resolves the vd8-r3 finding. Breadcrumb reads `Home / demo / tx / …` and the marker says `Synthetic demo data`, consistent, one marker only. Missing `value`/`nonce` rows are not a finding: §7.2 requires adapter rows, not an EVM template.
+
+Density is the weak point. The 1920 viewport carries a 909px column and 2818px of scroll (2.6 screens) for 9 facts, four sentences and six lines of JSON. Every grid row is 909px wide with content ending by x≈1043 — 372px empty on all nine. Events/Internal calls/State changes spend 475px (y 1691–2166) on 46 words, one of which repeats the hero line at y≈571. Statement cards stop at x≈1202 while grids reach x≈1415, so the column has two right edges.
+
+Fixes: pair the grid or reclaim the empty 41%; compress the three statement sections.
+
+Rating: 6/10
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/L4/1",
+      "severity": "P2",
+      "location": "hero, right of the h1 at (725-835, y=247); FINALITY row at y=1083 and AGE row at y=1008 in the Overview grid",
+      "finding": "The hero carries status alone. The expectation places the finality badge in the hero; here `Pending` sits 836 px lower as a grid row, and the new age statement with it. At the fold the reader gets a green `Succeeded` with nothing qualifying it, and must scroll past the trace card and the 134 px provenance row to learn the transaction is not final. The information is present, so this is placement rather than breakage, but both facts are cheap to carry beside the status badge and the hero has 480 px of unused width at x>1203 to carry them in."
+    },
+    {
+      "id": "tx-detail/wide/light/L4/2",
+      "severity": "P2",
+      "location": "Overview grid, x 506-1415, y 780-1214",
+      "finding": "One label/value pair per 909 px row at a 1920 px viewport. The longest value on the page, the FEE PAYER hash at y=1195, ends at x=1043, so 372 px — 41% of the grid — is empty on all nine rows, and the grid still costs 434 px of scroll. The page totals 2818 px (2.6 viewport heights) to deliver nine facts, four sentences and six lines of JSON. Two label/value pairs per row, or a two-column layout below the hero, would remove roughly 200 px of scroll without dropping anything; nothing here was dropped for the viewport because nothing needed to be.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail/wide/light/L4/3",
+      "severity": "P2",
+      "location": "Events heading y=1691 through the State changes card ending y=2166",
+      "finding": "Three headings and three identically shaped 700 px cards spend 475 px — 44% of a 1080 px viewport — on 46 words, and one of them restates what the page already said at the fold: the trace card prints `Internal calls and state changes come from the execution trace.` at y=571, then the Internal calls card at y=1913 and the State changes card at y=2094 say it again, split in two. Spec 7.2 asks for that line beside the action that requests it, which the hero card already satisfies. The repeated card shape also makes the run read as one block rather than three sections.",
+      "criterion": "A1"
+    },
+    {
+      "id": "tx-detail/wide/light/L4/4",
+      "severity": "P3",
+      "location": "right edges: Overview grid, Decoded input grid and Raw block end at x=1415; trace card, ABI note and the three statement cards end at x=1202",
+      "finding": "The column has two right edges 213 px apart, alternating down the page. The cost is not only alignment: the Events card breaks its sentence after `once this` at x=1160 while the grid directly above it runs to 1415, so the narrower cards wrap a word early against unused column width.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail/wide/light/L4/5",
+      "severity": "P3",
+      "location": "Raw (chain-native) block, x 506-1415, y 2358-2530",
+      "finding": "The one preformatted region on the page holds six lines whose longest reaches x=1040, so over half the block is empty and it carries less information than a single grid row: a four-key transaction object with no receipt object beside it. There is also no visible max-height, scroll container or copy control, so at realistic volume — a real receipt is hundreds of lines — this block's behaviour is untested by the fixture and would run the page height past 2818 px unbounded."
+    },
+    {
+      "id": "tx-detail/wide/light/L4/6",
+      "severity": "P3",
+      "location": "Overview grid label column, x 520-660, e.g. `COST · MANA` at y=1195",
+      "finding": "The labels are roughly 10 px uppercase, letterspaced, in a mid grey — the smallest and lightest text on the page — and they are the only wayfinding into a nine-row grid whose rows are 38 px tall. The size budget is inverted: there is generous row height to scan by and the thing being scanned is set at the floor. One step up in size, or one step down in tracking, would let the column be scanned instead of read.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail/wide/light/L4/7",
+      "severity": "P3",
+      "location": "DATA row and provenance note at the head of the Overview grid, y 780-914",
+      "finding": "Moving the note into its own grid-spanning dd fixed the measure, but it is set at value-column size and now stands 134 px tall against 38 px rows, so it is 19% of the grid's height and every scannable fact begins 134 px into a grid the reader entered under the heading `Overview`. A secondary size under the badge would keep the claim and return the row rhythm at the grid's head.",
+      "criterion": "A2"
+    }
+  ]
+}
+```

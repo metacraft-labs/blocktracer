@@ -1,0 +1,94 @@
+Expected elements: present
+
+Verified: identity bar with `← demo` (chain exit), hash, `Partial`, `block 101`, both stepping directions, scrubber x673–832, readout `128 / 1315`, phase rail; Code with line 32 marked; CALL TRACE | EVENT LOG as one tabbed region, Call Trace open; VALUES a pane below it, not a tab; DATA the Transaction pane's first row. No band above the panes, no full-width pane row, no page scrollbar. Columns 682/454/286px on a 4px margin and gutters.
+
+Change (1) landed: the provenance `dd` is flush-left at x1158 and the row spans y213–450 — 237px, 28.5% of the pane, down from ~41%. But the hairline at y246 splitting `DATA` from its own paragraph is the same 200-grey as every inter-row rule, and sits 5px under the label against 10px above it, so the label groups upward and its sentences read as unlabelled. (4) landed: `⊘` line 29, `⊙` line 32, both in the x78 `·` gutter column. (5) landed. (2) is not observable: this fixture's cost dimension is mana, so the row is `COST · MANA`, base ten. (3) has no surface in this register.
+
+Queued observation, measured: tabbed region y63–560 (498px, 59.9% of the column), content ends y320, 240px empty — 48.2% of the region, 55.0% of the list body. It holds. Values does not overflow: last row ends y851, 44px slack. Demand is 258 vs 291px, so a 47/53 weight cuts emptiness to 34% and gives Values 150px. Transaction overflows, but in another column.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L2/1",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row, rule at y246 (x1149–1435)",
+      "finding": "The provenance paragraph is cut from its own DATA label by a 200-grey hairline at y246 that is the identical weight to every inter-row rule (y450, y480, y510, y542, y573, y605, y677, y749, y795), while there is NO rule between the DATA label (y219–241) and the status-reason block above it (ends y208). The rule also sits 5px below the label and 10px above the paragraph, so it reads as attached to the label. Proximity therefore groups DATA upward with the identity block and leaves nine lines of producer prose (y256–438) reading as an unlabelled row. The flush-left move and the size reduction landed — 237px, 28.5% of the 832px pane, down from ~41% last round — but the dt/dd pair is now two visually unrelated rows.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/2",
+      "severity": "P2",
+      "location": "Call Trace tabbed region, x691–1144, y63–560",
+      "finding": "The queued observation holds at laptop, measured: the region is 498px of the middle column's 832px (59.9%); its last ink is the 'By call order. / Self cost' footer at y320; 240px below that is empty — 48.2% of the whole region, 51.6% below the tab strip, 55.0% of the list body below the FRAME header rule at y124. But the second half of the observation no longer holds: the Values pane does NOT overflow — its last row ('i') ends at y851, leaving 44px (13.1%) of slack below a trailing rule at y860. Content demand is Call Trace 258px vs Values 291px against a 59.9/40.1 split. A 47/53 weight would give the tabbed region 391px (emptiness 133px, 34.0%) and Values 441px (150px of headroom). The pane that actually overflows is Transaction, in the third column, which this weight cannot reach. Tension to record, not a defect: the region is shared with Event Log, so the tab that opens by default pays for the tab that does not.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L2/3",
+      "severity": "P2",
+      "location": "Transaction pane bottom edge y895 (EXECUTIONS row); Code pane bottom edge y895 (line 52)",
+      "finding": "Two panes slice content through its x-height at the viewport-bottom pane border with no scroll affordance. In the Transaction pane the EXECUTIONS note's last full line is 'only proofs, nullifiers and commitments are' (y878–885); the following line is cut in half by the border at y895. In the Code pane the line-number band for line 52 is 886–895, also halved. Neither shows a scrollbar, fade or shadow — and this page elsewhere DOES signal overflow with a right-edge fade mask on truncated code lines, so the absence here reads as breakage rather than as scrolling. Not raised as P1 because the information itself is present in the DOM and a scroll container is legitimate in this register; the presentation gives no way to know that.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/4",
+      "severity": "P2",
+      "location": "Code pane, lines 26, 48 and 49 (row bands y217–261, y752–796, y796–840)",
+      "finding": "Line pitch in the code listing is 23px everywhere except the three rows carrying a stacked '+N' overflow chip, which measure 43.5px (26→27), 44px (48→49) and 44px (49→50) — two row heights in one listing, so the number of visible lines depends on the data. Worse, each chip's centre sits nearly equidistant between two lines: '+3' at y243 is 20.5px below line 26's centre and 23.0px above line 27's; '+2' at y778 is 20.5/23.5 from lines 48/49; '+3' at y822 is 20.5/23.5 from lines 49/50. Proximity says each chip belongs to the line BELOW it. The same element is placed inline on line 32 (x600–637, on the current-line band), so one chip type has two placements.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L2/5",
+      "severity": "P2",
+      "location": "Transaction pane, FEE PAYER row (y605–677), TARGET row (y677–749), COST · MANA row (y749–795)",
+      "finding": "At 286px this is the pane that loses width first, and its 268px content measure (x1158–1426) breaks three of ten rows. FEE PAYER and TARGET each set a 66-character address as three right-aligned lines whose third line is a two-glyph orphan ('32' and '4c'), so the reader must reassemble an address across three lines that are right- rather than left-anchored. COST · MANA puts '88000 / 200000' on line one and the unit 'mana (FeeJuice)' alone on line two, right-aligned under '200000', so the unit reads as qualifying the limit rather than the pair. Meanwhile the Code pane holds 682px, 2.4× this column.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/6",
+      "severity": "P2",
+      "location": "identity bar, x345–933",
+      "finding": "Past the single 1px divider at x345 the bar has one uniform rhythm and therefore no grouping. Measured gaps: 8–9px inside the identity cluster (x24–335) and inside the action cluster (x1319–1415); then exactly 16px between EVERY boundary from x427 to x933 — between the four stepping-control clusters (370–427, 444–496, 513–576, 593–656), between the last cluster and the scrubber (673–832), and between the scrubber and the position readout (849–933). Three different classes of object — controls, a timeline, a numeric readout — are spaced identically to the sub-clusters within one class. The gap set is 8/9/16/24/116px with no step relationship. Vertical centring is exact (optical mids 30.5–31.5 across all eleven groups) and the bar does not wrap at 1440; the failure is horizontal grouping only.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/laptop/light/L2/7",
+      "severity": "P2",
+      "location": "identity bar, phase rail x958–1202",
+      "finding": "Reported outside this lens rather than suppressed. The phase rail is drawn as a rounded pill of three equal segments with the first (FETCHING) filled blue and the other two plain — the same segmented-group shape as the stepping controls 300px to its left at x370–656, which are actual controls. Two things follow. Visually, a status readout and a control group are indistinguishable inside one bar. Semantically, FETCHING reads as the active phase on a session that is demonstrably past it: the readout says 128 / 1315, the Code pane is positioned at line 32, seven frames and ten values are rendered. Either the rail is a status and it is stale, or it is a control and it offers no choice.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/laptop/light/L2/8",
+      "severity": "P3",
+      "location": "Code pane, source-window note, x13–686, y165–210",
+      "finding": "The right-edge fade mask that this pane uses to signal horizontally truncated code lines is also applied to the source-window note, dimming 'not in' at the end of its first line even though the sentence wraps and completes with 'this window.' on the second. A truncation signal is drawn over text that is not truncated, which weakens the signal everywhere else in the pane.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/9",
+      "severity": "P3",
+      "location": "Code pane header strips, y63–210",
+      "finding": "Four stacked strips — pane title (63–94), loop/iteration chips (95–133), file tabs (134–160), source-window note (161–210) — take 147px, 17.7% of the pane's 832px, before the first line of code at a viewport where vertical space is the scarce axis. Their left text edges are 13, 14, 22 and 13px: the file-tab strip ('Nargo.toml') is indented 8px further than the strips directly above and below it, breaking the only vertical edge these four strips share. Strip heights are 31/38/26/49px.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L2/10",
+      "severity": "P3",
+      "location": "Call Trace rows, depth guide at x706 (rows y158–295)",
+      "finding": "Frame names step cleanly at 16px per level (x724 depth 1, x740 depth 2, x756 depth 3) but the vertical depth guide is drawn at a single x706 for every nested row regardless of depth, so one rule serves three levels and depth below the first is carried by indentation alone. In the same rows the 454px column forces two truncations at depth 3 — 'calculate_remaining_shie…' and 'src/shi…' — both mid-token.",
+      "criterion": "B6"
+    }
+  ]
+}
+```

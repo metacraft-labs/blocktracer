@@ -1,0 +1,103 @@
+Expected elements: present
+
+Every must-show item renders and no must-not-show item appears: full hash, `Succeeded`, the neutral `Not observable` chip with the published reason, exactly one provenance marker (the `Data` row badge `Real Aztec mainnet data` at the top of the Overview grid — no band, no chip), permanence stated verbatim, internal calls and state changes both "permanently, not yet", the footer closing the page with all three drawn marks. No retry, spinner, disabled control, trace reference or error colour anywhere. It reads as correct, not broken.
+
+All five changes landed. Cost is base ten; the decoded-input note now uses the third state honestly; `Age`/`Type` rows are labelled; the note spans the grid flush-left and that reads deliberate; the chain is `/aztec`. Read beside `tx-detail--absent`, the two reasons stay distinct — pruning versus private kernel — so the pages do not collapse.
+
+What fails is tone, and it fails by leaking machine tokens into prose. The label `COST · TRANSACTIONFEE` (y1245) is a camelCase key uppercased; the value is 19 undelimited digits plus `FeeJuice`; `TYPE` prints the bare enum `public` (y1102) beside sentence-case chips; the breadcrumb calls the chain `aztec` (y166) while the badge 640px below calls it Aztec mainnet. The Data row then shouts `NO TRANSACTION INSIDE IT WAS REPLAYABLE` (y860) and prints `transaction(s)`/`block(s)`.
+
+Fix first: humanise the cost label/value and the breadcrumb chain name; drop the all-caps clause and the template plurals.
+
+Rating: 6/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/1",
+      "severity": "P2",
+      "location": "Overview grid, last row, label column (x500-620, y1245-1280)",
+      "finding": "The cost label reads `COST · TRANSACTIONFEE` — the producer's camelCase field key `transactionFee` uppercased and glued to the word Cost, wrapping onto two lines and forcing the row taller than every other. The label slot prints whatever key the chain publishes: on `tx-detail--absent` the same slot reads `COST · MANA` and passes only because that key happens to be a word. On the page that carries the product's honesty claim, the one row a reader looks to for what the transaction cost is captioned in RPC vocabulary.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/2",
+      "severity": "P2",
+      "location": "Overview grid, cost row value (x688-960, y1253)",
+      "finding": "Base ten landed, but it landed as `3906250659561864576 mana (FeeJuice)` — nineteen undelimited digits no reader can hold, followed by a camelCase token in a parenthetical. Without grouping or unit scaling this is only marginally more human than the hex word it replaced, and `FeeJuice` is a machine identifier sitting where a denomination name belongs. Compare the demo page's `42000 / 100000 mana`, which is legible because the magnitudes are small, not because the treatment is right.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/3",
+      "severity": "P2",
+      "location": "breadcrumb, second crumb (x525-560, y166)",
+      "finding": "The chain crumb prints the route slug `aztec` in lowercase, and the third crumb prints the route segment `tx`. The provenance badge 640px below names the same chain `Real Aztec mainnet data`, so one page gives the chain two names and the more prominent one is the URL path. Rendering the path as navigation prose is the same defect as the cost label in a different slot.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/4",
+      "severity": "P2",
+      "location": "Overview grid, TYPE row value (x688, y1102), against CANONICAL y1177, AGE y1140, FINALITY y1215",
+      "finding": "The new `Type` row prints the raw enum `public` — lowercase, monospace, unpunctuated — while every other small categorical value in the same grid is a sentence-case chip: `Yes`, `Finalized`, `No timestamp published`. Three treatments for one class of value inside eight rows, and the one that skips the chip is the one that is a bare enum member. `No timestamp published` also stretches the chip the other way, putting a full sentence into a vocabulary the rest of the page uses for status words.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/5",
+      "severity": "P2",
+      "location": "Overview grid, Data row prose, line 4 (x528-990, y860-885)",
+      "finding": "`NO TRANSACTION INSIDE IT WAS REPLAYABLE` is set in all caps mid-sentence. Nothing else in the explorer register shouts, and the emphasis reads defensive — as if the page were rebutting an accusation — which is the opposite of the register this state needs. The very next clause, 'That is what the capture found, not a failure to record', already makes the point in the product's own restrained voice and does not need the caps to carry it.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/6",
+      "severity": "P2",
+      "location": "Overview grid, Data row prose (`25 transaction(s)` y926, `76 block(s)` y948)",
+      "finding": "Template pluralisation surfaces twice in one paragraph. Both counts are known and both are plural, so both should read `transactions` and `blocks`. `(s)` is the single clearest signal on the page that the sentence was assembled by a program rather than written, and it sits inside the marker whose whole job is to be believed.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/7",
+      "severity": "P2",
+      "location": "Not observable panel, second paragraph (x528-1180, y480-555)",
+      "finding": "The pruning explanation spends five unglossed engineering terms in three sentences: `getTxByHash`, `getTxEffect`, 'the finalized tip', 'the replayable window' and 'this follower'. A reader who does not run a node cannot tell from this whether the limitation is the chain's or the product's — which is the one thing the paragraph exists to establish. The framing is otherwise right (nothing here blames the recorder), so the fix is a leading plain sentence before the method names, not a rewrite.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/8",
+      "severity": "P2",
+      "location": "Decoded input grid, SELECTOR row (y1476) and RAW row (y1513) against the note below (y1550-1650)",
+      "finding": "The new three-state note is right and reads well, but the grid above it contradicts it. SELECTOR uses `—` for absent; RAW prints `0x`, which asserts that empty call data was published — the exact distinction the note says this section cannot draw ('Whether none was published or the body was pruned ... is not something this section can tell'). Two absence glyphs in a two-row grid, one of them making a claim the prose withdraws. Filed P2 rather than P1 because the note sits immediately below and corrects it, but on this page that distinction is the subject matter.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/9",
+      "severity": "P3",
+      "location": "Not observable panel, second paragraph (x528, y505 and y520)",
+      "finding": "`getTxByHash` and `getTxEffect` are set in the proportional body face. Everywhere else the product sets code-shaped values in monospace — the hash, the block ref, `blocktracer-demo-gen` in the footer disclosure two screens below. Two API method names reading as ordinary words is a register crossing that does not announce itself.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/10",
+      "severity": "P3",
+      "location": "Overview grid, Data row prose, lines 1-2 (x528, y818 and y840)",
+      "finding": "Both capture timestamps are printed to millisecond precision (`2026-08-31T07:39:12.420Z`, `2026-08-31T17:13:36.084Z`) inside a human sentence. The milliseconds carry no meaning a reader can use and give the opening line a log-file cadence, which is the wrong first impression for the page's only provenance claim.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/11",
+      "severity": "P3",
+      "location": "Events section note (x528-1060, y1845-1890)",
+      "finding": "Three of the four empty sections state permanence; Events promises arrival — 'They appear here once this chain's receipts are published' — on a page whose own panel says the node still serves this transaction's effects. Scanning the four boxes gives permanent / pending / permanent / permanent. Held at P3 because the expectation block narrows the permanent-tense requirement to internal calls and state changes, so the transient reading here appears to be deliberate; if receipts for a below-tip transaction can never arrive, this is a P1 honesty failure and should be re-filed.",
+      "criterion": "A9"
+    }
+  ]
+}
+```

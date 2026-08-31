@@ -1,0 +1,31 @@
+Expected elements: present
+
+Every MUST SHOW item is on the page and none of the MUST NOT SHOW items are. The `Not observable` badge carries the published reason and locates it in the chain's retention (`getTxByHash` prunes at the finalized tip, `getTxEffect` does not) rather than in this product. Exactly one provenance marker is present — the `Data` row at the head of the Overview grid, badged `Real Aztec mainnet data` in the affirmative tone, with no band and no chip competing with it; it does land as the first fact, before the empty sections below. The permanence claim is explicit ("a permanent answer rather than a failed fetch"), Internal calls and State changes both say "permanently, not yet", the footer closes the page with the correct non-committal disclosure, and all three provenance-strip marks are drawn and visible. Cost now reads in base ten, and the `Age` and `Type` rows are labelled and present.
+
+The weakest element is the `Raw` row of the Decoded input facts grid, which prints `0x`. On the one page in the tree whose whole thesis is that the transaction's body is gone, that row asserts a known value — that the calldata is the empty byte string. The page says the opposite twice: the `Not observable` panel states the node "no longer serves its body", and the note two lines beneath the row says whether "none was published or the body was pruned before it was captured is not something this section can tell". An unknown is being rendered as a known-empty, which is a state presented as a different state. The `Selector` row directly above it already has the right answer — an em-dash — so the grid uses two conventions for the same fact one line apart, and the row a reader hits first is the wrong one. Last round the note here was the weakest element; the note has been fixed and the grid above it now contradicts it.
+
+Fix: render `Raw` as `—`, matching `Selector`, whenever the body was not captured.
+
+Rating: n/a (presence check passed)
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/ADV/1",
+      "severity": "P1",
+      "location": "Decoded input section, facts grid, `Raw` row (value `0x`)",
+      "finding": "The Raw row prints `0x`, asserting the calldata is a known empty byte string, on a page that states twice that the body was pruned and that the section cannot tell whether calldata was never published or was pruned before capture. An unknown is rendered as a known-empty value, and the Selector row one line above uses `—` for the same unknown, so the grid contradicts both itself and the note directly beneath it.",
+      "criterion": "A9"
+    }
+  ]
+}
+```

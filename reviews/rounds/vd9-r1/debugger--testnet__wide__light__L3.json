@@ -1,0 +1,82 @@
+Expected elements: present
+
+All four changes landed. (1) The provenance note is its own grid-spanning `dd`, flush left at x=1541 under the `DATA` row (y 210–380). (2) `COST · TRANSACTIONFEE` reads `1755555891986239551` in base ten at #242424, ending x≈1903 with an 11px gutter to the pane rule at x=1915 — my last-round finding is resolved, and the label/value grid is intact. (3) The decoded-input note renders its no-call-data variant (y 742–828). (4) The exit reads `← aztec-testnet`; no synthetic slug, no fixture content, no invented file, line or symbol names. The `⊙`/`⊘` glyphs do not appear — this trace has no source, so there is no current-line band and the prior 2.40:1 measurement cannot be retaken here.
+
+Text contrast is genuinely good: labels #565656/white 7.34:1, prose #484848 9.15:1, values #242424 15.5:1, links #4F46E5 6.29:1, badges 6.49:1 and 6.61:1. One exception below.
+
+The palette, though, is inherited rather than designed: every accent is a literal framework default across four unrelated hue families, and the badge system spends two tones on six meanings.
+
+Top fixes: give provenance and the `Pending`/absence states tones of their own, and put the `RAW (CHAIN-NATIVE)` block in the editor palette.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L3/1",
+      "severity": "P2",
+      "location": "transaction pane badges — Succeeded (1543-1632, y100-122) and identity bar (263-347, y20-42); Real Aztec testnet data (1735-1908, y178-199); Trace ready (1596-1686, y614-635); No timestamp published (1730-1908, y452-473); Yes (1866-1908, y484-505); Pending (1836-1908, y516-537)",
+      "finding": "Six semantically different states share two tones. One green (#DCFCE7 fill / #16A34A border / #166534 text) carries execution status, provenance and trace availability; one grey (#F3F3F3 / #565656) carries an absence (No timestamp published), an affirmative (Yes) and an unsettled state (Pending). An absent fact and a confirmed one are chromatically identical, so the badge column cannot be scanned for meaning — only read.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/2",
+      "severity": "P2",
+      "location": "identity bar, y20-42 — exit link and 63675:0 link #4F46E5; progress fill x775-865 #155E75; active FETCHING chip x1322-1400 #DBEAFE/#1E40AF; Succeeded badge x263-347 green",
+      "finding": "Four unrelated hue families inside one 62px bar, all literal framework defaults (indigo-600, cyan-800, blue-100/800, green-100/600/800). Three of them are blues within 260px of each other, and the in-progress idea alone is expressed three ways: cyan fill, blue chip, grey Pending pill. Brief section 2 asks for one accent hue family shared across registers; nothing here reads as chosen for this product, so the light theme reads as the framework's palette on inverted surfaces rather than a designed counterpart to the dark default.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/3",
+      "severity": "P2",
+      "location": "transaction pane, RAW (CHAIN-NATIVE) block, x1543-1908, y865-1080",
+      "finding": "The only code surface on the page carries no editor tokens at all: keys, string values, integers and booleans are all #242424 on #ECECEB. Brief section 3 makes the CodeTracer editor palette the one sanctioned crossing between registers, and this is the debugger register itself. A twelve-line JSON block with zero token colour reads as a quoted paragraph, not as code, and loses the fastest cue for the values that matter here (revertCode 0, effectVisibleAtCapture true, instructionsExecuted 345).",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/4",
+      "severity": "P2",
+      "location": "transaction pane DATA row, badge at 1735-1908 y178-199 and provenance prose at 1541-1908 y210-380",
+      "finding": "The band removal was right, but provenance was not given a colour role to replace it. Its badge is pixel-identical to Trace ready 435px below (same fill, border and text), and its sentences are the same #484848 on the same #FFFFFF as the decoded-input note at y742-828 — so the flagship claim and a routine could-not-decode note are chromatically the same object. The row is legible but too quiet for what it asserts; a distinct provenance tone on the badge alone would carry it without reinstating the band. Fix alongside finding 1 rather than separately.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/5",
+      "severity": "P2",
+      "location": "transaction pane, SELECTOR row value, em-dash at approx (1898, 676)",
+      "finding": "The em-dash placeholder is #8A8A8A on #FFFFFF — 3.45:1, the only text-or-glyph pair on the page below 4.5:1 (everything else clears 6.2:1). It is the sole carrier of the row's value, so at this contrast the row reads as a failed render rather than as a stated absence.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/6",
+      "severity": "P3",
+      "location": "identity bar, progress bar track, x868-1035, y25-37",
+      "finding": "The unfilled track is #919191 — 2.7:1 against the #ECECEB canvas and heavier than any other inactive element on the page (internal pane rules are #C8C8C8). Against the #155E75 fill it reads as a second filled segment rather than a track, so the widget is momentarily ambiguous about which side is progress.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/7",
+      "severity": "P3",
+      "location": "identity bar far right — share button x1836-1862, download button x1868-1898, y20-45",
+      "finding": "Two adjacent icon buttons use two different surface treatments: share is a #DDDDDD filled chip with no border and a #565656 glyph (5.67:1), download is white with a #C8C8C8 hairline and a #101010 glyph (19:1). Same rank, same group, two token sets — and the pairing implies a state difference that does not exist.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/8",
+      "severity": "P3",
+      "location": "transaction pane, RAW (CHAIN-NATIVE) block edge at x1543 and y865; page canvas and inter-pane gutters at x917-921, x1529-1533",
+      "finding": "The surface ladder is 221 / 236 / 243 / 255 — four levels inside 1.17:1 total — and #ECECEB does three jobs at once: page canvas, inter-pane gutter, and the inset code block. The innermost surface is therefore the same token as the outermost, and the code block has no border, so its edge is carried by 19 levels of grey (1.17:1) alone. The pane outlines (#A2A2A2) and internal rules (#C8C8C8) do the structural work the surface values do not.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

@@ -1,0 +1,96 @@
+Expected elements: present
+
+All five changes land. Cost reads `3906250659561864576 mana (FeeJuice)` in base ten, number at #242424 and unit at #484848 — a designed emphasis pair. The decoded-input note carries three state-distinct sentences. `Age` and `Type` rows are present. The provenance note sets flush-left in its own spanning `dd`. The breadcrumb reads `Home / aztec / tx / …`. No red or amber pixel exists anywhere on the page — correct, this is not an error — and every text-on-surface pair clears 4.5:1 (chip text 6.6, label 6.7, footer 7.3). This is a designed light theme, not an inversion.
+
+On the tone question, judged independently: green means exactly one thing (affirmative) and is applied consistently. Neutral does not. In the Overview grid, AGE's `No timestamp published` (y1145) and CANONICAL's `Yes` (y1183) are pixel-identical chips — #F3F3F3 fill, #C8C8C8 border, #565656 text — so one tone carries both an absent fact and an affirmed one, while FINALITY's `Finalized` (y1221), an affirmation of the same class as `Yes`, is green.
+
+Two changes had side effects. The new Age row put an absence chip in the same column as an affirmation chip. The spanning provenance `dd` severs the #DDD label rail (white from y800–1050), detaching the DATA row from the grid it heads.
+
+Highest-priority fixes: split the neutral chip into distinct absent and affirmed tones; give the Raw block a fill so it stops reading as a cutout.
+
+Rating: 7/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/1",
+      "severity": "P2",
+      "location": "Overview grid, value column — AGE row (chip at ~x767,y1145) and CANONICAL row (chip at ~x699,y1183)",
+      "finding": "The neutral tone carries two opposite meanings. `No timestamp published` (a fact the chain does not publish) and `Yes` (a fact the chain does publish, affirmatively) are pixel-identical chips: fill #F3F3F3, border #C8C8C8, text #565656. One row lower, FINALITY's `Finalized` — an affirmation of the same class as CANONICAL's `Yes` — is green (#DCFCE7 / #16A34A / #166534). So two affirmative facts get two different tones, and an affirmative fact shares its tone with an absence. Scanning the value column, tone tells a reader nothing about whether a row holds a value or a hole. This is the direct side effect of this round's new Age row.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/2",
+      "severity": "P2",
+      "location": "Raw (chain-native) block, x~504-1410, y2390-2635",
+      "finding": "This is the only container on the page with no fill: its interior is #ECECEB, the exact page canvas colour, drawn with only an #A2A2A2 outline. Every one of its seven siblings — the Not observable card (y354-600), the Overview grid, the Decoded input grid, and the four note cards — is filled #FFFFFF. The result is that the last section reads as a cutout in the page while everything above it reads as a raised card, so the elevation logic inverts once, at the bottom, for no stated reason.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/3",
+      "severity": "P2",
+      "location": "Overview grid, label rail — x504-680, y764-1300",
+      "finding": "The #DDDDDD label rail runs for the DATA row (y764-800), is then severed by the full-width white provenance `dd` (white at x490-520 from y800 to y1050), and resumes at BLOCK (y1050). The rail is the grid's strongest structural surface, and it now appears as a 36px stub followed by a 250px white gap followed by a 250px run. The consequence for this round's change (4): the DATA row reads as a detached header sitting above the grid rather than as the grid's first fact, which is the opposite of what the provenance-row change was meant to achieve.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/4",
+      "severity": "P2",
+      "location": "Whole page — grid row dividers (y1120, y1158, y1196, y1234), chip outlines, container outlines, nav hairline (y63), footer hairline (y2732)",
+      "finding": "Every structural boundary on the page sits below the 3:1 non-text contrast floor. Grid dividers and chip outlines are #C8C8C8 = 1.67:1 on white; container outlines are #A2A2A2 = 2.55:1 on white and 2.16:1 on canvas; the nav and footer hairlines are #C8C8C8 = 1.42:1 against the canvas. The green badge border (#16A34A, 3.3:1) is the only boundary on the page that clears 3:1. Fills carry no contrast either — white cards on the #ECECEB canvas is 1.18:1, and the label rail against canvas is 1.15:1 — so the page's entire structure is delivered by near-threshold cues. The load-bearing cases are the facts-grid row dividers, which are what separate one label/value pair from the next.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/5",
+      "severity": "P3",
+      "location": "`Succeeded` (~x778,y246), `Real Aztec mainnet data` (~x767,y784), `Finalized` (~x717,y1221)",
+      "finding": "All three green badges are pixel-identical — #DCFCE7 fill, #16A34A border, #166534 text, same type size — and two of them sit in the same column 440px apart. Green does mean one thing here (affirmative), so this is not a role collision. But the provenance marker, which the spec grades as content rather than status because it is the only element telling a reader the hashes are real, carries no chromatic privilege over the routine `Finalized` chip below it. It lands first by position alone; a reader counting green pills in that column sees three equal-weight status chips.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/6",
+      "severity": "P3",
+      "location": "`Not observable` badge (~x592,y398) vs the grid chips at y1145 and y1183",
+      "finding": "The neutral tone has two unrelated forms. `Not observable` is a full pill with a transparent (white) fill, a #C8C8C8 outline, and a #565656 leading dot. The grid chips are rounded rectangles with a #F3F3F3 fill and no dot. The dot appears on one absence marker and not on the other absence marker (`No timestamp published`), so the extra channel does not sort by meaning either — it sorts by which component happened to render it.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/7",
+      "severity": "P3",
+      "location": "Decoded input grid — SELECTOR value `—` (~x693,y1483) and RAW value `0x` (~x695,y1520)",
+      "finding": "Both absent-value placeholders render at #242424, the full-emphasis value colour, identical to `public` in the TYPE row (~x714,y1107), which is a real value. The emphasis scale carries no placeholder level. Three hundred pixels above, the AGE row expresses the same idea — this fact is not published — with a muted #565656 chip. So after this round the page holds two unrelated vocabularies for absence: a muted chip and a full-emphasis glyph.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/8",
+      "severity": "P3",
+      "location": "Footer provenance strip — heart glyph at ~x1094,y2790, CodeTracer mark at ~x1407,y2791",
+      "finding": "Both marks render at #4F46E5, the exact accent used for every link on the page (Home, aztec, 67511:0, About, Chains, Privacy & settings, Metacraft Labs, CodeTracer, Source on GitHub). The heart is not interactive yet sits inline between two underlined links in that colour, so on one line the accent hue means both `interactive` and `brand decoration`. Both marks are drawn, visible and correctly non-emoji, so this is not a presence failure — only a role overload.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/9",
+      "severity": "P3",
+      "location": "Raw (chain-native) JSON body, y2470-2600",
+      "finding": "Keys, integers and booleans all render at #242424 with zero token differentiation — `\"l2BlockNumber\"`, `67511`, `false` and `true` are one flat colour. This is the only block on the page with no colour system at all, on a page that otherwise maintains a tight, deliberate palette. Brief §3 sanctions the product lineage's editor tokens inside explorer-register pages, and a chain-native payload is the closest thing to code this view carries.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/10",
+      "severity": "P3",
+      "location": "Container shadows — Not observable card (bottom edge y600), Overview grid (y1300), Decoded input grid (y1539), note cards (y1661, y1917, y2020 and State changes)",
+      "finding": "Three shadow depths, measured at x800: the Not observable card casts 33px starting at #D5D5D5; both facts grids cast 8px starting at #DADAD9; all four note cards cast nothing. Elevating the primary message and flattening secondary notes would be a coherent ladder, but the note cards that carry the page's permanence claims (`empty permanently, not yet`) sit flattest, and the Raw block sits below even them with no fill at all, so the ladder does not track importance.",
+      "criterion": "A10"
+    }
+  ]
+}
+```

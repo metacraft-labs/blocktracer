@@ -1,0 +1,82 @@
+Expected elements: present
+
+Register fidelity is genuinely good — dark, dense, mono-textured, with the desktop app's file tab strip, loop-iteration chips, inline value pills, depth guides and a phase rail that names and quantifies. Nothing here reads as the explorer inverted.
+
+The five changes: (1) landed, and is the round's win — the provenance paragraph (y232–355) now spans the pane flush-left in six lines instead of eleven, and FEE PAYER / TARGET recovered their column. It is not too quiet: the badge is the pane's only blue-outlined chip. (2) not verifiable — the only cost row in view is `COST · MANA` (y633), base ten; the fee row sits below the pane's unsignalled clip at y1080. (3) only the no-calldata sentence renders here; it is state-specific and well-formed. (4) landed at line 29 (`⊘`) and line 32 (`⊙`), but inconsistently. (5) landed in the exit (`← demo`, x22–77); prose residue remains.
+
+The queued observation stands. `Status reason: private-part-succeeded-public-part-succeeded` (y155–186) is still a raw kebab enum, and because it sits ABOVE the DATA row it is the first prose a reader meets in the pane carrying this register's honesty claim. `sentenceCase` exists in `client/src/viewutil.nim` and is not applied; capitalisation alone would not fix it. The `Partial` badge and the EXECUTIONS group already say this, so deleting the line is defensible.
+
+Highest-priority fixes: humanise or drop the status reason; extend `⊘` to every unrun arm.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L5/1",
+      "severity": "P2",
+      "location": "Transaction pane, third line of the identity block — `Status reason: private-part-succeeded-public-part-succeeded`, x1541-1901, y155-186, wrapping onto a second line directly above the DATA row at y197",
+      "finding": "The queued observation is unchanged: a raw kebab-case enum literal is printed as prose, in the same size and colour as the full hash above it, in the pane that carries this register's honesty claim. Change (1) made this worse in one specific way — now that the provenance paragraph is set flush-left as a proper block, this line is the only prose in the pane that is not a sentence, and it is the FIRST prose a reader meets there, above the DATA row. `sentenceCase` exists in client/src/viewutil.nim (documented as 'an enum literal rendered as prose') and is not applied to `outcome.reason`; the label was humanised in that same file and the value was not. Capitalisation alone would still leave the hyphen chain, so the fix is a phrase ('Private part succeeded; public part succeeded') or deletion — the `Partial` badge at x1544-1598 and the EXECUTIONS group at y663-790 already carry this fact twice.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/dark/L5/2",
+      "severity": "P2",
+      "location": "Transaction pane, EXECUTIONS group, the note under the `private` / `Not observable` row — x1541-1902, y706-761",
+      "finding": "`aztec private function executed client-side; only proofs, nullifiers and commitments are published — no call structure to trace` is an adapter fragment, not a sentence: no initial capital, no terminal period, semicolon-joined. It sits in the same visual slot as the DATA paragraph (y232-355) and the decoded-input note (y878-988), both of which are properly formed sentences with terminal periods, so one pane now shows three different prose registers. It also opens with the protocol name in lowercase — `aztec` — while the identity bar's chain crumb reads `demo` (x22-77) after change (5), so the only place the reader is told which protocol this is contradicts the only place they are told which chain it is.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/dark/L5/3",
+      "severity": "P2",
+      "location": "Code pane gutter, x76-84: line 29 carries `⊘` at y288-300, line 32 carries `⊙` at y358-370, line 35 carries nothing at y428-440",
+      "finding": "Change (4) landed but covers only one of the two branch sites visible in this window. Line 29 is the arm of `if(shield_pct == 100)` that did not run and is marked `⊘`; line 35 (`damage = remaining_shield;`) is the arm of `if(damage as u32 > remaining_shield as u32)` that also did not run — damage is 2000 and remaining_shield is 9000 per the Values pane — and carries no mark at all. Two structurally identical states are drawn two different ways six lines apart, which teaches the reader that a blank gutter and a `⊘` mean the same thing and so drains the new mark of meaning. Separately, `⊙` and `⊕`-like `⊘` are both ~7px circles at this render size, distinguished only by a dot versus a slash, and no legend for the three gutter glyphs (`·`, `⊙`, `⊘`) appears anywhere on the page.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L5/4",
+      "severity": "P2",
+      "location": "Code pane, the notice band directly above line 26 — x12-915, y168-190",
+      "finding": "`Showing from line 26 — the session's position is below, and the lines above it are not in this window.` Under the natural reading, `it` binds to `the session's position`, and the clause is then false: lines 27 to 31 are above the position and they ARE in this window. Under the charitable reading (`it` = line 26) the sentence is merely redundant with its own first clause. Either way `the session's position is below` reads as 'scroll down to find your position' while the current line is highlighted six rows down at y358, fully visible — the one sentence on this page whose job is to explain the window's framing tells the reader to look for something already in front of them.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/dark/L5/5",
+      "severity": "P3",
+      "location": "Transaction pane, DECODED INPUT group — SELECTOR row value at x1888-1902, y822-838, and RAW row value at x1888-1902, y852-868",
+      "finding": "Both rows render their entire value as the bare literal `0x`, right-aligned hard against the pane edge. To a debugger audience `0x` is a defensible rendering of empty bytes, and the note below at y878-988 explains the state correctly, but at this size two rows ending in a two-character stub read as a truncation artefact rather than as a value — the same shape a clipped hash would take in the FEE PAYER row above.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L5/6",
+      "severity": "P3",
+      "location": "Transaction pane, decoded-input note, first clause — x1541-1902, y878-900",
+      "finding": "`This tree holds no call data for this transaction` uses `tree` for the published static data tree. It is consistent with the sibling sentence in the same copy family (client/src/viewutil.nim:622), but the word is never defined on this page, and it is ambiguous here in particular: the CALL TRACE pane at x920-1525 is showing a populated tree of eight frames, so a reader can plausibly parse the sentence as 'the call tree has no data' and take it as contradicting the pane beside it. `This chain's published data` or `The captured data` avoids the collision.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/dark/L5/7",
+      "severity": "P3",
+      "location": "Identity bar, the seam between the scrubber (x675-935) and the position readout `128 / 1315` (x1122-1206)",
+      "finding": "The bar orders its objects scrubber, then `Engine loading — 18 MB` (x950-1105), then the position readout, then the phase rail (x1224-1475). The readout and the scrubber express one thing — the scrubber's filled portion is ~10% and 128/1315 is 9.7% — and they are separated by an unrelated engine-load string, while the engine string is separated from the phase rail that qualifies it by the readout. Everything left of x935 groups cleanly (identity, then four control clusters); from x935 to x1475 the bar reads as three unrelated objects in the wrong order. Swapping the readout and the engine string would pair each with its own partner.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L5/8",
+      "severity": "P3",
+      "location": "Call Trace / Event Log tabbed region, x920-1525, y65-670 — the area below the `By call order.` footer at y307-322",
+      "finding": "The measurement the watch-for asks for, recorded rather than argued: the tabbed region is ~605px tall, the eight frames plus footer end at y322, so ~348px — 58% of the region — is empty. However the Values pane below it (y675-1080) is also not full: its last row `i` ends at y948, leaving ~130px. So at this fixture volume no pane is starved and the slack is harmless; the height allocation only becomes wrong at a trace deep enough to scroll, at which point the region has the height and the Values pane does not. Worth revisiting against a forty-frame fixture, not against this one.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

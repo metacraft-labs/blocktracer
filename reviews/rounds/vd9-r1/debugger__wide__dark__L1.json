@@ -1,0 +1,94 @@
+Expected elements: present
+
+All required elements render: four panes, Call Trace/Event Log as one tabbed region with Call Trace open, Values as a pane below it, the identity bar with `← demo`, truncated hash, bidirectional stepping, scrubber, `128 / 1315` and the phase rail. No band above the bar, no spinner, no empty pane, no light chrome.
+
+Iteration changes. (1) Landed: the provenance note is flush-left at x=1541, aligned to the `DATA` label, six lines over a ~364px (~60ch) measure; the ragged-left 28ch column is gone and the row costs ~165px against the old band's ~190px. It is not too quiet — the badge plus a full-measure paragraph is the pane's largest text object; only its label is unpromoted (finding 8). (2) Not observable here: the only cost row is `COST · MANA 88000 / 200000 mana (FeeJuice)` (y=633), base ten, unpadded; `transactionFee` exists only in the aztec snapshots, so the hex-word fix must be judged on the testnet capture. (3) Landed for the state shown (note at y≈880–980) — but `SELECTOR`/`RAW` above it print `0x` at value weight, asserting empty bytes where the note says the section cannot tell. (4) Landed (line 29 `⊘`, line 32 `⊙`) but the two rings differ by 1–2px at ~10px. (5) Landed.
+
+Requested measurement: the tabbed region runs y68–668; its footer ends y≈320, leaving ~348px (58%) empty, against ~130px spare in Values.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L1/1",
+      "severity": "P2",
+      "location": "Transaction pane, FEE PAYER (y≈560) and TARGET (y≈586) rows, x1541–1905",
+      "finding": "Both 40-hex addresses wrap onto a second, right-aligned line (`…e2a272b5` / `e430d5d932`; `…6fe8f17` / `a59161624c`), so the continuation is ragged-left, short, and reads as a separate value rather than the tail of the one above. Every other long value on the page is middle-truncated with an ellipsis (`0xb636167a…66d46359` two rows up, `0xb63616…6359` in the identity bar), so the pane runs two different strategies for the same data type within 450px of each other.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/2",
+      "severity": "P2",
+      "location": "Code pane gutter, x≈76–84 — line 29 (`⊘`, y≈295) and line 32 (`⊙`, y≈364)",
+      "finding": "The new branch-arm marks render as rings of identical diameter, weight and optical size at ~10px; the entire distinction between 'this arm did not run' and 'this arm did run' is a 1–2px interior feature (diagonal stroke versus dot). At 1:1 they are not separable without zooming, which leaves grey-versus-cyan carrying the meaning alone. They also read as one family with the plain `·` execution dot on lines 26–28 and 31, so the gutter offers three near-identical dot glyphs for three different states.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L1/3",
+      "severity": "P2",
+      "location": "Call Trace pane, every frame row, x≈935–1400, y≈130–295",
+      "finding": "Each row sets its function name in the monospace face (`main`, `calculate_remaining_shield_pct`) and the module and path immediately beside it in the proportional UI face (`zk_shields · src/shield.nr`). One row, two faces, and the face assignment is backwards: a file path is exactly the kind of literal the product's monospace texture exists for, while the sans setting makes seven repetitions of `zk_shields · src/shield.nr` blur into an even grey mass with no character-level landmarks to tell `main.nr` from `shield.nr` at a glance.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/4",
+      "severity": "P2",
+      "location": "Code pane, notice strip between the file tabs and line 26 — 'Showing from line 26 — the session's position is below…', x10–915, y≈178",
+      "finding": "UI copy is set in the monospace code face at ~12.5px across the full 905px pane, a ~105-character measure at the same size and near the same colour as the listing 25px below it, so a sentence about the window typesets as a line of the program. Both prose notes in the Transaction pane (the provenance sentences and the DECODED INPUT note) use the sans face, so the product does have a prose face and this one row does not use it.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/5",
+      "severity": "P2",
+      "location": "Code pane, line-number column x≈40–62 — the rows for lines 26 (y≈206) and 48 (y≈735)",
+      "finding": "The listing's pitch is not constant: most rows sit at a 23px pitch, but any row whose inline value chips overflow to a second line runs ~45px (26→27 and 48→49), because the `+3` (y≈225) and `+2` (y≈757) chips stack under the code instead of sitting on the baseline. The line-number column therefore loses its rhythm, and the two stretched rows read as blank lines that do not exist in the file — next to lines 39 and 52, which are genuinely blank and look the same.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L1/6",
+      "severity": "P2",
+      "location": "Transaction pane, DECODED INPUT section — SELECTOR (y≈829) and RAW (y≈859), values at x≈1890–1905",
+      "finding": "Both values render as a bare `0x`, set in the same mono weight, size and right alignment as `101:0`, `private + public` and the 40-hex addresses above, so an absent value is typeset as a present one. The note 20px below states that this section cannot tell whether nothing was published or the body was pruned, while the two rows above it assert empty bytes. Either the null needs its own quieter treatment (an em dash or a toned 'none published' chip, as AGE already does with 'No timestamp published') or the rows should not print.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/dark/L1/7",
+      "severity": "P3",
+      "location": "Transaction pane, first two lines (y≈111 and y≈137) and the identity bar hash (x≈86–196, y≈31)",
+      "finding": "The middle-truncated `0xb636167a…66d46359` is set larger and brighter directly above the complete hash it truncates, so the less informative form outranks the informative one and the pane opens by saying the same thing twice. The identity bar truncates the same value to a different budget (`0xb63616…6359`, 6+4 against the pane's 8+8), so the two renderings 1400px apart cannot be matched by eye without counting characters.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/8",
+      "severity": "P3",
+      "location": "Transaction pane, DATA row label at x=1541, y=205",
+      "finding": "The label of the row that says what every other row IS is set identically to BLOCK, TYPE, AGE, CANONICAL and FINALITY — same ~10px tracked uppercase grey. The move to a grid-spanning `dd` fixed the paragraph, and the blue outlined badge does carry weight the `Yes`/`Safe` pills do not, so the row is not too quiet overall; but nothing in the label's own type marks it as the pane's premise rather than its fourth attribute.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/dark/L1/9",
+      "severity": "P3",
+      "location": "Values pane, `masses[2]` row (x=938, y≈814) beneath `masses` (x=931, y≈788)",
+      "finding": "The element row is indented ~7px under its parent with no guide rail, so at this pane's row rhythm the nesting is legible only from the `[2]` in the name, not from the type. The Call Trace region 100px above expresses the same parent/child relation with a visible vertical guide plus a ~15px step, so one screen carries two conventions for depth and the weaker one is in the pane where names are longest.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/wide/dark/L1/10",
+      "severity": "P3",
+      "location": "Transaction pane COST · MANA row (`88000 / 200000`, y=633) against the Call Trace ACIR opcodes column (`1,315`, `1,208`, y≈137/162)",
+      "finding": "Two conventions for grouping digits in one viewport, both in mono: the call trace separates thousands, the cost row does not, and the un-separated numbers are the larger magnitude. The Values pane sides with the cost row (`10000`, `2000`, `1000`), which is defensible for program values that must read verbatim — but the mana budget is a count, not a Field element, and it currently formats like one.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

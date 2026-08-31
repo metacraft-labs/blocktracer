@@ -1,0 +1,112 @@
+Expected elements: present
+
+All four changes landed. The provenance note now sets flush-left in its own full-width row under `DATA` (y 205-380); the fee reads `1755555891986239551 mana (FeeJuice)` in base ten; the decoded-input note is a distinct sentence for this state; and no `aztec` slug or demo-fixture content appears — the exit reads `← aztec-testnet`, the facts are testnet. No band above the identity bar. The queued enum, `Status reason: private-part-succeeded-public-part-succeeded`, is gone from the visible viewport; status is carried by the `Succeeded` pill alone.
+
+But the same defect class survives twice. `COST · TRANSACTIONFEE` (1543,555) is still a camelCase key uppercased, alone among English labels. And the replay telemetry — `effectsMismatched: 0`, this view's faithfulness evidence — exists only as camelCase JSON inside `RAW (CHAIN-NATIVE)`, and the provenance paragraph's ~175px pushed it below the 1080 fold. The band's cost was relocated into the busiest pane, not removed.
+
+The three source-starved paragraphs are excellent and in one voice; each blames the chain, not the product. Two nits: the Code pane's second paragraph restates its first, and "This tree holds no call data" leaks an internal noun.
+
+Register: three green pills mean three unrelated things; and in light theme pane interiors and canvas are both white on a hairline, so a legitimately empty session reads as a failed render.
+
+Fixes: promote effects matched/mismatched to a labelled row above the raw block; rename the fee label.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L5/1",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) block, y 860-1080 (clipped by the viewport)",
+      "finding": "The replay telemetry this view exists to show — effects matched and mismatched, the evidence the replay reproduced the chain's own effects — is delivered only as camelCase JSON keys inside the raw block, and at 1080px the visible portion stops at \"hydrationRounds\": 6, so effectsMismatched is never on screen. The pane's honesty claim is stated in a machine dialect and then scrolled out of reach, while lesser facts (CANONICAL: Yes, FINALITY: Pending) get labelled rows. Promote instructions executed / effects matched / effects mismatched to labelled rows above the raw block.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/2",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row provenance paragraph, y 205-380",
+      "finding": "The moved provenance note is correct and flush-left, but at eight lines it spends ~175px inside the pane — almost exactly the ~190px the removed band spent across the viewport. The band's cost was relocated into the one pane carrying the most content rather than recovered, and it is what pushes the replay telemetry below the fold. The last two sentences (pruning below block 63628) describe the capture policy generally, not this transaction; they belong behind a disclosure or in a shorter form.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/3",
+      "severity": "P2",
+      "location": "Transaction pane, label column at (1543,555)",
+      "finding": "COST · TRANSACTIONFEE is a raw camelCase identifier uppercased. Every label around it is English — BLOCK, TYPE, AGE, CANONICAL, FINALITY, EXECUTIONS, DECODED INPUT — so the one machine key reads as a field that escaped from the ViewModel. The value was fixed to base ten this round; the label was not. Set it as COST · TRANSACTION FEE, or just TRANSACTION FEE.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/4",
+      "severity": "P2",
+      "location": "Transaction pane, decoded-input note, first sentence at (1543,748)",
+      "finding": "\"This tree holds no call data for this transaction\" uses an internal data-structure noun. A reader has no referent for \"tree\" — the same page says \"the chain publishes no source\" and \"still visible on the network\", which are the words this product otherwise uses. \"This capture holds no call data\" keeps the sentence honest without exposing the storage model. The rest of the note is in register.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/5",
+      "severity": "P2",
+      "location": "Transaction pane badges at (1586,110) Succeeded, (1821,188) Real Aztec testnet data, (1641,624) Trace ready",
+      "finding": "Three green outlined pills within 520px of each other mean three unrelated things: execution outcome, data provenance, and replay availability. The neutral pills below (No timestamp published, Yes, Pending) form a second vocabulary. Green currently reads as \"good\" generically rather than as one role, which blunts the provenance badge — the one that is supposed to be the loudest thing in the pane. Give provenance its own treatment distinct from status.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/6",
+      "severity": "P2",
+      "location": "Code pane (10,70-1075) and Call Trace pane (922,70-660) — pane interiors versus page canvas",
+      "finding": "In this theme the pane interiors are white, the canvas behind them is near-white, and the only boundary is a ~1px hairline; only the pane headers carry a fill. With roughly three-quarters of the left two-thirds of the viewport legitimately empty, the composition loses its pane structure and reads as an unstyled document rather than as the desktop app. This is exactly rubric B4's failure description, and it is what makes a correct sparse session look like a failed render. The dark default would not have this problem; the light theme needs its own surface levels rather than an inverted one.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/7",
+      "severity": "P2",
+      "location": "Call Trace pane, single sentence at (930,122)",
+      "finding": "\"Frames are recorded, and without a file map they carry no function names or source positions\" never says how many. The capture knows — the raw block reports instructionsExecuted 345 and hydrationRounds 6, and the identity bar shows 128 / 345. In a register that promises quantified statements rather than vague ones, an unquantified \"are recorded\" beside a 580px empty pane is the weakest of the three source-starved notes. Naming the frame count, or listing frames by index and program counter, would add information rather than remove it.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/8",
+      "severity": "P3",
+      "location": "Code pane, second paragraph at (24,240)",
+      "finding": "\"Stepping continues at instruction level.\" restates the first paragraph, which already says \"The recording is therefore at instruction level\" and \"Stepping is complete; only the text is missing.\" Set apart as its own paragraph it carries the weight of new information and delivers none. Delete it, or replace it with the position it could state (\"Stepping continues at instruction level — currently at step 128 of 345\").",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/9",
+      "severity": "P3",
+      "location": "Transaction pane, provenance paragraph line 4 at approximately (1543,285)",
+      "finding": "\"6 transaction(s) inside it were re-executed\" — the parenthetical plural is a template artifact in the one sentence on this page that is supposed to read as the producer's own words. The count is known to be 6, so the plural is decidable: \"6 transactions\".",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/10",
+      "severity": "P3",
+      "location": "Transaction pane, DECODED INPUT rows SELECTOR (1543,676) and RAW (1543,701)",
+      "finding": "SELECTOR prints an em-dash and RAW prints a bare 0x directly above a sentence explaining that there is no call data at all. The sentence covers both; the two rows add a machine-shaped null where the explanation is the content. Either suppress the rows in this state or fold them into the sentence.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/11",
+      "severity": "P3",
+      "location": "Identity bar, engine readout at (1051,31) against Trace ready at (1641,624)",
+      "finding": "\"Engine loading — 18 MB\" with FETCHING active in the phase rail sits in the same viewport as \"Trace ready\" and \"Stepping is complete\". Both are true — the served session is complete while the engine downloads for interactive stepping — but nothing on screen reconciles them, so the page appears to state two readiness levels at once. A word in the readout (\"Engine loading for live stepping — 18 MB\") would settle it.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/12",
+      "severity": "P3",
+      "location": "Transaction pane, fee value at (1772,558)-(1908,566)",
+      "finding": "1755555891986239551 renders as nineteen ungrouped digits ending ~3px from the pane border, with the unit \"mana (FeeJuice)\" wrapped to a second line — the only two-line value in the column. Base ten was the right fix; the figure is now correct but not readable as a magnitude. Group the digits or render it as an abbreviated figure with the exact value on hover.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

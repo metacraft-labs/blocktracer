@@ -1,0 +1,89 @@
+Expected elements: present
+
+Structurally the layout is right — one row of three columns (Code 4–916, nav 921–1528, Transaction 1533–1915), 4px gutters, 20px bar insets, 9px pane padding — but space is allocated badly at both ends of the page.
+
+Iteration changes: (1) landed — the provenance note is flush-left at x=1542, same edge as the labels, six lines, y234–354; the DATA block is now ~173px, ~17% of the pane's visible 1012px, down from 39–41%. It caused one regression: the pane's only rule near it sits at y=224, *between* the `DATA` label and its own note, and there is no rule above `DATA` (y184–196 is clean), so the rule groups the label with the hash block and cuts it off from the sentences it introduces. (2) unverifiable — no `COST · TRANSACTIONFEE` row is in the viewport; only `COST · MANA`. (4) landed — `⊙` line 32, `⊘` line 29, same gutter column. (5) landed — exit reads `← demo`.
+
+Call Trace emptiness still holds: interior y69–668 = 600px, content ends y≈328, **341px empty = 56.8%**. But Values does not overflow — interior 670–1074 = 405px, content ends 952, 30.1% empty. The nav column (1006px) needs 542px total; the pane that actually overflows is Transaction, cut mid-block at y=1075. So the weight should move out of the nav column, not around inside it.
+
+Fixes: give the bar's 327px void to the scrubber; give the nav column's width to Transaction.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L2/1",
+      "severity": "P2",
+      "location": "Call Trace tabbed region, nav column x921-1528, interior y69-668",
+      "finding": "The region's interior is 600px tall; content (tab strip, FRAME header, 8 frame rows, the hairline at y301 and the 'By call order. / Self cost' footer) ends at y=328, leaving 341px = 56.8% empty in one contiguous block. The queued 47-57% observation still holds at the top of its range. The counterpart claim no longer does: the Values pane below (interior y670-1074 = 405px) ends at y=952 and is itself 122px = 30.1% empty, so it is not starved. Combined, the 1006px nav column needs 542px and wastes 46% of itself. The pane that actually overflows is Transaction, so the one-line weight should take height out of the nav column entirely rather than redistribute 3:2 into roughly 1:1 between two panes that both already fit.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/2",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row, rule at y=224 (x1533-1915)",
+      "finding": "Moving the provenance note into its own grid-spanning dd took the row separator with it. The only hairline in that area is at y=224, between the 'DATA' label + 'Synthetic demo data' badge (y197-219) and the note itself (y234-354); there is no rule above the label (y184-196 is uniform background), while every row below - BLOCK at y371 under the rule at y363 - is separated by a rule above it. Proximity therefore groups 'DATA' upward with the hash and status-reason block and separates it from the six sentences it labels, inverting the grouping of a MUST-SHOW content item.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/3",
+      "severity": "P2",
+      "location": "Transaction pane bottom edge, y=1075, RAW (CHAIN-NATIVE) block",
+      "finding": "The pane's content overflows the fixed 1006px column and is hard-cut at the pane's bottom border: the RAW code block shows '{' and '\"aztec\": {' and then stops mid-line at y=1073-1074 with no fade, no scrollbar (x1907-1914 is uniform background), no rounded bottom corner and no rule. The Code pane solves the identical problem on its right edge with a gradient fade (luminance ramps from ~140 at x=886 to ~30 at x=915 on lines 40 and 53), so one screen carries two different overflow treatments and the one on the pane that loses the most content is the silent one. The COST . TRANSACTIONFEE row named in this iteration is not visible anywhere in the viewport, which is the concrete cost.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/4",
+      "severity": "P2",
+      "location": "identity bar, x1472-1799 (between the phase rail's right border and 'NOIR')",
+      "finding": "327px of the 1920px bar is unallocated, sitting between the phase rail (POSITIONING ends x1462, box border x1472) and the NOIR/share/download cluster (x1799-1895). The scrubber - the required timeline, and the only elastic element in the strip - is given 260px (x673-932) to express 1,315 steps, i.e. 0.20px per step, while a gap 26% wider than it sits idle to its right. The void also splits the bar into two visually unrelated clusters, which is what makes it read as a strip of objects rather than one grouped bar.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/5",
+      "severity": "P2",
+      "location": "Code pane, inline value chips, lines 26/48 versus line 49 (y206-786)",
+      "finding": "The overflow-count chip is placed two different ways within four lines: line 48's '+2' sits on its own row below the code, right-aligned to x=867 (y748-764), while line 49's '+2' sits inline on the code row, right edge x=850 (y770-786). Line 26's '+3' takes the extra-row treatment too. The extra row breaks the listing's line pitch: line 26 to 27 is 43px and line 48 to 49 is 44px against a constant 23px everywhere else (27, 28, 29, 30, 31, 32...), so line numbers no longer sit on a fixed grid in the one pane that is scanned by line.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/6",
+      "severity": "P3",
+      "location": "Code pane header stack, file-tab strip at y138-154",
+      "finding": "The 'CODE' pane title (y74-88), the LOOP/iteration row (y106-122) and the 'Showing from line 26' notice (y170-186) all start at x=13, which is the pane's 9px inner padding off the border at x=4. The file-tab strip ('Nargo.toml') starts at x=21, 8px right of them, so one item in a four-item header stack is off the pane's left edge.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/7",
+      "severity": "P3",
+      "location": "identity bar, vertical divider at x=345",
+      "finding": "The rule separating the identity cluster from the stepping controls is not centred in its gap: 'block 101' ends at x=335 (10px away) and the first control group's box border is at x=370 (25px away). At 1:2.5 it reads as attached to the identity text rather than as an even divider between the two clusters.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/8",
+      "severity": "P3",
+      "location": "identity bar, stepping-control groups x370-656",
+      "finding": "The four button groups sit on consistent 16-17px gaps but the buttons themselves come in three widths: 29px (reverse/forward, box x370-427, internal divider x398), 26.5px (step-in/step-out, box x444-496, divider x469) and 32px (x513-576 and x593-656, dividers x544 and x624). The controls are sized to their glyph rather than to a fixed hit target, so four adjacent peer groups have four different footprints (58, 53, 64, 64px).",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/dark/L2/9",
+      "severity": "P3",
+      "location": "Values pane, 'masses[2]' row at y807-821",
+      "finding": "Nesting in the Values pane is expressed by indentation alone - 'masses' starts at x=932 and 'masses[2]' at x=940, an 8px step with no guide. The Call Trace directly above it in the same column expresses the same parent/child relationship with a visible vertical guide stroke at x=936 plus a larger indent, so the one column carries two nesting vocabularies and the weaker one is the pane where values are compared down a list.",
+      "criterion": "B6"
+    }
+  ]
+}
+```

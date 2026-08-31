@@ -1,0 +1,29 @@
+Expected elements: present
+
+Every must-show item is on the page and no must-not-show item is. The provenance marker is now the first labelled row of the Transaction pane — `DATA`, a toned `Synthetic demo data` badge, and three flush-left sentences in their own grid-spanning cell. It is legible, correctly toned, and no longer costs 190px above the identity bar. That element is genuinely fixed and is not my finding. The branch marks (`⊘` on line 29, `⊙` on line 32) read, the tab strip pairs Call Trace with Event Log with Call Trace open, and Values is a pane below the tabs, not a third tab.
+
+The single weakest element is the stepping controls in the identity bar. The bar states, unambiguously, that the engine is still loading: the words `Engine loading — 18 MB` and a phase rail with `FETCHING` filled blue. Under the 2026-08-29 change the prose band that used to explain this was deleted on the grounds that the controls now say it themselves — so the buttons' appearance is load-bearing. It does not carry the load. Sampled at the pixel: the four stepping groups sit on a pure-white surface, #FFFFFF, byte-identical to the surface of the share and download buttons at the far right of the same bar, which are live. Their glyphs are #565656 — 7.35:1 against that white, more contrast than most live text on this page — against #101010 for the live buttons. There is no disabled surface at all; only a mild foreground tint separates a dead control from a working one, and there is no adjacent enabled stepping button to calibrate against. Compounding it, the status text and phase rail sit ~570px to the right of the buttons, with the scrubber wedged between, so proximity does not rescue the reading either. At a glance the eight most prominent objects in the bar — including reverse stepping, this product's entire premise — invite a click that cannot land.
+
+I am holding this at P2 rather than P1 deliberately. The information is correct and present: the phase is named, the wait is quantified in MB, the rail shows what remains. It is the presentation of one element that fails, and §9 puts broken presentation at P2. Fix: give the stepping groups a real disabled surface, not just a lighter glyph.
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/wide/light/ADV/1",
+      "severity": "P2",
+      "location": "identity bar, the four stepping-control groups between the `block 101` divider and the scrubber (x approx 372-660)",
+      "finding": "The bar says the engine is still loading (`Engine loading - 18 MB`, phase rail `FETCHING` filled) but the stepping controls do not render as inert. Their surface is #FFFFFF, identical to the live share/download buttons in the same bar; their glyphs are #565656, 7.35:1 on white, versus #101010 for the live buttons. A disabled surface is absent entirely, so the only separation between a dead control and a working one is a mild foreground tint with no enabled sibling to calibrate against. Since the explanatory band was removed on the grounds that the controls now state this themselves, and the status text and rail sit ~570px away past the scrubber, nothing on this bar tells a visitor at a glance that stepping cannot yet act.",
+      "criterion": "B10"
+    }
+  ]
+}
+```

@@ -1,0 +1,27 @@
+Expected elements: present
+
+Presence check passes on every item. The identity bar carries the real hash `0x0858d644…22e67fb2`, `Succeeded`, `block 63675`, both stepping directions, the `128 / 345` readout and the FETCHING/OPENING/POSITIONING rail, and the exit reads `← aztec-testnet` — the chain, correctly, not this page. There is no provenance band above the bar. The `DATA` row is the first labelled row of the Transaction pane, its `Real Aztec testnet data` badge is green-toned in agreement with the label, and the note now sets flush-left in its own grid-spanning row with a ~46-character measure: the element two adversarial reviewers condemned last round is genuinely fixed and is no longer this page's weakest thing. `COST · TRANSACTIONFEE` is base ten and no longer wraps or breaks the grid. No invented source anywhere — no file tab, no line number, no function or variable name. No fixture leakage, no failure banner.
+
+The weakest element is the Call Trace pane, the 600×580px centre-column region below its two-line note. Its own sentence says "Frames **are** recorded, and without a file map they carry no function names or source positions" — so frames exist — and the pane then renders none of them. Every other empty pane here is empty because nothing exists: Code has no source, Values has no names. This is the one pane that holds data and shows zero of it, while the identity bar says we are stopped at step 128 of 345 and no pane can say which frame that is. Nameless frames are still frames: depth, entry PC, instruction span. A tab bar promising `CALL TRACE | EVENT LOG` over 530px of white reads as a failed render, not as an honest limit — and the fix shows more information, not less.
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/ADV/1",
+      "severity": "P2",
+      "location": "Call Trace pane, centre column, the ~530px region below the two-line note and under the CALL TRACE / EVENT LOG tab bar",
+      "finding": "The pane's own copy states that frames ARE recorded and only lack names and source positions, then renders no frames at all — the one pane on this page that holds data and displays none of it, unlike Code and Values which are empty because nothing exists. With the identity bar reporting step 128/345 there is a current position and no pane expresses which frame it sits in. Nameless frames still carry depth, entry program counter and instruction span; render them as a depth-indented rail so the widest pane on a full-viewport session stops reading as a failed render.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

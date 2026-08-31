@@ -1,0 +1,84 @@
+Expected elements: present
+
+All must-show items render and no must-not-show item appears: nav with resolver, breadcrumb `Home / aztec / tx / 0x14d6…fa6c`, full hash, `Succeeded`, the neutral `Not observable` badge with the published pruning reason, a six-row Overview, all four content sections each stating a permanent absence, footer with the three marks drawn and the disclosure. The `Data` row carrying `Real Aztec mainnet data` is the sole provenance marker and lands first. No debug/retry/spinner, no trace reference, no error tone.
+
+Iteration changes, all landed: base-ten cost (`3906250659561864576 mana (FeeJuice)`, not a hex word); the three-state decoded-input note (the "no call data" arm renders, no false selector claim); labelled `Age` (`No timestamp published`) and `Type` rows; the provenance note flush-left in a grid-spanning `dd` (x≈530, aligned to the label column); the `/aztec` route.
+
+Change (2) exposed a defect one row above it. `RAW 0x` (y≈1520) renders unknown as empty bytes while the note 40px below says this section cannot tell whether none was published or the body was pruned, and the Raw JSON (y≈2530) says `"bodyRetainedAtCapture": false`. `SELECTOR` uses `—` for the same unknown. That is my first finding, P1, rating capped at 4.
+
+The page otherwise reads as correct, not broken. Density is the weak axis: the capture paragraph (y 805–1045) is 45% of the Overview grid, ahead of every fact.
+
+Fixes: render `RAW` as `—`; move the capture telemetry out of the first grid row.
+
+Rating: 4/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/1",
+      "severity": "P1",
+      "location": "Decoded input, RAW row value cell (x≈670, y≈1520) against the note card below it (y 1555-1650) and the Raw block at y≈2530",
+      "finding": "RAW renders `0x` — the canonical spelling of observed-and-empty calldata — for a transaction whose body was never captured. The note 40px below explicitly disclaims knowing (\"Whether none was published or the body was pruned before it was captured is not something this section can tell\"), and the Raw block at the foot of the page states `\"bodyRetainedAtCapture\": false`. The SELECTOR row 37px above uses `—` for the identical unknown, so one 2-row grid renders one unknown two ways and the second way asserts a fact the page elsewhere denies. This is the new note's honesty making the unchanged RAW fallback visible; it is the only element on the page that reads as a null render rather than a stated absence.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/2",
+      "severity": "P2",
+      "location": "Overview grid, DATA row capture paragraph, y 805-1045 (x 530-1140)",
+      "finding": "The capture paragraph is 10 lines and 240px of a 530px facts grid — 45%, more height than BLOCK, TYPE, AGE, CANONICAL, FINALITY and COST combined (245px) — and sits above all six of them, so a reader scanning for block or finality passes a wall of prose first. Moving it into a full-width `dd` widened the measure to ~80 characters but did not shorten it. Roughly half its length is capture telemetry about the chain, not this transaction: 887 blocks enumerated, 25 settled, longest gap 309 blocks. Those belong on the chain overview; the row needs the badge, the endpoint and the pruning floor.",
+      "criterion": "A6"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/3",
+      "severity": "P2",
+      "location": "Not observable card, second paragraph (x 530-1160, y 480-560), versus the last sentence of the DATA paragraph at y≈1010",
+      "finding": "The reason a reader meets first is stated in node-API terms — \"getTxByHash prunes at the finalized tip and getTxEffect does not\", \"already below the replayable window\" — with neither \"finalized tip\" nor \"replayable window\" defined anywhere above it. The plain-language translation does exist (\"Transactions below block 67586 are still visible on the network but their bodies have been pruned, so they can no longer be replayed and carry no trace\") but it is the tenth and last line of the densest paragraph on the page, 450px further down and inside a different section. Jargon first, translation last and buried, is the wrong order for the sentence that carries the whole page.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/4",
+      "severity": "P2",
+      "location": "Overview grid, COST label cell, x 528-640, y 1242-1298",
+      "finding": "`COST · TRANSACTIONFEE` is the only label in the grid that wraps, and uppercasing the camelCase key destroys the word boundary so the second line reads as one 14-letter word, TRANSACTIONFEE. The wrap also makes the row 56px tall against 37px for the five rows above it, so the grid's row rhythm breaks on its last row. Either title-case the qualifier (`Cost · transaction fee`) or drop it to a suffix beside the unit, which already says FeeJuice.",
+      "criterion": "A6"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/5",
+      "severity": "P2",
+      "location": "Overview grid, COST value, x≈688, y≈1258",
+      "finding": "`3906250659561864576 mana` is 19 digits with no grouping and no scaled form. The base-ten conversion is a large improvement on the zero-padded 256-bit word and that change landed correctly, but a reader still cannot get the magnitude without counting digits, and two such values could not be compared by eye. Group the digits or carry a scaled form beside the exact one.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/6",
+      "severity": "P2",
+      "location": "Events (y 1802), Internal calls (y 1981), State changes (y 2161) — three heading-plus-card blocks spanning y 1790-2280",
+      "finding": "At a 1920x1080 viewport the page is 2950px, 2.7 screens of scroll, and the extra width buys nothing. These three sections consume 490px to carry six lines of text, and the Internal calls and State changes cards are word-for-word identical apart from the subject noun. Each card is 701px wide inside a 912px column inside a 1920px viewport, so about 63% of the viewport width is canvas beside them. At this size the three could sit in one row, or the two trace-derived ones could be one card naming both, and the page would lose a full screen of scroll without losing a word.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/7",
+      "severity": "P3",
+      "location": "Overview grid, DATA paragraph lines 4-5, y 855-880",
+      "finding": "\"NO TRANSACTION INSIDE IT WAS REPLAYABLE\" is the only all-caps run on the page and it starts mid-line, so it interrupts the sentence it is inside rather than heading anything. All-caps at body size is slower to read than the emphasis is worth here; the claim is strong enough in sentence case, or it could be lifted out as the paragraph's first line.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/8",
+      "severity": "P3",
+      "location": "Not observable card (x 503-1204) against the Overview grid and Raw block (x 503-1415)",
+      "finding": "The page runs two content widths, 701px for the notice cards and 912px for the facts grid and the Raw block, and the primary message — the Not observable card, the one thing a reader must take away — is on the narrower of the two, wrapping to five lines where the wider column would give four. The narrower measure is defensible for prose, but it leaves the most important block on the page looking the least substantial.",
+      "criterion": "A3"
+    }
+  ]
+}
+```

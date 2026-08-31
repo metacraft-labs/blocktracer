@@ -1,0 +1,103 @@
+Expected elements: present
+
+Every must-show item renders; no must-not-show item appears. Structurally this is a sound three-column grid — cards top-align at y=68, a uniform 4px gutter (x=917-920, 1529-1532), 9-10px inner padding — undermined by one column half empty beside one that is clipped.
+
+Changes: (1) landed. The DATA note is a grid-spanning `dd` flush-left at x=1543, the labels' own left edge, six lines at ~52ch. The row spans y=189-363: 174px, 17.3% of the pane's 1007px, down from 39-41%. The gutter is no longer empty. (2) not observable — there is no `COST · TRANSACTIONFEE` row in this view at all; the only cost row, `COST · MANA` (y=634), is base ten in one 30px row. (3) present in its no-call-data variant but misgrouped — see finding 2. (4) landed: `⊘` on line 29, `⊙` on line 32, both in the same 12px gutter column as the `·` on lines 26-28/31. (5) landed: the exit reads `← demo` (x=24-190).
+
+Standing observation: half of it holds. Tabbed region y=68-669 (601px); content ends y=320; 348px empty = 57.9% of the card, 64% of the interior below the FRAME header. But Values does not overflow — y=674-1075, last separator y=952, 122px (30.4%) spare. Only Transaction overflows, clipped mid-JSON at y=1075. Middle column: 470 of 1007px blank, 46.7%.
+
+Fixes: move the tabbed region's 348px to Values; lift the decoded-input note above the rule at y=876.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L2/1",
+      "severity": "P2",
+      "location": "middle column — Call Trace/Event Log card (y=68-669) and Values card (y=674-1075)",
+      "finding": "The middle column is 46.7% blank (470 of 1007px) while the Transaction pane beside it is clipped. The tabbed region ends its content at y=320 ('By call order.' / 'Self cost') and runs empty to its border at y=668 — 348px, 57.9% of the card and 64.0% of the interior below the FRAME header at y=124. The queued observation's other half no longer holds: Values does NOT overflow — its last row separator is at y=952 and it has 122px (30.4%) of slack above its border at y=1075. Only the Transaction pane overflows, clipped mid-JSON inside the RAW (CHAIN-NATIVE) block at y=1075. Height should leave the tabbed region, but the pane that needs it is in the next column, so the fix is to shrink the region and grow Values, not to move overflow across the gutter.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L2/2",
+      "severity": "P2",
+      "location": "Transaction pane, decoded-input note (y=886-980) between the rule at y=876 and 'RAW (CHAIN-NATIVE)' at y=1006",
+      "finding": "The new decoded-input sentence is grouped with the wrong block. A full-width rule sits at y=876, immediately ABOVE the note, and there is no rule between the note and the 'RAW (CHAIN-NATIVE)' heading at y=1006. Proximity therefore reads the note as the caption for the raw-payload block, while the SELECTOR (y=829) and RAW (y=859) rows it actually explains sit on the far side of a divider. The sentence lands correctly flush-left at x=1542, but it is one rule too low.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/3",
+      "severity": "P2",
+      "location": "Code pane, lines 26 and 48 — overflow chips at x=845-868, y=216-234 and y=747-759",
+      "finding": "The code listing's line grid breaks on two rows. Every line is 23px apart (line-number bands at 205, 249, 272, 295...) except line 26 (205 to 249 = 44px) and line 48 (736 to 780 = 44px), because each line's '+3' / '+2' overflow chip wrapped onto a row of its own, right-aligned near x=845-868 with no value chip beside it. The orphaned '+2' at y=747-759 is 15px below line 48 and 21px above line 49 — near-equidistant, so it is ambiguous which line it counts for, and line 49 shows an identical '+2' inline at y=776. The same indicator is thus placed two ways 24px apart.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L2/4",
+      "severity": "P2",
+      "location": "identity bar, x=932-1203 — scrubber, engine status, position readout",
+      "finding": "The position readout is separated from the scrubber it describes. The scrubber track ends at x=932; 'Engine loading — 18 MB' occupies x=950-1105; '128 / 1315' follows at x=1119-1203. The readout is 18px+155px from its scrubber but only 14px from the transient status and 26px from the phase rail, so proximity binds it to the status and the rail rather than to the control it quantifies. The four stepping clusters are correctly grouped (segmented pairs at 36px spacing), which makes this the one grouping error in the bar.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/light/L2/5",
+      "severity": "P2",
+      "location": "Transaction pane, FEE PAYER (y=531-556) and TARGET (y=582-607)",
+      "finding": "Both address values wrap to two right-aligned lines, so the continuations set ragged-left in mid-pane — 'e430d5d932' starting at x=1773 and 'a59161624c' at x=1823 — with the label gutter empty beside each. A single hash read as two right-aligned fragments at different left edges is the same flush-right narrow-measure problem the DATA note fix just removed one row above, reproduced in miniature two rows below it; the fix (span the value across the grid and set it flush-left) is already in the codebase.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L2/6",
+      "severity": "P3",
+      "location": "Transaction pane, value column right edge, y=138 to y=634",
+      "finding": "The value column has three right edges. Badges and links terminate at x=1906 (DATA badge y=208, BLOCK link y=380, AGE y=440, CANONICAL y=472, FINALITY y=504, COST y=634); 'private + public' terminates at x=1900; the full hash at y=138 terminates at x=1894. A 12px spread down a twelve-row column, most visibly between the full hash and the 'Synthetic demo data' badge directly beneath it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/7",
+      "severity": "P3",
+      "location": "Code pane header, file-tab strip at y=146",
+      "finding": "The file-tab strip starts at x=22 while the three strips it sits between all start at x=13-14: 'CODE' (y=81, x=13), 'LOOP iterate_asteroids' (y=114, x=14) and the 'Showing from line 26' notice (y=178, x=13). A 9px break in the pane's left edge, in a four-strip stack where the eye reads the edge as a single line.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/8",
+      "severity": "P3",
+      "location": "Call Trace pane, depth guide column at x=936, rows y=137-289",
+      "finding": "One guide rail is drawn regardless of depth. Frame names indent cleanly by 16px per level (main x=940, depth 2 x=956, depth 3 x=970, depth 4 x=986), but the only vertical rail sits at x=936 on every row, so the depth-4 frame 'calculate_remaining_shield_pct' is 50px from its single rail and depths 2, 3 and 4 are distinguished by indentation alone. The fixture only reaches depth 4, where it is still readable; a deeper trace would not be.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/wide/light/L2/9",
+      "severity": "P3",
+      "location": "Code pane header, y=68-192",
+      "finding": "124px — 5.4 code lines at the pane's 23px rhythm — goes to four stacked chrome strips before line 26 renders: a title strip carrying only the word CODE, the LOOP row, the file tabs and the 'Showing from line 26' notice. Within the LOOP row the eight-segment iteration stepper spans x=340-907 (530px, ~62px per segment) to show single digits, in the densest pane on the page.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L2/10",
+      "severity": "P3",
+      "location": "identity bar, x=1462-1799 and the divider at x=346",
+      "finding": "A 337px void separates the phase rail (ends x=1462) from the NOIR badge and the two actions (x=1799-1895) — ten times the next largest gap in the bar (36px between control clusters) — so the bar reads as one dense left run plus a far-right orphan. The bar also carries exactly one vertical divider, at x=346 after 'block 101'; the four remaining group boundaries are spacing-only, so the separator means 'group boundary' in one place and nothing in four others.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/11",
+      "severity": "P3",
+      "location": "Code pane right edge, lines 40 (y=549) and 53 (y=872)",
+      "finding": "Long source lines run under a fade mask at the pane's inner right edge — line 40 stops at 'shield_regen_perce', line 53 at 'damage: Field, r' — with no horizontal scrollbar, ellipsis or other affordance visible anywhere in the pane. The fade does signal that content continues, which is why this is not scored as clipped text, but it begins late enough that the final three or four characters render as half-legible grey rather than being cut cleanly.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

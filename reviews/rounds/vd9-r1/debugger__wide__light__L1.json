@@ -1,0 +1,89 @@
+Expected elements: present
+
+Every MUST SHOW item is on the page: identity bar with `← demo`, truncated hash, `Partial`, both step directions, scrubber, `128 / 1315`, phase rail; Code titled Code with the position on line 32; Call Trace and Event Log as one tabbed region with Call Trace open; Values as a separate pane below it; the provenance marker as the first labelled row of the Transaction pane. Nothing from MUST NOT SHOW is present. Typographically the pane titles, the tabular opcode column and the mono/sans split are the strongest things here.
+
+This iteration: (1) landed and is a clear win — the provenance sentences now set flush-left across the pane (x 1543–1908, y 232–355), six lines at a ~58-character measure instead of nine-plus at ~28 ragged-left; (2) not exercised on this view — the synthetic chain renders `COST · MANA` (y 633), which is base ten and grid-conforming; no `COST · TRANSACTIONFEE` row exists here to judge; (3) landed — the DECODED INPUT note (y 905–985) states the no-calldata case rather than asserting an unknown selector; (4) landed as marks but only marginally as *typography* (finding 3); (5) landed — `← demo` at x 22–76.
+
+The cost of (1) is that the pane now carries three prose notes set at one identical level, so the page-scoped provenance claim looks like the two field annotations under it.
+
+Fix first: give the provenance note a level of its own; regularise the code listing's row pitch.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L1/1",
+      "severity": "P2",
+      "location": "Transaction pane: provenance note (x 1543-1908, y 232-355), the EXECUTIONS/private note (y 707-765), and the DECODED INPUT note (y 905-985)",
+      "finding": "Three semantically different notes are set at one identical type level — same face, same ~13px size, same weight, same near-black colour, same ~22px leading, same full-pane measure. One is a page-scoped honesty claim about every value on the screen; the other two annotate a single row each. Nothing in the typography ranks them, so the provenance claim reads as the third annotation in a list of annotations rather than as the pane's statement about itself. This is the cost of the move out of the band: the row is not too quiet in size, it is too undifferentiated in level. Combined the three notes are 263px of the pane's 990px of visible height (27%) at one weight. Giving the provenance note a distinct treatment — a rule, a tint, a half-step in size, or setting the two field notes down to the 11-12px annotation level the labels already use — would restore the rank without restoring the band.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L1/2",
+      "severity": "P2",
+      "location": "Code pane, loop strip (y 105-125): 'LOOP iterate_asteroids' at x 20-175, 'line 4' at x 180-215, 'Iteration 3 of 8' at x 222-360",
+      "finding": "Two monospace sizes sit adjacent in one strip and the hierarchy is inverted. 'Iteration 3 of 8' is set roughly 14-15px against roughly 11-12px for 'LOOP iterate_asteroids' immediately to its left, so the ordinal — which the eight numbered chips at x 368-910 already express, and express better — is the largest type in the strip, while the loop's identity (the thing that tells you what you are iterating) is the smallest. The size relationship should be the other way round, or the two should share one size and let weight carry the difference.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L1/3",
+      "severity": "P2",
+      "location": "Code pane gutter, x 76-84: the taken mark on line 32 (y 364) and the not-taken mark on line 29 (y 295)",
+      "finding": "The new branch marks are rendered as ~7px rings whose glyph difference is a 1-2px interior detail — a centre dot for taken, a diagonal stroke for not-taken. At 1:1 those two rings are the same object; measured on the pixels the distinction between 'this arm ran' and 'this arm did not' is carried almost entirely by hue (teal ring vs grey ring). The neutral steppable dot on lines 26-28, 31 and 34 onward is also teal, so the taken mark shares its hue with the mark that means nothing in particular. Two states that are opposites need a difference bigger than a ring's interior at 7px: differentiate by mark shape at this size (a filled disc vs an open ring), or set the not-taken line's number and text down as well.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L1/4",
+      "severity": "P2",
+      "location": "Call Trace opcode column, '1,315' (x 1480-1518, y 137) and '1,208' (y 162), against COST · MANA in the Transaction pane, '88000 / 200000' (x 1685-1790, y 633)",
+      "finding": "The page uses two digit-grouping conventions for quantities of the same magnitude in the same register. Opcode counts are grouped with thousands separators; the mana cost of the same transaction, four digits longer, is not. Both are tabular mono and both are costs-or-counts, so a reader comparing 1,315 opcodes against 88000 mana has to re-parse the second. Rubric B7 asks for comparable formatting across magnitudes; pick one convention for all counts and costs.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L1/5",
+      "severity": "P2",
+      "location": "Code pane listing, rows 26-27 (y 206 to y 249) and rows 47-49 (y 712, 749, 780)",
+      "finding": "The listing's row pitch is not constant. Plain rows step 23px (27->28, 49->50, 34->35 and most others), but a row whose inline value chips overflow gets a second visual line: 26->27 is 43px because the '+3' chip sits at y 225, and 47->48 is 37px with 48->49 at 31px because of the '+2' chips at y 755 and y 777. In a monospace listing the constant vertical pitch is the primary reading aid — it is what lets the eye track the gutter and count lines without reading them — and it is broken four times in thirty-five visible rows, unpredictably. Either reserve the chip lane's height on every row, or clip the chip row to the line box and put the overflow behind the '+n' affordance entirely.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L1/6",
+      "severity": "P2",
+      "location": "Tabbed navigation region (x 922-1526, y 68-668): content ends at the 'By call order.' footer, y ~325; empty from y 325 to y 668",
+      "finding": "The measurement the Watch-for item asks for: 343px of the region's 600px height is empty below the last frame — 57%. The call trace fills its first 43% with seven frames and stops. Meanwhile the Code pane is scroll-clipped at line 61 (y 1059) with the file continuing below, and the Transaction pane is clipped mid-JSON inside RAW (CHAIN-NATIVE) at the viewport edge. The Values pane below (y 672-1080) also ends early, at 'i' (y 939), so the whole navigation column carries roughly 470px of dead height while both flanking panes are truncated. The region, not the Values pane, is the one holding height it does not use; a content-sized tab region with Values taking the remainder would spend the column better. Flagged here because the presence check names it; L2/L4 own the layout remedy.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L1/7",
+      "severity": "P3",
+      "location": "Values pane, 'masses' (x 931, y 788) and 'masses[2]' (x 936, y 814)",
+      "finding": "The child row is indented approximately 5px from its parent — under half a monospace character. At that amount the nesting is not readable without reading; 'masses[2]' scans as a sibling of 'mass' two rows below it rather than as an element of the array above it. One full character of indent, or a guide rule of the kind the Call Trace already uses at x 938, would make the relationship legible at a glance.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/wide/light/L1/8",
+      "severity": "P3",
+      "location": "Four selection strips: region tabs (y 81), iteration chips (y 114), file tabs (y 146), phase rail (x 1225-1480, y 31)",
+      "finding": "The page expresses 'one selected among a set' four different ways within 150px of vertical space: uppercase sans with a heavy underline; a filled box with a coloured numeral and a double underline; monospace with a short rounded underline; and uppercase inside a tinted pill segment. Each is defensible alone, but a reader learning this surface has to learn four idioms for one idea. Two treatments — one for tabs, one for step-position rails — would cover all four.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L1/9",
+      "severity": "P3",
+      "location": "Code pane, notice strip at y 178: 'Showing from line 26 — the session's position is below, and the lines above it are not in this window.'",
+      "finding": "Ninety-three characters of explanatory prose set in the code face at code size, immediately above line 26 and sharing its left edge. Because face and size match the listing, it reads at first glance as a comment line in the file rather than as pane chrome. Setting it in the UI sans at the 11-12px annotation size used by the pane titles would separate the frame from the content without costing a pixel of density.",
+      "criterion": "B2"
+    }
+  ]
+}
+```

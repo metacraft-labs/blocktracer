@@ -1,0 +1,82 @@
+Expected elements: present
+
+Every MUST-SHOW item renders and no MUST-NOT-SHOW item appears. Provenance is the `DATA` row (y247–449) with a blue `Synthetic demo data` badge and the producer's sentences beneath; no band above the identity bar. Dense, tool-register, legible — nothing below the contrast floor except one gradient artefact.
+
+Changes: (1) landed. The note sets flush-left at x1157 and spans the grid; the row is 203px of the pane's 826 visible px = **24.6%**, down from the reported 39–41%. (4) landed: line 29 `⊘`, line 32 `⊙`. (5) landed: the bar reads `← demo`. (2) is not observable here — this subject's cost row is `COST · MANA 88000 / 200000 mana (FeeJuice)`, base ten, no hex word, and no `TRANSACTIONFEE` row is above the fold. (3) is not observable either: the Decoded input section is below the pane's visible edge.
+
+**Call Trace measurement.** Region inner box y69–560 = 492px. Last ink y320. Blank y321–560 = **240px = 48.8%** (52.6% from the last frame row, y301). The 47–57% claim holds at laptop; 91% does not reproduce. But Values below it does *not* overflow — it ends y860 with 34px spare. The split costs reserve, not starvation; the pane that clips is Transaction, in the other column.
+
+Fixes: cut the tabbed region's weight to ~4 empty frame rows; drop the truncated hash line duplicated above the full hash (y247 block).
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L4/1",
+      "severity": "P2",
+      "location": "Call Trace / Event Log tabbed region, x691-1144, inner box y69-560",
+      "finding": "The tabbed region is 492px tall and its last ink is at y320 (the 'By call order. / Self cost' footer). y321-560 is 240px of unbroken white = 48.8% of the region; measured from the last frame row separator at y301 it is 259px = 52.6%. The standing 47-57% observation therefore HOLDS at 1440x900; the 91% figure from another subject does not reproduce here. The region holds 7 frames and has room for about 9 more. The Values pane below it (y567-894, 328px) does NOT overflow at this viewport - its last row ends at y860 with 34px spare - so the cost is misallocated reserve rather than starvation: the tabbed region banks 9 empty frame slots while Values banks 1. At realistic volume both overflow, and a scrolling navigation list is the cheaper one to overflow than a snapshot of values at step N. Shifting roughly 180px of the region's flex weight to Values would still leave the call trace 9 visible frame rows for this fixture.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/2",
+      "severity": "P2",
+      "location": "Transaction pane, x1149-1435, header block y95-245 and DATA row y247-449",
+      "finding": "354 of the pane's 826 visible pixels (42.9%) are spent before the first per-transaction field appears at BLOCK (y451). The 151px header block prints the hash twice - truncated '0xb636167a...66d46359' at y110 directly above the full 40-digit value at y138-166 - and the identity bar carries a third copy at x86. The truncated form buys nothing sitting above the full one. The consequence is at the other end: EXECUTIONS (y796) is sliced mid-sentence at the pane edge y894, and the Decoded input section that follows it is entirely outside the frame. No scrollbar, fade or 'more' cue is rendered anywhere in x1418-1434 - the only signal that content continues is a half-cut line of type. The provenance row's own share is now 24.6% and is defensible; the header above it is not.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/3",
+      "severity": "P2",
+      "location": "Code pane, sticky note band y165-205, right edge x640-686",
+      "finding": "The pane's horizontal-overflow fade gradient is painted over the sticky 'Showing from line 26 - ...' note as well as over the code rows. The final word of the sentence's first line, 'in' at x655-676 y170-185, measures 3.26:1 against its local background while the same sentence three words earlier measures 7.74:1, and the note's grey band itself fades to white at x686. The sentence wraps normally to 'this window.' on the second line, so nothing is actually overflowing there - the mask is dimming text that fits. Exclude the note band from the overflow mask.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L4/4",
+      "severity": "P2",
+      "location": "Code pane gutter, x74-86, lines 29 (y310-316) and 32 (y379-387)",
+      "finding": "The new branch marks are added at a size below where they are scannable. The not-run mark on line 29 is an 8x7px grey glyph; the taken mark on line 32 is a ~9x9px teal glyph; and they share the one-character gutter with the existing executed-step dot, which is a 2x2px teal square (line 31, x78-79 y359-360). The taken mark and the executed dot are the SAME accent colour and differ at 1:1 only by a one-pixel ring, so the gutter now carries three semantic states separated by a few pixels of glyph interior. Nothing on the page legends any of the three. Give the taken/not-run marks a size or weight step above the executed dot, or move the branch state to a distinct channel.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L4/5",
+      "severity": "P2",
+      "location": "Identity bar, phase rail x957-1207 and stepping controls x373-653",
+      "finding": "The phase rail marks FETCHING active (blue fill, x957-1035) while the session is fully populated and positioned: the readout reads 128 / 1315, the Code pane shows a highlighted current line, and Call Trace and Values are both filled. In the same bar the four stepping-control groups render at #565656 with no disabled treatment, so the controls report ready and the rail reports fetching. Two adjacent elements in one 62px strip state different session states.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/light/L4/6",
+      "severity": "P3",
+      "location": "Call Trace rows 4 and 7, x760-1130 (y176-199, y277-300)",
+      "finding": "'calculate_remaining_shie...' truncates the frame name and 'src/shi...' truncates its path, in a region 444px wide that is holding 240px of unused height directly beneath. The region gives up horizontal identity before it is vertically full. Wrapping the frame name to a second line, or widening the middle column at the expense of the Transaction pane's 286px, would recover the full identifier.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/7",
+      "severity": "P3",
+      "location": "Call Trace frame rows, guide rail at x708, rows y151-300",
+      "finding": "Only one vertical depth guide is drawn, at depth 1 (x708). Frames at depth 2, 3 and 4 - calculate_damage at x745, calculate_remaining_shie... at x789 - are placed by indentation alone. At the fixture's depth of 4 this stays readable, but the rail stops scaling exactly where B6 says it must not.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/laptop/light/L4/8",
+      "severity": "P3",
+      "location": "Values pane, hairline at y860, blank y861-894",
+      "finding": "A row separator is drawn at y860 after the final value row ('i / 2 / u32'), followed by 34px of empty pane with no row beneath it. The hairline separates the last value from nothing and reads as a truncated eleventh row. Drop the trailing separator or let the last row absorb the slack.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

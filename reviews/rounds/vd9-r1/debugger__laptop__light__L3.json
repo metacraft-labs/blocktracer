@@ -1,0 +1,117 @@
+Expected elements: present
+
+All MUST-SHOW items render and no MUST-NOT-SHOW item appears; no P1. The neutral ramp is coherent and most text sits between 7:1 and 19:1, but every state that is encoded as a small mark or a tinted pill is where this theme thins out.
+
+Changes: (1) landed — the provenance sentences set flush-left at x1158, exactly the label-column edge — but the `#c8c8c8` row rule that separates every other metadata row now falls at y246 *between* the DATA badge and its own sentences, and there is no rule above DATA. (4) landed: exactly one `⊙` (x76–81, y380–386) and one `⊘` (x75–82, y310–316). (5) landed (`← demo`). (2) is not verifiable here — no `COST · TRANSACTIONFEE` row exists in this fixture; `COST · MANA 88000 / 200000` is the only cost row. (3) is not verifiable here — this view has no decoded-input note.
+
+Glyph verdict, measured: `⊘` is #484848 on white — 9.15:1 core, 3.59:1 flanks. `⊙` is #0e7490 on the #a5f3fc band — 4.29:1 at its four caps and centre dot, but the ring flanks (#43a1b6, #4ba7bc) measure 2.40:1 and 2.23:1. The previous round's 2.40:1 is *unchanged*; only the caps improved. Centroid-aligned ink maps differ by 7.6px of ~33px mean ink (23%), all inside a 4×4px interior. Desaturated at 1× they are one smudged ring, separating only above 4×, and they never share a surface. Not distinguishable without colour.
+
+Fixes: fill `⊙`'s centre and take its stroke to ≥3:1 on the band; move the y246 rule above DATA.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L3/1",
+      "severity": "P2",
+      "location": "Code pane gutter, the ⊙ branch-taken mark at x76-81, y380-386 (line 32, on the current-line band)",
+      "finding": "The mark's silhouette is still below the 3:1 non-text floor. Its darkest strokes are #0e7490 on the #a5f3fc band = 4.29:1, but those are only the four cardinal cap pixels and the 2x3 centre dot; the ring's left and right flanks, which are what make it read as a ring, are #43a1b6 = 2.40:1 and #4ba7bc = 2.23:1. The previous round's reported 2.40:1 is exactly the flank value and it has not moved — the change darkened the caps only. Take the whole stroke to a token that clears 3:1 on #a5f3fc (#155e75 gives 5.9:1 there).",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/2",
+      "severity": "P2",
+      "location": "Code pane gutter: ⊘ at x75-82 y310-316 (line 29) and ⊙ at x76-81 y380-386 (line 32)",
+      "finding": "The pair is not distinguishable without colour at rendered size, and this is the measurement the open question needed. Both are 7px rings. Their ink-coverage maps, aligned on centroid, differ by 7.6px of ink out of ~33px mean ink area — 23% — and all of that difference sits in a 4x4px interior: a 3px anti-diagonal bar in ⊘ against a 2x3px centred dot in ⊙. Desaturated and viewed at 1x the two are the same smudged ring; they separate cleanly only at 4x or more. Two things make it worse. There is exactly one instance of each on the page and they never share a surface (⊘ appears only on #ffffff, ⊙ only on #a5f3fc), so a reader has no in-page reference to calibrate against. And the residual greyscale difference is weight, not shape: ⊘ renders near-black at 9.15:1 while ⊙ renders mid-teal at 4.29:1 falling to 2.23:1, so the louder, heavier mark is the one that means 'did not run'. The state distinction is currently carried by hue plus surface, not by form.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/3",
+      "severity": "P2",
+      "location": "Code pane line 32 (current-line rail x5-6 y371-393 and the ⊙ at x76-81), identity-bar scrubber fill x673-687, iteration chip 3 numeral x445-482",
+      "finding": "One teal family carries two unrelated meanings and they collide on the same row. #0e7490 is both the current-line rail at x5-6 and the ⊙ branch-taken mark 70px to its right on line 32; #164e63/#155e75 is the scrubber fill; #215467 is the current-iteration numeral; #a5f3fc is the current-line band and the selected call-trace row. Everything else in that family means 'you are here'. On any line that is not the current line, a taken-branch ⊙ will read as a position marker. Branch state needs its own hue or its own form.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/4",
+      "severity": "P2",
+      "location": "Transaction pane, the #c8c8c8 hairline at y246 spanning x1150-1434",
+      "finding": "The change that moved the provenance note into its own grid-spanning dd made it inherit the metadata row separator, and the border role now contradicts itself. That hairline is the same one that separates BLOCK/TYPE/AGE/CANONICAL/FINALITY (y450, 480, 510, 573, 605, 677, 749, 795), and it falls between the DATA label plus its 'Synthetic demo data' badge (y218-242) and the provenance sentences (y248-440). There is no rule above DATA. So the borders say the label and badge belong with the status-reason paragraph above them, and the sentences are a separate unlabelled row sitting on top of BLOCK. Move the rule to y212 so it opens the DATA row rather than bisecting it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L3/5",
+      "severity": "P2",
+      "location": "Transaction pane DATA row: badge x1272-1428 y218-242, label x1158, prose x1158-1428 y248-440",
+      "finding": "Answering the brief's open question directly: yes, the row is too quiet, and it is measurably so. Every ink in it is reused verbatim elsewhere on the same screenshot. The badge is #dbeafe fill / #1e40af text — the identical fill and text tokens as the active phase pill FETCHING at x958-1036 y20-42, so 'this data is not real' and 'a fetch is in progress' are the same tone. The label is #565656 at 7.34:1, identical to BLOCK, TYPE, AGE, CANONICAL and FINALITY. The prose is #484848 at 9.15:1, identical to the status-reason prose immediately above it. In colour terms the provenance claim is exactly as loud as AGE. Give the badge a tone reserved for data-origin claims and used nowhere else on the page.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/6",
+      "severity": "P2",
+      "location": "Code pane right edge, the 46px scroll-fade ramp from x639 to x685",
+      "finding": "The fade mask ramps to #ffffff over 46px, roughly six monospace characters, and it is doing the opposite of its job in both places it lands. Over code it fades the last legible token out of readability: on line 42 the `100` token runs #8a52e0 at x646 (4.81:1) to #a276e7 at x655 (3.34:1) to #c1a3ef at x661 (2.15:1) to #e1d4f7 at x667 (1.40:1), so a token that is on screen cannot be read. Over the #dddddd note band at y165-209 the same mask is the only place the gradient is actually visible as a gradient, and that band has nothing to scroll. Shorten the ramp to about 16px and fade to a value that keeps partial characters above 4.5:1 until they are actually clipped.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L3/7",
+      "severity": "P2",
+      "location": "Code pane iteration chip strip, x366-678 y99-133",
+      "finding": "The current state is the lowest-contrast thing in the strip and the weight ramp runs backwards against the semantics. Chip 3 is the current iteration and its numeral is #215467 on the #919191 chip fill = 2.63:1 — lower than chips 1 and 2 at #242424 on the same fill (4.93:1) and lower than the not-yet-reached chips. Chips 4-8 set their numerals at #757575 to #808080 on #dddddd = 3.39:1 down to 2.91:1. Only the two past chips clear 4.5:1. Separately, the visited chips 1-3 carry the heaviest fill (#919191, a 2.32:1 step down from the #dddddd strip) while the unreached chips 4-8 are the lightest with a #a2a2a2 outline at 1.88:1, so the strongest visual weight lands on the iterations that are done. The current chip is rescued only by its 2px teal-plus-black underline.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L3/8",
+      "severity": "P2",
+      "location": "Code pane, the #dddddd stack from y69 to y210",
+      "finding": "One surface token is doing three jobs and the result is a 141px grey mass before any code. #dddddd is the pane header (y69-94, and the same in Call Trace, Values and Transaction), then the iteration-chip strip (y95-133), then the file-tab strip (y134-160), then — after a 4px white sliver at y161-164 that is a 1.36:1 step and therefore invisible — the 'Showing from line 26' notice band (y165-209). A notice is styled identically to chrome, so the Code pane appears to have a header four bands tall. Give the notice band its own surface, or drop it to the pane body white with a rule.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L3/9",
+      "severity": "P2",
+      "location": "Code pane overflow badges: +3 at x612-638 y232-254, +2 at x608-636 y371-393, +2 at x612-638 y765-787, +3 at x612-638 y808-830",
+      "finding": "The digits render at #818181 on #ffffff = 3.90:1 at roughly 9px cap height, inside a dashed outline that is lighter still. The view's own watch-for names small text at low contrast as a failure under this rubric rather than a density win. These badges are the only signal that values are hidden on those lines, so they should sit at the same #565656 (7.34:1) as the other secondary text in the pane.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L3/10",
+      "severity": "P3",
+      "location": "Values pane rows y622-638 and y789-805 with rail at x692-699; code chip x488-604 y372-392; source tokens on lines 40 and 48; Partial badges at x202-264 y19-43 and x1160-1218 y100-124",
+      "finding": "The amber family means three things. #854d0e is the changed-value text and its left rail in Values and the changed-value chip on line 32; #713f12 is the syntax token for `fn` and for function names, one perceptual step away from it; #9a3412 on #ffedd5 with a #ea580c border is the Partial trace-completeness badge. A diff role, an identifier role and a degraded-status role share a hue. The changed-value rail and the chip container do carry it, so the diff role survives, but the source tokens and the diff marks are the same colour within 100px of each other.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L3/11",
+      "severity": "P3",
+      "location": "Call Trace pane, the selected frame row at y254-272 on #a5f3fc",
+      "finding": "Selection flattens the emphasis ramp in the one row where hierarchy matters most. The six unselected rows set the frame name at #101010 (19.03:1) and the module path at #565656 (7.34:1) — a clear two-level split. In the selected row the name is #101010 (15.25:1 on the band) but the path is promoted to #242424 (12.44:1), so the secondary text reads as primary. Keep the path one full step below the name on the band.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/light/L3/12",
+      "severity": "P3",
+      "location": "Identity bar, the step-in/step-out control pair at x444-502 y18-44, and all four control group borders",
+      "finding": "All four stepping groups nominate #565656 ink (7.34:1), but the step-in and step-out arrows are hairline glyphs and only 8 and 4 pixels respectively reach that value — the rest anti-alias to #858585 and #898989, an effective 3.69:1 to 3.50:1, against solid triangles at a full 7.34:1 in the neighbouring groups. Within one control cluster one group renders at half the weight of its three siblings. The button containers throughout are outlined #c8c8c8 on #ffffff = 1.67:1, which is close to no boundary at all for the controls the register calls its premise.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/laptop/light/L3/13",
+      "severity": "P3",
+      "location": "Identity bar y0-63 against the pane bodies below y69",
+      "finding": "The theme has no distinct chrome surface. The identity bar, all four pane bodies and the code canvas are all #ffffff, and the bar's lower edge is the same #a2a2a2/#ececeb gutter used between panes, so the bar reads as a fifth pane rather than as application chrome. The theme has effectively two surface levels (#ffffff and #dddddd) plus #f3f3f3 for chips. A third level under the identity bar would let the bar group as one object without spending any space.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

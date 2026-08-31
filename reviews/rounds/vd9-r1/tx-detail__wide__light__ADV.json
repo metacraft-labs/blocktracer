@@ -1,0 +1,31 @@
+Expected elements: present
+
+I checked the three additions independently. The `Age` row is there and states `No timestamp published` rather than deriving one; the `Type` row reads `public`; the full hash sits in a bordered, raised box with `click to select` beside it. The provenance note now sets flush-left as its own grid-spanning row at a ~75-character measure — the flush-right 28-character column four reviewers named last round is gone, and this is a competent paragraph now. Fee and cost are base ten. The decoded-input note states the actual state (unknown selector, no call data, therefore nothing to decode), and the absence of a supply-an-ABI control follows from it rather than contradicting it. One provenance marker, the `Data` row, in the correct form. All eight sections carry a statement, no empty panel, no Debug button, no disabled stand-in.
+
+The single weakest element is the `Pending` badge in the `FINALITY` row of the Overview grid. It is the fact that decides whether anything above it can still change, and it is drawn as the least prominent token on the page: a neutral grey pill in the sixth row, cut from the same die as `Yes` in `CANONICAL` directly above it and `No timestamp published` directly above that, so one shape carries a settlement status, a boolean and an absence statement in three consecutive rows. Meanwhile the only coloured status token on the page — the green `Succeeded` — sits over 800 px higher in the hero, unqualified. A reader who scans the hero and stops, which is what a hero is for, leaves believing this transaction is settled. The page holds both facts and is truthful in both; it has simply given all of the emphasis to the half that cannot change and none to the half that can.
+
+That is why it is the weakest: not that it is ugly, but that the page's own hierarchy argues against its own data.
+
+Rating: null (presence check passed)
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/ADV/1",
+      "severity": "P2",
+      "location": "Overview grid, sixth row — the `Pending` badge in the `FINALITY` row, between `CANONICAL` and `FEE PAYER`, over 800 px below the hero's green `Succeeded`",
+      "finding": "Finality is the qualifier that decides whether anything else on this page can still change, and it is rendered as the page's least prominent token: a neutral grey pill identical in fill, border, radius and type to `Yes` in the `CANONICAL` row immediately above it and to `No timestamp published` in the `AGE` row above that, so one badge shape carries a settlement status, a boolean and an absence statement in three consecutive rows and none of them is distinguishable from the others without reading. The page's only coloured status token, the green `Succeeded`, sits alone in the hero over 800 px higher with nothing qualifying it. Both facts are present, labelled and true, so this is not an honesty failure — it is an emphasis failure with the same effect: a reader who scans the hero and stops takes a provisional transaction for a settled one, because the page spent its one piece of status colour on the half of the status that cannot change and left the half that can as grid furniture.",
+      "criterion": "A7"
+    }
+  ]
+}
+```

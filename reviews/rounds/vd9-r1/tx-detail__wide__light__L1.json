@@ -1,0 +1,96 @@
+Expected elements: present
+
+All backbone is drawn: fixed nav, breadcrumb `Home / demo / tx / 0x27a6…9a6c`, footer with product line, three links, correct disclosure, and all three marks (solid text-coloured heart, CodeTracer, labelled GitHub). Exactly one provenance marker — the `Data` row form, `Synthetic demo data`, correct for a synthetic tree. No Debug button, no disabled control, no empty panel. All five iteration changes landed: Age, Type and the bordered hash box with its `click to select` caption are present; the provenance note now sets flush-left at a ~65-character measure and is the best-set prose on the page; cost is base ten (`42000 / 100000 mana (FeeJuice)`); the decoded-input note names the unknown-selector-plus-empty-calldata case truthfully; the `/demo` URL is live.
+
+Typographically the page is competent but its top two levels collapse. The H1 (506,247) is ~29px mono at regular weight; the six section headings (e.g. Events at 506,1693) are ~24px bold sans — 1.19× smaller in cap height but heavier, so six level-two headings out-shout the single title across 2818px.
+
+The new rows caused two side effects: `AGE`'s 22-character English statement is set in the letterspaced mono chip reserved for tokens like `Yes`/`Pending`, and `TYPE` is plain mono while the identically categorical `CANONICAL`/`FINALITY` are chipped.
+
+Highest-priority fixes: separate H1 from the section level by weight or size; give the Age statement a prose treatment, not a token's.
+
+Rating: 6/10
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/L1/1",
+      "severity": "P2",
+      "location": "hero H1 `0x27a6…9a6c` (506,247) against the six section headings — Overview (506,756), Decoded input (506,1354), Events (506,1693), Internal calls (506,1872), State changes (506,2052), Raw (506,2336)",
+      "finding": "The page's first and second type levels are effectively one level. The H1 measures 21px figure height (~29px monospace, regular weight); the section headings measure 17.7px cap height (~24px sans, bold). A 1.19x size step in the title's favour is cancelled by the headings' heavier weight, so on a 2818px page six level-two headings read at least as loud as the single level-one title. Size and weight pull in opposite directions between the two levels instead of together.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/2",
+      "severity": "P2",
+      "location": "Overview grid, value column: TYPE row (687,970) versus CANONICAL (687,1046) and FINALITY (687,1084)",
+      "finding": "One value column carries four type treatments for its nine rows: plain ~14px mono (TYPE, FEE PAYER, TARGET, COST), a small letterspaced mono inside a bordered chip (AGE, CANONICAL, FINALITY), an underlined mono link (BLOCK), and a tinted badge (DATA). The split is not by data type — `public`, `Yes` and `Pending` are all short categorical enums, yet the first is plain text and the other two are chips. A reader scanning the column cannot infer what the chip means, because it does not mean one thing.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/3",
+      "severity": "P2",
+      "location": "Overview grid, AGE row value (687,998)-(855,1018)",
+      "finding": "The new honest-absence statement `No timestamp published` — 22 characters of English — is set in the letterspaced monospace chip the page otherwise reserves for one- and two-word machine tokens (`Yes`, `Pending`). The letterspacing and the mono face make a sentence read as a value the chain emitted, which is the opposite of what the row was added to say. It should be set in the body face, unchipped, as a statement.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/4",
+      "severity": "P2",
+      "location": "section-heading rules: present above Overview (y=719), Decoded input (y=1321), Events (y=1655) and Raw (y=2271); absent above Internal calls (y=1872) and State changes (y=2052)",
+      "finding": "All six section headings are the same size, weight and colour, so the full-width hairline above four of them is the only heading-level signal on the page — and it is applied to four of six peer sections. The effect is that Internal calls and State changes read as subsections of Events. That grouping is also wrong on the content: Events is receipt-sourced (its note says so) while the two it appears to parent are trace-sourced. With eight sections in one scroll the heading treatment has to be navigable without reading, and here it misleads.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/5",
+      "severity": "P2",
+      "location": "Overview grid, COST · MANA row value (687,1185)-(960,1205)",
+      "finding": "The row carries two distinct quantities — 42000 and 100000 — joined by a bare `/` with no sub-label distinguishing usage from limit, in a grid whose stated contract is that every fact is labelled. Neither figure is grouped (`100000`, not `100 000` or `100,000`), so the two magnitudes have to be counted digit by digit to be compared. The unit `mana (FeeJuice)` correctly drops to the proportional face beside tabular mono figures; the numerals themselves are what is under-labelled.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/6",
+      "severity": "P2",
+      "location": "hero (506,200)-(1100,310) versus Overview grid FINALITY row (687,1084)",
+      "finding": "The expected-elements block places the finality badge in the hero; the hero carries only the `Succeeded` status badge, the truncated hash and the copy box. Finality appears nine rows down as `Pending`, in the same small chip as CANONICAL, so a reader who scans the hero and the primary action sees an unqualified success and no signal that the transaction is not yet final. Recorded P2 rather than P1 because the badge is present and labelled — the information is not broken, its position in the hierarchy is.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/7",
+      "severity": "P3",
+      "location": "Overview grid rows (687,930)-(960,1205), between TYPE and COST · MANA",
+      "finding": "The enumerated grid list includes `value` and `nonce`; neither has a row, and unlike AGE there is no labelled statement of the absence. Deliberately not recorded as a presence failure: an Aztec transaction has no field for either, so a populated row would be an invention and the page is right to refuse it. The AGE precedent — name the absence rather than stay silent — is the available fix if the omission is meant to be visible.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/8",
+      "severity": "P3",
+      "location": "footer disclosure line (506,2740)-(1416,2780)",
+      "finding": "The disclosure sets ~130 characters on its first line across a 910px column, roughly double the ~65-character measure the provenance note (687,825) and the trace note (528,465) hold to. It is only two lines, so it is readable, but it is the one place on the page where prose is set to the container's width rather than to a measure.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/9",
+      "severity": "P3",
+      "location": "copy affordance, hero (506,276)-(925,308) and the `click to select` caption at (935,288)",
+      "finding": "The resting affordance landed, but its typography is a text field's rather than a control's: ~16px monospace at regular weight on a white fill inside a hairline rounded border, with the gesture named by a 13px grey caption set outside the box. Nothing in the type weight or the caption's prominence says the box is pressable; it reads as a read-only input showing the value. A caption in the label register, or the value at control weight, would resolve it.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/10",
+      "severity": "P3",
+      "location": "Raw (chain-native) code block (528,2350)-(1400,2510)",
+      "finding": "The JSON is set at ~14px monospace with ~22px leading (≈1.55), which is the body-prose line-height applied to code. The six lines therefore sit further apart than their two-space indentation is wide, so the nesting reads weaker than it is. This is the page's only preformatted region and a tighter leading (≈1.45) would let the indent structure carry.",
+      "criterion": "A5"
+    }
+  ]
+}
+```

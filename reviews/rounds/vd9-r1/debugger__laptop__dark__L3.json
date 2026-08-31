@@ -1,0 +1,91 @@
+Expected elements: present
+
+Every MUST SHOW item renders and no MUST NOT SHOW item appears. The dark theme is designed, not inverted: a four-level neutral ladder (#000000 gutters / #1b1b1b pane / #202020 chip / #282828 header), a real editor palette (keyword #93c5fd, type #67e8f9, fn #fbbf24, literal #c4b5fd, comment #22c55e), and a chromatic #334155 current-line band echoed in the selected call-trace row. Colour *roles* are where it fails.
+
+Of the five changes: the flush-left provenance note landed (1157–1428, 248–450; #a2a2a2 on #1b1b1b = 6.75:1); `← demo` landed; the ⊙/⊘ marks landed on one branch pair only; `COST · TRANSACTIONFEE` sits below the y=900 clip and is unverifiable here — the visible `COST · MANA` row is decimal; the decoded-input note is not in this view.
+
+Glyph verdict, measured: ⊘ (75–82, 309–317) #919191 on #1b1b1b = 5.47:1; ⊙ (75–82, 379–387) #06b6d4 on #334155 = 4.26:1 — up from the filed 2.40, so contrast is fixed. Form is not. Both are 8×9px rings with a 1px stroke differing only by a 2×3px interior dot versus a ~7px diagonal; greyscaled onto a common ground they are indistinguishable at 1:1 and separate only above ~2× magnification. They are told apart by hue and by which surface they land on.
+
+One hue still means many things: cyan does seven jobs, including being both the source type token and the current-line marker inside the same pane.
+
+Highest-priority fixes: split the cyan marker role from the cyan syntax role; lift iteration tabs 4–8 off 2.0:1.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L3/1",
+      "severity": "P2",
+      "location": "whole page — cyan family; worst inside the Code pane at (47-61, 378-387) versus (240-262, 424-433)",
+      "finding": "The cyan token carries seven distinct jobs, so the previous round's 'one hue, five meanings' is not resolved — it grew. #22d3ee scrubber elapsed fill (673-686, 26-36); #67e8f9 scrubber thumb (686-687, 24-38); #67e8f9 active loop-iteration numeral 3 and its underline (447-479, 106-121); #67e8f9 selected call-trace frame rail (692-693, 251-275); #67e8f9 current-line rail (5-8, 371-393) and current line number 32 (47-61, 378-387); #06b6d4 executed-line gutter dots at x78-79 on 13 rows; #06b6d4 branch-taken ring (75-82, 379-387). Item eight is the killer: #67e8f9 is also the source syntax TYPE token — `u32` at (240-262, 424-433) and (459-479, 424-433), `Field` at (215-236, 493-502) and (215-253, 841-850). Inside one pane the identical #67e8f9 means both 'this is a type' and 'this is where you are', so the reader cannot separate syntax from position by colour.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/2",
+      "severity": "P2",
+      "location": "Code pane loop-iteration selector, tabs 4-8, (480-682, 100-128)",
+      "finding": "Numerals for iterations 4-8 render at roughly #4f4f4f-#565656 on a #202020 fill: measured 1.99:1 and 2.22:1 at approximately 12px, with a #3a3a3a border at 1.43:1 against the fill. That is below every contrast floor, large or small. Twenty pixels below, the same pane's inactive FILE tabs (`Nargo.toml`, `Prover.toml`, `src/main.nr` at (20-290, 138-156)) render their inactive state at #919191 on #282828 = 4.68:1 — so 'inactive' has two contradictory contrasts in adjacent rows of one pane. If tabs 4-8 are navigable rather than genuinely disabled, this is a P1 legibility failure, not a P2.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/3",
+      "severity": "P2",
+      "location": "Code gutter — `⊘` at (75-82, 309-317) line 29, `⊙` at (75-82, 379-387) line 32",
+      "finding": "The taken/not-taken pair is not distinguishable without colour at rendered size. Contrast is now fine — `⊘` #919191 on code bg #1b1b1b = 5.47:1, `⊙` #06b6d4 on the current-line band #334155 = 4.26:1, up from the 2.40:1 filed previously, so that half of the earlier finding is fixed. Form is not: both glyphs are 8x9px rings with a 1px antialiased stroke, and the only differentiator is the interior — a 2x3px centred dot versus a ~7px diagonal, about five pixels of difference. Rendered greyscale and normalised onto a common background, the two are indistinguishable at 1:1 and only separate above roughly 2x magnification. In practice they are told apart by hue (#06b6d4 versus #919191) and by which surface they sit on, which is exactly what a state encoding must not rely on. Note also that the two never share a surface in this fixture, so the visible difference is partly the band, not the mark.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/4",
+      "severity": "P2",
+      "location": "Code gutter column x75-82, comparing the `⊙` at (75-82, 379-387) with the 2x2 dots at x78-79 on lines 26, 27, 28, 31, 34, 37, 40, 42, 43, 44, 46, 48, 49, 50",
+      "finding": "Two encodings of the same fact share one hue and one 8px column. The 2x2 dot is #05b3d0 and means 'this line executed'; the 8x9 ring is #06b6d4 and means 'this branch arm was taken' — the same colour, the same column, overlapping meanings, separated only by size. The overlap is also applied unevenly: line 44 (dot at y665) executed inside the `if` on line 43 but carries only a dot and no `⊙`, while line 35 (y~452) did not execute inside the `if` on line 34 and carries neither dot nor `⊘`. So within one viewport four branch arms exist and only one pair is marked, while the dot column already answers the question for the other pair in the same hue.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/5",
+      "severity": "P2",
+      "location": "Transaction pane, `DATA` row badge `Synthetic demo data` at (1266-1434, 218-242)",
+      "finding": "The provenance badge is rendered in the page's link-and-activity blue rather than in a tone of its own. Text #60a5fa on #202020 = 6.41:1 with a #2563eb border at 3.15:1. The identical #60a5fa is the active phase word `FETCHING` at (955-1030, 20-42), and the near-neighbour indigo #818cf8 is the page's link colour (`← demo` 30-80/24-38, `line 4` 180-215/108-124, `Self cost` 1085-1135/308-320, `101:0` 1380-1430/458-473) — the last of which sits two rows below the badge in the same pane. Four blues (#93c5fd keyword, #60a5fa badge and active phase, #818cf8 link, #2563eb border) and the strongest honesty claim on the page wears the link one. It is also measurably quieter than the `Partial` status chip, which is shown twice: #fb923c text 7.20:1 with a #ea580c border 4.58:1. The page's loudest badge is a transaction status; its quietest is 'this data is not real'.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/6",
+      "severity": "P2",
+      "location": "Transaction pane neutral chips: `No timestamp published` (1249-1432, 514-538), `Yes` (1386-1428, 548-570), `Safe` (1382-1428, 578-600), `Not observable` (1211-1341, 820-844)",
+      "finding": "One neutral token carries four unrelated meanings and barely reads as a token. All four are #919191 text on a #202020 fill with a #3a3a3a border; the fill measures 1.06:1 against the #1b1b1b pane and the border 1.43:1 against the fill, so the chip container is effectively invisible and the chips read as bare grey text. Two of the four are affirmative facts (`Yes`, `Safe`) and two are absences (`No timestamp published`, `Not observable`) — an affirmed finality and an unavailable timestamp are given identical colour weight.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/7",
+      "severity": "P2",
+      "location": "Code pane `+N` overflow badges at (610-644, 232-252), (608-640, 370-392), (612-644, 770-790), (612-644, 812-832)",
+      "finding": "The `+3`/`+2` counters are #727272 on a #202020 fill at roughly 10px = 3.39:1, inside a dashed #565656 border at 2.22:1 against that fill. That is the lowest text pair in the Code pane and it fails the small-text floor. On the current line the failure inverts as well: the `+2` chip at (608-640, 370-392) keeps its #202020 fill while sitting on the lighter #334155 current-line band, so the badge reads as a hole punched into the highlighted row rather than as a chip raised off it.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/8",
+      "severity": "P3",
+      "location": "Code pane and Values pane — amber pair; `damage : 0→2000` chip at (490-600, 372-390) versus the fn name on line 48 at (121-370, 756-762)",
+      "finding": "Two ambers one step apart carry two unrelated roles. #fbbf24 is the source function-name token (line 26 at 282-520/218-229, line 40 at 121-359/562-571, line 48 at 121-370/756-762); #fcd34d is the changed-value role (Values `9000` at 990-1024/620-640 and `2000` at 990-1024/788-808 with their 2px left rails, and the inline chip `damage : 0→2000`). Both roles are co-located inside the Code pane, and at 11.95:1 versus 10.32:1 they are indistinguishable in weight — a reader scanning for diffs will catch function names.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/9",
+      "severity": "P3",
+      "location": "identity bar scrubber, (673-833, 24-38)",
+      "finding": "The elapsed fill #22d3ee measures 2.66:1 against the remaining track #727272 — below the 3:1 non-text floor for the boundary that is the scrubber's entire signal. The 2px #67e8f9 thumb at (686-687, 24-38) rescues it at 3.32:1, and the `128 / 1315` readout at (866-930, 20-42) carries the value at 15.52:1, so position is not lost; but the bar itself is doing almost no work. Track #727272 on the #1b1b1b bar is 3.58:1, so the track/fill pair is the weakest step in the whole ramp.",
+      "criterion": "B5"
+    }
+  ]
+}
+```
