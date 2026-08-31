@@ -547,7 +547,8 @@ proc renderSource*(p: EditorPane): string =
           tdiv(class = "srcline" &
                        (if ln.current: " cur" else: "") &
                        (if ln.executed: " hit" else: "") &
-                       notTakenClasses(ln.notTaken, p.flow.selected),
+                       notTakenClasses(ln.notTaken, p.flow.selected) &
+                       ranClasses(ln.ran, p.flow.selected),
                id = ln.anchor, `data-line` = $ln.number):
             # The block rail. Emitted only on a line that carries a claim, and
             # shown only in the passes where it holds, so a run of untaken lines
@@ -564,6 +565,12 @@ proc renderSource*(p: EditorPane): string =
             # whichever rule was written last.
             if ln.notTaken.len > 0:
               span(class = "ntbar")
+            # The affirmative rail. Same position as `.ntbar` and never at the
+            # same time as it: a line cannot both run and not run in one pass,
+            # and only one pass is displayed at a time, so the two block marks
+            # are mutually exclusive by construction rather than by z-order.
+            if ln.ran.len > 0:
+              span(class = "rnbar")
             span(class = "n"): text $ln.number
             # The gutter marker, and — on a line inside a branch that was
             # evaluated and not taken — the SECOND glyph that replaces it in the
@@ -582,10 +589,27 @@ proc renderSource*(p: EditorPane): string =
             # screen or a printed page loses first, and "did not run" is not a
             # decoration.
             span(class = "m"):
-              if ln.notTaken.len > 0:
+              # THREE STATES, THREE GLYPHS. `⊘` did not run in this pass, `⊙`
+              # ran in this pass, and the ordinary marker underneath means the
+              # pane is making no claim about this line — which is a real state
+              # and not a default: an arm the recorder never instrumented, a
+              # branch the session has not reached, a chain that went two ways.
+              #
+              # `⊙` and `⊘` are one glyph family — the same circle, with and
+              # without the stroke through it — so the pair reads as one
+              # question answered two ways rather than as two unrelated marks.
+              # Neither is green or red: on this product the danger family means
+              # a REVERTED execution, and a succeeded transaction with arms
+              # painted in the failure colour would say the wrong thing louder
+              # than the right one. Not taking a branch, and taking one, are
+              # both ordinary control flow.
+              if ln.notTaken.len > 0 or ln.ran.len > 0:
                 span(class = "mg"):
                   text (if ln.current: "▶" elif ln.executed: "·" else: " ")
-                span(class = "mn"): text "⊘"
+                if ln.notTaken.len > 0:
+                  span(class = "mn"): text "⊘"
+                if ln.ran.len > 0:
+                  span(class = "mt"): text "⊙"
               else:
                 text (if ln.current: "▶" elif ln.executed: "·" else: " ")
             code(class = "t"):

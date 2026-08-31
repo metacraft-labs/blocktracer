@@ -2539,27 +2539,86 @@ suite "Omniscience — the branch that was taken, and the ones that were not":
     check dimmedLines(verified).len == 3
 
   test "the markup carries both channels, and only where there is a claim":
+    # REVISED with the affirmative mark: these two class strings gained `rn-*`,
+    # because both lines now also carry the pass they DID run in. The exact
+    # strings are kept exact rather than loosened to `in`-substrings — the class
+    # list is the whole of what the `:target` ladder switches on, so an extra
+    # class arriving unnoticed is exactly what this assertion is for.
     let html = debugHtml(readyTx)
     # Line 29 — the `if` body `calculate_damage` did not take on pass 2, the
-    # pass the served page opens on. Dimmed by default, and marked.
-    check "class=\"srcline hit nt-i2 ntnow\"" in html
-    # Line 32 is the session's own position AND the arm passes 0 and 1 declined.
-    # Both facts, on one row.
-    check "class=\"srcline cur hit nt-i0 nt-i1\"" in html
-    # The gutter pair: the ordinary marker and the one that replaces it.
+    # pass the served page opens on. Dimmed by default, and marked. It DID run
+    # on passes 0 and 1, and now says so.
+    check "class=\"srcline hit nt-i2 ntnow rn-i0 rn-i1\"" in html
+    # Line 32 is the session's own position, the arm passes 0 and 1 declined,
+    # AND the arm pass 2 took — so it is the row where all three decorations
+    # compose: current, untaken-in-another-pass, and ran-in-this-one.
+    check "class=\"srcline cur hit nt-i0 nt-i1 rn-i2 rnnow\"" in html
+    # The gutter triple: the ordinary marker and the two that replace it.
     check "<span class=\"mg\">" in html
     check "<span class=\"mn\">⊘</span>" in html
-    # And the block rail, which is what makes a run of untaken lines read as a
-    # region rather than as scattered dim rows.
+    check "<span class=\"mt\">⊙</span>" in html
+    # And the block rails, which are what make a run of claimed lines read as a
+    # region rather than as scattered rows.
     check "<span class=\"ntbar\">" in html
+    check "<span class=\"rnbar\">" in html
     # A line with no claim is unchanged — no pair, no rail, no extra spans.
-    # Counting is what makes that checkable: three claimed lines are in the
-    # window, and each channel is emitted exactly three times.
+    # Counting is what makes that checkable. Three lines in the window carry a
+    # NOT-taken claim (29, 32, 44) and the same three carry a taken one, for
+    # different passes — so every channel is emitted exactly three times, and
+    # `.mg` once per claimed line rather than once per claim.
     check occurrences(html, "<span class=\"mn\">") == 3
+    check occurrences(html, "<span class=\"mt\">") == 3
     check occurrences(html, "<span class=\"mg\">") == 3
     check occurrences(html, "<span class=\"ntbar\">") == 3
+    check occurrences(html, "<span class=\"rnbar\">") == 3
     # Still no script. The whole control is links and CSS.
     check executableScripts(html) == 0
+
+  test "the third state is a state: an uninstrumented arm takes NEITHER mark":
+    # `shield.nr:35` is the body of a clamp that never fires. It is an arm
+    # interior, it never ran, and no step was ever recorded on it in any pass —
+    # so the pane cannot tell whether the program declined it or the recorder
+    # simply never saw it, and it says so by marking it neither way.
+    #
+    # This is the assertion the affirmative mark exists for. Before it, "ran"
+    # and "cannot tell" were both drawn as an unmarked line, so a check that
+    # line 35 is unmarked was satisfied by a renderer that marked nothing at
+    # all. Now the two are distinguishable, and the positive twin below is what
+    # proves this one is not vacuous.
+    let html = debugHtml(readyTx)
+    check "class=\"srcline\" id=\"L-src-shield-nr-35\"" in html
+    # The positive twin, through the same code path: a line that DID run in a
+    # recorded pass is marked, so "35 is unmarked" is not the whole file being
+    # unmarked.
+    check "rn-i0" in html
+    # …and the headers are unmarked too, which is the interiors-never-headers
+    # rule holding for the affirmative claim as it does for the negative one.
+    # Evaluating a condition is executing that line; it is not evidence about
+    # the arm it introduces.
+    for header in ["28", "31", "34", "43"]:
+      check ("class=\"srcline hit\" id=\"L-src-shield-nr-" & header & "\"") in html
+
+  test "no line claims it ran AND did not run in the SAME pass":
+    # The contradiction `branchPasses` exists to make unrepresentable. Both
+    # claims come from one walk over one `ranAt` table, so a line cannot be in
+    # both sets for one pass — and this drives it over the real fixture rather
+    # than trusting the structure.
+    var pane = verifiedPane()
+    applyFlow(pane, flowInput)     # the claims are attached by the walk, not
+                                   # by the constructor — without this the loop
+                                   # below iterates a pane with no claims at
+                                   # all and every assertion in it is vacuous,
+                                   # which is what `claimed > 0` catches.
+    var claimed = 0
+    for d in pane.documents:
+      for ln in d.lines:
+        for p in ln.ran:
+          check p notin ln.notTaken
+          inc claimed
+        for p in ln.notTaken:
+          check p notin ln.ran
+          inc claimed
+    check claimed > 0                 # the scan reached a claimed line
 
   test "the target ladder resets before it sets, on every rung":
     # The dimming has to move with the rail, because the demo's two lines swap

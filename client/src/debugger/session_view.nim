@@ -487,6 +487,27 @@ type
       ## file in a language with no lexer, and every line of an instruction-level
       ## listing. `flow_view.notTakenPasses` is the only producer and its header
       ## is where that distinction is argued.
+    ran*: seq[int]
+      ## The loop passes in which a step was RECORDED on this line, inside a
+      ## branch arm's interior. `[-1]` for a conditional outside every loop.
+      ## Empty means no such claim is being made.
+      ##
+      ## The affirmative counterpart of `notTaken`, and deliberately its mirror
+      ## image rather than its complement: EMPTY IS NOT "DID NOT RUN", exactly as
+      ## empty `notTaken` is not "ran". A line with neither is the third state —
+      ## the pane cannot tell — and it is a real state with a real cause: an arm
+      ## the recorder never instrumented, a branch the session has not reached,
+      ## an arm whose chain went two ways in one pass.
+      ##
+      ## Before this field there were only two renderings and three states, so
+      ## "ran" and "cannot tell" were drawn identically — an untaken arm was
+      ## dimmed and everything else was left alone, which meant the absence of
+      ## dimming carried both "this executed" and "nothing is known". The
+      ## marker exists to separate them.
+      ##
+      ## `flow_view.branchPasses` is the only producer and derives this from the
+      ## same evidence in the same walk as `notTaken`, so the two cannot claim
+      ## the same line in the same pass.
     tokens*: seq[SourceToken]
       ## The line, partitioned into classified spans by `source_highlight`.
       ##

@@ -585,8 +585,41 @@ func passOf(step: FlowLayoutStep): int =
   ## step is outside every loop and is `NoIteration` — true in all passes.
   if step.loopIndex > 0: step.iteration else: NoIteration
 
-proc notTakenPasses*(window: FlowLayoutWindow;
-                     conditionals: seq[Conditional]): Table[int, seq[int]] =
+type
+  BranchPasses* = object
+    ## The two per-pass branch claims, produced together.
+    ##
+    ## ONE PRODUCER, because they are two answers to one question over one body
+    ## of evidence and they must not be able to disagree. A line claimed both
+    ## `ran` and `notTaken` in the SAME pass is a contradiction — the pane would
+    ## be saying a statement executed and did not execute in one evaluation —
+    ## and the only way to make that unrepresentable is to derive both from the
+    ## same `ranAt` table in the same walk. Two procs reading the same window
+    ## would agree today and would be one edit away from not agreeing.
+    notTaken*: Table[int, seq[int]]
+      ## Line → the passes in which it sits in a branch that was evaluated and
+      ## NOT taken. The three positive facts in `branchPasses`'s header.
+    ran*: Table[int, seq[int]]
+      ## Line → the passes in which a step was RECORDED on it, restricted to
+      ## branch-arm interiors.
+      ##
+      ## THE POSITIVE CLAIM IS HELD TO THE SAME BAR AS THE NEGATIVE ONE, which
+      ## is the whole reason it is computed here rather than read off
+      ## `SourceLine.executed`. `executed` is a whole-window boolean — it says
+      ## the trace visited this line at some point in some pass — and painting
+      ## an affirmative "this arm ran in THIS pass" from it would state pass 0's
+      ## control flow over pass 2's, which is exactly the defect rules 7-11 of
+      ## the `:target` ladder exist to stop for the negative claim.
+      ##
+      ## And it is never a default. Nothing is marked `ran` because it was not
+      ## dimmed: the evidence is a recorded step, on that line, in that pass.
+      ## An arm the recorder emitted no step for gets neither mark, and that
+      ## third state — CANNOT TELL — is the one the fixture's `shield.nr:35`
+      ## exists to hold: it is an arm interior, it never ran, and the recorder
+      ## never instrumented it, so the pane declines both ways.
+
+proc branchPasses*(window: FlowLayoutWindow;
+                   conditionals: seq[Conditional]): BranchPasses =
   ## For each source line, the passes in which it is inside a branch that was
   ## evaluated and **not taken**. Line numbers to pass indices, `NoIteration`
   ## for a conditional outside every loop.
@@ -715,8 +748,35 @@ proc notTakenPasses*(window: FlowLayoutWindow;
 
       for arm in dim:
         for line in arm.firstLine .. arm.lastLine:
-          if not result.hasKey(line): result[line] = @[]
-          if pass notin result[line]: result[line].add pass
+          if not result.notTaken.hasKey(line): result.notTaken[line] = @[]
+          if pass notin result.notTaken[line]: result.notTaken[line].add pass
+
+      # THE POSITIVE HALF, from the same `ranAt` and in the same walk.
+      #
+      # Per LINE and not per arm: an arm that ran may still contain a line the
+      # recorder emitted no step for — an early return leaves the rest of the
+      # block unvisited — and marking the whole interior would be inferring
+      # those lines from their neighbours, which is the inference the negative
+      # half refuses. A recorded step on the line, in this pass, or nothing.
+      #
+      # Restricted to arm INTERIORS, which is what makes this a branch mark
+      # rather than a second executable marker: the question the reader is
+      # asking here is "which way did it go", and `.hit`'s gutter dot already
+      # answers "is this line executable". Headers are excluded by the same
+      # rule that excludes them from dimming — evaluating a condition is
+      # executing that line, so an `else if` header is not evidence about the
+      # arm it introduces.
+      for arm in conditional.arms:
+        for line in arm.firstLine .. arm.lastLine:
+          if not ranAt.getOrDefault((pass, line), false): continue
+          if not result.ran.hasKey(line): result.ran[line] = @[]
+          if pass notin result.ran[line]: result.ran[line].add pass
+
+proc notTakenPasses*(window: FlowLayoutWindow;
+                     conditionals: seq[Conditional]): Table[int, seq[int]] =
+  ## The negative half alone. A wrapper, so the many existing callers and tests
+  ## that only ask about dimming did not have to learn about the pair.
+  branchPasses(window, conditionals).notTaken
 
 proc applyFlow*(pane: var EditorPane; input: FlowWindowInput) =
   ## Attach the window's values to the pane's document, and set its rail.
@@ -764,6 +824,7 @@ proc applyFlow*(pane: var EditorPane; input: FlowWindowInput) =
       pane.documents[d].lines[i].annotations = @[]
       pane.documents[d].lines[i].elisions = @[]
       pane.documents[d].lines[i].notTaken = @[]
+      pane.documents[d].lines[i].ran = @[]
   if pane.availability != srcSourceLevel: return
   if input.path.len == 0: return
 
@@ -826,7 +887,7 @@ proc applyFlow*(pane: var EditorPane; input: FlowWindowInput) =
   # some later block's. The pane's line NUMBERS are what the two are joined on,
   # and they are the file's own, which is exactly the property `lineAnchor`
   # exists to guarantee.
-  let untaken = notTakenPasses(
+  let branches = branchPasses(
     input.window,
     findConditionals(
       input.window.sourceLines,
@@ -847,8 +908,10 @@ proc applyFlow*(pane: var EditorPane; input: FlowWindowInput) =
       pane.documents[index].lines[i].elisions =
         planElision(pane.documents[index].lines[i].annotations,
                     pane.documents[index].lines[i].text)
-    if untaken.hasKey(number):
-      pane.documents[index].lines[i].notTaken = untaken[number]
+    if branches.notTaken.hasKey(number):
+      pane.documents[index].lines[i].notTaken = branches.notTaken[number]
+    if branches.ran.hasKey(number):
+      pane.documents[index].lines[i].ran = branches.ran[number]
 
 # ---------------------------------------------------------------------------
 # What the renderer asks about an annotation
@@ -883,6 +946,28 @@ func notTakenClasses*(passes: seq[int]; selected: int): string =
     result.add " " & notTakenClass(pass)
     if pass < 0 or pass == selected: now = true
   if now: result.add " ntnow"
+
+func ranClass*(iteration: int): string =
+  ## The class carrying the pass in which a line RAN — `rn-i<N>`, or `rn-any`
+  ## for a conditional outside every loop.
+  ##
+  ## `rn-` and not `tk-`: `tk-` is already the syntax-token prefix
+  ## (`tk-keyword`, `tk-comment`), and a second meaning on one prefix would put
+  ## "this ran" and "this is a keyword" in the same namespace on the same
+  ## element. A separate prefix from `nt-` for the reason `nt-` is separate from
+  ## `fv-`: they ride the same `:target` ladder and mean opposite things.
+  if iteration < 0: "rn-any" else: "rn-i" & $iteration
+
+func ranClasses*(passes: seq[int]; selected: int): string =
+  ## The same shape as `notTakenClasses`, and deliberately so: the two claims
+  ## are drawn by one ladder and any asymmetry here would be an asymmetry in
+  ## which passes each is shown for.
+  if passes.len == 0: return ""
+  var now = false
+  for pass in passes:
+    result.add " " & ranClass(pass)
+    if pass < 0 or pass == selected: now = true
+  if now: result.add " rnnow"
 
 func railTargetId*(iteration: int): string =
   ## The id a rail segment targets.

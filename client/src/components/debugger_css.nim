@@ -517,6 +517,45 @@ html[data-register="debugger"],
 .srcline.ntnow .mn{display:inline}
 .srcline.ntnow .ntbar{display:block}
 .srcline.ntnow .t{opacity:var(--bt-opacity-not-run)}
+
+/* ── a branch arm that DID run, in this pass ─────────────────────────────── */
+/* The affirmative half, added because there were three states and two
+   renderings. An untaken arm was dimmed and everything else was left alone, so
+   "this ran" and "the ladder cannot tell" were drawn identically — and the
+   second is common: an arm the recorder never instrumented, a branch the
+   session has not reached, a chain that went two ways in one pass. The absence
+   of a dim was carrying both meanings.
+
+   IT IS EARNED, NOT DEFAULTED. Nothing is marked because it was not dimmed;
+   `flow_view.branchPasses` requires a recorded step on THAT line in THAT pass,
+   which is at least as strong as the three positive facts the dimming needs.
+   The fixture holds the proof: `shield.nr:35` is an arm interior that never
+   ran and was never instrumented, and it takes neither mark.
+
+   Two channels, and the GLYPH is the primary one, exactly as it is for the
+   negative claim. `⊙` and `⊘` are the same circle with and without a stroke
+   through it, so the pair reads as one question answered two ways. The rail is
+   the second, and it shares `.ntbar`'s position deliberately: a line cannot run
+   and not run in the same pass, and one pass is displayed at a time, so the two
+   are mutually exclusive by construction and never contend for the edge.
+
+   THERE IS NO THIRD CHANNEL, and that is the asymmetry. The negative claim also
+   recedes the code to `--bt-opacity-not-run`; the positive one leaves it at full
+   strength, because full strength is what an ordinary line already is. Adding a
+   brightening would mean every unmarked line had been dimmed by comparison —
+   the claim inverted, made about the lines the pane knows least about.
+
+   The colour is `--bt-mark-executable`, the same role the gutter's `·` carries,
+   and not a new hue. Both say "this executed"; the dot says it of the whole
+   window and `⊙` says it of this pass, so they are one family at two
+   resolutions. A fourth hue on a surface where reviewers have repeatedly filed
+   one-hue-many-roles findings would buy a distinction the glyph already makes. */
+.srcline .mt{display:none;color:var(--bt-mark-executable)}
+.srcline .rnbar{display:none;position:absolute;left:0;top:0;bottom:0;
+  width:var(--bt-stroke-thick);background:var(--bt-mark-executable)}
+.srcline.rnnow .mg{display:none}
+.srcline.rnnow .mt{display:inline}
+.srcline.rnnow .rnbar{display:block}
 .src .tk-comment{color:var(--bt-syntax-comment)}
 .src .tk-keyword{color:var(--bt-syntax-keyword)}
 .src .tk-type{color:var(--bt-syntax-type)}
@@ -1575,18 +1614,35 @@ func flowIterationLadder(): string =
     result.add t & ".flowrail .frseg.s" & $i & " .frdot{display:block}\n"
     result.add t & ".flowrail .frcount.now{display:none}\n"
     result.add t & ".flowrail .frcount.c" & $i & "{display:inline}\n"
+    # EVERY RESET BEFORE EVERY SET, across BOTH claims. Within one claim the
+    # order was already reset-then-set; with two of them sharing `.mg` the
+    # grouping has to be by phase and not by claim. A line that ran in the
+    # session's pass and did NOT run in the targeted one carries `rnnow` and
+    # `nt-i<target>` at once: `rnnow`'s reset restores the ordinary marker and
+    # `nt-i`'s set replaces it with `⊘`. Emitted claim-by-claim instead, the
+    # second claim's reset would land after the first claim's set and undo it,
+    # and the line would show the ordinary marker in a pass it has a claim for.
     result.add t & ".srcwrap .srcline.ntnow .mn{display:none}\n"
-    result.add t & ".srcwrap .srcline.ntnow .mg{display:inline}\n"
     result.add t & ".srcwrap .srcline.ntnow .ntbar{display:none}\n"
     result.add t & ".srcwrap .srcline.ntnow .t{opacity:1}\n"
+    result.add t & ".srcwrap .srcline.rnnow .mt{display:none}\n"
+    result.add t & ".srcwrap .srcline.rnnow .rnbar{display:none}\n"
+    result.add t & ".srcwrap .srcline.ntnow .mg," &
+                t & ".srcwrap .srcline.rnnow .mg{display:inline}\n"
     result.add t & ".srcwrap .srcline.nt-i" & $i & " .mn," &
                 t & ".srcwrap .srcline.nt-any .mn{display:inline}\n"
-    result.add t & ".srcwrap .srcline.nt-i" & $i & " .mg," &
-                t & ".srcwrap .srcline.nt-any .mg{display:none}\n"
     result.add t & ".srcwrap .srcline.nt-i" & $i & " .ntbar," &
                 t & ".srcwrap .srcline.nt-any .ntbar{display:block}\n"
     result.add t & ".srcwrap .srcline.nt-i" & $i & " .t," &
                 t & ".srcwrap .srcline.nt-any .t{opacity:var(--bt-opacity-not-run)}\n"
+    result.add t & ".srcwrap .srcline.rn-i" & $i & " .mt," &
+                t & ".srcwrap .srcline.rn-any .mt{display:inline}\n"
+    result.add t & ".srcwrap .srcline.rn-i" & $i & " .rnbar," &
+                t & ".srcwrap .srcline.rn-any .rnbar{display:block}\n"
+    result.add t & ".srcwrap .srcline.nt-i" & $i & " .mg," &
+                t & ".srcwrap .srcline.nt-any .mg," &
+                t & ".srcwrap .srcline.rn-i" & $i & " .mg," &
+                t & ".srcwrap .srcline.rn-any .mg{display:none}\n"
 
 func valueWidthRegimes(): string =
   ## Which of an elided line's labels and which of its counts this viewport
