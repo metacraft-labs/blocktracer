@@ -61,6 +61,10 @@ type
       ## as an inference from an empty Debug column.
     recorderId*, recorderVersion*, recorderBuild*: string
     profileName*, traceSchema*: string
+    provenanceKind*, provenanceLabel*, provenanceDetail*: string
+      ## Where this chain's data came from, as the tree states it. Empty
+      ## `provenanceKind` means the generation published none, which for this
+      ## repository's demo tree is the synthetic case.
 
   BlockRow* = object
     ## One row of the block-list / latest-blocks table.
@@ -164,7 +168,9 @@ proc chainInfo*(r: DataRoot, chain: string): ChainInfo =
     hasRecorder: s.hasPin,
     recorderId: s.pin.recorder.id, recorderVersion: s.pin.recorder.version,
     recorderBuild: s.pin.recorder.build,
-    profileName: s.pin.profile.name, traceSchema: s.pin.traceSchema)
+    profileName: s.pin.profile.name, traceSchema: s.pin.traceSchema,
+    provenanceKind: s.provenanceKind, provenanceLabel: s.provenanceLabel,
+    provenanceDetail: s.provenanceDetail)
 
 # ── blocks ───────────────────────────────────────────────────────────────
 

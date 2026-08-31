@@ -54,6 +54,16 @@ type
     stale*: bool
     blockCount*: int
     txCount*: int
+    provenanceKind*: string
+      ## What KIND of data this chain's generation carries — `live-capture` for
+      ## a tree ingested from a real node, empty for the synthetic demo. It is
+      ## read from the published summary rather than inferred from the chain's
+      ## name, because "am I looking at real data?" is a question the tree has
+      ## to answer for itself: a slug is a label anyone can choose, and a
+      ## consumer that guessed from one would be one rename away from telling a
+      ## visitor that synthetic data came off a chain.
+    provenanceLabel*: string
+    provenanceDetail*: string
 
   OpenOutcome* = enum
     ooOpened = "opened"
@@ -159,6 +169,11 @@ proc openChain*(store: ObjectStore, chain: string): OpenResult =
       if sum.node.hasKey("counters"):
         s.blockCount = sum.node["counters"]{"blocks"}.getInt
         s.txCount = sum.node["counters"]{"transactions"}.getInt
+      if sum.node.hasKey("provenance"):
+        let p = sum.node["provenance"]
+        s.provenanceKind = p{"kind"}.getStr
+        s.provenanceLabel = p{"label"}.getStr
+        s.provenanceDetail = p{"detail"}.getStr
 
   let reg = store.getJson(registryPath(s.contractVersion))
   if reg.found and reg.error.len == 0:

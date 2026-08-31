@@ -49,7 +49,12 @@ proc siteCss(): string =
   emitTokensCss() & fontFaceCss & globalCss & debugRouteCss
 
 proc pageLayout*(title, description, content: string,
-                 robots = "index,follow", canonical = ""): string =
+                 robots = "index,follow", canonical = "",
+                 provenance = ""): string =
+  ## `provenance` is a pre-rendered string and defaults to "": a site-level page
+  ## has no chain and therefore makes no claim about whose data it shows. Every
+  ## chain-scoped route passes one — see `components/provenance.nim` for why the
+  ## marker has to be on the page rather than somewhere a reader might not go.
   let css = siteCss()
   "<!doctype html>\n" & renderToString(proc(): string =
     ui:
@@ -68,6 +73,7 @@ proc pageLayout*(title, description, content: string,
         body:
           raw siteNav()
           main(class = "pagebody"):
+            raw provenance
             raw content
           raw siteFooter()
   )
@@ -131,7 +137,8 @@ proc hydrationScriptTag(): string =
     script(src = HydrationBundle, `defer` = "")
 
 proc debugLayout*(title, description, content: string,
-                  robots = "noindex,follow", canonical = ""): string =
+                  robots = "noindex,follow", canonical = "",
+                  provenance = ""): string =
   ## The debugging session's shell — Page-Descriptions §8: "the explorer chrome
   ## collapses to a slim identity bar".
   ##
@@ -182,6 +189,13 @@ proc debugLayout*(title, description, content: string,
           style:
             raw css
         body:
+          # FIRST IN THE SESSION SHELL, not omitted from it. This is the
+          # register where a reader is most likely to forget which chain they
+          # are on — the nav and the footer are gone, the viewport is the
+          # debugger, and the thing on screen is an execution. A trace that is
+          # a recorded Noir program published under a synthetic hash and a
+          # trace that is a real testnet transaction step identically here.
+          raw provenance
           raw content
           # The hydration bundle, and ONLY on this shell.
           #

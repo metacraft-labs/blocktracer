@@ -13,6 +13,7 @@ import debugger/source_document
 import debugger/session_view
 import components/layout
 import components/degraded
+import components/provenance
 import pages/home as homePg
 import pages/chains as chainsPg
 import pages/chain as chainPg
@@ -113,7 +114,12 @@ proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
     containerPath = t.containerPath,
     containerBytes = t.containerBytes,
     contentHash = t.contentHash,
-    totalSteps = (if t.steps > 0: t.steps else: 0))
+    totalSteps = (if t.steps > 0: t.steps else: 0),
+    # The MANIFEST decides whether there are source positions, not the page and
+    # not the chain's name. A container recorded at instruction level renders as
+    # instruction level wherever it came from, and the client-side fixture
+    # sources are offered only to a trace whose manifest claims source level.
+    sourceLevel = t.sourceLevel)
   if t.languages.len > 0:
     result.languages = t.languages
   result.reconstructed = t.reconstructed
@@ -262,7 +268,8 @@ proc renderChain*(r: DataRoot, chain: string): string =
     "Chain overview for " & chain & ": latest blocks and transactions, each with the debugger as its primary action.",
     chainPg.chainPage(chain, info, bs, page.rows, d, chainNotice(r, info)),
     robots = $routeClass("/" & chain),
-    canonical = SiteDomain & "/" & chain)
+    canonical = SiteDomain & "/" & chain,
+    provenance = provenanceBanner(info))
 
 proc renderBlockList*(r: DataRoot, chain: string, fromHeight: int): string =
   let info = chainInfo(r, chain)
@@ -275,7 +282,8 @@ proc renderBlockList*(r: DataRoot, chain: string, fromHeight: int): string =
     "Blocks on " & chain & ", newest first, paginated by walking backwards.",
     blockListPg.blockListPage(chain, info, page, d, chainNotice(r, info)),
     robots = $routeClass(route),
-    canonical = SiteDomain & route)
+    canonical = SiteDomain & route,
+    provenance = provenanceBanner(info))
 
 proc renderTxList*(r: DataRoot, chain: string, fromHeight: int): string =
   let info = chainInfo(r, chain)
@@ -288,7 +296,8 @@ proc renderTxList*(r: DataRoot, chain: string, fromHeight: int): string =
     "Transactions on " & chain & ", newest first, with Debug as the first column of every row.",
     txsPg.txsPage(chain, info, page, d, chainNotice(r, info)),
     robots = $routeClass(route),
-    canonical = SiteDomain & route)
+    canonical = SiteDomain & route,
+    provenance = provenanceBanner(info))
 
 proc renderBlock*(r: DataRoot, chain, hash: string): string =
   let info = chainInfo(r, chain)
@@ -318,7 +327,8 @@ proc renderBlock*(r: DataRoot, chain, hash: string): string =
                       nextBlockHash(r, info, detail.height),
                       hasBlock(r, chain, detail.parentHash), d, note),
     robots = $routeClass("/" & chain & "/block/" & hash),
-    canonical = SiteDomain & "/" & chain & "/block/" & hash)
+    canonical = SiteDomain & "/" & chain & "/block/" & hash,
+    provenance = provenanceBanner(info))
 
 proc addressCode(r: DataRoot, info: ChainInfo, address: string,
                  rows: seq[TxRow]): seq[SourceBundleView] =
@@ -346,7 +356,8 @@ proc renderAddress*(r: DataRoot, chain, address, segmentId: string): string =
                           labelFor(labels(r, chain), address),
                           addressCode(r, info, address, rows), d, note),
     robots = $routeClass(route),
-    canonical = SiteDomain & route)
+    canonical = SiteDomain & route,
+    provenance = provenanceBanner(info))
 
 proc renderAddressCode*(r: DataRoot, chain, address: string): string =
   ## §10. The verified-source browser for the code at an address.
@@ -369,7 +380,8 @@ proc renderAddressCode*(r: DataRoot, chain, address: string): string =
     "Verified source, compiler settings and deployments for the code at " & address & " on " & chain & ".",
     codePg.codePage(chain, address, code, deployments, d, note),
     robots = $routeClass(route),
-    canonical = SiteDomain & route)
+    canonical = SiteDomain & route,
+    provenance = provenanceBanner(info))
 
 proc renderTx*(r: DataRoot, chain, hash: string): string =
   ## `/{chain}/tx/{hash}` — Page-Descriptions §7.0, whose whole point is that
@@ -417,17 +429,20 @@ proc renderTx*(r: DataRoot, chain, hash: string): string =
       description,
       debugPg.debugPage(s),
       robots = robots,
-      canonical = canonical)
+      canonical = canonical,
+      provenance = provenanceBanner(info))
   else:
     pageLayout(
       "Transaction " & short & "… — " & chain & " — BlockTracer",
       description,
       txPg.txPage(chain, v),
       robots = robots,
-      canonical = canonical)
+      canonical = canonical,
+      provenance = provenanceBanner(info))
 
 proc renderDebug*(r: DataRoot, chain, hash: string): string =
   let s = debugSessionFor(r, chain, hash)
+  let info = chainInfo(r, chain)
   debugLayout(
     "Debug " & truncHash(hash) & " — " & chain & " — BlockTracer",
     "Step through transaction " & hash & " on " & chain & ".",
@@ -437,7 +452,8 @@ proc renderDebug*(r: DataRoot, chain, hash: string): string =
     # makes that page the same session's first frame, and M8b requires the
     # transaction route's crawl surface to be unchanged — which a second
     # indexable copy of the same content would not leave it.
-    canonical = SiteDomain & "/" & chain & "/tx/" & hash)
+    canonical = SiteDomain & "/" & chain & "/tx/" & hash,
+    provenance = provenanceBanner(info))
 
 proc renderNotFound*(r: DataRoot): string =
   ## §14's "Object not found" row, at a real 404 (SEO §6 class G0).

@@ -90,9 +90,15 @@ proc txPage*(chain: string, v: TxView): string =
       "come from the execution trace. They appear here once this transaction " &
       "has a recorded trace."
     of taAbsent:
-      "come from the execution trace. This execution publishes no call " &
-      "structure, so there is none to record — this section is empty " &
-      "permanently, not yet."
+      # Says PERMANENT without saying WHY, for the reason `availabilityNote`
+      # does: `absent` covers both an execution that never had a call structure
+      # and one whose body the network has since pruned, and this sentence
+      # cannot tell them apart. It used to assert the first, which made it
+      # false for every settled transaction past the retention horizon. The
+      # cause is published per execution and rendered in the hero above.
+      "come from the execution trace. No trace was recorded for this " &
+      "execution and none can be now, so this section is empty permanently, " &
+      "not yet."
     else:
       "come from the execution trace. No recorder exists for this VM yet, so " &
       "no trace can be produced and this section stays empty until one does."

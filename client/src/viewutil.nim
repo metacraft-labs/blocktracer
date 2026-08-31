@@ -210,7 +210,20 @@ proc availabilityNote*(a: TraceAvailability): string =
   of taOnDemand:
     "No trace has been recorded for this transaction yet. Generating one replays the transaction on our side and publishes the result — it needs an account, and nothing is computed in your browser."
   of taAbsent:
-    "Structurally unobservable — there is no call structure to trace, so this is absent by nature, not a failed fetch."
+    # THE ENUM'S SENTENCE MAY NOT NAME A CAUSE, because `absent` now has more
+    # than one and this line cannot tell them apart. It used to read
+    # "Structurally unobservable — there is no call structure to trace", which
+    # was true while the only absent execution in any published tree was an
+    # Aztec private one. It stopped being true the moment a real chain was
+    # ingested: a settled public transaction whose body the network has pruned
+    # has a perfectly good call structure, was replayable an hour earlier, and
+    # would have been told by this line that it never had one.
+    #
+    # What IS common to every absent execution is the part a visitor needs: no
+    # trace can be had, and waiting will not help. The cause is published per
+    # execution and rendered directly beneath this, which is where a claim
+    # specific enough to be wrong belongs.
+    "No trace can be produced for this execution — a permanent answer rather than a failed fetch. The published reason states why."
   of taUnsupported:
     "No recorder exists for this VM yet, so no trace can be produced."
 

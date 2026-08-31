@@ -798,9 +798,24 @@ proc generate*(cfg: DemoConfig): int =
     txstateRels.add "d" / chain / "g" / gen / "txstate" / hexShard(t.hash) / t.hash & ".json"
 
   let summaryRel = "d" / chain / "g" / gen / "summary.json"
+  # THE SYNTHETIC TREE SAYS SO IN ITS OWN SUMMARY. Once a second producer
+  # publishes a real chain into the same tree, "which of these am I looking at?"
+  # becomes a question a visitor can actually get wrong, and the answer may not
+  # depend on which template rendered the page or on what the chain is called.
+  # So both producers publish a provenance block and every page renders it: the
+  # marker is on the page a reader is on, not on a marketing page elsewhere.
   cfg.writeJson(summaryRel, %*{"chain": chain, "generation": gen,
     "counters": {"blocks": blocks.len, "transactions": txs.len},
-    "coverageMode": "selective", "stale": false})
+    "coverageMode": "selective", "stale": false,
+    "provenance": {
+      "kind": "synthetic",
+      "label": "Synthetic demo data",
+      "detail":
+        "Every block, transaction, address and hash on this chain is generated " &
+        "from a fixed seed. None of them exists on any network, and none of " &
+        "these values can be looked up anywhere else. The execution trace is " &
+        "real — it is a recorded Noir program — but it is not the execution of " &
+        "the transaction it is published under."}})
 
   # ---- /idx/** search indices (Search-And-Routing §5, §6) ------------------
   # (1) The global hash index: shard the (chain, kind) claims by a leading hex slice

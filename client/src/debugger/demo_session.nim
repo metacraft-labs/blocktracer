@@ -337,7 +337,8 @@ proc demoSession*(chain: string; v: TxView;
                   timeCoordinate = 0;
                   containerPath = ""; containerBytes = 0;
                   contentHash = "";
-                  totalSteps = FixtureTotalSteps): DebugSessionView =
+                  totalSteps = FixtureTotalSteps;
+                  sourceLevel = true): DebugSessionView =
   ## The pre-hydration frame for one transaction, with `trace.availability`
   ## deciding what it is — Page-Descriptions §7.0's table, applied to the
   ## explicit debug route:
@@ -401,17 +402,54 @@ proc demoSession*(chain: string; v: TxView;
         "The differential oracle replayed this transaction and disagreed with " &
         "the chain's own result. The trace is real and steps normally; what it " &
         "cannot be used for is proving what the chain did."
-    result.editor = fixtureEditor()
-    result.calltrace = fixtureCalltrace()
-    result.state = fixtureState()
-    # The revert row appears only on a transaction that actually reverted.
-    # `ooPartial` is not a revert — the demo's Aztec split transaction reports
-    # `partial` with both halves succeeded — and rendering a failed constraint
-    # against it would be the pane inventing an event the trace never carried.
-    result.eventLog = fixtureEventLog(
-      v.outcome in {ooReverted, ooFailedWithEffects})
-    result.controls = fixtureControls(positioned = true, live = false,
-                                      steps = steps)
+    if not sourceLevel:
+      # INSTRUCTION LEVEL. The manifest says this container carries no source
+      # positions, so every pane below it must decline rather than borrow.
+      #
+      # This branch exists because the alternative was live for exactly one
+      # build: the panes below are a FIXTURE — one recorded Noir program — and
+      # before this branch a real chain transaction with a real container
+      # rendered that fixture's source, its loop counts and its variable values
+      # as though they were its own. A recording whose every step is a bare
+      # program counter cannot show a line of Noir, an iteration count or a
+      # local's value, and a page that showed them would not be slightly
+      # optimistic; it would be displaying another program's execution under
+      # this transaction's hash.
+      #
+      # The fidelity ladder's floor is a real rung, not a failure: the trace is
+      # complete, it steps, and what is missing is only the text to show it
+      # against. `srcUnverified` is the state that says exactly that, and §14's
+      # "supply sources" affordance hangs off it.
+      result.editor = EditorPane(availability: srcUnverified,
+        reason: "The chain publishes no source for this contract — an Aztec " &
+                "contract class carries bytecode, and no debug symbols, no " &
+                "file map and no source text. The recording is therefore at " &
+                "instruction level: every step is a program counter, and " &
+                "there is nothing to position it against. Stepping is " &
+                "complete; only the text is missing.")
+      result.calltrace.note =
+        "Frames are recorded, and without a file map they carry no function " &
+        "names or source positions."
+      result.state.note =
+        "This recording carries no variable names: naming a local needs debug " &
+        "symbols, which an Aztec contract class does not publish."
+      result.eventLog.note =
+        "Calls and storage writes are recorded against program counters " &
+        "rather than source lines."
+      result.controls = fixtureControls(positioned = true, live = false,
+                                        steps = steps)
+    else:
+      result.editor = fixtureEditor()
+      result.calltrace = fixtureCalltrace()
+      result.state = fixtureState()
+      # The revert row appears only on a transaction that actually reverted.
+      # `ooPartial` is not a revert — the demo's Aztec split transaction reports
+      # `partial` with both halves succeeded — and rendering a failed constraint
+      # against it would be the pane inventing an event the trace never carried.
+      result.eventLog = fixtureEventLog(
+        v.outcome in {ooReverted, ooFailedWithEffects})
+      result.controls = fixtureControls(positioned = true, live = false,
+                                        steps = steps)
   of taOnDemand:
     result.phase = spAwaitingGeneration
     result.unavailableReason = availabilityNote(taOnDemand)

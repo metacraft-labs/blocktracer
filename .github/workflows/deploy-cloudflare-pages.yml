@@ -278,6 +278,31 @@ jobs:
             exit 1
           }
 
+      - name: Verify every asset a published page asks for was published
+        # THE GENERAL FORM OF BOTH STEPS ABOVE, AND THE ONE THAT COVERS TRACES.
+        #
+        # The two shell steps before this cover exactly two asset classes: the
+        # replay engine, and same-origin `<script src>`. Publishing real chain
+        # data adds a third that neither can see — the CodeTracer containers
+        # under `/t/**`, which pages name in `data-trace` and the debugger
+        # fetches. A container that is missing or truncated fails the same way
+        # the engine did: the page renders, the visitor clicks Debug, and
+        # nothing happens. Worse, this product's honesty rules mean the page
+        # will report the failure accurately, so it looks broken to the visitor
+        # rather than to us.
+        #
+        # `check-assets.mjs` asserts both directions on the staged bytes:
+        # every same-origin reference resolves to a NON-EMPTY file, and — the
+        # half a resolve-check cannot do — a publish claiming to carry traces
+        # must have some page actually name one. `--require-traces` is what
+        # makes the second half bite; without it a tree that lost every
+        # container would pass by referencing nothing.
+        #
+        # It runs on `site/`, the staged copy that is about to be uploaded, for
+        # the same reason the engine step does: a green build that served a
+        # cached store path has reached production here before.
+        run: nix develop .#ci --command node tools/deploy/check-assets.mjs --dir site --require-traces
+
       - name: Deploy to Cloudflare Pages
         id: deploy
         # The self-hosted eph-* runners are Nix runners with no preinstalled

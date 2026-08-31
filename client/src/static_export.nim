@@ -22,6 +22,7 @@
 
 import std/[os, strutils, times]
 import blocktracer/demo/generator
+import blocktracer/chain/ingest
 import ssr
 import reader
 import debugger/replay_engine
@@ -120,6 +121,27 @@ proc exportSite() =
                               traceFixturePath: fixture,
                               traceSourcesDir: sources))
   echo "  + data plane: /d /idx /t /registry + entry pages (" & $n & " transactions)"
+
+  # Step 1b: ingest the captured live-chain snapshot as a SECOND chain, if this
+  # checkout carries one. Two producers, one tree, one contract — everything
+  # below (route enumeration, reader, the five §7.0 views, the validator) is
+  # shared, because a second chain is data rather than a second explorer.
+  #
+  # ITS ABSENCE IS A VALID BUILD, and deliberately so: a checkout without a
+  # capture serves exactly the synthetic demo it always did. What must never
+  # happen is the opposite — a snapshot present and silently half-ingested — so
+  # `ingestSnapshot` raises rather than skipping a transaction it cannot publish.
+  let snapshotDir = repoRoot() / "client" / "fixtures" / "chain" / "aztec-testnet"
+  if fileExists(snapshotDir / "snapshot.json"):
+    let ing = ingestSnapshot(IngestConfig(outDir: OutputDir,
+                                          snapshotDir: snapshotDir))
+    echo "  + live-chain snapshot: /" & ing.chain & " — " & $ing.blocks &
+      " blocks, " & $ing.transactions & " transactions, " & $ing.withTrace &
+      " with a published trace (" & $ing.divergent & " divergent, " &
+      $ing.containerBytes & " bytes), " &
+      $ing.pruned & " past the replay horizon"
+  else:
+    echo "  + live-chain snapshot: none in this checkout (synthetic demo only)"
 
   # Step 2: render the explorer views over that tree, at clean URLs.
   let root = newDataRoot(OutputDir)

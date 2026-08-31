@@ -1180,8 +1180,17 @@ suite "§7.0 — the transaction page IS the debugger's first frame":
     check hasNoSessionMarker(html)
     check "<html lang=\"en\" data-register=\"explorer\">" in html
     check "<html lang=\"en\" data-register=\"debugger\">" notin html
-    # The reason is stated…
-    check "Structurally unobservable" in body
+    # The reason is stated — BOTH halves of it, and the split is the point.
+    # The enum's sentence says only what is true of every absent execution
+    # (permanent, not a failed fetch); the cause comes from the PUBLISHED
+    # reason. A generic line that named a cause would be wrong for the other
+    # kind of absence — a settled transaction whose body has been pruned past
+    # the retention horizon — so this asserts the generic line does NOT claim
+    # one, and that the specific one is present.
+    check availabilityNote(taAbsent) in body
+    check "permanent answer rather than a failed fetch" in body
+    check "no call structure" notin availabilityNote(taAbsent)
+    check AbsentReason in body
     check availabilityState(taAbsent) in body
     # …and there is no control at all, not even a disabled one. A greyed
     # button still occupies the primary action's position and still invites
