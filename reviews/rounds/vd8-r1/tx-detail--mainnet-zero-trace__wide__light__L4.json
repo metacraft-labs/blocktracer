@@ -1,0 +1,56 @@
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/1",
+      "severity": "P2",
+      "location": "Overview table, COST \u00b7 TRANSACTIONFEE row (y 1183-1245), value cell starting x=689",
+      "finding": "The fee is printed as a 66-character zero-padded hex word \u2014 0x followed by 47 leading zeros before 175c1a29c1f97278 \u2014 so the only 17 characters that carry information sit at the far right of a 687px run of identical glyphs. The magnitude is not readable, not comparable to any other fee, and not scaled to its stated unit (mana / FeeJuice). This is the widest value on the page and it is the least legible one: it alone forces the value column to 750px, which the three rows above it (67113:0, Yes, Finalized) then leave more than 90% empty.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/2",
+      "severity": "P2",
+      "location": "Content column: provenance banner, Overview table, Decoded input table and Raw card all span x=504-1415 (911px); the Not observable card, the Decoded input note, and the Events / Internal calls / State changes cards all stop at x=1203 (699px)",
+      "finding": "Two content widths run down the page and the difference buys nothing, because the text measure inside both is the same: the banner's longest line ends at x=1136 and the notice cards' longest lines end at x=1119. So the banner is a 911px card wrapped around a 607px paragraph with a 279px dead right gutter, while the identical kind of prose next to it gets a card sized 208px narrower. The right edge of the page steps in and out five times between y=660 and y=2199 for content that is all the same class. Either the prose cards match the tables at 911px, or the banner matches them at 699px \u2014 carrying both widths just makes the wide viewport read as ragged.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/3",
+      "severity": "P2",
+      "location": "First viewport (y 0-1080): provenance banner y 135-422, Not observable card y 660-907, Overview heading y 1037, Overview first row y 1070-1107",
+      "finding": "At 1920x1080 the fold lands on the top rule of the Overview table, so not one value of the transaction's own metadata \u2014 block, canonicality, finality, cost \u2014 is readable without scrolling. The 288px banner and the 247px note together take half the first screen, and the banner's ten lines are chain-level capture methodology (replay-window arithmetic, the 309-block run, how a follower should be built) that is identical on every page of this chain. The whole page runs 2872px, 2.7 screens, for roughly a dozen facts. The wide viewport has 1920px of width available and the page answers by spending height instead: the Overview's four one-token rows are stacked vertically in a 911px table where a two-up key/value grid would put all four above the fold.",
+      "criterion": "A1"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/4",
+      "severity": "P3",
+      "location": "Overview table, label column (x 505-665), COST \u00b7 TRANSACTIONFEE row",
+      "finding": "The label is a raw camelCase key uppercased without being split, so it renders as the single 14-letter word TRANSACTIONFEE, which is slower to parse than the three short labels above it. It also cannot fit the 160px label column and wraps to two lines, making that row 62px tall against 37-38px for BLOCK, CANONICAL and FINALITY \u2014 a broken row rhythm caused by the narrow column while the 750px column beside it has room to spare.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/5",
+      "severity": "P3",
+      "location": "Page hero: truncated hash 0x1c37\u20260410 at y 513-580, full hash at y 595-604",
+      "finding": "The same value is printed twice, nine pixels apart, once elided. Truncation earns its place where space is scarce; here the full 66-character hash sits on the very next line at a width the column easily holds, so the display form adds an ellipsis and no information at the densest-attention point on the page.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/6",
+      "severity": "P3",
+      "location": "Provenance banner, third and fourth lines: \"NO TRANSACTION INSIDE IT WAS REPLAYABLE\"",
+      "finding": "Five words are set in all caps inside running prose and wrap across a line break. All-caps loses the word-shape cues a reader scans by, so the one clause the banner most wants read is the slowest one in the paragraph, and it reads as raised voice rather than emphasis. Weight or italic would emphasise it without costing legibility.",
+      "criterion": "A4"
+    }
+  ]
+}
+```

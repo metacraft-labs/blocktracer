@@ -66,7 +66,7 @@
     "round reports FAILED on exactly those two conditions and on nothing else.",
     "That is the honest ceiling of an agent-run round, and it is where VD.2 stops."
   ],
-  "ledgerRevision": "2026-08-29.2",
+  "ledgerRevision": "2026-08-31.1",
   "gateScope": [
     {
       "view": "tx-detail",
@@ -92,6 +92,16 @@
       "view": "debugger",
       "size": "laptop",
       "theme": "dark"
+    },
+    {
+      "view": "tx-detail--mainnet-zero-trace",
+      "size": "wide",
+      "theme": "light"
+    },
+    {
+      "view": "debugger--testnet",
+      "size": "wide",
+      "theme": "light"
     }
   ],
   "_scopeNote": [
@@ -2325,6 +2335,695 @@
           "location": "Call Trace pane footer, right edge — 'Sort by cost'",
           "finding": "An in-pane re-sort uses the blue underlined hyperlink primitive, which is the same treatment as the genuine navigation link '101:0' in the Transaction pane. One primitive for 'change this pane' and 'leave this page'. The desktop app expresses sort as a column-header affordance or a segmented toggle, which would also distinguish the two.",
           "criterion": "B9"
+        }
+      ]
+    },
+    {
+      "view": "debugger--testnet",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/debugger--testnet__wide__light.png",
+      "imageSha256": "6d6c417a0af6b1db345b97b73356db4a774d44d79c18089af6f696b8bb7b1042",
+      "reviewer": "ADV",
+      "expectedElements": "present",
+      "missing": [],
+      "rating": null,
+      "findings": [
+        {
+          "id": "debugger--testnet/wide/light/ADV/1",
+          "severity": "P1",
+          "location": "Transaction pane (right rail), the COST · TRANSACTIONFEE row",
+          "finding": "The one row on this page that carries a real chain QUANTITY is malformed in four ways at once, and it is the only visibly broken thing on a page whose whole job is to prove the product survives contact with a real chain. It renders `0x000000000000000000000000000000000000000000000000185cfcc84d2f103f /  mana (FeeJuice)`: (a) a zero-padded 64-hex-digit word where a number belongs — about 46 of its 64 characters are literal padding — which `word-break:break-all` then wraps across three right-aligned lines and a fourth for the unit, blowing the label/value grid open and making this row roughly four times the height of BLOCK, CANONICAL and FINALITY combined; (b) a dangling ` / ` with nothing after it, because `viewutil.nim:269` builds `value: c.used & \" / \" & c.limit` unconditionally while `costLabel` at `viewutil.nim:107` guards the same join with `if c.limit.len > 0` — the real adapter publishes no limit, so the UI asserts a used/limit pair that does not exist and invites the reader to think a second number failed to load; (c) the unit `mana (FeeJuice)` is glued to a value that is a FEE in FeeJuice, not a mana count, so the row states the wrong dimension for its own number; (d) the label is the adapter's raw field name, `transactionFee`, where the synthetic chain shows `COST · MANA` — the same class of vocabulary leak the code's own comment at `viewutil.nim:130` records as already fixed for `roleLabel`. The fixture hides all of it: on the synthetic chain the identical row reads `42000 / 100000 mana (FeeJuice)`, one tidy line. This is the weakest element because the three empty panes are honest and explain themselves — a visitor can accept that the chain published no debug symbols — but this row is BlockTracer's own output on data it did have, and it is wrong, unformatted and self-contradictory. It is the single piece of evidence on the page for the conclusion 'this product cannot handle real chain data', and it sits in the one pane that was supposed to prove the opposite.",
+          "criterion": "B7"
+        }
+      ]
+    },
+    {
+      "view": "debugger--testnet",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/debugger--testnet__wide__light.png",
+      "imageSha256": "6d6c417a0af6b1db345b97b73356db4a774d44d79c18089af6f696b8bb7b1042",
+      "reviewer": "L1",
+      "expectedElements": "present",
+      "missing": [],
+      "rating": 6,
+      "findings": [
+        {
+          "id": "debugger--testnet/wide/light/L1/1",
+          "severity": "P2",
+          "location": "transaction pane, top three rows (badge row and the full-hash row directly beneath it) vs the identity bar",
+          "finding": "One transaction hash is set three different ways within 300 px: the identity bar elides it 6+4 (0x0858d6…7fb2), the transaction pane's badge row elides it 8+8 (0x0858d644…22e67fb2), and the row immediately below prints all 64 characters hard-wrapped at the container edge. The wrap lands after 41 hex characters, i.e. mid-byte — line 1 ends '…430aabc0' and line 2 opens '6ef9ace18…', splitting the byte 0x06. There is no single truncation rule, and the elided 8+8 form buys nothing because the full value sits one line under it.",
+          "criterion": "B7"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L1/2",
+          "severity": "P2",
+          "location": "transaction pane, COST · TRANSACTIONFEE row (right column, y≈475–545)",
+          "finding": "The fee arrives as a 66-character raw hex quantity and is set at full length in mono with no truncation, wrapping over three right-aligned lines (again breaking mid-byte) with the separator ' /' orphaned at the end of line three and the unit 'mana (FeeJuice)' dropped onto a fourth line at a smaller size. The label sits on line one while the value occupies four, so this row alone breaks the label/value baseline that BLOCK, CANONICAL and FINALITY establish above it, and it is the tallest row in the pane while carrying a single number.",
+          "criterion": "B7"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L1/3",
+          "severity": "P2",
+          "location": "transaction pane, label column (BLOCK, CANONICAL, FINALITY, COST · TRANSACTIONFEE, EXECUTIONS, DECODED INPUT, SELECTOR, RAW, RAW (CHAIN-NATIVE))",
+          "finding": "Group headings and row labels share one type level — identical uppercase mono, size, weight and grey. 'DECODED INPUT' is a section and 'SELECTOR' is a row inside it, but nothing typographic says so, and 'EXECUTIONS' reads as a sibling of 'FINALITY'. The pane's structure cannot be read without reading it, which is exactly what the hierarchy is for at this density.",
+          "criterion": "B3"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L1/4",
+          "severity": "P2",
+          "location": "transaction pane, RAW (CHAIN-NATIVE) code block (y≈790–1077)",
+          "finding": "The only code block on the page has no token-level typography: keys, string values, numbers, booleans, braces and punctuation are all one weight and one grey. '\"effectsMismatched\": 0' — the line that carries this view's central claim, that the replay reproduced the chain's own effects — is set identically to '\"txIndexInBlock\": 0'. In a register whose reference is the CodeTracer editor, the evidence is indistinguishable from the padding around it.",
+          "criterion": "B3"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L1/5",
+          "severity": "P3",
+          "location": "transaction pane, RAW (CHAIN-NATIVE) code block",
+          "finding": "The block is set at roughly 12–13 px on ~23 px leading (≈1.75) — prose leading applied to code, in the one pane on this page whose content already overruns its height and is cut at the shell edge. At the desktop app's ~1.35 the same box would show about six more lines of telemetry.",
+          "criterion": "B1"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L1/6",
+          "severity": "P3",
+          "location": "identity bar, left group (← aztec-testnet · 0x0858d6…7fb2 · Succeeded · block 63675)",
+          "finding": "All four items are the same monospace at effectively the same size and weight; only colour separates the transaction hash (near-black) from the chain exit (blue) and the block height (grey). The subject of the page has no size or weight advantage over its metadata, so the bar reads as one flat run of mono and gives the eye no first stop — hierarchy carried by a single channel.",
+          "criterion": "B3"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L1/7",
+          "severity": "P3",
+          "location": "provenance banner, body paragraph (x≈20–608 inside a band spanning the full 1920 px)",
+          "finding": "The banner prose is set to a ~590 px measure (~68 characters) inside a container roughly 1880 px wide, so it wraps to five lines and the banner costs ~200 px of vertical space — in the register the expectation itself calls its scarcest resource, and those rows come out of the panes. A measure nearer 90–100 characters, or a two-column set at this viewport, would carry the same sentences in three lines without hurting the read.",
+          "criterion": "B1"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L1/8",
+          "severity": "P3",
+          "location": "Code pane body (y≈320–450) and, in the same treatment, the Call Trace and Values explanations",
+          "finding": "The explanation is a single flat type level: the paragraph about missing debug symbols and the operative sentence 'Stepping continues at instruction level.' are the same size, weight and grey, so the sentence that says the session works reads as a trailing afterthought rather than the pane's status. A lead line one step up in weight (or the operative sentence promoted above the explanation) would let the empty pane read as a deliberate, explained state at a glance instead of a paragraph left behind in a blank region.",
+          "criterion": "B3"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L1/9",
+          "severity": "P3",
+          "location": "identity bar, phase rail, active FETCHING segment",
+          "finding": "The pill's rounded outline crosses the left edge of the active segment's blue fill, leaving a white crescent immediately before the label; at 1:1 the rail reads as '( FETCHING'. A border artefact that resolves as a glyph in front of a label is a reading defect, not just a shape one.",
+          "criterion": "B2"
+        }
+      ]
+    },
+    {
+      "view": "debugger--testnet",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/debugger--testnet__wide__light.png",
+      "imageSha256": "6d6c417a0af6b1db345b97b73356db4a774d44d79c18089af6f696b8bb7b1042",
+      "reviewer": "L2",
+      "expectedElements": "present",
+      "missing": [],
+      "rating": 4,
+      "findings": [
+        {
+          "id": "debugger--testnet/wide/light/L2/1",
+          "severity": "P1",
+          "location": "whole shell — document is 1281px tall in a 1080px viewport; empty canvas band y=1080-1281 below the pane row",
+          "finding": "The shell overhangs the viewport by exactly the provenance banner's height. The pane row runs y=264-1080 (flush to the fold) and the document then continues to y=1281 with 201px of bare page canvas (rgb 236,236,235) under all three columns, so this register acquires a page-level vertical scrollbar that scrolls the identity bar, stepping controls and position readout off screen and reveals nothing. It is systematic, not a one-off: debugger--testnet is 1920x1281 at wide and 1440x1101 at laptop — +201px at both — while every other debugger capture (debugger, --divergent, --truncated, --no-session) is exactly viewport height. Cause is visible in the markup order: layout.nim:224 emits `raw provenance` as a sibling BEFORE `raw content`, so the banner's 176px card plus its 24px top margin are added on top of a shell that styles.nim:156 documents as `height:100%;overflow:hidden`. The expectation block for this register forbids a page-level scrollbar, and the banner's rows are supposed to come out of the panes rather than out of the bottom of the window. Fix: make the body a flex column and give the session shell `flex:1 1 auto;min-height:0` instead of a full viewport height.",
+          "criterion": "B4"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L2/2",
+          "severity": "P2",
+          "location": "pane row — Code column x=5-914 against the Transaction pane x=1534-1914",
+          "finding": "The three-column split is inherited unchanged from the source-bearing session and is wrong for a trace with no source. Gutters sit at x=916-921 and x=1528-1533 here and at x=917-920 and x=1529-1532 in debugger__wide__light, i.e. the same 909/607/381 columns. Measured white coverage: Code 98.3%, Call Trace 99.1%, Values 95.9%, Transaction 56.7%. So 79% of the width carries six lines of prose and one button, while the only pane with content is the narrowest and its RAW (CHAIN-NATIVE) block is cut hard at the pane's bottom edge mid-object (last visible line \"effectsMismatched\": 0, at y=1063, no bottom padding, no scroll cue) — one pane starved while two are empty, which is B4's named failure. The fix hands the Transaction pane more width and shows MORE information, so this is not a density tension.",
+          "criterion": "B4"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L2/3",
+          "severity": "P2",
+          "location": "first line of each explanation, against its pane header band: Code y=325 (band ends 295), Call Trace y=318 (band ends 296), Values y=919 (band ends 901)",
+          "finding": "The same component — a two-to-four line explanation directly under a pane header — sits at three different distances below its header band: 30px, 22px and 18px. With the panes otherwise empty these three top edges are the only horizontal landmarks on the left two thirds of the page, so the mismatch is legible as a stepped, unrelated set rather than one grid, and none of the three values is a spacing token the rest of the shell repeats.",
+          "criterion": "B4"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L2/4",
+          "severity": "P2",
+          "location": "Code pane content left edges — header label and Supply sources button at x=13, paragraph at x=21-24 (pane inner edge x=5)",
+          "finding": "The Code pane has two competing left edges among its only three elements: the CODE header label and the Supply sources button box are inset 8px from the pane edge, the paragraph between them 16px, so the button visibly hangs left of the text column it belongs to (its label at x=25 aligns with the prose while its border does not). The same paragraph is inset 16px here but 9px in the Call Trace pane (x=931, pane inner 922) and 8px in the Values pane (x=930), so the explanation block has no single inset across the panes either.",
+          "criterion": "B4"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L2/5",
+          "severity": "P2",
+          "location": "Transaction pane, COST · TRANSACTIONFEE row, y=467-555",
+          "finding": "The real-chain fee arrives as a 66-character hex quantity and breaks the label/value grid. The value wraps to three right-aligned monospace lines (x=1714-1906) plus a fourth line for the unit, making the row 88px tall against 32px for BLOCK, CANONICAL and FINALITY above it; the label sits alone at the top left with ~60px of empty space beneath it. The wrap falls mid-quantity rather than at a byte or group boundary, and the unit separator is orphaned — line three ends \"0000185cfcc84d2f103f /\" with the slash dangling and \"mana (FeeJuice)\" alone on line four. Constrain this value to a formatted or middle-truncated single line with the full quantity available on demand, so the row keeps the 32px rhythm of its neighbours.",
+          "criterion": "B7"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L2/6",
+          "severity": "P3",
+          "location": "provenance banner card edges (border at x=0-1 and x=1919, top at y=24) against the pane grid (border at x=4 and x=1915)",
+          "finding": "The two full-width blocks of the shell do not share a left or right edge. The banner card's border sits on the viewport edge itself, so its rounded corners are pinched flat against the window, while the pane grid beneath is inset 4px on both sides; vertically there is a 24px canvas margin above the banner and none below the panes. Four different outer spacings (24 / 0 / 4 / 0) in a shell that has only two blocks to align.",
+          "criterion": "B4"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L2/7",
+          "severity": "P3",
+          "location": "provenance banner, empty right two thirds x=610-1912, y=41-180",
+          "finding": "The banner is full-bleed but its content occupies only the left third: badge and slug on one line (x=10-301) and five wrapped prose lines capped at x=605. Roughly 68% of a 1919x176 band is empty white, and it is the five-line wrap that sets the band's height — the height it charges the session. Setting the capture facts (endpoint, moment, replay window) beside the prose rather than under it, or splitting the paragraph across two columns of the band, would halve the band and return ~90px to the panes without dropping a word.",
+          "criterion": "B1"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L2/8",
+          "severity": "P3",
+          "location": "identity bar, phase rail, FETCHING segment left edge x≈1322-1330, y≈220-244",
+          "finding": "The active segment's fill is a square-cornered rectangle inside a pill-shaped rail, so at the rail's rounded left edge the blue fill shows as a crescent sliver crossing the grey outline with white slivers above and below it. Clip the active segment to the rail's radius (or give the first segment the rail's own left radius).",
+          "criterion": "B5"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L2/9",
+          "severity": "P3",
+          "location": "Code pane (909x816 white field) and Call Trace pane (607x605), explanation text anchored at the top-left of each",
+          "finding": "The emptiness is correct here, but its composition does not read as deliberate: each pane's message is flush to the top-left corner of a very large white field (the Code pane's last ink is at y=510, leaving 568px of blank pane below it) with nothing marking the region as a state rather than as content that failed to arrive. A bounded state block — the message given a defined width, offset from the pane's top edge, and optically placed in the field rather than pinned to its corner — would let the void read as a designed empty state at a glance instead of after reading.",
+          "criterion": "B4"
+        }
+      ]
+    },
+    {
+      "view": "debugger--testnet",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/debugger--testnet__wide__light.png",
+      "imageSha256": "6d6c417a0af6b1db345b97b73356db4a774d44d79c18089af6f696b8bb7b1042",
+      "reviewer": "L3",
+      "expectedElements": "present",
+      "missing": [],
+      "rating": 6,
+      "findings": [
+        {
+          "id": "debugger--testnet/wide/light/L3/1",
+          "severity": "P2",
+          "location": "identity bar and Call Trace pane header — active tab underline at x931-1005 y294-295; FETCHING chip x1325-1398; progress fill x775-867; exit link x38-133 and BLOCK link x1846-1910",
+          "finding": "Four unrelated colour treatments all mean \"active / current / in progress\" on one screen: the active CALL TRACE tab is marked by a neutral #101010 underline, the active phase chip by #1e40af on #dbeafe, the loading meter by #155e75, and interactive text by #4f46e5. The accent is spent on a progress bar and on links but is never used to mark the current pane or the current position, so nothing on the page tells the eye which single colour means \"here\".",
+          "criterion": "B5"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L3/2",
+          "severity": "P2",
+          "location": "identity bar, x775-1560 (progress meter, phase rail) and x38-133 (exit link)",
+          "finding": "Three different hues from the blue family sit within 800px of each other on the same bar: cyan-800 #155e75 (meter fill), blue-800 #1e40af on blue-100 #dbeafe (FETCHING chip), indigo-600 #4f46e5 (links). Brief §2 states the accent hue family is shared product-wide; three accent hue angles is not a family. The same three-way split is present in the dark capture (#22d3ee / #2563eb+#60a5fa / #818cf8), so this is a token-level issue rather than a light-theme regression.",
+          "criterion": "B9"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L3/3",
+          "severity": "P2",
+          "location": "identity bar, \"Engine loading — 18 MB\" meter, x775-1034 y229-236",
+          "finding": "The meter fill #155e75 against its track #919191 measures 2.31:1, below the 3:1 floor for a non-text graphical indicator. The track is also the single heaviest mark on an otherwise white identity bar, so the unfilled remainder is more visually dominant than the filled portion and the meter reads inverted at a glance. (Dark measures 2.61:1 on the same pair, so neither theme clears the floor; light is the worse of the two.)",
+          "criterion": "B8"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L3/4",
+          "severity": "P2",
+          "location": "Transaction pane RAW (CHAIN-NATIVE) block x1543-1914 y795-1079; inter-pane gutters x917-920 and x1529-1532; page canvas below y1080",
+          "finding": "#ececeb carries three unrelated roles: the out-of-app page canvas, the gutter between panes, and the code well holding the raw JSON. The code well has no border of its own, so at the pane's bottom edge it dissolves straight into the canvas value and has no readable boundary; its right-edge overflow mask fades to #ffffff (the pane background) rather than to its own #ececeb, destroying the block's right edge instead of signalling scrollable content. In a light theme #ececeb also reads as \"inert/disabled\", which is the wrong connotation for the pane carrying the replay telemetry that proves the session is faithful.",
+          "criterion": "B4"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L3/5",
+          "severity": "P2",
+          "location": "whole shell — provenance banner y24-200, identity bar y201-264, and all four pane bodies, all #ffffff; pane rules #a2a2a2",
+          "finding": "Every surface inside the shell is the same #ffffff: the banner, the identity bar and the Code, Call Trace, Values and Transaction pane bodies are one continuous white plane, separated only by 1px #a2a2a2 rules and 4px canvas gutters. Rubric B4 names \"panes distinguished only by a hairline\" as the failing look. The pane-to-canvas step is also weaker here than in the dark capture (ΔL* 6.6 for #ffffff/#ececeb versus 10.2 for #1b1b1b/#000000), so in the theme with more headroom the panes detach from the canvas less.",
+          "criterion": "B4"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L3/6",
+          "severity": "P2",
+          "location": "Code pane, \"Supply sources\" button x13-119 y484-514",
+          "finding": "The one affordance that routes a reader out of the missing-source limitation is the least coloured interactive element on the page: white fill, #a2a2a2 hairline, #101010 label, no accent. Meanwhile ordinary navigation links (the chain exit, the BLOCK value) are given indigo #4f46e5. The interactive colour role is applied to links and withheld from the primary action, so on a page whose panes are deliberately near-empty the button does not read as the thing to click.",
+          "criterion": "B10"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L3/7",
+          "severity": "P3",
+          "location": "\"Real Aztec testnet data\" badge x13-181 y42-64; \"Succeeded\" chip x260-350 y221-243; \"Trace ready\" badge x1593-1688 y581-601",
+          "finding": "One green token (#dcfce7 fill, #16a34a border, #166534 text) is used identically for three different semantic axes: provenance authenticity, transaction execution outcome, and trace availability. All three are affirmative so the reading is not wrong, but the provenance badge is the register's only data-source marker and giving it the exact chip used by \"Succeeded\" flattens the page's honesty marker into just another status pill.",
+          "criterion": "B5"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L3/8",
+          "severity": "P3",
+          "location": "text throughout — pane header labels #484848 (CODE x14, VALUES x931, TRANSACTION x1545), Transaction pane field labels #565656 (BLOCK, CANONICAL, FINALITY, SELECTOR x1541), pane body copy #484848, primary values #101010/#242424",
+          "finding": "The neutral text ladder has four steps but the bottom two are perceptually one: #484848 and #565656 differ by 1.25:1, yet they carry different roles (secondary body copy and pane-header labels versus Transaction-pane field labels). The step from #242424 to #484848 is 1.70:1 and from #101010 to #242424 only 1.23:1, so three of the four emphasis levels do not separate. Every pair still clears contrast against its surface (lowest measured is 5.40:1, the inactive EVENT LOG tab on #dddddd), so this is hierarchy legibility rather than a contrast failure.",
+          "criterion": "B3"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L3/9",
+          "severity": "P3",
+          "location": "pane header strips y270-295 (all four panes) — #dddddd on #ffffff bodies, bottom rule #c8c8c8",
+          "finding": "The pane header's elevation sign flips between themes and its magnitude roughly doubles: in dark the header #282828 sits about 7 L* ABOVE its #1b1b1b body (a raised title bar, barely visible); in light #dddddd sits about 12 L* BELOW its #ffffff body (a recessed grey chrome band). Same component, opposite elevation semantics and twice the step. Against panes that are correctly near-empty here, the four grey bands become the loudest marks in the layout. This is the clearest evidence the surface ramp was mapped token-for-token rather than re-derived for light — the accent ramp, by contrast, WAS properly re-picked (cyan-400 to cyan-800, indigo-400 to indigo-600), so the light theme is designed, not naively inverted.",
+          "criterion": "B4"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L3/10",
+          "severity": "P3",
+          "location": "bottom edge of the shell — pane side rules #a2a2a2 at x4, x916, x921, x1528, x1533, x1915 terminate at y1079; bare #ececeb canvas fills y1080-1280",
+          "finding": "The pane boxes have no bottom border: the #a2a2a2 side rules run to y1079 and the surface changes straight to canvas, so all four panes read as unclosed rectangles rather than as clipped-with-more-below. Because the Transaction pane's code well is already #ececeb, its bottom edge merges seamlessly with the canvas beneath it and the boundary between \"inside the pane\" and \"outside the app\" is invisible in that column. Sizing the 201px of empty canvas below y1080 (the capture is 1281 tall against a 1080 viewport, so the page scrolls to reveal nothing) is L2's call, not mine; the colour half is that the register's forbidden page-level surface is the same value as two in-app roles.",
+          "criterion": "B4"
+        }
+      ]
+    },
+    {
+      "view": "debugger--testnet",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/debugger--testnet__wide__light.png",
+      "imageSha256": "6d6c417a0af6b1db345b97b73356db4a774d44d79c18089af6f696b8bb7b1042",
+      "reviewer": "L4",
+      "expectedElements": "present",
+      "missing": [],
+      "rating": 6,
+      "findings": [
+        {
+          "id": "debugger--testnet/wide/light/L4/1",
+          "severity": "P2",
+          "location": "pane grid, y 269-1080: Code pane (x 4-916) against Transaction pane (x 1533-1915)",
+          "finding": "The width split is inverted relative to what this session actually holds. The Code pane is 912 px wide (47% of the viewport) and carries ink only on rows 325-510 - four wrapped lines and the Supply sources button - leaving 570 empty rows; the Call Trace pane (607 px) carries ink on rows 318-349 only, 31 px of a 590 px pane. Meanwhile the Transaction pane, at 382 px the narrowest column, is the one pane with real content and it runs past the fold, clipping its RAW block mid-object after \"effectsMismatched\": 0. Measured across the four panes roughly three-fifths of the pane area is blank while the pane that is starved is the only one with data. At instruction level the Code column should give width back to the Transaction column, or absorb what the Transaction pane cannot fit.",
+          "criterion": "B1"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L4/2",
+          "severity": "P2",
+          "location": "provenance banner, y 22-200, and the gap down to the first pane row at y 269",
+          "finding": "The banner block spends 269 of the 1080 viewport rows (25%) before any pane begins, and spends them badly: its prose ends at x 605, so 1310 px - 68% of the band it occupies full-width - is empty. The identity bar under it also has ~230 px of unused run between the phase rail and the NOIR/share/download cluster. Setting the badge, slug and the four sentences as two columns across the band, or capping the prose at its current measure beside the badge, would return roughly 80-100 rows to the panes with no content removed - and in this register rows are the scarce resource.",
+          "criterion": "B1"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L4/3",
+          "severity": "P2",
+          "location": "below the pane grid, document rows 1081-1280",
+          "finding": "The document is 1281 px tall at a 1080 px viewport, so the page carries a scrollbar, and the 200 rows it scrolls to are uniform canvas (gray 236) with nothing in them - the pane grid ends exactly at the fold at y 1080. The overrun equals the height of the banner block, i.e. the banner is being added on top of a full-viewport shell rather than subtracted from it. The comparable synthetic capture (screenshots/debugger__wide__light.png) is exactly 1080 with no overrun. Net effect: every pane clips its content at the fold while the page offers 200 px of empty scroll below them.",
+          "criterion": "B4"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L4/4",
+          "severity": "P2",
+          "location": "Transaction pane, COST . TRANSACTIONFEE row, y 470-545",
+          "finding": "The fee arrives as a raw 32-byte hex quantity and is rendered whole: three wrapped mono lines of ~26 characters starting at x 1712, of which the first 46 characters are leading zeros, plus an orphaned fourth line carrying \"/ mana (FeeJuice)\". Four lines and 66 px - the tallest row in the pane - to carry one number, where BLOCK, CANONICAL and FINALITY each take a single ~28 px line, and it breaks the label/value grid because every other value is right-aligned on the label's own line while this one starts a block under nothing. No reader can compare or even read the quantity in this form. Trim the zero padding to the significant digits (0x...185cfcc84d2f103f) or format it as a decimal mana figure the way the synthetic chain does, with the full hex on expand.",
+          "criterion": "B7"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L4/5",
+          "severity": "P2",
+          "location": "Transaction pane, RAW (CHAIN-NATIVE) block, y 795-1080",
+          "finding": "The replay telemetry is the evidence that this session is faithful - instructionsExecuted 345, effectsMatched 23, effectsMismatched 0 - and it is reachable only as unformatted JSON keys inside a pre block in the narrowest column, with effectsMismatched sitting on the last visible row (y 1063) at the fold. Nothing is dropped at this viewport that should have been dropped instead: three panes are empty and the one fact that carries the page's claim is the fact nearest to being cut off. Promote the three replay counters to labelled rows in the Transaction pane above DECODED INPUT, or into the empty Code pane, and leave the JSON as the backing detail.",
+          "criterion": "B3"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L4/6",
+          "severity": "P3",
+          "location": "Call Trace pane, x 921-1528, rows 318-349 of a pane ending at y 865",
+          "finding": "The empty regions do read as deliberate in the Code pane, where the Supply sources button anchors the explanation as a state a user can act on. They do not in the Call Trace and Values panes: two lines of body copy hugging the top-left corner of a 607 x 590 white rectangle, styled exactly as data would be and with no anchor, reads closer to a render that stopped than to a designed empty state. Give those two panes the same treatment as the Code pane - the explanation set as a contained block with its own affordance or a rule under it - so the emptiness is legibly the chain's limitation rather than a missing fetch.",
+          "criterion": "B1"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L4/7",
+          "severity": "P3",
+          "location": "Transaction pane, DECODED INPUT group, SELECTOR row y 636 and RAW row y 662",
+          "finding": "SELECTOR renders as a bare em dash and RAW as a bare \"0x\", then three lines of prose explain that there is no ABI. Two label rows and two rules are spent conveying nothing that the sentence below them does not already say; collapsing the pair into the explanation would return ~55 px to a pane that is currently overflowing past the fold.",
+          "criterion": "B1"
+        }
+      ]
+    },
+    {
+      "view": "debugger--testnet",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/debugger--testnet__wide__light.png",
+      "imageSha256": "6d6c417a0af6b1db345b97b73356db4a774d44d79c18089af6f696b8bb7b1042",
+      "reviewer": "L5",
+      "expectedElements": "forbidden-present",
+      "missing": [
+        "Content from the demo fixture is present: the identity bar's right-hand language tag reads NOIR, which is the fixture constant DemoLanguage (\"noir\", client/src/debugger/demo_session.nim:54) assigned unconditionally at demo_session.nim:372 — before the `if not sourceLevel` branch that strips this session's source. The synthetic `debugger` view carries the identical NOIR tag in the identical slot. This view exists to prove the session is not the fixture wearing a different hash, and the one word in the identity bar that is not a chain fact came from the fixture."
+      ],
+      "rating": 4,
+      "findings": [
+        {
+          "id": "debugger--testnet/wide/light/L5/1",
+          "severity": "P1",
+          "location": "identity bar, right end — the uppercase `NOIR` tag between the phase rail and the share/download marks (x approx. 1795-1830, y approx. 233)",
+          "finding": "Forbidden fixture content, and a voice contradiction inside one screen. The tag asserts a source LANGUAGE for a trace that the three panes 60px below say has no source text, no file map and no debug symbols — there is no published artifact this session could have derived `noir` from. It is not derived: `client/src/debugger/demo_session.nim:372` sets `result.languages = @[DemoLanguage]` unconditionally for every session, and `client/src/pages/debug.nim:197-198` renders it whenever the seq is non-empty, so the demo fixture's language constant is printed over a real aztec-testnet transaction. The page's whole editorial argument is `the chain published no symbols, so we decline to name things`; the identity bar names one anyway, in the register's most authoritative strip. Either the tag comes off at instruction level or it has to be sourced from something the chain actually published."
+        },
+        {
+          "id": "debugger--testnet/wide/light/L5/2",
+          "severity": "P2",
+          "location": "the debugger shell as a whole — the pane column ends at y approx. 1073 and the document continues to y=1281 as an empty full-width band",
+          "finding": "The register's own invariant — `debugger_css.nim:39-43`, \"Full viewport with no page scroll\" — is not holding on this view. The captured document is 1920x1281 against a 1080 viewport; every other full-viewport debugger view at `wide` is exactly 1080, and the laptop capture of this same view is 1440x1101 against 900. The overrun is 201px in both, i.e. exactly the provenance banner's height, so the banner is sitting outside the `height:100%` shell rather than inside it as a `flex:0 0 auto` row. Nothing is currently lost, because `[data-register=\"debugger\"] body{overflow:hidden}` clips the overrun and the clipped region happens to be empty — but the shell is only conforming by accident, and this is the one view whose banner runs to five lines. In the register that promises desktop-app continuity, the app shell must fit its window by construction; here it is 201px too tall and 201px of it is unreachable.",
+          "criterion": "B4"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L5/3",
+          "severity": "P2",
+          "location": "Code pane body (approx. x 20-600, y 320-450), Call Trace pane body (x 930-1500, y 315-355), Values pane body (x 930-1500, y 916-955) — compared against the provenance banner paragraph at y 78-180",
+          "finding": "The pane explanations and the marketing-register provenance banner are typographically the same object: same proportional UI face, same body size, same approx. 21px leading, same ragged left-aligned measure, same near-black ink, no muting and no pane-level notice treatment. The reader therefore cannot tell the product's editorial voice (the banner, speaking about whose data this is) from a pane reporting its own state — and three panes each holding one such paragraph at their top-left makes the screen read as a document with pane headers rather than as a tool. The sentences themselves are right; the register they are set in is the explorer's. A pane's declining-to-show state wants the desktop app's own vocabulary — smaller, muted, and visibly a notice from the pane rather than prose from the product.",
+          "criterion": "B9"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L5/4",
+          "severity": "P2",
+          "location": "Code pane — `Supply sources` pill at x 14-119, y 489-511, with approx. 560px of unmodulated white below it; and its counterpart in the Transaction pane, the sentence \"Supplying an ABI decodes them.\" at x 1540-1905, y 700-750",
+          "finding": "The route out does not read as a route out, and the product has two incompatible treatments of the same idea on one screen. `Supply sources` is the smallest, lowest-emphasis control on the page — a hairline outline pill at label size, no accent, no icon, no supporting sentence saying what a source bundle is or what supplying it would restore — anchored flush to the pane's top-left corner under a paragraph, with the remaining three-quarters of an 800px pane left as blank canvas beneath it. Meanwhile the Transaction pane's structurally identical escape hatch (\"Supplying an ABI decodes them\") is a plain sentence with no control at all. So neither reads as a product primitive: one is a button with no explanation, the other an explanation with no button. In a pane whose entire content is \"there is nothing here\", the one thing that would change that is the pane's primary action and is currently rendered as its least important element; the composition also leaves the empty region looking unhandled rather than deliberate.",
+          "criterion": "B9"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L5/5",
+          "severity": "P2",
+          "location": "Transaction pane, COST · TRANSACTIONFEE row (x 1540-1905, y 472-548)",
+          "finding": "A shared primitive rendering two different ways across two chains. The fee arrives from real chain data as a 32-byte hex quantity and is printed raw: it wraps across three monospace lines, the value column loses its right edge, the `/` separator strands at the end of line three and the unit \"mana (FeeJuice)\" drops to a fourth line in the proportional face — the only row in the pane that breaks the label/value grid every other row holds. On the synthetic chain the same row reads \"88000 / 200000 mana (FeeJuice)\" on one line. The number is honest and complete, so this is presentation, not information — but it means the product's cost primitive is recognisable on the fixture and unrecognisable on the data the product is here to prove it handles. Rendering the quantity as a decimal (or at minimum keeping the unit on the value's last line) restores it without hiding anything.",
+          "criterion": "B7"
+        },
+        {
+          "id": "debugger--testnet/wide/light/L5/6",
+          "severity": "P3",
+          "location": "Code pane, the second paragraph — \"Stepping continues at instruction level.\" at x 20-289, y 432-450",
+          "finding": "The pane says the same thing three times: \"The recording is therefore at instruction level\", then \"Stepping is complete; only the text is missing\", then a standalone paragraph \"Stepping continues at instruction level.\" The first paragraph already lands the point with the right subject — the chain publishes no source, not the product failed to find one — and it is well written. The repetition is what tips the block from statement into reassurance, which is the one tonal register this page must avoid, and it spends a paragraph and 30px of vertical rhythm in the register where rows are the scarcest resource. Drop the second paragraph; the first sentence set already carries it.",
+          "criterion": "B8"
+        }
+      ]
+    },
+    {
+      "view": "tx-detail--mainnet-zero-trace",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+      "imageSha256": "e9c0da72b997a9dee89438ee50701b3224a951c6b357b54909deba1827bc9976",
+      "reviewer": "ADV",
+      "expectedElements": "present",
+      "missing": [],
+      "rating": null,
+      "findings": [
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/ADV/1",
+          "severity": "P2",
+          "location": "Overview grid, fourth row — the 'COST · TRANSACTIONFEE' row: both its label cell and its value cell",
+          "finding": "The single weakest element is the cost row, and it is weak for a reason specific to this page rather than to the grid. Everything else here is an argument that nothing is broken: the badge says 'Not observable', the sentence says 'a permanent answer rather than a failed fetch', the empty sections say 'permanently, not yet'. The cost row is then the only quantity on the page, and it is rendered as the raw 32-byte word '0x0000000000000000000000000000000000000000000000000175c1a29c1f97278' — 48 leading zeros before 16 significant digits — under a label that is a camelCase key flattened to caps ('TRANSACTIONFEE'), wrapped onto a second line, which also makes this the only row taller than its neighbours. A reader who arrived expecting to debug and was just told they cannot is primed to suspect the product is broken, and this row is the one place on the page that supplies them the evidence: a field of zeros is what a stuck decoder looks like. It is also the one thing here the product cannot blame on the chain — the banner's shouty clause and its '(s)' plurals are the producer's own words, but this formatting is BlockTracer's choice about a value it already holds. It should render the decoded mana quantity with the full hex obtainable, not the padded word inline, and the label should read 'Transaction fee' rather than the key. P2 rather than P1: the number is present and correct, so the presentation is broken and not the information — but it is the presentation of the one number that has to survive a page whose whole job is to look correct.",
+          "criterion": "A5"
+        }
+      ]
+    },
+    {
+      "view": "tx-detail--mainnet-zero-trace",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+      "imageSha256": "e9c0da72b997a9dee89438ee50701b3224a951c6b357b54909deba1827bc9976",
+      "reviewer": "L1",
+      "expectedElements": "present",
+      "missing": [],
+      "rating": 7,
+      "findings": [
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/1",
+          "severity": "P2",
+          "location": "trace-state card, `Not observable` badge (approx. x=530-650, y=694-718) compared with the `Succeeded` badge beside the H1 (x=726-835, y=541-574)",
+          "finding": "Measured cap heights: `Succeeded` sets at 10px cap (~14px type), while `Not observable`, `Yes` and `Finalized` all set at 8px cap (~11px type). The badge component therefore ships at two sizes on one page, and the size went to the wrong one: `Not observable` is the whole subject of this view — the single fact that explains every empty section below it — yet it is rendered at the page's smallest type size, tied with the `BLOCK` / `CANONICAL` table labels, while the routine outcome badge is 3px larger. Scanned without reading, the eye lands on `Succeeded` and never on the state that matters. Either bring the trace-state badge up to the outcome badge's size, or drop the outcome badge to the shared 11px so at least the component is one scale.",
+          "criterion": "A4"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/2",
+          "severity": "P2",
+          "location": "Overview table, `COST · TRANSACTIONFEE` row, value cell (mono run from x=690 to x=1240, y=1196-1209)",
+          "finding": "The fee is a 66-character zero-padded hex word set as one unbroken monospace run 550px wide — the widest single run of type on the page — with its 48 leading zeros at exactly the same size, weight and colour as the 16 significant digits `175c1a29c1f97278`. There is no truncation, no de-emphasis of the padding, no digit grouping, and no decimal rendering of what is a quantity. A5 asks for truncation at meaningful boundaries with the full value obtainable; the H1 hash directly above obeys that (`0x1c37…0410`, cut on a byte boundary) and this field, the only numeric quantity on the page, obeys none of it. As rendered the row reads as a wall of zeros with the number hidden at the end of it.",
+          "criterion": "A5"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/3",
+          "severity": "P2",
+          "location": "footer, data-disclosure paragraph (`No account, no tracking. …`), first line spanning x=505-1410, y=2786-2798",
+          "finding": "The disclosure line runs the full 905px content column at ~15px type — approximately 128 characters per line, roughly double the 75-character ceiling and by far the longest measure on the page. Every other paragraph here (the provenance banner body, the trace-state card, the three section notes) is held to a ~590px line box, so body prose ships at two different measures on one page and the wider one is applied to the paragraph that most needs to be read to the end. Constrain it to the same measure as the rest of the body copy.",
+          "criterion": "A3"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/4",
+          "severity": "P2",
+          "location": "provenance banner, producer paragraph (`Captured from aztec.drpc.org …` through `… carry no trace.`), y=192-390",
+          "finding": "Ten wrapped lines at one size, one weight and one colour with no paragraph break, at a ~84-character measure. It carries at least three separable facts — what was captured and when, why nothing in the window was replayable, and what pruning means for the transactions below block 67119 — and none of them is findable without reading the block end to end, which is the definition of hierarchy that is not readable without reading. The only emphasis device present is an eight-word all-caps run (`NO TRANSACTION INSIDE IT WAS REPLAYABLE`) set at body size; all-caps in running text is the slowest available emphasis and it is the sole one used, where A4 asks for weight, size and colour together. Compare the trace-state card immediately below, which splits the same kind of content into two paragraphs and reads far faster.",
+          "criterion": "A4"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/5",
+          "severity": "P2",
+          "location": "Overview table, label column, fourth row: `COST · TRANSACTIONFEE` (x=529-636, y=1197-1229)",
+          "finding": "The uppercase transform has been applied to the camelCase key `transactionFee`, fusing it into the 14-character non-word `TRANSACTIONFEE` with the word boundary destroyed — it reads as a machine identifier, not as a label, and it is the only multi-word label on the page. Because it is 14 characters of letter-spaced uppercase it also wraps to a second line, making this row visibly taller than the three single-line rows above it and breaking the table's row rhythm. Insert the word break before uppercasing (`COST · TRANSACTION FEE`) or label the row `FEE`.",
+          "criterion": "A10"
+        }
+      ]
+    },
+    {
+      "view": "tx-detail--mainnet-zero-trace",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+      "imageSha256": "e9c0da72b997a9dee89438ee50701b3224a951c6b357b54909deba1827bc9976",
+      "reviewer": "L2",
+      "expectedElements": "present",
+      "missing": [],
+      "rating": 6,
+      "findings": [
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L2/1",
+          "severity": "P2",
+          "location": "provenance banner card, top of the content column (card box x 503-1416, y 136-424)",
+          "finding": "The banner card is stretched to the full 912 px content column but its prose wraps at a ~606 px measure (text runs x 530-1136), so the right 278 px — 31% of the card — is empty white with a hard border round it. Every other prose card on the page is sized to that same measure instead: the 'Not observable' card and all four note cards are x 504-1203 (700 px = measure + 2x24 px padding). The banner is the single element that breaks that rule, and it is the first thing on the page. It also pays for it in height: 11 wrapped lines instead of the ~7 the container width would give, making the banner (289 px) taller than the 'Not observable' card (247 px) that carries the page's actual answer.",
+          "criterion": "A3"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L2/2",
+          "severity": "P2",
+          "location": "section headings — Overview (y 1037-1055), Decoded input (y 1375-1397), Raw (y 2328-2352) vs Events (y 1714-1732), Internal calls (y 1893-1911), State changes (y 2073-2095)",
+          "finding": "The gap from an h2 baseline to the top border of its first content block is 15-17 px in Overview, Decoded input and Raw (baseline 1055 -> table 1070; 1391 -> 1408; 2346 -> 2362) but 31-33 px in Events, Internal calls and State changes (1732 -> 1763; 1911 -> 1942; 2089 -> 2122). Same heading style, same relationship, two values exactly 2x apart. The three lower headings visibly float away from the cards they title while the three upper ones sit tight to theirs.",
+          "criterion": "A2"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L2/3",
+          "severity": "P2",
+          "location": "Overview table, COST · TRANSACTIONFEE row (row separators y 1183 and 1247)",
+          "finding": "Row rhythm breaks on the last row: BLOCK / CANONICAL / FINALITY are 37, 38 and 38 px tall, the cost row is 64 px. The cause is the label column, which is only 161 px wide (grey fill x 504-664) inside a 912 px table, so 'COST · TRANSACTIONFEE' wraps onto two lines — about 20 px more label width would keep it on one. The value is top-aligned at y 1195 while the row runs to 1247, leaving ~26 px of empty white under the hex, and the hex itself only reaches x 1376, so the width to widen the label column is available in the same row.",
+          "criterion": "A6"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L2/4",
+          "severity": "P2",
+          "location": "'Not observable' card body, between 'fetch. The published reason states why.' (line bottom y 779) and 'The node still serves this transaction's effects…' (line bottom y 804)",
+          "finding": "The paragraph break carries no extra space: line-to-line pitch inside the card is 20-23 px and the paragraph boundary is 25 px, a 2-3 px difference. The permanence claim and the published reason — the two things the page exists to keep distinct — therefore read as one undifferentiated six-line block. Related and unrelated lines are spaced the same.",
+          "criterion": "A2"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L2/5",
+          "severity": "P3",
+          "location": "section separator rules (y 1007, 1345, 1684, 2299) vs the Events / Internal calls / State changes stack",
+          "finding": "Rules precede Overview, Decoded input, Events and Raw but not Internal calls or State changes, so those two sections are separated from what precedes them by 54 px of canvas alone (card bottom 1839 -> heading 1893; 2019 -> 2073) against a 31 px heading-to-card gap inside each. A 1.7x ratio is a weak grouping signal, and since the three cards are identical in size and weight the intended bracketing of the three trace/receipt sections is not legible — the reader sees three sections given less separation than Decoded input got, with no visible reason.",
+          "criterion": "A2"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L2/6",
+          "severity": "P3",
+          "location": "Overview table, value column left edge (x 680 vs x 689)",
+          "finding": "The 'Yes' and 'Finalized' pill boxes begin at x 680 while the '67113:0' link and the cost hex begin at x 689, and the pills' own glyphs land at ~690. Neither the boxes nor the labels line up cleanly with the text rows, so the value column has a visible ~9 px stagger down its left edge. Pick one: hang the pill boxes so their labels sit exactly at 689, or align the boxes at 689 and accept the label inset.",
+          "criterion": "A6"
+        }
+      ]
+    },
+    {
+      "view": "tx-detail--mainnet-zero-trace",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+      "imageSha256": "e9c0da72b997a9dee89438ee50701b3224a951c6b357b54909deba1827bc9976",
+      "reviewer": "L3",
+      "expectedElements": "present",
+      "missing": [],
+      "rating": 7,
+      "findings": [
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L3/1",
+          "severity": "P2",
+          "location": "three badges: 'Real Aztec mainnet data' in the provenance banner (y~165), 'Succeeded' beside the h1 hash (y~558), 'Finalized' in the Overview FINALITY row (y~1168)",
+          "finding": "All three are pixel-identical pills — fill #dcfce7, border #16a34a, text #166534 — yet they carry three unrelated semantic axes: data authenticity, execution outcome, and settlement state. Sampled page-wide there are only two hues on this page (green ~135deg, indigo ~240deg), and green is the loudest of them at roughly twice the accent's pixel presence, so the eye groups the three pills as one class and must read each label to learn which axis it belongs to. The affirmative tone on the provenance banner is specified, but nothing distinguishes it from the status badges; the provenance badge should use a distinct weight of the affirmative tone (e.g. tint fill without the saturated #16a34a border) so 'this data is real' is not rendered as the same signal as 'this succeeded'.",
+          "criterion": "A7"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L3/2",
+          "severity": "P2",
+          "location": "'Not observable' badge, top-left of the execution-state card (x~528-662, y~693-720), compared with the 'Yes' badge in the Overview CANONICAL row (y~1130)",
+          "finding": "The badge that names this page's state is the weakest-rendered badge on the page: no fill at all (#ffffff, identical to the card it sits on) bounded by a #c8c8c8 hairline at 1.67:1 against that surface — below the 3:1 non-text floor, and weaker than its own card's #a2a2a2 border. The three green badges get a tinted fill and a saturated border; the far less consequential 'Yes' canonical badge gets a #f3f3f3 fill. So the neutral badge role ships two different fills (#ffffff vs #f3f3f3) over the same border and text, and the more important of the two got the invisible one. Give the state badge a neutral tinted fill and a border at >=3:1, and make the two neutral badges one treatment.",
+          "criterion": "A7"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L3/3",
+          "severity": "P2",
+          "location": "elevation across the white cards: execution-state card (y~660-906), provenance banner (y~136-421), Overview and Decoded input tables, and the four note cards under Decoded input / Events / Internal calls / State changes",
+          "finding": "Every one of these is the same component — #ffffff fill, 1px #a2a2a2 border — but they render at three unrelated elevations: the note cards have no shadow whatsoever (canvas #ececeb meets the border directly at x504), the banner and both tables carry a ~9-12px shadow, and the execution-state card carries a ~34px diffuse shadow (spreading y906-940 below, x1204-1229 to the right). Beyond being an unsystematic third elevation level, it lands on exactly the wrong card: the heaviest shadow on the page floats the 'Not observable' card off the surface like a modal or a toast, which pushes the one state that most needs to read as correct-and-permanent towards reading as an alert. Collapse to one elevation token per surface level and do not give this card the deepest one.",
+          "criterion": "A10"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L3/4",
+          "severity": "P3",
+          "location": "resolver field in the fixed nav (x1156-1415, y~14-48) versus the label columns of the Overview and Decoded input tables (x504-664)",
+          "finding": "The page's only interactive input and the two tables' non-interactive label columns share the same recessed fill #dddddd, and the input's border is the same #a2a2a2 used for every static card, the code block and the section rules. Nothing in the neutral palette separates 'you can type here' from 'this is a header cell'; interactivity is carried entirely by indigo, which the input does not use. A dedicated input surface or border token would keep the recessed grey meaning one thing.",
+          "criterion": "A7"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L3/5",
+          "severity": "P3",
+          "location": "execution-state card body, the two paragraphs at y~745-768 and y~795-818",
+          "finding": "The generic framing sentence ('No trace can be produced for this execution - a permanent answer rather than a failed fetch') is set at the primary emphasis grey #242424 (15.5:1), while the chain's published reason below it - the getTxByHash / finalized-tip explanation, which is the specific thing a reader should leave with and the only text that distinguishes this page from tx-detail--absent - drops to the secondary #484848 (9.2:1). The same secondary grey is used for the producer's sentences in the banner, so the two-level voice system is at least consistent, but on this card it puts the higher-value content at the lower emphasis level. Both pass contrast; this is an emphasis-assignment preference.",
+          "criterion": "A4"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L3/6",
+          "severity": "P3",
+          "location": "footer provenance strip, heart glyph between 'Built with' and 'by' (x~1085-1100, y~2713)",
+          "finding": "The heart renders at #4f46e5 - the exact link/accent indigo used by every link on the page (breadcrumbs, the 67113:0 block link, all footer links) - while the words either side of it are #565656 and the glyph is not interactive. The brief's expectation is that these marks take their colour from the surrounding text; the CodeTracer and GitHub marks do so correctly because they sit inside links, but the heart borrows the interactive colour for a decorative flourish and reads as clickable. It is clearly drawn and clearly visible, so this is a role leak, not a presence failure.",
+          "criterion": "A7"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L3/7",
+          "severity": "P3",
+          "location": "Raw (chain-native) block (x504-1415, y~2392-2570)",
+          "finding": "This is the only content container on the page whose fill is #ececeb - identical to the page canvas - outlined with the same #a2a2a2 used for the raised white cards. Because fill and background match, the border does all the work and the block reads as an outline drawn on the page rather than as a surface, which is inconsistent with the recessed-well treatment its content (JSON) implies and with every other container here. Either drop it a step below canvas or raise it to card level.",
+          "criterion": "A10"
+        }
+      ]
+    },
+    {
+      "view": "tx-detail--mainnet-zero-trace",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+      "imageSha256": "e9c0da72b997a9dee89438ee50701b3224a951c6b357b54909deba1827bc9976",
+      "reviewer": "L4",
+      "expectedElements": "present",
+      "missing": [],
+      "rating": 6,
+      "findings": [
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L4/1",
+          "severity": "P2",
+          "location": "Overview table, COST · TRANSACTIONFEE row (y 1183-1245), value cell starting x=689",
+          "finding": "The fee is printed as a 66-character zero-padded hex word — 0x followed by 47 leading zeros before 175c1a29c1f97278 — so the only 17 characters that carry information sit at the far right of a 687px run of identical glyphs. The magnitude is not readable, not comparable to any other fee, and not scaled to its stated unit (mana / FeeJuice). This is the widest value on the page and it is the least legible one: it alone forces the value column to 750px, which the three rows above it (67113:0, Yes, Finalized) then leave more than 90% empty.",
+          "criterion": "A5"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L4/2",
+          "severity": "P2",
+          "location": "Content column: provenance banner, Overview table, Decoded input table and Raw card all span x=504-1415 (911px); the Not observable card, the Decoded input note, and the Events / Internal calls / State changes cards all stop at x=1203 (699px)",
+          "finding": "Two content widths run down the page and the difference buys nothing, because the text measure inside both is the same: the banner's longest line ends at x=1136 and the notice cards' longest lines end at x=1119. So the banner is a 911px card wrapped around a 607px paragraph with a 279px dead right gutter, while the identical kind of prose next to it gets a card sized 208px narrower. The right edge of the page steps in and out five times between y=660 and y=2199 for content that is all the same class. Either the prose cards match the tables at 911px, or the banner matches them at 699px — carrying both widths just makes the wide viewport read as ragged.",
+          "criterion": "A3"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L4/3",
+          "severity": "P2",
+          "location": "First viewport (y 0-1080): provenance banner y 135-422, Not observable card y 660-907, Overview heading y 1037, Overview first row y 1070-1107",
+          "finding": "At 1920x1080 the fold lands on the top rule of the Overview table, so not one value of the transaction's own metadata — block, canonicality, finality, cost — is readable without scrolling. The 288px banner and the 247px note together take half the first screen, and the banner's ten lines are chain-level capture methodology (replay-window arithmetic, the 309-block run, how a follower should be built) that is identical on every page of this chain. The whole page runs 2872px, 2.7 screens, for roughly a dozen facts. The wide viewport has 1920px of width available and the page answers by spending height instead: the Overview's four one-token rows are stacked vertically in a 911px table where a two-up key/value grid would put all four above the fold.",
+          "criterion": "A1"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L4/4",
+          "severity": "P3",
+          "location": "Overview table, label column (x 505-665), COST · TRANSACTIONFEE row",
+          "finding": "The label is a raw camelCase key uppercased without being split, so it renders as the single 14-letter word TRANSACTIONFEE, which is slower to parse than the three short labels above it. It also cannot fit the 160px label column and wraps to two lines, making that row 62px tall against 37-38px for BLOCK, CANONICAL and FINALITY — a broken row rhythm caused by the narrow column while the 750px column beside it has room to spare.",
+          "criterion": "A5"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L4/5",
+          "severity": "P3",
+          "location": "Page hero: truncated hash 0x1c37…0410 at y 513-580, full hash at y 595-604",
+          "finding": "The same value is printed twice, nine pixels apart, once elided. Truncation earns its place where space is scarce; here the full 66-character hash sits on the very next line at a width the column easily holds, so the display form adds an ellipsis and no information at the densest-attention point on the page.",
+          "criterion": "A5"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L4/6",
+          "severity": "P3",
+          "location": "Provenance banner, third and fourth lines: \"NO TRANSACTION INSIDE IT WAS REPLAYABLE\"",
+          "finding": "Five words are set in all caps inside running prose and wrap across a line break. All-caps loses the word-shape cues a reader scans by, so the one clause the banner most wants read is the slowest one in the paragraph, and it reads as raised voice rather than emphasis. Weight or italic would emphasise it without costing legibility.",
+          "criterion": "A4"
+        }
+      ]
+    },
+    {
+      "view": "tx-detail--mainnet-zero-trace",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+      "imageSha256": "e9c0da72b997a9dee89438ee50701b3224a951c6b357b54909deba1827bc9976",
+      "reviewer": "L5",
+      "expectedElements": "present",
+      "missing": [],
+      "rating": 6,
+      "findings": [
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L5/1",
+          "severity": "P2",
+          "location": "provenance banner, paragraph lines 2-3 — \"NO TRANSACTION INSIDE IT WAS REPLAYABLE\"",
+          "finding": "A clause is set in all-caps mid-sentence, making it the loudest typographic event on the page — louder than the H1 hash and louder than the 'Not observable' badge that actually states the page's condition. On the one page in the family whose central job is to read as CORRECT rather than broken, a shouted clause reads as an assertion failure or a log line, not as the 2026 explorer voice (near-black type, restraint, marketing-grade). The same fact is already carried calmly by the next sentence, 'That is what the capture found, not a failure to record.' Set it as ordinary sentence case.",
+          "criterion": "A8"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L5/2",
+          "severity": "P2",
+          "location": "provenance banner container, top of page — compared against the same component in screenshots/tx-detail--absent__wide__light.png",
+          "finding": "The banner's emphasis is inverted against its semantics across the family. The real-data banner here is a plain card with a 1px neutral-grey border; the synthetic-demo banner on tx-detail--absent gets the accent-indigo border and a thick indigo left edge. The badge tones are right (green affirmative vs blue neutral), but the container tone says the opposite: the fixture chain gets the emphatic frame and the real-network chain gets the quiet one. Since this banner is the only element telling a reader whether the hashes exist on any network, the affirmative case must not be the visually weaker of the two.",
+          "criterion": "A7"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L5/3",
+          "severity": "P2",
+          "location": "provenance banner, sentence beginning \"Catching one needs a follower that watches the tip continuously rather than a single scan.\"",
+          "finding": "This sentence is addressed to whoever operates the capture harness, not to a reader of the explorer — it prescribes how a future capture run should be built. Maintainer voice on a public, reader-facing surface breaks the explorer register, and it quietly undercuts the page's own claim of permanence: it implies the emptiness is an artefact of how this snapshot was taken and that a better run would fix it, which is the opposite of what the 'Not observable' card two blocks below asserts.",
+          "criterion": "A9"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L5/4",
+          "severity": "P2",
+          "location": "Overview table, row label — \"COST · TRANSACTIONFEE\"",
+          "finding": "A camelCase ViewModel key (transactionFee) has been uppercased without splitting the word boundary, so a public label reads as a struct field name. Every other label in the table (BLOCK, CANONICAL, FINALITY) is an English word; this one is code. The sibling view renders the same row as 'COST · MANA', so the treatment is only wrong where the key is compound.",
+          "criterion": "A8"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L5/5",
+          "severity": "P2",
+          "location": "Overview table, COST · TRANSACTIONFEE value cell",
+          "finding": "The fee renders as a 32-byte zero-padded hex word, '0x0000…0000175c1a29c1f97278 / mana (FeeJuice)'. Forty leading zeros occupy most of the row and push the meaningful digits into the middle of the cell. This is chain-native register inside an explorer-register Overview — the page already has a 'Raw (chain-native)' section for the undecoded form, and the same row on tx-detail--absent reads '42000 / 100000 mana (FeeJuice)'. The padding at minimum is a rendering choice, not a limitation of the snapshot.",
+          "criterion": "A5"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L5/6",
+          "severity": "P3",
+          "location": "'Not observable' card, second paragraph; and provenance banner, sentences 5-6",
+          "finding": "The card's first paragraph says 'The published reason states why', forward-referencing the producer's own words, but the second paragraph carries no attribution treatment — no label, quote rule, indent or type change separates the producer's voice from the product's. The two paragraphs read as one continuous product voice, so the 'published' claim is invisible. The sibling tx-detail--absent shows the same slot holding an uncapitalised, unpunctuated fragment, which is what an unmarked pass-through slot eventually renders.",
+          "criterion": "A9"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L5/7",
+          "severity": "P3",
+          "location": "provenance banner ('20 transaction(s)', '7 block(s)') and 'Not observable' card ('6 block(s)')",
+          "finding": "Parenthetical '(s)' pluralisation appears three times in the two most-read text blocks on the page. It is a code-generation tell rather than written copy, and on a surface graded as marketing-grade it is the clearest signal that the sentence was assembled rather than authored. All three counts are known at render time, so the plural can be resolved.",
+          "criterion": "A8"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L5/8",
+          "severity": "P3",
+          "location": "provenance banner ('block 67113 — 7 block(s) below the window') vs 'Not observable' card ('settled in block 67113, 6 block(s) below it')",
+          "finding": "The same block, 67113, is given two different distances on one page — seven below the replay window's start and six below the finalized tip. Both are correct against different reference points, but the reference points are named in loose, differing terms ('the window', 'it'), so a reader who does not already know what a finalized tip is sees an apparent contradiction in the page's two most important paragraphs. Naming the referent explicitly in both places would let the pruning explanation land.",
+          "criterion": "A9"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L5/9",
+          "severity": "P3",
+          "location": "footer provenance strip, right column",
+          "finding": "Three brand marks, two colour treatments: the heart and the CodeTracer mark render in accent indigo while the GitHub mark renders in near-black, even though the GitHub mark leads the indigo underlined 'Source on GitHub' link and the other two sit beside body-coloured text. All three are drawn and legible, but the set does not read as one family.",
+          "criterion": "A8"
         }
       ]
     }

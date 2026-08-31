@@ -1,0 +1,21 @@
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/ADV/1",
+      "severity": "P2",
+      "location": "Overview grid, fourth row \u2014 the 'COST \u00b7 TRANSACTIONFEE' row: both its label cell and its value cell",
+      "finding": "The single weakest element is the cost row, and it is weak for a reason specific to this page rather than to the grid. Everything else here is an argument that nothing is broken: the badge says 'Not observable', the sentence says 'a permanent answer rather than a failed fetch', the empty sections say 'permanently, not yet'. The cost row is then the only quantity on the page, and it is rendered as the raw 32-byte word '0x0000000000000000000000000000000000000000000000000175c1a29c1f97278' \u2014 48 leading zeros before 16 significant digits \u2014 under a label that is a camelCase key flattened to caps ('TRANSACTIONFEE'), wrapped onto a second line, which also makes this the only row taller than its neighbours. A reader who arrived expecting to debug and was just told they cannot is primed to suspect the product is broken, and this row is the one place on the page that supplies them the evidence: a field of zeros is what a stuck decoder looks like. It is also the one thing here the product cannot blame on the chain \u2014 the banner's shouty clause and its '(s)' plurals are the producer's own words, but this formatting is BlockTracer's choice about a value it already holds. It should render the decoded mana quantity with the full hex obtainable, not the padded word inline, and the label should read 'Transaction fee' rather than the key. P2 rather than P1: the number is present and correct, so the presentation is broken and not the information \u2014 but it is the presentation of the one number that has to survive a page whose whole job is to look correct.",
+      "criterion": "A5"
+    }
+  ]
+}
+```

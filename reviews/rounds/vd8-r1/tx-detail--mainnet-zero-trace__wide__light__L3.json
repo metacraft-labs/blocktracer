@@ -1,0 +1,63 @@
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/1",
+      "severity": "P2",
+      "location": "three badges: 'Real Aztec mainnet data' in the provenance banner (y~165), 'Succeeded' beside the h1 hash (y~558), 'Finalized' in the Overview FINALITY row (y~1168)",
+      "finding": "All three are pixel-identical pills \u2014 fill #dcfce7, border #16a34a, text #166534 \u2014 yet they carry three unrelated semantic axes: data authenticity, execution outcome, and settlement state. Sampled page-wide there are only two hues on this page (green ~135deg, indigo ~240deg), and green is the loudest of them at roughly twice the accent's pixel presence, so the eye groups the three pills as one class and must read each label to learn which axis it belongs to. The affirmative tone on the provenance banner is specified, but nothing distinguishes it from the status badges; the provenance badge should use a distinct weight of the affirmative tone (e.g. tint fill without the saturated #16a34a border) so 'this data is real' is not rendered as the same signal as 'this succeeded'.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/2",
+      "severity": "P2",
+      "location": "'Not observable' badge, top-left of the execution-state card (x~528-662, y~693-720), compared with the 'Yes' badge in the Overview CANONICAL row (y~1130)",
+      "finding": "The badge that names this page's state is the weakest-rendered badge on the page: no fill at all (#ffffff, identical to the card it sits on) bounded by a #c8c8c8 hairline at 1.67:1 against that surface \u2014 below the 3:1 non-text floor, and weaker than its own card's #a2a2a2 border. The three green badges get a tinted fill and a saturated border; the far less consequential 'Yes' canonical badge gets a #f3f3f3 fill. So the neutral badge role ships two different fills (#ffffff vs #f3f3f3) over the same border and text, and the more important of the two got the invisible one. Give the state badge a neutral tinted fill and a border at >=3:1, and make the two neutral badges one treatment.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/3",
+      "severity": "P2",
+      "location": "elevation across the white cards: execution-state card (y~660-906), provenance banner (y~136-421), Overview and Decoded input tables, and the four note cards under Decoded input / Events / Internal calls / State changes",
+      "finding": "Every one of these is the same component \u2014 #ffffff fill, 1px #a2a2a2 border \u2014 but they render at three unrelated elevations: the note cards have no shadow whatsoever (canvas #ececeb meets the border directly at x504), the banner and both tables carry a ~9-12px shadow, and the execution-state card carries a ~34px diffuse shadow (spreading y906-940 below, x1204-1229 to the right). Beyond being an unsystematic third elevation level, it lands on exactly the wrong card: the heaviest shadow on the page floats the 'Not observable' card off the surface like a modal or a toast, which pushes the one state that most needs to read as correct-and-permanent towards reading as an alert. Collapse to one elevation token per surface level and do not give this card the deepest one.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/4",
+      "severity": "P3",
+      "location": "resolver field in the fixed nav (x1156-1415, y~14-48) versus the label columns of the Overview and Decoded input tables (x504-664)",
+      "finding": "The page's only interactive input and the two tables' non-interactive label columns share the same recessed fill #dddddd, and the input's border is the same #a2a2a2 used for every static card, the code block and the section rules. Nothing in the neutral palette separates 'you can type here' from 'this is a header cell'; interactivity is carried entirely by indigo, which the input does not use. A dedicated input surface or border token would keep the recessed grey meaning one thing.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/5",
+      "severity": "P3",
+      "location": "execution-state card body, the two paragraphs at y~745-768 and y~795-818",
+      "finding": "The generic framing sentence ('No trace can be produced for this execution - a permanent answer rather than a failed fetch') is set at the primary emphasis grey #242424 (15.5:1), while the chain's published reason below it - the getTxByHash / finalized-tip explanation, which is the specific thing a reader should leave with and the only text that distinguishes this page from tx-detail--absent - drops to the secondary #484848 (9.2:1). The same secondary grey is used for the producer's sentences in the banner, so the two-level voice system is at least consistent, but on this card it puts the higher-value content at the lower emphasis level. Both pass contrast; this is an emphasis-assignment preference.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/6",
+      "severity": "P3",
+      "location": "footer provenance strip, heart glyph between 'Built with' and 'by' (x~1085-1100, y~2713)",
+      "finding": "The heart renders at #4f46e5 - the exact link/accent indigo used by every link on the page (breadcrumbs, the 67113:0 block link, all footer links) - while the words either side of it are #565656 and the glyph is not interactive. The brief's expectation is that these marks take their colour from the surrounding text; the CodeTracer and GitHub marks do so correctly because they sit inside links, but the heart borrows the interactive colour for a decorative flourish and reads as clickable. It is clearly drawn and clearly visible, so this is a role leak, not a presence failure.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/7",
+      "severity": "P3",
+      "location": "Raw (chain-native) block (x504-1415, y~2392-2570)",
+      "finding": "This is the only content container on the page whose fill is #ececeb - identical to the page canvas - outlined with the same #a2a2a2 used for the raised white cards. Because fill and background match, the border does all the work and the block reads as an outline drawn on the page rather than as a surface, which is inconsistent with the recessed-well treatment its content (JSON) implies and with every other container here. Either drop it a step below canvas or raise it to card level.",
+      "criterion": "A10"
+    }
+  ]
+}
+```

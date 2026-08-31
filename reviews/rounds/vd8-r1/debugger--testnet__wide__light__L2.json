@@ -1,0 +1,77 @@
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L2/1",
+      "severity": "P1",
+      "location": "whole shell \u2014 document is 1281px tall in a 1080px viewport; empty canvas band y=1080-1281 below the pane row",
+      "finding": "The shell overhangs the viewport by exactly the provenance banner's height. The pane row runs y=264-1080 (flush to the fold) and the document then continues to y=1281 with 201px of bare page canvas (rgb 236,236,235) under all three columns, so this register acquires a page-level vertical scrollbar that scrolls the identity bar, stepping controls and position readout off screen and reveals nothing. It is systematic, not a one-off: debugger--testnet is 1920x1281 at wide and 1440x1101 at laptop \u2014 +201px at both \u2014 while every other debugger capture (debugger, --divergent, --truncated, --no-session) is exactly viewport height. Cause is visible in the markup order: layout.nim:224 emits `raw provenance` as a sibling BEFORE `raw content`, so the banner's 176px card plus its 24px top margin are added on top of a shell that styles.nim:156 documents as `height:100%;overflow:hidden`. The expectation block for this register forbids a page-level scrollbar, and the banner's rows are supposed to come out of the panes rather than out of the bottom of the window. Fix: make the body a flex column and give the session shell `flex:1 1 auto;min-height:0` instead of a full viewport height.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/2",
+      "severity": "P2",
+      "location": "pane row \u2014 Code column x=5-914 against the Transaction pane x=1534-1914",
+      "finding": "The three-column split is inherited unchanged from the source-bearing session and is wrong for a trace with no source. Gutters sit at x=916-921 and x=1528-1533 here and at x=917-920 and x=1529-1532 in debugger__wide__light, i.e. the same 909/607/381 columns. Measured white coverage: Code 98.3%, Call Trace 99.1%, Values 95.9%, Transaction 56.7%. So 79% of the width carries six lines of prose and one button, while the only pane with content is the narrowest and its RAW (CHAIN-NATIVE) block is cut hard at the pane's bottom edge mid-object (last visible line \"effectsMismatched\": 0, at y=1063, no bottom padding, no scroll cue) \u2014 one pane starved while two are empty, which is B4's named failure. The fix hands the Transaction pane more width and shows MORE information, so this is not a density tension.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/3",
+      "severity": "P2",
+      "location": "first line of each explanation, against its pane header band: Code y=325 (band ends 295), Call Trace y=318 (band ends 296), Values y=919 (band ends 901)",
+      "finding": "The same component \u2014 a two-to-four line explanation directly under a pane header \u2014 sits at three different distances below its header band: 30px, 22px and 18px. With the panes otherwise empty these three top edges are the only horizontal landmarks on the left two thirds of the page, so the mismatch is legible as a stepped, unrelated set rather than one grid, and none of the three values is a spacing token the rest of the shell repeats.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/4",
+      "severity": "P2",
+      "location": "Code pane content left edges \u2014 header label and Supply sources button at x=13, paragraph at x=21-24 (pane inner edge x=5)",
+      "finding": "The Code pane has two competing left edges among its only three elements: the CODE header label and the Supply sources button box are inset 8px from the pane edge, the paragraph between them 16px, so the button visibly hangs left of the text column it belongs to (its label at x=25 aligns with the prose while its border does not). The same paragraph is inset 16px here but 9px in the Call Trace pane (x=931, pane inner 922) and 8px in the Values pane (x=930), so the explanation block has no single inset across the panes either.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/5",
+      "severity": "P2",
+      "location": "Transaction pane, COST \u00b7 TRANSACTIONFEE row, y=467-555",
+      "finding": "The real-chain fee arrives as a 66-character hex quantity and breaks the label/value grid. The value wraps to three right-aligned monospace lines (x=1714-1906) plus a fourth line for the unit, making the row 88px tall against 32px for BLOCK, CANONICAL and FINALITY above it; the label sits alone at the top left with ~60px of empty space beneath it. The wrap falls mid-quantity rather than at a byte or group boundary, and the unit separator is orphaned \u2014 line three ends \"0000185cfcc84d2f103f /\" with the slash dangling and \"mana (FeeJuice)\" alone on line four. Constrain this value to a formatted or middle-truncated single line with the full quantity available on demand, so the row keeps the 32px rhythm of its neighbours.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/6",
+      "severity": "P3",
+      "location": "provenance banner card edges (border at x=0-1 and x=1919, top at y=24) against the pane grid (border at x=4 and x=1915)",
+      "finding": "The two full-width blocks of the shell do not share a left or right edge. The banner card's border sits on the viewport edge itself, so its rounded corners are pinched flat against the window, while the pane grid beneath is inset 4px on both sides; vertically there is a 24px canvas margin above the banner and none below the panes. Four different outer spacings (24 / 0 / 4 / 0) in a shell that has only two blocks to align.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/7",
+      "severity": "P3",
+      "location": "provenance banner, empty right two thirds x=610-1912, y=41-180",
+      "finding": "The banner is full-bleed but its content occupies only the left third: badge and slug on one line (x=10-301) and five wrapped prose lines capped at x=605. Roughly 68% of a 1919x176 band is empty white, and it is the five-line wrap that sets the band's height \u2014 the height it charges the session. Setting the capture facts (endpoint, moment, replay window) beside the prose rather than under it, or splitting the paragraph across two columns of the band, would halve the band and return ~90px to the panes without dropping a word.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/8",
+      "severity": "P3",
+      "location": "identity bar, phase rail, FETCHING segment left edge x\u22481322-1330, y\u2248220-244",
+      "finding": "The active segment's fill is a square-cornered rectangle inside a pill-shaped rail, so at the rail's rounded left edge the blue fill shows as a crescent sliver crossing the grey outline with white slivers above and below it. Clip the active segment to the rail's radius (or give the first segment the rail's own left radius).",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/9",
+      "severity": "P3",
+      "location": "Code pane (909x816 white field) and Call Trace pane (607x605), explanation text anchored at the top-left of each",
+      "finding": "The emptiness is correct here, but its composition does not read as deliberate: each pane's message is flush to the top-left corner of a very large white field (the Code pane's last ink is at y=510, leaving 568px of blank pane below it) with nothing marking the region as a state rather than as content that failed to arrive. A bounded state block \u2014 the message given a defined width, offset from the pane's top edge, and optically placed in the field rather than pinned to its corner \u2014 would let the void read as a designed empty state at a glance instead of after reading.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

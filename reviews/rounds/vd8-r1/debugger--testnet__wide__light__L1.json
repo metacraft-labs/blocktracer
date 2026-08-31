@@ -1,0 +1,77 @@
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L1/1",
+      "severity": "P2",
+      "location": "transaction pane, top three rows (badge row and the full-hash row directly beneath it) vs the identity bar",
+      "finding": "One transaction hash is set three different ways within 300 px: the identity bar elides it 6+4 (0x0858d6\u20267fb2), the transaction pane's badge row elides it 8+8 (0x0858d644\u202622e67fb2), and the row immediately below prints all 64 characters hard-wrapped at the container edge. The wrap lands after 41 hex characters, i.e. mid-byte \u2014 line 1 ends '\u2026430aabc0' and line 2 opens '6ef9ace18\u2026', splitting the byte 0x06. There is no single truncation rule, and the elided 8+8 form buys nothing because the full value sits one line under it.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/2",
+      "severity": "P2",
+      "location": "transaction pane, COST \u00b7 TRANSACTIONFEE row (right column, y\u2248475\u2013545)",
+      "finding": "The fee arrives as a 66-character raw hex quantity and is set at full length in mono with no truncation, wrapping over three right-aligned lines (again breaking mid-byte) with the separator ' /' orphaned at the end of line three and the unit 'mana (FeeJuice)' dropped onto a fourth line at a smaller size. The label sits on line one while the value occupies four, so this row alone breaks the label/value baseline that BLOCK, CANONICAL and FINALITY establish above it, and it is the tallest row in the pane while carrying a single number.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/3",
+      "severity": "P2",
+      "location": "transaction pane, label column (BLOCK, CANONICAL, FINALITY, COST \u00b7 TRANSACTIONFEE, EXECUTIONS, DECODED INPUT, SELECTOR, RAW, RAW (CHAIN-NATIVE))",
+      "finding": "Group headings and row labels share one type level \u2014 identical uppercase mono, size, weight and grey. 'DECODED INPUT' is a section and 'SELECTOR' is a row inside it, but nothing typographic says so, and 'EXECUTIONS' reads as a sibling of 'FINALITY'. The pane's structure cannot be read without reading it, which is exactly what the hierarchy is for at this density.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/4",
+      "severity": "P2",
+      "location": "transaction pane, RAW (CHAIN-NATIVE) code block (y\u2248790\u20131077)",
+      "finding": "The only code block on the page has no token-level typography: keys, string values, numbers, booleans, braces and punctuation are all one weight and one grey. '\"effectsMismatched\": 0' \u2014 the line that carries this view's central claim, that the replay reproduced the chain's own effects \u2014 is set identically to '\"txIndexInBlock\": 0'. In a register whose reference is the CodeTracer editor, the evidence is indistinguishable from the padding around it.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/5",
+      "severity": "P3",
+      "location": "transaction pane, RAW (CHAIN-NATIVE) code block",
+      "finding": "The block is set at roughly 12\u201313 px on ~23 px leading (\u22481.75) \u2014 prose leading applied to code, in the one pane on this page whose content already overruns its height and is cut at the shell edge. At the desktop app's ~1.35 the same box would show about six more lines of telemetry.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/6",
+      "severity": "P3",
+      "location": "identity bar, left group (\u2190 aztec-testnet \u00b7 0x0858d6\u20267fb2 \u00b7 Succeeded \u00b7 block 63675)",
+      "finding": "All four items are the same monospace at effectively the same size and weight; only colour separates the transaction hash (near-black) from the chain exit (blue) and the block height (grey). The subject of the page has no size or weight advantage over its metadata, so the bar reads as one flat run of mono and gives the eye no first stop \u2014 hierarchy carried by a single channel.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/7",
+      "severity": "P3",
+      "location": "provenance banner, body paragraph (x\u224820\u2013608 inside a band spanning the full 1920 px)",
+      "finding": "The banner prose is set to a ~590 px measure (~68 characters) inside a container roughly 1880 px wide, so it wraps to five lines and the banner costs ~200 px of vertical space \u2014 in the register the expectation itself calls its scarcest resource, and those rows come out of the panes. A measure nearer 90\u2013100 characters, or a two-column set at this viewport, would carry the same sentences in three lines without hurting the read.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/8",
+      "severity": "P3",
+      "location": "Code pane body (y\u2248320\u2013450) and, in the same treatment, the Call Trace and Values explanations",
+      "finding": "The explanation is a single flat type level: the paragraph about missing debug symbols and the operative sentence 'Stepping continues at instruction level.' are the same size, weight and grey, so the sentence that says the session works reads as a trailing afterthought rather than the pane's status. A lead line one step up in weight (or the operative sentence promoted above the explanation) would let the empty pane read as a deliberate, explained state at a glance instead of a paragraph left behind in a blank region.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/9",
+      "severity": "P3",
+      "location": "identity bar, phase rail, active FETCHING segment",
+      "finding": "The pill's rounded outline crosses the left edge of the active segment's blue fill, leaving a white crescent immediately before the label; at 1:1 the rail reads as '( FETCHING'. A border artefact that resolves as a glyph in front of a label is a reading defect, not just a shape one.",
+      "criterion": "B2"
+    }
+  ]
+}
+```

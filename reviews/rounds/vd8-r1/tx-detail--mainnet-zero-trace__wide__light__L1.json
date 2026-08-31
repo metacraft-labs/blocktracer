@@ -1,0 +1,49 @@
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/1",
+      "severity": "P2",
+      "location": "trace-state card, `Not observable` badge (approx. x=530-650, y=694-718) compared with the `Succeeded` badge beside the H1 (x=726-835, y=541-574)",
+      "finding": "Measured cap heights: `Succeeded` sets at 10px cap (~14px type), while `Not observable`, `Yes` and `Finalized` all set at 8px cap (~11px type). The badge component therefore ships at two sizes on one page, and the size went to the wrong one: `Not observable` is the whole subject of this view \u2014 the single fact that explains every empty section below it \u2014 yet it is rendered at the page's smallest type size, tied with the `BLOCK` / `CANONICAL` table labels, while the routine outcome badge is 3px larger. Scanned without reading, the eye lands on `Succeeded` and never on the state that matters. Either bring the trace-state badge up to the outcome badge's size, or drop the outcome badge to the shared 11px so at least the component is one scale.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/2",
+      "severity": "P2",
+      "location": "Overview table, `COST \u00b7 TRANSACTIONFEE` row, value cell (mono run from x=690 to x=1240, y=1196-1209)",
+      "finding": "The fee is a 66-character zero-padded hex word set as one unbroken monospace run 550px wide \u2014 the widest single run of type on the page \u2014 with its 48 leading zeros at exactly the same size, weight and colour as the 16 significant digits `175c1a29c1f97278`. There is no truncation, no de-emphasis of the padding, no digit grouping, and no decimal rendering of what is a quantity. A5 asks for truncation at meaningful boundaries with the full value obtainable; the H1 hash directly above obeys that (`0x1c37\u20260410`, cut on a byte boundary) and this field, the only numeric quantity on the page, obeys none of it. As rendered the row reads as a wall of zeros with the number hidden at the end of it.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/3",
+      "severity": "P2",
+      "location": "footer, data-disclosure paragraph (`No account, no tracking. \u2026`), first line spanning x=505-1410, y=2786-2798",
+      "finding": "The disclosure line runs the full 905px content column at ~15px type \u2014 approximately 128 characters per line, roughly double the 75-character ceiling and by far the longest measure on the page. Every other paragraph here (the provenance banner body, the trace-state card, the three section notes) is held to a ~590px line box, so body prose ships at two different measures on one page and the wider one is applied to the paragraph that most needs to be read to the end. Constrain it to the same measure as the rest of the body copy.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/4",
+      "severity": "P2",
+      "location": "provenance banner, producer paragraph (`Captured from aztec.drpc.org \u2026` through `\u2026 carry no trace.`), y=192-390",
+      "finding": "Ten wrapped lines at one size, one weight and one colour with no paragraph break, at a ~84-character measure. It carries at least three separable facts \u2014 what was captured and when, why nothing in the window was replayable, and what pruning means for the transactions below block 67119 \u2014 and none of them is findable without reading the block end to end, which is the definition of hierarchy that is not readable without reading. The only emphasis device present is an eight-word all-caps run (`NO TRANSACTION INSIDE IT WAS REPLAYABLE`) set at body size; all-caps in running text is the slowest available emphasis and it is the sole one used, where A4 asks for weight, size and colour together. Compare the trace-state card immediately below, which splits the same kind of content into two paragraphs and reads far faster.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/5",
+      "severity": "P2",
+      "location": "Overview table, label column, fourth row: `COST \u00b7 TRANSACTIONFEE` (x=529-636, y=1197-1229)",
+      "finding": "The uppercase transform has been applied to the camelCase key `transactionFee`, fusing it into the 14-character non-word `TRANSACTIONFEE` with the word boundary destroyed \u2014 it reads as a machine identifier, not as a label, and it is the only multi-word label on the page. Because it is 14 characters of letter-spaced uppercase it also wraps to a second line, making this row visibly taller than the three single-line rows above it and breaking the table's row rhythm. Insert the word break before uppercasing (`COST \u00b7 TRANSACTION FEE`) or label the row `FEE`.",
+      "criterion": "A10"
+    }
+  ]
+}
+```

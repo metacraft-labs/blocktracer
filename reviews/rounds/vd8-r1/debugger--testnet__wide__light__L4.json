@@ -1,0 +1,63 @@
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L4/1",
+      "severity": "P2",
+      "location": "pane grid, y 269-1080: Code pane (x 4-916) against Transaction pane (x 1533-1915)",
+      "finding": "The width split is inverted relative to what this session actually holds. The Code pane is 912 px wide (47% of the viewport) and carries ink only on rows 325-510 - four wrapped lines and the Supply sources button - leaving 570 empty rows; the Call Trace pane (607 px) carries ink on rows 318-349 only, 31 px of a 590 px pane. Meanwhile the Transaction pane, at 382 px the narrowest column, is the one pane with real content and it runs past the fold, clipping its RAW block mid-object after \"effectsMismatched\": 0. Measured across the four panes roughly three-fifths of the pane area is blank while the pane that is starved is the only one with data. At instruction level the Code column should give width back to the Transaction column, or absorb what the Transaction pane cannot fit.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/2",
+      "severity": "P2",
+      "location": "provenance banner, y 22-200, and the gap down to the first pane row at y 269",
+      "finding": "The banner block spends 269 of the 1080 viewport rows (25%) before any pane begins, and spends them badly: its prose ends at x 605, so 1310 px - 68% of the band it occupies full-width - is empty. The identity bar under it also has ~230 px of unused run between the phase rail and the NOIR/share/download cluster. Setting the badge, slug and the four sentences as two columns across the band, or capping the prose at its current measure beside the badge, would return roughly 80-100 rows to the panes with no content removed - and in this register rows are the scarce resource.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/3",
+      "severity": "P2",
+      "location": "below the pane grid, document rows 1081-1280",
+      "finding": "The document is 1281 px tall at a 1080 px viewport, so the page carries a scrollbar, and the 200 rows it scrolls to are uniform canvas (gray 236) with nothing in them - the pane grid ends exactly at the fold at y 1080. The overrun equals the height of the banner block, i.e. the banner is being added on top of a full-viewport shell rather than subtracted from it. The comparable synthetic capture (screenshots/debugger__wide__light.png) is exactly 1080 with no overrun. Net effect: every pane clips its content at the fold while the page offers 200 px of empty scroll below them.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/4",
+      "severity": "P2",
+      "location": "Transaction pane, COST . TRANSACTIONFEE row, y 470-545",
+      "finding": "The fee arrives as a raw 32-byte hex quantity and is rendered whole: three wrapped mono lines of ~26 characters starting at x 1712, of which the first 46 characters are leading zeros, plus an orphaned fourth line carrying \"/ mana (FeeJuice)\". Four lines and 66 px - the tallest row in the pane - to carry one number, where BLOCK, CANONICAL and FINALITY each take a single ~28 px line, and it breaks the label/value grid because every other value is right-aligned on the label's own line while this one starts a block under nothing. No reader can compare or even read the quantity in this form. Trim the zero padding to the significant digits (0x...185cfcc84d2f103f) or format it as a decimal mana figure the way the synthetic chain does, with the full hex on expand.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/5",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) block, y 795-1080",
+      "finding": "The replay telemetry is the evidence that this session is faithful - instructionsExecuted 345, effectsMatched 23, effectsMismatched 0 - and it is reachable only as unformatted JSON keys inside a pre block in the narrowest column, with effectsMismatched sitting on the last visible row (y 1063) at the fold. Nothing is dropped at this viewport that should have been dropped instead: three panes are empty and the one fact that carries the page's claim is the fact nearest to being cut off. Promote the three replay counters to labelled rows in the Transaction pane above DECODED INPUT, or into the empty Code pane, and leave the JSON as the backing detail.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/6",
+      "severity": "P3",
+      "location": "Call Trace pane, x 921-1528, rows 318-349 of a pane ending at y 865",
+      "finding": "The empty regions do read as deliberate in the Code pane, where the Supply sources button anchors the explanation as a state a user can act on. They do not in the Call Trace and Values panes: two lines of body copy hugging the top-left corner of a 607 x 590 white rectangle, styled exactly as data would be and with no anchor, reads closer to a render that stopped than to a designed empty state. Give those two panes the same treatment as the Code pane - the explanation set as a contained block with its own affordance or a rule under it - so the emptiness is legibly the chain's limitation rather than a missing fetch.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/7",
+      "severity": "P3",
+      "location": "Transaction pane, DECODED INPUT group, SELECTOR row y 636 and RAW row y 662",
+      "finding": "SELECTOR renders as a bare em dash and RAW as a bare \"0x\", then three lines of prose explain that there is no ABI. Two label rows and two rules are spent conveying nothing that the sentence below them does not already say; collapsing the pair into the explanation would return ~55 px to a pane that is currently overflowing past the fold.",
+      "criterion": "B1"
+    }
+  ]
+}
+```

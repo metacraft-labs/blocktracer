@@ -1,0 +1,57 @@
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "forbidden-present",
+  "missing": [
+    "Content from the demo fixture is present: the identity bar's right-hand language tag reads NOIR, which is the fixture constant DemoLanguage (\"noir\", client/src/debugger/demo_session.nim:54) assigned unconditionally at demo_session.nim:372 \u2014 before the `if not sourceLevel` branch that strips this session's source. The synthetic `debugger` view carries the identical NOIR tag in the identical slot. This view exists to prove the session is not the fixture wearing a different hash, and the one word in the identity bar that is not a chain fact came from the fixture."
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L5/1",
+      "severity": "P1",
+      "location": "identity bar, right end \u2014 the uppercase `NOIR` tag between the phase rail and the share/download marks (x approx. 1795-1830, y approx. 233)",
+      "finding": "Forbidden fixture content, and a voice contradiction inside one screen. The tag asserts a source LANGUAGE for a trace that the three panes 60px below say has no source text, no file map and no debug symbols \u2014 there is no published artifact this session could have derived `noir` from. It is not derived: `client/src/debugger/demo_session.nim:372` sets `result.languages = @[DemoLanguage]` unconditionally for every session, and `client/src/pages/debug.nim:197-198` renders it whenever the seq is non-empty, so the demo fixture's language constant is printed over a real aztec-testnet transaction. The page's whole editorial argument is `the chain published no symbols, so we decline to name things`; the identity bar names one anyway, in the register's most authoritative strip. Either the tag comes off at instruction level or it has to be sourced from something the chain actually published."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/2",
+      "severity": "P2",
+      "location": "the debugger shell as a whole \u2014 the pane column ends at y approx. 1073 and the document continues to y=1281 as an empty full-width band",
+      "finding": "The register's own invariant \u2014 `debugger_css.nim:39-43`, \"Full viewport with no page scroll\" \u2014 is not holding on this view. The captured document is 1920x1281 against a 1080 viewport; every other full-viewport debugger view at `wide` is exactly 1080, and the laptop capture of this same view is 1440x1101 against 900. The overrun is 201px in both, i.e. exactly the provenance banner's height, so the banner is sitting outside the `height:100%` shell rather than inside it as a `flex:0 0 auto` row. Nothing is currently lost, because `[data-register=\"debugger\"] body{overflow:hidden}` clips the overrun and the clipped region happens to be empty \u2014 but the shell is only conforming by accident, and this is the one view whose banner runs to five lines. In the register that promises desktop-app continuity, the app shell must fit its window by construction; here it is 201px too tall and 201px of it is unreachable.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/3",
+      "severity": "P2",
+      "location": "Code pane body (approx. x 20-600, y 320-450), Call Trace pane body (x 930-1500, y 315-355), Values pane body (x 930-1500, y 916-955) \u2014 compared against the provenance banner paragraph at y 78-180",
+      "finding": "The pane explanations and the marketing-register provenance banner are typographically the same object: same proportional UI face, same body size, same approx. 21px leading, same ragged left-aligned measure, same near-black ink, no muting and no pane-level notice treatment. The reader therefore cannot tell the product's editorial voice (the banner, speaking about whose data this is) from a pane reporting its own state \u2014 and three panes each holding one such paragraph at their top-left makes the screen read as a document with pane headers rather than as a tool. The sentences themselves are right; the register they are set in is the explorer's. A pane's declining-to-show state wants the desktop app's own vocabulary \u2014 smaller, muted, and visibly a notice from the pane rather than prose from the product.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/4",
+      "severity": "P2",
+      "location": "Code pane \u2014 `Supply sources` pill at x 14-119, y 489-511, with approx. 560px of unmodulated white below it; and its counterpart in the Transaction pane, the sentence \"Supplying an ABI decodes them.\" at x 1540-1905, y 700-750",
+      "finding": "The route out does not read as a route out, and the product has two incompatible treatments of the same idea on one screen. `Supply sources` is the smallest, lowest-emphasis control on the page \u2014 a hairline outline pill at label size, no accent, no icon, no supporting sentence saying what a source bundle is or what supplying it would restore \u2014 anchored flush to the pane's top-left corner under a paragraph, with the remaining three-quarters of an 800px pane left as blank canvas beneath it. Meanwhile the Transaction pane's structurally identical escape hatch (\"Supplying an ABI decodes them\") is a plain sentence with no control at all. So neither reads as a product primitive: one is a button with no explanation, the other an explanation with no button. In a pane whose entire content is \"there is nothing here\", the one thing that would change that is the pane's primary action and is currently rendered as its least important element; the composition also leaves the empty region looking unhandled rather than deliberate.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/5",
+      "severity": "P2",
+      "location": "Transaction pane, COST \u00b7 TRANSACTIONFEE row (x 1540-1905, y 472-548)",
+      "finding": "A shared primitive rendering two different ways across two chains. The fee arrives from real chain data as a 32-byte hex quantity and is printed raw: it wraps across three monospace lines, the value column loses its right edge, the `/` separator strands at the end of line three and the unit \"mana (FeeJuice)\" drops to a fourth line in the proportional face \u2014 the only row in the pane that breaks the label/value grid every other row holds. On the synthetic chain the same row reads \"88000 / 200000 mana (FeeJuice)\" on one line. The number is honest and complete, so this is presentation, not information \u2014 but it means the product's cost primitive is recognisable on the fixture and unrecognisable on the data the product is here to prove it handles. Rendering the quantity as a decimal (or at minimum keeping the unit on the value's last line) restores it without hiding anything.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/6",
+      "severity": "P3",
+      "location": "Code pane, the second paragraph \u2014 \"Stepping continues at instruction level.\" at x 20-289, y 432-450",
+      "finding": "The pane says the same thing three times: \"The recording is therefore at instruction level\", then \"Stepping is complete; only the text is missing\", then a standalone paragraph \"Stepping continues at instruction level.\" The first paragraph already lands the point with the right subject \u2014 the chain publishes no source, not the product failed to find one \u2014 and it is well written. The repetition is what tips the block from statement into reassurance, which is the one tonal register this page must avoid, and it spends a paragraph and 30px of vertical rhythm in the register where rows are the scarcest resource. Drop the second paragraph; the first sentence set already carries it.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

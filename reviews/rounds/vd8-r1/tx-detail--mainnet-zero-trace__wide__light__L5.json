@@ -1,0 +1,77 @@
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/1",
+      "severity": "P2",
+      "location": "provenance banner, paragraph lines 2-3 \u2014 \"NO TRANSACTION INSIDE IT WAS REPLAYABLE\"",
+      "finding": "A clause is set in all-caps mid-sentence, making it the loudest typographic event on the page \u2014 louder than the H1 hash and louder than the 'Not observable' badge that actually states the page's condition. On the one page in the family whose central job is to read as CORRECT rather than broken, a shouted clause reads as an assertion failure or a log line, not as the 2026 explorer voice (near-black type, restraint, marketing-grade). The same fact is already carried calmly by the next sentence, 'That is what the capture found, not a failure to record.' Set it as ordinary sentence case.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/2",
+      "severity": "P2",
+      "location": "provenance banner container, top of page \u2014 compared against the same component in screenshots/tx-detail--absent__wide__light.png",
+      "finding": "The banner's emphasis is inverted against its semantics across the family. The real-data banner here is a plain card with a 1px neutral-grey border; the synthetic-demo banner on tx-detail--absent gets the accent-indigo border and a thick indigo left edge. The badge tones are right (green affirmative vs blue neutral), but the container tone says the opposite: the fixture chain gets the emphatic frame and the real-network chain gets the quiet one. Since this banner is the only element telling a reader whether the hashes exist on any network, the affirmative case must not be the visually weaker of the two.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/3",
+      "severity": "P2",
+      "location": "provenance banner, sentence beginning \"Catching one needs a follower that watches the tip continuously rather than a single scan.\"",
+      "finding": "This sentence is addressed to whoever operates the capture harness, not to a reader of the explorer \u2014 it prescribes how a future capture run should be built. Maintainer voice on a public, reader-facing surface breaks the explorer register, and it quietly undercuts the page's own claim of permanence: it implies the emptiness is an artefact of how this snapshot was taken and that a better run would fix it, which is the opposite of what the 'Not observable' card two blocks below asserts.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/4",
+      "severity": "P2",
+      "location": "Overview table, row label \u2014 \"COST \u00b7 TRANSACTIONFEE\"",
+      "finding": "A camelCase ViewModel key (transactionFee) has been uppercased without splitting the word boundary, so a public label reads as a struct field name. Every other label in the table (BLOCK, CANONICAL, FINALITY) is an English word; this one is code. The sibling view renders the same row as 'COST \u00b7 MANA', so the treatment is only wrong where the key is compound.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/5",
+      "severity": "P2",
+      "location": "Overview table, COST \u00b7 TRANSACTIONFEE value cell",
+      "finding": "The fee renders as a 32-byte zero-padded hex word, '0x0000\u20260000175c1a29c1f97278 / mana (FeeJuice)'. Forty leading zeros occupy most of the row and push the meaningful digits into the middle of the cell. This is chain-native register inside an explorer-register Overview \u2014 the page already has a 'Raw (chain-native)' section for the undecoded form, and the same row on tx-detail--absent reads '42000 / 100000 mana (FeeJuice)'. The padding at minimum is a rendering choice, not a limitation of the snapshot.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/6",
+      "severity": "P3",
+      "location": "'Not observable' card, second paragraph; and provenance banner, sentences 5-6",
+      "finding": "The card's first paragraph says 'The published reason states why', forward-referencing the producer's own words, but the second paragraph carries no attribution treatment \u2014 no label, quote rule, indent or type change separates the producer's voice from the product's. The two paragraphs read as one continuous product voice, so the 'published' claim is invisible. The sibling tx-detail--absent shows the same slot holding an uncapitalised, unpunctuated fragment, which is what an unmarked pass-through slot eventually renders.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/7",
+      "severity": "P3",
+      "location": "provenance banner ('20 transaction(s)', '7 block(s)') and 'Not observable' card ('6 block(s)')",
+      "finding": "Parenthetical '(s)' pluralisation appears three times in the two most-read text blocks on the page. It is a code-generation tell rather than written copy, and on a surface graded as marketing-grade it is the clearest signal that the sentence was assembled rather than authored. All three counts are known at render time, so the plural can be resolved.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/8",
+      "severity": "P3",
+      "location": "provenance banner ('block 67113 \u2014 7 block(s) below the window') vs 'Not observable' card ('settled in block 67113, 6 block(s) below it')",
+      "finding": "The same block, 67113, is given two different distances on one page \u2014 seven below the replay window's start and six below the finalized tip. Both are correct against different reference points, but the reference points are named in loose, differing terms ('the window', 'it'), so a reader who does not already know what a finalized tip is sees an apparent contradiction in the page's two most important paragraphs. Naming the referent explicitly in both places would let the pruning explanation land.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/9",
+      "severity": "P3",
+      "location": "footer provenance strip, right column",
+      "finding": "Three brand marks, two colour treatments: the heart and the CodeTracer mark render in accent indigo while the GitHub mark renders in near-black, even though the GitHub mark leads the indigo underlined 'Source on GitHub' link and the other two sit beside body-coloured text. All three are drawn and legible, but the set does not read as one family.",
+      "criterion": "A8"
+    }
+  ]
+}
+```

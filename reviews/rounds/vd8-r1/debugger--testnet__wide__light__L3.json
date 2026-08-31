@@ -1,0 +1,84 @@
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L3/1",
+      "severity": "P2",
+      "location": "identity bar and Call Trace pane header \u2014 active tab underline at x931-1005 y294-295; FETCHING chip x1325-1398; progress fill x775-867; exit link x38-133 and BLOCK link x1846-1910",
+      "finding": "Four unrelated colour treatments all mean \"active / current / in progress\" on one screen: the active CALL TRACE tab is marked by a neutral #101010 underline, the active phase chip by #1e40af on #dbeafe, the loading meter by #155e75, and interactive text by #4f46e5. The accent is spent on a progress bar and on links but is never used to mark the current pane or the current position, so nothing on the page tells the eye which single colour means \"here\".",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/2",
+      "severity": "P2",
+      "location": "identity bar, x775-1560 (progress meter, phase rail) and x38-133 (exit link)",
+      "finding": "Three different hues from the blue family sit within 800px of each other on the same bar: cyan-800 #155e75 (meter fill), blue-800 #1e40af on blue-100 #dbeafe (FETCHING chip), indigo-600 #4f46e5 (links). Brief \u00a72 states the accent hue family is shared product-wide; three accent hue angles is not a family. The same three-way split is present in the dark capture (#22d3ee / #2563eb+#60a5fa / #818cf8), so this is a token-level issue rather than a light-theme regression.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/3",
+      "severity": "P2",
+      "location": "identity bar, \"Engine loading \u2014 18 MB\" meter, x775-1034 y229-236",
+      "finding": "The meter fill #155e75 against its track #919191 measures 2.31:1, below the 3:1 floor for a non-text graphical indicator. The track is also the single heaviest mark on an otherwise white identity bar, so the unfilled remainder is more visually dominant than the filled portion and the meter reads inverted at a glance. (Dark measures 2.61:1 on the same pair, so neither theme clears the floor; light is the worse of the two.)",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/4",
+      "severity": "P2",
+      "location": "Transaction pane RAW (CHAIN-NATIVE) block x1543-1914 y795-1079; inter-pane gutters x917-920 and x1529-1532; page canvas below y1080",
+      "finding": "#ececeb carries three unrelated roles: the out-of-app page canvas, the gutter between panes, and the code well holding the raw JSON. The code well has no border of its own, so at the pane's bottom edge it dissolves straight into the canvas value and has no readable boundary; its right-edge overflow mask fades to #ffffff (the pane background) rather than to its own #ececeb, destroying the block's right edge instead of signalling scrollable content. In a light theme #ececeb also reads as \"inert/disabled\", which is the wrong connotation for the pane carrying the replay telemetry that proves the session is faithful.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/5",
+      "severity": "P2",
+      "location": "whole shell \u2014 provenance banner y24-200, identity bar y201-264, and all four pane bodies, all #ffffff; pane rules #a2a2a2",
+      "finding": "Every surface inside the shell is the same #ffffff: the banner, the identity bar and the Code, Call Trace, Values and Transaction pane bodies are one continuous white plane, separated only by 1px #a2a2a2 rules and 4px canvas gutters. Rubric B4 names \"panes distinguished only by a hairline\" as the failing look. The pane-to-canvas step is also weaker here than in the dark capture (\u0394L* 6.6 for #ffffff/#ececeb versus 10.2 for #1b1b1b/#000000), so in the theme with more headroom the panes detach from the canvas less.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/6",
+      "severity": "P2",
+      "location": "Code pane, \"Supply sources\" button x13-119 y484-514",
+      "finding": "The one affordance that routes a reader out of the missing-source limitation is the least coloured interactive element on the page: white fill, #a2a2a2 hairline, #101010 label, no accent. Meanwhile ordinary navigation links (the chain exit, the BLOCK value) are given indigo #4f46e5. The interactive colour role is applied to links and withheld from the primary action, so on a page whose panes are deliberately near-empty the button does not read as the thing to click.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/7",
+      "severity": "P3",
+      "location": "\"Real Aztec testnet data\" badge x13-181 y42-64; \"Succeeded\" chip x260-350 y221-243; \"Trace ready\" badge x1593-1688 y581-601",
+      "finding": "One green token (#dcfce7 fill, #16a34a border, #166534 text) is used identically for three different semantic axes: provenance authenticity, transaction execution outcome, and trace availability. All three are affirmative so the reading is not wrong, but the provenance badge is the register's only data-source marker and giving it the exact chip used by \"Succeeded\" flattens the page's honesty marker into just another status pill.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/8",
+      "severity": "P3",
+      "location": "text throughout \u2014 pane header labels #484848 (CODE x14, VALUES x931, TRANSACTION x1545), Transaction pane field labels #565656 (BLOCK, CANONICAL, FINALITY, SELECTOR x1541), pane body copy #484848, primary values #101010/#242424",
+      "finding": "The neutral text ladder has four steps but the bottom two are perceptually one: #484848 and #565656 differ by 1.25:1, yet they carry different roles (secondary body copy and pane-header labels versus Transaction-pane field labels). The step from #242424 to #484848 is 1.70:1 and from #101010 to #242424 only 1.23:1, so three of the four emphasis levels do not separate. Every pair still clears contrast against its surface (lowest measured is 5.40:1, the inactive EVENT LOG tab on #dddddd), so this is hierarchy legibility rather than a contrast failure.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/9",
+      "severity": "P3",
+      "location": "pane header strips y270-295 (all four panes) \u2014 #dddddd on #ffffff bodies, bottom rule #c8c8c8",
+      "finding": "The pane header's elevation sign flips between themes and its magnitude roughly doubles: in dark the header #282828 sits about 7 L* ABOVE its #1b1b1b body (a raised title bar, barely visible); in light #dddddd sits about 12 L* BELOW its #ffffff body (a recessed grey chrome band). Same component, opposite elevation semantics and twice the step. Against panes that are correctly near-empty here, the four grey bands become the loudest marks in the layout. This is the clearest evidence the surface ramp was mapped token-for-token rather than re-derived for light \u2014 the accent ramp, by contrast, WAS properly re-picked (cyan-400 to cyan-800, indigo-400 to indigo-600), so the light theme is designed, not naively inverted.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/10",
+      "severity": "P3",
+      "location": "bottom edge of the shell \u2014 pane side rules #a2a2a2 at x4, x916, x921, x1528, x1533, x1915 terminate at y1079; bare #ececeb canvas fills y1080-1280",
+      "finding": "The pane boxes have no bottom border: the #a2a2a2 side rules run to y1079 and the surface changes straight to canvas, so all four panes read as unclosed rectangles rather than as clipped-with-more-below. Because the Transaction pane's code well is already #ececeb, its bottom edge merges seamlessly with the canvas beneath it and the boundary between \"inside the pane\" and \"outside the app\" is invisible in that column. Sizing the 201px of empty canvas below y1080 (the capture is 1281 tall against a 1080 viewport, so the page scrolls to reveal nothing) is L2's call, not mine; the colour half is that the register's forbidden page-level surface is the same value as two in-app roles.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

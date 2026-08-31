@@ -1,0 +1,56 @@
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/1",
+      "severity": "P2",
+      "location": "provenance banner card, top of the content column (card box x 503-1416, y 136-424)",
+      "finding": "The banner card is stretched to the full 912 px content column but its prose wraps at a ~606 px measure (text runs x 530-1136), so the right 278 px \u2014 31% of the card \u2014 is empty white with a hard border round it. Every other prose card on the page is sized to that same measure instead: the 'Not observable' card and all four note cards are x 504-1203 (700 px = measure + 2x24 px padding). The banner is the single element that breaks that rule, and it is the first thing on the page. It also pays for it in height: 11 wrapped lines instead of the ~7 the container width would give, making the banner (289 px) taller than the 'Not observable' card (247 px) that carries the page's actual answer.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/2",
+      "severity": "P2",
+      "location": "section headings \u2014 Overview (y 1037-1055), Decoded input (y 1375-1397), Raw (y 2328-2352) vs Events (y 1714-1732), Internal calls (y 1893-1911), State changes (y 2073-2095)",
+      "finding": "The gap from an h2 baseline to the top border of its first content block is 15-17 px in Overview, Decoded input and Raw (baseline 1055 -> table 1070; 1391 -> 1408; 2346 -> 2362) but 31-33 px in Events, Internal calls and State changes (1732 -> 1763; 1911 -> 1942; 2089 -> 2122). Same heading style, same relationship, two values exactly 2x apart. The three lower headings visibly float away from the cards they title while the three upper ones sit tight to theirs.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/3",
+      "severity": "P2",
+      "location": "Overview table, COST \u00b7 TRANSACTIONFEE row (row separators y 1183 and 1247)",
+      "finding": "Row rhythm breaks on the last row: BLOCK / CANONICAL / FINALITY are 37, 38 and 38 px tall, the cost row is 64 px. The cause is the label column, which is only 161 px wide (grey fill x 504-664) inside a 912 px table, so 'COST \u00b7 TRANSACTIONFEE' wraps onto two lines \u2014 about 20 px more label width would keep it on one. The value is top-aligned at y 1195 while the row runs to 1247, leaving ~26 px of empty white under the hex, and the hex itself only reaches x 1376, so the width to widen the label column is available in the same row.",
+      "criterion": "A6"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/4",
+      "severity": "P2",
+      "location": "'Not observable' card body, between 'fetch. The published reason states why.' (line bottom y 779) and 'The node still serves this transaction's effects\u2026' (line bottom y 804)",
+      "finding": "The paragraph break carries no extra space: line-to-line pitch inside the card is 20-23 px and the paragraph boundary is 25 px, a 2-3 px difference. The permanence claim and the published reason \u2014 the two things the page exists to keep distinct \u2014 therefore read as one undifferentiated six-line block. Related and unrelated lines are spaced the same.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/5",
+      "severity": "P3",
+      "location": "section separator rules (y 1007, 1345, 1684, 2299) vs the Events / Internal calls / State changes stack",
+      "finding": "Rules precede Overview, Decoded input, Events and Raw but not Internal calls or State changes, so those two sections are separated from what precedes them by 54 px of canvas alone (card bottom 1839 -> heading 1893; 2019 -> 2073) against a 31 px heading-to-card gap inside each. A 1.7x ratio is a weak grouping signal, and since the three cards are identical in size and weight the intended bracketing of the three trace/receipt sections is not legible \u2014 the reader sees three sections given less separation than Decoded input got, with no visible reason.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/6",
+      "severity": "P3",
+      "location": "Overview table, value column left edge (x 680 vs x 689)",
+      "finding": "The 'Yes' and 'Finalized' pill boxes begin at x 680 while the '67113:0' link and the cost hex begin at x 689, and the pills' own glyphs land at ~690. Neither the boxes nor the labels line up cleanly with the text rows, so the value column has a visible ~9 px stagger down its left edge. Pick one: hang the pill boxes so their labels sit exactly at 689, or align the boxes at 689 and accept the label inset.",
+      "criterion": "A6"
+    }
+  ]
+}
+```

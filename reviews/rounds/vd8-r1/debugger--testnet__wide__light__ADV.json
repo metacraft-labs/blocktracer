@@ -1,0 +1,21 @@
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/ADV/1",
+      "severity": "P1",
+      "location": "Transaction pane (right rail), the COST \u00b7 TRANSACTIONFEE row",
+      "finding": "The one row on this page that carries a real chain QUANTITY is malformed in four ways at once, and it is the only visibly broken thing on a page whose whole job is to prove the product survives contact with a real chain. It renders `0x000000000000000000000000000000000000000000000000185cfcc84d2f103f /  mana (FeeJuice)`: (a) a zero-padded 64-hex-digit word where a number belongs \u2014 about 46 of its 64 characters are literal padding \u2014 which `word-break:break-all` then wraps across three right-aligned lines and a fourth for the unit, blowing the label/value grid open and making this row roughly four times the height of BLOCK, CANONICAL and FINALITY combined; (b) a dangling ` / ` with nothing after it, because `viewutil.nim:269` builds `value: c.used & \" / \" & c.limit` unconditionally while `costLabel` at `viewutil.nim:107` guards the same join with `if c.limit.len > 0` \u2014 the real adapter publishes no limit, so the UI asserts a used/limit pair that does not exist and invites the reader to think a second number failed to load; (c) the unit `mana (FeeJuice)` is glued to a value that is a FEE in FeeJuice, not a mana count, so the row states the wrong dimension for its own number; (d) the label is the adapter's raw field name, `transactionFee`, where the synthetic chain shows `COST \u00b7 MANA` \u2014 the same class of vocabulary leak the code's own comment at `viewutil.nim:130` records as already fixed for `roleLabel`. The fixture hides all of it: on the synthetic chain the identical row reads `42000 / 100000 mana (FeeJuice)`, one tidy line. This is the weakest element because the three empty panes are honest and explain themselves \u2014 a visitor can accept that the chain published no debug symbols \u2014 but this row is BlockTracer's own output on data it did have, and it is wrong, unformatted and self-contradictory. It is the single piece of evidence on the page for the conclusion 'this product cannot handle real chain data', and it sits in the one pane that was supposed to prove the opposite.",
+      "criterion": "B7"
+    }
+  ]
+}
+```
