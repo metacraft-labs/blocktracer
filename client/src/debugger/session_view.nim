@@ -1098,6 +1098,73 @@ func canShare*(v: DebugSessionView): bool =
   ## while the engine is still arriving.
   v.hasFrame and v.containerPath.len > 0
 
+func canHeadline*(v: DebugSessionView): bool =
+  ## Whether this session may be the HOME PAGE's featured exhibit.
+  ##
+  ## THIS IS A POSITIVE RULE, AND THAT IS THE WHOLE POINT OF IT. Every clause
+  ## below names something the page will actually SHOW — source text, a named
+  ## frame, a named local, a container with bytes in it. None of them names a
+  ## session to avoid.
+  ##
+  ## The rule it replaces was `hasFrame and integrity == siValidated and not
+  ## reconstructed`, which is three ways of saying "nothing is wrong with it".
+  ## Nothing was wrong with what it picked, either: the home page featured
+  ## `aztec-testnet/tx/0x0858d644…`, a real transaction with a real container
+  ## that stops at step 128 of 345 and steps normally. It is rung 3 — an Aztec
+  ## contract class publishes no debug symbols — so its panes correctly say, on
+  ## the front page, under "the deepest view into every transaction":
+  ##
+  ##   "Calls and storage writes are recorded against program counters rather
+  ##    than source lines."
+  ##   "Frames are recorded, and without a file map they carry no function names
+  ##    or source positions."
+  ##   "This recording carries no variable names: naming a local needs debug
+  ##    symbols, which an Aztec contract class does not publish."
+  ##
+  ## Those three sentences are correct and they stay exactly where they are, on
+  ## that transaction's own page. What was wrong was the CHOICE OF SUBJECT: the
+  ## fidelity ladder's floor as the shop window for the ladder.
+  ##
+  ## An exclusion — "not the rung-3 one" — would have fixed that instance and
+  ## nothing else, because it names the case that was reported rather than the
+  ## property that was missing, and it silently promotes the next-worst subject
+  ## the moment the data changes. So the clauses are the properties the exhibit
+  ## must HAVE, and a tree that holds nothing with them features nothing. See
+  ## `ssr.demoSessionFor`, which has no fallback arm on purpose.
+  if not v.hasFrame: return false
+  # A container that exists, has bytes, and is the one this page recommends.
+  # `canShare` asks the first of these for a link; a headline is a stronger
+  # claim than a link, so it asks all three.
+  if v.containerPath.len == 0: return false
+  if v.containerBytes <= 0: return false
+  if v.traceContentHash.len == 0: return false
+  # Recorded, reproduced, and not heuristically rebuilt. `siDivergent` and
+  # `siTruncated` are real recordings that the product publishes and steps —
+  # they are simply not what a first impression should be arguing about.
+  if v.integrity != siValidated: return false
+  if v.reconstructed: return false
+  # It has somewhere to step TO, and it is standing somewhere.
+  if v.controls.totalSteps <= 0: return false
+  if v.controls.step <= 0: return false
+  # SOURCE POSITIONS: the pane resolved a bundle and holds lines, and the
+  # session is positioned on one of them.
+  if v.editor.availability != srcSourceLevel: return false
+  if v.editor.documents.len == 0: return false
+  if v.editor.currentLine <= 0: return false
+  var hasLines = false
+  for d in v.editor.documents:
+    if d.lines.len > 0: hasLines = true
+  if not hasLines: return false
+  # NAMED FRAMES: a call trace whose rows carry function names, not depths.
+  if v.calltrace.frames.len == 0: return false
+  for f in v.calltrace.frames:
+    if f.fn.len == 0: return false
+  # NAMED LOCALS: the state pane names what it is showing.
+  if v.state.values.len == 0: return false
+  for s in v.state.values:
+    if s.name.len == 0: return false
+  true
+
 func truncatedHash*(h: string): string =
   if h.len <= 13: h else: h[0 ..< 8] & "…" & h[h.len - 4 .. ^1]
 

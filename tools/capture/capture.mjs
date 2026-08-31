@@ -146,13 +146,13 @@ function runExporter(distDir) {
   const clientDir = join(REPO_ROOT, "client");
   const r = spawnSync(
     "nim",
-    // `-d:publishDemoChain`: the CAPTURE tree carries the synthetic fixture; the
-    // DEPLOYED tree does not. Publishing and grading are different decisions, and this
-    // is where they part. Thirty of the views below need states no real chain has yet —
-    // an on-demand trace, a divergence, a truncated recording, a verified source bundle,
-    // a multi-segment address history — and the fixture is the only publisher of any of
-    // them. Capturing them requires the fixture in the tree; shipping it does not follow.
-    ["c", "-r", "--mm:orc", "-d:isServer", "-d:release", "-d:publishDemoChain",
+    // NO DEFINE, and that is now the point: the capture tree and the deployed tree are
+    // the SAME tree. The synthetic fixture used to be a capture-only inclusion, which
+    // meant thirty graded views were photographs of pages no visitor could reach. It is
+    // published again (`static_export.nim` step 1b — it is the site's only source-level
+    // recording and the home page's exhibit needs one), so the harness compiles with the
+    // deployed defaults and every graded image is of a page that exists.
+    ["c", "-r", "--mm:orc", "-d:isServer", "-d:release",
      "--hints:off", "src/static_export.nim"],
     { cwd: clientDir, encoding: "utf8" },
   );

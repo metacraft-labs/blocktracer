@@ -55,11 +55,13 @@ createDir(workDir)
 
 let exporterBin = workDir / "static_export_bin"
 let compileCmd =
-  # `-d:publishDemoChain`: this suite's subject IS the synthetic tree, which the
-  # exporter no longer publishes by default. Publishing and testing are separate
-  # decisions — the deployed site carries real chains only, and this build asks for
-  # the fixture explicitly rather than depending on it being everyone's default.
-  "nim c --mm:orc -d:isServer -d:release -d:publishDemoChain --hints:off --nimcache:" &
+  # No define: this suite's subject IS the synthetic tree, and the exporter
+  # publishes it again — it is the only source-level recording the site can
+  # carry, and the home page's exhibit needs one. `static_export.nim`'s step 1b
+  # argues that. The suite asks for the DEFAULT tree on purpose: a build flag
+  # here would let the deployed default drift away from the tree these
+  # assertions are written against without anything failing.
+  "nim c --mm:orc -d:isServer -d:release --hints:off --nimcache:" &
   quoteShell(workDir / "nimcache") & " -o:" & quoteShell(exporterBin) &
   " " & quoteShell(exporterSrc)
 let (compileOut, compileCode) = execCmdEx(compileCmd)

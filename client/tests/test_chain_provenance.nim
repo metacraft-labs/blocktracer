@@ -27,7 +27,7 @@
 ## `ingestSnapshot` — over the committed capture, so what is graded is the
 ## shipping path and not a lookalike.
 
-import std/[unittest, os, json, strutils, algorithm]
+import std/[unittest, os, json, strutils, algorithm, options]
 
 import ../src/ssr
 import ../src/reader
@@ -1016,3 +1016,526 @@ suite "7 — a slug belongs to one producer":
 
   test "assertion count":
     expectCount(9)
+
+# ── 8 — a curated chain publishes only transactions that open ────────────────
+#
+# THE PROMISE THIS SUITE GRADES. `IngestScope.isCurated` is the scope the
+# deployed site publishes real chains in, and it makes exactly one claim that
+# `isFull` does not: every transaction on this chain opens a container that
+# steps. That claim is a universal over a set the ingest itself chooses, which
+# is Verification-Harness-Traps §4 in its most inviting form — an ingest that
+# published no transactions at all would satisfy it perfectly.
+#
+# So the first test establishes that the SAME captures under `isFull` publish
+# transactions that do not open, and the control counts what the curated tree
+# published rather than asserting over whatever it happens to hold.
+suite "8 — a curated chain publishes only transactions that open":
+  asserted = 0
+
+  proc capturedChains(r: DataRoot): seq[string] =
+    for c in chains(r):
+      if chainInfo(r, c).provenanceKind == "live-capture": result.add c
+
+  proc publishedTxs(r: DataRoot, chain: string): seq[string] =
+    ## Every transaction reachable from the published BLOCK record — the way a
+    ## visitor reaches one. Not read from the snapshot: the snapshot is the
+    ## input, and a test that enumerated the input would be unable to notice a
+    ## transaction the tree published without a block to reach it from.
+    let info = chainInfo(r, chain)
+    for h in blockHashes(r, info):
+      for t in readBlockDetail(r, info, h).transactions: result.add t
+
+  proc unpublishableSnapshot(dir: string): string =
+    ## One block, one transaction, and the transaction cannot be replayed. There
+    ## is no window here in which every transaction opens — the shape suite 6
+    ## uses for its refusal arm, built again rather than shared, because that one
+    ## is scoped to its suite and reaching across would couple two subjects.
+    let dest = dir / "unpublishable"
+    createDir(dest / "ct")
+    let h = "0x" & repeat('b', 40)
+    writeFile(dest / "snapshot.json", $(%*{
+      "format": "blocktracer/chain-snapshot@1",
+      "provenance": {
+        "kind": "live-capture", "chain": "unpublishable",
+        "label": "Real watched data", "endpoint": "https://node.example",
+        "capturedAt": "2026-08-31T18:44:30.452Z",
+        "nodeVersion": "5.2.0", "l1ChainId": 1, "runtimeCommit": "abc123def456"},
+      "window": {"tip": 200, "finalized": 180, "replayableFrom": 181,
+                 "replayableTo": 200, "blocks": 20},
+      "blocks": [{"number": 199, "hash": "0x" & align("199", 40, '0'),
+                  "timestamp": 1199, "totalManaUsed": "0x2710",
+                  "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
+                  "archiveRoot": "0x" & repeat('2', 40),
+                  "parentArchiveRoot": "0x" & repeat('3', 40),
+                  "transactions": [h]}],
+      "transactions": [{
+        "txHash": h, "blockNumber": 199, "txIndexInBlock": 0,
+        "revertCode": 0, "transactionFee": "0x1",
+        "bodyRetained": true, "effectVisible": true, "firstInBlock": true,
+        "outcome": "refused", "refusal": "AvmToolchainRegression",
+        "reason": "This transaction could not be re-executed: the replay " &
+                  "runtime refused with AvmToolchainRegression."}]}))
+    dest
+
+  proc mixedSnapshot(dir: string): string =
+    ## THE THREE OUTCOMES AT ONCE, which no committed capture holds: one
+    ## recorded, one refused, one pruned. The curated window lands on the
+    ## recorded one alone, so the other two are the unpublished remainder the
+    ## banner has to describe — and describing them is the point, because they
+    ## are the two facts the remainder sentence must not merge.
+    let dest = dir / "mixed"
+    createDir(dest / "ct")
+    let recorded = "0x" & repeat('1', 40)
+    let refused  = "0x" & repeat('2', 40)
+    let pruned   = "0x" & repeat('3', 40)
+    # A container with bytes in it: `ingestSnapshot` refuses to publish a
+    # manifest naming a zero-byte trace, which is a rule this fixture must obey
+    # rather than work around.
+    writeFile(dest / "ct" / (recorded & ".ct"), repeat('x', 4096))
+    var blocks = newJArray()
+    for n in 100 .. 120:
+      var b = %*{"number": n, "hash": "0x" & align($n, 40, '0'),
+                 "timestamp": 1000 + n, "totalManaUsed": "0x0",
+                 "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
+                 "archiveRoot": "0x" & repeat('2', 40),
+                 "parentArchiveRoot": "0x" & repeat('3', 40),
+                 "transactions": newJArray()}
+      if n == 105: b["transactions"].add %pruned
+      if n == 110: b["transactions"].add %refused
+      if n == 118: b["transactions"].add %recorded
+      if n in [105, 110, 118]: b["totalManaUsed"] = %"0x2710"
+      blocks.add b
+    writeFile(dest / "snapshot.json", $(%*{
+      "format": "blocktracer/chain-snapshot@1",
+      "provenance": {
+        "kind": "live-capture", "chain": "mixed", "label": "Real mixed data",
+        "endpoint": "https://node.example",
+        "capturedAt": "2026-08-31T18:44:30.452Z", "nodeVersion": "5.2.0",
+        "l1ChainId": 1, "runtimeCommit": "abc123def456"},
+      "window": {"tip": 120, "finalized": 115, "replayableFrom": 116,
+                 "replayableTo": 120, "blocks": 5},
+      "blocks": blocks,
+      "transactions": [
+        {"txHash": pruned, "blockNumber": 105, "txIndexInBlock": 0,
+         "revertCode": 0, "transactionFee": "0x1", "bodyRetained": false,
+         "effectVisible": true, "firstInBlock": true, "outcome": "pruned",
+         "reason": "The node still serves this transaction's effects but no " &
+                   "longer serves its body."},
+        {"txHash": refused, "blockNumber": 110, "txIndexInBlock": 0,
+         "revertCode": 0, "transactionFee": "0x1", "bodyRetained": true,
+         "effectVisible": true, "firstInBlock": true, "outcome": "refused",
+         "refusal": "AvmToolchainRegression",
+         "reason": "The replay runtime refused this transaction."},
+        {"txHash": recorded, "blockNumber": 118, "txIndexInBlock": 0,
+         "revertCode": 0, "transactionFee": "0x1", "bodyRetained": true,
+         "effectVisible": true, "firstInBlock": true, "outcome": "replayed",
+         "container": "ct/" & recorded & ".ct", "containerBytes": 4096,
+         "instructionsExecuted": 90, "hydrationRounds": 1,
+         "effects": {"matched": 3, "mismatched": 0, "reproduced": true},
+         "recording": {"steps": 90, "callsOpened": 2, "declaredRung": 3,
+                       "stepsPositioned": 0, "stepsUnpositioned": 90}}]}))
+    dest
+
+  let cd = getTempDir() / ("bt-curated-" & $getCurrentProcessId())
+  removeDir(cd); createDir(cd)
+  var curatedIngests: seq[IngestResult]
+  for d in captureDirs:
+    curatedIngests.add ingestSnapshot(
+      IngestConfig(outDir: cd, snapshotDir: d, scope: isCurated))
+  let curatedRoot = newDataRoot(cd)
+
+  test "the SAME captures under isFull publish transactions that do not open":
+    # Trap 4a. Every assertion in the control is of the form "this one opens",
+    # and a curated tree that published nothing would pass all of them. This
+    # arm measures what curation is actually removing, over the same bytes.
+    var traceless = 0
+    var total = 0
+    for c in capturedChains(root):
+      let info = chainInfo(root, c)
+      for t in publishedTxs(root, c):
+        inc total
+        if txView(root, info, t).headline notin {taReady, taDivergent}:
+          inc traceless
+    ck total > 0
+    ck traceless > 0
+    # …and the curated tree is strictly smaller because of them.
+    var curatedTotal = 0
+    for c in capturedChains(curatedRoot):
+      curatedTotal += publishedTxs(curatedRoot, c).len
+    ck curatedTotal < total
+
+  test "CONTROL: every transaction the curated tree publishes opens a container":
+    # TALLIED, NOT ASSERTED PER ROW, and the reason is that one of these
+    # captures is ALIVE. `client/fixtures/chain/aztec/snapshot.json` is grown by
+    # a running follower, so the number of transactions this loop reaches is not
+    # a constant — and a counted-assertion suite whose total moves with the data
+    # is a suite that goes red for a catch, which is the one event this campaign
+    # is trying to produce. So the loop counts, and the assertions are relations
+    # over the counts: fixed in number, exact in meaning.
+    var checked, headlined, replayable, withBytes, onDisk = 0
+    for c in capturedChains(curatedRoot):
+      let info = chainInfo(curatedRoot, c)
+      for t in publishedTxs(curatedRoot, c):
+        inc checked
+        let v = txView(curatedRoot, info, t)
+        let tr = traceView(curatedRoot, info, t)
+        # The four facts that make "it opens" true rather than claimed: the
+        # overlay says a container exists, the resolution names one, it has
+        # bytes, and the file is in the tree at the name the page will use.
+        if v.headline in {taReady, taDivergent}: inc headlined
+        if tr.outcome == tvReplayable: inc replayable
+        if tr.containerBytes > 0: inc withBytes
+        if fileExists(cd / tr.containerPath.strip(chars = {'/'})): inc onDisk
+    # A FLOOR, from the fixture that does not move: the committed testnet
+    # capture publishes six. A tree that stopped publishing transactions cannot
+    # pass this test by having nothing to check.
+    ck checked >= 6
+    ck headlined == checked
+    ck replayable == checked
+    ck withBytes == checked
+    ck onDisk == checked
+    # …and the ingest's own count agrees with what the BLOCK RECORD reaches. The
+    # two are computed differently — one is the ingest's counter, the other is a
+    # walk of the published blocks — so a transaction published without a block
+    # to reach it from, or counted and not written, separates them.
+    var reported = 0
+    for ing in curatedIngests: reported += ing.transactions
+    ck reported == checked
+
+  test "the curated ingest reports BOTH what it published and what it watched":
+    # The published set is a subset of the observed one, and the build log and
+    # the banner have to be able to say so. A result that reported only the
+    # published side would make the two indistinguishable.
+    var curated = 0
+    for ing in curatedIngests:
+      inc curated
+      ck ing.scope == isCurated
+      ck ing.observedBlocks >= ing.blocks
+      ck ing.observedTransactions >= ing.transactions
+      ck ing.windowFrom <= ing.windowTo
+      ck ing.transactions == ing.withTrace
+    ck curated == 2
+
+  test "the banner states the window and the watch it was chosen out of":
+    let info = chainInfo(curatedRoot, RealChain)
+    let d = info.provenanceDetail
+    ck "CURATED WINDOW" in d
+    ck "blocks 63642–63675" in d
+    ck "Over the whole watch — 220 blocks, 32 transaction(s)" in d
+    # The uncurated phrasing is NOT reused, because it describes the enumerated
+    # range and the enumerated range is no longer what the page shows.
+    ck "blocks enumerated here this chain settled" notin d
+    # ONE CLAUSE PER OUTCOME. This capture holds 25 pruned and one that the
+    # capture declined to attempt, and the two are different sentences: the
+    # first is the network's retention horizon, the second is a choice this
+    # side of the wire made. A remainder clause would have said "pruned" of
+    # both — the same merge `b7cafba` had to undo on the uncurated banner.
+    ck "25 had already been pruned" in d
+    ck "1 carried another outcome (not-attempted)" in d
+
+  test "a REFUSAL in the unpublished remainder is never called a pruning":
+    # The arm the testnet capture cannot reach and the mainnet one can. Built
+    # from a constructed snapshot so it is graded whichever capture is
+    # committed: a refused transaction was reached in time with its body still
+    # served, and saying it was pruned blames the chain for our own fault.
+    let rd = getTempDir() / ("bt-curated-refusal-" & $getCurrentProcessId())
+    removeDir(rd); createDir(rd)
+    let tree = rd / "tree"
+    createDir(tree)
+    discard ingestSnapshot(IngestConfig(outDir: tree,
+                                        snapshotDir: mixedSnapshot(rd),
+                                        scope: isCurated))
+    let d = chainInfo(newDataRoot(tree), "mixed").provenanceDetail
+    ck "1 WERE still replayable when the capture reached it" in d
+    ck "AvmToolchainRegression" in d
+    ck "failure on the recording side and not a property of this chain" in d
+    ck "1 had already been pruned" in d
+    # The twin negative: the pruned clause is present, so the refusal clause
+    # being present is not just "the sentence mentions everything".
+    ck "2 had already been pruned" notin d
+
+  proc silentSnapshot(dir: string): string =
+    ## A chain whose newest blocks settled nothing, and whose one transaction is
+    ## far below them. The curated window is the survey run, and the published
+    ## chain has ZERO transactions on it — the shape `/aztec` has today.
+    let dest = dir / "silent"
+    createDir(dest / "ct")
+    let pruned = "0x" & repeat('7', 40)
+    var blocks = newJArray()
+    for n in 100 .. 160:
+      var b = %*{"number": n, "hash": "0x" & align($n, 40, '0'),
+                 "timestamp": 1000 + n, "totalManaUsed": "0x0",
+                 "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
+                 "archiveRoot": "0x" & repeat('2', 40),
+                 "parentArchiveRoot": "0x" & repeat('3', 40),
+                 "transactions": newJArray()}
+      if n == 104:
+        b["totalManaUsed"] = %"0x2710"
+        b["transactions"].add %pruned
+      blocks.add b
+    writeFile(dest / "snapshot.json", $(%*{
+      "format": "blocktracer/chain-snapshot@1",
+      "provenance": {
+        "kind": "live-capture", "chain": "silent", "label": "Real silent data",
+        "endpoint": "https://node.example",
+        "capturedAt": "2026-08-31T18:44:30.452Z", "nodeVersion": "5.2.0",
+        "l1ChainId": 1, "runtimeCommit": "abc123def456"},
+      "window": {"tip": 160, "finalized": 155, "replayableFrom": 156,
+                 "replayableTo": 160, "blocks": 5},
+      "blocks": blocks,
+      "transactions": [
+        {"txHash": pruned, "blockNumber": 104, "txIndexInBlock": 0,
+         "revertCode": 0, "transactionFee": "0x1", "bodyRetained": false,
+         "effectVisible": true, "firstInBlock": true, "outcome": "pruned",
+         "reason": "The node still serves this transaction's effects but no " &
+                   "longer serves its body."}]}))
+    dest
+
+  test "a chain with no transactions says so, and does not send a reader away":
+    # The empty transaction table used to say "Older blocks may; the
+    # transactions list walks backwards from here", which is true of a chain
+    # whose record runs below the slice and FALSE of one that publishes no
+    # transaction at all. A curated chain can be the second, and that sentence
+    # sent a visitor to an empty list to discover it.
+    let sd = getTempDir() / ("bt-silent-" & $getCurrentProcessId())
+    removeDir(sd); createDir(sd)
+    let tree = sd / "tree"
+    createDir(tree)
+    let ing = ingestSnapshot(IngestConfig(outDir: tree,
+                                          snapshotDir: silentSnapshot(sd),
+                                          scope: isCurated))
+    ck ing.transactions == 0                    # not vacuous: it really is empty
+    ck ing.blocks == SurveyBlocks
+    let sr = newDataRoot(tree)
+    let body = markup(renderRoute(sr, "/silent").body)
+    ck "No transaction settled in the blocks this chain publishes" in body
+    ck "Older blocks may" notin body
+    # …and the producer's own paragraph is reachable ON this page, which is the
+    # only page such a chain has: with no transaction there is no transaction
+    # metadata surface, which is where `provenanceMetaRows` puts it.
+    ck "CURATED WINDOW" in body
+    ck "Real silent data" in body
+    # THE TWIN. A chain that DOES publish transactions must not carry the
+    # zero sentence — without this, an unconditional swap in the other
+    # direction would satisfy every assertion above.
+    ck chainInfo(curatedRoot, RealChain).txCount > 0
+    ck "No transaction settled in the blocks this chain publishes" notin
+      markup(renderRoute(curatedRoot, "/" & RealChain).body)
+
+  test "MUTATION BITE: the naive span rule would publish a traceless one":
+    # `curationWindow`'s whole content is the delimiting. The obvious rule —
+    # min(recorded) .. max(recorded) — is asserted here to be WRONG on this
+    # input, so the assertion below is shown to be load-bearing rather than
+    # merely true.
+    var heights: seq[int]
+    for n in 100 .. 140: heights.add n
+    let recorded = @[110, 120, 135]
+    let traceless = @[115]
+    ck recorded[0] < traceless[0]                 # the naive span would…
+    ck traceless[0] < recorded[^1]                # …contain the traceless one
+    let w = curationWindow(heights, recorded, traceless)
+    ck w.found
+    ck not (w.lo <= traceless[0] and traceless[0] <= w.hi)
+    # It took the run holding the MOST recordings, which is the run above 115.
+    ck w.lo == 120
+    ck w.hi == 135
+
+  test "a tie between runs is broken by recency, not by order":
+    var heights: seq[int]
+    for n in 100 .. 140: heights.add n
+    let w = curationWindow(heights, @[105, 130], @[120])
+    ck w.found
+    ck w.lo == 130
+    ck w.hi == 130
+
+  test "with nothing recorded, the window is the newest silent run, capped":
+    var heights: seq[int]
+    for n in 100 .. 200: heights.add n
+    let w = curationWindow(heights, @[], @[150])
+    ck w.found
+    ck w.hi == 200
+    ck w.lo == 200 - SurveyBlocks + 1
+    ck w.lo > 150                                 # the traceless one is outside
+    ck "no span of recordings" in w.why
+
+  test "a capture with nothing publishable is REFUSED, not published empty":
+    # The arm the committed captures never reach: every block settled a
+    # transaction that cannot be replayed. There is no window that keeps the
+    # promise, and the honest answer is to refuse rather than to publish one
+    # transaction that does not open — or a chain with no blocks in it.
+    let w = curationWindow(@[199], @[], @[199])
+    ck not w.found
+    let rd = getTempDir() / ("bt-curated-refuse-" & $getCurrentProcessId())
+    removeDir(rd); createDir(rd)
+    let snapDir = unpublishableSnapshot(rd)
+    let tree = rd / "tree"
+    createDir(tree)
+    var raised = false
+    try:
+      discard ingestSnapshot(IngestConfig(outDir: tree, snapshotDir: snapDir,
+                                          scope: isCurated))
+    except ValueError as e:
+      raised = true
+      ck "found no window in which every transaction carries a trace" in e.msg
+      ck "scope=isFull" in e.msg
+    ck raised
+    # …and the SAME capture under isFull publishes it, with its own words. The
+    # refusal above is a scoping decision, not a claim that the data is bad.
+    let fullTree = rd / "full"
+    createDir(fullTree)
+    let ing = ingestSnapshot(IngestConfig(outDir: fullTree, snapshotDir: snapDir))
+    ck ing.transactions == 1
+    ck ing.withTrace == 0
+
+  test "assertion count":
+    expectCount(59)
+
+# ── 9 — the home page features a session that can actually be shown ──────────
+#
+# THE DEFECT. The home page's embed used to be "the first transaction that is
+# positioned, validated and not reconstructed", which is three ways of saying
+# nothing is wrong with it. Nothing was wrong with what it picked, either:
+# `aztec-testnet/tx/0x0858d644…` is a real transaction whose real container
+# stops at step 128 of 345 and steps normally. It is rung 3, so its panes say —
+# correctly, on the front page, under "the deepest view into every transaction"
+# — that they carry no source positions, no function names and no variable
+# names. Correct in place; the worst available first impression as a headline.
+#
+# `canHeadline` is the replacement and it is a POSITIVE rule: every clause names
+# something the exhibit must have. The mutation arms below remove one such thing
+# at a time from a session that qualifies, which is what makes each clause
+# load-bearing rather than decorative.
+suite "9 — the home page features a session that can actually be shown":
+  asserted = 0
+
+  let featured = demoSessionFor(root)
+
+  test "CONTROL: the tree has a session that can headline, and it is featured":
+    ck featured.isSome
+    let s = featured.get
+    ck canHeadline(s)
+    # It is the SOURCE-LEVEL one, which is the property the rule exists to
+    # require — asserted through the pane rather than through the slug.
+    ck s.editor.availability == srcSourceLevel
+    ck s.editor.documents.len > 0
+    ck s.calltrace.frames.len > 0
+    ck s.state.values.len > 0
+    # …and the page renders it.
+    let home = renderRoute(root, "/").body
+    ck "id=\"live-demo\"" in home
+    ck "stopped mid-execution at step" in home
+
+  test "the rung-3 real transaction passes the OLD rule and fails the new one":
+    # The exact regression, as an assertion. Without this the new rule could
+    # have been any predicate at all that the demo session happens to satisfy.
+    let s = debugSessionFor(root, RealChain, replayedTx)
+    ck s.hasFrame                       # the three clauses the old rule asked…
+    ck s.integrity == siValidated
+    ck not s.reconstructed
+    ck not canHeadline(s)               # …and the one it did not
+    ck s.editor.availability == srcUnverified
+
+  test "the three sentences stay on that transaction's OWN page":
+    # The fix is the choice of subject, not the deletion of the notices. A
+    # rung-3 page that hid them would be the dishonesty this campaign exists to
+    # prevent, so their presence is asserted here, on the page they belong on.
+    let body = renderRoute(root, "/" & RealChain & "/tx/" & replayedTx &
+                           "/debug").body
+    ck "program counters" in body
+    ck "no function names or source positions" in body
+    ck "carries no variable names" in body
+    # …and NOT on the home page.
+    let home = renderRoute(root, "/").body
+    ck "carries no variable names" notin markup(home)
+    ck "no function names or source positions" notin markup(home)
+
+  test "MUTATION BITE: every clause of the rule is load-bearing":
+    # One removal per clause, each from the SAME qualifying session, each
+    # asserted to flip the answer. A clause that could be deleted without
+    # reddening anything would be a rule that only looks like it is checking.
+    ck featured.isSome
+    let ok = featured.get
+    ck canHeadline(ok)                  # the control, restated beside them
+
+    var m = ok; m.hasFrame = false
+    ck not canHeadline(m)
+    m = ok; m.containerPath = ""
+    ck not canHeadline(m)
+    m = ok; m.containerBytes = 0
+    ck not canHeadline(m)
+    m = ok; m.traceContentHash = ""
+    ck not canHeadline(m)
+    m = ok; m.integrity = siDivergent
+    ck not canHeadline(m)
+    m = ok; m.integrity = siTruncated
+    ck not canHeadline(m)
+    m = ok; m.reconstructed = true
+    ck not canHeadline(m)
+    m = ok; m.controls.totalSteps = 0
+    ck not canHeadline(m)
+    m = ok; m.controls.step = 0
+    ck not canHeadline(m)
+    m = ok; m.editor.availability = srcUnverified
+    ck not canHeadline(m)
+    m = ok; m.editor.availability = srcAbsent
+    ck not canHeadline(m)
+    m = ok; m.editor.documents = @[]
+    ck not canHeadline(m)
+    m = ok; m.editor.currentLine = 0
+    ck not canHeadline(m)
+    m = ok
+    for i in 0 ..< m.editor.documents.len: m.editor.documents[i].lines = @[]
+    ck not canHeadline(m)
+    m = ok; m.calltrace.frames = @[]
+    ck not canHeadline(m)
+    m = ok; m.calltrace.frames[0].fn = ""
+    ck not canHeadline(m)
+    m = ok; m.state.values = @[]
+    ck not canHeadline(m)
+    m = ok; m.state.values[0].name = ""
+    ck not canHeadline(m)
+
+  test "a tree with nothing to headline features NOTHING, not the next-best":
+    # The no-fallback rule. A real-chains-only tree holds real containers that
+    # open and step, and not one of them carries source — so the honest answer
+    # is an absence, and the failure mode being ruled out is a home page that
+    # relaxes the rule until something passes.
+    let rd = getTempDir() / ("bt-nofeature-" & $getCurrentProcessId())
+    removeDir(rd); createDir(rd)
+    for d in captureDirs:
+      discard ingestSnapshot(IngestConfig(outDir: rd, snapshotDir: d))
+    let realOnly = newDataRoot(rd)
+    # Not vacuous: the tree HAS openable sessions, it simply has none to
+    # headline. Without this the test would pass over an empty tree.
+    var openable = 0
+    for c in chains(realOnly):
+      let info = chainInfo(realOnly, c)
+      for h in blockHashes(realOnly, info):
+        for t in readBlockDetail(realOnly, info, h).transactions:
+          if traceView(realOnly, info, t).outcome == tvReplayable: inc openable
+    ck openable > 0
+    ck demoSessionFor(realOnly).isNone
+    let home = renderRoute(realOnly, "/").body
+    # Matched over the MARKUP, for `markup`'s reason: the inlined stylesheet
+    # carries explanatory comments that quote the embed's own sentence, so a
+    # whole-document "is not here" would be answered by a CSS comment.
+    ck "id=\"live-demo\"" notin markup(home)
+    ck "stopped mid-execution at step" notin markup(home)
+    # The rest of the page is still a page.
+    ck "deepest" in markup(home)
+    ck "chaincard" in markup(home)
+
+  test "the embed names the provenance of the chain it is showing":
+    # The embed's own sentence says "a real session", which has always meant a
+    # real session rather than a picture of one. Beside a transaction hash, on a
+    # site publishing two captured chains and one fixture, that reading is not
+    # the only available one — so the claim about the DATA is made explicitly,
+    # from the same published block the chain strip reads.
+    let home = renderRoute(root, "/").body
+    let s = featured.get
+    ck chainInfo(root, s.chain).provenanceKind == "synthetic"
+    ck "data-provenance=\"synthetic\"" in markup(home)
+    ck chainInfo(root, s.chain).provenanceLabel in markup(home)
+
+  test "assertion count":
+    expectCount(47)

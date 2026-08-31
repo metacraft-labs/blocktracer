@@ -601,7 +601,22 @@ export const zeroTraceTxOn = (slug) => (ix) => {
       `so it is no longer the zero-trace arm — re-point this view`);
   }
   const t = c.txs[0];
-  if (!t) throw new Error(`chain "${slug}" publishes no transactions at all`);
+  if (!t) {
+    // The curated scope's shape, named. `static_export` ingests real chains at
+    // `IngestScope.isCurated`, which publishes only the block range in which
+    // every transaction opens — so a chain that recorded nothing publishes
+    // blocks and no transactions, and this arm has no subject rather than a
+    // wrong one. Saying so here is what stops the next reader concluding the
+    // ingest is broken.
+    throw new Error(
+      `chain "${slug}" publishes no transactions at all. That is the curated ` +
+      `ingest scope working, not a fault: a real chain publishes only the ` +
+      `window in which every transaction opens a container, and this one ` +
+      `recorded none. A zero-trace transaction exists on an isFull ingest and ` +
+      `nowhere in the deployed tree, so this view has no subject — it is filed ` +
+      `pending rather than re-pointed at the fixture, whose page is a different ` +
+      `claim (see tx-detail--absent).`);
+  }
   return t;
 };
 

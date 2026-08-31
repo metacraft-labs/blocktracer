@@ -116,7 +116,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 <!-- BEGIN GENERATED: expectations — do not edit by hand -->
 <!-- regenerate with: node tools/capture/render-brief.mjs -->
 
-*83 named views, 83 blocks — generated from `tools/capture/expectations.mjs`. 50 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
+*83 named views, 83 blocks — generated from `tools/capture/expectations.mjs`. 49 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
 
 #### Explorer register — entry and navigation
 
@@ -2984,7 +2984,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Register** | explorer — apply rubric A (§5) |
 | **Spec** | Page-Descriptions §7.0 (absent), §7.2, §14; components/provenance.nim |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
-| **Capture status** | `ready` |
+| **Capture status** | `pending` — the deployed tree publishes real chains curated to the window where every transaction opens, so no real chain carries a trace-less transaction to photograph; `isFull` still publishes the state and it is graded there |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 

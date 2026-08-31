@@ -135,14 +135,26 @@ proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
   withPublishedSources(result, t.sourceBundle)
 
 proc demoSessionFor*(r: DataRoot): Option[DebugSessionView] =
-  ## The first replayable transaction in the tree, as a session — the home
-  ## page's embedded demo.
+  ## The home page's featured session: the first transaction in the tree whose
+  ## recording `canHeadline`.
   ##
   ## Chosen by walking the published data rather than by naming a hash: the
   ## demo tree is a pure function of a seed, and a hard-coded hash would make a
-  ## reseed silently produce a home page with no demo on it. `none` when
-  ## nothing is replayable, which is the honest state for a tree of
-  ## on-demand-only chains.
+  ## reseed silently produce a home page with no demo on it.
+  ##
+  ## THERE IS NO FALLBACK ARM, AND ITS ABSENCE IS THE FIX. This used to admit
+  ## any session that was positioned, validated and not reconstructed — three
+  ## clauses that between them exclude nothing a real chain publishes — and so
+  ## it featured the first transaction it met, which was a rung-3 Aztec
+  ## recording whose panes truthfully report three things they cannot show.
+  ## `canHeadline` states what the exhibit must HAVE instead; see its comment
+  ## for why that had to be a positive rule and not an exclusion.
+  ##
+  ## When nothing in the tree satisfies it the answer is `none`, and the home
+  ## page carries no featured session at all. That is deliberate: a tree with no
+  ## source-level recording in it has nothing to headline, and the alternative —
+  ## relaxing the rule until something passes — is the fallback that put the
+  ## floor of the fidelity ladder on the front page in the first place.
   for chain in chains(r):
     let info = chainInfo(r, chain)
     for h in blockHashes(r, info):
@@ -151,9 +163,9 @@ proc demoSessionFor*(r: DataRoot): Option[DebugSessionView] =
         # `hasFrame`, not `phase == spReady`: the static route serves a
         # positioned frame with the replay engine still unfetched, and the
         # embed is that same frame. Gating on `spReady` would leave the home
-        # page with no demo on it until hydration exists.
-        if s.hasFrame and s.integrity == siValidated and
-           not s.reconstructed:
+        # page with no demo on it until hydration exists. (`canHeadline` asks
+        # `hasFrame` for exactly this reason.)
+        if canHeadline(s):
           # The embed has no scrollbar, so it opens ON the current line rather
           # than at line 1 of the file. Line numbers and anchors are unchanged,
           # so a link out of the embed lands on the same line of the full

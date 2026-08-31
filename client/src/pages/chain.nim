@@ -63,15 +63,59 @@ proc chainPage*(chain: string, info: ChainInfo,
           a(href = blocksUrl(chain)): text "All blocks →"
 
         h2(class = "sec-title next"): text "Latest transactions"
+        # TWO EMPTY STATES, BECAUSE THERE ARE TWO SITUATIONS AND THEY OWE THE
+        # READER DIFFERENT SENTENCES.
+        #
+        # The second one is the sentence that used to be unconditional: this
+        # table is the newest slice, it is empty, and the visitor is pointed at
+        # the full list where older blocks may have some. That is true of a
+        # chain whose published record extends below the slice.
+        #
+        # It is FALSE of a chain that publishes no transactions at all, and the
+        # curated real chains are exactly that: `/aztec` publishes 24 blocks and
+        # zero transactions, and "older blocks may" sent a reader to an empty
+        # list to find out otherwise. The count is a published fact — it is the
+        # `Transactions` stat three lines above this — so the page reads it
+        # rather than inferring from the emptiness of one slice, which cannot
+        # tell the two apart.
         raw txTable(chain, txs,
-          "The newest blocks of this chain carried no transactions. Older " &
-          "blocks may; the transactions list walks backwards from here.")
+          if info.txCount == 0:
+            "No transaction settled in the blocks this chain publishes. The " &
+            "chain's own notes above state what was watched to arrive at them."
+          else:
+            "The newest blocks of this chain carried no transactions. Older " &
+            "blocks may; the transactions list walks backwards from here.")
         p(class = "muted stack"):
           a(href = txsUrl(chain)): text "All transactions →"
 
         # ── Chain notes (§4's last row) ─────────────────────────────────
         h2(class = "sec-title next"): text "Chain notes"
         dl(class = "dl group"):
+          # THE PRODUCER'S OWN SENTENCES, ON THE CHAIN'S OWN PAGE.
+          #
+          # `provenanceMetaRows` puts these on a TRANSACTION's metadata surface,
+          # and until now that was the only page in the explorer register that
+          # carried them: the chain overview, the block list and the block pages
+          # get `provenanceChip`, which is the label and nothing else.
+          #
+          # That was survivable while every captured chain had transactions on
+          # it. A curated chain need not — `/aztec` publishes 24 blocks and zero
+          # transactions — and on such a chain there is no transaction page to
+          # reach, so the detail was reachable from nowhere at all. A visitor met
+          # two dozen empty blocks with no statement of what was watched to
+          # arrive at them, which is the shape of page that reads as broken while
+          # being entirely correct.
+          #
+          # NO `data-provenance` HERE. The chip above already carries the marker
+          # and `test_chain_provenance`'s "exactly one provenance marker" counts
+          # them; this is the producer's prose, quoted, in the notes list where
+          # the recorder pin and the coverage mode already sit.
+          if info.provenanceDetail.len > 0:
+            dt: text "Data"
+            dd(class = "measure"):
+              if info.provenanceLabel.len > 0:
+                text info.provenanceLabel & " — "
+              text info.provenanceDetail
           dt: text "Recorder"
           dd:
             if info.hasRecorder:

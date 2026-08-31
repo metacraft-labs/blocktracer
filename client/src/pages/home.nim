@@ -38,7 +38,8 @@ func stripOrder*(infos: seq[ChainInfo]): seq[ChainInfo] =
   ## not a second loop that agrees with this one today.
   captureFirst(infos, proc(i: ChainInfo): string {.noSideEffect.} = i.provenanceKind)
 
-proc liveDemo(demo: DebugSessionView): string =
+proc liveDemo(demo: DebugSessionView;
+              provenanceKind, provenanceLabel: string): string =
   ## The embedded, pre-baked debugging session (VD.3's `home--live-demo`).
   ##
   ## It is the real session surface — the same `renderLayout` walk over the
@@ -59,12 +60,28 @@ proc liveDemo(demo: DebugSessionView): string =
   ## The panel is product register inside an explorer-register page. §2 of
   ## Design-System.md makes that crossing deliberate, so it is drawn as a
   ## bounded, elevated surface rather than left to bleed.
+  ##
+  ## IT CARRIES THE SUBJECT'S PROVENANCE BADGE, from the same published block
+  ## the chain strip's badges and the chain banner read. The embed's own
+  ## sentence says "a real session", which has always meant a real session
+  ## rather than a picture of one — the anti-requirement above. That reading is
+  ## unambiguous only while the tree holds one kind of chain. It no longer does:
+  ## the site publishes two captured chains and one synthetic fixture, and a
+  ## reader who meets "real" beside a transaction hash has every reason to take
+  ## it as a claim about the DATA. So the claim about the data is made
+  ## explicitly, in the badge, next to it — and it is read from the tree rather
+  ## than assumed from the slug, for the reason `stripOrder` gives: a marker
+  ## keyed off a name is one rename away from mislabelling its own data.
   ui:
-    tdiv(class = "livedemo", id = "live-demo", `data-register` = "debugger"):
+    tdiv(class = "livedemo", id = "live-demo", `data-register` = "debugger",
+         `data-provenance` = provenanceKind):
       tdiv(class = "dbgmain"):
         raw renderLayout(blockTracerReplayLayout(), demo)
       tdiv(class = "livedemofoot"):
         span:
+          if provenanceLabel.len > 0:
+            span(class = "badge " & provenanceTone(provenanceKind)):
+              text provenanceLabel
           text "A real session, stopped mid-execution at step " &
                $demo.controls.step & " of " & $demo.controls.totalSteps & "."
         a(class = "btn primary", href = txUrl(demo.chain, demo.txHash) & "/debug"):
@@ -114,5 +131,17 @@ proc homePage*(infos: seq[ChainInfo];
         # frame — a real positioned session rendered from published data — and
         # gating on a live engine would leave the marketing page with nothing
         # to show until hydration exists.
-        if demo.isSome and demo.get.hasFrame:
-          raw liveDemo(demo.get)
+        # `ssr.demoSessionFor` has already decided this is a session worth
+        # featuring — `canHeadline`, a positive rule with no fallback arm — so
+        # `isSome` is the whole test here. `hasFrame` used to be re-checked at
+        # this line, which put half of a selection rule in the page and half in
+        # the producer; `canHeadline` asks it, and a page that re-asked one
+        # clause of a rule it does not own would go stale against the rest of it.
+        if demo.isSome:
+          let subject = demo.get.chain
+          var kind, label: string
+          for info in infos:
+            if info.slug == subject:
+              kind = info.provenanceKind
+              label = info.provenanceLabel
+          raw liveDemo(demo.get, kind, label)
