@@ -1,0 +1,61 @@
+Expected elements: present
+
+Identity bar with a chain-targeted exit (`← aztec`), hash, `Partial`, stepping controls both directions, scrubber, `128 / 1315`, named phase rail; Code pane positioned at line 32; Call Trace and Event Log as one tab strip with Call Trace open above a separate Values pane; Transaction pane whose first labelled row is `Data`, badged `Synthetic demo data` with the producer's own sentences. No band above the identity bar, no prose band, no spinner, no explorer footer.
+
+The copy is the strongest brand asset here: "Engine loading — 18 MB", "no call structure to trace", "This selector is not in any ABI BlockTracer holds… Supplying an ABI decodes them." Quantified, specific, never apologetic — this is the product's voice and it is intact in the light theme.
+
+The register slips in one place, and consistently: the Transaction pane. Its label/value rows on hairline rules at ~30 px pitch, its proportional sentence-case paragraphs and its right-aligned `Data` block are the explorer's tx-detail overview docked to a debugger — a visitor arriving from `/tx/…` would not notice they crossed the boundary. Smaller: the Code pane opens with a sentence where the desktop app would draw a fold, and the same "this is selected" gesture is drawn three ways in one column.
+
+Fixes: bring the Transaction pane to the density of Values — tighter rows, mono labels, left-set prose; unify the selection underline on one accent.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L5/1",
+      "severity": "P2",
+      "location": "Transaction pane, right column — the whole label/value stack from `Data` through `RAW (CHAIN-NATIVE)`",
+      "finding": "This pane is the explorer's transaction overview transplanted whole: ~30 px label/value rows separated by hairline rules, labels in the proportional face, three multi-line paragraphs in sentence-case body type, and pill values (`Yes`, `Safe`) where the tool register would print the word. Beside Call Trace and Values — which are genuinely desktop-app tables — the third pane reads as a web page docked to a debugger rather than a pane of it, and the register boundary the product treats as deliberate is invisible inside this column.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L5/2",
+      "severity": "P2",
+      "location": "Transaction pane, `Data` row — the eight-line paragraph under the `Synthetic demo data` badge",
+      "finding": "The row is not too quiet for the claim — it is too explorer for this register. It is set as a right-aligned paragraph in the proportional face, while the two lesser paragraphs in the same pane (`EXECUTIONS`, `DECODED INPUT`) are set left; the provenance claim is therefore the one block in the product whose text alignment matches nothing else, which reads as the band's marketing setting inherited into a value column rather than a decision. The sentences themselves are exactly right and should not be shortened.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L5/3",
+      "severity": "P3",
+      "location": "Code pane, the strip above line 26: \"Showing from line 26 — the session's position is below…\"",
+      "finding": "A full-width sentence of explanatory prose at the top of the densest pane. The tone is right and the fact is worth stating, but this is the instinct the register just removed one level up when the provenance band came out — the desktop app marks a window boundary with a fold or an ellipsis row in the gutter, not with a sentence spanning the pane.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L5/4",
+      "severity": "P3",
+      "location": "Code pane header — iteration chip `3`, file tab `src/shield.nr`, and the `CALL TRACE` tab",
+      "finding": "One gesture, three drawings, all within 200 px of each other: the file tab is selected by a single near-black underline, the `CALL TRACE` tab by the same rule in a different weight, and iteration `3` by a teal numeral over a teal rule with a second black rule beneath it inside a filled chip. Only one of the three uses the accent, and only one carries two rules; a shared primitive should be recognisable as itself across the pane.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L5/5",
+      "severity": "P3",
+      "location": "Identity bar, right end — the `NOIR` label beside the share and download buttons",
+      "finding": "Every other state token on the page wears the badge shape — `Partial`, `Synthetic demo data`, `Not observable`, `Trace ready`, `Yes`, `Safe` — but the one naming the language of everything in the Code pane is bare uppercase text, so it reads as a wordmark fragment rather than as a member of the badge family.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

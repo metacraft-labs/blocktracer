@@ -1,0 +1,68 @@
+Expected elements: present
+
+The presence check passes, including the two items that failed last round. The scrubber is present at 1440px — a 160px track at x672–832 with a filled head — and the position readout `128 / 1315` is a separate element beside it, both legible. Provenance is the `DATA` row of the Transaction pane, first labelled row, with a `Synthetic demo data` badge and the producer's sentences; there is no band above the identity bar. `CODE` with the current position on line 32, `CALL TRACE | EVENT LOG` with Call Trace open and seven frames, `VALUES` with eleven values, both stepping directions in the bar.
+
+The monospace is doing its job: one code face, one tabular ACIR column, one tabular value column, line numbers right-aligned.
+
+Four typographic problems. The provenance paragraph is set flush-right over eleven lines — the page's only body prose and its most important claim, given its least readable setting. FEE PAYER and TARGET wrap 66-character hashes into a 17-character right-aligned column, orphaning `32` and `4c` on third lines. The gutter's `⊘`/`⊙`/`·` triple encodes ran, did-not-run and unmarked in ~7px glyphs separated by an interior stroke. And the `+3`/`+2` overflow chips break the code listing's line rhythm at lines 26, 48 and 49.
+
+Fixes: set the DATA paragraph flush-left; truncate the two addresses at a byte boundary rather than wrapping them.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L1/1",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row — the paragraph beginning \"Every block, transaction, address and hash…\" (x≈1160–1432, y≈240–555)",
+      "finding": "The provenance sentences are set flush-right, ragged-left, across eleven lines in a ~28-character measure, because the row inherits the value column's right alignment. Every line begins at a different x, so the reader has to re-find the line start eleven times in the one paragraph on this page that is meant to be read rather than scanned — and it is the paragraph carrying the claim that none of these values exist on any network. The Status reason line two rows above it is flush-left, so the pane already uses two paragraph alignments and gives the wrong one to the longer block.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L1/2",
+      "severity": "P2",
+      "location": "Transaction pane, FEE PAYER (y≈655–700) and TARGET (y≈726–780) rows",
+      "finding": "Both 66-character hashes are hard-wrapped into the ~17-character right-aligned value column and run to three lines each, with the third line holding two characters — `32` and `4c` — alone. The breaks fall mid-byte, and a two-character orphan right-aligned under a full line reads as a stray value rather than the tail of the one above. Two rows up, the same pane truncates a hash at a byte boundary with a middle ellipsis (`0xb636167a…66d46359`), and the identity bar does the same; this column is the only place on the page that wraps instead, and it is the least readable of the three treatments.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L1/3",
+      "severity": "P2",
+      "location": "Code pane gutter, line 29 (⊘), line 32 (⊙), and lines 26/27/28/31/34/37/40 (·)",
+      "finding": "Three execution states are carried by three marks in a 12px-wide gutter column: a ring with a diagonal, a ring with a dot, and a middot. At the rendered size the two rings are ~7px across and differ only in a one-pixel interior feature, so \"this arm ran\" and \"this arm did not run\" — the distinction the pane exists to draw — are not separable without zooming. The third state reads better than the other two only because a middot has a different silhouette. The one ⊙ on the page also sits on the current line, whose cyan band and teal rail already dominate it, so the ran-marker has no legible instance at all. Silhouette-level differences (filled versus hollow) would carry this where interior detail does not.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L1/4",
+      "severity": "P2",
+      "location": "Code pane, the `+3` chip under line 26 (y≈243), the `+2` under line 48 (y≈778) and the `+3` under line 49 (y≈822)",
+      "finding": "When the inline value chips overflow the pane width, the overflow counter drops onto a half-height line of its own beneath the code line, right-aligned to the fade edge. The listing's line rhythm breaks where it does: the 26→27 baseline gap is roughly twice the 34→35 gap, and the same happens twice more at 48 and 49, so the lower third of the pane has three irregular row heights. In a listing whose whole value is that line N is a countable distance from line M, uneven leading is a real cost, and the chip that causes it carries the least information on the row.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L1/5",
+      "severity": "P3",
+      "location": "Code pane header stack, second strip — \"LOOP iterate_asteroids line 4 Iteration 3 of 8\" (y≈100–130)",
+      "finding": "`Iteration 3 of 8` is set larger and darker than the pane title `CODE` directly above it, so the sub-header outranks the pane it belongs to. The strip also runs four treatments at nearly one size — a tracked all-caps label, a monospace identifier, an underlined link and a body-face count — with nothing in the type saying which is label, which is subject and which is position.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/light/L1/6",
+      "severity": "P3",
+      "location": "Values pane, `masses` row (y≈672–706)",
+      "finding": "The eight-element array wraps and leaves `14]` alone on a second right-aligned line, directly above the `masses[2]` row. Two adjacent lines therefore both look like short scalar values in the value column, and the closing bracket is the only cue that one is a continuation. A truncated array with a count — the pane already shows `[Field; 8]` in the type column — would read better than a two-line wrap at this measure.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

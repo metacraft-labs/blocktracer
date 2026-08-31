@@ -1,0 +1,81 @@
+Expected elements: MISSING — hero age/timestamp, the copy affordance on the full hash, and a labelled transaction type in the overview grid.
+
+That is finding #1, it is P1, and the rating is capped at 4. The provenance marker is present, in exactly one form: the `Data` row heading the Overview grid, badge plus the producer's three sentences. No band and no chip, so the absent band is not a finding. Nav, breadcrumb, hero, primary `Generate trace`, the named `On demand` state, all four trace-sourced sections with sentences rather than empty panels, the raw JSON, the provenance strip with heart, CodeTracer and GitHub marks all drawn in the accent hue, and the footer with its disclosure are all present.
+
+The light theme is designed, not inverted: a warm grey canvas with white content surfaces reads deliberately. The problem is role overload. One indigo does four jobs — the primary button's fill, every inline and footer link, the `On demand` trace state, and the `Synthetic demo data` badge — so the one element graded as content wears the page's link colour, and the page's actual neutral tone is visibly the grey of `Yes` and `Pending`. Contrast bottoms out in the grid label column and the nav resolver placeholder. Elevation is not a system: white boxes on canvas appear with and without a shadow, including two adjacent ones inside Decoded input.
+
+Highest-priority fixes: give the provenance badge a tone no interactive element uses, and lift the grid label contrast.
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "missing",
+  "missing": [
+    "hero: age / transaction timestamp — absent from the hero and from the rest of the page",
+    "hero: copy affordance on the full hash — no visible control",
+    "overview grid: transaction type — not a labelled row; present only as a JSON key in the raw section"
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/L3/1",
+      "severity": "P1",
+      "location": "hero, between the full hash and the trace card; Overview grid row list",
+      "finding": "Three Must-show items are absent. No age or timestamp appears in the hero or anywhere else on the page. The full hash line carries no visible copy control. The Overview grid's rows are Data, Block, Canonical, Finality, Fee payer, Target, Cost·Mana; transaction type is not labelled anywhere and survives only as \"kind\": \"public-avm-call\" inside the raw JSON."
+    },
+    {
+      "id": "tx-detail/wide/light/L3/2",
+      "severity": "P2",
+      "location": "the indigo accent, across the Generate trace button, the On demand badge, the Synthetic demo data badge in the Data row, the 102:0 block link, the breadcrumb links and all six footer links",
+      "finding": "One hue carries four unrelated roles: primary action, interactive link, trace-state indicator, and the provenance claim. The Synthetic demo data badge is indigo text inside a thin indigo outline — chromatically the same object as the On demand badge 300px above it and the same colour as every link on the page, so the only element on this page graded as content rather than decoration is rendered in the page's clickable colour and reads as a chip you could press. It also is not in the neutral tone: the demonstrable neutral on this page is the grey pill used by Yes and Pending. A claim that these hashes exist on no network should be the one badge whose colour is used for nothing else.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/3",
+      "severity": "P2",
+      "location": "Overview and Decoded input grids, label column (DATA, BLOCK, CANONICAL, FINALITY, FEE PAYER, TARGET, COST · MANA, SELECTOR, RAW)",
+      "finding": "This is the page's weakest text-on-surface pair: a mid grey label set on the label column's grey fill, at roughly 3:1–3.5:1 by eye and well under the small-text floor. Every other text pair on the page is near-black on white and comfortable, so the contrast budget has been spent everywhere except on the one column that names what each value is. The grey fill sits only a step or two off the page canvas as well, so the column is doing less separating than it costs in legibility.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/4",
+      "severity": "P2",
+      "location": "site nav, the resolver field with placeholder \"block · tx · address\"",
+      "finding": "The only input on the page is the least visible element in the header. Its fill is a light grey barely separated from the white nav surface, so the control is carried almost entirely by a 1px border, and the placeholder is a grey on that grey — the lowest-contrast text in the chrome and lower than the nav's own Chains/About labels. Placeholder state is where a light theme most often reveals that its greys were picked against white rather than against the surface they land on, and that is what has happened here.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/5",
+      "severity": "P2",
+      "location": "surface levels — the trace card, ABI note and the three section notice cards vs the Overview grid, Decoded input grid and the raw JSON block",
+      "finding": "Elevation does not encode anything. White boxes sitting on the same canvas appear both with a soft drop shadow (all five cards) and with a border alone (both grids, the raw block), and the two treatments meet inside a single section: the Decoded input grid is flat and the ABI note directly beneath it is elevated, though both are informational surfaces at the same level of the hierarchy. With a fourth grey in play for the raw block's fill, the page has four surface signals — canvas, white, grey fill, shadow — and no readable rule mapping them to roles.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/6",
+      "severity": "P3",
+      "location": "Overview grid, the Canonical \"Yes\" badge and the Finality \"Pending\" badge",
+      "finding": "A settled boolean and an unsettled phase share one grey pill. Canonical: Yes is a resolved fact; Finality: Pending is explicitly not resolved yet, and on this page it is the value most likely to change. Rendering them identically means the neutral tone covers both 'this is true' and 'this is not decided', and the only status hue actually in use (the green of Succeeded) sits far above in the hero where it cannot be compared against them.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/7",
+      "severity": "P3",
+      "location": "site nav (Chains, About) vs breadcrumb (Home, aztec), Overview (102:0) and footer links",
+      "finding": "Two link treatments coexist. The nav items are near-black with no underline and no accent; every other link on the page is indigo and underlined. The distinction between navigation and inline link is defensible, but as rendered a reader learns 'indigo + underline means link' from the breadcrumb three lines below a header where the links are neither.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/8",
+      "severity": "P3",
+      "location": "Raw (chain-native) block",
+      "finding": "The page's only preformatted region is entirely flat: keys, string values and punctuation are all one near-black, and the block's grey fill is close enough to the page canvas that its containment rests on a 1px border. Even without full editor tokens, one step of separation between key and value — and one more step between the block's surface and the canvas — would let the reader parse it at a glance and would make the region look contained rather than merely outlined.",
+      "criterion": "A7"
+    }
+  ]
+}
+```

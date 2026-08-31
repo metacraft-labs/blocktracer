@@ -56,10 +56,6 @@ proc metaValue(r: MetaRow): string =
         text r.value
       if r.suffix.len > 0:
         span(class = "muted"): text " " & r.suffix
-      # Inside the `dd` — see `debugger.metaRows`, which renders the same
-      # field the same way for the same reason. Two surfaces, one source.
-      if r.note.len > 0:
-        p(class = "reason measure"): text r.note
 
 proc metaGrid(rows: seq[MetaRow]): string =
   ## One `<dl>` of §7.2 facts, presented the explorer way. It knows how to
@@ -76,6 +72,27 @@ proc metaGrid(rows: seq[MetaRow]): string =
         else:
           dd:
             raw metaValue(r)
+        # THE NOTE IS ITS OWN `dd`, SPANNING BOTH COLUMNS.
+        #
+        # A `dt` may have several `dd`s, so this is ordinary markup rather than
+        # a trick — and it is what the round that introduced the provenance row
+        # asked for. Put inside the value `dd`, the paragraph inherited
+        # `.mddl dd`'s `text-align:right`: nine to fifteen lines of prose set
+        # flush-right, ragged-left, at a ~28-character measure, in a pane whose
+        # two other paragraphs are flush-left. Three adversarial reviewers
+        # across three triples independently named it the single weakest
+        # element on the page, and several noted the irony directly — the one
+        # element carrying the register's honesty claim was its least readable
+        # text.
+        #
+        # Spanning both columns fixes the measure as well as the alignment. The
+        # label gutter sat empty beside a paragraph squeezed into the value
+        # column, so the row was tall for no reason: reviewers measured it at
+        # 39% of the Transaction pane's height, a LARGER share of its new host
+        # than the 17% of the viewport the band it replaced had taken.
+        if r.note.len > 0:
+          dd(class = "rownote"):
+            p(class = "reason measure"): text r.note
 
 proc txPage*(chain: string, v: TxView, info: ChainInfo): string =
   let headline = v.headline

@@ -1,0 +1,29 @@
+Expected elements: present
+
+Identity bar carries the truncated hash, `Succeeded`, `block 63675`, both stepping directions, `128 / 345`, the phase rail and an exit onto `aztec-testnet`. There is no band above the identity bar and the provenance marker is where it should now be: the first row of the Transaction pane, labelled `DATA`, with a `Real Aztec testnet data` badge toned affirmatively and the capture's own endpoint, moment and replay window beneath it. Code, Call Trace and Values each explain the missing debug symbols in their own words, and blame the chain rather than the product; `Supply sources` is present. No invented file, line, function or variable name. No fixture content, no `aztec` slug, no engine-failure banner, no unexplained blank pane.
+
+The weakest element is the provenance sentence block itself. The band is gone and the shell is better for it — but the rows did not simply move, they were poured into the value column of a label/value grid, and the page's most important claim is now the least readable text on it. Fifteen right-aligned, ragged-left lines at a 28-character measure, breaking `aztec-` / `testnet.drpc.org` and `2026-` / `08-31T07:40:55.566Z` mid-token and hiding its own paragraph break. The pane refutes it 350px lower: the selector explanation is left-aligned across the full pane width and reads in three lines.
+
+Highest-priority fix: set the provenance sentences across the pane's full width, left-aligned, below the label and badge.
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/ADV/1",
+      "severity": "P2",
+      "location": "Transaction pane (right rail, x≈1531-1911), the `DATA` row's sentence block at y≈205-525, set in the value column beneath the `Real Aztec testnet data` badge",
+      "finding": "The band was the right thing to remove and this row is the right place to put provenance. What was built is a paragraph dropped into a value cell, and it is now the weakest element on the page — weaker than the raw hex fee, because the fee costs a reader one fact while this costs them the page's entire claim. Three things are wrong with it and they compound. (a) Alignment: fifteen lines of body prose set flush-right and ragged-left. Every line begins at a different x, so the return sweep has no anchor and the block must be read rather than scanned. Nothing else on the page is set this way, and this is the one block a reader must actually read. (b) Measure: roughly 28 characters, because the value column of a 369px pane is what the row inherited. It breaks `aztec-` / `testnet.drpc.org` and `2026-` / `08-31T07:40:55.566Z` across lines — the endpoint and the moment, the two facts that make the provenance checkable, are the two the wrapping mangles — and it hides the paragraph break, so `are published here.` and `Transactions below block` sit on adjacent lines with nothing between them. (c) Cost: ~320px, the tallest block in the pane, spent in the one region on the page whose content already exceeds its box. The Transaction pane clips at the viewport bottom mid `RAW (CHAIN-NATIVE)` object, and what is no longer on screen is the replay telemetry — instructions executed, effects matched, `effectsMismatched: 0` — the evidence that this replay reproduced the chain's own effects. The band cost 190px of everyone's height; this row costs 320px of the only pane that had something to lose, so the trade returned space to three panes that had nothing to put in it and took it from the one that did. The pane itself proves the fix: the selector explanation at y≈855-910 is the same kind of prose, set left-aligned across the pane's full width, and it reads cleanly in three lines. Set the provenance sentences the same way, full pane width under the label and badge, and the row becomes about a third of its current height and legible at a glance.",
+      "criterion": "B2"
+    }
+  ]
+}
+```

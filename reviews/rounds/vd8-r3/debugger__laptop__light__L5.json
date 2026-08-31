@@ -1,0 +1,70 @@
+Expected elements: present
+
+Presence checked first, including the two items that failed here last round. The scrubber is present at this viewport — a track at x673–832 with an elapsed head — and `128 / 1315` is a separate readout beside it. Provenance is the Transaction pane's first labelled row, `DATA`, with a `Synthetic demo data` badge and the producer's own sentences; there is no band above the identity bar, and no explorer nav or footer anywhere.
+
+The register reads correctly. Four panes, no chrome, `CODE` / `CALL TRACE | EVENT LOG` / `VALUES` / `TRANSACTION` — the desktop app's vocabulary, including `Values` rather than `State`. The exit is `← aztec` to the chain. Stepping lives in the bar in four segmented pairs; that divergence from the desktop toolbar reads as deliberate and it works. The copy is the best brand asset here — "The execution trace is real — it is a recorded Noir program — but it is not the execution of the transaction it is published under" is exactly this product's voice.
+
+What is not the product's is the palette. Every accent sampled is a stock Tailwind default — #1d4ed8, #a5f3fc, #155e75, #9a3412, #854d0e, #166534, #4f46e5 — while the neutral ramp is custom. The identity is carried by layout alone.
+
+Tension, not a finding: the provenance paragraph is explorer-register prose inside the tool. I would not cut a word of it.
+
+Fixes: replace the stock accents with the design system's own hues.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L5/1",
+      "severity": "P2",
+      "location": "Whole page — every accent colour: code tokens in the Code pane, the cyan current-line band and its rails, the badges in the identity bar and Transaction pane, the link colour",
+      "finding": "Sampled, the accents are stock framework defaults, not this product's: #1d4ed8, #1e40af, #dbeafe, #4f46e5, #a5f3fc, #0e7490, #155e75, #164e63, #9a3412, #ffedd5, #854d0e, #166534, #713f12 are all Tailwind palette entries at their published values. The neutral ramp (#ececeb, #dddddd, #919191, #565656, #242424) is warm and clearly custom, so the page is a bespoke greyscale wearing an off-the-shelf colour set. The consequence for this register is concrete: a CodeTracer desktop user recognises this screen by its layout and its pane names, and by nothing in its hue family — the editor tokens in particular are a generic web highlighter's blue/purple/green/brown rather than the product lineage's editor palette, which §3 names as the one thing that must look like CodeTracer wherever it appears.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/light/L5/2",
+      "severity": "P2",
+      "location": "Identity bar, the eight stepping buttons at x370–656",
+      "finding": "Eight icon-only buttons, no labels and no key hints anywhere in the bar. The desktop application this register must be continuous with names its stepping commands and shows their bindings; here the only way to tell `↖ ↘` (step out / step in) from `|← →|` (previous / next frame) is to recognise two arrow idioms that differ by a stem, and nothing indicates that stepping has a keyboard at all. Reverse stepping is the product's premise and it is the leftmost solid triangle — visible, correctly placed, correctly grouped in a segmented pair — but unnamed. The grouping into four pairs is good and should stay; what is missing is any surface that says what a pair does.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/laptop/light/L5/3",
+      "severity": "P2",
+      "location": "Transaction pane — the pills on the CANONICAL (`Yes`, y583–611), FINALITY (`Safe`, y615–647), EXECUTIONS (`Not observable`, y860–884), DATA (`Synthetic demo data`, y215–242) rows and the `Partial` badge at y100–125",
+      "finding": "Five rows of this pane are dominated by the explorer register's badge primitive at the explorer register's scale: 24–28px pills with 10–12px of horizontal padding and a full-radius outline, carrying one word each. In a pane whose rows are otherwise 25–32px of dense mono, a one-word value styled as a marketing pill outranks the four-line address two rows above it. The desktop app states such facts as text in the value column. The pill is the right component in the explorer's transaction page and reads as an unconsidered carry-over here, where the same information as plain toned text would fit the pane's own density.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/light/L5/4",
+      "severity": "P3",
+      "location": "Code pane header, the iteration chips 1–8 at x370–680, y90–118",
+      "finding": "Eight numbered chips in a row read as the explorer's pagination control rather than as a loop-iteration stepper: same pill shape, same numeric sequence, same left-to-right progression. The distinction that matters here — which iterations have run, which is current, which are ahead — is carried only by fill and an underline, so the crossing reads as a component borrowed rather than a tool control designed. It is also the only place on the page where a control implies a jump target without saying what jumping does to the session position.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/light/L5/5",
+      "severity": "P3",
+      "location": "Transaction pane, the line `Status reason: private-part-succeeded-public-part-succeeded` at y180–205",
+      "finding": "A serialised enum value is printed verbatim in a pane that otherwise writes in sentences, two rows above a paragraph that is carefully composed English. The hyphenated identifier is honest and unambiguous — a virtue — but it is the machine's spelling, not the product's voice, and it sits in the most prominent third of the pane. `Private part succeeded; public part succeeded` carries the same fact in the register's own tone.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/light/L5/6",
+      "severity": "P3",
+      "location": "Identity bar, right-hand actions at x1356–1415 versus the stepping groups at x370–656",
+      "finding": "Two button vocabularies share a 64px bar: the share and download actions are near-circular 34px squircles standing alone, while the eight controls are 28px segmented rectangles at a small radius. Both are defensible in isolation and their functions do differ, but the radius jump is large enough that the two right-hand buttons read as belonging to a different application than the eight on the left.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

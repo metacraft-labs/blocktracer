@@ -1,6 +1,6 @@
 Expected elements: MISSING — hero age/timestamp, the copy affordance on the full hash, and an overview row naming the transaction type.
 
-That is finding #1, it is P1, and the rating is capped at 4. The provenance marker is correctly present in its new form — a `Data` row at the top of the Overview grid carrying the `Synthetic demo data` badge and the producer's three sentences — and it is the only one of the three forms on the page, so the absent band is not a finding. Nav, footer, disclosure, provenance strip with drawn heart/CodeTracer/GitHub marks, `Generate trace` as the strongest control, the named `On demand` state, all four trace-sourced sections with their explanatory lines, and the raw JSON are all present. What is not present anywhere on the page is an age or timestamp, any visible copy control beside the full hash, and a labelled transaction type (it survives only inside the raw JSON). Value and nonce are also unlabelled, which may be chain-inapplicable on Aztec.
+That is finding #1, it is P1, and the rating is capped at 4. The provenance marker is correctly present in its new form — a `Data` row at the top of the Overview grid carrying the `Synthetic demo data` badge and the producer's three sentences — the only one of its three forms present, so the absent band is not a finding. Nav, footer, disclosure, provenance strip with drawn heart/CodeTracer/GitHub marks, `Generate trace` as the strongest control, the named `On demand` state, all four trace-sourced sections with their explanatory lines, and the raw JSON are all present. What is not present anywhere on the page is an age or timestamp, any visible copy control beside the full hash, and a labelled transaction type (it survives only inside the raw JSON). Value and nonce are also unlabelled, which may be chain-inapplicable on Aztec.
 
 Typographically the page has four honest levels but spends them badly: the largest type on the page is a truncated hash that the line beneath repeats in full, and eight sections share a single heading size so the spine cannot be ranked without reading. Badge type is not one treatment — the provenance badge is monospace and letterspaced, the four status badges are proportional sans.
 
@@ -64,3 +64,4 @@ Highest-priority fixes: put age and transaction type on the page; give the secti
     }
   ]
 }
+```

@@ -1,0 +1,68 @@
+Expected elements: present
+
+Presence verified with attention to the previously failing pair: the scrubber is present and shrunk, not hidden — a 160px track at x673–832 with its elapsed head filled — and the position readout `128 / 1315` is a separate element beside it, both legible. Provenance is the `DATA` row inside the Transaction pane, not a band. Code with the current line 32, the Call Trace | Event Log tab strip with Call Trace open and seven frames, Values with eleven values, both stepping directions in the bar.
+
+Everything here is legible — the smallest text (`Field`, `DATA`, `FETCHING`, chip labels) sits at a 9px cap height and 7.3:1 or better, and the mono column in Values is genuinely scannable. The problem for a rubric that rewards density is how little the page carries for 1440×900.
+
+It shows 26 code lines at a 23px pitch for 10px glyphs, 7 frames, 11 values and 8 metadata rows. Against that: 241px of blank in the tabbed region (49% of it), 142px of stacked header chrome in the Code pane before line 1 (17%), and 310px — 37% of the Transaction pane — spent on the eleven-line provenance paragraph. Roughly a third of the pixels are carrying nothing while seven code lines fade out at the right edge and the Transaction pane runs flush into its bottom border.
+
+Fixes: tighten the code pitch and hand the tabbed region's 241px to the panes that are clipping.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L4/1",
+      "severity": "P2",
+      "location": "Call Trace region, x691–1144, below the \"By call order. / Self cost\" row at y320 down to the pane edge at y561",
+      "finding": "241px empty — 49% of the region, 27% of the viewport height — while the fixture's seven frames occupy the first 190px. At the region's own 25px row pitch that void is room for nine or ten more frames, and the Values pane beneath it is the pane that in a real trace grows without bound: eleven values here, ending 35px short of its own bottom. The region that holds a bounded, shallow structure was given three fifths of the column; the one that holds an unbounded list was given two fifths. At realistic volume — a forty-frame trace with sixty values in scope — this split starves the wrong pane, and nothing in the layout suggests it would rebalance.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/2",
+      "severity": "P2",
+      "location": "Code pane, y68–210 — the four stacked header rows above line 26",
+      "finding": "142px, 17% of the pane's 828px height, goes to chrome before a single line of code: the `CODE` title bar (25px), the loop/iteration strip (28px), the file tab row (26px) and the \"Showing from line 26 …\" notice (~45px, two lines). At the pane's own 23px line pitch that is six lines of source. The notice is the most expendable of the four — it states in a full sentence what the line numbers starting at 26 already say — and the file tab row duplicates the filename already shown in every call-trace row. In a register where density is the virtue, the flagship pane opens with four bands of furniture.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/3",
+      "severity": "P2",
+      "location": "Code pane body, y210–895 — line pitch",
+      "finding": "The listing runs at a 23px pitch for glyphs 10px tall, which is 2.3× the cap height where a dense tool listing runs 1.5–1.6×. 26 lines are shown in 685px of body; at 18px rows the same space carries 38, and the type would not change size. The rows are legible — the extra height is not buying legibility, it is buying nothing — and the pane is simultaneously clipping the file at line 52 (a half row at the bottom edge) and fading out the right end of seven lines. The pane is short of space in both axes and is spending a third of the space it has on leading.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/4",
+      "severity": "P2",
+      "location": "Transaction pane, bottom edge — `EXECUTIONS` group at y845–893 against the pane border at y895",
+      "finding": "The pane's content runs flush into its bottom border with no scrollbar, fade or count to say whether anything follows. It matters here because the pane contradicts itself: the Status reason at y180–205 reads `private-part-succeeded-public-part-succeeded`, naming two executions, and the EXECUTIONS group at the foot lists exactly one — `private`, marked `Not observable`. Either the public entry is below the fold, in which case the drop is unsignalled, or it is absent, in which case the group is incomplete. At this viewport the reader cannot tell which, and this is the pane the register relies on for 'what am I looking at'.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/5",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row — the badge and paragraph at y215–555",
+      "finding": "The provenance row occupies 340px of the pane's 828px, 41%, of which 310px is the eleven-line paragraph. The fair question the change invites is whether the row has become too quiet; at this viewport the answer is the reverse — it is the largest single allocation of space on the page, larger than the entire Values pane's content, and it forced the pane's actual data into a 17-character column that wraps both addresses onto three lines. The band's cost was relocated into the pane rather than removed. The badge alone, with the sentences behind a disclosure or set at the pane's foot, would carry the same claim at a fifth of the height.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/6",
+      "severity": "P3",
+      "location": "Values pane, type column at x1109–1134 — nine rows reading `Field`",
+      "finding": "The rightmost column repeats the same four-letter type on nine of eleven rows, at the same size and weight as the values, for a constant that carries no per-row information. The two rows where the type differs (`[Field; 8]` on `masses`, `u32` on `i`) are the only informative cells in the column, and they are the two hardest to spot because they sit in a column of identical strings. Dimming the repeated type, or showing it only where it changes, returns roughly 25px of width to the value column in the pane that most needs it.",
+      "criterion": "B1"
+    }
+  ]
+}
+```

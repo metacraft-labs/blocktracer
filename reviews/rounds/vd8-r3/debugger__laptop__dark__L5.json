@@ -1,0 +1,75 @@
+Expected elements: present
+
+Presence check first. Identity bar carries the chain exit `← aztec` (targets the chain, which is correct and not a finding), the truncated hash, `Partial`, `block 101`, both stepping directions, the scrubber with a cyan fill and the readout `128 / 1315` as a separate element — both present and legible at this width — and the `FETCHING OPENING POSITIONING` rail. `CODE`, `CALL TRACE | EVENT LOG` as one strip with Call Trace open, `VALUES` (not State), `TRANSACTION` with the `DATA` provenance row and its `Synthetic demo data` badge. No provenance band above the bar, no explorer header, no footer, no light chrome, no prose band above the panes.
+
+This reads as the desktop app. The pane vocabulary is the desktop vocabulary, the density is a tool's density, the mono texture is the product's texture, and putting stepping in the bar rather than a pane is a legible, deliberate divergence rather than a web reinterpretation.
+
+Two register crossings are not deliberate. The explorer's underlined link primitive appears inside panes — `line 4` in the Code header, `101:0` and `Self cost` — where the desktop app navigates without underlines. And `Status reason: private-part-succeeded-public-part-succeeded` prints a raw enum value as a sentence in the pane that carries the honesty claim, which is the one place raw machine output most undercuts the tone the rest of the copy holds.
+
+Fixes: give in-pane navigation a tool affordance; render the status reason as prose or as a badge pair.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L5/1",
+      "severity": "P2",
+      "location": "Transaction pane, the row `Status reason: private-part-succeeded-public-part-succeeded` directly above the DATA row",
+      "finding": "A raw enum identifier is printed as running text, with a prose label (`Status reason:`) in front of it and hyphen-joined lowercase tokens wrapping across two lines behind. Everywhere else this product converts machine state into product language — `Partial`, `Not observable`, `Synthetic demo data`, `By call order.` are all written, chosen phrases. Here the ViewModel's enum value leaks through unformatted, and it does so in the pane whose whole job in this register is to tell the reader what they are looking at and be trusted while doing it. The tone of copy is a design property in this product; this line is the one place on the surface where nobody wrote the copy.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/2",
+      "severity": "P2",
+      "location": "Code pane header (`line 4`), Transaction pane (`101:0`), Call Trace footer (`Self cost`)",
+      "finding": "Three in-pane navigation targets use the explorer register's link primitive — indigo, underlined, web-link styled. The sanctioned crossing between registers runs the other way (editor tokens into explorer pages); an underlined hyperlink inside a debugger pane is the explorer primitive crossing into the tool, and it does not read as deliberate: `Self cost` is a column toggle, `line 4` is a jump within the open file, and `101:0` is the only one of the three that leaves the session. Three different behaviours wearing one web-link costume. A desktop user would expect these to be pane affordances, not links.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/3",
+      "severity": "P3",
+      "location": "Transaction pane — the `Partial` badge in the pane header and the `Synthetic demo data` badge on the DATA row",
+      "finding": "Two badges of identical shape, size, border weight and corner radius sit 110px apart and belong to different semantic families: one is a transaction outcome, the other is a claim about the reality of every value on the page. Reusing one badge primitive across a status and a provenance marker is consistent, but it also means the page's most consequential statement is dressed exactly like a routine status chip — which is the fair reading of \"is the row now too quiet\". Provenance is the one thing here that should not share a costume with the ordinary.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/4",
+      "severity": "P3",
+      "location": "Page canvas behind and between the panes",
+      "finding": "The workspace behind the panes is pure black rather than the dark grey the CodeTracer desktop application uses, so the surface reads slightly toward a terminal or an OLED web dashboard rather than toward the desktop app it is meant to be continuous with. The panes themselves are correctly pitched; it is only the ground they sit on that reads as a web choice.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/5",
+      "severity": "P3",
+      "location": "Code pane, the note row \"Showing from line 26 — the session's position is below, and the lines above it are not in this window.\"",
+      "finding": "The sentence is explanatory web copy in a tool pane, and it is doing a job the gutter already does by starting at 26. Its phrasing (\"the lines above it are not in this window\") also explains the widget's mechanics rather than stating a fact about the session. The desktop app states this kind of thing with a marker, not a sentence; if the sentence is needed, \"Lines 1–25 are outside this window\" says it without narrating the UI.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/6",
+      "severity": "P3",
+      "location": "Call Trace pane, column header `ACIR opcodes`",
+      "finding": "The header splits one column label across two emphasis levels — `ACIR` bright, `opcodes` dim — so it reads at a glance as two columns rather than one qualified one. Every other header on the page (`FRAME`, `CODE`, `VALUES`, `TRANSACTION`, `DATA`, `BLOCK`) is a single flat all-caps level, so this is the only place the header primitive varies.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/7",
+      "severity": "P3",
+      "location": "Code pane, line 42 comment — \"shields regain a percentage of the maxium capacity after each h…\"",
+      "finding": "A spelling error (\"maxium\" for \"maximum\") is visible in the fixture source on the register's flagship capture. It is fixture content rather than product copy, so it is not a design defect as such, but this image is the one a visitor sees first and the source listing is the product's showcase texture; a typo in it reads as carelessness about the demo.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

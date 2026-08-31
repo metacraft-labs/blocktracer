@@ -1,0 +1,82 @@
+Expected elements: present
+
+Presence check, done first and carefully. Identity bar: `← aztec` (exit to the chain — correct, not a finding), `0xb63616…6359`, `Partial`, `block 101`, both stepping directions (◀ ▶ plus in/out, jump and end pairs), a scrubber track with a cyan fill and thumb at ~10%, the position readout `128 / 1315` beside it as a separate element, and the `FETCHING OPENING POSITIONING` rail. Scrubber and readout are both present and both legible at this width. `CODE` with the current position on line 32; `CALL TRACE | EVENT LOG` as one tab strip with Call Trace open; seven frames; `VALUES` with ten rows; `TRANSACTION`. No provenance band above the bar — provenance is the `DATA` row of the Transaction pane, badge `Synthetic demo data`, producer's sentences beneath. Nothing forbidden present.
+
+The type system is coherent: one tracked all-caps pane-title level, one monospace face for code and values, tabular right-aligned ACIR and value columns across four magnitudes.
+
+Below bar: the provenance paragraph is set flush-right over thirteen lines at a ~24-character measure — thirteen ragged line-starts for the page's most important sentence. The code listing's row pitch is not constant: 23px normally, 41–44px wherever an inline value badge wraps to its own row (26→27, 48→49, 49→50), so the line-number column stops being an even ruler. FEE PAYER and TARGET wrap 64-character hashes across three lines and leave two-character orphans (`32`, `4c`) where the identity bar uses ellipsis truncation.
+
+Fixes: set the DATA paragraph flush-left; keep one row pitch in the listing and clip badges to the line.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L1/1",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row — the paragraph beginning \"Every block, transaction, address and hash on this chain…\"",
+      "finding": "The provenance sentences are set flush-right, ragged-left, over thirteen lines at roughly a 24-character measure, because the row inherits the pane's label-left/value-right alignment. Every other paragraph-shaped thing on the page is flush-left (the Code pane's \"Showing from line 26…\" note, the call trace's \"By call order.\"). A flush-right setting gives the reader thirteen unpredictable line-starts, which is the worst available treatment for the one block on this page that must be read as sentences rather than scanned. At 24 characters the measure is also below the floor at which any paragraph reads well; the wide capture sets the same text in eight lines.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/2",
+      "severity": "P2",
+      "location": "Code pane, listing rows 26–27, 48–49 and 49–50",
+      "finding": "The listing has two row pitches. Plain lines sit on a 23px pitch; lines whose inline value badge does not fit push a `+3`/`+2` chip onto a row of its own and the pitch becomes 41–44px. Line numbers are therefore not an even column, and the vertical scan a reader uses to count lines or to keep the current position in peripheral vision breaks three times in twenty-six rows. A code listing's line-number column is a ruler; a ruler with unequal divisions is not one.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/3",
+      "severity": "P2",
+      "location": "Transaction pane, FEE PAYER and TARGET rows",
+      "finding": "Both 64-character hashes wrap across three right-aligned lines and leave a two-character orphan on the last one — `32` for FEE PAYER, `4c` for TARGET. The identity bar and the pane's own header both truncate with a middle ellipsis (`0xb63616…6359`, `0xb636167a…66d46359`), so the page owns a truncation convention and does not apply it to the two rows that most need it. A three-line wrap ending in two characters reads as a rendering accident rather than a value, and it breaks mid-byte at both wrap points.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/4",
+      "severity": "P3",
+      "location": "Values pane, `masses` row",
+      "finding": "The array value `[100, 2000, 200, 100, 100, 50, 50, 14]` wraps with its continuation `14]` right-aligned on the second line, so the closing bracket sits roughly 400px to the right of where the eye left the sequence and the array appears to read out of order. Continuations of a bracketed sequence should hang to the opening bracket, not to the value column's right edge.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/5",
+      "severity": "P3",
+      "location": "Code pane header (file tab `src/shield.nr`, iteration chip `3`) and Call Trace tab strip (`CALL TRACE`)",
+      "finding": "Three different underline treatments express \"current\" within 500px of each other: a thick straight rule under `CALL TRACE`, a rounded-ended rule under the active file tab `src/shield.nr`, and a double rule under iteration chip `3`. All three mean the same thing at the same moment. One underline weight and one cap style would let the reader learn the mark once.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/6",
+      "severity": "P3",
+      "location": "Values pane, type column — `Field`, `[Field; 8]`, `u32`",
+      "finding": "The type names are set in the UI sans face while the identifier and value columns either side of them are monospace. `Field`, `u32` and `[Field; 8]` are Noir source identifiers and belong to the code face; setting them in the interface face makes the row read as two documents. It also costs the column its tabular alignment — `[Field; 8]` and `Field` do not share a right edge cleanly.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/7",
+      "severity": "P3",
+      "location": "Code pane, the note row \"Showing from line 26 — the session's position is below, and the lines above it are not in this window.\"",
+      "finding": "The note is set in the code face at code size and at the pane's full ~110-character measure, so it competes with the listing directly beneath it in weight, face and size, and orphans two words (\"this window.\") on a second line. A note about the listing should be a distinct type level from the listing — smaller, or in the interface face, or held to a measure that fits one line.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/8",
+      "severity": "P3",
+      "location": "Code pane header, loop strip `LOOP iterate_asteroids line 4 Iteration 3 of 8`",
+      "finding": "`Iteration 3 of 8` is the brightest and heaviest run of text anywhere in the Code pane header — heavier than the pane title `CODE` and than the active file tab — while the chip row immediately to its right already states the same fact and states it better, since the chips also carry which iterations have been visited. The loudest type on the header is the most redundant.",
+      "criterion": "B3"
+    }
+  ]
+}
+```

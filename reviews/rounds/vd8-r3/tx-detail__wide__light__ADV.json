@@ -1,0 +1,34 @@
+Expected elements: MISSING — transaction age (hero); transaction type (Overview grid); the 'supply an ABI' action (Decoded input).
+
+Provenance I checked independently and it is present and correct: the `Data` row at the head of the facts grid, `Synthetic demo data` badge in the neutral tone with the producer's sentences — exactly one of the three sanctioned forms. No band, and none belongs here.
+
+The single weakest element is the hero — the run from the `TRANSACTION` eyebrow down to the full-hash line, above the trace card. It is the page's largest and highest element and it carries the least of anything on the page: one fact (`Succeeded`) and one identifier printed twice, truncated as the H1 and again in full 30 px beneath it. The required age is not there and is nowhere else either. The finality badge has been displaced into the grid, so `Pending` sits seven rows down while the hero says only `Succeeded` — a reader takes the top of the page for a settled transaction and must scroll to learn it is provisional, with no timestamp at either place to judge how provisional. The full hash shows no copy affordance. The hero spends the most valuable space on the page restating its own URL.
+
+That is why it is the weakest: not that it is ugly, but that it is the emptiest element in the most expensive position, and what it omits changes what a reader believes.
+
+Rating: 4/10
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "missing",
+  "missing": [
+    "Hero: age — no timestamp or relative age anywhere on the page",
+    "Overview grid: transaction type — no labelled row, though the raw JSON carries \"kind\": \"public-avm-call\"",
+    "Decoded input: the 'supply an ABI' action — the note describes supplying an ABI but provides no control"
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/ADV/1",
+      "severity": "P1",
+      "location": "the hero — from the `TRANSACTION` eyebrow through the `0x27a6…9a6c` H1, the `Succeeded` badge and the full-hash line, above the trace card",
+      "finding": "The hero is the weakest element on the page: it holds the top of the layout and delivers one fact and one identifier printed twice. The required age is absent from it and from the whole page, so nothing tells a reader when this transaction happened; the finality badge has been moved out into the Overview grid, so the hero asserts `Succeeded` while `Pending` waits seven rows below the fold-adjacent grid head; and the full hash below the H1 carries no visible copy affordance while duplicating the truncated value directly above it. The most prominent element on the page is therefore its emptiest, and its omissions are not cosmetic — a reader who reads only the hero leaves believing a pending transaction is settled and cannot date it at all."
+    }
+  ]
+}
+```

@@ -1,0 +1,27 @@
+Expected elements: present
+
+Presence check, done first and specifically because the previous round failed it here. The scrubber is back: a 160px track at x672–833 in the identity bar, grey rail with a cyan elapsed fill and a thumb at roughly 10%, and the position readout `128 / 1315` sits beside it at x866–938 as a genuinely separate element. Both are present and both are legible at 1440. Also present: `← aztec` exiting to the chain, `0xb63616…6359`, `Partial`, `block 101`, both stepping directions in the bar, the three-phase rail, `CODE` with the current position on line 32, `CALL TRACE | EVENT LOG` as one tab strip with Call Trace open over seven frames, `VALUES` with ten values below the strip and not inside it, and `TRANSACTION` whose first labelled row is `DATA` with a `Synthetic demo data` badge and the producer's own sentences. There is no provenance band above the identity bar, which is correct now, not missing.
+
+The single weakest element is the provenance paragraph on that DATA row. The band was moved off the viewport because it cost 17% of it. Inside a 285px column it now runs thirteen lines and 325px — 39% of the pane it moved into — and it is set flush-right, ragged-left, at a 24-character measure. So the fix relocated the cost rather than paying it down, and in relocating it chose the least readable setting available for the one paragraph on this page that has to be read rather than scanned.
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/ADV/1",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row — the paragraph beginning \"Every block, transaction, address and hash on this chain is generated from a fixed seed…\", y≈245–545",
+      "finding": "The provenance paragraph is the weakest element on the page because it is simultaneously the largest consumer of space and the hardest thing here to read, and because both faults are consequences of the move that was supposed to fix it. It runs thirteen lines and roughly 325px in a 285px-wide column — 39% of the Transaction pane's 827px, a larger share of its new host than the 17% the band took of the viewport it was removed from. It is set flush-right with a ragged left edge at a ~24-character measure, because the row inherited the pane's label-left/value-right alignment; thirteen unpredictable line-starts is the worst available setting for sentences, and it is the only flush-right prose on the page. Its cost is paid by the rows underneath: BLOCK, CANONICAL, FINALITY, FEE PAYER, TARGET, COST·MANA and EXECUTIONS are all pushed into the bottom 40% of the column, and FEE PAYER and TARGET each burn three lines wrapping a hash and end on two-character orphans (`32`, `4c`) as a direct result. The claim itself is right and the `Synthetic demo data` badge carries it well at a glance — so the row is not too quiet. It is too long, in the wrong alignment, in the narrowest column on the screen.",
+      "criterion": "B1"
+    }
+  ]
+}
+```

@@ -1,0 +1,29 @@
+Expected elements: present
+
+The scrubber is back at this viewport — a 160px track at x673–832 with its elapsed head filled — and `128 / 1315` sits beside it as a separate, legible readout, so the failure that voided this cell last round is fixed. No band above the identity bar; provenance is the Transaction pane's first labelled row, `DATA`, with a `Synthetic demo data` badge and the producer's sentences. Code with the current position on line 32, Call Trace | Event Log as one tab strip with Call Trace open and seven frames, Values with eleven values, both stepping directions in the bar, exit onto `aztec`.
+
+The weakest element is that same `DATA` row. The band was the right thing to delete, and the pane is the right home for provenance — but the sentences were poured into a label/value grid's value column, and in a 287px pane that column is about 28 characters wide. Eleven lines of body prose, flush-right and ragged-left, 340px tall: 41% of the pane, more height than the entire Values pane's content, and the least readable text on a page whose other 900-odd glyphs are set with care. The pane refutes it two rows above, where `Status reason: private-part-succeeded-public-part-succeeded` runs flush-left across the full pane width and reads in two lines. The 190px band became a 340px cell.
+
+Highest-priority fix: set the provenance sentences flush-left across the pane's full width, beneath the label and badge.
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/ADV/1",
+      "severity": "P2",
+      "location": "Transaction pane (x1149–1435), the `DATA` row — badge at y215–242 and the sentence block at y245–555, set in the value column",
+      "finding": "This is the weakest element on the page, and it is weakest precisely because it is the one the page cannot afford to have weak: it is the only place a reader in this register can learn that none of these values exists on any network. Three faults compound. (a) Alignment — eleven lines of prose set flush-right, ragged-left, because the row inherited the value column's alignment. Every line starts at a different x, so the return sweep has no anchor and the block must be laboured through rather than read. Nothing else on this page is set that way, and the same pane proves the alternative two rows up, where `Status reason: private-part-succeeded-public-part-succeeded` is flush-left across the full pane width. (b) Measure — about 28 characters, which is what a 287px pane's value column gives you. That measure is also what forces `Every block, transaction,` / `address and hash on this` / `chain is generated from a` to break three times inside one clause, and it is the same constraint that wraps FEE PAYER and TARGET onto three lines each with two-character orphans (`32`, `4c`) at the pane's foot. (c) Cost — 340px including the badge, 41% of the pane's 828px height, more than the eleven rows of the Values pane occupy, in the narrowest column on the page. The band that was removed on 2026-08-31 spent ~190px of full-page width and was named the weakest element by both adversarial reviewers of the previous round; this row spends 340px of the one pane whose content has a hard minimum width. The cost was relocated and increased, not removed, and the reading experience of the claim itself got worse in the move. It is not too quiet — that was the fair question to ask, and the answer at this viewport is the opposite. Set the sentences flush-left across the pane's full width beneath the label and badge and the block falls to roughly five lines, the addresses get their column back, and the claim becomes scannable instead of merely present.",
+      "criterion": "B2"
+    }
+  ]
+}
+```

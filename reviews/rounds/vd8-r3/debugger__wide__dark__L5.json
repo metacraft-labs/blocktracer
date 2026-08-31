@@ -1,0 +1,61 @@
+Expected elements: present
+
+Slim identity bar with `← aztec` exiting to the chain, `0xb63616…6359`, `Partial`, `block 101`, eight stepping buttons covering both directions, scrubber, `128 / 1315` and the phase rail; `CODE` positioned at line 32; `CALL TRACE | EVENT LOG` as one tab strip, Call Trace open, seven frames; `VALUES` a pane below it, not a tab; `TRANSACTION` with `DATA` / `Synthetic demo data` / the producer's sentences. No band above the bar, no explorer chrome, no spinner.
+
+This is the desktop app's register. Pane vocabulary matches it word for word, the editor palette is the real one, the branch marks in the gutter belong to that editor's language, and the current position is drawn identically in Code and Call Trace — one cyan left rail plus row fill in both panes. Removing the band improved the register: nothing now interrupts the panes.
+
+Two things do not belong. `Status reason: private-part-succeeded-public-part-succeeded` is an internal enum printed at the top of the Transaction pane, in a product whose copy is otherwise written for people, and it is the only unlabelled row in a labelled pane. And the identity bar's right half is a run of unlike objects — bar, sentence, fraction, segmented rail — stating the engine's load twice in two idioms, with 337 px of empty bar sitting to their right.
+
+Fixes: write the status reason as a sentence; group or separate the bar's status cluster and move the scrubber away from `Engine loading`.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L5/1",
+      "severity": "P2",
+      "location": "Transaction pane, second line under the full hash — `Status reason: private-part-succeeded-public-part-succeeded`, wrapping onto a second line above the `DATA` row",
+      "finding": "A raw internal enum is printed verbatim as human-facing copy. Everything else this product says is written: `aztec private function executed client-side; only proofs, nullifiers and commitments are published — no call structure to trace` and `This selector is not in any ABI BlockTracer holds…` are sentences with a subject and a claim. This one is a hyphen-joined identifier that wraps mid-token and restates in machine vocabulary what the `Partial` badge two lines above already says. It also breaks the pane's own row primitive: every other fact here is a grey letterspaced label in the left column with its value at the right, and this is an inline `Label:` prefix in flowing text. Copy is a design property in this register, and this is the one place on the page where the seam between the model and the surface shows.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/dark/L5/2",
+      "severity": "P2",
+      "location": "Identity bar, x≈670–1462 — scrubber, then `Engine loading — 18 MB`, then `128 / 1315`, then the `FETCHING | OPENING | POSITIONING` rail; empty bar from x≈1462 to `NOIR` at x≈1799",
+      "finding": "The bar reads as two halves with different rules. The left half is grouped and desktop-like: identity cluster, a vertical divider, then four boxed control pairs. The right half is four unlike objects with no dividers, no shared container and no consistent idiom — a bare progress-bar shape, a sans sentence, a mono fraction, and a segmented pill. Two of them say the same thing: `Engine loading — 18 MB` and the phase rail both report engine load, one as prose and one as a segmented control, side by side. Worse, the trace scrubber is placed immediately to the left of that sentence, so the page's only position-in-trace element sits against the words `Engine loading` with an 8% cyan fill and reads as the download's progress bar; the `128 / 1315` that would disambiguate it is on the far side of the sentence. There is 337 px of empty bar to the right of the rail, so the grouping is not forced by space.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/dark/L5/3",
+      "severity": "P3",
+      "location": "Transaction pane — `Yes` (CANONICAL) and `Safe` (FINALITY) against `Partial`, `Trace ready`, `Not observable` and `Synthetic demo data`",
+      "finding": "One pill primitive carries three different kinds of content. It is a status on `Partial` and `Trace ready`, a provenance claim on `Synthetic demo data`, and a plain field value on `Yes` and `Safe`. A boolean answer wearing the same chrome as a trace-availability state teaches the reader that the pill means nothing in particular, which weakens the two places where it is load-bearing. `Yes` and `Safe` would read as facts if they were simply set as values in the right column like the hashes and `88000 / 200000 mana`.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/dark/L5/4",
+      "severity": "P3",
+      "location": "Code pane header — the file tabs (`src/shield.nr` active), the `CALL TRACE` tab in the next column, and iteration chip `3` in the same header row",
+      "finding": "Three drawings of 'active' appear within a hundred pixels of each other: the file tab is white text with a white underline, the region tab is white text with a white underline, and the current iteration chip is a filled chip with cyan text and a cyan underline. The first two agree, which makes the third look like a different concept rather than the same one in a different container. The data panes get this right — the current line in Code and the current frame in Call Trace share one cyan rail and row fill — so the divergence is confined to the header vocabulary and is cheap to reconcile by giving the chip the same accent as its neighbours or the tabs the same accent as the chip.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/dark/L5/5",
+      "severity": "P3",
+      "location": "Register crossings — `line 4` in the Code pane header, `Self cost` in the call trace footer, `101:0` in the Transaction pane's BLOCK row",
+      "finding": "Three underlined periwinkle web links appear inside the tool. The brief sanctions one crossing into this register — the editor tokens — and that one is used well. These are a second, unstated crossing: the desktop app expresses navigation targets as selectable rows and affordances, not as underlined hypertext, so these read as the explorer's link primitive carried in rather than as a decision. `101:0` is defensible because it genuinely leaves for a chain page, but `Self cost` toggles a column and `line 4` moves the listing, and neither is a document link.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

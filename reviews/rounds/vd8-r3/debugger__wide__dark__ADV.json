@@ -1,0 +1,29 @@
+Expected elements: present
+
+The band is gone and nothing replaced it above the identity bar — that change landed. Everything required is here: the slim bar with the chain exit, hash, `Partial`, `block 101`, both stepping directions, scrubber, `128 / 1315`, phase rail; `CODE` positioned at line 32; `CALL TRACE | EVENT LOG` as one tab strip with Call Trace open and seven frames; `VALUES` a pane below it; `TRANSACTION` carrying `DATA`, a blue `Synthetic demo data` pill and the producer's own sentences.
+
+The single weakest element is the provenance paragraph itself, in the Transaction pane's `DATA` row. It is set **right-aligned** — nine lines of body prose with a ragged left edge, from `Every block, transaction, address and` down to `published under.` It inherited the alignment of the value column it was dropped into, which is correct for `Yes`, `Safe` and a hash and wrong for a paragraph, and it is the only paragraph on the page set this way: the two other explanations in the same pane, under EXECUTIONS and DECODED INPUT, are left-aligned and full-width. It also sits inside the 275 px value column, so the label column's 90 px runs empty beside all nine lines.
+
+The band was removed so this claim would stop interrupting and start reading. It now reads worse than the copy around it, in the one row where the reader is meant to learn whose data this is. Left-align it and let it span the pane.
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/ADV/1",
+      "severity": "P2",
+      "location": "Transaction pane, the `DATA` row — the nine-line paragraph beneath the `Synthetic demo data` badge, occupying x≈1636–1908, y≈228–412",
+      "finding": "The provenance sentences are right-aligned. Nine consecutive lines of prose with a ragged LEFT edge is the slowest setting continuous text can be given, because the eye has to re-find every line start, and the sawtooth here runs to about 30 px. It is inconsistent with its own pane — `aztec private function executed client-side; only proofs, nullifiers and commitments are published` and `This selector is not in any ABI BlockTracer holds` are both left-aligned and both span the pane — so the rule is not 'prose is right-aligned here', it is that this paragraph was dropped into the label/value grid's value column and took its alignment. The same mistake costs width: the block is confined to a 275 px column with the label gutter empty beside all nine lines, which is why it needs nine. This is the weakest element because it is the element this round created. The band was removed on the argument that provenance should be read rather than stepped over; what replaced it is the least readable text on the page, carrying the page's most important claim, and the fix costs nothing and removes no information.",
+      "criterion": "B2"
+    }
+  ]
+}
+```

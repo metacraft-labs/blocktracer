@@ -1,0 +1,75 @@
+Expected elements: present
+
+Presence check first. Identity bar: chain exit `← aztec`, truncated hash, `Partial`, `block 101`, both stepping directions, the scrubber (grey #6B6B6B track, cyan #67E8F9 fill and thumb) and the readout `128 / 1315` as separate elements — both present and legible — plus the `FETCHING OPENING POSITIONING` rail. `CODE` positioned at line 32, `CALL TRACE | EVENT LOG` tabbed with Call Trace open, `VALUES`, `TRANSACTION` with the `DATA` row, blue `Synthetic demo data` badge and the producer's sentences. Dark register throughout, no light chrome, nothing forbidden.
+
+Measured, the emphasis ladder is sound: #E5E5E5 primary and #919191 secondary on the #1B1B1B pane surface give 5.47:1, and the DATA paragraph reads 6.75:1. This theme is designed, not inverted.
+
+Two role problems and two contrast floors. Cyan carries six meanings at once — executed-line gutter dot, the new `⊙` ran-marker, the current-position rail and line number, the scrubber fill, the active phase, and iteration chip `3` — mixing a coverage family with a position family in one hue. And there are three blues doing three unrelated jobs: indigo #818CF8 for links, cyan for position, #60A5FA for the provenance badge. Iteration chips 4–8 sit at 3.39:1 and the `⊙` glyph at 4.28:1 on its selection fill.
+
+Fixes: split cyan into a position hue and a coverage hue; lift the unvisited chips above 4.5:1.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L3/1",
+      "severity": "P2",
+      "location": "Code pane gutter (executed dots on lines 26–50, the `⊙` on line 32, the current-position rail), identity bar scrubber fill and active phase `FETCHING`, Code pane header iteration chip `3`",
+      "finding": "One cyan (#05B3D0 / #06B6D4, thumb #67E8F9) carries six distinct meanings on this screen: an executed-line dot, the new `⊙` branch-arm-ran marker, the current-position left rail and line number, the scrubber's elapsed fill, the active loading phase, and the current loop iteration. Two of those belong to a coverage family (this ran / this did not) and four to a position family (you are here). Because the current line is the only line carrying `⊙`, and it is also the only line carrying the cyan rail, a reader has no way to learn from this image whether cyan means \"ran\" or \"here\" — the page's newest semantic is rendered in the hue least able to carry it. Coverage and position need separate hues.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/2",
+      "severity": "P2",
+      "location": "Transaction pane DATA badge (#60A5FA) against the pane's `101:0` link and Call Trace `Self cost` (#818CF8) and the gutter/scrubber cyan (#06B6D4)",
+      "finding": "Three blues sit within one screen and mean three unrelated things: indigo #818CF8 for navigation (`← aztec`, `line 4`, `101:0`, `Self cost`), cyan for position/coverage, and #60A5FA for the `Synthetic demo data` provenance badge. The provenance badge is the odd one — it is neither a link nor a position, yet it is tonally between two hues that are, so at a glance it reads as another clickable chip. A provenance claim about synthetic data should not borrow the informational-link tone; it needs a role colour of its own, distinct from both.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/3",
+      "severity": "P2",
+      "location": "Code pane header, iteration chips 4–8",
+      "finding": "The unvisited iteration chips render #727272 numerals on a #202020 fill — 3.39:1, below the 4.5:1 floor for normal text, at roughly 11px. These are not a disabled control: they are the future iterations of the loop, and the reader is meant to compare 3-of-8 against how many remain. The tool rubric rewards density but §6 B2 explicitly refuses low-contrast small text as a way of buying it. The visited chips (1, 2) and the current chip clear the floor; only the state that carries the count fails it.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/4",
+      "severity": "P2",
+      "location": "Code pane gutter, line 32 — the `⊙` glyph on the selected-row fill",
+      "finding": "The `⊙` ran-marker is #06B6D4 on the #324155 current-row fill: 4.28:1, below the floor, in a glyph about 7px across whose meaning lives entirely in a 1–2px interior mark that separates it from `⊘`. Its counterpart `⊘` on line 29 sits on the plain #1B1B1B pane surface at 5.47:1, so the two halves of the same new three-state signal are rendered at different contrasts on different surfaces. The state that ran is the one rendered worse.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/5",
+      "severity": "P2",
+      "location": "Identity bar, phase rail — `FETCHING` active in cyan, `OPENING` and `POSITIONING` dim",
+      "finding": "The rail colours the first phase as active while every pane on the page shows a fully positioned session: the readout says step 128 of 1315, the call trace has seven frames, Values has ten resolved values and the Code pane has a current-position highlight. Cyan on `FETCHING` therefore says \"still loading\" over a surface that says \"loaded\". The phase rail is a required element and named phases are the right primitive, but the active-state colour has to agree with what the rest of the screen is asserting, or the one honest status indicator on the page is the one thing contradicting it.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/6",
+      "severity": "P3",
+      "location": "Page canvas behind and between the panes (#000000) against pane surfaces (#1B1B1B) and hairlines (#565656)",
+      "finding": "The canvas is pure black while the panes sit at #1B1B1B and their headers at #282828. Pure black is a wider step down than any other in the surface ladder, so the 5px inter-pane gutters read louder than the pane borders they sit beside, and the #565656 hairlines only reach 2.86:1 against the canvas. A dark-grey workspace behind the panes — the desktop app's convention — would let the border weight, rather than the void between panes, carry the structure.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/7",
+      "severity": "P3",
+      "location": "Identity bar `Partial` badge and Transaction pane `Partial` badge (#FB923C) against Values pane changed values `9000` and `2000` (#FCD34D) and the amber row rail on `remaining_shield`",
+      "finding": "Two ambers sit close enough to read as one role while meaning two different things — a transaction status on the badges and a changed-since-previous-step diff mark in the Values pane. They are far enough apart on the page not to be confusing yet, but the diff mark is the one that has to survive a dense pane of similar values, and sharing a family with a status badge costs it distinctiveness. One of the two should move off amber.",
+      "criterion": "B5"
+    }
+  ]
+}
+```

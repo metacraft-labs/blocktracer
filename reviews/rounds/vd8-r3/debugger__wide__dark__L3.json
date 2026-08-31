@@ -1,0 +1,82 @@
+Expected elements: present
+
+Everything required is on the surface: the near-black identity bar with the `aztec` exit, truncated hash, `Partial`, `block 101`, both stepping directions, scrubber, `128 / 1315` and the phase rail; `CODE` positioned at line 32; `CALL TRACE | EVENT LOG` as one tab strip with Call Trace open; `VALUES` as a pane below it; and `TRANSACTION`, whose first labelled row is `DATA` carrying a filled `Synthetic demo data` badge over the producer's own sentences. No band above the bar, no light chrome, no spinner.
+
+This theme is designed, not inverted — there are real surface levels, a cyan accent family, an amber/green status family and a genuine editor palette. On the fair question the brief raises: chromatically the provenance row is not too quiet. Its badge is the only inverted, near-black-on-light element in the pane, making it the highest-contrast object there.
+
+What is below bar is role discipline. Amber means both "the trace is Partial" and "this value changed at this step". Cyan means link, active tab, active phase and scrubber progress, so `FETCHING` reads as clickable. Badge fill encodes nothing — `Trace ready` is filled green and its peer `Not observable`, one line above it in the same EXECUTIONS row, is outline grey. And the new branch marks get no colour at all: `⊘` and `⊙` sit at the same neutral grey as the inert `·` markers beside them.
+
+Fixes: separate the changed-value hue from the completeness hue; give ran/did-not-run a tonal difference.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L3/1",
+      "severity": "P2",
+      "location": "Amber/orange: the `Partial` badge in the identity bar and again in the Transaction pane header, versus the `damage: 0→2000` chip at code line 32 and the values `9000` and `2000` in the Values pane",
+      "finding": "One hue carries two unrelated roles. Amber marks trace completeness on the two `Partial` badges, and amber marks changed-at-this-step on the inline chip at line 32 and on the two amber numerals in the Values pane. The changed-value role is otherwise the best colour work on the page — it is consistent across Code and Values, so one glance connects the chip to the row. But sharing its hue with a completeness badge means the reader has to use position, not colour, to know which claim is being made, and the two badges are at the top of the same eye path.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/2",
+      "severity": "P2",
+      "location": "Cyan: `line 4` and `Self cost` and `101:0` (links); the `src/shield.nr` tab underline and the iteration-3 chip underline (active); `FETCHING` in the phase rail (active phase); the scrubber's filled portion",
+      "finding": "One accent hue does four jobs. Three of them — link, active selection, progress fill — can defensibly share an accent in a tool. The fourth cannot: `FETCHING` in the phase rail is set in the same cyan as `line 4`, which is a link sixty pixels below it in the next pane, so a non-interactive status word is styled exactly like the page's interactive text. The phase rail is the element the register relies on to be read as honest reporting rather than as something to click.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/3",
+      "severity": "P2",
+      "location": "Code pane gutter, the `⊘` at line 29 and the `⊙` at line 32, against the `·` statement markers on every other line in the same column",
+      "finding": "The new three-state branch family is carried entirely by glyph shape with no colour support. Both marks read as the same neutral grey, and that grey is close to the inert `·` markers sharing the column, so the two states that carry meaning are not tonally separated from each other or from the decoration around them. This is the one place on the page where a state distinction gets no colour, in a theme that colours changed values, active phases, selected frames and trace completeness. A dim/normal tonal pair — did-not-run recessed, did-run at full emphasis — would make the family read at a glance and would also cover the case where the glyph itself is too small to resolve.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/4",
+      "severity": "P2",
+      "location": "Transaction pane, EXECUTIONS row — the `Not observable` badge on the `private` line and the `Trace ready` badge on the `public` line; compare `Synthetic demo data` (DATA), `Partial`, `Yes` (CANONICAL) and `Safe` (FINALITY)",
+      "finding": "Badge fill versus outline encodes nothing consistent. `Not observable` and `Trace ready` are direct peers — the two halves of one execution split, two lines apart — and one is an outline grey chip while the other is a filled green one. Elsewhere `Synthetic demo data` is filled, `Partial` is outline amber, and `Yes` and `Safe` are outline grey. So the page has four badge treatments and no rule mapping treatment to meaning; a reader cannot learn that filled means anything, which wastes the strongest contrast tool the palette has.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/5",
+      "severity": "P2",
+      "location": "The dim-grey band: inactive file tabs `Nargo.toml` / `Prover.toml` / `src/main.nr`; iteration chips 4–8; `OPENING` and `POSITIONING` in the phase rail",
+      "finding": "One very low-emphasis grey is used for three different kinds of de-emphasis at 10–11px — inactive-but-clickable (the file tabs), not-yet-reached (chips 4–8, which also differ from chips 1–2 only by this same opacity, so past-versus-future is carried by contrast alone), and pending phase (OPENING, POSITIONING). All three sit near the bottom of the contrast range on near-black. The phase names are the worst case: they are what tells the reader what happens after FETCHING, and they are set at the emphasis level the page otherwise reserves for inert decoration. Density is not the issue — one step up in luminance costs nothing.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L3/6",
+      "severity": "P3",
+      "location": "Code pane, line 32 — the left rail and row highlight on the current position, versus the left rail on line 29",
+      "finding": "Line 32 is simultaneously the current position and a branch arm that ran, and both facts are drawn at the pane's left edge in the same treatment family, so nothing in the colour separates 'you are here' from 'this arm executed'. Line 29 carries a rail too, which confirms the rail is the branch signal rather than the position signal — but only by inference from a second row. The position itself is not in doubt (the row band and the value chips carry it), which is why this is a nitpick and not a B5 failure; the ambiguity is about which of the two signals the rail belongs to.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/7",
+      "severity": "P3",
+      "location": "Code pane, line 40 (`initial_shield:Field, remaining_shield:Field`) against the comments at lines 41 and 56",
+      "finding": "The type green and the comment green sit close enough in hue and luminance that on line 40, where four `Field` annotations trail the parameter names, the type colour reads at first glance as the start of a trailing comment — particularly with the actual comment on line 41 directly beneath it in a very similar green. The editor palette is legitimately inherited here, so this is a preference rather than a defect, but widening the separation between the comment and type tokens is cheap.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L3/8",
+      "severity": "P3",
+      "location": "Pane boundaries between the Code pane, the Call Trace/Values column and the Transaction pane",
+      "finding": "Pane body surfaces sit only a few percent above the page background, so nearly all pane separation is done by the header strips — which are a clearer step up — plus a hairline border. It holds at 1920 because the three columns are wide and the headers align, but the Values pane's lower half and the empty region under the call trace read as page background rather than as pane interiors, which makes both look like gaps in the layout rather than panes with room left.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

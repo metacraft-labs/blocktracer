@@ -1,0 +1,96 @@
+Expected elements: present
+
+Identity bar (chain exit `← aztec`, truncated hash, `Partial`, both step directions, scrubber, `128 / 1315`, phase rail), Code pane with line 32 marked, the Call Trace/Event Log tab pair with Call Trace open, Values below it, and the Transaction pane whose first row is `DATA` + `Synthetic demo data` + the producer's sentences — all present. No band above the bar, no spinner, no empty pane.
+
+Typographically the panes are dense and the mono is doing the work it should: the call trace's ACIR column is tabular and right-aligned, the Values pane holds three levels (mono name, mono value, grey type) without a rule between them. The Transaction pane is where the type system thins out.
+
+Worst: the provenance sentences under `DATA` are set right-aligned over eight lines in a ~300 px measure, while the two paragraphs below them in the same pane are left-aligned — the claim the pane exists to carry is the hardest thing on the page to read. Next: one uppercase letterspaced style serves three levels there (`DECODED INPUT` and `EXECUTIONS` are section headings, `BLOCK` and `SELECTOR` are row labels, and nothing separates them). Numbers disagree across panes — `88000 / 200000` unseparated against the call trace's `1,315`. And `Showing from line 26 —` is UI copy set in the code face at code size.
+
+Fixes: left-align the provenance paragraph; give section headings a level of their own.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L1/1",
+      "severity": "P2",
+      "location": "Transaction pane, `DATA` row, the provenance sentences beneath the `Synthetic demo data` badge",
+      "finding": "The eight-line provenance paragraph is right-aligned, so every line starts at a different x in a ~300px measure. It is the only right-aligned paragraph in the pane — the `aztec private function executed client-side…` note and the `This selector is not in any ABI…` note further down are both left-aligned and are visibly easier to read. Ragged-left is a poor setting for prose at any measure and a bad one at this width, and it is applied to the single passage this row exists to deliver.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/light/L1/2",
+      "severity": "P2",
+      "location": "Transaction pane, every label from `DATA` down to `RAW (CHAIN-NATIVE)`",
+      "finding": "One uppercase, letterspaced, small style carries three different structural levels: section headings (`EXECUTIONS`, `DECODED INPUT`), row labels inside those sections (`SELECTOR`, `RAW`), and top-level row labels (`BLOCK`, `CANONICAL`, `FEE PAYER`). `DECODED INPUT` and the `SELECTOR` it contains are typographically identical, so the pane's nesting is only recoverable by reading the words and knowing the domain — hierarchy is not readable without reading.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L1/3",
+      "severity": "P2",
+      "location": "Transaction pane `COST · MANA` row versus Call Trace `ACIR opcodes` column",
+      "finding": "`88000 / 200000` is set without thousands separators while the call trace sets `1,315` and `1,208` with them, in the same viewport, both in mono. Two formatting conventions for five- and six-digit counts on one screen; the larger numbers are the ones left unseparated, so they are the harder pair to read at a glance.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L1/4",
+      "severity": "P2",
+      "location": "Code pane, the `Showing from line 26 — the session's position is below…` strip between the file tabs and line 26",
+      "finding": "UI copy is set in the monospace code face at the same size and near the same colour as the listing below it, so a sentence about the window reads as a line of the program. The pane's other UI text (`CODE`, the file tabs, `LOOP iterate_asteroids`) is differentiated; this string is not, and it sits directly above the code it describes where the confusion costs most.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L1/5",
+      "severity": "P2",
+      "location": "Transaction pane, `FEE PAYER` and `TARGET` rows",
+      "finding": "Both 40-hex addresses wrap onto a second, right-aligned line that breaks mid-byte (`…e2a272b5` / `e430d5d932`), producing a short ragged fragment with no ellipsis and no byte boundary. The identity bar and this pane's own first row truncate the same data type with a `…` instead, so the view uses two different strategies for hashes within 500px of each other.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L1/6",
+      "severity": "P3",
+      "location": "Transaction pane, first two rows",
+      "finding": "The truncated hash `0xb636167a…66d46359` is set larger and darker than the complete hash printed immediately beneath it, so the less informative form outranks the informative one and the pane opens by saying the same thing twice at two sizes.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L1/7",
+      "severity": "P3",
+      "location": "Code pane header strip, `Iteration 3 of 8`",
+      "finding": "`Iteration 3 of 8` is the largest and heaviest string anywhere in the Code pane — larger than the pane title `CODE`, than the active file tab `src/shield.nr`, and than the code itself. The loop coordinate is worth promoting, but at this weight it becomes the pane's headline and the file identity drops below the iteration chips.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L1/8",
+      "severity": "P3",
+      "location": "Call Trace pane, column header row, right-hand cell `ACIR opcodes`",
+      "finding": "The header cell mixes an all-caps letterspaced acronym with lowercase running text in one string, against the plain all-caps `FRAME` at the other end of the same row. The two ends of one header row read as two different type styles.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L1/9",
+      "severity": "P3",
+      "location": "Code pane gutter, lines 29 (`⊘`) and 32 (`⊙`)",
+      "finding": "The two branch-arm glyphs are drawn at roughly 9px, where the difference between them — an interior slash versus an interior dot — is about two pixels of detail. They read as one family and are clearly a pair with the plain `·` step dots, which is right, but at this size the ran/did-not-run distinction is carried mostly by colour and by the rail, not by the glyph. A one-step size increase for these two marks only would let the glyph carry its own meaning.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/light/L1/10",
+      "severity": "P3",
+      "location": "Code pane, right edge of lines 40, 48 and 53",
+      "finding": "Long signatures fade out mid-identifier (`shield_regen_perce…`, `damage: Field, r…`) against a soft mask. The fade is an honest 'there is more' signal, but it is only ~30px wide and there is no scrollbar or count, so a reader cannot tell whether one parameter or five are hidden — and on line 40 what is hidden is the end of a function signature.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

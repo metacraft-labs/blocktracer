@@ -1,0 +1,68 @@
+Expected elements: present
+
+Identity bar (exit `← aztec`, `0xb63616…6359`, `Partial`, `block 101`, eight stepping buttons in both directions, scrubber, `128 / 1315`, phase rail) present; `CODE` positioned at line 32; `CALL TRACE | EVENT LOG` as one tab strip with Call Trace open and seven frames; `VALUES` a separate pane below with eleven rows; `TRANSACTION` carrying `DATA` + `Synthetic demo data` + the producer's sentences. No band above the bar, no spinner, no empty pane.
+
+Removing the band was right, but the ~190 px came back as slack rather than as information. The middle column is now 47% empty: the Call Trace region holds 604 px and its content stops at y≈320, leaving ~348 px of blank pane under `By call order · Self cost`, while the Values pane ends 130 px short of its own floor and the Transaction pane beside it is cut mid-JSON at the viewport edge. The Code pane took its share as eight more rows at a 23 px pitch on 13 px type instead of a tighter listing.
+
+Small text mostly holds (line numbers 5.5:1, prose 5.8:1), with two exceptions: the iteration chips run 3.3–3.5:1, and the provenance paragraph — the pane's most important claim — is set right-aligned, nine ragged-left lines, unlike every other paragraph in that pane.
+
+Fixes: give the Values pane the call trace's dead height; left-align the `DATA` prose.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L4/1",
+      "severity": "P2",
+      "location": "Middle column — the Call Trace region below the `By call order · Self cost` footer, y≈322 to the region border at y≈670",
+      "finding": "This is the measurement the round asked for. The tabbed region occupies 604 px of the 1012 px column (60%); its seven frames run y≈125–305 and its footer ends at y≈320, so ~348 px — 57% of the region, 34% of the whole column — is blank pane. Meanwhile the Values pane below it ends at y≈945 with a further ~130 px of slack, and the Transaction pane in the next column is clipped mid-object inside the RAW (chain-native) block at the viewport floor. Two panes on this screen are showing less than they hold and the third is showing nothing at all in a third of a metre of column. The height belongs to whichever pane is truncated; on this fixture that is Values and Transaction, not Call Trace. The proportion should follow content, or the region should keep a fixed frame count and hand the remainder down.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/dark/L4/2",
+      "severity": "P2",
+      "location": "Code pane header, the iteration chip row — chips `1`–`8` beside `Iteration 3 of 8`",
+      "finding": "The chip fills for iterations 1–3 are #727272 and the numerals on them are ~13 px: white #dddddd on 1 and 2 gives 3.5:1, and the current chip's cyan #67e8f9 numeral gives 3.3:1. Both are under the 4.5:1 floor for text this size, and the worst of the two is the one that states where in the loop the session is. Chips 4–8 (grey on #202020) are fine. This is the row that carries loop position — the only place `3 of 8` is expressed as something clickable — so it is the wrong row to have the page's lowest text contrast. Darkening the ran-chip fill or setting the numerals white would fix it without changing density.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L4/3",
+      "severity": "P2",
+      "location": "Transaction pane, the `DATA` row — the nine-line paragraph beginning `Every block, transaction, address and` and ending `published under.`",
+      "finding": "The provenance sentences are right-aligned. Nine lines of body prose with a ragged LEFT edge is the slowest possible setting for continuous text, because every line start has to be re-found. It is also inconsistent inside its own pane: the two other explanatory paragraphs — `aztec private function executed client-side…` under EXECUTIONS and `This selector is not in any ABI BlockTracer holds…` under DECODED INPUT — are left-aligned and full-width. The alignment is inherited from the label/value grid this row sits in, where right-aligned values are correct for `Yes`, `Safe` and hashes; prose is not a value and should break out of that column. This is the element the band was removed in favour of, so it is the one that most needs to read cleanly.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L4/4",
+      "severity": "P3",
+      "location": "Code pane, the listing body y≈190–1075 — lines 26 to 61",
+      "finding": "The pane now runs the full height and shows 36 lines in ~890 px: a 23 px pitch on 13 px monospace, about 1.8 line-height. The rows are legible — that part of the change works — but the reclaimed height bought eight more rows rather than a denser listing, and inline value chips (`damage: 0→2000`, `+3`, `result=90`) already force extra leading on the rows that carry them, so uniform 23 px pays that cost on the 30 rows that do not. A 19–20 px base pitch with chip rows allowed to grow would show roughly eight further lines at the same legibility.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/dark/L4/5",
+      "severity": "P3",
+      "location": "Code pane gutter, x≈74–84 — the `⊘` at line 29, the `⊙` at line 32, and the statement dots on lines 26–28, 31, 34, 37, 40, 42–44, 46, 48–50, 53–54, 56–58, 60–61",
+      "finding": "The two branch glyphs do read as one family: same column, same ~9 px ring, each with its own left rail. They are separable at this size, but mostly by hue and rail colour (grey #919191 versus cyan #06b6d4) rather than by shape — the slash and the centre dot differ by about two pixels of ink, so at 100% a greyscale reader is distinguishing them on the rail alone. The third mark in that column is a different problem: the ordinary-line `·` peaks at a single cyan pixel per row, so a mark that appears on twenty lines is effectively invisible while the two that appear once each are the loudest things in the gutter. Nothing on the page names any of the three, so a reader learns the family by inference.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L4/6",
+      "severity": "P3",
+      "location": "Code pane right edge, x≈916 — lines 40 (`…shield_regen_perce`) and 53 (`…damage: Field,`)",
+      "finding": "Long lines are cut hard at the pane edge, mid-identifier, with no ellipsis, no fade and no visible horizontal scrollbar, so nothing indicates whether the rest of the signature exists or the pane simply ends. Clipping inside a code viewport is normal for this register and the fix must not be to wrap or to narrow the listing; a fade or a scroll affordance at the edge is enough to say the content continues.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

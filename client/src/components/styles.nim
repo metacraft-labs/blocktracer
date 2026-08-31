@@ -289,7 +289,15 @@ table.tbl td.num{text-align:right}
 .badge.lg{font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line);padding:var(--bt-space-2xs) var(--bt-space-sm)}
 .badge.coverage{border-radius:var(--bt-radius-full);background:none;gap:var(--bt-space-2xs)}
 .badge.coverage::before{content:'';width:var(--bt-space-xs);height:var(--bt-space-xs);border-radius:var(--bt-radius-full);background:currentColor;flex:0 0 auto}
-.dl dd > .badge:only-child{margin-left:calc(-1 * (var(--bt-space-xs) + var(--bt-stroke-hairline)))}
+/* `.dl dd .badge:only-child` and no longer `dd > .badge` — the value now sits
+   one element deeper, inside the wrapper `metaValue` returns. The wrapper
+   exists because the `data-provenance` attribute has to be conditional at the
+   `dd` and the isonim DSL emits an empty attribute rather than omitting one, so
+   the row body could not be written twice. `:only-child` means the same thing
+   at either depth: a badge that is the whole of its cell. Worth stating because
+   the breakage was SILENT — a descendant selector losing its subject drops an
+   optical correction with nothing to report it. */
+.dl dd .badge:only-child{margin-left:calc(-1 * (var(--bt-space-xs) + var(--bt-stroke-hairline)))}
 
 /* ── buttons: every variant sets its own background ─────────────────────── */
 .btn{font-size:var(--bt-type-body-sm-size);font-weight:var(--bt-type-h3-weight);line-height:var(--bt-type-body-sm-line);padding:var(--bt-density-control-y) var(--bt-density-control-x);border-radius:var(--bt-radius-md);display:inline-flex;gap:var(--bt-space-xs);align-items:center;justify-content:center;cursor:pointer;border:var(--bt-stroke-hairline) solid transparent;background:var(--bt-action-ghost-bg);color:var(--bt-action-ghost-fg);transition:background var(--bt-motion-fast) var(--bt-motion-ease),border-color var(--bt-motion-fast) var(--bt-motion-ease),color var(--bt-motion-fast) var(--bt-motion-ease)}
@@ -360,6 +368,11 @@ pre.raw{max-height:var(--bt-layout-code-max-height);overflow:auto;background:var
    .panenote.reason` gives the debugger's empty states. Three places, one
    relationship. `measure` caps it at the prose width so a three-sentence
    capture account does not set a 900px line inside a two-column grid. */
+/* The note row spans the grid — see `debugger_css`'s `.mddl dd.rownote` for
+   why. The explorer's `.dl` does not right-align its values, so this side never
+   had the alignment defect; it spans for the measure alone, and for the two
+   surfaces to render one row the same way. */
+.dl dd.rownote{grid-column:1/-1;padding-top:0}
 .dl dd .reason{color:var(--bt-text-muted);margin-top:var(--bt-space-2xs);
   font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line)}
 

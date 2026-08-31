@@ -1,0 +1,89 @@
+Expected elements: present
+
+Identity bar with chain exit, hash, `Partial`, both step directions, scrubber, `128 / 1315`, phase rail; Code positioned at line 32; Call Trace/Event Log in one tab strip, Call Trace open; Values its own pane; Transaction pane opening with `DATA`, badge and producer's sentences. No band, no spinner.
+
+This is a designed light theme, not an inverted dark one: a coherent neutral ladder (#ffffff / #ececeb / #dddddd / #a2a2a2), four text levels (#101010 / #242424 / #484848 / #565656) all above 6.7:1, and a light-native editor palette — #166534 comments, #6d28d9 numerals, #713f12 calls — none below 5.6:1. Nothing on the page is unreadable.
+
+The roles are where it slips. `Synthetic demo data` and the active `FETCHING` pill are the same two tokens, #dbeafe on #1e40af: one colour meaning both "this is not real data" and "the engine is doing this now". The cyan family carries four meanings in four shades — #a5f3fc position band, #164e63 position rail, #0e7490 the new ran-rail and `⊙`, #155e75 scrubber — and on line 32 three of them stack inside 8px, so the new "this arm ran" mark is the same hue as "you are here", drawn on top of "you are here". Its counterpart `⊘` is plain body grey at 9.15:1 while `⊙` sits at 4.29:1; the accent went to the unremarkable state.
+
+Fixes: give provenance a blue the loading phases do not use; take the ran-rail out of the position hue.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L3/1",
+      "severity": "P2",
+      "location": "Transaction pane `DATA` row badge (`Synthetic demo data`) and identity bar phase rail (`FETCHING`)",
+      "finding": "Both use the identical token pair — #dbeafe fill with #1e40af text and border. One colour role therefore means two unrelated things on one screen: 'the data you are looking at is not real' and 'the engine is currently in this phase'. Because the active phase pill is the only other saturated blue in view, the provenance badge inherits its in-progress reading, and the outlined-pill shape makes it look pressable besides. Provenance needs a tone that no transient state uses.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/2",
+      "severity": "P2",
+      "location": "Code pane gutter at lines 29–32, and the identity bar scrubber",
+      "finding": "Four cyans carry four meanings: #a5f3fc is the current-line band (and the selected call-trace row), #164e63 the current-position rail at x5-6, #0e7490 the new ran-arm rail at x7-8 and the `⊙` glyph, #155e75 the scrubber's filled portion; the plain `·` step dots are cyan too. On line 32 three of those shades stack inside eight horizontal pixels, so the mark that means 'this arm ran' is the same hue as the mark that means 'you are here' and is drawn immediately beside it on the band that also means 'you are here'. The one line where the new state appears is the one line where it cannot be read separately from position.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/3",
+      "severity": "P2",
+      "location": "Code pane gutter, `⊘` at line 29 versus `⊙` at line 32",
+      "finding": "The two members of the new pair are not one family in contrast or in role colour. `⊘` is #484848 on white at 9.15:1; `⊙` is #0e7490 on the #a5f3fc band at 4.29:1 — the weakest text-or-mark pair on the page, and more than a factor of two apart from its own counterpart. Worse, the emphasis is inverted: the accent goes to 'this ran', which is the unsurprising fact, while 'this did not run' — the fact worth finding — is drawn in #484848, the same grey as `Engine loading — 18 MB`, the `CODE` pane title and the provenance prose, so the skipped-branch state carries no status colour at all.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/4",
+      "severity": "P2",
+      "location": "Transaction pane, `DATA` row (label, badge and the sentences beneath)",
+      "finding": "The row has no surface tint, no border and no rule of its own. Its label is #565656, byte-identical to `BLOCK`, `RAW (CHAIN-NATIVE)` and the bar's `NOIR`; its sentences are #484848, byte-identical to the `aztec private function executed client-side…` footnote further down the same pane. Colour therefore gives the provenance claim exactly the weight of a routine footnote, and its only chromatic elevation is a badge that shares its tokens with a loading phase. Having removed a ~190px band, the row has swung to zero elevation — a light tint behind the row, or a provenance-only accent, would restore the claim without restoring the interruption.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/5",
+      "severity": "P3",
+      "location": "Values pane `remaining_shield` and `damage` rows, Code pane `damage: 0→2000` chip, and the `Partial` badge in both the identity bar and the Transaction pane",
+      "finding": "Amber carries two meanings. As diff it is excellent and consistent across panes — #854d0e text with an amber left rail in Values, an amber-bordered chip on line 32 — so 'changed at this step' reads the same everywhere. But `Partial` uses #ffedd5/#9a3412 from the same family as a transaction status, and the two uses sit about 300px apart with the Values pane's oranges directly below the badge. The shades differ enough to be told apart on inspection, not at a glance.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/6",
+      "severity": "P3",
+      "location": "surface tokens across the page — inter-pane gaps, Transaction pane JSON block, pane headers, Code pane value chips",
+      "finding": "#ececeb is both the page background showing through the 4px inter-pane gaps and the fill of the recessed JSON block inside the Transaction pane, so an inset surface is the same colour as 'outside all panes'. #f3f3f3 (the `Not observable` badge fill) sits seven units from #ececeb and is a functional duplicate rung. #dddddd serves as both every pane header fill and every inline value chip in the Code pane. The ladder works, but it has one rung too many and two rungs doing two jobs each.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L3/7",
+      "severity": "P3",
+      "location": "Call Trace pane footer (`Self cost`) and Transaction pane `BLOCK` row (`101:0`)",
+      "finding": "Both are #4f46e5 indigo with an underline — document-link chrome, and a fifth blue-family hue alongside #1e40af and the three cyans. In a tool pane an underlined indigo string reads as a navigation link rather than as the control `Self cost` appears to be, and it adds a hue that carries no role elsewhere in the register.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/8",
+      "severity": "P3",
+      "location": "Code pane, right-edge overflow fade on lines 40, 48 and 53",
+      "finding": "The fade bottoms out at about #ababab on white — 2.3:1 — partway through an identifier. As a mask that is the intent and it is legible where it matters, but on line 40 what dissolves is the tail of a function signature, and the gradient gives no cue how much is hidden. A fade that resolves at a token boundary, or a count, would not ask the reader to judge whether the grey characters are still text.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/light/L3/9",
+      "severity": "P3",
+      "location": "whole page palette",
+      "finding": "Every colour resolves to a default utility-framework ramp step — blue-100/800, green-100/800, orange-100/800, cyan-200/700/900, indigo-600 and the neutral greys. The result is cohesive, but the cohesion belongs to the ramp rather than to this product, which is also why two unrelated roles landed on exactly #dbeafe/#1e40af. Nothing in the surface colour says CodeTracer specifically the way the syntax palette does.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

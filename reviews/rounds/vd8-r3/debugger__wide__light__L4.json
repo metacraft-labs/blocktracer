@@ -1,0 +1,61 @@
+Expected elements: present
+
+Identity bar (exit to `aztec`, hash, `Partial`, block, eight stepping buttons, scrubber, `128 / 1315`, phase rail), Code pane positioned at line 32, Call Trace/Event Log as one tab region with Call Trace open, Values pane below it with ten rows, Transaction pane whose first labelled row is `Data` with a toned badge and the producer's own sentences. No provenance band above the bar, no prose band, no spinner, no empty pane, Values is not a tab.
+
+A genuinely dense tool surface, but the ~190 px the removed band returned was not spent on information: it went into leading and into a paragraph.
+
+The `Data` row is now the least dense element on the page — eight lines of right-aligned, ragged-left prose across a ~35-character measure, ~230 px (≈23%) of the Transaction pane, and it pushes the chain fields down far enough that `RAW (CHAIN-NATIVE)` is clipped at the viewport edge. Meanwhile the middle column is 46% empty: 332 px blank below `By call order.` and 129 px below `i`. Code sits at ~23 px pitch on ~13 px mono (≈1.75) — nine more lines would fit at desktop-app leading.
+
+Fixes: set the `Data` sentences left-aligned and full-width in the pane; let the tab region size to its frames so the column's slack is not stranded.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L4/1",
+      "severity": "P2",
+      "location": "Transaction pane, `Data` row — prose block beneath the `Synthetic demo data` badge",
+      "finding": "The provenance sentences are set right-aligned in a ~250 px column, so eight lines run ragged on the left edge the eye returns to; the block costs ~230 px, roughly 23% of the pane, and pushes the chain fields down until `RAW (CHAIN-NATIVE)` is clipped at the viewport bottom. Set left-aligned and full pane width it is four or five lines and the fields come back above the fold.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L4/2",
+      "severity": "P2",
+      "location": "Call Trace region, below the `By call order.` footer; and Values pane below the `i` row",
+      "finding": "Measured: the tabbed region runs y≈70–662 and its last frame ends at y≈301, leaving 332 px — 56% of the region — blank; Values runs y≈675–1080 with its last row at y≈951, leaving a further 129 px. 461 px, 46% of the middle column, is empty at a seven-frame fixture while the Transaction pane beside it is clipped. Neither pane should hold that height by fixed share: size the tab region to its frames and let Values take the remainder.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L4/3",
+      "severity": "P2",
+      "location": "Code pane, listing area (lines 26–61)",
+      "finding": "Line pitch measures ~23 px against ~13 px monospace glyphs — a line-height near 1.75, marketing leading in the register's densest pane. The pane just gained the band's ~190 px and spent it on air: at desktop-app leading the same area carries roughly nine more source lines, which is the difference between seeing the whole `calculate_damage` body and scrolling for it.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L4/4",
+      "severity": "P3",
+      "location": "Code pane gutter, lines 26–34 (`⊙` on 32, `⊘` on 29, `·` elsewhere)",
+      "finding": "The three coverage states read as one family and are unambiguous when magnified, but at 1:1 the glyphs occupy about seven pixels and `⊙` and `⊘` reduce to near-identical dark blobs — a centre dot versus a diagonal stroke is the whole distinction, and the 3 px rail beside them is the only cue that survives at a glance. The one state that is legible from across the pane, the teal `·`, is the least informative of the three.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/light/L4/5",
+      "severity": "P3",
+      "location": "Identity bar — the four stepping button pairs and the scrubber between them and `Engine loading`",
+      "finding": "Eight icon buttons carry no labels and no key hints, so the densest control cluster on the page is the only one that tells the reader nothing about itself; beside them the ~255 px scrubber is the widest element in the bar and encodes exactly the one number `128 / 1315` already states in text, with no frame or event structure along its length.",
+      "criterion": "B10"
+    }
+  ]
+}
+```

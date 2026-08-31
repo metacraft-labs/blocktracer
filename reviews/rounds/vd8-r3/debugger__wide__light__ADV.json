@@ -1,0 +1,31 @@
+Expected elements: present
+
+The single weakest element is the prose block of the `Data` row in the Transaction pane — the eight lines beginning "Every block, transaction, address and hash on this chain…", directly beneath the `Synthetic demo data` badge.
+
+It is the weakest because it is simultaneously the most important content on the page and the worst-set text on it. It is right-aligned: eight lines flush right and ragged on the left edge the eye returns to on every line — the only paragraph set that way in the whole product, and demonstrably not a decision, because the two lesser paragraphs lower in the very same pane (`EXECUTIONS`, `DECODED INPUT`) are set left. It reads as prose that fell into a value column and inherited its alignment.
+
+And the move did not buy what it was made to buy. The band cost ~190 px of viewport; this row occupies roughly 230 px of a ~1000 px pane — about 23% — so the cost was relocated and grown, not reclaimed, and it now pushes the pane's actual chain data down until `RAW (CHAIN-NATIVE)` is clipped at the viewport bottom. The row is not too quiet for its claim. It is too loud and too badly set, in the one pane whose job is fields.
+
+Left-aligned at full pane width the same sentences are four or five lines and the fields return above the fold. Nothing about the wording needs to change.
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/wide/light/ADV/1",
+      "severity": "P2",
+      "location": "Transaction pane, `Data` row — the paragraph beneath the `Synthetic demo data` badge, above the `BLOCK` row",
+      "finding": "The page's most important claim is its worst-set text. The eight sentences are right-aligned in a ~250 px column, ragged on the left edge the eye returns to, while the two other paragraphs in the same pane (`EXECUTIONS`, `DECODED INPUT`) are set left — so the provenance block matches nothing else in the product and reads as prose that fell into the value column and took its alignment. It also consumes ~230 px, about 23% of the pane, which means the ~190 px the band gave back to the viewport was relocated and grown rather than reclaimed, and it pushes the pane's own fields down until `RAW (CHAIN-NATIVE)` is clipped at the viewport bottom. Set left at full pane width the same sentences run four to five lines and the fields come back above the fold; the wording needs no change.",
+      "criterion": "B1"
+    }
+  ]
+}
+```

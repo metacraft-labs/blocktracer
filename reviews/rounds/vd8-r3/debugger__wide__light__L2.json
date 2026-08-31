@@ -1,0 +1,96 @@
+Expected elements: present
+
+The identity bar carries the chain exit, hash, `Partial`, both stepping directions, the scrubber, `128 / 1315` and the phase rail; Code is positioned at line 32; Call Trace and Event Log share one tab strip with Call Trace open; Values sits below it as its own pane; the Transaction pane opens with `DATA`, its badge and the producer's sentences. Nothing forbidden is on the page — no band above the bar, no full-width pane row, no page scrollbar.
+
+The three-column split is sound, but the vertical budget is spent in the wrong place. Below `By call order.` the Call Trace region runs ~345 blank pixels to the tab region's bottom edge at y≈672 — 57% of a 605px region — while the Values pane beneath it holds ten rows in 397px and the Transaction pane's JSON block is cut off by the viewport. The extra height the removed band bought went to the region that had the least to put in it.
+
+Inside panes the grid slips: the Transaction pane uses three rule treatments (none above `BLOCK`, full-bleed through `COST · MANA`, inset ~10px under `SELECTOR`/`RAW`) and three badge alignments in four rows. In the identity bar the gap between two stepping-control groups (16–25px) equals the gap between the scrubber and `Engine loading` (15px), so spacing does not express grouping. The `+3`/`+2` chips break the listing's 23px row rhythm.
+
+Fixes: move height from the tab region to Values; unify the Transaction pane's rules.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L2/1",
+      "severity": "P2",
+      "location": "middle column, Call Trace region between the `By call order.` footer (y≈325) and the region's bottom border (y≈672)",
+      "finding": "Roughly 345px of the tabbed region's ~605px height is blank — 57% of it — and it is bordered blank, so it reads as a pane with a hole rather than as breathing room. Directly below, the Values pane fits ten rows into 397px with only ~120px to spare, and the Transaction pane to the right is cut off mid-JSON by the viewport bottom. Two of the three panes are short and the one with slack is the one holding it. The measurement the change did not make: the Values pane, not the tab region, is the one that should have the height at this viewport.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/2",
+      "severity": "P2",
+      "location": "Transaction pane, horizontal rules between rows",
+      "finding": "Three rule treatments in one pane. The first four rows (`Partial`+hash, full hash, `Status reason`, `DATA`+prose) have no separators at all. `BLOCK` through `COST · MANA` are separated by hairlines that run full-bleed into the pane border on both sides. `SELECTOR` and `RAW` are separated by hairlines inset about 10px from each edge. The pane consequently reads as three stacked tables that happen to share a border, and the inset rules make `DECODED INPUT` look like a different component rather than a section of the same list.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/3",
+      "severity": "P2",
+      "location": "Transaction pane, badge positions across the `Partial`, `DATA`, `CANONICAL`/`FINALITY` and `EXECUTIONS` rows",
+      "finding": "One badge component is placed four different ways in the same 1000px column: `Partial` flush left at the label edge; `Synthetic demo data` flush right at the value edge; `Yes` and `Safe` flush right; `Not observable` and `Trace ready` inline immediately after the words `private` and `public`, left-of-centre. There is no rule a reader can infer for where a badge will be, so the pane has no scannable badge column in either direction.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/4",
+      "severity": "P2",
+      "location": "identity bar, from the divider after `block 101` (x≈345) to the phase rail (x≈1478)",
+      "finding": "The gaps between the four stepping-control groups measure 16–25px; the gap between the scrubber and `Engine loading — 18 MB` measures ~15px, and between `1315` and the phase rail ~17px. One spacing value therefore separates things that belong together (two halves of the stepping cluster) and things that do not (a control from a status readout). Only the identity block is set apart, by a divider and by tighter 5–9px internal gaps. From the divider rightwards the bar reads as an even run of nine objects rather than as three or four groups.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/5",
+      "severity": "P2",
+      "location": "Code pane, the overflow chips below lines 26 and 48",
+      "finding": "The `+3` and `+2` chips are pushed onto a half-row of their own beneath their line and right-aligned to the pane edge, so the listing's steady ~23px row pitch jumps to ~46px twice and the eye loses the line grid at exactly the two places it is asked to count. Worse, the `+2` belonging to line 48 lands about 25px above line 49's own `+2`: two identical chips stacked at the right margin, the upper one vertically nearer the line it does not belong to.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L2/6",
+      "severity": "P3",
+      "location": "Transaction pane, `SELECTOR` and `RAW` rows",
+      "finding": "The `0x` values sit roughly 3px below their labels' baseline in both rows, where `BLOCK`, `CANONICAL`, `FINALITY` and `COST · MANA` all baseline-align label and value. The offset is small but it is the only place in the pane where the two columns of a row do not sit on one line.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/light/L2/7",
+      "severity": "P3",
+      "location": "column widths — Code ~912px, middle ~605px, Transaction ~385px",
+      "finding": "The Transaction pane is narrow enough that both 40-hex addresses (`FEE PAYER`, `TARGET`) wrap to a second line, and the JSON block clips horizontally. Meanwhile the middle column is holding 345px of unused vertical space. The split was chosen without reference to the longest atomic value the narrowest pane must hold; ~60px taken from the middle column would put each address on one line.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/8",
+      "severity": "P3",
+      "location": "Code pane, bottom border at y≈1073, line 61",
+      "finding": "The listing is cut horizontally through the middle of line 61's glyphs by the pane border, with no fade and no partial-row mask — while the same pane's right-edge overflow on lines 40, 48 and 53 does get a soft fade. Two overflow treatments on the two axes of one pane.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/9",
+      "severity": "P3",
+      "location": "Code pane, inline value chips on lines 27, 28, 32, 49 and 50",
+      "finding": "Chips are placed wherever their code line happens to end — x≈322 on line 27, x≈345 on line 28, x≈490 on line 32, x≈740 on line 49, x≈290 on line 50 — forming a ragged second column, while the `+N` chips from the same family are right-aligned to the pane edge. Two alignment rules for one component within eight lines of each other.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/10",
+      "severity": "P3",
+      "location": "Values pane, `masses` row",
+      "finding": "The array `[100, 2000, 200, 100, 100, 50, 50, 14]` is right-aligned like every other value, so its left end reaches x≈1129 — about 150px from the `masses` label, where every other row leaves 250px or more. The value column therefore has no left boundary, and the one row that could use a gutter is the one that has none.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

@@ -1,0 +1,75 @@
+Expected elements: present
+
+Presence check first, with care on the two items that failed last round: the scrubber is there (track x673–832, elapsed portion #155e75 to x690, remainder #919191) and `128 / 1315` is a separate readout beside it. Provenance is the Transaction pane's `DATA` row with a `Synthetic demo data` badge (#1e40af on #dbeafe) and the producer's sentences; no band above the bar, and the badge's tone is informational rather than contradictory, so it is not the P1 the expectation warns of.
+
+This light theme is designed, not inverted. Four surface levels (page #ececeb, pane #ffffff, header #dddddd, chip #f3f3f3), a light-mode editor palette (#1d4ed8 keywords, #713f12 identifiers, #166534 comments, #8146de literals), and one teal family that means position everywhere it appears — scrubber fill, current-line rail #0e7490, call-trace selection rail #164e63, active iteration chip. The cyan #a5f3fc band on code line 32 and on the selected frame is the best thing on the page: one position, two panes, one colour.
+
+Against that: the same #919191 means "already run" on the iteration chips and "not yet run" on the scrubber 60px above; the provenance badge is drawn in exactly the tone the phase rail uses for the phase currently in progress; iteration chips 4–8 sit at 3.54:1; and the right-edge fade takes real code down to 1.6:1.
+
+Fixes: repaint the elapsed iteration chips into the teal family; give the provenance badge a tone the phase rail does not use.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L3/1",
+      "severity": "P2",
+      "location": "Identity bar scrubber (x691–832, y28–34) versus the iteration chips in the Code pane header (chips 1 and 2, x370–450, y90–118)",
+      "finding": "One grey, #919191, carries opposite meanings in two position widgets 60px apart. On the scrubber it is the unplayed remainder — the elapsed part is #155e75 teal. On the iteration chips it is the fill for iterations 1 and 2, which are the ones already executed, with the not-yet-reached chips 4–8 left unfilled. So a reader who learns \"grey means behind you\" from the chips reads the scrubber backwards, and vice versa. The teal family is used consistently for position everywhere else on the page (scrubber fill, current-line rail #0e7490, call-trace selection rail #164e63, the numeral and underline of active chip 3 at #164e63), which makes the grey fill on chips 1–2 the single element out of step with the page's own convention.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/2",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row badge `Synthetic demo data` (x1273–1426, y215–242) and identity bar phase rail chip `FETCHING` (x959–1035, y18–44)",
+      "finding": "Both are painted #1e40af on #dbeafe — not a family resemblance, the same two values. One is a permanent statement about what all the data on this page is; the other is a transient engine phase that changes as the session loads. The blue does not contradict the provenance label, so this is not a mislabelled tone, but it does mean the page's most load-bearing badge is toned identically to its most ephemeral status chip, and the two are visible simultaneously at opposite corners. The tone that says 'this is synthetic' should not be recoverable from the tone that says 'currently fetching'.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/3",
+      "severity": "P2",
+      "location": "Code pane, right edge x≈648–686 across lines 26, 40, 41, 42, 43, 48 and 49; and the notice row's last word \"in\" at x≈645–664, y168–184",
+      "finding": "The horizontal-overflow fade drives real characters below the contrast floor rather than clipping them. Measured across line 42, the literal `100` runs #8146de at 5.43:1 down to #be9fee at 2.24:1 within one token; line 26's tail reaches 1.80:1 and line 48's 1.67:1. Characters at 1.6–2.9:1 are present enough to look like content and too weak to read, which is the worst of both. It also lands on content that does not overflow at all: the notice wraps normally to \"this window.\" on its second line, yet its last word `in` is faded to #e7e7e7 — 1.24:1 — so a complete sentence reads as truncated. Not filed as P1 because the fade is a deliberate overflow signal and the sentence survives without the word, but the ramp needs to stop at a readable value or start further right.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L3/4",
+      "severity": "P2",
+      "location": "Code pane header, iteration chips 4–8 (x480–680, y90–118)",
+      "finding": "The not-yet-reached chips set their numerals in #727272 on the header's #dddddd fill — 3.54:1, under the 4.5:1 floor for text this size, and these numerals are about 11px. They are the only unvisited-state control on the page and they are also the smallest text in the header strip. Chips 1 and 2 manage 4.93:1 (#242424 on #919191) and the active chip 3 is fine, so the failing state is specifically the one a reader scans to answer \"how many iterations are left\".",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L3/5",
+      "severity": "P2",
+      "location": "Code pane gutter — the ⊙ mark on line 32 (x≈84–92, y376–388) and the ⊘ mark on line 29 (y306–318)",
+      "finding": "The two branch-arm states are carried by marks that both sit under the contrast floor. The did-not-run ⊘ is #787878 on white: 4.42:1. The did-run ⊙ is #43a1b6 on the #a5f3fc current-line band: 2.40:1 — and that is the only instance of the ran-state on the page, so the state with the most to prove is the least visible mark in the pane. Their accompanying rails do better (#484848 and #0e7490 at x7–8) but are 2px wide and 23px tall, and the rails are the only part of the encoding that clears the floor.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L3/6",
+      "severity": "P2",
+      "location": "Identity bar, phase rail (x959–1202) and the eight stepping buttons (x370–656)",
+      "finding": "`FETCHING` is toned as the live phase — filled #dbeafe with #1e40af text — while `OPENING` and `POSITIONING` sit at #565656 on white. Everything else on the page is toned as a finished, positioned session: eleven resolved values, a highlighted current line, a call trace with costs. None of the eight stepping buttons carries a disabled or pending tone; all eight use the same #101010 glyph on white. So the one element coloured as in-progress is contradicted by every other element's colour, and a reader cannot tell from the palette whether the controls are live.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/light/L3/7",
+      "severity": "P3",
+      "location": "Values pane changed rows (#854d0e text and left rail at x693, rows `remaining_shield` y622 and `damage` y790) versus the `Partial` badge (#9a3412 on #ffedd5) in the identity bar and Transaction pane",
+      "finding": "The warm family carries two unrelated meanings: 'this value changed at this step' in the Values pane and the code pane's `damage: 0→2000` chip, and 'the transaction only partly succeeded' in the two Partial badges. The hues differ enough (#854d0e amber-brown versus #9a3412 orange-red) that a careful reader will separate them, and their shapes differ — bare text with a rail versus a filled pill — so this is a nitpick rather than a role collision. But it is the one warm family on an otherwise teal-and-grey page, and it spends its salience on two things at once.",
+      "criterion": "B5"
+    }
+  ]
+}
+```

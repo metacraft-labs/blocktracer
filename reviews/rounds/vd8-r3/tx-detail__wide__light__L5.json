@@ -1,0 +1,71 @@
+Expected elements: MISSING — transaction age; transaction type in the overview grid; the 'supply an ABI' action.
+
+Three Must-show items are absent, so those are findings #1–#3, all P1, and the rating is capped at 4. No timestamp or relative age appears anywhere. Transaction type is not a grid row, though the raw block prints `"kind": "public-avm-call"`. The Decoded input note says "Supplying an ABI decodes them" but carries no control — a remedy named with no path to it, which in this product's honesty register is the same family of error as a retry that cannot succeed.
+
+I checked provenance independently: it is the `Data` row at the head of the facts grid, badge plus the producer's sentences, exactly one form. No band, and none belongs here.
+
+The page is on-register — light canvas, near-black type, geometric sans, minimal chrome. The copy is the strongest thing on it: every note names its cause and the condition that changes it, and none apologises. The provenance sentences ("the execution trace is real... but it is not the execution of the transaction it is published under") are exactly the tone this product claims.
+
+The brand accent is overloaded, though. Indigo-blue carries the primary button, the `On demand` chip, every link, and the provenance badge, so the one claim about whether these hashes exist wears the page's most ordinary colour.
+
+Fixes: give the ABI note a real control; give provenance a treatment nothing else on the page uses.
+
+Rating: 4/10
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "missing",
+  "missing": [
+    "Hero: age — no timestamp or relative age anywhere on the page",
+    "Overview grid: transaction type — no labelled row, though the raw JSON carries \"kind\": \"public-avm-call\"",
+    "Decoded input: the 'supply an ABI' action — the note describes supplying an ABI but offers no control that does it"
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/L5/1",
+      "severity": "P1",
+      "location": "Decoded input section, the bordered note below the SELECTOR / RAW rows",
+      "finding": "The note reads 'This selector is not in any ABI BlockTracer holds, so the parameters are shown as raw bytes. Supplying an ABI decodes them.' There is no button, link or upload control in the card or anywhere in the section — the second sentence names a remedy the page provides no path to. The expectation requires an action, not a description of one, and in this product's copy register a stated fix the reader cannot take is the same failure shape as a retry that cannot succeed: the sentence is true and the page is still not honest about what the reader can do next."
+    },
+    {
+      "id": "tx-detail/wide/light/L5/2",
+      "severity": "P1",
+      "location": "hero, between the `Succeeded` badge and the full hash line, and the Overview grid",
+      "finding": "The transaction's age is absent from the entire page. The hero carries eyebrow, truncated hash, status badge and full hash; the grid runs DATA, BLOCK, CANONICAL, FINALITY, FEE PAYER, TARGET, COST·MANA. With `Pending` finality shown and no time anywhere, the page states a provisional condition without letting a reader judge how provisional it is."
+    },
+    {
+      "id": "tx-detail/wide/light/L5/3",
+      "severity": "P1",
+      "location": "Overview grid, missing row",
+      "finding": "Transaction type has no labelled row in the Overview grid. The fact is on the page only inside the Raw (chain-native) block as \"kind\": \"public-avm-call\", so the labelled-facts surface — the part of the page written for a reader rather than for a machine — omits what kind of transaction this is."
+    },
+    {
+      "id": "tx-detail/wide/light/L5/4",
+      "severity": "P2",
+      "location": "Overview grid, DATA row — the `Synthetic demo data` badge — against the `On demand` chip in the trace card, the `102:0` block link and the breadcrumb links",
+      "finding": "The provenance badge is drawn in the same indigo-blue outline-on-white vocabulary as the `On demand` trace-state chip, and in the same hue as every link on the page and the Generate trace button. The brand accent is therefore doing four jobs at once — primary action, routine state, hyperlink, and the single claim about whether these hashes exist on any network. The row's sentences carry the claim well, but a reader scanning the grid meets a chip that looks exactly like the state chip two sections above it and slides past. Answering the question the row was moved here to answer: the row is enough to be found by someone reading the grid, and not enough to stop someone skimming it, because nothing about its treatment is reserved to provenance.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail/wide/light/L5/5",
+      "severity": "P3",
+      "location": "hero `Succeeded` badge, trace card `On demand` chip, grid `Synthetic demo data` / `Yes` / `Pending` badges",
+      "finding": "One badge primitive is rendered two ways within 400 px of vertical: `On demand` is a full-radius pill with a leading status dot, while `Succeeded`, `Synthetic demo data`, `Yes` and `Pending` are rounded rectangles without one. Three outline colours (green, indigo, grey) is a defensible role split; two geometries for the same primitive is not, and the pill-with-dot reads as a different component family rather than a different state of the same one.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail/wide/light/L5/6",
+      "severity": "P3",
+      "location": "Raw (chain-native) section, the preformatted JSON block",
+      "finding": "The only preformatted region on the page is set entirely in flat near-black monospace — keys, string values and punctuation identical. This is the page's one opportunity to take the product lineage's editor tokens into an explorer-register surface, the brief's single sanctioned register crossing, and it is spent on monochrome. Chain-native JSON is data rather than source, so this is a preference rather than a violation, but tokenising the keys would say 'CodeTracer' at no cost to the explorer register.",
+      "criterion": "A8"
+    }
+  ]
+}
+```

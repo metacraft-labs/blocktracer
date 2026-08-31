@@ -1,0 +1,75 @@
+Expected elements: present
+
+Presence check first. Identity bar spans the full width at y0–60 and carries `← aztec` (chain exit — correct), the truncated hash, `Partial`, `block 101`, both stepping directions, a scrubber track at x672–833 with a cyan fill and thumb, the readout `128 / 1315` at x866–938 as a separate element, and the three-phase rail. Scrubber and readout are both present and unclipped at 1440. Below: one row of three columns — Code (x5–685), the `CALL TRACE | EVENT LOG` tab region over `VALUES` (x690–1145), and `TRANSACTION` (x1150–1435). Call Trace is the open tab; Values is a pane below the strip, not a third tab. No band above the panes, no full-width pane row, no page scrollbar.
+
+The column split is sound; the vertical split inside the middle column is not. The tab region takes 492px of the column's 827px and 233px of it — 47% — is empty below `By call order.`, while the Values pane below it takes 327px, ends 33px from the bottom and has already had to wrap `masses` onto two lines. The height sits in the region that does not want it.
+
+The Code pane clips six lines mid-token at its right edge with no scrollbar, fade or ellipsis, and clips line 52 to half height at its bottom edge. Inline value badges land on four different x positions with no anchor.
+
+Fixes: give the tab region content height and the surplus to Values; give the code edge an overflow affordance.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L2/1",
+      "severity": "P2",
+      "location": "Middle column — the Call Trace / Event Log tab region (y66–558) and the Values pane below it (y566–893)",
+      "finding": "The measurement the Watch-for item asks for: the tab region is 492px of the column's 827px (60%). Its content — tab strip, FRAME header, seven frames and the `By call order. / Self cost` footer — ends at y322, leaving 233px empty, 47% of the region. The Values pane gets the remaining 327px, fills it to y860 with ten rows, and has already wrapped the `masses` array onto a second line to fit. So the fixed 60/40 split hands half a region of dead space to the pane that is a third full and squeezes the pane that is overflowing. The split should be content-driven, or the surplus should go to Values; at this fixture the region needs about 260px and Values could use every pixel of the rest.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/2",
+      "severity": "P2",
+      "location": "Code pane, right edge at x≈684 — lines 26, 41, 42, 43, 48 and 49",
+      "finding": "Six lines are cut hard at the pane border in the middle of a token — line 26 ends `…(initial_shield, re`, line 42 ends `…after each h`, line 49 ends `…initial_shield as u` — with no horizontal scrollbar, no fade, no ellipsis and no wrap. Nothing on the page tells the reader that content continues to the right or offers a way to reach it, so a line that is cut is indistinguishable from a line that ends there. Horizontal overflow in a code listing is normal; silently absorbing it at a hairline is not. Not raised to P1 only because the pane is a listing rather than a container leaking content, and the position line 32 is fully visible.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/3",
+      "severity": "P2",
+      "location": "Code pane, inline value badges on lines 26, 27, 28, 32, 48, 49 and 50",
+      "finding": "The badges have no anchor and no column. `damage=0` sits at x≈325, `shield_pct=90` at x≈350, `damage: 0→2000` at x≈490, `result=90 →90` at x≈290, and the `+3`/`+2` overflow chips are pushed right to x≈612–640 on rows of their own. Three different alignment strategies — trailing the code, floating mid-pane, and flush to the pane's right inset — inside one twenty-six-row listing. The eye cannot form a scan lane for the value overlay, which is the whole reason the overlay exists.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/4",
+      "severity": "P2",
+      "location": "Column widths — Transaction pane (285px) against Code pane (680px)",
+      "finding": "The narrowest column carries the page's widest atoms. The Transaction pane is 285px and must render 64-character hashes (FEE PAYER, TARGET) and a thirteen-line paragraph in it, so both wrap badly; the Code pane has 680px and still clips its lines. At laptop width the Transaction pane is the column that should have taken width from Code, whose listing is left-heavy and whose right third is mostly whitespace between the code and the pane edge on twelve of twenty-six rows.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/5",
+      "severity": "P3",
+      "location": "Code pane, bottom edge at y≈888 — line 52",
+      "finding": "The listing's last row is clipped at roughly half its height, showing the top halves of the glyphs `52`. The pane ends mid-row rather than on a whole one, so the bottom edge reads as a rendering failure rather than a scroll boundary. A listing pane should either round its height to a whole number of rows or mask the partial row.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/6",
+      "severity": "P3",
+      "location": "Code pane header stack, y66–202",
+      "finding": "Four stacked header rows — the `CODE` title, the loop/iteration strip, the file tab row, and the two-line \"Showing from line 26…\" note — consume 136px before the first line of code at y213, 16% of the pane's 827px height. Three of the four are separated by the same gap, so the stack reads as four peers rather than a title with two subordinate strips; proximity is not doing any grouping here.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/7",
+      "severity": "P3",
+      "location": "Values pane, `masses[2]` row beneath `masses`",
+      "finding": "The child row is indented roughly 8px from its parent `masses` — about half a character of the mono face. At that offset the indentation reads as a misalignment rather than as nesting, especially with no guide rule, while the Call Trace pane two panes above expresses the same relationship with both a clear indent step and a vertical guide. The two panes should use one nesting primitive.",
+      "criterion": "B6"
+    }
+  ]
+}
+```

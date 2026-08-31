@@ -1,0 +1,68 @@
+Expected elements: present
+
+Presence check first, with care on the scrubber. The identity bar shrinks rather than dropping anything at 1440: `← aztec`, hash, `Partial`, `block 101`, both stepping directions, a 160px scrubber track with a proportional cyan fill at ~10%, the readout `128 / 1315` beside it as a separate element, and the three named phases. Both required position elements are present and readable. `CODE` positioned at line 32, `CALL TRACE | EVENT LOG` tabbed with Call Trace open and seven frames, `VALUES` with ten values, `TRANSACTION` carrying the `DATA` provenance row. Nothing forbidden.
+
+Where information genuinely lands, this is dense and scannable: the ACIR column is tabular across four magnitudes, the Values pane packs ten rows into 270px, the call trace shows depth with indent plus guides.
+
+The density failures are all budget failures. 233px — 47% of the tab region — is empty below the last frame. The provenance paragraph takes 325px, 39% of the Transaction pane, to say what its badge already says, pushing seven metadata rows into the bottom 40%. The Code pane spends 136px on four header rows and then runs a 23px pitch on 13px type, showing 26 lines where 34 would fit at desktop-app line-height — in a pane whose own note says the position window is clipped.
+
+Fixes: give the tab region's surplus to Values; tighten the listing pitch and cap the provenance prose.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L4/1",
+      "severity": "P2",
+      "location": "Middle column, Call Trace region below the `By call order. / Self cost` footer (y322–555)",
+      "finding": "The measurement the Watch-for item asks for and which had not been taken: the tab region occupies 492px of the column's 827px, its seven frames and footer end at y322, and 233px — 47% of the region — is empty. At the 25px row pitch the pane uses, that void would hold nine more frames. Meanwhile the Values pane beneath it has 327px, fills to y860, and has had to wrap `masses` onto two lines to fit ten values. In a register whose rubric names density a virtue, the fixed split gives half a region of nothing to the pane that is a third full and starves the pane that is overflowing. The Values pane is the one that should have the height at this fixture.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/2",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row — badge plus the thirteen-line paragraph, y220–545",
+      "finding": "This is the fair question the move invites, and the honest answer is that the row is not too quiet — it is too expensive. The provenance block runs 325px of the pane's 827px, 39%, which is a larger share of the pane it moved into than the 17% the band cost the viewport it moved out of. It pushes BLOCK, CANONICAL, FINALITY, FEE PAYER, TARGET, COST·MANA and EXECUTIONS into the bottom 40% of the column, and TARGET and FEE PAYER each burn three lines wrapping as a result. The badge `Synthetic demo data` already carries the claim at a glance; three sentences at a 24-character measure is the most expensive way to carry the rest. Two lines with the remainder on demand would keep the claim and return roughly 200px to the metadata.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/3",
+      "severity": "P2",
+      "location": "Code pane, listing rows 26–52",
+      "finding": "The listing runs a 23px row pitch on roughly 13px monospace — a line-height near 1.75, against the 1.35–1.45 a desktop debugger uses. Twenty-six source lines are visible in the 690px of listing area; at a 19px pitch it would show thirty-four. This matters more here than usual because the pane's own note says the session's window starts at line 26 and the lines above are not shown, so the reader is already short of context, and eight more rows is the difference between seeing the whole of `calculate_shield_regeneration` and seeing most of it. Tightening the pitch shows strictly more, so this is a finding rather than a tension.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/4",
+      "severity": "P2",
+      "location": "Code pane header stack, y66–202",
+      "finding": "136px — 16% of the pane — goes to four stacked header rows before the first line of code: the `CODE` title, the loop/iteration strip, the file tab row, and a two-line prose note. Three of those four are metadata about the listing rather than the listing. The note in particular restates in 110 characters what the line-number column already shows by starting at 26, and it costs two full code rows to do it. The header stack is the single largest block of non-content in the pane that has the most content to show.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/5",
+      "severity": "P3",
+      "location": "Code pane gutter — `·` on lines 26–50, `⊘` on line 29, `⊙` on line 32, blank on lines 30, 33, 36, 38, 39, 45, 47, 51",
+      "finding": "Three coverage states plus an ordinary executed dot are carried by marks roughly 4–7px wide in a 14px gutter. `ran` (a dot) versus `cannot tell` (nothing) is a four-pixel difference; `did not run` (`⊘`) versus `ran-branch-arm` (`⊙`) is a one-to-two-pixel interior difference. The information is genuinely there and the three states are genuinely distinct, which is a real gain over the previous round — but at this size the distinction is only available to a reader who already knows the legend, and there is no legend on the page. A slightly wider gutter would cost 6px and make the newest signal on the pane actually readable.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/6",
+      "severity": "P3",
+      "location": "Code pane, right edge — lines 26, 41, 42, 43, 48, 49",
+      "finding": "Six of twenty-six visible lines are cut at the pane border and the cut content is simply gone at this viewport, with no marker of how much is missing. Line 42's comment and line 49's expression are both cut mid-token. The right thing was dropped in the sense that the current position and the gutter survived, but a reader cannot tell a truncated line from a complete one, so the pane understates how much of the source it is actually withholding.",
+      "criterion": "B1"
+    }
+  ]
+}
+```

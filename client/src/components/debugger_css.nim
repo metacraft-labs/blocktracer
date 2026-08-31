@@ -1169,6 +1169,16 @@ a.ctrow,a.evrow{cursor:pointer}
   overflow-wrap:break-word;
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
 .mddl dd .identifier{word-break:break-all}
+/* THE NOTE ROW SPANS BOTH COLUMNS AND SETS FLUSH-LEFT.
+   `.mddl dd` is `text-align:right`, which is right for a value and wrong for a
+   paragraph; inheriting it set the provenance evidence flush-right and
+   ragged-left at a ~28-character measure, in a pane whose other two paragraphs
+   are flush-left. It was named the page's single weakest element by three
+   adversarial reviewers on three different triples. Spanning the grid also
+   reclaims the empty label gutter beside it, which is most of why the row was
+   tall enough to be measured at 39% of the pane. */
+.mddl dd.rownote{grid-column:1/-1;text-align:left;padding-top:0}
+
 /* `MetaRow.note` in the transaction pane — the provenance row's evidence, which
    in this register is the ONLY provenance marker there is: `debugLayout` has no
    nav, no footer and, since the band was reserved for abnormal states, no strip

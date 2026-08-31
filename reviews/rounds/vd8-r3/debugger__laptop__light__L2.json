@@ -1,0 +1,75 @@
+Expected elements: present
+
+Presence verified, including the two items that failed here last round: the scrubber is a 160px track at x673–832 (fill x673–690 for step 128 of 1315), and the position readout `128 / 1315` is a separate object at x849–933. Provenance is the `DATA` row inside the Transaction pane at y≈215–555; nothing sits above the identity bar. Code with the current line 32, the Call Trace | Event Log tab strip with Call Trace open, Values, and both stepping directions in the bar.
+
+The grid is real: a 4px page margin on all four sides, 4px gutters between all three columns and between the two panes in the middle column, and pane headers at a consistent 25–26px. Columns are 683 / 454 / 287px.
+
+Where it goes wrong is distribution. The tabbed region ends its content at y320 and its pane at y561 — 241px, 49% of the region, blank — while the Code pane clips line 52 in half at its bottom edge and fades out the right end of seven lines. The identity bar puts identical 16px gaps between all six of its control objects, so nothing groups. Three code rows are 44px tall against a 23px rhythm because the overflow chips drop to their own line.
+
+Fixes: give the tabbed region's 241px to the panes that are clipping; differentiate the identity bar's inter-group gaps from its intra-group ones.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L2/1",
+      "severity": "P2",
+      "location": "Call Trace region (x691–1144, y68–561) — the area below the \"By call order. / Self cost\" footer row",
+      "finding": "The region's last ink is at y320; the pane ends at y561. That is 241px of empty white, 49% of the region's 494px height and 27% of the viewport height, in the middle of the layout. The Values pane below it is not the pane asking for that space either — its eleven rows end at y860 against a pane bottom of y895, so it fits with 35px to spare. The column that is actually short of room is the Code pane, which clips a half row of line 52 at y887–895 and fades out the right end of lines 26, 40, 41, 42, 43, 48 and 49. As drawn, the emptiest area on the page is adjacent to the only pane clipping content in both axes, and the split is fixed rather than responsive to either.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L2/2",
+      "severity": "P2",
+      "location": "Identity bar, x370–933 — the four stepping button groups, the scrubber and the position readout",
+      "finding": "Measured gaps across that span are 16, 16, 16, 16, 16 and 11px: between step-back/forward and step-in/out, between step-in/out and the frame jumps, between those and the ends-of-trace pair, between the last button group and the scrubber, and between the scrubber and `128`. Six objects of three different kinds are separated by one distance, so proximity does no grouping work at all and the bar reads as a strip of unrelated buttons with a bar and a number stuck on the end. The bar can clearly group when it wants to — the identity cluster on the left uses 8–9px internally with a rule and 24px after it, and the phase rail gets 25px — which makes the flat 16px run in the middle look unconsidered rather than intentional.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/3",
+      "severity": "P2",
+      "location": "Code pane, rows for lines 26→27 (y218→262), 48→49 (y753→797) and 49→50 (y797→841)",
+      "finding": "The listing's baseline pitch is 23px for twenty-three of its twenty-six rows. Three rows are 44px because the `+3` / `+2` overflow chip cannot fit beside the code and drops onto a half-height line of its own, right-aligned at x613–637 where it aligns with nothing — not the code's left indent, not the value chips it summarises, not the pane's right edge. The result is three double-height gaps scattered down the pane, which in a numbered listing is the one place an irregular vertical rhythm is actively misleading: the eye reads distance between line numbers as distance in the file.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/4",
+      "severity": "P2",
+      "location": "Code pane, notice row at y165–205 — the word \"in\" at the end of the first line (x≈645–664)",
+      "finding": "The right-edge fade that signals horizontal overflow of the code is painted over the whole pane body, including the wrapped notice above it. The notice does not overflow — it wraps normally to \"this window.\" on the second line — but its first line's last word is dimmed to roughly the fade's midpoint, so the sentence reads as though it has been cut off. An overflow affordance applied to content that does not overflow is worse than no affordance: it makes a complete sentence look truncated and, by the same token, weakens the signal on the seven code lines that really are cut.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/5",
+      "severity": "P2",
+      "location": "Three-column split — Transaction pane at x1149–1435 (287px) versus Code at 683px",
+      "finding": "At this viewport the pane squeezed hardest is the one whose content has the highest minimum width. The Transaction pane's value column is about 17 characters wide, which forces both 66-character hashes (FEE PAYER y655–700, TARGET y726–780) to wrap onto three lines with a two-character orphan on the third, and forces the DATA paragraph into eleven lines. The Call Trace column beside it, at 454px, is showing seven frames whose longest row ends 10px short of its own right edge and has 241px of empty height. Width was taken from the pane that could not give it and left with the pane that did not need it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/6",
+      "severity": "P3",
+      "location": "Left content edges — Call Trace pane (tab label x700, FRAME header x702, frame rows x706) and identity bar (x24) versus pane titles (x13)",
+      "finding": "Four left edges stack in the Call Trace pane at 700, 702 and 706, differences of 2px and 4px that are too small to read as an intentional indent and too large to look flush; the Values pane repeats it at 700 versus 703. The Transaction pane, by contrast, aligns its title and every row label at exactly 1158. Separately, the identity bar insets its content 24px from the page edge on both sides while every pane insets its title 9px, so the top strip's left and right edges sit visibly inside the grid they head.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/7",
+      "severity": "P3",
+      "location": "Code pane, bottom edge at y887–895 — line 52",
+      "finding": "The last row is bisected by the pane's bottom border: the numerals of `52` are cut through the middle, with no scrollbar or fade at the bottom edge to say that more follows. A half-row at the foot of a scroll container is a normal editor convention, but here it is the only edge of the pane with no overflow signal at all — the right edge has a fade, this one has nothing — so the pane appears to end mid-glyph by accident.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

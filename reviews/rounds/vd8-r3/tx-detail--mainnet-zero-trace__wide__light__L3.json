@@ -1,0 +1,68 @@
+Expected elements: present
+
+All MUST-SHOW items are present and readable in this theme: nav and resolver, breadcrumb, hash with outcome badge, the `Not observable` badge with the published pruning reason and the permanence sentence, the affirmative provenance marker as the Overview grid's first `Data` row (badge plus the capture's own sentences — a row, not a band, and the only marker on the page), all sections with permanent-tense empty copy, and a footer whose heart, CodeTracer and GitHub marks are all drawn and clearly visible against the surface. No error colour and no danger tone anywhere, which is the right call and the hardest one.
+
+The theme reads as designed rather than inverted: a warm neutral canvas, white cards above it, one restrained green accent family, near-black body type well above the contrast floor.
+
+Two colour-role problems. Green carries three unrelated meanings on one screen — transaction outcome (`Succeeded`), finality phase (`Finalized`) and data provenance (`Real Aztec mainnet data`) — so provenance, which is a category of data rather than a status, scans as a third "everything is fine" chip. And the `Not observable` badge is toned exactly like the `Yes` canonicality chip: the page's defining state gets the same colour weight as a routine boolean while three green chips take the eye first. Colour therefore ranks this page's information backwards, even though every individual choice is defensible.
+
+Fix first: give provenance a tone outside the status family, and let `Not observable` carry more neutral weight than `Yes`.
+
+Rating: 7/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "reviewer": "L3",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/1",
+      "severity": "P2",
+      "location": "The Succeeded badge beside the H1, the FINALITY row's Finalized badge, and the DATA row's Real Aztec mainnet data badge — all in the Overview grid or directly above it",
+      "finding": "One green, three meanings, all visible at once: execution outcome, consensus phase, and the provenance of the data itself. The first two are statuses of the transaction; the third is a claim about where the bytes came from and is not a status at all, yet it is the affirmative green that the page has just taught the reader means \"this succeeded\". The result is that the Overview grid opens with what scans as a third approval chip rather than as a source attribution. The expectation asks for an affirmative tone here and that is right — but affirmative does not have to be the same swatch as the outcome badge. A distinct treatment (different hue in the accent family, or a filled versus outlined split) would keep the tone affirmative while letting each colour mean one thing.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/2",
+      "severity": "P2",
+      "location": "Not observable badge in the notice card, versus the Yes chip in the Overview grid's CANONICAL row",
+      "finding": "The two are tonally identical — dark text, near-white fill, hairline neutral border, the badge's leading dot the only difference. Neutral is the correct family here (an error or warning tone would be the P1 this page exists to avoid), but neutrality has been applied at the same strength to the single fact that distinguishes this transaction from every other one on the site and to a routine boolean. Against three saturated green chips, the page's most consequential state is also its quietest coloured element, so a reader scanning by colour alone takes away \"succeeded, canonical, finalized, real data\" and never reaches the reason. A stronger neutral — a filled surface, a darker border, or a distinct emphasis tone — would carry the weight without implying failure.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/3",
+      "severity": "P3",
+      "location": "Breadcrumb (Home, aztec-mainnet) and the Overview grid's BLOCK link, versus the footer link rows (About, Chains, Privacy & settings) and the provenance strip links (Metacraft Labs, CodeTracer, Source on GitHub)",
+      "finding": "Links appear in two colours on one page: an accent blue in the breadcrumb and in the BLOCK cell, near-black in the footer's two link rows and the provenance strip. All are underlined, so the underline rather than the colour is the only reliable signal a reader can learn. The de-emphasis reads as deliberate for footer chrome, but it means the accent hue does not have a single role: it is a link colour above the fold and a brand colour below it.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/4",
+      "severity": "P3",
+      "location": "Overview and Decoded-input grids, label column (DATA, BLOCK, CANONICAL, FINALITY, COST · TRANSACTIONFEE, SELECTOR, RAW) and the page eyebrow TRANSACTION",
+      "finding": "This is the page's lowest-contrast text-on-surface pair: mid-grey uppercase set very small on the tinted label column. It is legible here, but it sits closer to the floor than anything else on the page while also being the smallest type, which is the combination the floor exists to prevent. The green badge text on its pale green fill is the next lowest pair. Both would benefit from a step of darkening rather than being left at the threshold.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/5",
+      "severity": "P3",
+      "location": "Overview and Decoded-input grids — the tinted label column against the page canvas",
+      "finding": "The label column's tint and the page canvas sit at almost the same value, so the grid's left column visually continues into the canvas and only the container's hairline border keeps the grid contained. The surface ladder is otherwise clear (canvas, white card, tinted cell); pushing the label tint one step away from the canvas value — or the canvas one step away from it — would make the grid read as a discrete object rather than as a white column floating on a grey field.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/6",
+      "severity": "P3",
+      "location": "Footer provenance strip — the heart in \"Built with\" and the CodeTracer mark",
+      "finding": "Both marks are properly drawn vector glyphs, clearly visible against the footer surface, with no tofu, no emoji-presentation fallback and no invisibility — the P1 conditions do not apply. They are, however, rendered in the brand blue rather than taking their colour from the near-black sentence they sit inside, while the GitHub mark on the line below does inherit the text colour. Within one four-line strip the same class of inline mark is therefore coloured two different ways.",
+      "criterion": "A8"
+    }
+  ]
+}
+```

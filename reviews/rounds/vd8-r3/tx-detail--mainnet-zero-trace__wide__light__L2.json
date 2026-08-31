@@ -1,0 +1,66 @@
+Expected elements: present
+
+Every MUST-SHOW item is laid out and visible: fixed nav clear of the body, breadcrumb, hash with outcome badge, the `Not observable` card carrying the pruning reason and the permanence sentence, the affirmative provenance marker as the first `Data` row of the Overview grid (a row, not a band — exactly one marker on the page), all five content sections with their permanent-tense copy, and a footer that ends the page. No forbidden control, trace artefact, blame or danger tone. Nothing overflows, nothing clips, no horizontal page scroll: even the 66-character fee hex stays inside its cell.
+
+Structurally the column holds a single left edge from the breadcrumb to the footer disclosure, and the provenance row does land before the empty sections. Two things spoil it. The column has two right edges: the Overview grid, the Decoded-input grid and the Raw block run to the column edge, while all five note cards stop about 210px short — so the page's most important block, the `Not observable` card, is also its narrowest. And section separation is not one system: Overview, Decoded input, Events and Raw each get a full-width rule and a large gap; Internal calls and State changes get neither, at roughly half that gap, though all six headings are the same level. The rule therefore asserts a group (Events + Internal calls + State changes) that the content contradicts — Events is about receipts, the other two about the trace.
+
+Fix first: one right edge for cards and grids; one separator rule for peer sections.
+
+Rating: 6/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "reviewer": "L2",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/1",
+      "severity": "P2",
+      "location": "Content column — the Not observable card, Decoded-input note and the three empty-section notes, versus the Overview grid, the Decoded-input grid and the Raw (chain-native) block",
+      "finding": "The column has two right edges. The Overview grid, the Decoded input grid and the Raw block all terminate at the content column's right edge (the same edge as the nav's resolver field and the footer disclosure); every note and notice card stops roughly 210px short of it. Both edges recur several times, so neither reads as an exception — the page simply has two right margins stacked down its length, and the ragged right side is the first thing the eye catches when scanning the page vertically. The worst instance is at the top: the `Not observable` card, which carries the single most important message on the page, is narrower than the metadata grid immediately below it, so the layout ranks the table above the explanation.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/2",
+      "severity": "P2",
+      "location": "Section separators between Overview, Decoded input, Events, Internal calls, State changes and Raw (chain-native)",
+      "finding": "Six headings at one level get two different separation treatments. Overview, Decoded input, Events and Raw (chain-native) are each preceded by a full-width hairline rule and a large gap; Internal calls and State changes are preceded by no rule and roughly half the gap. Because proximity is the only grouping cue available at this level, the layout asserts that Events, Internal calls and State changes form one group — but the content splits the other way: Events is sourced from the receipt, Internal calls and State changes from the trace that does not exist. Either give all six the same rule and gap, or make the grouping real by demoting the grouped headings a level and letting the rule mean something.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/3",
+      "severity": "P3",
+      "location": "Overview grid, DATA row, label cell",
+      "finding": "The DATA row is about seven times the height of any other row in the grid, and its label cell holds one short word at the top with roughly 220px of empty tinted column beneath it. The void is the largest single area of unused surface inside any container on the page, and it sits immediately left of the densest paragraph. Either let the label cell shrink-wrap its label with the value cell spanning, or give the row a different internal layout from the four single-line rows it shares a grid with.",
+      "criterion": "A1"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/4",
+      "severity": "P3",
+      "location": "Not observable card (top of page) versus the Decoded-input, Events, Internal calls and State changes note cards",
+      "finding": "The same card primitive appears in two elevations: the Not observable card sits on a soft drop shadow, the other four are flat with a hairline edge. If the shadow is meant to mark primacy it is the only such marker on the page and nothing else repeats it; if it is not, it is an inconsistent edge treatment on a component used five times.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/5",
+      "severity": "P3",
+      "location": "Whole page at the 1920px viewport",
+      "finding": "The page is a single centred ribbon of roughly 910px with about 500px of empty canvas on each side, and no element at any point uses the extra width. Below the Overview grid the used area drops to about 700px, so at this viewport more than two thirds of the screen is canvas while the DATA row's paragraph wraps to nine lines. Centring the column is the right instinct for the register, but the widest viewport should buy something — pairing the provenance narrative beside the four one-line facts, for example, rather than stacking them.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/6",
+      "severity": "P3",
+      "location": "Footer, right-hand column — the provenance sentence and the Source on GitHub link beneath it",
+      "finding": "The two lines of the footer's right column agree on neither edge. The provenance sentence is set flush to the column's right edge; the Source on GitHub line below it starts a few pixels left of that sentence's left edge — close enough to read as a misalignment rather than a decision — and ends far short of the right edge. The left column directly opposite holds a clean shared left edge for both its lines, which makes the right column's near-miss more conspicuous.",
+      "criterion": "A10"
+    }
+  ]
+}
+```
