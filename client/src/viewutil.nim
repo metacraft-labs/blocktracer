@@ -109,6 +109,75 @@ func debugActionClass*(a: TraceAvailability): string =
   of taOnDemand: "btn sm ghost"
   of taAbsent, taUnsupported: ""
 
+func decimalFromHexQuantity(s: string): string =
+  ## `0x…` → the same integer written in base ten. `""` when `s` is not a
+  ## hex quantity, so every caller falls back to the published string verbatim.
+  ##
+  ## Schoolbook, over a digit vector, because the values are 256-bit and Nim's
+  ## stdlib integer is 64. `0x…0185cfcc84d2f103f` happens to fit in an int64 and
+  ## the next transaction's fee may not, and a conversion that silently wrapped
+  ## would be far worse than the hex it replaced: wrong and confident, rather
+  ## than right and unreadable.
+  if s.len < 3: return ""
+  if s[0] != '0' or (s[1] != 'x' and s[1] != 'X'): return ""
+  var digits = @[0]          # base-10 digits, least significant first
+  for i in 2 ..< s.len:
+    let v = case s[i]
+      of '0' .. '9': ord(s[i]) - ord('0')
+      of 'a' .. 'f': ord(s[i]) - ord('a') + 10
+      of 'A' .. 'F': ord(s[i]) - ord('A') + 10
+      else: return ""        # not a pure hex quantity — leave it alone
+    var carry = v
+    for j in 0 ..< digits.len:
+      let t = digits[j] * 16 + carry
+      digits[j] = t mod 10
+      carry = t div 10
+    while carry > 0:
+      digits.add carry mod 10
+      carry = carry div 10
+  result = newStringOfCap(digits.len)
+  for j in countdown(digits.high, 0):
+    result.add chr(ord('0') + digits[j])
+
+func quantity*(s: string): string =
+  ## One published cost quantity, in the base a reader can compare.
+  ##
+  ## ## What was wrong
+  ##
+  ## The adapters do not agree on an encoding. The synthetic fixture publishes
+  ## `"42000"`; the real Aztec chains publish a zero-padded 256-bit hex word —
+  ## `0x0000000000000000000000000000000000000000000000000185cfcc84d2f103f` —
+  ## and the view rendered whichever it was given, verbatim.
+  ##
+  ## In the metadata pane, at ~380px, that is three wrapped lines of mostly
+  ## zeros under the `COST · TRANSACTIONFEE` label, and it is the single most
+  ## reported element in the campaign: reviewers filed it on
+  ## `tx-detail--mainnet-zero-trace/wide/light` (L1, L4) and on
+  ## `debugger--testnet/wide/light` (L1, L3, L4, L5) in round vd8-r3 alone,
+  ## six findings from six independent lenses on two different triples. A
+  ## finding filed by several reviewers on several views is a defect rather
+  ## than a preference.
+  ##
+  ## ## Why converting is a rendering and not a computation
+  ##
+  ## §7.2 ends with "it does not compute anything itself", and that rule is
+  ## about DERIVING facts — running a trace, calling an endpoint, inferring an
+  ## age from a height. A base conversion derives nothing: the digits are the
+  ## same number, exactly, and the conversion is total and lossless. The page
+  ## still says only what the tree published.
+  ##
+  ## What it deliberately does NOT do is scale by a token's decimals. That WOULD
+  ## be a computation, it would need a fact the tree does not publish, and it
+  ## would turn a fee into a different number under the same label. The unit and
+  ## token stay in the suffix exactly as the adapter gave them.
+  ##
+  ## A non-hex string, an empty one, or anything with a non-hex character in it
+  ## comes back untouched, so a family that publishes decimals already is
+  ## unaffected and one that publishes something else entirely still shows up
+  ## verbatim, to be noticed.
+  let dec = decimalFromHexQuantity(s)
+  if dec.len > 0: dec else: s
+
 func costAmount*(c: Cost): string =
   ## The quantity half of one cost dimension: what was spent, and what it was
   ## spent against WHERE THE CHAIN PUBLISHES A CEILING.
@@ -134,8 +203,8 @@ func costAmount*(c: Cost): string =
   ## pixels and left the same defect available to the third caller, because
   ## what was wrong was never the condition — it was that the condition was
   ## restatable at all.
-  result = c.used
-  if c.limit.len > 0: result.add " / " & c.limit
+  result = quantity(c.used)
+  if c.limit.len > 0: result.add " / " & quantity(c.limit)
 
 func costLabel*(c: Cost): string =
   ## One dimension of §2.3's cost VECTOR, spelled the chain's own way.
@@ -355,12 +424,30 @@ proc txAgeRow*(): MetaRow =
   ## it; and the grid is the surface §7.1 shares, so the statement reaches the
   ## metadata pane too rather than living on one of the two surfaces.
   ##
-  ## The reason travels as the row's SUFFIX and not as its `note`. A `note`
-  ## renders as a full-width paragraph, and the pane's one existing paragraph —
-  ## provenance — was already measured at 39% of the pane's height; a second
-  ## would answer a review finding by creating the one beside it.
-  MetaRow(label: "Age", value: "Not published", badge: "muted",
-          suffix: "— no timestamp is published for this chain's blocks")
+  ## ## The whole statement is the VALUE, and it fits in a badge
+  ##
+  ## It was first written as `Not published` plus the sentence "— no timestamp
+  ## is published for this chain's blocks" as the row's SUFFIX. On the explorer
+  ## page, at a 1140px container, that reads correctly. In the metadata pane it
+  ## does not: the pane is ~380px wide and `.mddl dd` is right-aligned, and the
+  ## capture of `debugger--testnet/wide/light` shows the sentence running off
+  ## the pane's right edge and clipping mid-word at "for thi".
+  ##
+  ## Which is the same lesson the provenance row had already taught in the other
+  ## direction — a row that is fine on the page and wrong in the pane, because
+  ## the two surfaces §7.1 binds to one source are 1140px and 380px wide. A
+  ## shared source has to be authored for the NARROWER of its two hosts.
+  ##
+  ## So the value says the whole thing. `Age: No timestamp published` is
+  ## complete under its own label — it states the absence and its cause in one
+  ## badge-sized phrase, at the length of `Real Aztec mainnet data` and
+  ## `Not observable`, which the pane already sets on one line.
+  ##
+  ## Deliberately NOT the row's `note`: a `note` renders as a full-width
+  ## paragraph, and the pane's one existing paragraph — provenance — was already
+  ## measured at 39% of the pane's height. Answering a review finding by
+  ## creating the one beside it is not a fix.
+  MetaRow(label: "Age", value: "No timestamp published", badge: "muted")
 
 proc txMetadataRows*(chain: string, v: TxView, info: ChainInfo): seq[MetaRow] =
   ## §7.2's overview facts, in spec order: WHERE THE DATA CAME FROM, then block
@@ -405,9 +492,55 @@ proc txMetadataRows*(chain: string, v: TxView, info: ChainInfo): seq[MetaRow] =
                        value: costAmount(c),
                        suffix: suffix, identifier: true)
 
-const UnknownSelectorNote* =
-  "This selector is not in any ABI BlockTracer holds, so the parameters are " &
-  "shown as raw bytes. Supplying an ABI decodes them."
+proc payloadNote*(v: TxView): string =
+  ## §7.2 section 3's degraded copy — which of the three things that can be
+  ## true of a payload IS true of this one.
+  ##
+  ## ## The note was unconditional, and therefore false on real chains
+  ##
+  ## Both surfaces rendered `UnknownSelectorNote` for every transaction, with
+  ## no test of whether a selector had been published. On the synthetic fixture
+  ## that is harmless — every demo transaction carries `0x1a2b3c4d`, so the
+  ## sentence was always true. On the two live Aztec chains most transactions
+  ## publish no payload at all, and the page then rendered `SELECTOR —`,
+  ## `RAW 0x`, and directly beneath them "This selector is not in any ABI
+  ## BlockTracer holds" — asserting the existence of a selector two rows after
+  ## stating there was none, and blaming a missing ABI for it.
+  ##
+  ## Four reviewers filed it on `tx-detail--mainnet-zero-trace/wide/light` in
+  ## round vd8-r3 — ADV, L1, L4 and L5, three of them at P1, all four pointing
+  ## at the same bordered note card beneath the SELECTOR / RAW grid. It is the
+  ## same class of defect as the unconditional `c.used & " / " & c.limit` this
+  ## module already carries a comment about, and it was invisible for exactly
+  ## as long as the corpus had no real chain in it.
+  ##
+  ## ## Three states, because there are three
+  ##
+  ## A selector that no ABI resolves, a payload with bytes but no selector to
+  ## resolve them against, and no call data at all are three different facts.
+  ## Rule 2 admits data or a statement and never nothing, and it does not admit
+  ## the WRONG statement — a note that names the wrong cause is worse than an
+  ## empty section, because a reader who believes it goes looking for an ABI
+  ## that would not help.
+  ##
+  ## A proc rather than a const for the reason `txMetadataRows` is one: §7.0
+  ## lands the transaction route in the SESSION for a published trace, so this
+  ## sentence is rendered by the metadata pane too, and two spellings of it
+  ## would be two answers to one question. `demo_session.nim` passed the const
+  ## directly into `MetadataPane.payloadNote`, which is how the pane acquired
+  ## the same defect independently.
+  result =
+    if v.payloadSelector.len > 0:
+      "This selector is not in any ABI BlockTracer holds, so the parameters " &
+      "are shown as raw bytes. Supplying an ABI decodes them."
+    elif v.payloadRaw.len > 2:
+      "No function selector was published with this call, so there is nothing " &
+      "to resolve the bytes below against. They are shown exactly as the " &
+      "chain published them."
+    else:
+      "This transaction published no call data: no selector and an empty " &
+      "payload. There is nothing here an ABI would decode."
+
   ## §7.2 section 3's degraded copy. A constant rather than a literal in a
   ## view, for the same reason `txMetadataRows` is a proc: the transaction
   ## route now lands in the SESSION for a published trace, so this sentence is

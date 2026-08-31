@@ -326,7 +326,7 @@ proc metadataPane*(chain: string; v: TxView; info: ChainInfo): MetadataPane =
     rows: txMetadataRows(chain, v, info),
     executions: txExecutionRows(v),
     payload: txPayloadRows(v),
-    payloadNote: UnknownSelectorNote,
+    payloadNote: payloadNote(v),
     native: txNativePayload(v))
 
 # ---------------------------------------------------------------------------

@@ -559,10 +559,56 @@ suite "4 — a cost dimension with no ceiling":
     ck costAmount(capped).contains(" / ")
 
   test "no ceiling means no separator, in BOTH spellings":
-    ck costAmount(uncapped) == "0x84bcfc44229235e4"
+    # The pinned strings moved from the published hex to its decimal when
+    # `quantity` was introduced, and the PROPERTY this test is named for did
+    # not move at all: three of its four assertions are "does not contain
+    # ' / '" and are untouched. What changed is the base the same integer is
+    # written in, so the expected literal had to be rewritten to stay an exact
+    # pin rather than be loosened into a `contains`.
+    ck costAmount(uncapped) == "9564797078196073956"
     ck not costAmount(uncapped).contains(" / ")
     ck not costLabel(uncapped).contains(" / ")
-    ck costLabel(uncapped) == "0x84bcfc44229235e4 mana"
+    ck costLabel(uncapped) == "9564797078196073956 mana"
+
+  test "a published hex quantity is rendered in base ten, exactly":
+    # The most-filed element in the campaign: reviewers filed the 66-character
+    # zero-padded fee on `tx-detail--mainnet-zero-trace/wide/light` (L1, L4)
+    # and on `debugger--testnet/wide/light` (L1, L3, L4, L5) in round vd8-r3.
+    #
+    # Exactness is the whole claim, so it is checked at the width that breaks a
+    # 64-bit implementation. `0x84bcfc44229235e4` fits in an int64 and the
+    # zero-padded 256-bit words the real chains publish do not; a conversion
+    # that wrapped would be wrong and confident, which is worse than the hex.
+    ck quantity("0x84bcfc44229235e4") == "9564797078196073956"
+    ck quantity("0x0000000000000000000000000000000000000000000000000185cfcc84d2f103f") ==
+       "1755555891986239551"
+    ck quantity("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff") ==
+       "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+    ck quantity("0x0") == "0"
+    ck quantity("0x00000000000000000000000000000000000000001") == "1"
+
+  test "anything that is not a hex quantity survives verbatim":
+    # The fallback is what keeps this from being a lossy filter. A family that
+    # already publishes decimals is unaffected, and one that publishes
+    # something else entirely still reaches the page to be NOTICED rather than
+    # being silently blanked — the same choice `roleLabel` makes for an unknown
+    # role.
+    ck quantity("42000") == "42000"
+    ck quantity("") == ""
+    ck quantity("0x") == "0x"
+    ck quantity("0xnothex") == "0xnothex"
+    ck quantity("12 mana") == "12 mana"
+    ck quantity("0x1f 0x2f") == "0x1f 0x2f"
+
+  test "MUTATION BITE: a 64-bit conversion wraps where the real chain lives":
+    # The arm the exactness assertions are written for. int64 tops out at
+    # 9223372036854775807, so the 256-bit word above cannot be carried by one
+    # and any implementation that tried would have to produce something other
+    # than the value this suite pins.
+    ck quantity("0x0000000000000000000000000000000000000000000000000185cfcc84d2f103f").len == 19
+    ck quantity("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").len == 78
+    ck quantity("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff") !=
+       quantity("0x84bcfc44229235e4")
 
   test "the metadata row renders the guarded join and not a second one":
     var v: TxView
@@ -615,7 +661,7 @@ suite "4 — a cost dimension with no ceiling":
     ck uncappedSeen > 0                        # …and it reached the real shape
 
   test "assertion count":
-    expectCount(17)
+    expectCount(31)
 
 suite "5 — a language tag is a claim about source":
   asserted = 0

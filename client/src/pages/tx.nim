@@ -300,7 +300,7 @@ proc txPage*(chain: string, v: TxView, info: ChainInfo): string =
           raw metaGrid(txPayloadRows(v))
           tdiv(class = "stub"):
             tdiv(class = "measure"):
-              text UnknownSelectorNote
+              text payloadNote(v)
 
         tdiv(id = "events"):
           h2(class = "sec-title next"): text "Events"
