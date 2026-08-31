@@ -76,7 +76,14 @@
         # runners; the flake defines the environment, and the deploy command runs
         # inside it (wrangler pinned by flake.lock). Kept minimal on purpose.
         ci = pkgs.mkShell (srcEnv // {
-          buildInputs = with pkgs; [ nim nimble just python3 wrangler ];
+          # `nodejs` is here because the DEPLOY runs a node guard over the bytes
+          # it is about to upload (`tools/deploy/check-assets.mjs`): every
+          # same-origin asset a published page names must resolve to a non-empty
+          # file, and a publish carrying traces must have some page name one.
+          # That check has to run in the deploy job, on the staged tree, which is
+          # this shell — the Nim suites and the design gate grade the RENDERED
+          # MARKUP and cannot see the file tree beside it.
+          buildInputs = with pkgs; [ nim nimble just python3 wrangler nodejs_22 ];
         });
 
         # VD.0 — the PINNED CAPTURE ENVIRONMENT. Browser build, fontconfig set
