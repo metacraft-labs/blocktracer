@@ -247,6 +247,41 @@ proc roleLabel*(role: string): string =
   of "relayer": "Relayer"
   else: role
 
+proc costLabel*(name: string): string =
+  ## An adapter's cost-dimension name → the label column's own vocabulary.
+  ##
+  ## `roleLabel` one row down, for the same reason and against the same defect:
+  ## internal vocabulary leaking into visitor-facing copy. The cost rows are
+  ## built as `"Cost · " & c.name`, and `c.name` is whatever the adapter called
+  ## the dimension — which on every chain in this tree is a **camelCase field
+  ## name**. The label column is set in a caps style, and an uppercase transform
+  ## destroys the one thing that made `transactionFee` readable: the word
+  ## boundary. It renders `COST · TRANSACTIONFEE`, a fourteen-letter run that
+  ## overflows the label column, wraps after the separator, orphans the `·` and
+  ## makes the row 1.6x taller than every other row in the grid.
+  ##
+  ## L1 filed it on `tx-detail--mainnet-zero-trace/wide/light` in round vd9-r1
+  ## having seen the one instance its subject publishes. Counting the whole
+  ## built tree afterwards found the defect is five times wider than the row
+  ## that exposed it: across the 67 transactions this tree publishes, the cost
+  ## dimensions are `transactionFee` (57), `mana` (10), and one each of `daGas`,
+  ## `l2Gas`, `proofSlots` and `noteHashes` — so `DAGAS`, `L2GAS`, `PROOFSLOTS`
+  ## and `NOTEHASHES` are all reachable and only the first was ever photographed.
+  ## That is the `costAmount` shape again: correct-looking for as long as the
+  ## corpus happened not to contain the other cases.
+  ##
+  ## Unknown dimensions fall through VERBATIM, exactly as `roleLabel` does and
+  ## for exactly its reason — a new chain family must show up as an unstyled
+  ## label to be noticed, not be silently rewritten into something plausible.
+  case name
+  of "transactionFee": "Transaction fee"
+  of "mana": "Mana"
+  of "daGas": "DA gas"
+  of "l2Gas": "L2 gas"
+  of "proofSlots": "Proof slots"
+  of "noteHashes": "Note hashes"
+  else: name
+
 proc outcomeReasonLabel*(o: OutcomeOverall): string =
   ## What to call `outcome.reason`.
   ##
@@ -488,7 +523,7 @@ proc txMetadataRows*(chain: string, v: TxView, info: ChainInfo): seq[MetaRow] =
     if c.token.len > 0: suffix.add " (" & c.token & ")"
     # `costAmount` and NOT a second `c.used & " / " & c.limit`: the ceiling is
     # optional on a real chain, and the guard that knows so lives in one place.
-    result.add MetaRow(label: "Cost · " & c.name,
+    result.add MetaRow(label: "Cost · " & costLabel(c.name),
                        value: costAmount(c),
                        suffix: suffix, identifier: true)
 
@@ -576,17 +611,54 @@ proc payloadNote*(v: TxView): string =
   let selector = hasHexValue(v.payloadSelector)
   let bytes = hasHexValue(v.payloadRaw)
   result =
+    # ## THE REMEDY IS NAMED, AND SO IS THE FACT THAT IT CANNOT BE TAKEN HERE
+    #
+    # §7.2 asks for "raw bytes with a 'supply an ABI' action when the selector
+    # is unknown", and there is no such action anywhere in this product: no
+    # route accepts an ABI, `/settings` has no field for one, and nothing
+    # stores one. L5 filed the absence at P1 on `tx-detail/wide/light` in
+    # vd9-r1 and was right — the element has two branches and neither was
+    # satisfied.
+    #
+    # A control is not the fix. This route ships no JavaScript, so an upload
+    # or a decode button could not succeed, and this page's own MUST-NOT-SHOW
+    # forbids exactly that: "a disabled control standing in for an absent one"
+    # and a button that "could only lead somewhere that says no". It is the
+    # `panedismiss` defect and the inert `.ctsort` span, both already removed
+    # from this codebase for the same reason. Adding a third would answer a
+    # review finding by manufacturing the defect the campaign keeps deleting.
+    #
+    # So Rule 2 is applied to the ACTION as it already is to the DATA: data or
+    # a statement, never nothing. The sentence stops promising a remedy the
+    # reader cannot take and says where the capability stands instead. The
+    # missing feature is a product gap, and it stays one — this makes the page
+    # honest about it rather than silent, which is the part that was a defect.
     if selector and bytes:
       "This selector is not in any ABI BlockTracer holds, so the parameters " &
-      "are shown as raw bytes. Supplying an ABI decodes them."
+      "are shown as raw bytes below. An ABI would decode them, and BlockTracer " &
+      "cannot yet be given one — no page here accepts an ABI."
     elif selector:
       "This selector is not in any ABI BlockTracer holds, and no call data " &
-      "accompanies it here, so there are no parameters to decode."
+      "accompanies it here, so there are no parameters to decode. An ABI " &
+      "would not help, and BlockTracer cannot yet be given one in any case."
     elif bytes:
       "No function selector accompanies these bytes, so there is nothing to " &
       "resolve them against. They are shown exactly as this tree holds them."
     else:
-      "This tree holds no call data for this transaction, so there is " &
+      # `BlockTracer holds` and NOT `This tree holds`. A "tree" is the build's
+      # name for a published static site; a visitor has no way to resolve it,
+      # and it is the only word in the sentence they cannot. L5 filed it on
+      # `debugger/wide/light` in vd9-r1 and was right that the rest of this
+      # sentence is the register's voice, which is what made the one build-side
+      # noun conspicuous.
+      #
+      # The SUBJECT had to stay the holder, though, and that is why this is not
+      # "This chain publishes no call data". The whole point of the second half
+      # is that what the chain published is exactly what cannot be known here;
+      # a subject naming the chain would assert it in the first half and then
+      # decline it in the second. `BlockTracer` is already this copy's word for
+      # the holder — "not in any ABI BlockTracer holds", two arms above.
+      "BlockTracer holds no call data for this transaction, so there is " &
       "nothing here for an ABI to decode. Whether none was published or the " &
       "body was pruned before it was captured is not something this section " &
       "can tell; where that is known, it is stated above."
@@ -604,13 +676,44 @@ proc txPayloadRows*(v: TxView): seq[MetaRow] =
   ## the pre-rendered page and the metadata pane to render the transaction's
   ## facts "from one source". The selector and the raw calldata are facts, so
   ## they get one producer rather than a hand-written `<dl>` per surface.
+  ## ## The rows and the note must share ONE emptiness test
+  ##
+  ## They did not. `payloadNote` above tests `hasHexValue`, which rejects both
+  ## `""` and the empty hex literal `0x`; these two rows tested `.len > 0`, which
+  ## accepts `0x` as a value. So on a transaction whose payload the tree does not
+  ## hold, the note said "This tree holds no call data for this transaction"
+  ## while the `Raw` row directly above it printed `0x` — and printed it in the
+  ## identifier treatment, marked copyable, offering to hand a reader a value
+  ## that is not one.
+  ##
+  ## `0x` is not empty bytes. It is how both the fixture and the real adapters
+  ## spell "nothing here" in a field whose type is bytes, which is precisely what
+  ## `hasHexValue`'s own docstring says. Rendering it verbatim states that the
+  ## chain published an empty payload — a fact — where the truth is that this
+  ## capture holds none, which on the mainnet subject the page contradicts twice
+  ## on the same screen: the `Not observable` card says the node no longer serves
+  ## the body, and the raw block prints `"bodyRetainedAtCapture": false`.
+  ##
+  ## That is `payloadNote`'s own defect — "rendered unknown as known-empty" —
+  ## left standing one row above the sentence written to fix it. The round after
+  ## it caught exactly that: ADV and L4 filed it independently at P1 on
+  ## `tx-detail--mainnet-zero-trace/wide/light`, both naming the asymmetry with
+  ## the `Selector` row, which was already correct by accident — the mainnet
+  ## subject publishes `""` for the selector and `0x` for the payload, so one
+  ## row took the em dash and the other did not.
+  ##
+  ## Both now read `hasHexValue`, so the two rows and the note cannot disagree
+  ## about whether there is a payload, and `identifier` follows the same test:
+  ## an em dash is prose, not a machine value, and must not be offered for
+  ## copying.
+  let hasSelector = hasHexValue(v.payloadSelector)
+  let hasRaw = hasHexValue(v.payloadRaw)
   result.add MetaRow(label: "Selector",
-                     value: (if v.payloadSelector.len > 0: v.payloadSelector
-                             else: "—"),
-                     identifier: v.payloadSelector.len > 0)
+                     value: (if hasSelector: v.payloadSelector else: "—"),
+                     identifier: hasSelector)
   result.add MetaRow(label: "Raw",
-                     value: (if v.payloadRaw.len > 0: v.payloadRaw else: "0x"),
-                     identifier: true)
+                     value: (if hasRaw: v.payloadRaw else: "—"),
+                     identifier: hasRaw)
 
 proc txNativePayload*(v: TxView): string =
   ## §7.2 section 8 — the chain-native payload, verbatim and pretty-printed.

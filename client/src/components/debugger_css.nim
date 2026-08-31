@@ -255,7 +255,40 @@ html[data-register="debugger"],
    Note also that this stylesheet is INLINED into the page, so a selector, or
    even a comment, naming a removed affordance keeps its name in the served
    bytes; `test_debug_route` asserts over those bytes. */
-.panebody{flex:1 1 0;min-height:0;overflow:auto}
+/* THE FADE IS THE OVERFLOW TREATMENT ON BOTH AXES, NOT JUST THE HORIZONTAL ONE.
+   `.src` and `pre.raw` carry a `to right` mask so a listing that runs past the
+   pane's right edge says so instead of ending mid-glyph. The VERTICAL axis had
+   no equivalent, and every pane scrolls vertically — `overflow:auto`, right
+   here — so a pane whose content ran past the bottom of the viewport simply
+   stopped, with nothing to distinguish "this is the end" from "there is more".
+
+   The Transaction pane is where that bites, because it is the narrowest column
+   (the top-level split is Code 3 / middle 2 / Transaction 1, so it takes a
+   sixth of the width and its RAW chain-native JSON is the tallest content on
+   the page). Five reviewers across three triples filed it in vd9-r1 — L2 and L4
+   on `debugger/wide/dark`, L2 on `debugger/wide/light`, L2 and L4 on
+   `debugger--testnet/wide/light` — all reporting the pane "clipping mid-JSON at
+   y≈1075" with `effectsMatched`/`effectsMismatched` below the cut. They were
+   right about what they saw and wrong about the cause: the content was never
+   clipped, it was scrollable and said nothing about it. A scroll region with no
+   edge treatment is indistinguishable in a still image from a hard clip, and a
+   reader at the page has only slightly more to go on.
+
+   Same declaration as the horizontal one, turned ninety degrees, for the reason
+   that comment gives: one overflow treatment, and it is the fade. A mask rather
+   than an overlay because `.panebody` has no positioned ancestor to hang one
+   on; `currentColor` as the opaque stop because a mask reads ALPHA and the
+   colour is never painted. `.panebody` carries no background of its own — the
+   surface belongs to `.pane` — so unlike `.src` this needs no `mask-clip`: the
+   pane's own edge and fill stay solid and only the text under them goes.
+
+   A pane whose content does NOT reach the bottom is unaffected: the faded band
+   is over empty surface, and masking nothing changes nothing. */
+.panebody{flex:1 1 0;min-height:0;overflow:auto;
+  -webkit-mask-image:linear-gradient(to bottom,currentColor
+    calc(100% - var(--bt-space-lg)),transparent);
+  mask-image:linear-gradient(to bottom,currentColor
+    calc(100% - var(--bt-space-lg)),transparent)}
 .panenote{padding:var(--bt-density-card-pad) var(--bt-density-cell-x);
   color:var(--bt-text-muted);font-size:var(--bt-type-body-sm-size);
   line-height:var(--bt-type-body-sm-line);max-width:var(--bt-measure-prose)}

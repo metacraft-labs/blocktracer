@@ -594,8 +594,27 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
                            "privateFunctions": ["transfer"], "publicCall": "settle"}})
     var ov = TraceSelection(chain: chain, tx: h, executions: @[
       ExecTrace(selector: "private", availability: taAbsent,
-        reason: "aztec private function executed client-side; only proofs, " &
-                "nullifiers and commitments are published — no call structure to trace"),
+        # A REASON IS QUOTED VERBATIM BY BOTH SURFACES, SO IT HAS TO BE A
+        # SENTENCE. The page renders a producer's `reason` in its own words
+        # rather than re-deriving it, which is right — and it means whatever is
+        # written here is reader-facing prose, not a log line.
+        #
+        # It was neither. `aztec private function executed client-side; only
+        # proofs …` opened with a lowercase token that reads as a chain SLUG
+        # rather than as the protocol's name, and carried no terminal stop, in a
+        # pane whose provenance paragraph twenty rows above is fully punctuated.
+        # L5 filed it on `debugger/wide/light` in vd9-r1 as two standards for a
+        # sentence within 500px, and read the lowercase `aztec` as contradicting
+        # the `← demo` in the identity bar.
+        #
+        # Capitalised rather than renamed: this chain's recorder is `aztec-avm`
+        # (registry `chains.v1.json`), so it IS an Aztec-family chain and the
+        # privacy model named here is the reason the private part cannot be
+        # observed. `Aztec` is the protocol; `aztec` was a slug that no longer
+        # exists. The claim is unchanged — only its sentence-hood is.
+        reason: "Aztec private functions execute client-side; only proofs, " &
+                "nullifiers and commitments are published, so there is no " &
+                "call structure to trace."),
       ExecTrace(selector: "public", availability: taReady, bytes: tbytes,
         hasValidation: true, validation: ValidationSummary(status: vsMatch, strength: 2))])
     result.add DemoTx(hash: h, height: 101, index: 0, facts: facts,
