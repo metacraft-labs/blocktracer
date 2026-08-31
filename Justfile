@@ -116,7 +116,12 @@ capture args="":
 capture-list:
     node tools/capture/capture.mjs --list
 
-# verify_capture_covers_named_view_list + verify_full_regen_removes_stale_images
+# verify_capture_covers_named_view_list, verify_full_regen_removes_stale_images
+# and verify_corpus_subject_drift_is_detected — the last one being the check that
+# every PNG is a photograph of the subject its view still resolves to. The first
+# three assertions are about names; that one is about content, and it is the only
+# thing that notices a chain rename moving every image's subject while the view
+# list, the file list and the chain coverage all stay green.
 capture-coverage:
     node tools/capture/check-coverage.mjs
 

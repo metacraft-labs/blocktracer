@@ -304,6 +304,17 @@ const isFullRegen = (opts) =>
 
 const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
 
+/** The chain a captured route belongs to, or `null` for a site-level page.
+ *
+ *  The first path segment, checked against the registry rather than assumed:
+ *  `/chains`, `/about` and `/settings` are site-level and have a first segment
+ *  too, and calling one of those a chain would put a phantom into the manifest
+ *  that assertion F would then compare against nothing. */
+export const chainOfPath = (path, index) => {
+  const first = String(path ?? "").split("?")[0].split("/").filter(Boolean)[0];
+  return first && index.chains.includes(first) ? first : null;
+};
+
 async function digestTree(dir) {
   // A single digest over the served bytes, so "the fixture changed" is
   // distinguishable from "the renderer changed" when a hash moves.
@@ -389,10 +400,22 @@ async function captureOne(browser, { view, size, theme }, ctx) {
     }
 
     const bytes = await readFile(outPath);
+    // WHOSE DATA this image is of, recorded at capture time.
+    //
+    // `url` alone already pins it, and `check-coverage`'s assertion F compares
+    // exactly that. These two are carried beside it so a drift failure can say
+    // what actually changed — "captured from a synthetic chain, now resolves to
+    // a real one" is a different problem from "same chain, different
+    // transaction", and a reader of the failure should not have to work out
+    // which by reading two URLs character by character.
+    const capturedChain = chainOfPath(path, ctx.index);
     return {
       ok: true,
       file,
       url: path,
+      chain: capturedChain,
+      provenanceKind:
+        capturedChain ? (ctx.index.byChain[capturedChain]?.provenanceKind ?? null) : null,
       sha256: sha256(bytes),
       bytes: bytes.length,
     };

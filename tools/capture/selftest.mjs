@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// VD.0 self-test — runs the milestone's four verifications end to end.
+// VD.0 self-test — runs the milestone's five verifications end to end.
 //
 //   node tools/capture/selftest.mjs               # host run (canary is advisory)
 //   nix run .#capture-env -- node tools/capture/selftest.mjs
@@ -11,6 +11,7 @@
 //   verify_canary_capture_is_byte_identical
 //   verify_canary_failure_invalidates_the_baselines
 //   verify_full_regen_removes_stale_images
+//   verify_corpus_subject_drift_is_detected
 //
 // Everything runs against a throwaway output directory so a self-test never
 // disturbs the working screenshot set.
@@ -89,6 +90,87 @@ async function main() {
         `coverage clean afterwards: ${covAfter.code === 0}`,
       ].join("\n"),
     );
+
+    // ── verify_corpus_subject_drift_is_detected (assertion F) ─────────────
+    //
+    // The corpus that just passed D is the base case, and it has to STAY the
+    // base case: an assertion that rejects everything would satisfy the three
+    // arms below and be worthless. So the doctored manifest is written to a
+    // COPY, and `covAfter` above has already established that the real one
+    // passes.
+    //
+    // Three arms, because F fails three ways and a rename is only the loudest:
+    //   * the chain moved — every fixture-driven image at a URL the site no
+    //     longer serves, which is the case that motivated the assertion;
+    //   * the same chain, a different subject — a reseed or a fixture change
+    //     re-pointing `firstTracelessTx`, which no name change reveals either;
+    //   * no URL recorded at all — an image whose subject cannot be
+    //     established, which must not be read as agreement.
+    const driftDir = join(out, "..", `${out.split("/").pop()}-drift`);
+    await mkdir(driftDir, { recursive: true });
+    for (const f of (await readdir(out)).filter((f) => f.endsWith(".png"))) {
+      await writeFile(join(driftDir, f), await readFile(join(out, f)));
+    }
+    const baseManifest = JSON.parse(await readFile(join(out, "manifest.json"), "utf8"));
+
+    const doctor = async (mutate) => {
+      const m = JSON.parse(JSON.stringify(baseManifest));
+      const n = mutate(m);
+      await writeFile(join(driftDir, "manifest.json"), JSON.stringify(m, null, 2));
+      const r = run("check-coverage.mjs", ["--out", driftDir]);
+      return { n, code: r.code, out: r.out };
+    };
+
+    const renamed = await doctor((m) => {
+      let n = 0;
+      for (const i of m.images ?? []) {
+        if (i.ok && typeof i.url === "string" && i.url.startsWith("/aztec/")) {
+          i.url = "/demo" + i.url.slice("/aztec".length);
+          i.chain = "demo";
+          n++;
+        }
+      }
+      return n;
+    });
+    const repointed = await doctor((m) => {
+      let n = 0;
+      for (const i of m.images ?? []) {
+        if (i.ok && i.view === "tx-detail" && typeof i.url === "string") {
+          i.url = i.url.replace(/0x[0-9a-f]+/, "0x" + "de".repeat(20));
+          n++;
+        }
+      }
+      return n;
+    });
+    const unrecorded = await doctor((m) => {
+      let n = 0;
+      for (const i of m.images ?? []) {
+        if (i.ok && i.view === "home") { delete i.url; n++; }
+      }
+      return n;
+    });
+
+    const renameCaught =
+      renamed.n > 0 && renamed.code !== 0 && renamed.out.includes("the CHAIN moved");
+    const repointCaught =
+      repointed.n > 0 && repointed.code !== 0 &&
+      repointed.out.includes("same chain, different subject");
+    const unrecordedCaught =
+      unrecorded.n > 0 && unrecorded.code !== 0 &&
+      unrecorded.out.includes("records no capture URL");
+    record(
+      "verify_corpus_subject_drift_is_detected",
+      renameCaught && repointCaught && unrecordedCaught && covAfter.code === 0,
+      [
+        `the undoctored corpus passes (the base case): ${covAfter.code === 0}`,
+        `a chain rename is caught: ${renameCaught} (${renamed.n} image(s) moved)`,
+        `a re-pointed subject on the same chain is caught: ${repointCaught} ` +
+          `(${repointed.n} image(s))`,
+        `an image with no recorded URL is caught: ${unrecordedCaught} ` +
+          `(${unrecorded.n} image(s))`,
+      ].join("\n"),
+    );
+    await rm(driftDir, { recursive: true, force: true });
 
     // A targeted run must NOT clean, or an agent iterating on one view would
     // silently destroy the rest of the set.

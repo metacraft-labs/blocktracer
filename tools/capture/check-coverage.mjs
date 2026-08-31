@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// VD.0 verification: verify_capture_covers_named_view_list
-//                and verify_full_regen_removes_stale_images
+// VD.0 verification: verify_capture_covers_named_view_list,
+//                    verify_full_regen_removes_stale_images
+//                and verify_corpus_subject_drift_is_detected
 //
 //   node tools/capture/check-coverage.mjs [--out DIR] [--json]
 //
-// Four assertions, in the order a failure is most useful:
+// Six assertions, in the order a failure is most useful:
 //
 //   A. INVENTORY COVERAGE — every page in Page-Descriptions and every state in
 //      its degraded-state catalogue is named by at least one view. This is the
@@ -28,6 +29,31 @@
 //      repository, because A is a by-name list and a by-name list is exactly
 //      what failed: three chains shipped, all 280 images were of one of them,
 //      and A said 67/67. NOT RUN without a build, never passed.
+//
+//   F. CORPUS SUBJECT DRIFT — every image ON DISK was captured against the
+//      subject its view resolves to NOW. E's content-shaped twin, and it exists
+//      because E cannot see this: E re-resolves the VIEW LIST against the tree
+//      and is satisfied when every chain has a view pointing at it. It says
+//      nothing about the PNGs, so a corpus photographed before a chain was
+//      renamed stays green under A, C, D and E together while every image in it
+//      is of a chain at a URL the site no longer serves.
+//
+//      That is not hypothetical. Moving the real Aztec mainnet onto `/aztec`
+//      and the synthetic tree to `/demo` moves 232 fixture-driven images and
+//      both mainnet ones, changes no view NAME, and leaves the file list
+//      byte-for-byte the answer D expects. The only signal was a person
+//      remembering.
+//
+//      The manifest records the URL each image was actually captured at, so the
+//      check is a comparison rather than a new kind of evidence: resolve every
+//      ready view's route again and require the answer to equal what was
+//      recorded. It therefore also catches a subject re-pointing WITHIN a chain
+//      — `firstTracelessTx` returning a different transaction after a reseed or
+//      a fixture change — which is the same defect one scope smaller.
+//
+//      NOT RUN without a manifest or without a build, never passed: a check
+//      that goes green because it could not find the corpus is the failure this
+//      assertion is about.
 //
 // Pending views — those whose route the client does not serve yet — are
 // REPORTED, with counts and reasons, and do not fail C. The alternative is
@@ -171,6 +197,7 @@ async function main() {
   // output directory: a check that goes green for lack of anything to inspect
   // is worse than one that says it could not look.
   report.chains = { status: "not-run" };
+  report.subjects = { status: "not-run", reason: "assertion E did not run, so there was no resolved tree to compare the corpus against" };
   const distDir = resolvePath(REPO_ROOT, "client", "dist");
   if (!existsSync(join(distDir, "registry", "chains.v1.json"))) {
     report.chains = { status: "not-run", reason: `no built data plane at ${distDir}` };
@@ -218,6 +245,104 @@ async function main() {
       provenanceKinds: kinds,
       uncoveredProvenanceKinds: uncoveredKinds,
     };
+
+    // ── F. CORPUS SUBJECT DRIFT ────────────────────────────────────────────
+    //
+    // Every image on disk, against the subject its view resolves to now.
+    //
+    // The comparison is on the URL and not on the chain slug alone. A slug
+    // comparison would catch the rename this assertion was written for and
+    // miss the smaller version of the same defect — the same chain, a
+    // different transaction — and those are one failure, not two: in both, a
+    // PNG is a photograph of something the named view no longer points at.
+    const manifestPath = join(opts.out, "manifest.json");
+    if (!existsSync(manifestPath)) {
+      report.subjects = {
+        status: "not-run",
+        reason:
+          `no manifest at ${manifestPath} — the URL each image was captured ` +
+          `at is what this assertion compares, and nothing else records it`,
+      };
+    } else {
+      let manifest = null;
+      try {
+        manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+      } catch (e) {
+        problems.push(`F: manifest at ${manifestPath} is unreadable — ${e.message}`);
+      }
+      if (manifest) {
+        // Resolve each ready view ONCE. A view resolving to several images
+        // (its sizes and themes) must not resolve its route once per image:
+        // that would be the same answer computed 308 times, and a route with
+        // any nondeterminism in it would then disagree with ITSELF and be
+        // reported as drift on some images and not others.
+        const resolvedNow = new Map();
+        for (const v of VIEWS.filter((x) => x.status === "ready")) {
+          try {
+            resolvedNow.set(v.id, typeof v.route === "function" ? v.route(ix) : v.route);
+          } catch {
+            // Already reported by E as an unresolved route. Recording it as
+            // drift as well would be one fault counted twice, and the E
+            // message is the more useful of the two.
+            resolvedNow.set(v.id, null);
+          }
+        }
+
+        const drifted = [];
+        const unrecorded = [];
+        for (const img of manifest.images ?? []) {
+          if (!img || img.ok !== true) continue;
+          const view = VIEWS_BY_ID.get(img.view);
+          if (!view || view.status !== "ready") continue;
+          if (typeof img.url !== "string" || img.url.length === 0) {
+            unrecorded.push(img.file ?? `${img.view}__${img.size}__${img.theme}`);
+            continue;
+          }
+          const now = resolvedNow.get(img.view);
+          if (now === null || now === undefined) continue;
+          if (now !== img.url) {
+            drifted.push({
+              file: img.file,
+              view: img.view,
+              capturedAt: img.url,
+              resolvesTo: now,
+              capturedChain: img.chain ?? null,
+              resolvesToChain:
+                String(now).split("?")[0].split("/").filter(Boolean)[0] ?? null,
+            });
+          }
+        }
+
+        // An image whose URL was never recorded cannot be compared, and
+        // "cannot be compared" is not "agrees". Reported as a problem so a
+        // corpus predating this field is re-captured rather than trusted.
+        for (const f of unrecorded) {
+          problems.push(
+            `F: ${f} records no capture URL, so what it is a photograph of ` +
+            `cannot be established — re-capture it`);
+        }
+        for (const d of drifted) {
+          const chainMoved =
+            d.capturedChain && d.resolvesToChain && d.capturedChain !== d.resolvesToChain;
+          problems.push(
+            `F: ${d.file} is a photograph of ${d.capturedAt}, but ${d.view} now ` +
+            `resolves to ${d.resolvesTo}` +
+            (chainMoved
+              ? ` — the CHAIN moved (${d.capturedChain} → ${d.resolvesToChain}), so ` +
+                `every image of it is of a URL this site no longer serves`
+              : ` — same chain, different subject`) +
+            `; the view name did not change, so nothing else reports this`);
+        }
+
+        report.subjects = {
+          status: "checked",
+          compared: (manifest.images ?? []).filter((i) => i && i.ok === true).length,
+          drifted: drifted.length,
+          unrecorded: unrecorded.length,
+          detail: drifted,
+        };
+      }
+    }
   }
 
   const pendingViews = VIEWS.filter((v) => v.status !== "ready");
@@ -253,6 +378,13 @@ async function main() {
     } else {
       console.log(`chain coverage:   NOT RUN — ${report.chains.reason}`);
     }
+    if (report.subjects.status === "checked") {
+      console.log(
+        `corpus subjects:  ${report.subjects.compared} image(s) compared against the ` +
+        `route their view resolves to now; ${report.subjects.drifted} drifted`);
+    } else {
+      console.log(`corpus subjects:  NOT RUN — ${report.subjects.reason}`);
+    }
     console.log("");
     if (pendingViews.length) {
       console.log(`PENDING (${pendingViews.length} views, ${expectedPending.length} images) — named, not yet capturable:`);
@@ -270,6 +402,11 @@ async function main() {
           `PASS — every published chain and provenance kind has a ready view ` +
           `(${report.chains.published.length} chain(s), ` +
           `${report.chains.provenanceKinds.length} kind(s))`);
+      }
+      if (report.subjects.status === "checked") {
+        console.log(
+          `PASS — every image is a photograph of the subject its view still ` +
+          `resolves to (${report.subjects.compared} compared)`);
       }
     }
   }
