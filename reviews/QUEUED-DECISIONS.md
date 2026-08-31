@@ -311,3 +311,43 @@ Recommendation: (a). It is not applied here because no reviewer has seen it, and
 shipping an unreviewed layout change to close an unreviewed layout regression is
 how this campaign generates work rather than finishing it. It should be the first
 thing the next round captures.
+
+## Q10. The page claims permanence with a repairable cause printed beneath it
+`tx-detail--mainnet-zero-trace/wide/light` L3, vd9-r2, filed at P1 alongside the
+expectation contradiction. This half is a PAGE defect and it survives that
+reconciliation entirely.
+
+The page asserts "No trace can be produced for this execution — a permanent
+answer rather than a failed fetch", and that Internal calls and State changes are
+empty "permanently, not yet". The cause it prints directly beneath is a toolchain
+regression in our own replay runtime, which is by construction repairable. As L3
+put it: deleting the recorder-blaming clause without changing the permanence
+claims would leave an unsupported assertion with no stated basis at all.
+
+§14.1a cuts both ways — "'Not now' and 'not ever' are different states … presenting
+either as the other is the failure this table exists to prevent." The page is
+currently presenting "not now" as "not ever". A reader told the answer is
+permanent may never return to a page that will have a trace on it.
+
+The expectation was corrected in the same session to demand a tense that MATCHES
+the published cause, so this is now a live G1 failure rather than a silent one.
+That is the right way round and it should stay failing until the page is fixed.
+
+Where the fix goes: `viewutil.availabilityNote(taAbsent)` returns one sentence
+for every absent execution, and its own docstring explains why it may not name a
+cause — `absent` has more than one and the line cannot tell them apart. That
+reasoning is still correct for the CAUSE. It does not extend to DURABILITY, which
+the enum also cannot tell apart and which the sentence asserts anyway.
+
+Options:
+  (a) `availabilityNote` stops asserting durability at all, leaving both the
+      cause and the permanence to the per-execution published reason beneath it —
+      consistent with the docstring's own argument, and the smallest change;
+  (b) thread the pruned-vs-refused distinction into the ViewModel so the sentence
+      can be correct in both cases — more informative, more surface;
+  (c) leave it, and accept that one of the two states is described wrongly.
+
+Recommendation: (a). The module already decided that a claim specific enough to
+be wrong belongs with the published reason rather than in the enum's sentence; it
+simply did not apply that to the word "permanent". (c) is not available — it is
+the §14.1a breach, on the page whose entire job is to be believed.
