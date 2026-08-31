@@ -464,8 +464,34 @@ export const EXPECTATIONS = [
     register: "explorer",
     inherits: ["site-chrome"],
     mustShow: [
-      "Hero: status with decoded revert reason if any, the full hash with a copy affordance, age, finality badge, and — on the on-demand path — Generate trace as the PRIMARY button, visually the strongest control on the page.",
+      "Hero: status with decoded revert reason if any, the full hash with a copy affordance, finality badge, and — on the on-demand path — Generate trace as the PRIMARY button, visually the strongest control on the page.",
       "The trace's state named beside that action, and a note explaining that state in words.",
+      // AGE, and why it is not in the line above.
+      //
+      // §7.2 section 1 asks for it and this expectation demanded it flatly,
+      // which made it an expectation no page this product can build could ever
+      // satisfy. There is no timestamp at any layer: `TransactionFacts` has no
+      // field for one, `BlockDetail` has none so it cannot be borrowed from the
+      // block, and the txstate overlay has none. That is not a gap in the
+      // synthetic fixture — the REAL Aztec mainnet objects in this tree carry
+      // `height`, `parentHash` and a transaction list and no time of any kind.
+      //
+      // The only way to turn the flat demand green would be to derive an age
+      // from the block height, which is the one thing `pages/blocklist.nim`
+      // says in as many words that this product does not do: "Nothing here is
+      // derived from the height to stand in for one." An expectation whose only
+      // satisfying implementation is a fabrication is an expectation that is
+      // wrong, and it is being changed here — on its own, with the reason
+      // stated — rather than folded into the commit that fixed the page.
+      //
+      // What replaces it is not weaker. It still fails a page that omits age in
+      // silence, which is what `tx-detail/wide/light` was doing and what all
+      // six of vd8-r3's reviewers filed: the page ran hero → hash → trace card
+      // with nothing said about time at all. Rule 2 admits data or a statement
+      // and nothing else, so the statement is now what is demanded where the
+      // data cannot exist, and a reviewer who finds neither still reports the
+      // element missing.
+      "Age: either the transaction's age or timestamp, or — where the tree publishes no timestamp for this chain — a labelled statement saying so, in the same voice §5.1's block table uses for its three sourceless columns. An age silently absent is a failure of this element; an age derived from the block height would be a worse one.",
       "Overview grid: from/to, value, fee breakdown, block and index, nonce, resource limits and usage, transaction type — each labelled.",
       "A decoded-input section with the function/entry point and its parameters, or raw bytes with a 'supply an ABI' action when the selector is unknown.",
       "An events/logs section.",
