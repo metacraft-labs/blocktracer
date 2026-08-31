@@ -369,7 +369,8 @@ proc demoSession*(chain: string; v: TxView;
   # tell that apart from "a different artifact", which needs the hash to be
   # absent for a real reason rather than absent because nobody passed it.
   result.traceContentHash = contentHash
-  result.languages = @[DemoLanguage]
+  # `languages` is NOT set here. See the `else` arm of the `taReady, taDivergent`
+  # branch below, which is the only state that knows a language.
   result.engineBase = ReplayEngineBase
   result.engineCrossOrigin = replayEngineIsCrossOrigin()
   result.engineBytes = ReplayEngineWasmBytes
@@ -439,6 +440,40 @@ proc demoSession*(chain: string; v: TxView;
       result.controls = fixtureControls(positioned = true, live = false,
                                         steps = steps)
     else:
+      # SOURCE LEVEL, and the only state in this constructor that knows what
+      # language it is looking at. `languages` is set HERE, with the panes it
+      # describes, rather than above the branch that decides whether they apply.
+      #
+      # It used to be set unconditionally beside `traceContentHash`, and the two
+      # are not alike: a content hash is a fact about the CONTAINER and is
+      # carried in every state on purpose (see its comment above), whereas a
+      # language is a fact about the SOURCE, and three of the five §7.0 states
+      # have none. The bar renders the tag on `s.languages.len > 0` alone
+      # (`pages/debug.nim`), outside the `hasFrame` gate that suppresses the
+      # controls and the phase rail — so the unconditional assignment put an
+      # uppercase NOIR tag on the identity bar of:
+      #
+      #   * this branch's sibling, where the panes below it state in four
+      #     separate sentences that the recording carries no debug symbols
+      #     (round vd8-r1's L5 reviewer filed this P1 as forbidden fixture
+      #     content — reviews/rounds/vd8-r1/debugger--testnet__wide__light__L5.json;
+      #     not cited by ledger id because vd8-r2 replaced that triple's reviews
+      #     and the id now names a different finding);
+      #   * `onDemand`, where no trace has been recorded at all;
+      #   * `absent` and `unsupported`, where no trace can ever exist.
+      #
+      # Only the first of those was reported. The other three are the same
+      # assignment reaching further than the review that found it, which is why
+      # the fix is placement and not a condition: there is no `if` here to get
+      # wrong later.
+      #
+      # This is the second time fixture content has asserted itself over real
+      # chain data. The first was the demo's Noir source rendering under a real
+      # testnet transaction's hash — the defect the `if not sourceLevel` branch
+      # above exists to prevent — and the tag is that same fixture claiming the
+      # same authority one line higher up the page, having survived the fix
+      # because it was written above the branch.
+      result.languages = @[DemoLanguage]
       result.editor = fixtureEditor()
       result.calltrace = fixtureCalltrace()
       result.state = fixtureState()

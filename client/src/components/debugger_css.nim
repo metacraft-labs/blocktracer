@@ -38,10 +38,41 @@ import ../debugger/session_view
 const debugRouteBaseCss = """
 /* ── the shell ──────────────────────────────────────────────────────────── */
 /* Full viewport with no page scroll. `height:100%` down the chain rather than
-   a viewport unit: `vh` is a raw length, and the chain says the same thing. */
+   a viewport unit: `vh` is a raw length, and the chain says the same thing.
+
+   THE BODY IS A FLEX COLUMN AND THE SHELL TAKES THE REMAINDER, which is the
+   whole of the fix for an overhang of exactly the banner's height. `debugLayout`
+   emits the provenance banner as a SIBLING before `.dbg` (deliberately — §8's
+   one admitted full-width band, and the register where a reader is most likely
+   to forget which chain they are on). The shell then asked for `height:100%`,
+   which is 100% of the BODY and not of what the banner left of it, so the
+   document came to banner + viewport: measured 1281px of content in a 1080px
+   box at `wide`, and the body's own `overflow:hidden` then CLIPPED the last
+   201px of the pane column with no scrollbar to say so
+   (round vd8-r1, reviews/rounds/vd8-r1/debugger--testnet__wide__light__L2.json,
+   filed P1 — not cited by ledger id, because round vd8-r2 replaced that
+   triple's reviews and the id now names a different finding).
+
+   `flex:1 1 0` and not `height:calc(100% - …)`: the banner's height is content,
+   it differs per chain and per theme's wrapping, and a subtraction would be a
+   second place that has to know it. The flex column derives it.
+
+   WHY IT SURVIVED FIVE ROUNDS OF REVIEW. Every other debugger view in the
+   matrix is captured `fullPage: false` — 22 of them — so the camera was cropped
+   to exactly the 1080px box the defect overflows, and the missing 201px was
+   outside every frame anyone had ever been shown. `debugger--testnet` is the
+   one debugger view captured full-page, and three reviewers filed the band on
+   first sight of it. A defect that only a full-page capture can see is worth
+   naming as such: the matrix is mostly clipped, and clipped captures cannot
+   report overflow. That view stays full-page for this reason — it is now the
+   regression witness, and cropping it to hide the band would be deleting the
+   only instrument that showed it. */
 html[data-register="debugger"],
 [data-register="debugger"] body{height:100%;overflow:hidden}
-[data-register="debugger"] .dbg{display:flex;flex-direction:column;height:100%;min-height:0}
+[data-register="debugger"] body{display:flex;flex-direction:column}
+/* The banner keeps its content height; only the shell is elastic. */
+[data-register="debugger"] body > .notice{flex:0 0 auto}
+[data-register="debugger"] .dbg{display:flex;flex-direction:column;flex:1 1 0;min-height:0}
 
 /* ── identity bar ───────────────────────────────────────────────────────── */
 /* It carries the stepping controls now, so it is `min-height` and wraps rather
@@ -1368,7 +1399,14 @@ a.ctrow,a.evrow{cursor:pointer}
      auto-height column resolves to zero and renders as an empty title bar,
      which is what a squeeze of the desktop layout actually looks like. */
   [data-register="debugger"] body{overflow:auto}
-  [data-register="debugger"] .dbg{height:auto;min-height:100%}
+  /* `flex:0 0 auto` alongside `height:auto`, for the reason the paragraph above
+     gives and which the shell now needs stated: `.dbg` is `flex:1 1 0` in the
+     base rule (it takes what the provenance banner leaves of the viewport), and
+     `height:auto` does NOT neutralise a flex basis. Without this line the shell
+     would keep dividing a fixed viewport at exactly the widths this block
+     exists to stop it — the same defect as `.dbgmain`, `.ln` and `.pane` on the
+     lines below, which is why it takes the same declaration they do. */
+  [data-register="debugger"] .dbg{flex:0 0 auto;height:auto;min-height:100%}
   .dbgmain{flex:0 0 auto;flex-direction:column;height:auto;overflow:visible}
   .ln{flex:0 0 auto;height:auto}
   .ln.row{flex-direction:column}

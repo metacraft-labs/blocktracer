@@ -421,3 +421,196 @@ suite "the containers a page names are the ones the tree carries":
       inc named
     check named == ing.withTrace
     check named > 0
+
+# ───────────────────────────────────────────────────────────────────────────
+# The two defects a real chain found in code the fixture had been proving
+# correct. Both were filed by reviewers against real chain pages in vd8-r1;
+# neither is reachable from the demo fixture, which is why neither had a test.
+#
+# These suites carry their own COUNTED assertions. `std/unittest` ships no
+# assertion counter, so a `continue`, an early `return` or a loop over a set
+# that turned out to be empty removes assertions silently and the suite still
+# reports green — Verification-Harness-Traps §4b/§4c, and §4b's case is exactly
+# a loop whose membership was knowable and was not counted. `ck` counts, and
+# `expectCount` fails when the total is not the number written from a run.
+# The older suites above are left on bare `check`: converting them would be
+# churn in a diff whose subject is elsewhere.
+# ───────────────────────────────────────────────────────────────────────────
+
+var asserted = 0
+template ck(condition: untyped) =
+  inc asserted
+  check condition
+template expectCount(expected: int) =
+  if asserted != expected:
+    checkpoint("assertion count is " & $asserted & ", expected " & $expected)
+  check asserted == expected
+
+suite "4 — a cost dimension with no ceiling":
+  asserted = 0
+  ## ledger@2026-08-31.1:debugger--testnet/wide/light/ADV/1 and
+  ## ledger@2026-08-31.1:tx-detail--mainnet-zero-trace/wide/light/ADV/1 — five
+  ## of twelve reviewers across the two real-chain triples filed the dangling
+  ## " / " independently. `viewutil.costLabel` had always guarded the join;
+  ## `txMetadataRows` spelled it a second time and did not.
+
+  let
+    capped = Cost(name: "mana", used: "42000", limit: "100000",
+                  unit: "mana", token: "FeeJuice")
+    uncapped = Cost(name: "transactionFee", used: "0x84bcfc44229235e4",
+                    limit: "", unit: "mana", token: "FeeJuice")
+
+  test "the fixture's shape and a real chain's shape are BOTH in this suite":
+    # Trap 4a's pairing. Every assertion below about the uncapped cost is a
+    # "does not contain" — and an empty haystack satisfies all of them. The
+    # capped cost is the positive twin running through the same procs, so a
+    # `costAmount` that had stopped emitting anything at all goes red here.
+    ck capped.limit.len > 0
+    ck uncapped.limit.len == 0
+    ck costAmount(capped) == "42000 / 100000"
+    ck costAmount(capped).contains(" / ")
+
+  test "no ceiling means no separator, in BOTH spellings":
+    ck costAmount(uncapped) == "0x84bcfc44229235e4"
+    ck not costAmount(uncapped).contains(" / ")
+    ck not costLabel(uncapped).contains(" / ")
+    ck costLabel(uncapped) == "0x84bcfc44229235e4 mana"
+
+  test "the metadata row renders the guarded join and not a second one":
+    var v: TxView
+    v.hash = "0xreal"
+    v.cost = @[uncapped]
+    let rows = txMetadataRows(RealChain, v)
+    var costRows = 0
+    for r in rows:
+      if r.label.startsWith("Cost · "):
+        inc costRows
+        ck not r.value.contains(" / ")
+        ck r.value == costAmount(uncapped)
+    # Membership is knowable — one cost dimension in, one row out. Asserting
+    # the COUNT and not `> 0`: trap 4b, where "at least one" was satisfied by
+    # one member of three while two were silently skipped.
+    ck costRows == 1
+
+  test "MUTATION BITE: the pre-fix spelling puts the dangling separator back":
+    # The arm the assertions above are written for. `c.used & \" / \" & c.limit`
+    # is the exact expression that stood at viewutil.nim:269, evaluated over the
+    # same Cost — so this proves the checks bite rather than describing a
+    # property the values happen to have.
+    let preFix = uncapped.used & " / " & uncapped.limit
+    ck preFix.contains(" / ")                  # the mutation reintroduces it
+    ck preFix != costAmount(uncapped)          # and the fix differs from it
+    ck preFix.endsWith(" / ")                  # dangling: no operand after
+    # …and over a chain that DOES publish a ceiling the two agree, which is why
+    # the defect survived every round the corpus had only the fixture in it.
+    ck (capped.used & " / " & capped.limit) == costAmount(capped)
+
+  test "the real chain's own transaction renders no dangling separator":
+    # Not a constructed Cost — the ingested one, through the shipping path.
+    let info = chainInfo(root, RealChain)
+    var seen, uncappedSeen = 0
+    for t in snap["transactions"]:
+      let v = txView(root, info, t["txHash"].getStr)
+      for c in v.cost:
+        inc seen
+        # Plain `check` inside the loop, deliberately: the iteration count is
+        # DATA (how many cost dimensions this capture happens to publish), and
+        # feeding it into `asserted` would make the suite's expected total a
+        # number that moves whenever the fixture is recaptured. The aggregates
+        # below are the counted assertions, and they are what says the scan was
+        # not empty.
+        if c.limit.len == 0:
+          inc uncappedSeen
+          check not costAmount(c).contains(" / ")
+          check not costLabel(c).contains(" / ")
+    ck seen > 0                                # the scan reached the tree
+    ck uncappedSeen > 0                        # …and it reached the real shape
+
+  test "assertion count":
+    expectCount(17)
+
+suite "5 — a language tag is a claim about source":
+  asserted = 0
+  ## ledger@2026-08-31.1:debugger--testnet/wide/light/L5/1, filed P1: an
+  ## uppercase NOIR tag on the identity bar of a session whose four panes each
+  ## state that the recording carries no debug symbols. `demoSession` set
+  ## `languages` above the branch that decides whether a language is known.
+
+  let info = chainInfo(root, RealChain)
+  let v = txView(root, info, replayedTx)
+
+  test "the two sessions differ in source level, so this is not vacuous":
+    ck traceView(root, info, replayedTx).sourceLevel == false
+    ck demoSession(RealChain, v, sourceLevel = true).editor.availability ==
+       srcSourceLevel
+    ck demoSession(RealChain, v, sourceLevel = false).editor.availability ==
+       srcUnverified
+
+  test "source level names its language; instruction level names none":
+    # The positive twin FIRST. Without it, "no language tag" is satisfied by a
+    # constructor that had stopped setting `languages` in every state — the R6
+    # shape in Verification-Harness-Traps §4a, where a renderer answering
+    # "unknown" to everything satisfied the check that existed to catch it.
+    ck demoSession(RealChain, v, sourceLevel = true).languages == @["noir"]
+    ck demoSession(RealChain, v, sourceLevel = false).languages.len == 0
+
+  test "every §7.0 state that cannot know a language declines to name one":
+    # Membership is knowable: `TraceAvailability` has exactly five members, and
+    # the reported defect named only one of them. Trap 4b — assert the COUNT.
+    var covered, tagged, untagged = 0
+    for a in TraceAvailability:
+      var probe = v
+      probe.headline = a
+      # `sourceLevel = false` throughout: the question is which STATES may
+      # carry a language, holding the source level fixed at the real chain's.
+      let s = demoSession(RealChain, probe, sourceLevel = false)
+      inc covered
+      if s.languages.len > 0: inc tagged else: inc untagged
+    ck covered == 5
+    ck tagged == 0
+    ck untagged == 5
+
+  test "a state with no session at all carries no language either":
+    # The three the review did not reach. `pages/debug.nim` renders the tag on
+    # `languages.len > 0` alone, OUTSIDE the `hasFrame` gate that suppresses
+    # the controls and the phase rail — so `onDemand`, `absent` and
+    # `unsupported` were tagged too.
+    var noSession = 0
+    for a in [taOnDemand, taAbsent, taUnsupported]:
+      var probe = v
+      probe.headline = a
+      let s = demoSession(RealChain, probe)
+      ck not s.hasFrame
+      ck s.languages.len == 0
+      inc noSession
+    ck noSession == 3
+
+  test "MUTATION BITE: setting it above the branch tags the honest session":
+    # The pre-fix constructor set `languages` beside `traceContentHash`, which
+    # every state carries. Reapplying it to the instruction-level session is
+    # that assignment, and it must redden the check written against it.
+    var mutated = demoSession(RealChain, v, sourceLevel = false)
+    ck mutated.languages.len == 0             # the fix holds before the arm
+    mutated.languages = @["noir"]             # ← the pre-fix assignment
+    ck not (mutated.languages.len == 0)       # …and the assertion reddens
+
+  test "the served instruction-level page carries no language tag":
+    # The artefact, not the model — trap 2. The page is what the reviewer saw.
+    #
+    # Two haystacks on purpose. The register attribute is on `<html>`, ABOVE
+    # the inlined stylesheet, so `markup` (which keeps only what follows
+    # `</style>`) cannot see it — asserting it against the stripped document
+    # would fail on a perfectly correct page. The tag check needs the stripped
+    # one for the reason `markup` exists: the stylesheet defines `.dbglang`,
+    # so `"dbglang" notin document` is false on every debugger page ever
+    # served, fixed or not.
+    let full = realDebugBody()
+    let m = markup(full)
+    ck m.len > 0                              # the scan reached a document
+    ck "data-register=\"debugger\"" in full   # …and it is the right one
+    ck "dbglang" in full                      # the stylesheet still defines it
+    ck "dbglang" notin m                      # …and the markup does not use it
+    ck "instruction level" in m               # the panes still explain why
+
+  test "assertion count":
+    expectCount(22)

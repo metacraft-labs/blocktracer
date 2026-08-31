@@ -101,10 +101,37 @@ func debugActionClass*(a: TraceAvailability): string =
   of taOnDemand: "btn sm ghost"
   of taAbsent, taUnsupported: ""
 
-func costLabel*(c: Cost): string =
-  ## One dimension of §2.3's cost VECTOR, spelled the chain's own way.
+func costAmount*(c: Cost): string =
+  ## The quantity half of one cost dimension: what was spent, and what it was
+  ## spent against WHERE THE CHAIN PUBLISHES A CEILING.
+  ##
+  ## This proc exists because the guard did not. `costLabel` below has always
+  ## been conditional; `txMetadataRows` spelled the same join a second time and
+  ## unconditionally, as `c.used & " / " & c.limit`. On the synthetic chain the
+  ## two agreed, because the fixture publishes a limit — so the divergence was
+  ## invisible for as long as the corpus had no real chain in it. A real Aztec
+  ## transaction publishes a fee and NO ceiling, and the second spelling
+  ## rendered a dangling " / " with no operand after it under the fee label
+  ## Both adversarial reviewers of round vd8-r1 named this row as their single
+  ## weakest element; the reports are the two `*__ADV.json` files under
+  ## reviews/rounds/vd8-r1/ for `debugger--testnet__wide__light` and
+  ## `tx-detail--mainnet-zero-trace__wide__light`. Deliberately NOT cited in the
+  ## `ledger@revision:id` form: round vd8-r2 replaced every review on both of
+  ## those triples, so those finding ids now name different findings, and a
+  ## citation that still resolves would be a comment that reads as evidence and
+  ## is not — the exact defect check-tokens B4 exists to catch.
+  ##
+  ## The fix is one guard rather than two copies of it. A second `if
+  ## c.limit.len > 0` at the other call site would have rendered the same
+  ## pixels and left the same defect available to the third caller, because
+  ## what was wrong was never the condition — it was that the condition was
+  ## restatable at all.
   result = c.used
   if c.limit.len > 0: result.add " / " & c.limit
+
+func costLabel*(c: Cost): string =
+  ## One dimension of §2.3's cost VECTOR, spelled the chain's own way.
+  result = costAmount(c)
   if c.unit.len > 0: result.add " " & c.unit
 
 proc feeLabel*(cost: seq[Cost]): string =
@@ -266,8 +293,10 @@ proc txMetadataRows*(chain: string, v: TxView): seq[MetaRow] =
   for c in v.cost:
     var suffix = c.unit
     if c.token.len > 0: suffix.add " (" & c.token & ")"
+    # `costAmount` and NOT a second `c.used & " / " & c.limit`: the ceiling is
+    # optional on a real chain, and the guard that knows so lives in one place.
     result.add MetaRow(label: "Cost · " & c.name,
-                       value: c.used & " / " & c.limit,
+                       value: costAmount(c),
                        suffix: suffix, identifier: true)
 
 const UnknownSelectorNote* =
