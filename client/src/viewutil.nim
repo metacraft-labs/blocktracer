@@ -492,9 +492,53 @@ proc txMetadataRows*(chain: string, v: TxView, info: ChainInfo): seq[MetaRow] =
                        value: costAmount(c),
                        suffix: suffix, identifier: true)
 
+func hasHexValue*(s: string): bool =
+  ## Whether a published hex field carries a VALUE, rather than the empty
+  ## string or the empty hex literal.
+  ##
+  ## `0x` is how both the fixture and the real adapters spell "nothing here" in
+  ## a field whose type is bytes, and it is not a value: the demo's Aztec split
+  ## transaction publishes `payloadSelector: "0x"`, so a `.len > 0` test called
+  ## it a selector and told the reader no ABI resolved it.
+  s.len > 0 and s != "0x" and s != "0X"
+
 proc payloadNote*(v: TxView): string =
-  ## §7.2 section 3's degraded copy — which of the three things that can be
-  ## true of a payload IS true of this one.
+  ## §7.2 section 3's degraded copy — which of the four things that can be true
+  ## of a payload IS true of this one.
+  ##
+  ## ## The first version of this proc replaced a wrong sentence with a wrong
+  ## ## sentence, and the round caught it
+  ##
+  ## It branched on three states and closed with "This transaction published no
+  ## call data: no selector and an empty payload." That is an affirmative claim
+  ## about what the CHAIN published, and on the mainnet subject the page's own
+  ## data contradicts it twice over: the Not observable card says the node "no
+  ## longer serves this transaction's body", and the raw block prints
+  ## `"bodyRetainedAtCapture": false`. The body was PRUNED. Whether it once
+  ## carried call data is not something this capture can know, and the note
+  ## rendered unknown as known-empty.
+  ##
+  ## Three reviewers of `tx-detail--mainnet-zero-trace/wide/light` filed it
+  ## independently in round vd8-r4 — ADV, L4 and L5 — and two of them read this
+  ## proc to name the missing branch. It is §14.1a's rule broken in the small:
+  ## "'Not now' and 'not ever' are different states. … Presenting either as the
+  ## other is the failure this table exists to prevent." `availabilityNote`
+  ## already states PERMANENT without stating WHY for exactly this reason, and
+  ## this sentence should have been written the same way the first time.
+  ##
+  ## So the terminal branch now says what the TREE holds and explicitly declines
+  ## the cause. The reason, where the pipeline published one, is already on the
+  ## page above — quoted in the producer's own words rather than re-derived
+  ## here.
+  ##
+  ## ## And the branch ORDER was wrong independently of that
+  ##
+  ## Testing the selector first meant a published selector with an empty payload
+  ## got "the parameters are shown as raw bytes" while the RAW row beside it
+  ## read `0x` — prose describing a display that is not on screen, which L4
+  ## filed on `tx-detail/wide/light`. The two observations are independent, so
+  ## they are now two booleans and four arms rather than a chain of `elif`s that
+  ## can only see one of them.
   ##
   ## ## The note was unconditional, and therefore false on real chains
   ##
@@ -529,17 +573,23 @@ proc payloadNote*(v: TxView): string =
   ## would be two answers to one question. `demo_session.nim` passed the const
   ## directly into `MetadataPane.payloadNote`, which is how the pane acquired
   ## the same defect independently.
+  let selector = hasHexValue(v.payloadSelector)
+  let bytes = hasHexValue(v.payloadRaw)
   result =
-    if v.payloadSelector.len > 0:
+    if selector and bytes:
       "This selector is not in any ABI BlockTracer holds, so the parameters " &
       "are shown as raw bytes. Supplying an ABI decodes them."
-    elif v.payloadRaw.len > 2:
-      "No function selector was published with this call, so there is nothing " &
-      "to resolve the bytes below against. They are shown exactly as the " &
-      "chain published them."
+    elif selector:
+      "This selector is not in any ABI BlockTracer holds, and no call data " &
+      "accompanies it here, so there are no parameters to decode."
+    elif bytes:
+      "No function selector accompanies these bytes, so there is nothing to " &
+      "resolve them against. They are shown exactly as this tree holds them."
     else:
-      "This transaction published no call data: no selector and an empty " &
-      "payload. There is nothing here an ABI would decode."
+      "This tree holds no call data for this transaction, so there is " &
+      "nothing here for an ABI to decode. Whether none was published or the " &
+      "body was pruned before it was captured is not something this section " &
+      "can tell; where that is known, it is stated above."
 
   ## §7.2 section 3's degraded copy. A constant rather than a literal in a
   ## view, for the same reason `txMetadataRows` is a proc: the transaction
