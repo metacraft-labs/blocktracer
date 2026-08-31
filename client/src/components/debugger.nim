@@ -1056,6 +1056,42 @@ proc renderControls*(p: DebugControlsPane): string =
 
 # ── the metadata pane (§7.1) ───────────────────────────────────────────────
 
+proc metaValue(r: MetaRow): string =
+  ## The inside of one row's `dd`.
+  ##
+  ## A proc returning a STRING rather than a block inlined at the two `dd`
+  ## branches below, for the reason `layout.hydrationScriptTag` is one: the
+  ## branch is over an ATTRIBUTE, and the isonim DSL emits an attribute whose
+  ## value is `""` rather than omitting it, so `dd(\`data-provenance\` = r.x)`
+  ## put `data-provenance=""` on every row that is not the provenance row —
+  ## which would make `grep -c data-provenance` count metadata rows instead of
+  ## provenance markers, and turn the one machine-findable guarantee in this
+  ## register into a number that is right for the wrong reason.
+  ui:
+    tdiv:
+      if r.href.len > 0:
+        a(href = r.href, class = "identifier"): text r.value
+      elif r.badge.len > 0:
+        span(class = "badge " & r.badge): text r.value
+      elif r.identifier:
+        # Rendered in FULL — an address, a target, a cost pair, a decoded
+        # argument — so one click selects the whole of it. `Copyable` lives
+        # here rather than at either call site for the same reason this
+        # helper does: a row must not acquire a second presentation by
+        # being in the other list.
+        span(class = "identifier " & Copyable): text r.value
+      else:
+        text r.value
+      if r.suffix.len > 0:
+        span(class = "muted"): text " " & r.suffix
+      # Inside the `dd`, not after it: a `<dl>` may only contain `dt`/`dd`,
+      # and a paragraph between them would be invalid markup that browsers
+      # recover from differently. One rung quieter than the value it
+      # qualifies — the relationship `.notice .reason` gives the explorer's
+      # §14 treatments, which is where this rule is written down.
+      if r.note.len > 0:
+        p(class = "reason measure"): text r.note
+
 proc metaRows(rows: seq[MetaRow]; cls: string): string =
   ## One `<dl>` of §7.2 facts. Shared by the overview rows and the decoded
   ## input so a row cannot acquire a second presentation by being in the other
@@ -1064,22 +1100,15 @@ proc metaRows(rows: seq[MetaRow]; cls: string): string =
     dl(class = cls):
       for r in rows:
         dt: text r.label
-        dd:
-          if r.href.len > 0:
-            a(href = r.href, class = "identifier"): text r.value
-          elif r.badge.len > 0:
-            span(class = "badge " & r.badge): text r.value
-          elif r.identifier:
-            # Rendered in FULL — an address, a target, a cost pair, a decoded
-            # argument — so one click selects the whole of it. `Copyable` lives
-            # here rather than at either call site for the same reason this
-            # helper does: a row must not acquire a second presentation by
-            # being in the other list.
-            span(class = "identifier " & Copyable): text r.value
-          else:
-            text r.value
-          if r.suffix.len > 0:
-            span(class = "muted"): text " " & r.suffix
+        # `data-provenance` ONLY on the row that has one — it is the only
+        # machine-findable provenance marker in this register, so it must
+        # not also appear, empty, on every other fact.
+        if r.dataProvenance.len > 0:
+          dd(`data-provenance` = r.dataProvenance):
+            raw metaValue(r)
+        else:
+          dd:
+            raw metaValue(r)
 
 proc renderMetadata*(m: MetadataPane): string =
   ui:

@@ -106,9 +106,17 @@ export const PAGES = [
 
   // ── The provenance banner, as TWO entries ────────────────────────────────
   //
-  // `components/provenance.nim` renders a standing statement of whose data the
-  // reader is looking at, on every chain-scoped route — 814 of the 819 pages
-  // this tree exports. It is split in two for the reason `tx-detail.absent`
+  // `components/provenance.nim` renders a statement of whose data the reader is
+  // looking at, on every chain-scoped route — 813 of the 819 pages this tree
+  // exports. (It was documented here as 814; that number counted the home
+  // page's chain strip, which carries `data-provenance` on its cards and is a
+  // different surface. The six pages without a marker are the site-level ones:
+  // /about, /settings, /search, /chains and the 404.)
+  //
+  // Since 2026-08-31 the FORM varies and the id does not: a band where the
+  // provenance is abnormal and the page has no facts grid, a chip where it is
+  // ordinary, a `Data` row on any page that has a grid. These two ids name the
+  // CLAIM, not the element, which is why the change did not move them. It is split in two for the reason `tx-detail.absent`
   // and `tx-detail.unsupported` are split: they are two different claims, a
   // reviewer can judge them separately, and one can be right while the other
   // is wrong. They are also the pair whose CONFUSION is the failure the

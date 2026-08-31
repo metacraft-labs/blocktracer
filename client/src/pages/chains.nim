@@ -35,8 +35,17 @@ import isonim/ssr/escape
 import isonim/dsl/ui
 import ../reader
 import ../viewutil
+import ../components/provenance
 
 proc chainsPage*(rows: seq[ChainRow]): string =
+  ## The rows arrive in `chains()`'s registry order — lexicographic — and are
+  ## re-ordered here by the SAME rule the home strip uses, because these are the
+  ## two surfaces that enumerate this product's chains and they were disagreeing
+  ## about which one leads. See `provenance.captureFirst`.
+  ##
+  ## Ordered in the view rather than in `chainRows`: which chain a reader is
+  ## offered first is a presentation decision, and `reader.nim` is the data seam.
+  let rows = captureFirst(rows, proc(r: ChainRow): string {.noSideEffect.} = r.info.provenanceKind)
   ui:
     section(class = "sec"):
       tdiv(class = "inner"):

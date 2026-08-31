@@ -121,6 +121,11 @@ proc markup(html: string): string =
   let parts = html.split("</style>")
   if parts.len > 1: parts[^1] else: html
 
+proc occurrences(haystack, needle: string): int =
+  ## How many times `needle` appears. `count` from `strutils` counts
+  ## NON-OVERLAPPING occurrences, which is what a marker count wants.
+  haystack.count(needle)
+
 proc realTxBody(): string = renderRoute(root, "/" & RealChain & "/tx/" & replayedTx).body
 proc realDebugBody(): string =
   renderRoute(root, "/" & RealChain & "/tx/" & replayedTx & "/debug").body
@@ -174,8 +179,8 @@ suite "1 — a rung-3 recording never renders as source":
     # fixture — so the mutation must be shown to put those strings back.
     let info = chainInfo(root, RealChain)
     let v = txView(root, info, replayedTx)
-    let mutated = demoSession(RealChain, v, sourceLevel = true)
-    let honest = demoSession(RealChain, v, sourceLevel = false)
+    let mutated = demoSession(RealChain, v, info, sourceLevel = true)
+    let honest = demoSession(RealChain, v, info, sourceLevel = false)
     check mutated.editor.availability == srcSourceLevel
     check honest.editor.availability == srcUnverified
     var leaked = 0
@@ -337,7 +342,13 @@ suite "3 — real and synthetic are tellable apart, on the page":
     check provenanceTone(realInfo.provenanceKind) !=
           provenanceTone(demoInfo.provenanceKind)
 
-  test "the banner is on the transaction page of BOTH chains":
+  test "the marker is on the transaction page of BOTH chains":
+    # REVISED 2026-08-31 with the band rule. This used to be named "the banner
+    # is on…" and it asserted the same attribute — which is why it still reads
+    # almost unchanged: what a page must carry is a MARKER naming the published
+    # kind, and `data-provenance` has always been how that is checked without
+    # depending on the wording. Which ELEMENT carries it is now the page's
+    # choice (band, chip or metadata row) and was never what this asserted.
     check "data-provenance=\"live-capture\"" in realTxBody()
     let demoInfo = chainInfo(root, DemoChain)
     var demoTx = ""
@@ -350,11 +361,40 @@ suite "3 — real and synthetic are tellable apart, on the page":
 
   test "and in the DEBUGGER, where the site chrome is gone":
     # The register a reader is most likely to lose track of which chain they
-    # are on: no nav, no footer, the viewport is an execution.
+    # are on: no nav, no footer, and — since the band was reserved for abnormal
+    # states — no strip above the identity bar either. The metadata pane is what
+    # carries it now, which §7.1 puts on the page in EVERY state, so the marker
+    # is on all 74 debug pages rather than on the ones that open a session.
     let d = realDebugBody()
     check "data-register=\"debugger\"" in d
     check "data-provenance=\"live-capture\"" in d
     check "Real Aztec testnet data" in d
+    # …and it is the metadata ROW, not a band that survived the change.
+    check "class=\"notice" notin markup(d)
+    check "<dt>Data</dt>" in d
+
+  test "every chain-scoped page carries EXACTLY ONE provenance marker":
+    # The invariant the band rule has to preserve: moving the marker must not
+    # drop it from any page, and must not leave two on one page either. Both
+    # failures are silent — a page with none states nothing, a page with two
+    # states it twice — so the count is asserted rather than the presence.
+    var pages, markers = 0
+    for chain in [RealChain, DemoChain]:
+      let info = chainInfo(root, chain)
+      var routes = @["/" & chain, "/" & chain & "/blocks", "/" & chain & "/txs"]
+      for h in blockHashes(root, info):
+        routes.add "/" & chain & "/block/" & h
+        for t in readBlockDetail(root, info, h).transactions:
+          routes.add "/" & chain & "/tx/" & t
+          routes.add "/" & chain & "/tx/" & t & "/debug"
+      for route in routes:
+        let body = renderRoute(root, route).body
+        if body.len == 0: continue
+        inc pages
+        inc markers, occurrences(body, "data-provenance=\"" &
+                                       info.provenanceKind & "\"")
+    check pages > 0                 # the scan reached the tree
+    check markers == pages          # …and every page has one, and only one
 
   test "the real banner names the endpoint, the moment and the window":
     let detail = chainInfo(root, RealChain).provenanceDetail
@@ -390,16 +430,64 @@ suite "3 — real and synthetic are tellable apart, on the page":
       check lab.len > 0
       check lab != "Real chain data"
 
-  test "MUTATION BITE: a chain with no published provenance gets no banner":
-    # The banner must come from the tree. A component that defaulted to
+  test "MUTATION BITE: a chain with no published provenance gets no marker":
+    # The marker must come from the tree. A component that defaulted to
     # "synthetic" would label an unmarked chain with a claim its producer
-    # never made.
+    # never made. EVERY producer is driven, not just the band: the guard is the
+    # thing being checked, and a guard that held in one of three producers
+    # would be a guard with two ways around it.
     var blank: ChainInfo
     check provenanceBanner(blank) == ""
+    check provenanceChip(blank) == ""
+    check provenanceMarker(blank) == ""
+    check provenanceRow(blank).len == 0
     blank.provenanceKind = "live-capture"
-    check provenanceBanner(blank) == ""      # no label either => still nothing
-    blank.provenanceLabel = "Real Aztec testnet data"
-    check provenanceBanner(blank).len > 0
+    check provenanceMarker(blank) == ""      # no label either => still nothing
+    check provenanceRow(blank).len == 0
+
+  test "the band is reserved for the ABNORMAL kind, and the chip is not":
+    # REVISED 2026-08-31. This assertion used to read `provenanceBanner(live)
+    # .len > 0` and it was correct for the design of the day: every kind got a
+    # band. The design changed — a band interrupts, so it now means "something
+    # here is not normal" — and the expectation changed WITH it rather than
+    # being loosened to accommodate it. Both directions are asserted, so a
+    # component that reverted to banding everything, or that stopped banding
+    # anything, fails here.
+    var real, demo: ChainInfo
+    real.provenanceKind = "live-capture"
+    real.provenanceLabel = "Real Aztec testnet data"
+    demo.provenanceKind = "synthetic"
+    demo.provenanceLabel = "Synthetic demo data"
+
+    check not isAbnormal(real)
+    check isAbnormal(demo)
+    # Real data: a chip, and NO band.
+    check provenanceBanner(real) == ""
+    check provenanceChip(real).len > 0
+    check "provchip" in provenanceMarker(real)
+    # Synthetic: a band, and NO chip.
+    check provenanceBanner(demo).len > 0
+    check provenanceChip(demo) == ""
+    check "class=\"notice" in provenanceMarker(demo)
+    # A kind this build has never heard of is treated as abnormal — the louder
+    # treatment goes to the direction that costs more when it is missed.
+    var unknown: ChainInfo
+    unknown.provenanceKind = "some-future-producer"
+    unknown.provenanceLabel = "Something else entirely"
+    check isAbnormal(unknown)
+    check "class=\"notice" in provenanceMarker(unknown)
+
+  test "the row states the kind and quotes the producer, for BOTH kinds":
+    for chain in [RealChain, DemoChain]:
+      let info = chainInfo(root, chain)
+      let rows = provenanceRow(info)
+      check rows.len == 1
+      check rows[0].value == info.provenanceLabel
+      check rows[0].dataProvenance == info.provenanceKind
+      check rows[0].badge == provenanceTone(info.provenanceKind)
+      # The producer's own sentences, carried verbatim rather than paraphrased.
+      check rows[0].note == info.provenanceDetail
+      check rows[0].note.len > 0
 
 suite "the containers a page names are the ones the tree carries":
   test "every published container is non-empty and named by its page":
@@ -480,7 +568,7 @@ suite "4 — a cost dimension with no ceiling":
     var v: TxView
     v.hash = "0xreal"
     v.cost = @[uncapped]
-    let rows = txMetadataRows(RealChain, v)
+    let rows = txMetadataRows(RealChain, v, chainInfo(root, RealChain))
     var costRows = 0
     for r in rows:
       if r.label.startsWith("Cost · "):
@@ -541,9 +629,9 @@ suite "5 — a language tag is a claim about source":
 
   test "the two sessions differ in source level, so this is not vacuous":
     ck traceView(root, info, replayedTx).sourceLevel == false
-    ck demoSession(RealChain, v, sourceLevel = true).editor.availability ==
+    ck demoSession(RealChain, v, info, sourceLevel = true).editor.availability ==
        srcSourceLevel
-    ck demoSession(RealChain, v, sourceLevel = false).editor.availability ==
+    ck demoSession(RealChain, v, info, sourceLevel = false).editor.availability ==
        srcUnverified
 
   test "source level names its language; instruction level names none":
@@ -551,8 +639,8 @@ suite "5 — a language tag is a claim about source":
     # constructor that had stopped setting `languages` in every state — the R6
     # shape in Verification-Harness-Traps §4a, where a renderer answering
     # "unknown" to everything satisfied the check that existed to catch it.
-    ck demoSession(RealChain, v, sourceLevel = true).languages == @["noir"]
-    ck demoSession(RealChain, v, sourceLevel = false).languages.len == 0
+    ck demoSession(RealChain, v, info, sourceLevel = true).languages == @["noir"]
+    ck demoSession(RealChain, v, info, sourceLevel = false).languages.len == 0
 
   test "every §7.0 state that cannot know a language declines to name one":
     # Membership is knowable: `TraceAvailability` has exactly five members, and
@@ -563,7 +651,7 @@ suite "5 — a language tag is a claim about source":
       probe.headline = a
       # `sourceLevel = false` throughout: the question is which STATES may
       # carry a language, holding the source level fixed at the real chain's.
-      let s = demoSession(RealChain, probe, sourceLevel = false)
+      let s = demoSession(RealChain, probe, info, sourceLevel = false)
       inc covered
       if s.languages.len > 0: inc tagged else: inc untagged
     ck covered == 5
@@ -579,7 +667,7 @@ suite "5 — a language tag is a claim about source":
     for a in [taOnDemand, taAbsent, taUnsupported]:
       var probe = v
       probe.headline = a
-      let s = demoSession(RealChain, probe)
+      let s = demoSession(RealChain, probe, info)
       ck not s.hasFrame
       ck s.languages.len == 0
       inc noSession
@@ -589,7 +677,7 @@ suite "5 — a language tag is a claim about source":
     # The pre-fix constructor set `languages` beside `traceContentHash`, which
     # every state carries. Reapplying it to the instruction-level session is
     # that assignment, and it must redden the check written against it.
-    var mutated = demoSession(RealChain, v, sourceLevel = false)
+    var mutated = demoSession(RealChain, v, info, sourceLevel = false)
     ck mutated.languages.len == 0             # the fix holds before the arm
     mutated.languages = @["noir"]             # ← the pre-fix assignment
     ck not (mutated.languages.len == 0)       # …and the assertion reddens

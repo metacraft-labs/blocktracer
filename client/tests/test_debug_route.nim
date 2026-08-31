@@ -1295,12 +1295,12 @@ suite "§7.0 — the transaction page IS the debugger's first frame":
     # could see, because the old page would still render perfectly well.
     let info = chainInfo(root, Chain)
     expect ValueError:
-      discard txPg.txPage(Chain, txView(root, info, readyTx))
+      discard txPg.txPage(Chain, txView(root, info, readyTx), info)
     expect ValueError:
-      discard txPg.txPage(Chain, txView(root, info, divergentTx))
+      discard txPg.txPage(Chain, txView(root, info, divergentTx), info)
     # …and it renders the rows that have no session, so the refusal is
     # specific rather than a page that never renders at all.
-    check txPg.txPage(Chain, txView(root, info, onDemandTx)).len > 0
+    check txPg.txPage(Chain, txView(root, info, onDemandTx), info).len > 0
 
 
 suite "VD.5 — the source pane is syntax highlighted, at export time":
@@ -2707,7 +2707,7 @@ suite "M8b — the metadata pane and the page cannot diverge":
     let info = chainInfo(root, Chain)
     for h in [onDemandTx, readyTx]:
       let v = txView(root, info, h)
-      let rows = txMetadataRows(Chain, v)
+      let rows = txMetadataRows(Chain, v, info)
       check rows.len > 0
       let served = txHtml(h)
       let deep = debugHtml(h)
@@ -2741,12 +2741,12 @@ suite "M8b — the metadata pane and the page cannot diverge":
     let info = chainInfo(root, Chain)
 
     var expectedPage = initHashSet[string]()
-    for r in txMetadataRows(Chain, txView(root, info, onDemandTx)):
+    for r in txMetadataRows(Chain, txView(root, info, onDemandTx), info):
       expectedPage.incl r.label
     check dtLabelsIn(txHtml(onDemandTx), "<dl class=\"dl\">") == expectedPage
 
     var expectedPane = initHashSet[string]()
-    for r in txMetadataRows(Chain, txView(root, info, readyTx)):
+    for r in txMetadataRows(Chain, txView(root, info, readyTx), info):
       expectedPane.incl r.label
     check dtLabelsIn(txHtml(readyTx), "<dl class=\"mddl\">") == expectedPane
     check dtLabelsIn(debugHtml(readyTx), "<dl class=\"mddl\">") == expectedPane
@@ -2789,13 +2789,13 @@ suite "M8b — the metadata pane and the page cannot diverge":
     # of this test would now be asserting against an exception.
     var pv = txView(root, info, onDemandTx)
     var sv = txView(root, info, readyTx)
-    let pageBefore = txPg.txPage(Chain, pv)
-    let paneBefore = dbgc.renderMetadata(metadataPane(Chain, sv))
+    let pageBefore = txPg.txPage(Chain, pv, info)
+    let paneBefore = dbgc.renderMetadata(metadataPane(Chain, sv, info))
 
     pv.finality = "reorged"
     sv.finality = "reorged"
-    let pageAfter = txPg.txPage(Chain, pv)
-    let paneAfter = dbgc.renderMetadata(metadataPane(Chain, sv))
+    let pageAfter = txPg.txPage(Chain, pv, info)
+    let paneAfter = dbgc.renderMetadata(metadataPane(Chain, sv, info))
 
     check pageBefore != pageAfter
     check paneBefore != paneAfter
@@ -2832,12 +2832,12 @@ suite "M8b — the metadata pane and the page cannot diverge":
     # does not render, and the comparison above is what catches it.
     let info = chainInfo(root, Chain)
     let v = txView(root, info, readyTx)
-    var second = txMetadataRows(Chain, v)
+    var second = txMetadataRows(Chain, v, info)
     second.add MetaRow(label: "Gas price", value: "7 gwei")
     var secondLabels = initHashSet[string]()
     for r in second: secondLabels.incl r.label
     var producerLabels = initHashSet[string]()
-    for r in txMetadataRows(Chain, v): producerLabels.incl r.label
+    for r in txMetadataRows(Chain, v, info): producerLabels.incl r.label
     check secondLabels != producerLabels
 
   test "the static route never claims a live engine (§8, and the 18 MB wasm)":
@@ -2985,9 +2985,10 @@ suite "§13 — values are copyable, and nothing pretends to copy them":
     # Addresses and targets in the metadata pane. Asserted through the shared
     # producer, so a row it stops marking as an identifier stops being asserted
     # here too rather than silently losing the affordance.
-    let v = txView(root, chainInfo(root, Chain), readyTx)
+    let info = chainInfo(root, Chain)
+    let v = txView(root, info, readyTx)
     var plainIdentifiers = 0
-    for r in txMetadataRows(Chain, v):
+    for r in txMetadataRows(Chain, v, info):
       if r.identifier and r.href.len == 0 and r.badge.len == 0:
         check ("class=\"identifier copyable\">" & escapeHtml(r.value)) in html
         inc plainIdentifiers

@@ -32,10 +32,11 @@ func stripOrder*(infos: seq[ChainInfo]): seq[ChainInfo] =
   ##
   ## The demo chain is NOT hidden and does not lose its badge. It stops leading,
   ## which it only ever did by accident.
-  for info in infos:
-    if isLiveCapture(info.provenanceKind): result.add info
-  for info in infos:
-    if not isLiveCapture(info.provenanceKind): result.add info
+  ##
+  ## The rule itself moved to `components/provenance.captureFirst` when `/chains`
+  ## turned out to need the same one — see there for why it is a shared proc and
+  ## not a second loop that agrees with this one today.
+  captureFirst(infos, proc(i: ChainInfo): string {.noSideEffect.} = i.provenanceKind)
 
 proc liveDemo(demo: DebugSessionView): string =
   ## The embedded, pre-baked debugging session (VD.3's `home--live-demo`).

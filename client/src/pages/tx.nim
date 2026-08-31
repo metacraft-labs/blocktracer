@@ -39,6 +39,28 @@ import ../reader
 import ../viewutil
 import ../debugger/session_view
 
+proc metaValue(r: MetaRow): string =
+  ## The inside of one row's `dd` — see `debugger.metaValue`, which is the same
+  ## split for the same reason: the DSL emits an empty attribute rather than
+  ## omitting it, so the `data-provenance` branch has to be at the `dd` and the
+  ## body cannot be written twice.
+  ui:
+    tdiv:
+      if r.href.len > 0:
+        a(href = r.href, class = "identifier"): text r.value
+      elif r.badge.len > 0:
+        span(class = "badge " & r.badge): text r.value
+      elif r.identifier:
+        span(class = "identifier"): text r.value
+      else:
+        text r.value
+      if r.suffix.len > 0:
+        span(class = "muted"): text " " & r.suffix
+      # Inside the `dd` — see `debugger.metaRows`, which renders the same
+      # field the same way for the same reason. Two surfaces, one source.
+      if r.note.len > 0:
+        p(class = "reason measure"): text r.note
+
 proc metaGrid(rows: seq[MetaRow]): string =
   ## One `<dl>` of §7.2 facts, presented the explorer way. It knows how to
   ## present a row; it does not know which rows a transaction has, so it cannot
@@ -48,19 +70,14 @@ proc metaGrid(rows: seq[MetaRow]): string =
     dl(class = "dl"):
       for r in rows:
         dt: text r.label
-        dd:
-          if r.href.len > 0:
-            a(href = r.href, class = "identifier"): text r.value
-          elif r.badge.len > 0:
-            span(class = "badge " & r.badge): text r.value
-          elif r.identifier:
-            span(class = "identifier"): text r.value
-          else:
-            text r.value
-          if r.suffix.len > 0:
-            span(class = "muted"): text " " & r.suffix
+        if r.dataProvenance.len > 0:
+          dd(`data-provenance` = r.dataProvenance):
+            raw metaValue(r)
+        else:
+          dd:
+            raw metaValue(r)
 
-proc txPage*(chain: string, v: TxView): string =
+proc txPage*(chain: string, v: TxView, info: ChainInfo): string =
   let headline = v.headline
   # §7.0's first row does not render here, and cannot be made to.
   #
@@ -199,7 +216,7 @@ proc txPage*(chain: string, v: TxView): string =
 
         # ── Overview grid ─────────────────────────────────────
         h2(class = "sec-title next"): text "Overview"
-        raw metaGrid(txMetadataRows(chain, v))
+        raw metaGrid(txMetadataRows(chain, v, info))
 
         # ── §7.2's remaining sections ─────────────────────────
         #

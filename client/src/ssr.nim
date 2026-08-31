@@ -110,7 +110,7 @@ proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
   let info = chainInfo(r, chain)
   let v = txView(r, info, hash)
   let t = traceView(r, info, hash)
-  result = demoSession(chain, v,
+  result = demoSession(chain, v, info,
     containerPath = t.containerPath,
     containerBytes = t.containerBytes,
     contentHash = t.contentHash,
@@ -269,7 +269,7 @@ proc renderChain*(r: DataRoot, chain: string): string =
     chainPg.chainPage(chain, info, bs, page.rows, d, chainNotice(r, info)),
     robots = $routeClass("/" & chain),
     canonical = SiteDomain & "/" & chain,
-    provenance = provenanceBanner(info))
+    provenance = provenanceMarker(info))
 
 proc renderBlockList*(r: DataRoot, chain: string, fromHeight: int): string =
   let info = chainInfo(r, chain)
@@ -283,7 +283,7 @@ proc renderBlockList*(r: DataRoot, chain: string, fromHeight: int): string =
     blockListPg.blockListPage(chain, info, page, d, chainNotice(r, info)),
     robots = $routeClass(route),
     canonical = SiteDomain & route,
-    provenance = provenanceBanner(info))
+    provenance = provenanceMarker(info))
 
 proc renderTxList*(r: DataRoot, chain: string, fromHeight: int): string =
   let info = chainInfo(r, chain)
@@ -297,7 +297,7 @@ proc renderTxList*(r: DataRoot, chain: string, fromHeight: int): string =
     txsPg.txsPage(chain, info, page, d, chainNotice(r, info)),
     robots = $routeClass(route),
     canonical = SiteDomain & route,
-    provenance = provenanceBanner(info))
+    provenance = provenanceMarker(info))
 
 proc renderBlock*(r: DataRoot, chain, hash: string): string =
   let info = chainInfo(r, chain)
@@ -328,7 +328,7 @@ proc renderBlock*(r: DataRoot, chain, hash: string): string =
                       hasBlock(r, chain, detail.parentHash), d, note),
     robots = $routeClass("/" & chain & "/block/" & hash),
     canonical = SiteDomain & "/" & chain & "/block/" & hash,
-    provenance = provenanceBanner(info))
+    provenance = provenanceMarker(info))
 
 proc addressCode(r: DataRoot, info: ChainInfo, address: string,
                  rows: seq[TxRow]): seq[SourceBundleView] =
@@ -357,7 +357,7 @@ proc renderAddress*(r: DataRoot, chain, address, segmentId: string): string =
                           addressCode(r, info, address, rows), d, note),
     robots = $routeClass(route),
     canonical = SiteDomain & route,
-    provenance = provenanceBanner(info))
+    provenance = provenanceMarker(info))
 
 proc renderAddressCode*(r: DataRoot, chain, address: string): string =
   ## §10. The verified-source browser for the code at an address.
@@ -381,7 +381,7 @@ proc renderAddressCode*(r: DataRoot, chain, address: string): string =
     codePg.codePage(chain, address, code, deployments, d, note),
     robots = $routeClass(route),
     canonical = SiteDomain & route,
-    provenance = provenanceBanner(info))
+    provenance = provenanceMarker(info))
 
 proc renderTx*(r: DataRoot, chain, hash: string): string =
   ## `/{chain}/tx/{hash}` — Page-Descriptions §7.0, whose whole point is that
@@ -430,15 +430,28 @@ proc renderTx*(r: DataRoot, chain, hash: string): string =
       debugPg.debugPage(s),
       robots = robots,
       canonical = canonical,
-      provenance = provenanceBanner(info))
+      # NO PROVENANCE BAND IN THIS SHELL. `debugLayout` has a metadata pane
+      # that §7.1 puts on the page in every state, and `viewutil.txMetadataRows`
+      # opens it with the provenance row — so the marker is on this page beside
+      # the transaction's other facts rather than in a strip above them. See
+      # `provenance.provenanceMarker` for the whole argument; the short form is
+      # that a band costs ~190px of a 1080px viewport here and the pane costs a
+      # row.
+      provenance = "")
   else:
     pageLayout(
       "Transaction " & short & "… — " & chain & " — BlockTracer",
       description,
-      txPg.txPage(chain, v),
+      txPg.txPage(chain, v, info),
       robots = robots,
       canonical = canonical,
-      provenance = provenanceBanner(info))
+      # NO band and no chip: this page has a METADATA SURFACE, and
+      # `viewutil.txMetadataRows` opens it with the provenance row. The rule is
+      # one marker per page — the row wherever a page has facts to put it among,
+      # the band or the chip only where there is nowhere else for it to go. A
+      # chip above a grid whose first row says the same thing is the redundancy
+      # the band rule objected to, wearing a smaller element.
+      provenance = "")
 
 proc renderDebug*(r: DataRoot, chain, hash: string): string =
   let s = debugSessionFor(r, chain, hash)
@@ -453,7 +466,8 @@ proc renderDebug*(r: DataRoot, chain, hash: string): string =
     # transaction route's crawl surface to be unchanged — which a second
     # indexable copy of the same content would not leave it.
     canonical = SiteDomain & "/" & chain & "/tx/" & hash,
-    provenance = provenanceBanner(info))
+    # See `renderTx` above: this shell's provenance is the metadata pane's row.
+    provenance = "")
 
 proc renderNotFound*(r: DataRoot): string =
   ## §14's "Object not found" row, at a real 404 (SEO §6 class G0).

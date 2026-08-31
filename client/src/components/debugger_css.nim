@@ -1130,6 +1130,18 @@ a.ctrow,a.evrow{cursor:pointer}
   overflow-wrap:break-word;
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
 .mddl dd .identifier{word-break:break-all}
+/* `MetaRow.note` in the transaction pane — the provenance row's evidence, which
+   in this register is the ONLY provenance marker there is: `debugLayout` has no
+   nav, no footer and, since the band was reserved for abnormal states, no strip
+   above the identity bar either. So it is graded as content here, and it must
+   stay legible in a 380px pane.
+
+   `measure` is deliberately NOT applied by the caller in this register: the
+   pane is already narrower than the prose measure, and a second cap would be a
+   width that two rules could disagree about. One rung quieter than the value,
+   the same relationship `.notice .reason` gives the explorer. */
+.mddl dd .reason{color:var(--bt-text-muted);margin-top:var(--bt-space-2xs);
+  font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line)}
 .mddl dd .muted{white-space:nowrap}
 .mddl dd a{color:var(--bt-text-link);text-decoration:underline;
   text-underline-offset:var(--bt-space-3xs)}
@@ -1321,7 +1333,30 @@ a.ctrow,a.evrow{cursor:pointer}
    desktop width down to 1321 is one line, which is what the 1600 rung was
    failing to deliver at 1366, 1440, 1536, 1600 and 1680 alike. */
 @media (max-width:1780px){
-  .dbgctl .dctl{display:none}
+  /* THE SCRUBBER SHRINKS; IT DOES NOT LEAVE. Revised after every one of the
+     twelve reviewers who graded the debugger at `laptop` — six lenses on each
+     of `laptop/light` and `laptop/dark` — failed the PRESENCE check on it. The
+     expectation asks for the position readout and, separately, "a timeline or
+     scrubber expressing position within the trace", so `.dcsteps` cannot answer
+     both: two required elements, one element present.
+
+     The removal was also over-corrected on this rung's OWN arithmetic. The
+     shortfall is 208px; the three cuts above remove 438px. Taking the scrubber
+     out was 176 of those 438, against 230px of slack the other two cuts had
+     already bought — which is why reviewers measured roughly 285px of empty bar
+     at 1440 and said the track would fit in it. It does.
+
+     `flex:0 1` with a floor, and not the bare `flex:0 1` this rule's ancestor
+     had: that version let the track collapse to a couple of pixels, turning 48
+     ticks and a playhead into a single dash, which is the defect the fixed
+     width above was introduced to stop. The floor is a token because the number
+     is a design decision and not an implementation detail — see
+     `base.layout.scrubber-min`. Between the floor and the full 260px the track
+     gives width back to the bar before anything wraps, so the widest bar the
+     tree publishes (the transaction that also carries a `Reconstructed` badge)
+     squeezes the scrubber rather than taking a second row. */
+  .dbgctl .dctl{flex:0 1 var(--bt-layout-search);
+    min-width:var(--bt-layout-scrubber-min)}
   .dbgctl > .dc:not(:only-child) .dcphase{display:none}
 }
 /* Below this the cuts above have run out and the bar breaks — deliberately,

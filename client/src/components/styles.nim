@@ -337,6 +337,32 @@ pre.raw{max-height:var(--bt-layout-code-max-height);overflow:auto;background:var
 .notice p{font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line);color:var(--bt-text-default)}
 .notice .reason{color:var(--bt-text-muted);margin-top:var(--bt-space-2xs)}
 
+/* ── provenance, in its ordinary-case form ──────────────────────────────── */
+/* The chip a chain-scoped page carries when its data is REAL — see
+   `components/provenance.nim` for why the band is now reserved for the
+   abnormal case. It is deliberately not a `.notice`: no border, no raised
+   surface, no left rail, no full-bleed row. It is one badge, inset to the
+   page's own column, sitting directly above the breadcrumb it qualifies.
+
+   `margin-bottom` and no `margin-top`: it is the first thing in `.pagebody`,
+   and the section beneath it already opens with `.sec`'s own padding, so a top
+   margin here would push the whole page down by a rhythm step to no purpose. */
+.provchip{display:inline-flex;align-items:center;
+  margin-bottom:var(--bt-space-sm)}
+
+/* A producer's own sentences beneath a fact's VALUE — `MetaRow.note`, which
+   today only the provenance row carries. Rendered inside the `dd`, because a
+   `dl` may hold nothing but `dt`/`dd` and a paragraph between them is markup a
+   browser has to recover from rather than render.
+
+   One rung quieter than the value it qualifies, which is the same relationship
+   `.notice .reason` above gives the §14 treatments and `.nostate
+   .panenote.reason` gives the debugger's empty states. Three places, one
+   relationship. `measure` caps it at the prose width so a three-sentence
+   capture account does not set a 900px line inside a two-column grid. */
+.dl dd .reason{color:var(--bt-text-muted);margin-top:var(--bt-space-2xs);
+  font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line)}
+
 /* ── cursor pager (§2.2: no ordinal pages, so no page numbers) ───────────── */
 .pager{display:flex;align-items:center;justify-content:space-between;gap:var(--bt-space-md);flex-wrap:wrap;margin-top:var(--bt-rhythm-stack)}
 .pager .pagerwhere{color:var(--bt-text-muted);font-size:var(--bt-type-body-sm-size);font-variant-numeric:var(--bt-numeric-features)}

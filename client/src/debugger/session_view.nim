@@ -861,6 +861,35 @@ type
     identifier*: bool     ## render as a machine value (mono)
     badge*: string        ## a badge class, "" for none
     href*: string         ## a link target, "" for none
+    dataProvenance*: string
+      ## When set, the row's `dd` carries `data-provenance="<kind>"`.
+      ##
+      ## Exactly one row ever sets it — the provenance row — and it is here
+      ## rather than left to the label because the label is COPY. Every check
+      ## that asks "does this page state where its data came from" finds the
+      ## marker by this attribute: the corpus checks, the provenance suite, and
+      ## the reviewers' expectation blocks. Keying them on the string "Data"
+      ## would make a copy edit silently delete the guarantee.
+      ##
+      ## It matters most in the debugger register, which since 2026-08-31 has no
+      ## band and no chip: this attribute is the only machine-findable
+      ## provenance marker on those 74 pages, and without it "every chain-scoped
+      ## page carries a marker" would be true of the explorer and false here,
+      ## with nothing to say so.
+    note*: string
+      ## A producer's own sentences about this fact, quoted — rendered under the
+      ## value, one rung quieter, the relationship `.notice .reason` already
+      ## gives the §14 treatments in the explorer register.
+      ##
+      ## Added for the provenance row, which is the first fact here whose value
+      ## is a three-word badge and whose evidence is three sentences about an
+      ## endpoint, a moment and a block range. Every other row's value IS the
+      ## whole fact, so `note` is empty on all of them and renders nothing.
+      ##
+      ## It is a field on the ROW and not a second list beside it, because §7.1's
+      ## rule is that the pane and the page render these facts from one source:
+      ## a note that travelled separately would be a second source, and the two
+      ## could come to disagree about which fact it belonged to.
 
   ExecutionRow* = object
     ## One execution's trace state — the Aztec private/public split, honestly.

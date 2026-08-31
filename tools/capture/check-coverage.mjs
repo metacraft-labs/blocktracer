@@ -207,7 +207,7 @@ async function main() {
     for (const k of uncoveredKinds) {
       problems.push(
         `E: no ready view is captured from a chain whose provenance is "${k}" — ` +
-        `the banner's "${k}" treatment has no subject in the corpus`);
+        `the "${k}" provenance treatment has no subject in the corpus`);
     }
 
     report.chains = {

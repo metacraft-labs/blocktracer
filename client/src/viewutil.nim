@@ -8,6 +8,7 @@ import std/[json, strutils]
 import blocktracer_client
 import ./reader
 import ./debugger/session_view
+import ./components/provenance
 
 # `truncHash` moved DOWN into `session_view`, and is re-exported here so no
 # call site moved. See the proc's own comment for why: `components/debugger`
@@ -272,13 +273,27 @@ proc availabilityNote*(a: TraceAvailability): string =
 # It lives in `viewutil` rather than in either view because a shared source
 # owned by one of its two consumers is a source with a preferred consumer.
 
-proc txMetadataRows*(chain: string, v: TxView): seq[MetaRow] =
-  ## §7.2's overview facts, in spec order: block position, canonical, finality,
-  ## the roles the adapter reported, the payload target, and the cost rows.
+proc txMetadataRows*(chain: string, v: TxView, info: ChainInfo): seq[MetaRow] =
+  ## §7.2's overview facts, in spec order: WHERE THE DATA CAME FROM, then block
+  ## position, canonical, finality, the roles the adapter reported, the payload
+  ## target, and the cost rows.
+  ##
+  ## `info` is here for the provenance row and for nothing else. It is a
+  ## parameter rather than a lookup because this proc is the one source §7.1
+  ## requires and it must not acquire a second reader: the two surfaces that
+  ## render these rows already hold the `ChainInfo` their page was rendered
+  ## against, and a proc that fetched its own could come to describe a different
+  ## generation than the facts beside it.
+  ##
+  ## Provenance is FIRST, and that is a decision rather than an accident of
+  ## insertion order. Every other row is a fact about the transaction; this one
+  ## says whether any of them describe anything that happened, so it qualifies
+  ## the rows under it and belongs above them.
   ##
   ## Family-specific rows come from the adapter (`v.roles`, `v.cost`) and are
   ## emitted verbatim, so an EVM-shaped template cannot creep in: a Solana or
   ## Move transaction contributes whatever roles and cost dimensions it has.
+  result.add provenanceRow(info)
   result.add MetaRow(label: "Block", value: $v.height & ":" & $v.index,
                      identifier: true, href: blockUrl(chain, v.blockHash))
   result.add MetaRow(label: "Canonical", value: yesNo(v.canonical),

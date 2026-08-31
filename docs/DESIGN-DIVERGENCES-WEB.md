@@ -249,6 +249,7 @@ has drifted.
 | `--bt-layout-label-column` | bkLiteral | `160px` | [D-07](#d-07) |
 | `--bt-layout-nav-height` | bkLiteral | `64px` | [D-07](#d-07) |
 | `--bt-layout-prose` | bkLiteral | `700px` | [D-07](#d-07) |
+| `--bt-layout-scrubber-min` | bkLiteral | `160px` | [D-07](#d-07) |
 | `--bt-layout-search` | bkLiteral | `260px` | [D-07](#d-07) |
 | `--bt-measure-narrow` | bkLiteral | `44ch` | [D-06](#d-06) |
 | `--bt-measure-prose` | bkLiteral | `68ch` | [D-06](#d-06) |

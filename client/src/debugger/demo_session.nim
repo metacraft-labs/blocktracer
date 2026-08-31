@@ -312,7 +312,7 @@ proc fixtureControls(positioned, live: bool; steps: int): DebugControlsPane =
 # The metadata pane — derived, never fixture
 # ---------------------------------------------------------------------------
 
-proc metadataPane*(chain: string; v: TxView): MetadataPane =
+proc metadataPane*(chain: string; v: TxView; info: ChainInfo): MetadataPane =
   ## §7.1's pane, from `viewutil.txMetadataRows` — the same seq the explorer's
   ## overview grid renders. Nothing is assembled here that the page does not
   ## also see.
@@ -323,7 +323,7 @@ proc metadataPane*(chain: string; v: TxView): MetadataPane =
     revertReason: v.outcomeReason,
     revertReasonLabel: outcomeReasonLabel(v.outcome),
     revertReasonTone: outcomeReasonTone(v.outcome),
-    rows: txMetadataRows(chain, v),
+    rows: txMetadataRows(chain, v, info),
     executions: txExecutionRows(v),
     payload: txPayloadRows(v),
     payloadNote: UnknownSelectorNote,
@@ -333,7 +333,7 @@ proc metadataPane*(chain: string; v: TxView): MetadataPane =
 # The session
 # ---------------------------------------------------------------------------
 
-proc demoSession*(chain: string; v: TxView;
+proc demoSession*(chain: string; v: TxView; info: ChainInfo;
                   timeCoordinate = 0;
                   containerPath = ""; containerBytes = 0;
                   contentHash = "";
@@ -374,7 +374,7 @@ proc demoSession*(chain: string; v: TxView;
   result.engineBase = ReplayEngineBase
   result.engineCrossOrigin = replayEngineIsCrossOrigin()
   result.engineBytes = ReplayEngineWasmBytes
-  result.metadata = metadataPane(chain, v)
+  result.metadata = metadataPane(chain, v, info)
 
   # The fixture session sits at step 128 of the recorded program. A tree whose
   # manifest still describes a stand-in container reports fewer steps than
