@@ -95,7 +95,7 @@ import { existsSync } from 'node:fs';
 import { appendFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import { replayTransaction, run } from './lib/replay.mjs';
+import { replayTransaction, run, preflightToolchain } from './lib/replay.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -213,6 +213,23 @@ async function main() {
 
   const nodeInfo = await rpc('node_getNodeInfo');
   if (nodeInfo?.__err) die(`the node refused getNodeInfo: ${nodeInfo.__err}`);
+
+  // ── PREFLIGHT, before a single poll ──────────────────────────────────────────────
+  //
+  // A watch that cannot replay is worse than no watch: it consumes the rare event it was
+  // built to catch and produces a refusal. Two live mainnet transactions were lost exactly
+  // that way before this existed. So the toolchain proves itself first, and a bad module is
+  // a startup failure measured in seconds rather than a discovery made hours later on a
+  // transaction that will never come back.
+  if (!dryRun) {
+    const pf = await preflightToolchain({ nodeBin, runtime, avm, ctWriter });
+    if (!pf.ok) {
+      for (const p of pf.problems) log({ event: 'preflight-failed', problem: p });
+      die(`preflight failed; refusing to start a watch that cannot replay:\n  ` +
+          pf.problems.join('\n  '));
+    }
+    log({ event: 'preflight-ok', note: pf.note ?? '' });
+  }
 
   // Resolved once, at start, and not per catch: it is a fact about the driver this
   // process will use for every replay it makes, and re-reading it mid-watch would let a

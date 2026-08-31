@@ -27,7 +27,7 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { decideOutcome, refusalName } from './lib/replay.mjs';
+import { decideOutcome, refusalName, refusalDetail } from './lib/replay.mjs';
 
 let asserted = 0;
 let failed = 0;
@@ -261,13 +261,58 @@ async function main() {
        table.filter((d) => d.outcome === 'refused').length === 2);
   }
 
+  // ── CASE 7 — a refusal's DETAIL carries the message, not the Node banner ───────────
+  // The two mainnet catches of 2026-08-31 recorded `detail: "}  Node.js v24.19.0"` because
+  // the extraction took the LAST three lines of a stack trace. The name survived, so the
+  // row was not wrong — it was useless in the one field that explains the loss.
+  console.error('\ncase 7 — a refusal detail says what went wrong');
+  {
+    // Shaped as node really prints an uncaught throw: message first, frames, then banner.
+    const realStderr = [
+      'file:///rt/node-host/src/loader.ts:110',
+      '    throw new AvmToolchainRegression(',
+      '          ^',
+      '',
+      'AvmToolchainRegression: /rt/vm2wasm/avm.wasm imports no memory. This host is for',
+      '--import-memory modules, which is how barretenberg links every wasm artefact.',
+      '    at compileAvm (file:///rt/node-host/src/loader.ts:110:11)',
+      '    at async main (file:///rt/replay/tools/replay_settled_transaction.mjs:88:3)',
+      '',
+      'Node.js v24.19.0',
+      '',
+    ].join('\n');
+
+    const d = decide({ code: 1, out: 'not json', err: realStderr }, false, 0);
+    ck('control: the refusal is named', d.refusal === 'AvmToolchainRegression');
+    ck('control: the detail names the module that was refused',
+       d.detail.includes('imports no memory'));
+    ck('control: the detail does NOT end at the Node banner',
+       !d.detail.includes('Node.js v24'));
+    ck('control: the detail carries no stack frames', !d.detail.includes('    at '));
+    ck('control: the detail is non-empty', d.detail.length > 20);
+
+    // MUTATION BITE: the pre-fix extraction over the SAME stderr, asserted to reproduce
+    // exactly the useless string that shipped.
+    const oldWay = realStderr.trim().split('\n').slice(-3).join(' ').slice(0, 400);
+    bite('mutation: the old last-three-lines rule yields the Node banner',
+         oldWay.includes('Node.js v24') && !oldWay.includes('imports no memory'));
+
+    // A positive twin for "no frames": stderr that is ONLY frames still yields something
+    // rather than an empty field, so the negative above cannot be met by returning "".
+    const onlyFrames = '    at a (x.ts:1:1)\n    at b (y.ts:2:2)\nNode.js v24.19.0\n';
+    ck('twin: an all-noise stderr still yields a (possibly empty) string, never a throw',
+       typeof refusalDetail(onlyFrames, 'unknown') === 'string');
+    ck('refusalDetail prefers the named line when there is one',
+       refusalDetail(realStderr, 'AvmToolchainRegression').startsWith('AvmToolchainRegression:'));
+  }
+
   await rm(dir, { recursive: true, force: true });
   ck('the temp container was cleaned up', !existsSync(ctPath));
 
-  // 43: 6 cases (7+1, 6+2, 5+1+2, 3+1, 3+1, 2) = 34, plus 3 outcome-set, 5 invariant,
+  // 51: 7 cases (7+1, 6+2, 5+1+2, 3+1, 3+1, 2, 7+1) = 42, plus 3 outcome-set, 5 invariant,
   // 1 cleanup. Declared rather than derived, so adding a case without updating this
   // number is a failure — which is the whole point of counting.
-  expectCount(43);
+  expectCount(51);
   if (failed) {
     console.error(`\nFAIL — ${failed} problem(s)`);
     return 1;

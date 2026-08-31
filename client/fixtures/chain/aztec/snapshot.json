@@ -5,35 +5,864 @@
   "chain": "aztec",
   "label": "Real Aztec mainnet data",
   "endpoint": "https://aztec.drpc.org",
-  "capturedAt": "2026-08-31T17:13:36.084Z",
+  "capturedAt": "2026-08-31T18:44:30.452Z",
   "nodeVersion": "5.2.0",
   "l1ChainId": 1,
   "rollupVersion": 4248422647,
   "rollupAddress": "0x91ff8bbd8ebb07893010d50a48a1609e5ebd8e34",
-  "tool": "tools/chain/capture-chain.mjs",
-  "runtimeCommit": "505cb11117c6560ba060f6e9ca1c5e0e1b18d6b3",
+  "tool": "tools/chain/follow-chain.mjs",
+  "runtimeCommit": "86c36ad4411511f848b87e4029bae3b25c24ffab",
   "firstCapturedAt": "2026-08-31T07:39:12.420Z"
  },
  "window": {
-  "tip": 67611,
-  "finalized": 67586,
-  "replayableFrom": 67587,
-  "replayableTo": 67611,
-  "blocks": 25
+  "tip": 67686,
+  "finalized": 67650,
+  "replayableFrom": 67651,
+  "replayableTo": 67686,
+  "blocks": 36
  },
  "counts": {
-  "blocks": 867,
-  "blocksWithTransactions": 25,
-  "transactions": 25,
-  "bodyRetained": 0,
+  "blocks": 942,
+  "blocksWithTransactions": 27,
+  "transactions": 27,
+  "bodyRetained": 2,
   "replayed": 0,
   "divergent": 0,
-  "refused": 0,
+  "refused": 2,
   "pruned": 25,
   "tracesPublished": 0,
-  "captureSessions": 0
+  "captureSessions": 2
  },
  "blocks": [
+  {
+   "number": 67686,
+   "hash": "0x1925906488bcab13faa18cbf6365ace6299daa0f01b2b95217b5890146c4ee3d",
+   "timestamp": 1788201887,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x90e7b822a5ac10edc381abc03d94b866e4b985a1",
+   "feePerL2Gas": "2433789918062",
+   "archiveRoot": "0x26149a05a48d4f2f121c711c3c997bf38e1c6226b78cc4c039cb0df2fa0ab006",
+   "parentArchiveRoot": "0x29934ac4af1f95ae7696b71123421d27ec11f64946fbd123c1cbd2b619e2fc1b",
+   "transactions": []
+  },
+  {
+   "number": 67685,
+   "hash": "0x2325961b8931f6fda7a33f92553f351853d5ec38e7d1cdb42943171b5a20564d",
+   "timestamp": 1788201815,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xfc3e7d009ba44b296260d320b1d2dc83f02dfcff",
+   "feePerL2Gas": "2445982036539",
+   "archiveRoot": "0x29934ac4af1f95ae7696b71123421d27ec11f64946fbd123c1cbd2b619e2fc1b",
+   "parentArchiveRoot": "0x0a308457c4cada19c704aa20f4d7431ad78121cc55976eb295246e1d535b6918",
+   "transactions": []
+  },
+  {
+   "number": 67684,
+   "hash": "0x00ed2dc210fddc0f60b4111eba2a6ac5cc8d1c1931f9ba3c163db2a71b6c8c68",
+   "timestamp": 1788201743,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xfc3e7d009ba44b296260d320b1d2dc83f02dfcff",
+   "feePerL2Gas": "2445982036539",
+   "archiveRoot": "0x0a308457c4cada19c704aa20f4d7431ad78121cc55976eb295246e1d535b6918",
+   "parentArchiveRoot": "0x13c537af8ad852345227638fbca8db5aef25c3a730d8740b50238c894b11f587",
+   "transactions": []
+  },
+  {
+   "number": 67683,
+   "hash": "0x090eb8c4e257edd95766ef6f75a1e0c0559621455181eac6de099cc268a5ccef",
+   "timestamp": 1788201671,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x10ee0af996da1e206d96402b4f16fa00818083e0",
+   "feePerL2Gas": "2445982036539",
+   "archiveRoot": "0x13c537af8ad852345227638fbca8db5aef25c3a730d8740b50238c894b11f587",
+   "parentArchiveRoot": "0x08ef97faf90c369a86b1a3d78f72cafc3082765605398f6a2466fafe460bac3c",
+   "transactions": []
+  },
+  {
+   "number": 67682,
+   "hash": "0x0b5b35da58c7d4caf2df4b1f81f05a8aa40c75588ce545dd64683d26e3928e54",
+   "timestamp": 1788201599,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x68e64f3f03e3147683cb25a2c7c85d4936a9c203",
+   "feePerL2Gas": "2445982036539",
+   "archiveRoot": "0x08ef97faf90c369a86b1a3d78f72cafc3082765605398f6a2466fafe460bac3c",
+   "parentArchiveRoot": "0x1e309eeffcd4ab50bc70cf123c9b2a3cb57a46015070765a84f7fcd6da88258a",
+   "transactions": []
+  },
+  {
+   "number": 67681,
+   "hash": "0x073d5a8dbcf475cd5f9dfa6ae646a60b5669039826a7ae6f7485a20376c0f77f",
+   "timestamp": 1788201527,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xc8959b4e138b9194f694ac0d3d22dce9c188067a",
+   "feePerL2Gas": "2445982036539",
+   "archiveRoot": "0x1e309eeffcd4ab50bc70cf123c9b2a3cb57a46015070765a84f7fcd6da88258a",
+   "parentArchiveRoot": "0x2b75aae661d27838d2fb863bebb5fb3354b6ded0d6e1fd0295d7531e318b4b46",
+   "transactions": []
+  },
+  {
+   "number": 67680,
+   "hash": "0x09fad84a8e7ce1d857fceecb9759ba97bbf8624e58f51bb808718f12fa9e540d",
+   "timestamp": 1788201455,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x1f0d98760ae903af089c847550d0c28183f4b178",
+   "feePerL2Gas": "2468226384780",
+   "archiveRoot": "0x2b75aae661d27838d2fb863bebb5fb3354b6ded0d6e1fd0295d7531e318b4b46",
+   "parentArchiveRoot": "0x2832cca0a5e23b594581098b57c93247dcae01120eab6cb004bd3acb110938b6",
+   "transactions": []
+  },
+  {
+   "number": 67679,
+   "hash": "0x29d8ed4253d292ceee0f6e41f81ab0157d06487ec271ea09203574554c6470a9",
+   "timestamp": 1788201383,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x06a8eecfba446ca78704fd1ed002cb13cec12bff",
+   "feePerL2Gas": "2468226384780",
+   "archiveRoot": "0x2832cca0a5e23b594581098b57c93247dcae01120eab6cb004bd3acb110938b6",
+   "parentArchiveRoot": "0x1eac6250c18f7e91047c277b34aff21d32d53185fb09cea9fa44bf8d1be19053",
+   "transactions": []
+  },
+  {
+   "number": 67678,
+   "hash": "0x03819867d8fc6ee8f16f37e9246afd3e5214da9eaf5497dcd6522760ac50baad",
+   "timestamp": 1788201311,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xea32410fa52300a5cb89c36a33d7b3747a753cd7",
+   "feePerL2Gas": "2468226384780",
+   "archiveRoot": "0x1eac6250c18f7e91047c277b34aff21d32d53185fb09cea9fa44bf8d1be19053",
+   "parentArchiveRoot": "0x0462117c74c691ec012c9e21668992913ba637c0a020cbbbe9c1084dd7045aec",
+   "transactions": []
+  },
+  {
+   "number": 67677,
+   "hash": "0x1025cf63c90ac00edfe6e4bac29e0d0ef2db68f2575b232cf4567fe412e90f5b",
+   "timestamp": 1788201239,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xe20fad9b3851785e34b0be11218e78da129d5deb",
+   "feePerL2Gas": "2468226384780",
+   "archiveRoot": "0x0462117c74c691ec012c9e21668992913ba637c0a020cbbbe9c1084dd7045aec",
+   "parentArchiveRoot": "0x05a147c7247fdcc663d1e5cd2360211196c28026e93fc8c7fbd2a49b749f4f0e",
+   "transactions": []
+  },
+  {
+   "number": 67676,
+   "hash": "0x13a22cf0e059b5bfe51a299ba1167757af222e67a1299b0e552379e704291aac",
+   "timestamp": 1788201167,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xea32410fa52300a5cb89c36a33d7b3747a753cd7",
+   "feePerL2Gas": "2468226384780",
+   "archiveRoot": "0x05a147c7247fdcc663d1e5cd2360211196c28026e93fc8c7fbd2a49b749f4f0e",
+   "parentArchiveRoot": "0x032bff6aafc7186e2ca11066330706aa4fd00e510684caf4e74475953ec1b129",
+   "transactions": []
+  },
+  {
+   "number": 67675,
+   "hash": "0x0986024f1699d16cedc50e198facd4562c23d95d79b8f324c5811f573cb50fc4",
+   "timestamp": 1788201095,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x10ee0af996da1e206d96402b4f16fa00818083e0",
+   "feePerL2Gas": "2446611513386",
+   "archiveRoot": "0x032bff6aafc7186e2ca11066330706aa4fd00e510684caf4e74475953ec1b129",
+   "parentArchiveRoot": "0x13bcc8fb59c1476e164d10a9d7fda9ef9b2b0c4a66afa56ed71b41da470873c0",
+   "transactions": []
+  },
+  {
+   "number": 67674,
+   "hash": "0x2332f00e0195c491bbbded51fec3243d4414c54454b3424f13dc3e178c29b685",
+   "timestamp": 1788201023,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x41d259304f9abb7d2cc6f74b19db240296311bb1",
+   "feePerL2Gas": "2446611513386",
+   "archiveRoot": "0x13bcc8fb59c1476e164d10a9d7fda9ef9b2b0c4a66afa56ed71b41da470873c0",
+   "parentArchiveRoot": "0x09aefb5c7456c6e41e4d91496e2f34638b9fa913ba9b0818e8740c109cab6d3d",
+   "transactions": []
+  },
+  {
+   "number": 67673,
+   "hash": "0x2d2faf08218b5af5e845f232de2d0d713d85e8fa6e6a59472107d01d9d1d716e",
+   "timestamp": 1788200951,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xef3e00539baeb1e59a12dba38654aeeab86fd316",
+   "feePerL2Gas": "2446611513386",
+   "archiveRoot": "0x09aefb5c7456c6e41e4d91496e2f34638b9fa913ba9b0818e8740c109cab6d3d",
+   "parentArchiveRoot": "0x080cb28a6775fd94dedfbd6cd49c12793399011b65cc7ae4748c92f1a0c9a7f6",
+   "transactions": []
+  },
+  {
+   "number": 67672,
+   "hash": "0x1f5b32130bb0b56fac9c4c990e77ea05aa78129b58934876592e7d1fd25ccb65",
+   "timestamp": 1788200879,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xea32410fa52300a5cb89c36a33d7b3747a753cd7",
+   "feePerL2Gas": "2446611513386",
+   "archiveRoot": "0x080cb28a6775fd94dedfbd6cd49c12793399011b65cc7ae4748c92f1a0c9a7f6",
+   "parentArchiveRoot": "0x08aca1b33ce769e1ebd9f9a94ba0335f96512c2a59ba64d045d6a94bbe465c7e",
+   "transactions": []
+  },
+  {
+   "number": 67671,
+   "hash": "0x06bb91d30b7b95d8e7f9362553d4c915cab88e8f6b3b0353857bd18e52ba9df1",
+   "timestamp": 1788200807,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xea32410fa52300a5cb89c36a33d7b3747a753cd7",
+   "feePerL2Gas": "2446611513386",
+   "archiveRoot": "0x08aca1b33ce769e1ebd9f9a94ba0335f96512c2a59ba64d045d6a94bbe465c7e",
+   "parentArchiveRoot": "0x267cb4c6f1f685b35a40e7c1320657c40d3a69ac28b6085a0a1d864225817791",
+   "transactions": []
+  },
+  {
+   "number": 67670,
+   "hash": "0x2c4aac6d8a761c4691930989544286f0c2dc6bafdc2d79a3a85f1a38cc32cc9b",
+   "timestamp": 1788200735,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x10ee0af996da1e206d96402b4f16fa00818083e0",
+   "feePerL2Gas": "2462479725765",
+   "archiveRoot": "0x267cb4c6f1f685b35a40e7c1320657c40d3a69ac28b6085a0a1d864225817791",
+   "parentArchiveRoot": "0x1f1e6d9785102504c7ecb670276a8d405dd10667335530dc52981709aced149d",
+   "transactions": []
+  },
+  {
+   "number": 67669,
+   "hash": "0x2675fc957fe8f1d54268714a930299f3b61d8a6be48f5ec46ee9d46ef79eb5fb",
+   "timestamp": 1788200663,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xea32410fa52300a5cb89c36a33d7b3747a753cd7",
+   "feePerL2Gas": "2462971791369",
+   "archiveRoot": "0x1f1e6d9785102504c7ecb670276a8d405dd10667335530dc52981709aced149d",
+   "parentArchiveRoot": "0x03bdffaddce7c08e8afd6a163ce8e130660014cc4b25198d8e612f0d49a2ce4f",
+   "transactions": []
+  },
+  {
+   "number": 67668,
+   "hash": "0x0c5d26707ac65ee9ca8855ca21acd81f597e4abc254348b4dcb43bbf55c81f57",
+   "timestamp": 1788200591,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xc8959b4e138b9194f694ac0d3d22dce9c188067a",
+   "feePerL2Gas": "2462971791369",
+   "archiveRoot": "0x03bdffaddce7c08e8afd6a163ce8e130660014cc4b25198d8e612f0d49a2ce4f",
+   "parentArchiveRoot": "0x2da16643d25aee788cd50e00b85e6b7e9e0d81a62dea6876ff3fc9ca0ebe591f",
+   "transactions": []
+  },
+  {
+   "number": 67667,
+   "hash": "0x136bd645a2e8063f7a50965bfa03782b4a31460d87ad2f84ebf80a24b8a73d57",
+   "timestamp": 1788200519,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xea32410fa52300a5cb89c36a33d7b3747a753cd7",
+   "feePerL2Gas": "2462971791369",
+   "archiveRoot": "0x2da16643d25aee788cd50e00b85e6b7e9e0d81a62dea6876ff3fc9ca0ebe591f",
+   "parentArchiveRoot": "0x02fdc8f6e94584368039be105c19f2fe27f0d21469e3429ede2282691f1e37a3",
+   "transactions": []
+  },
+  {
+   "number": 67666,
+   "hash": "0x0bdf986ebaaaea16cd1bcf39a2fcfd71ec9de70a4a1db0375e44abc087220366",
+   "timestamp": 1788200447,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x10ee0af996da1e206d96402b4f16fa00818083e0",
+   "feePerL2Gas": "2460508429787",
+   "archiveRoot": "0x02fdc8f6e94584368039be105c19f2fe27f0d21469e3429ede2282691f1e37a3",
+   "parentArchiveRoot": "0x10552e153d9b208b3b8aab13eeb01bf7d1634f22df78b55243f8da31b7fcdb1e",
+   "transactions": []
+  },
+  {
+   "number": 67665,
+   "hash": "0x1cb6210d178320d038aa46b453800cba20f5c35c2edafd85e886912ac8eb38f5",
+   "timestamp": 1788200303,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xdc9c19e2a9c747edbc3496c54baa242497a87fe7",
+   "feePerL2Gas": "2452306799656",
+   "archiveRoot": "0x10552e153d9b208b3b8aab13eeb01bf7d1634f22df78b55243f8da31b7fcdb1e",
+   "parentArchiveRoot": "0x1b3df3f6f86559b6b9b1d0afb8b0eb3a7398648e529d21e0908bd1ee3ba2234e",
+   "transactions": []
+  },
+  {
+   "number": 67664,
+   "hash": "0x2282ebf65685d673ed6b7fcf05a71919c0a4b4809fbd42085d07b1bfbab42c03",
+   "timestamp": 1788200231,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x90e7b822a5ac10edc381abc03d94b866e4b985a1",
+   "feePerL2Gas": "2452306799656",
+   "archiveRoot": "0x1b3df3f6f86559b6b9b1d0afb8b0eb3a7398648e529d21e0908bd1ee3ba2234e",
+   "parentArchiveRoot": "0x2f6e0c43c76c8c8d584bac9c5c346e8275364effffc43e5b0bd843c5b50d83e4",
+   "transactions": []
+  },
+  {
+   "number": 67663,
+   "hash": "0x2ec8c841648a8cdb39ab14586d236421126917c880e03620fe37ea14397fc228",
+   "timestamp": 1788200159,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xc8959b4e138b9194f694ac0d3d22dce9c188067a",
+   "feePerL2Gas": "2452306799656",
+   "archiveRoot": "0x2f6e0c43c76c8c8d584bac9c5c346e8275364effffc43e5b0bd843c5b50d83e4",
+   "parentArchiveRoot": "0x02a5fa799595da4ab2f09583b40476c7b2498cbd42945b568450e52d6f5f5763",
+   "transactions": []
+  },
+  {
+   "number": 67662,
+   "hash": "0x25ede725ecccf0121d529615f6ff9f919d72185d2aa0fae20fbc969f9ee7569f",
+   "timestamp": 1788200087,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xdc9c19e2a9c747edbc3496c54baa242497a87fe7",
+   "feePerL2Gas": "2452306799656",
+   "archiveRoot": "0x02a5fa799595da4ab2f09583b40476c7b2498cbd42945b568450e52d6f5f5763",
+   "parentArchiveRoot": "0x02c8e5ce75a0369a0e6db15c031fb697928c10860cdd9e1ed7a8b7b506ed5c59",
+   "transactions": []
+  },
+  {
+   "number": 67661,
+   "hash": "0x16d195d1f4fd26ce76160b93ccc794a6bb25a1325eccad2c964d6ec9e5934151",
+   "timestamp": 1788200015,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x06a8eecfba446ca78704fd1ed002cb13cec12bff",
+   "feePerL2Gas": "2489842835177",
+   "archiveRoot": "0x02c8e5ce75a0369a0e6db15c031fb697928c10860cdd9e1ed7a8b7b506ed5c59",
+   "parentArchiveRoot": "0x1347b2fe3d20bda3f549bc4035716c7976b74cef65024ce40aca78a474aca059",
+   "transactions": []
+  },
+  {
+   "number": 67660,
+   "hash": "0x20ff4bfd815673f30178febcd3255ddf1eab41e34d1ecf62b4203394f49b85e3",
+   "timestamp": 1788199943,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x19354ef8df114e2b38a0138c78c749836f163995",
+   "feePerL2Gas": "2489842835177",
+   "archiveRoot": "0x1347b2fe3d20bda3f549bc4035716c7976b74cef65024ce40aca78a474aca059",
+   "parentArchiveRoot": "0x033976a8da97d65bee23eccee42880e38ff7d41322e9de63d3fef427e8e333ea",
+   "transactions": []
+  },
+  {
+   "number": 67659,
+   "hash": "0x0f51772d1f5d8c82bdfdcd1ab2f303572c7e448b69c1a436da0225aa0fdc2ba6",
+   "timestamp": 1788199871,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xbe0114d5923c6e904a7c8c7d3c18d07d875b58aa",
+   "feePerL2Gas": "2489842835177",
+   "archiveRoot": "0x033976a8da97d65bee23eccee42880e38ff7d41322e9de63d3fef427e8e333ea",
+   "parentArchiveRoot": "0x2799bc04ccc3f1643fc19f8464993820065ca27f80f3788883ccbb5d26515d79",
+   "transactions": []
+  },
+  {
+   "number": 67658,
+   "hash": "0x242e641b5d91b55648ef8ccdf571b3fb68d5fbbd3c7ad14ed1a3972a7c02f4e0",
+   "timestamp": 1788199799,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x6fc1ba42b65287548c894932550b1ae4ec4e3004",
+   "feePerL2Gas": "2489842835177",
+   "archiveRoot": "0x2799bc04ccc3f1643fc19f8464993820065ca27f80f3788883ccbb5d26515d79",
+   "parentArchiveRoot": "0x1bb04ec2787df8fbd9629b60099d59885837d4ec27a5ca1126e07f41cd219d29",
+   "transactions": []
+  },
+  {
+   "number": 67657,
+   "hash": "0x28e03da50ffd310f942c8b897f3d58d36bdec1482d3d1409cee52d1edda8ce83",
+   "timestamp": 1788199727,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x9fdae2c372856a7a3074eddb47dee240f19ff7c9",
+   "feePerL2Gas": "2489842835177",
+   "archiveRoot": "0x1bb04ec2787df8fbd9629b60099d59885837d4ec27a5ca1126e07f41cd219d29",
+   "parentArchiveRoot": "0x2d4ce3384dd2ff9b459aefb62c2fda4a8212d16fe7757b6241d0611a0fd507f3",
+   "transactions": []
+  },
+  {
+   "number": 67656,
+   "hash": "0x0b5540513bfef9c5b81d91d410e8cd46a4ae2b5a467b01ec28d864e8eb26f124",
+   "timestamp": 1788199655,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x06a8eecfba446ca78704fd1ed002cb13cec12bff",
+   "feePerL2Gas": "2461598890372",
+   "archiveRoot": "0x2d4ce3384dd2ff9b459aefb62c2fda4a8212d16fe7757b6241d0611a0fd507f3",
+   "parentArchiveRoot": "0x1e7799ea773bc16f7aa7de67bbef4b035b18d42fa8751315dfac47e4e13a98d3",
+   "transactions": []
+  },
+  {
+   "number": 67655,
+   "hash": "0x2af3834e8f3bd9b582f34012e179baeb2ea368989d7fb15d29a82533048fc5f1",
+   "timestamp": 1788199583,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xb0ce5b8f0bbae95aa742397c5ddba7ecedae131a",
+   "feePerL2Gas": "2461598890372",
+   "archiveRoot": "0x1e7799ea773bc16f7aa7de67bbef4b035b18d42fa8751315dfac47e4e13a98d3",
+   "parentArchiveRoot": "0x169986738d3e8e07dd303b01d38100826de5bce4fa5f521cc8605483c2327109",
+   "transactions": []
+  },
+  {
+   "number": 67654,
+   "hash": "0x0427de158837794a37f94f3a05bfbf1a4e2e9bf8292b4fd4211fc9f5e128c461",
+   "timestamp": 1788199511,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xdc9c19e2a9c747edbc3496c54baa242497a87fe7",
+   "feePerL2Gas": "2461598890372",
+   "archiveRoot": "0x169986738d3e8e07dd303b01d38100826de5bce4fa5f521cc8605483c2327109",
+   "parentArchiveRoot": "0x090f9a5fda65dbc1059bbd2b9eb8410c4df0fc39c0f0e901f26554db649b0a5f",
+   "transactions": []
+  },
+  {
+   "number": 67653,
+   "hash": "0x08b1614e3fbf38f94bc6e22c2cb987490cffebc507c258c47baa534f58eebf1f",
+   "timestamp": 1788199439,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xdc9c19e2a9c747edbc3496c54baa242497a87fe7",
+   "feePerL2Gas": "2461598890372",
+   "archiveRoot": "0x090f9a5fda65dbc1059bbd2b9eb8410c4df0fc39c0f0e901f26554db649b0a5f",
+   "parentArchiveRoot": "0x20cda4fda312d3c912ecd11203e7a5c8d0f837476e22f7f13489ad3dae636f1a",
+   "transactions": []
+  },
+  {
+   "number": 67652,
+   "hash": "0x07af0c34ceba6a494490bc935b4d3826ea4f1fca55dc90d1e536a46be67aeccc",
+   "timestamp": 1788199367,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xe6fe31b68f18cabb86f56def97d96f2594088ea9",
+   "feePerL2Gas": "2461598890372",
+   "archiveRoot": "0x20cda4fda312d3c912ecd11203e7a5c8d0f837476e22f7f13489ad3dae636f1a",
+   "parentArchiveRoot": "0x107519dd2b949bc84f9cd196b835f83e262f7c6421271e7e07fd689b529ca330",
+   "transactions": []
+  },
+  {
+   "number": 67651,
+   "hash": "0x1f5d7565503b362edb040eef3c9b1b0a2abb5b95c3d0a40d0a214edb3aa1754b",
+   "timestamp": 1788199295,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x10ee0af996da1e206d96402b4f16fa00818083e0",
+   "feePerL2Gas": "2497522964768",
+   "archiveRoot": "0x107519dd2b949bc84f9cd196b835f83e262f7c6421271e7e07fd689b529ca330",
+   "parentArchiveRoot": "0x1df545deb50d0d7ea2e413e84886ea439310760568174ec06f0c2d98cd54e60c",
+   "transactions": []
+  },
+  {
+   "number": 67650,
+   "hash": "0x12fd8fd6e285452118eff4e05514b1a8f339eab884617c64fbcd03335fe35385",
+   "timestamp": 1788199223,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000096190",
+   "coinbase": "0xfc3e7d009ba44b296260d320b1d2dc83f02dfcff",
+   "feePerL2Gas": "2497522964768",
+   "archiveRoot": "0x1df545deb50d0d7ea2e413e84886ea439310760568174ec06f0c2d98cd54e60c",
+   "parentArchiveRoot": "0x0fc253dca2437e37d29821a2f503e568d8650e5314984a214c31a6d0012c36b9",
+   "transactions": [
+    "0x2d663a83e3a2ff248918814ec6b5cee7ee8ff3d08c0e2784886ecb4cb5d4cecf"
+   ]
+  },
+  {
+   "number": 67649,
+   "hash": "0x181585906cef23e162edfe01161aa3c28604e47152788fa89a2da242f0760659",
+   "timestamp": 1788199151,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x13d5161dfb59eb9274543440f1c6552b8f0eb328",
+   "feePerL2Gas": "2497522964768",
+   "archiveRoot": "0x0fc253dca2437e37d29821a2f503e568d8650e5314984a214c31a6d0012c36b9",
+   "parentArchiveRoot": "0x17b5a56314d6bd452adeec71af6018b1ff42bfee1bcf7141c6e1c33836254ebd",
+   "transactions": []
+  },
+  {
+   "number": 67648,
+   "hash": "0x1d4945a118f907769d27a639dc643e4acdfbf73c8795da5465e865f719a507b4",
+   "timestamp": 1788199079,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000096190",
+   "coinbase": "0x6fc1ba42b65287548c894932550b1ae4ec4e3004",
+   "feePerL2Gas": "2497522964768",
+   "archiveRoot": "0x17b5a56314d6bd452adeec71af6018b1ff42bfee1bcf7141c6e1c33836254ebd",
+   "parentArchiveRoot": "0x19379f66808c7e66388f59748fd458e858202bfa0ef90e0d645bc668563509ab",
+   "transactions": [
+    "0x09abd57b4f0b612dd200fe14b8613e313bcbd8e9c421f18b58b63830c0a77610"
+   ]
+  },
+  {
+   "number": 67647,
+   "hash": "0x024c42096a9ea40ee6baf09027d60c3be028a1f2c9600a60ac8b1878000d4df3",
+   "timestamp": 1788199007,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x90e7b822a5ac10edc381abc03d94b866e4b985a1",
+   "feePerL2Gas": "2497522964768",
+   "archiveRoot": "0x19379f66808c7e66388f59748fd458e858202bfa0ef90e0d645bc668563509ab",
+   "parentArchiveRoot": "0x07f0594355ce2fabce145712142bed206b2d44bd9d232ad511db66ecc40059e2",
+   "transactions": []
+  },
+  {
+   "number": 67646,
+   "hash": "0x066687ddeb694679d255da3d246cdacc24b6c3ae6f661bf0abe9ce62715aae3b",
+   "timestamp": 1788198935,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xc8959b4e138b9194f694ac0d3d22dce9c188067a",
+   "feePerL2Gas": "2482371010333",
+   "archiveRoot": "0x07f0594355ce2fabce145712142bed206b2d44bd9d232ad511db66ecc40059e2",
+   "parentArchiveRoot": "0x27423131a1f5c74822b52465d488e8009acd1eb73a0a15cac76f248e9e877277",
+   "transactions": []
+  },
+  {
+   "number": 67645,
+   "hash": "0x1a024cf33836e35fc3094fdb57e589960f9b352af5aba91443e088129c9ac832",
+   "timestamp": 1788198863,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x1f0d98760ae903af089c847550d0c28183f4b178",
+   "feePerL2Gas": "2482371010333",
+   "archiveRoot": "0x27423131a1f5c74822b52465d488e8009acd1eb73a0a15cac76f248e9e877277",
+   "parentArchiveRoot": "0x26162f3d1c8f5454968b77d574a3e227ad913fbde2404b039ca0a3cc450cc245",
+   "transactions": []
+  },
+  {
+   "number": 67644,
+   "hash": "0x0f6328f9cf9bfbfc9e423c7a80d2ed038229290a905ec3342ecdb6406de651cb",
+   "timestamp": 1788198791,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xed3f3bb424f4a3b254df0d1a51dd4e7bc5f40e66",
+   "feePerL2Gas": "2482371010333",
+   "archiveRoot": "0x26162f3d1c8f5454968b77d574a3e227ad913fbde2404b039ca0a3cc450cc245",
+   "parentArchiveRoot": "0x149b62c60a0a2d5751dfe2d3c9a0a59e7f2d6a5ef653d7b59c5eb2c33597884a",
+   "transactions": []
+  },
+  {
+   "number": 67643,
+   "hash": "0x0cfd39c2efaa877681dd7e8885d411eec9e0574e8698e59200e5717023ae796a",
+   "timestamp": 1788198719,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x0dc18852dfe8aa7e7cc20d511d7f3217b80293f8",
+   "feePerL2Gas": "2482371010333",
+   "archiveRoot": "0x149b62c60a0a2d5751dfe2d3c9a0a59e7f2d6a5ef653d7b59c5eb2c33597884a",
+   "parentArchiveRoot": "0x2f645f7f9690a2f593ffd49840b2b264235d7861307baa995cc62039a90fd5dd",
+   "transactions": []
+  },
+  {
+   "number": 67642,
+   "hash": "0x24de1aa513e2f5acb2000b9300b9caab6cd657af7685a92375e2933eda3f55a2",
+   "timestamp": 1788198647,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x06a8eecfba446ca78704fd1ed002cb13cec12bff",
+   "feePerL2Gas": "2482371010333",
+   "archiveRoot": "0x2f645f7f9690a2f593ffd49840b2b264235d7861307baa995cc62039a90fd5dd",
+   "parentArchiveRoot": "0x0a64ad396a5e25ae7691686d466a529957104a2c3bb29c35c3c5c3eef3e2ca57",
+   "transactions": []
+  },
+  {
+   "number": 67641,
+   "hash": "0x0b428040231a0fbc811372766e41325a96d8f6c7d3bd51971264bbcada94ae59",
+   "timestamp": 1788198575,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x64080833dbd625fdc76d4e9fcf542b3b1bbe6c2c",
+   "feePerL2Gas": "2442981653487",
+   "archiveRoot": "0x0a64ad396a5e25ae7691686d466a529957104a2c3bb29c35c3c5c3eef3e2ca57",
+   "parentArchiveRoot": "0x246a1b2def557565e6bbcbc7e69969e916aaa0e273e77165a0e46f5f49e2e504",
+   "transactions": []
+  },
+  {
+   "number": 67640,
+   "hash": "0x21acc734fbabeb8cfa6955e53a40bc345ec59079c4e6fd5a8d235cefa0e1ff65",
+   "timestamp": 1788198503,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x3fcd77da52c01d454e6c522be00fbe25b1215f5d",
+   "feePerL2Gas": "2442981653487",
+   "archiveRoot": "0x246a1b2def557565e6bbcbc7e69969e916aaa0e273e77165a0e46f5f49e2e504",
+   "parentArchiveRoot": "0x1cdb1424666d008457bf1b7cb80ee7d174a5ec51d296f025133295a1cdf9a490",
+   "transactions": []
+  },
+  {
+   "number": 67639,
+   "hash": "0x0a0c3434ee20fe3b7165081766b0b12dd081f74016fd6cf5318013adf93baafd",
+   "timestamp": 1788198431,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xf7f1d25bde65e9dbb0b784085599a7b1fcf605c1",
+   "feePerL2Gas": "2442981653487",
+   "archiveRoot": "0x1cdb1424666d008457bf1b7cb80ee7d174a5ec51d296f025133295a1cdf9a490",
+   "parentArchiveRoot": "0x139df00bfd195e000085f45193d260d35657d43a52617219a8826422cfee4929",
+   "transactions": []
+  },
+  {
+   "number": 67638,
+   "hash": "0x03ed59686e71a477c127d376cec135882cf3bf4692ae7ad118beb4e40468fe29",
+   "timestamp": 1788198359,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x10ee0af996da1e206d96402b4f16fa00818083e0",
+   "feePerL2Gas": "2442981653487",
+   "archiveRoot": "0x139df00bfd195e000085f45193d260d35657d43a52617219a8826422cfee4929",
+   "parentArchiveRoot": "0x1abed43b7a4b5968ed84e90b63930d981fbb640e058af5404d05b63a90d826b0",
+   "transactions": []
+  },
+  {
+   "number": 67637,
+   "hash": "0x27e54551322b227fb6de5797e378b7d2728f51d8a9a5f6ef4b903813610b7aad",
+   "timestamp": 1788198287,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xf7f1d25bde65e9dbb0b784085599a7b1fcf605c1",
+   "feePerL2Gas": "2442981653487",
+   "archiveRoot": "0x1abed43b7a4b5968ed84e90b63930d981fbb640e058af5404d05b63a90d826b0",
+   "parentArchiveRoot": "0x2a85e8de60cdefaf87497543a2fdf96fffb152e9a3320e7b29a64471a5aecc44",
+   "transactions": []
+  },
+  {
+   "number": 67636,
+   "hash": "0x005fd3de98b6975fc30b98b5f1a87c3ac0bc18087071b7c99d693d5a7773ab8c",
+   "timestamp": 1788198215,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xea32410fa52300a5cb89c36a33d7b3747a753cd7",
+   "feePerL2Gas": "2475187081856",
+   "archiveRoot": "0x2a85e8de60cdefaf87497543a2fdf96fffb152e9a3320e7b29a64471a5aecc44",
+   "parentArchiveRoot": "0x0ea679b737d3bc29ee2fa66b26adc09fba2710675d5cad48a54e657bdd1eadaa",
+   "transactions": []
+  },
+  {
+   "number": 67635,
+   "hash": "0x17862d18b7893a37aeb2db95252066449421913cf656e862d73fd628eddd0f85",
+   "timestamp": 1788198143,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x8586883419186986b5c067531b03d46ca1924071",
+   "feePerL2Gas": "2475187081856",
+   "archiveRoot": "0x0ea679b737d3bc29ee2fa66b26adc09fba2710675d5cad48a54e657bdd1eadaa",
+   "parentArchiveRoot": "0x170e62a3ca707b6fc1523879afd4b3760e7a35186fe04f029ea22cda97f2a78c",
+   "transactions": []
+  },
+  {
+   "number": 67634,
+   "hash": "0x28669f4822ae9a3d156ec6159147fc4643f0bea6acdfd2ae73b26f70ea76a47a",
+   "timestamp": 1788198071,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x580089166d8744d2f7f93a27d795af5193f87c7c",
+   "feePerL2Gas": "2475187081856",
+   "archiveRoot": "0x170e62a3ca707b6fc1523879afd4b3760e7a35186fe04f029ea22cda97f2a78c",
+   "parentArchiveRoot": "0x07ae14155be326c8d32128357945b8f3532ae6224204e4b25bb79b3e5f2850d3",
+   "transactions": []
+  },
+  {
+   "number": 67633,
+   "hash": "0x2b998047f338d04b2215375ca5d036528509259fbf745616f7ee81b021757192",
+   "timestamp": 1788197999,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xea32410fa52300a5cb89c36a33d7b3747a753cd7",
+   "feePerL2Gas": "2475187081856",
+   "archiveRoot": "0x07ae14155be326c8d32128357945b8f3532ae6224204e4b25bb79b3e5f2850d3",
+   "parentArchiveRoot": "0x257c2e45303e3c240798c2e24548003a54db178a401f8ed9d5a0313ddb5dae2a",
+   "transactions": []
+  },
+  {
+   "number": 67632,
+   "hash": "0x228f5a8f81b70b649f11e6f0354f8ea37ce836acdc73363f7f6486dbbca1cd0e",
+   "timestamp": 1788197927,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x64080833dbd625fdc76d4e9fcf542b3b1bbe6c2c",
+   "feePerL2Gas": "2475187081856",
+   "archiveRoot": "0x257c2e45303e3c240798c2e24548003a54db178a401f8ed9d5a0313ddb5dae2a",
+   "parentArchiveRoot": "0x1e8233aba6261b8dd35478fc1f6fa715dc012ad25b5999b7484dee3c71a0d03a",
+   "transactions": []
+  },
+  {
+   "number": 67631,
+   "hash": "0x19ccf09038a9d3d002e209e9dc5c79a7e176dbc329b55dd984fe6bab01417c67",
+   "timestamp": 1788197855,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x06a8eecfba446ca78704fd1ed002cb13cec12bff",
+   "feePerL2Gas": "2508922479057",
+   "archiveRoot": "0x1e8233aba6261b8dd35478fc1f6fa715dc012ad25b5999b7484dee3c71a0d03a",
+   "parentArchiveRoot": "0x25d3a5d7ec8e3990f2daf490b339c392f88ff8a06b5a93507923b9003ceafa46",
+   "transactions": []
+  },
+  {
+   "number": 67630,
+   "hash": "0x0d9e09c942ef25cec905ed627029b2cb1510a78c9ae606a193c3aa06c41c2f00",
+   "timestamp": 1788197783,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x06a8eecfba446ca78704fd1ed002cb13cec12bff",
+   "feePerL2Gas": "2508922479057",
+   "archiveRoot": "0x25d3a5d7ec8e3990f2daf490b339c392f88ff8a06b5a93507923b9003ceafa46",
+   "parentArchiveRoot": "0x0c7100205ac7f6fc226dd58d1bb090b476788af699a5d45d5994128b9d7e651b",
+   "transactions": []
+  },
+  {
+   "number": 67629,
+   "hash": "0x1ef6a4eb7a7f045a98b273e24861a6b868e6eb79580062d6437c384384707495",
+   "timestamp": 1788197711,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x10ee0af996da1e206d96402b4f16fa00818083e0",
+   "feePerL2Gas": "2508922479057",
+   "archiveRoot": "0x0c7100205ac7f6fc226dd58d1bb090b476788af699a5d45d5994128b9d7e651b",
+   "parentArchiveRoot": "0x1500cea7bc8824b6beefc1fa4fe3236cad63712b0aef8142b4cb37e0845f5977",
+   "transactions": []
+  },
+  {
+   "number": 67628,
+   "hash": "0x13812798f1a3f60ec3980e16bfdaf4e4233fa5622be9d4eceb95fe3366e2daff",
+   "timestamp": 1788197639,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x81aae63201f78b0b0bc3225bc302bd4260246a58",
+   "feePerL2Gas": "2508922479057",
+   "archiveRoot": "0x1500cea7bc8824b6beefc1fa4fe3236cad63712b0aef8142b4cb37e0845f5977",
+   "parentArchiveRoot": "0x251786b780d08ed5487b0bf58b06167f3afb19ddba5263ae93b86b7f004d4d90",
+   "transactions": []
+  },
+  {
+   "number": 67627,
+   "hash": "0x0898db587c92ed44399dd336e414d2dedbfba19b29ca1b797a874da0e81aa99f",
+   "timestamp": 1788197567,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x6fc1ba42b65287548c894932550b1ae4ec4e3004",
+   "feePerL2Gas": "2508922479057",
+   "archiveRoot": "0x251786b780d08ed5487b0bf58b06167f3afb19ddba5263ae93b86b7f004d4d90",
+   "parentArchiveRoot": "0x20fb55c34107917092c00189304d0ebcf93ad06c4196c01d81eccf80ea86c6da",
+   "transactions": []
+  },
+  {
+   "number": 67626,
+   "hash": "0x274b1591c8ae552f5b9d02863565965aed5ea85b058d5d20670a31d384365cdd",
+   "timestamp": 1788197495,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xea32410fa52300a5cb89c36a33d7b3747a753cd7",
+   "feePerL2Gas": "2462170251092",
+   "archiveRoot": "0x20fb55c34107917092c00189304d0ebcf93ad06c4196c01d81eccf80ea86c6da",
+   "parentArchiveRoot": "0x1125e512ef12be2ff02dc594977ab8bc6dec91531136f047cc630ba5483f2843",
+   "transactions": []
+  },
+  {
+   "number": 67625,
+   "hash": "0x23ebac892f86aff14c8647936a41e6c0f42924a2fc89e27e4d5d5e30dabf41a6",
+   "timestamp": 1788197423,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xfeb4de2b0899beb96df185ec5c0b0cbb51833d1c",
+   "feePerL2Gas": "2460939132336",
+   "archiveRoot": "0x1125e512ef12be2ff02dc594977ab8bc6dec91531136f047cc630ba5483f2843",
+   "parentArchiveRoot": "0x033d821e3d97282d4904bd4072a2b7a40fe62719bd1ef364c3bdd319cdbee02f",
+   "transactions": []
+  },
+  {
+   "number": 67624,
+   "hash": "0x18254c969b90be48077bbb20953543437872f61f43a27bb50408e88a32b2f6c1",
+   "timestamp": 1788197351,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xfc3e7d009ba44b296260d320b1d2dc83f02dfcff",
+   "feePerL2Gas": "2460939132336",
+   "archiveRoot": "0x033d821e3d97282d4904bd4072a2b7a40fe62719bd1ef364c3bdd319cdbee02f",
+   "parentArchiveRoot": "0x19404de35e8559e9e648914463076871ed2a46b1da93831db208dc39d89b3a9e",
+   "transactions": []
+  },
+  {
+   "number": 67623,
+   "hash": "0x2d5b0d665203b1a54190f04be4b16fcd51cd61f37712b1d8ca919833e502267c",
+   "timestamp": 1788197279,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xfc3e7d009ba44b296260d320b1d2dc83f02dfcff",
+   "feePerL2Gas": "2460939132336",
+   "archiveRoot": "0x19404de35e8559e9e648914463076871ed2a46b1da93831db208dc39d89b3a9e",
+   "parentArchiveRoot": "0x03a76dbfd144b3a00f971624359fd77606b2b0d2311616cb5d5a4cbe53d8bbab",
+   "transactions": []
+  },
+  {
+   "number": 67622,
+   "hash": "0x0116b1157518540dae7e85bdfb8edb0f69e2d8d47094be09aa8d838410ddbc08",
+   "timestamp": 1788197207,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x62e2ea545c0f1538e2b7d239e15299c19ad3e354",
+   "feePerL2Gas": "2460939132336",
+   "archiveRoot": "0x03a76dbfd144b3a00f971624359fd77606b2b0d2311616cb5d5a4cbe53d8bbab",
+   "parentArchiveRoot": "0x218519d9ac3bed1c4605fb2ca10deffd3085412f58587c07fd13c5676d5df010",
+   "transactions": []
+  },
+  {
+   "number": 67621,
+   "hash": "0x09c23f437a6db92afea0f6b377f994603b60c3044cb1f567a673513528c14a61",
+   "timestamp": 1788197135,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xf7f1d25bde65e9dbb0b784085599a7b1fcf605c1",
+   "feePerL2Gas": "2458314106773",
+   "archiveRoot": "0x218519d9ac3bed1c4605fb2ca10deffd3085412f58587c07fd13c5676d5df010",
+   "parentArchiveRoot": "0x2115c0862785d14ecc3173dd8b10ebcf90b0660c99dc6255fc0603eacb27ce46",
+   "transactions": []
+  },
+  {
+   "number": 67620,
+   "hash": "0x065c4c49f6a2d4301b271622b32fd68b210430a4786545cd7824768997445996",
+   "timestamp": 1788197063,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x056d49844f5c6ab9ace004a5a07d774888bf779b",
+   "feePerL2Gas": "2458314106773",
+   "archiveRoot": "0x2115c0862785d14ecc3173dd8b10ebcf90b0660c99dc6255fc0603eacb27ce46",
+   "parentArchiveRoot": "0x0875bc4c6b7b69bb5d650956f470299096a1f52c0127c7f1dcbaafb8205b1912",
+   "transactions": []
+  },
+  {
+   "number": 67619,
+   "hash": "0x2cf87293dbac1f6ebb319aebc513b65f24e5d5bfca19096a577e7a3bad60919a",
+   "timestamp": 1788196991,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xfa34cd3529a9b861f29f6d8ca6c2f99927cf789f",
+   "feePerL2Gas": "2458559606418",
+   "archiveRoot": "0x0875bc4c6b7b69bb5d650956f470299096a1f52c0127c7f1dcbaafb8205b1912",
+   "parentArchiveRoot": "0x016cac04c567a091013532a8662a0120fe18f0b3a1fd173ed47dd50e5658d72a",
+   "transactions": []
+  },
+  {
+   "number": 67618,
+   "hash": "0x1120b792679a5aca9bceecc3c979e1df95e1ebb072a9448e3f05bf9420fb749e",
+   "timestamp": 1788196919,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x06a8eecfba446ca78704fd1ed002cb13cec12bff",
+   "feePerL2Gas": "2459051206856",
+   "archiveRoot": "0x016cac04c567a091013532a8662a0120fe18f0b3a1fd173ed47dd50e5658d72a",
+   "parentArchiveRoot": "0x2b377767477a33b51374baf7153121c77ee00b39e10c5ff1713ce92ea5570d8a",
+   "transactions": []
+  },
+  {
+   "number": 67617,
+   "hash": "0x14c20d78583a4b52fad8e9fbd5981e281566ede9c8fb35887f98ed832e5e85e6",
+   "timestamp": 1788196847,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x60fad86c1f1d4093e4e94838ca9e7087ed91a525",
+   "feePerL2Gas": "2459051206856",
+   "archiveRoot": "0x2b377767477a33b51374baf7153121c77ee00b39e10c5ff1713ce92ea5570d8a",
+   "parentArchiveRoot": "0x096a339d641ac1ddaadc9d961767fece693b9f4c11ab1d6279a4e273f5e52f51",
+   "transactions": []
+  },
+  {
+   "number": 67616,
+   "hash": "0x140d4411c97588ee8645b8eb0f6ea56693dbcb5264b95da2537d52bfec3ee6c9",
+   "timestamp": 1788196775,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x75cd5de9d8acb59a79890a777a7d60c67fb5dfc2",
+   "feePerL2Gas": "2500467163523",
+   "archiveRoot": "0x096a339d641ac1ddaadc9d961767fece693b9f4c11ab1d6279a4e273f5e52f51",
+   "parentArchiveRoot": "0x1be7cd1cef91ee31bf87c49530f60b14c2554430176bcad182487ede5b395213",
+   "transactions": []
+  },
+  {
+   "number": 67615,
+   "hash": "0x1afe9e826ad4d06cedc6a9a4d00ff53b999e4ed0d3d932d27f8bc9919398ac02",
+   "timestamp": 1788196703,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x8e0d4aea1c225d81ba1d5592b64ac2b1d2da5823",
+   "feePerL2Gas": "2500467163523",
+   "archiveRoot": "0x1be7cd1cef91ee31bf87c49530f60b14c2554430176bcad182487ede5b395213",
+   "parentArchiveRoot": "0x2e51e1fc77223becceab73ad6c2fc15bfe7245f5ed07db8038ec909b35b63dd2",
+   "transactions": []
+  },
+  {
+   "number": 67614,
+   "hash": "0x146abd563f0277d52e728514865f529910edb19f5d2c85650732246d3f6cfccd",
+   "timestamp": 1788196631,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x1f0d98760ae903af089c847550d0c28183f4b178",
+   "feePerL2Gas": "2499716812859",
+   "archiveRoot": "0x2e51e1fc77223becceab73ad6c2fc15bfe7245f5ed07db8038ec909b35b63dd2",
+   "parentArchiveRoot": "0x2e0b63d69d74c30d3fa6a219fd4fc6216df340d69eff0d04f8fff36ef2baf4cd",
+   "transactions": []
+  },
+  {
+   "number": 67613,
+   "hash": "0x19ec70048233f2ef59010dd6e2d9a1f8d7055130a8ccc19c3c613817ddde3eac",
+   "timestamp": 1788196559,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0xf38ecc17ee4008e2a89f5449a84448502fd03e89",
+   "feePerL2Gas": "2499466642196",
+   "archiveRoot": "0x2e0b63d69d74c30d3fa6a219fd4fc6216df340d69eff0d04f8fff36ef2baf4cd",
+   "parentArchiveRoot": "0x17568ac8aea4e50040352b19d1cf2a3edc5b24f9dec86f7b025398514158ac17",
+   "transactions": []
+  },
+  {
+   "number": 67612,
+   "hash": "0x09e287b8f5f23cdfec484316cccad189db4cace15d1cdeb955afb0f19a73ffeb",
+   "timestamp": 1788196487,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x90e7b822a5ac10edc381abc03d94b866e4b985a1",
+   "feePerL2Gas": "2498216539610",
+   "archiveRoot": "0x17568ac8aea4e50040352b19d1cf2a3edc5b24f9dec86f7b025398514158ac17",
+   "parentArchiveRoot": "0x22c7188549f5ff42466797e3ccec23afc65461ecc9e0f8520f645759e75ac31b",
+   "transactions": []
+  },
   {
    "number": 67611,
    "hash": "0x0300039be07f8574b307fabe3426412c253d8df162d1e2becc6be8c2ebcd06a1",
@@ -9927,6 +10756,90 @@
    "observedAt": "2026-08-31T16:45:12.402Z",
    "outcome": "pruned",
    "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it."
+  },
+  {
+   "txHash": "0x09abd57b4f0b612dd200fe14b8613e313bcbd8e9c421f18b58b63830c0a77610",
+   "blockNumber": 67648,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x0000000000000000000000000000000000000000000000002a5c07f48930faa0",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-08-31T17:57:30.563Z",
+   "capturedWindow": {
+    "tip": 67648,
+    "finalized": 67618,
+    "replayableFrom": 67619,
+    "replayableTo": 67648
+   },
+   "replayed": false,
+   "outcome": "refused",
+   "refusal": "AvmToolchainRegression",
+   "reason": "This transaction could not be re-executed: the replay runtime refused with AvmToolchainRegression. No trace was recorded for it.",
+   "detail": "}  Node.js v24.19.0"
+  },
+  {
+   "txHash": "0x2d663a83e3a2ff248918814ec6b5cee7ee8ff3d08c0e2784886ecb4cb5d4cecf",
+   "blockNumber": 67650,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x0000000000000000000000000000000000000000000000002a9e389bbe668400",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-08-31T17:59:37.694Z",
+   "capturedWindow": {
+    "tip": 67650,
+    "finalized": 67618,
+    "replayableFrom": 67619,
+    "replayableTo": 67650
+   },
+   "replayed": false,
+   "outcome": "refused",
+   "refusal": "AvmToolchainRegression",
+   "reason": "This transaction could not be re-executed: the replay runtime refused with AvmToolchainRegression. No trace was recorded for it.",
+   "detail": "}  Node.js v24.19.0"
+  }
+ ],
+ "captures": [
+  {
+   "capturedAt": "2026-08-31T17:57:30.563Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67648,
+    "finalized": 67618,
+    "replayableFrom": 67619,
+    "replayableTo": 67648,
+    "blocks": 30
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "86c36ad4411511f848b87e4029bae3b25c24ffab",
+   "yielded": [
+    {
+     "txHash": "0x09abd57b4f0b612dd200fe14b8613e313bcbd8e9c421f18b58b63830c0a77610",
+     "outcome": "refused"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-08-31T17:59:37.694Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67650,
+    "finalized": 67618,
+    "replayableFrom": 67619,
+    "replayableTo": 67650,
+    "blocks": 32
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "86c36ad4411511f848b87e4029bae3b25c24ffab",
+   "yielded": [
+    {
+     "txHash": "0x2d663a83e3a2ff248918814ec6b5cee7ee8ff3d08c0e2784886ecb4cb5d4cecf",
+     "outcome": "refused"
+    }
+   ]
   }
  ]
 }

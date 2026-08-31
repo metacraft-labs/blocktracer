@@ -69,6 +69,106 @@ export function refusalName(stderr) {
   return m ? m[1] : 'unknown';
 }
 
+/** The informative part of a refusal's stderr.
+ *
+ *  WAS `split('\n').slice(-3)`, AND THAT WAS BACKWARDS. A Node stack trace ends with the
+ *  interpreter's own banner, so the last three lines of a real refusal were
+ *  `"}  Node.js v24.19.0"` — which is what the first two mainnet catches recorded, in a
+ *  field whose entire job is to say what went wrong. The refusal NAME survived, so the
+ *  row was not wrong, merely useless at the moment it was most needed.
+ *
+ *  The message is at the TOP of a thrown error's output, not the bottom. This anchors on
+ *  the named line and keeps it plus what follows, and falls back to the leading
+ *  non-empty lines rather than the trailing ones. */
+export function refusalDetail(stderr, name) {
+  const lines = String(stderr ?? '').split('\n').map((l) => l.trimEnd());
+  const isNoise = (l) =>
+    l.trim().length === 0 ||
+    /^Node\.js v\d/.test(l.trim()) ||
+    /^\s*at\s/.test(l) ||
+    /^[{}\s]*$/.test(l);
+  // The MESSAGE line, not the first line that happens to contain the name. Node echoes the
+  // throwing source line above the message — `    throw new AvmToolchainRegression(` — so a
+  // plain `includes` anchors on the code that raised rather than on what it said. The
+  // message is the line where the name is followed by a colon at the start of the line.
+  const named = new RegExp(`^${name}\\b\\s*:`);
+  let start = name && name !== 'unknown'
+    ? lines.findIndex((l) => named.test(l.trim()))
+    : -1;
+  if (start < 0 && name && name !== 'unknown') {
+    start = lines.findIndex((l) => l.includes(name) && !/\bthrow\b|\bnew\b/.test(l));
+  }
+  const picked = [];
+  if (start >= 0) {
+    for (let i = start; i < lines.length && picked.length < 3; i++) {
+      if (!isNoise(lines[i])) picked.push(lines[i].trim());
+    }
+  }
+  if (picked.length === 0) {
+    for (const l of lines) {
+      if (picked.length >= 3) break;
+      if (!isNoise(l)) picked.push(l.trim());
+    }
+  }
+  return picked.join(' ').slice(0, 400);
+}
+
+/** Prove the replay toolchain works BEFORE starting to wait for a rare event.
+ *
+ *  WHY THIS EXISTS, and it is the most expensive lesson this tool has taught. The follower
+ *  caught two live mainnet transactions on 2026-08-31 — 67648 and 67650, inside the window
+ *  with 30 and 32 blocks of headroom, bodies retained, exactly what it was built to do —
+ *  and refused both with `AvmToolchainRegression`, because `--avm` pointed at
+ *  `vm2wasm/avm.wasm`. That is M6's early spike artefact: it OWNS its memory, and this host
+ *  is for `--import-memory` modules, so the runtime named the refusal and declined. The
+ *  configuration was wrong from the first minute of the watch.
+ *
+ *  A catch is RARE and UNREPEATABLE. Mainnet transactions arrive 25 to 142 blocks apart and
+ *  the body prunes about thirty minutes after it lands, so a misconfiguration discovered at
+ *  catch time does not cost a retry — it costs the transaction, permanently. Everything a
+ *  watch can check about itself, it must check before it starts watching.
+ *
+ *  IT ASKS THE RUNTIME RATHER THAN RESTATING ITS RULE. The memory-import gate belongs to
+ *  `node-host`'s loader and lives there; a second copy in this repository would be a rule
+ *  that could drift out of agreement with the one that actually decides. So the preflight
+ *  imports `compileAvm` and calls it. If the loader ever gains a condition, this gains it
+ *  too, for free.
+ */
+export async function preflightToolchain({ nodeBin, runtime, avm, ctWriter }) {
+  const problems = [];
+  for (const [what, p] of [['avm', avm], ['ct-writer', ctWriter]]) {
+    if (!existsSync(p)) problems.push(`${what} path does not exist: ${p}`);
+  }
+  if (problems.length) return { ok: false, problems };
+
+  const loader = resolve(runtime, 'node-host/src/loader.ts');
+  if (!existsSync(loader)) {
+    // Not fatal: a runtime layout this tool does not recognise should not stop a watch that
+    // might still work. It is reported, so a refusal later is not a surprise.
+    return { ok: true, problems: [], note: `no ${loader} — module gate not pre-checked` };
+  }
+  const script =
+    `import(${JSON.stringify('file://' + loader)}).then(async (L) => {` +
+    `try { const c = await L.compileAvm(${JSON.stringify(avm)});` +
+    ` console.log('PREFLIGHT_OK ' + c.declaredImports.length); }` +
+    ` catch (e) { console.log('PREFLIGHT_REFUSED ' + e.constructor.name + ' :: ' +` +
+    ` String(e.message).split('\\n')[0]); } })` +
+    `.catch((e) => console.log('PREFLIGHT_UNAVAILABLE ' + String(e.message).split('\\n')[0]));`;
+  const r = await run(nodeBin, ['--experimental-wasm-exnref', '-e', script], runtime);
+  const out = `${r.out}`.trim();
+  const line = out.split('\n').find((l) => l.startsWith('PREFLIGHT_')) ?? '';
+  if (line.startsWith('PREFLIGHT_OK')) {
+    return { ok: true, problems: [], note: `avm module accepted (${line.split(' ')[1]} imports)` };
+  }
+  if (line.startsWith('PREFLIGHT_REFUSED')) {
+    return { ok: false, problems: [`the replay runtime refuses this --avm module: ` +
+      line.slice('PREFLIGHT_REFUSED '.length)] };
+  }
+  // The probe itself could not run. Reported, never fatal — see the note above.
+  return { ok: true, problems: [],
+           note: `module gate not pre-checked (${line || out.slice(0, 160) || 'no output'})` };
+}
+
 /** Decide the outcome from what the driver produced.
  *
  *  Split out from the spawning so it can be driven with recorded driver output — the
@@ -94,7 +194,7 @@ export function decideOutcome(r, ctPath, containerOnDisk, containerBytes) {
       refusal: why,
       reason: `This transaction could not be re-executed: the replay runtime refused with `
         + `${why}. No trace was recorded for it.`,
-      detail: String(r.err ?? '').trim().split('\n').slice(-3).join(' ').slice(0, 400),
+      detail: refusalDetail(r.err, why),
     };
   }
 
