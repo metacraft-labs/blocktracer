@@ -1,0 +1,107 @@
+Expected elements: present
+
+Dense, legible, unmistakably the tool. The width split across the three columns is still wrong, and the new fade makes that visible rather than fixing it.
+
+(a) The fade half-works. On the Transaction pane's RAW (CHAIN-NATIVE) block the ramp runs y1051-1074: 24px, exactly one 23px line-height. `"aztec": {` goes full-black at cap-height to ~50% at its baseline; the line above is untouched. The mid-glyph cut is gone, but one dim line reads as "the last line is grey", not as a progression. The same system already fades horizontally across ~3.7 characters (Code line 40, x880-905). Two to three line-heights would match it.
+
+(b) Em dashes on SELECTOR/RAW correct; EXECUTIONS is a proper sentence. Cost values are not humanised: `88000 / 200000` sits beside the Call Trace's `1,315`, and the identity bar prints `1315` for the number the Call Trace prints `1,315`.
+
+Re-measured, every figure holds. Call Trace region y68-669 (601px), content ends y328: 341px empty, 56.7% of the region, 59.4% below the tab strip. Values y674-1075, last rule y952: 123px, 30.7%. Widest frame row still leaves 153px dead (x1353-1506). Middle column 598px, Transaction 373px.
+
+New argument: what overflows is prose, not data. DATA 6 lines + EXECUTIONS 3 + RAW 5 is ~320px, a third of the pane body, at 40-49 characters in a 373px column. +130px takes that to ~10 lines and recovers roughly the height the fade is apologising for.
+
+Fixes: widen the Transaction pane 120-130px; lengthen the fade to ~50px.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L4/1",
+      "severity": "P2",
+      "location": "all pane bodies; measurable at Transaction pane RAW (CHAIN-NATIVE) block y1051-1074 and Code pane line 61 y1052-1066",
+      "finding": "The new bottom fade ramp is 24px, exactly one 23px line-height, so it attenuates exactly one line: the RAW block's last line goes from ink 36 at its cap-height to 141 at its baseline while the line above stays at full contrast. A fade reads as 'there is more' when the eye sees a progression across two or three successive lines at descending opacity; across one line it reads as 'the last line is dim'. The same design system already fades horizontally over ~30px, which at 8.2px per mono character is ~3.7 characters of content (Code pane line 40, ink 93 at x880 washing to 194 at x902) - the vertical ramp should match that ratio at ~50-56px, i.e. two to two-and-a-half line-heights. Verdict on the change: the mid-glyph cut the five reviewers reported is genuinely gone and no glyph is now sliced by a border, but the continuation signal is not yet unambiguous.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/light/L4/2",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) block, y1026-1074",
+      "finding": "The fade is the only overflow cue on the page - no scrollbar track or gutter is rendered in any pane body. The block shows two lines ('{' and '\"aztec\": {') of a JSON payload of unknown size, so a reader cannot tell whether two lines or two hundred are below. This product quantifies elsewhere (AGE says 'No timestamp published', the identity bar says 'Engine loading - 18 MB'); the RAW (CHAIN-NATIVE) heading should carry a line or byte count so the fade announces a measured quantity rather than an unmeasured one.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/light/L4/3",
+      "severity": "P2",
+      "location": "middle column (x926-1523) Call Trace region y68-669, against Transaction pane x1538-1910",
+      "finding": "Re-measured this round and unchanged: the Call Trace region is 601px tall, its seven frames plus the 'By call order.' footer end at y328, leaving 341px empty - 56.7% of the region and 59.4% of the 574px below the tab strip. Values below it is 401px with its last rule at y952, 123px empty (30.7%). The widest frame row ('calculate_remaining_shield_pct zk_shields - src/shield.nr') ends at x1353 and the right-aligned opcode column starts at x1506, a 153px dead band; the widest Values row ('masses') has 147px between the label end at x1004 and the array's left edge at x1151. So the 598px middle column can give up 120-130px of width with no row in either pane losing content, while the 373px Transaction pane beside it now visibly fades content off its bottom edge. The fade did not change this arithmetic - it only made the shortage advertise itself, which makes a visible shortage sit next to a visible 341px surplus.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L4/4",
+      "severity": "P2",
+      "location": "Transaction pane, full column x1538-1910, y205-1074",
+      "finding": "Section headings (DATA y205, EXECUTIONS y663, DECODED INPUT y805) and row labels (BLOCK y376, TYPE, AGE, CANONICAL, FINALITY, FEE PAYER, TARGET, COST - MANA y633, SELECTOR y828, RAW y853) share one type treatment: 9px cap-height letterspaced small-caps, same weight, same grey. Roughly twenty identical labels, distinguished only by whether a right-hand value happens to be present. A 1005px pane body therefore scans as one flat list rather than four groups, and the reader has to parse each row to learn whether it is a heading or a datum.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L4/5",
+      "severity": "P2",
+      "location": "identity bar position readout x1119-1203 versus Call Trace opcode column x1484-1518, and Transaction pane COST - MANA row y633",
+      "finding": "The same quantity is printed two ways on one screen: the identity bar renders the trace length as '1315' and the Call Trace 'main' row renders it as '1,315', about 300px apart. COST - MANA renders '88000 / 200000' with no separators while the pane's neighbour column separates thousands. Rubric B7 asks for comparable formatting across magnitudes; this is two formats for one magnitude. The 'humanised cost labels' change reached the label and the unit suffix ('mana (FeeJuice)') but not the digits.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L4/6",
+      "severity": "P2",
+      "location": "identity bar, between 'Engine loading - 18 MB' (ends x1105) and the position readout '128' (starts x1119)",
+      "finding": "The bar's six semantic objects are separated by gaps in the same 12-27px band as the gaps inside them. Measured: scrubber ends x932, status starts x950 (18px); status ends x1105, position starts x1119 (14px); inside the position readout '128 / 1315' the gaps are 12px; the phase rail starts 26px later. The 14px gap between the engine status and the position readout is smaller than the 20-21px gaps inside each stepping-button pair, so '18 MB 128 / 1315' scans as one run of numbers rather than as two unrelated facts. The bar reads as a strip of objects, not as groups.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L4/7",
+      "severity": "P2",
+      "location": "Code pane header stack, y68-192 (CODE title, LOOP/iteration chip row, file tab strip, 'Showing from line 26' notice)",
+      "finding": "124px of chrome in four stacked bands sits above the first code line at y200 - 5.4 code lines at the pane's 23px pitch - in a pane whose own content is fading off the bottom at line 61. The 32px notice band 'Showing from line 26 - the session's position is below, and the lines above it are not in this window' half-duplicates the gutter, which already begins at 26; only its second clause is new information. Folding that clause into the 26px CODE title row would return roughly 2.5 code lines to a pane that is currently paying the fade to hide them.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L4/8",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row prose y233-355, against the EXECUTIONS note y707-760 and the RAW note y875-975",
+      "finding": "The brief invites the question of whether the provenance row is now too quiet, and by density it is. Its six sentences of producer prose are set in the same ~13px grey at the same 23px pitch as the EXECUTIONS note and the RAW note - three paragraphs, one treatment, ~14 prose lines totalling ~320px, about a third of the pane body. Nothing in the typography tells the reader that one of these three paragraphs says 'none of this exists on any network' while the other two say 'there is no call structure' and 'no calldata to decode'. The toned badge carries the claim alone; the sentences beneath it are indistinguishable from the pane's other explanatory copy. Raise the DATA paragraph's emphasis, or set it on its own ground, so the claim outranks the two absences.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L4/9",
+      "severity": "P3",
+      "location": "Transaction pane, RAW row y853 versus RAW (CHAIN-NATIVE) heading y996",
+      "finding": "Two rows named RAW give opposite answers 143px apart: the first renders the new em dash (absent), the third shows a populated JSON block. The DECODED INPUT heading at y805 is meant to scope the first, but because headings and row labels share one type treatment (finding 4) it does not visibly do so. Naming the first row RAW CALLDATA would remove the double-take at no density cost.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L4/10",
+      "severity": "P3",
+      "location": "identity bar, left run x24-1462 and right actions x1799-1895",
+      "finding": "Measured minimum content width is about 1538px (1438px of identity, controls, scrubber, status and phase rail, plus ~96px of actions and their gutter). At a 1440 viewport that overflows by roughly 100px, so either the phase rail or the NOIR label and the two action buttons must wrap or collapse at around 1470px. Inferred from this capture's measurements; not verified against a 1440 render.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L4/11",
+      "severity": "P3",
+      "location": "identity bar '128 / 1315' x1119-1203 and Transaction pane COST - MANA '88000 / 200000' y633",
+      "finding": "The same 'a / b' idiom carries two unrelated meanings about 1500px apart - position within the trace, and mana consumed against a limit. Neither is labelled at the readout itself, so the shape trains the eye to read one thing and then means another.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

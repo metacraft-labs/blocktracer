@@ -1,0 +1,101 @@
+Expected elements: FORBIDDEN PRESENT — "Language blaming the recorder, the engine or BlockTracer"
+
+That is finding #1 and it caps the rating at 4. The Overview DATA row reads "the replay runtime refused them (AvmToolchainRegression) … That is a failure on the recording side, not a property of this chain", and the notice card's published reason repeats it. MUST SHOW also asks that reason to locate the limitation in the chain's retention; it now locates it in this product's runtime, and a runtime regression is fixable — so "a permanent answer rather than a failed fetch" and the two "empty permanently, not yet" notes are claims the stated reason cannot support. Reported as rendered; the expectation block may be the stale half.
+
+In my lens the neutral ramp is designed, not inverted, and the absence of an error tone is correctly judged. But three of five tones carry more than one meaning. Identical #F3F3F3 / #C8C8C8 / #565656 chips render `Yes` (CANONICAL) and `No timestamp published` (AGE) in adjacent rows — an affirmative and an absence in one tone. Green #DCFCE7 / #16A34A / #166534 covers outcome, finality and dataset provenance. Absence has two treatments: a muted chip in AGE, near-black em dashes in SELECTOR/RAW.
+
+Lowest text-on-surface ratio: 5.32:1 — breadcrumb `Home` / `aztec`, #4F46E5 on canvas #ECECEB. Next, 5.40:1, resolver placeholder. Nothing fails AA; non-text does — chip borders at 1.67:1.
+
+Fixes: reconcile the reason with the permanence claim; reserve a tone for `Not observable`.
+
+Rating: 4/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "forbidden-present",
+  "missing": [
+    "MUST NOT SHOW — 'Language blaming the recorder, the engine or BlockTracer' is present, verbatim, in the Overview DATA row and in the notice card's published reason",
+    "MUST SHOW — the published reason no longer locates the limitation in the chain's retention (getTxByHash pruning at the finalized tip); it names this product's replay runtime refusing with AvmToolchainRegression"
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/1",
+      "severity": "P1",
+      "location": "Overview grid, DATA row provenance sentences (lines 4-6) and the notice card's published reason under the `Not observable` badge",
+      "finding": "Forbidden item present. The page attributes the missing trace to BlockTracer's own recorder in two places: the notice card says 'This transaction could not be re-executed: the replay runtime refused with AvmToolchainRegression. No trace was recorded for it.', and the DATA row says '2 transaction(s) inside it WERE still replayable and were caught in time, and the replay runtime refused them (AvmToolchainRegression), so no trace was recorded. That is a failure on the recording side, not a property of this chain.' MUST NOT SHOW forbids 'Language blaming the recorder, the engine or BlockTracer'; MUST SHOW requires the reason to 'locate the limitation in the CHAIN's retention rather than in this product's capability: nothing here failed.' The pruning explanation still appears in the same paragraph but is scoped to 'Transactions below block 67650', and this transaction is AT block 67650:0, so it does not cover this page's subject. I am reporting the pixels against the brief: it is equally possible the capture is now truthful and the expectation block is stale, in which case the reconciliation belongs in expectations.mjs rather than in the copy. Either way the two cannot both stand."
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/2",
+      "severity": "P1",
+      "location": "Notice card, first sentence, against the reason directly beneath it; and the Internal calls / State changes empty-state notes",
+      "finding": "A state presented as a different state. The card asserts 'No trace can be produced for this execution — a permanent answer rather than a failed fetch', and Internal calls and State changes both say the section is 'empty permanently, not yet'. The reason given for all three is a toolchain regression in the replay runtime — a defect on the recording side, which is by construction repairable by re-running the recorder. Nothing on the page supports permanence any more; a reader who returns after the regression is fixed may well find a trace. This survives independently of finding 1: deleting the recorder-blaming clause without changing the permanence claims would leave an unsupported assertion with no stated basis at all."
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/3",
+      "severity": "P2",
+      "location": "Overview grid, CANONICAL row (`Yes`) and AGE row (`No timestamp published`) — adjacent rows, 30px apart",
+      "finding": "One tone, two opposite meanings. Both chips are byte-identical: fill #F3F3F3, border #C8C8C8, label #565656, same radius and padding. One states an affirmative fact about the transaction ('it is canonical'); the other states that a datum does not exist. Because FINALITY immediately below uses the green affirmative pill, the grid teaches the reader 'green = affirmative, grey = missing' across AGE and FINALITY, then contradicts it one row up at CANONICAL. `Yes` is also the only ordinary scalar value in the grid rendered as a chip at all — TYPE renders `public` as plain mono, COST renders plain text — so the neutral tone is spent here without encoding anything.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/4",
+      "severity": "P2",
+      "location": "`Succeeded` (page title row), `Finalized` (Overview FINALITY row), `Real Aztec mainnet data` (Overview DATA row)",
+      "finding": "One tone, three meanings on three different subject axes. All three badges are fill #DCFCE7, border #16A34A, text #166534 — no differentiation whatsoever. `Succeeded` is the chain's report of an execution outcome; `Finalized` is a finality state; `Real Aztec mainnet data` is a claim about the DATASET, not about this transaction, and §4 grades it as CONTENT rather than decoration because it is the only thing telling a reader the hashes exist on a network. Giving a content-grade provenance claim the same token as a routine status pill removes the one cue that would tell a reader it is a different kind of statement. Reserving the green for chain state and giving provenance its own affirmative treatment would also stop `Real Aztec mainnet data` reading as a fourth 'this went well' badge.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/5",
+      "severity": "P2",
+      "location": "Notice card, the `Not observable` badge",
+      "finding": "The page's headline status is the lowest-weight coloured object in its own card. Its fill is #FFFFFF — byte-identical to the card it sits on — so it is bounded only by a ~#C8C8C8 hairline measuring 1.67:1 against that fill, below the 3:1 non-text floor. Its label is #565656 (7.34:1), the same muted token as the `click to select` hint beside the hash field, while the body prose two lines below it is #242424 at 15.52:1. Colour emphasis is therefore inverted against importance: the sentence explaining the state outranks the badge naming it, and the `Yes` chip in CANONICAL — a boolean — carries more fill weight. Its dot is #565656, identical to its own label, so it encodes nothing and merely makes a third badge geometry that maps to no distinction. The fix is not a danger tone (correctly absent per MUST NOT SHOW) but a reserved neutral-emphatic tone used nowhere else.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/6",
+      "severity": "P2",
+      "location": "Decoded input grid, SELECTOR and RAW value cells, against the Overview AGE row",
+      "finding": "'There is no value here' has two contradictory colour treatments on one page. In AGE the absence is a muted #565656 chip on #F3F3F3. In SELECTOR and RAW the same meaning is an em dash rendered at #2F2F2F on white — 13.4:1, effectively the same emphasis as a real value such as `public` (#242424, 15.5:1). A reader scanning the value column sees the em dashes at full value weight and the AGE absence demoted, with no rule connecting the two. Since STEP 2(b) introduced these dashes deliberately, they should take the muted token so absence reads as one thing throughout.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/7",
+      "severity": "P2",
+      "location": "Every container boundary on the page: chip borders in the Overview grid, the notice/empty-state card borders, and the `Succeeded` badge border",
+      "finding": "No container on this page has a boundary that meets the 3:1 non-text contrast floor, and the fills do not compensate. Measured: chip border #C8C8C8 on white 1.67:1 with a #F3F3F3 fill at 1.11:1; card border #A2A2A2 on canvas #ECECEB 2.16:1 with a white fill at 1.18:1; `Succeeded` badge border #16A34A on canvas 2.79:1 with a #DCFCE7 fill at 1.08:1. The same green border reaches 3.30:1 on white (`Finalized`, `Real Aztec mainnet data`), so the identical badge passes inside the grid and fails at the page head purely because of the surface under it — evidence the borders were picked against white and never re-checked against the canvas.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/8",
+      "severity": "P3",
+      "location": "Breadcrumb `Home` / `aztec` (top of content column), and the nav resolver field placeholder",
+      "finding": "Lowest text-on-surface pairs measured on the page: 5.32:1 for the breadcrumb links, #4F46E5 on the canvas #ECECEB, and 5.40:1 for the resolver placeholder, #565656 on the field fill #DDDDDD. Both clear AA and neither is a defect, but they are the two smallest type sizes rendered and the only two pairs on the page under 6:1 — everything else lands between 6.2:1 and 19.0:1. Worth recording as the floor so a future darkening of the canvas or lightening of the muted token is caught."
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/9",
+      "severity": "P3",
+      "location": "Site nav, the resolver field",
+      "finding": "The resolver is a #DDDDDD fill on a white nav (1.36:1) with a #A4A4A4 border and a #565656 placeholder, and no caret or focus treatment is visible. A mid-grey filled field with grey placeholder text is the conventional rendering of a disabled input, and this page's MUST NOT SHOW list forbids 'a disabled control of any kind' — so the one place the misreading is most expensive is this page. #DDDDDD is also the Overview grid's label-column surface, giving one surface value two unrelated roles."
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/10",
+      "severity": "P3",
+      "location": "`Raw (chain-native)` section, the code block fill",
+      "finding": "The code block's fill is #ECECEB — byte-identical to the page canvas, verified by sampling inside the block and immediately outside its left border at the same y. Every other section's content sits on a white card raised above that canvas. So #ECECEB means both 'the page floor' and 'a distinct code surface inside content', and the Raw block is the only content box that does not sit on a raised level. Either drop it to a dedicated code surface or raise it to the card white the other sections use.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/11",
+      "severity": "P3",
+      "location": "Footer provenance strip, the heart glyph in 'Built with ♥ by Metacraft Labs'; and the neutral ramp generally",
+      "finding": "Two palette-cohesion notes. (a) The heart is #4F46E5 — the page's interactive colour, used for every link including 'Metacraft Labs' directly after it — but it is not interactive, so indigo leaks out of its role in the one place it sits between two underlined links. The GitHub and CodeTracer marks are correctly indigo because they are part of their links. (b) The canvas #ECECEB carries a one-unit warm cast (B=235) that no other neutral shares — #FFFFFF, #F3F3F3, #DDDDDD, #C8C8C8, #A2A2A2 are all perfectly neutral — so the warmth reads as noise rather than a decision; and the only two chromatic ramps are stock framework defaults (indigo-600, green-100/600/800) sitting on an otherwise bespoke grey ramp."
+    }
+  ]
+}
+```

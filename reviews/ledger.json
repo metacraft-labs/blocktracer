@@ -66,7 +66,7 @@
     "round reports FAILED on exactly those two conditions and on nothing else.",
     "That is the honest ceiling of an agent-run round, and it is where VD.2 stops."
   ],
-  "ledgerRevision": "2026-08-31.8",
+  "ledgerRevision": "2026-08-31.9",
   "gateScope": [
     {
       "view": "tx-detail",
@@ -2591,9 +2591,9 @@
       "size": "wide",
       "theme": "light",
       "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
-      "imageSha256": "6133a682b4d669d31b92e4810eb37919ca7133a56d991a19264b47965d0280f8",
-      "reportPath": "reviews/rounds/vd9-r1/tx-detail--mainnet-zero-trace__wide__light__ADV.json",
-      "reportSha256": "ce0e91aec97a7bc54c8a3f1726bebb3416a53a3f9f37051a4dd244060fe9b33d",
+      "imageSha256": "0873bd037c119f3d20fe642157ee7a5498be87fffddf8c3c2bfc97640460da91",
+      "reportPath": "reviews/rounds/vd9-r2/tx-detail--mainnet-zero-trace__wide__light__ADV.json",
+      "reportSha256": "fe4c4d004f5b139b8b3e2272c505979dc6533790fb2a03ce648026fbc751771c",
       "reviewer": "ADV",
       "expectedElements": "present",
       "missing": [],
@@ -2601,9 +2601,9 @@
       "findings": [
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/ADV/1",
-          "severity": "P1",
-          "location": "Decoded input section, facts grid, `Raw` row (value `0x`)",
-          "finding": "The Raw row prints `0x`, asserting the calldata is a known empty byte string, on a page that states twice that the body was pruned and that the section cannot tell whether calldata was never published or was pruned before capture. An unknown is rendered as a known-empty value, and the Selector row one line above uses `—` for the same unknown, so the grid contradicts both itself and the note directly beneath it.",
+          "severity": "P2",
+          "location": "`Not observable` card at the top of the page, second sentence of the reason body",
+          "finding": "The card claims \"a permanent answer rather than a failed fetch\" and then supports it only with \"the replay runtime refused with AvmToolchainRegression\" — a fixable bug in our own engine, which reads as the most retryable reason imaginable. The fact that makes the answer permanent, that this transaction's body has since been pruned so the refusal can never be re-attempted, is never stated in the card. The provenance paragraph cannot supply it: it gives the replay window as blocks 67651-67686, which excludes this transaction at 67650, and describes pruning as applying \"below block 67650\", which also excludes it, so the transaction sits outside both sets the paragraph describes. Add one clause to the card tying the refusal to the now-pruned body.",
           "criterion": "A9"
         }
       ]
@@ -2613,133 +2613,105 @@
       "size": "wide",
       "theme": "light",
       "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
-      "imageSha256": "6133a682b4d669d31b92e4810eb37919ca7133a56d991a19264b47965d0280f8",
-      "reportPath": "reviews/rounds/vd9-r1/tx-detail--mainnet-zero-trace__wide__light__L1.json",
-      "reportSha256": "7fb454a061041af8af2ae8107ebfb9c666fdfc4606698f3efbccfd76b890bcff",
+      "imageSha256": "0873bd037c119f3d20fe642157ee7a5498be87fffddf8c3c2bfc97640460da91",
+      "reportPath": "reviews/rounds/vd9-r2/tx-detail--mainnet-zero-trace__wide__light__L1.json",
+      "reportSha256": "eb0bae2ebd107d7d915ae68886a337d03aaac8ee8eba6954934902a802921a2a",
       "reviewer": "L1",
+      "expectedElements": "present",
+      "missing": [],
+      "rating": 7,
+      "findings": [
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/1",
+          "severity": "P2",
+          "location": "Overview grid, last row, label cell — `COST · TRANSACTION FEE`",
+          "finding": "The humanised label is still rendered through the label column's uppercase transform, and at 162 px of column width the three words break onto three lines (`COST ·` / `TRANSACTION` / `FEE`). Measured on the pixels, that row is 85 px tall against 37, 37, 38, 38 and 38 px for BLOCK, TYPE, AGE, CANONICAL and FINALITY — 2.2x the grid's row height, so the last row of the facts table is visibly a different rhythm from the five above it, and the value `3070954237478732800 mana (FeeJuice)` sits at the top of an 85 px cell with 45 px of empty cell beneath it. Humanising the string cured the mid-word break but made the row taller than the camelCase version I filed (1.6x). The remedy is in the column, not the string: widen the label column to hold the longest label on two lines, or drop text-transform: uppercase so `Cost · Transaction fee` fits on one.",
+          "criterion": "A6"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/2",
+          "severity": "P2",
+          "location": "Overview grid, DATA row, the provenance paragraph beneath the `Real Aztec mainnet data` badge",
+          "finding": "The grid otherwise uses exactly two type registers — an 11 px letterspaced uppercase label and a ~14 px mono value. The provenance paragraph introduces a third, proportional sans body copy, at the same size and the same text colour as the values, and runs ten lines, roughly 74% of the grid's total height. Narrative and fact therefore carry identical typographic weight, and the six actual facts begin ~370 px below the section heading. The badge does land first, as intended, but the sentences behind it do not read as annotation to it — they read as the grid's content. Dropping the paragraph one step (13 px, secondary text colour) would keep the claim first while letting BLOCK through COST regain primacy.",
+          "criterion": "A4"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/3",
+          "severity": "P3",
+          "location": "Overview grid, DATA row paragraph, line 4 — \"WERE still replayable\"",
+          "finding": "Emphasis is carried by full capitals inside otherwise even body prose. It is the only capitalised emphasis on the page, and at this size it reads as shouting rather than as stress. Weight or italic would carry the same contrast without breaking the paragraph's colour.",
+          "criterion": "A4"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/4",
+          "severity": "P3",
+          "location": "Overview grid, COST row value — `3070954237478732800 mana (FeeJuice)`",
+          "finding": "Nineteen digits run ungrouped, so the magnitude can only be read by counting glyphs. The mono face is correct (this is the finding I filed last round and am withdrawing), but a thin separator every three digits, or a grouped rendering with the exact integer retained for selection, would make the number readable at a glance.",
+          "criterion": "A5"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/5",
+          "severity": "P3",
+          "location": "Overview grid, DATA row paragraph — \"2 transaction(s) inside it\" and \"settled 27 transaction(s)\"",
+          "finding": "The parenthetical plural is used twice where the count is known and non-unit. It is a template artefact showing through finished copy, and it is the only place on the page where the prose reveals its generator.",
+          "criterion": "A10"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/6",
+          "severity": "P3",
+          "location": "Raw (chain-native) section, the JSON block",
+          "finding": "Keys, string quotes, numbers and booleans are all set in one weight and one colour, so the structure has to be parsed from punctuation alone. §3 sanctions the editor's tokens inside explorer pages; even a weight difference between key and value would make the six lines scannable. Flagged from the type side — the colour half of this belongs to L3.",
+          "criterion": "A5"
+        }
+      ]
+    },
+    {
+      "view": "tx-detail--mainnet-zero-trace",
+      "size": "wide",
+      "theme": "light",
+      "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+      "imageSha256": "0873bd037c119f3d20fe642157ee7a5498be87fffddf8c3c2bfc97640460da91",
+      "reportPath": "reviews/rounds/vd9-r2/tx-detail--mainnet-zero-trace__wide__light__L2.json",
+      "reportSha256": "59c59b9d5bbea649338382d6c6223c804665fc8ea5aae8db72da474186fcf2be",
+      "reviewer": "L2",
       "expectedElements": "present",
       "missing": [],
       "rating": 6,
       "findings": [
         {
-          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/1",
-          "severity": "P2",
-          "location": "Overview grid, COST · TRANSACTIONFEE row, value at x≈685-820, y≈1250",
-          "finding": "The base-ten cost `3906250659561864576` is set in the proportional body sans — the same face as the `mana (FeeJuice)` unit beside it — while every other value in the same grid is monospace (`67511:0` y≈1063, `public` y≈1100, `No timestamp published` y≈1140, `Finalized` y≈1213). The hex-to-decimal change fixed the content but moved the value out of the product's numeric texture; the one value on the page that most needs a code face is the only machine value that does not have one.",
-          "criterion": "A5"
-        },
-        {
-          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/2",
-          "severity": "P2",
-          "location": "Overview grid, COST · TRANSACTIONFEE value, x≈685-820, y≈1250",
-          "finding": "Nineteen digits run undelimited. A reader cannot count `3906250659561864576` to a magnitude at any glance length, so base ten is only marginally more readable than the hex word it replaced. Group in threes (thin space or hair space, not a comma if the unit is an integer base unit), or state a scaled figure with the exact integer available on hover/selection as the full hash does at y≈198.",
-          "criterion": "A5"
-        },
-        {
-          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/3",
-          "severity": "P2",
-          "location": "Decoded input section — facts card x≈503-1414, y≈1465-1530, note card x≈503-1203, y≈1555-1660",
-          "finding": "The revised note is correct, but the rows above it were not revised with it. `SELECTOR —` and `RAW 0x` occupy the page's highest-emphasis treatment (bordered full-width facts card, tinted label column, mono values) while the sentence carrying the entire section's information sits below in the secondary card at body size. Scanned without reading, the section reads as two missing values with a footnote; the hierarchy is inverted relative to where the information actually is.",
-          "criterion": "A4"
-        },
-        {
-          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/4",
-          "severity": "P2",
-          "location": "Overview grid, Data row provenance note, x≈527-1135, y≈805-1035",
-          "finding": "The capture note is ten lines of prose at full body size and weight — the same size as the reason card's prose at y≈435 — and it occupies about 230px of the grid's 380px height, more than the six one-line facts below it combined. As the grid's first row it does land before the empty sections are read, which is the point of moving it here, but nothing demotes it: no smaller size, no secondary weight. The Overview reads as a paragraph with a small table under it rather than a facts grid with a provenance preamble.",
-          "criterion": "A4"
-        },
-        {
-          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/5",
-          "severity": "P2",
-          "location": "Overview grid, COST · TRANSACTIONFEE label, x≈510-600, y≈1245-1285",
-          "finding": "`TRANSACTIONFEE` is a camelCase field name pushed through an uppercase transform, so the word boundary that made `transactionFee` readable is gone and it renders as one 14-letter run. It overflows the 127px label column and wraps after the separator, orphaning the `·` at the end of line one and making this row 1.6x taller than every other row in the grid. At a 1920px viewport with the grid's right half empty, a label that cannot fit its own column reads as a prototype. Set it as `Cost · Transaction fee` in the caps style, or widen the column.",
-          "criterion": "A4"
-        },
-        {
-          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/6",
-          "severity": "P2",
-          "location": "Not observable card, paragraphs at x≈527-1130, y≈435-465 and y≈480-560; same pattern in the Data row, y≈760 badge vs y≈805 note",
-          "finding": "BlockTracer's own framing sentence and the chain's published reason are set identically — same face, size, weight and colour — separated only by about 6px of extra leading (paragraph gap ≈26px against a ≈19.5px line gap). Nothing marks where the product stops speaking and the node operator starts. On a page whose entire argument is that the limitation belongs to the chain and not to this tool, the attribution is carried by wording alone, with no typographic support. The same holds in the Data row, where the badge and the capture's verbatim sentences share one treatment.",
-          "criterion": "A4"
-        },
-        {
-          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/7",
-          "severity": "P3",
-          "location": "Overview grid, Data row note, line 4-5, x≈527-1090, y≈855-880",
-          "finding": "`NO TRANSACTION INSIDE IT WAS REPLAYABLE` is set as all caps inside running prose. All caps is this page's label idiom everywhere else — the `TRANSACTION` eyebrow (y≈140), `DATA`, `BLOCK`, `TYPE`, `AGE`, `CANONICAL`, `FINALITY`, `SELECTOR`, `RAW` — so one typographic device carries two meanings on one page, and the emphasised clause momentarily reads as a field label. If the producer's emphasis must be preserved verbatim, render it with weight or italic rather than case.",
-          "criterion": "A4"
-        },
-        {
-          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/8",
-          "severity": "P3",
-          "location": "Raw (chain-native) block, first key, x≈545-700, y≈2497",
-          "finding": "In the monospace face the lowercase `l` and the digit `1` are the same shape — a vertical stem with a top-left flag and a full base bar. `\"l2BlockNumber\"` therefore reads as `12BlockNumber` when compared against the `1`s in `67511` on the same line. The zero is dotted, so the face does disambiguate `0`/`O`; `l`/`1` was missed. One occurrence here, but the face is the product's texture everywhere.",
-          "criterion": "A5"
-        },
-        {
-          "id": "tx-detail--mainnet-zero-trace/wide/light/L1/9",
-          "severity": "P3",
-          "location": "Data row note (x≈527-1135, y≈805-1035) and Not observable card (x≈527-1130, y≈480-560)",
-          "finding": "Both explanatory blocks set to roughly 88 characters per line at a ≈14.5px body size — measures at the top of the comfortable range, and the capture note holds that measure for ten consecutive lines. Tightening to about 70-75 characters would cost nothing at this viewport, where both blocks already stop well short of the container's right edge.",
-          "criterion": "A3"
-        }
-      ]
-    },
-    {
-      "view": "tx-detail--mainnet-zero-trace",
-      "size": "wide",
-      "theme": "light",
-      "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
-      "imageSha256": "6133a682b4d669d31b92e4810eb37919ca7133a56d991a19264b47965d0280f8",
-      "reportPath": "reviews/rounds/vd9-r1/tx-detail--mainnet-zero-trace__wide__light__L2.json",
-      "reportSha256": "1f4f898327cb30d21cd514b18642976d050dad7ab4b1566d0d2c7bc4dff12c2f",
-      "reviewer": "L2",
-      "expectedElements": "present",
-      "missing": [],
-      "rating": 7,
-      "findings": [
-        {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L2/1",
           "severity": "P2",
-          "location": "all five notice cards — Not observable (y354-600), decoded-input note (y1563-1661), Events (y1841-1917), Internal calls (y2020-2097), State changes (y2200-2276); right border x1203",
-          "finding": "The page has two right edges. Section rules, the Overview grid, the Decoded-input grid, the Raw block, the nav resolver field and the footer all end at x1415; every notice card stops at x1203, 212px short. The previous round's measurement is unchanged. It is worst in the Events / Internal calls / State changes band (y1762-2276), where three cards sit under a rule that runs to x1415 and leave a 212x514px empty gutter down the right of the band. The underlying inconsistency is that the same ~65-character measure is applied to the TEXT inside the Overview grid (the provenance prose wraps at x1119 inside a container that still runs to x1415) but to the CONTAINER in the notices. Cap the measure, not the card.",
-          "criterion": "A3"
+          "location": "Overview facts grid, last row (Cost · Transaction fee), y=1174-1259",
+          "finding": "The relabel did not change the render. The label column is 160px wide (x=505-664) with a 25px inset, leaving ~110px of usable width, and the label still renders uppercase, so it wraps to three lines — 'COST ·' / 'TRANSACTION' / 'FEE'. The row is 85px tall against 37-38px for BLOCK, TYPE, AGE, CANONICAL and FINALITY, and because the value is top-aligned there is ~59px of empty white under '3070954237478732800 mana (FeeJuice)'. As the closing row of the grid it is the last thing the eye leaves, and the row rhythm is broken by the tallest cell in the label column rather than by any data. Widen the label column to ~200px — the value column has ~290px of unused width, the longest value ending at x=1120 inside a cell that runs to x=1415 — or drop the uppercase transform so 'Cost · Transaction fee' fits on one or two lines.",
+          "criterion": "A6"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L2/2",
           "severity": "P2",
-          "location": "Not observable card (x504-1203, y354-600), between the line ending y473 and the line starting y486",
-          "finding": "The permanence claim ('a permanent answer rather than a failed fetch') and the published reason ('The node still serves this transaction's effects...') are separated by 25px against a 22px within-paragraph line pitch — 3px of extra space. The two statements fuse into one six-line block, so the chain's specific reason, which is the thing this page exists to make a reader take away, gets no visual separation from the generic sentence above it. By contrast the badge above is given a 30px gap. Related things are not closer than unrelated things here.",
-          "criterion": "A2"
+          "location": "every bordered note card on the page — the 'Not observable' notice (y=356-576), the Decoded-input note (y=1522-1620), Events (y=1800-1876), Internal calls (y=1979-2056), State changes (y=2159-2235)",
+          "finding": "Re-measured, and it holds unchanged: all five cards share the column's left edge at x=504 but stop at x=1203 (700px wide), while the content column ends at x=1415 (912px). The 1415 edge is not incidental — the nav, the breadcrumb, all four section rules, the Overview grid, the Decoded-input grid, the Raw code block and both footer columns all land on it. The result is a 212px strip of bare canvas running the full height of the body, y=356 to y=2235, punctured only where a grid or a rule reaches the true edge. On a page that is mostly statements-in-cards, the dominant vertical edge is the wrong one, and the ragged right side reads as an unfinished container rather than a measure decision. Take the cards to the full 912px, or cap the column at 700px so one edge governs.",
+          "criterion": "A10"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L2/3",
           "severity": "P2",
-          "location": "Overview grid, last row COST · TRANSACTIONFEE, y1239-1300",
-          "finding": "The row is 61px tall against 37-38px for its six siblings (BLOCK 1051-1088, TYPE 1088-1125, AGE 1125-1163, CANONICAL 1163-1201, FINALITY 1201-1239). Row height is driven entirely by the label column: 'COST · TRANSACTIONFEE' does not fit the 160px label column (x504-664, ~135px of usable text width) and wraps, stranding the '·' at the end of line one, while the single-line value is top-aligned at y1249. The result is a grid whose rhythm is even for six rows and then breaks on the seventh, with an empty band under the value. Widening the label column or not breaking on the separator restores it.",
-          "criterion": "A6"
+          "location": "Overview facts grid, DATA row — badge sub-row y=721-759, prose sub-row y=759-986",
+          "finding": "The longer provenance sentence is laid out as a full-bleed sub-row that abandons the grid's two-column structure. The grey label gutter (x=505-664) runs continuously for every other row but is interrupted for 227px between y=759 and y=986, so the paragraph reads as a row whose label cell has gone missing. The paragraph's left edge is x=529 — the label column's text inset — which puts it 161px to the left of the badge it explains (x=680) and of every other value on the page (x=690). A row separator identical to the BLOCK/TYPE/AGE dividers sits at y=759 between the badge and its own sentences, cutting one statement into two rows. Either indent the prose to x=690 so it sits under its badge in the value column, or drop the y=759 divider and let the label gutter run the full height of the DATA row so the block reads as one cell.",
+          "criterion": "A2"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L2/4",
           "severity": "P3",
-          "location": "Overview grid, provenance dd spanning y802-1051",
-          "finding": "The grid-spanning dd interrupts the label column's grey fill (#ddd, x504-664) for 249px, leaving the DATA label as an isolated 38px grey tab above a white void and a 249px grey run resuming at BLOCK. It also starts its prose at x530 — the label column's text inset — while every other value in the grid starts at x690, so for a quarter of the grid's height the value column has no left edge. Both are side effects of moving the note into its own dd, which was otherwise the right call. Extending the label fill behind the dd, or indenting the dd to x690, would keep the grid one structure.",
-          "criterion": "A10"
+          "location": "Overview facts grid, DATA row prose, x=529-1131 inside a row that runs to x=1415",
+          "finding": "The provenance paragraph wraps at ~602px inside an 885px content box, leaving ~285px of unused width to the right of all ten lines — a void that exists in no other row of the grid. Combined with the row's total height of 265px, the DATA row is 49% of the grid's 538px, so the Overview reads as half paragraph and half table. The measure cap is defensible on its own, but three different prose widths coexist on this page (602px here, 590px in the note cards, 909px in the footer disclosure). Either let the row's prose use the full 885px so the 265px buys fewer lines, or give the page one prose measure.",
+          "criterion": "A3"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L2/5",
           "severity": "P3",
-          "location": "section headings: Overview (baseline y748 -> grid y764), Decoded input (y1448 -> y1464), Raw (y2423 -> y2440) versus Events (y1809 -> card y1841), Internal calls (y1988 -> y2020), State changes (y2168 -> y2200)",
-          "finding": "One relationship, two values: a heading sits 16px above the grid or block it labels, and 32px above a notice card. Combined with finding 1 the notice cards read as detached asides rather than as their section's content — narrower and twice as far from their own heading. One value for heading-to-content would put the whole page on one scale.",
+          "location": "section headings — Events (baseline y=1768 to card y=1800), Internal calls (1947 to 1979), State changes (~2126 to 2159) versus Overview (705 to grid 721), Decoded input (~1405 to 1423), Raw (~2382 to block 2399)",
+          "finding": "The gap between an h2 and the box below it is 32-33px when that box is a note card and 16-18px when it is a facts grid or the Raw code block — two values for the same relationship at the same heading level. Everything else on the page holds one scale (101px from content bottom to the next rule, 29-31px from rule to heading, 54-55px from a card to the next heading), which makes the doubled heading-to-card gap the one place the rhythm audibly changes. Settle on one heading-to-content step.",
           "criterion": "A2"
-        },
-        {
-          "id": "tx-detail--mainnet-zero-trace/wide/light/L2/6",
-          "severity": "P3",
-          "location": "Not observable badge (box left x529, text x538) versus Overview grid badges (box left x680, text x690)",
-          "finding": "The same badge primitive is aligned by two different conventions on one page. In the Overview grid the badge box is optically outdented 10px so its text lands on the value column's x690 with the plain values — correct, and worth keeping. In the Not observable card the box is aligned instead (x529 against the paragraph's x530), so the badge's text sits 8px inside the card's text edge. Pick the optical convention in both places.",
-          "criterion": "A10"
         }
       ]
     },
@@ -2748,83 +2720,88 @@
       "size": "wide",
       "theme": "light",
       "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
-      "imageSha256": "6133a682b4d669d31b92e4810eb37919ca7133a56d991a19264b47965d0280f8",
-      "reportPath": "reviews/rounds/vd9-r1/tx-detail--mainnet-zero-trace__wide__light__L3.json",
-      "reportSha256": "aed63c6289576d53dfcd852b595134797f4b11ad1d09e47f0ccded208c7c46e7",
+      "imageSha256": "0873bd037c119f3d20fe642157ee7a5498be87fffddf8c3c2bfc97640460da91",
+      "reportPath": "reviews/rounds/vd9-r2/tx-detail--mainnet-zero-trace__wide__light__L3.json",
+      "reportSha256": "d069e52e45a32630a1a12f75ecd742311d08ccd9e2d8b1129dc13cb04ee36c21",
       "reviewer": "L3",
-      "expectedElements": "present",
-      "missing": [],
-      "rating": 7,
+      "expectedElements": "forbidden-present",
+      "missing": [
+        "MUST NOT SHOW — 'Language blaming the recorder, the engine or BlockTracer' is present, verbatim, in the Overview DATA row and in the notice card's published reason",
+        "MUST SHOW — the published reason no longer locates the limitation in the chain's retention (getTxByHash pruning at the finalized tip); it names this product's replay runtime refusing with AvmToolchainRegression"
+      ],
+      "rating": 4,
       "findings": [
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L3/1",
-          "severity": "P2",
-          "location": "Overview grid, value column — AGE row (chip at ~x767,y1145) and CANONICAL row (chip at ~x699,y1183)",
-          "finding": "The neutral tone carries two opposite meanings. `No timestamp published` (a fact the chain does not publish) and `Yes` (a fact the chain does publish, affirmatively) are pixel-identical chips: fill #F3F3F3, border #C8C8C8, text #565656. One row lower, FINALITY's `Finalized` — an affirmation of the same class as CANONICAL's `Yes` — is green (#DCFCE7 / #16A34A / #166534). So two affirmative facts get two different tones, and an affirmative fact shares its tone with an absence. Scanning the value column, tone tells a reader nothing about whether a row holds a value or a hole. This is the direct side effect of this round's new Age row.",
-          "criterion": "A7"
+          "severity": "P1",
+          "location": "Overview grid, DATA row provenance sentences (lines 4-6) and the notice card's published reason under the `Not observable` badge",
+          "finding": "Forbidden item present. The page attributes the missing trace to BlockTracer's own recorder in two places: the notice card says 'This transaction could not be re-executed: the replay runtime refused with AvmToolchainRegression. No trace was recorded for it.', and the DATA row says '2 transaction(s) inside it WERE still replayable and were caught in time, and the replay runtime refused them (AvmToolchainRegression), so no trace was recorded. That is a failure on the recording side, not a property of this chain.' MUST NOT SHOW forbids 'Language blaming the recorder, the engine or BlockTracer'; MUST SHOW requires the reason to 'locate the limitation in the CHAIN's retention rather than in this product's capability: nothing here failed.' The pruning explanation still appears in the same paragraph but is scoped to 'Transactions below block 67650', and this transaction is AT block 67650:0, so it does not cover this page's subject. I am reporting the pixels against the brief: it is equally possible the capture is now truthful and the expectation block is stale, in which case the reconciliation belongs in expectations.mjs rather than in the copy. Either way the two cannot both stand."
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L3/2",
-          "severity": "P2",
-          "location": "Raw (chain-native) block, x~504-1410, y2390-2635",
-          "finding": "This is the only container on the page with no fill: its interior is #ECECEB, the exact page canvas colour, drawn with only an #A2A2A2 outline. Every one of its seven siblings — the Not observable card (y354-600), the Overview grid, the Decoded input grid, and the four note cards — is filled #FFFFFF. The result is that the last section reads as a cutout in the page while everything above it reads as a raised card, so the elevation logic inverts once, at the bottom, for no stated reason.",
-          "criterion": "A10"
+          "severity": "P1",
+          "location": "Notice card, first sentence, against the reason directly beneath it; and the Internal calls / State changes empty-state notes",
+          "finding": "A state presented as a different state. The card asserts 'No trace can be produced for this execution — a permanent answer rather than a failed fetch', and Internal calls and State changes both say the section is 'empty permanently, not yet'. The reason given for all three is a toolchain regression in the replay runtime — a defect on the recording side, which is by construction repairable by re-running the recorder. Nothing on the page supports permanence any more; a reader who returns after the regression is fixed may well find a trace. This survives independently of finding 1: deleting the recorder-blaming clause without changing the permanence claims would leave an unsupported assertion with no stated basis at all."
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L3/3",
           "severity": "P2",
-          "location": "Overview grid, label rail — x504-680, y764-1300",
-          "finding": "The #DDDDDD label rail runs for the DATA row (y764-800), is then severed by the full-width white provenance `dd` (white at x490-520 from y800 to y1050), and resumes at BLOCK (y1050). The rail is the grid's strongest structural surface, and it now appears as a 36px stub followed by a 250px white gap followed by a 250px run. The consequence for this round's change (4): the DATA row reads as a detached header sitting above the grid rather than as the grid's first fact, which is the opposite of what the provenance-row change was meant to achieve.",
-          "criterion": "A10"
+          "location": "Overview grid, CANONICAL row (`Yes`) and AGE row (`No timestamp published`) — adjacent rows, 30px apart",
+          "finding": "One tone, two opposite meanings. Both chips are byte-identical: fill #F3F3F3, border #C8C8C8, label #565656, same radius and padding. One states an affirmative fact about the transaction ('it is canonical'); the other states that a datum does not exist. Because FINALITY immediately below uses the green affirmative pill, the grid teaches the reader 'green = affirmative, grey = missing' across AGE and FINALITY, then contradicts it one row up at CANONICAL. `Yes` is also the only ordinary scalar value in the grid rendered as a chip at all — TYPE renders `public` as plain mono, COST renders plain text — so the neutral tone is spent here without encoding anything.",
+          "criterion": "A7"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L3/4",
           "severity": "P2",
-          "location": "Whole page — grid row dividers (y1120, y1158, y1196, y1234), chip outlines, container outlines, nav hairline (y63), footer hairline (y2732)",
-          "finding": "Every structural boundary on the page sits below the 3:1 non-text contrast floor. Grid dividers and chip outlines are #C8C8C8 = 1.67:1 on white; container outlines are #A2A2A2 = 2.55:1 on white and 2.16:1 on canvas; the nav and footer hairlines are #C8C8C8 = 1.42:1 against the canvas. The green badge border (#16A34A, 3.3:1) is the only boundary on the page that clears 3:1. Fills carry no contrast either — white cards on the #ECECEB canvas is 1.18:1, and the label rail against canvas is 1.15:1 — so the page's entire structure is delivered by near-threshold cues. The load-bearing cases are the facts-grid row dividers, which are what separate one label/value pair from the next.",
-          "criterion": "A10"
+          "location": "`Succeeded` (page title row), `Finalized` (Overview FINALITY row), `Real Aztec mainnet data` (Overview DATA row)",
+          "finding": "One tone, three meanings on three different subject axes. All three badges are fill #DCFCE7, border #16A34A, text #166534 — no differentiation whatsoever. `Succeeded` is the chain's report of an execution outcome; `Finalized` is a finality state; `Real Aztec mainnet data` is a claim about the DATASET, not about this transaction, and §4 grades it as CONTENT rather than decoration because it is the only thing telling a reader the hashes exist on a network. Giving a content-grade provenance claim the same token as a routine status pill removes the one cue that would tell a reader it is a different kind of statement. Reserving the green for chain state and giving provenance its own affirmative treatment would also stop `Real Aztec mainnet data` reading as a fourth 'this went well' badge.",
+          "criterion": "A7"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L3/5",
-          "severity": "P3",
-          "location": "`Succeeded` (~x778,y246), `Real Aztec mainnet data` (~x767,y784), `Finalized` (~x717,y1221)",
-          "finding": "All three green badges are pixel-identical — #DCFCE7 fill, #16A34A border, #166534 text, same type size — and two of them sit in the same column 440px apart. Green does mean one thing here (affirmative), so this is not a role collision. But the provenance marker, which the spec grades as content rather than status because it is the only element telling a reader the hashes are real, carries no chromatic privilege over the routine `Finalized` chip below it. It lands first by position alone; a reader counting green pills in that column sees three equal-weight status chips.",
+          "severity": "P2",
+          "location": "Notice card, the `Not observable` badge",
+          "finding": "The page's headline status is the lowest-weight coloured object in its own card. Its fill is #FFFFFF — byte-identical to the card it sits on — so it is bounded only by a ~#C8C8C8 hairline measuring 1.67:1 against that fill, below the 3:1 non-text floor. Its label is #565656 (7.34:1), the same muted token as the `click to select` hint beside the hash field, while the body prose two lines below it is #242424 at 15.52:1. Colour emphasis is therefore inverted against importance: the sentence explaining the state outranks the badge naming it, and the `Yes` chip in CANONICAL — a boolean — carries more fill weight. Its dot is #565656, identical to its own label, so it encodes nothing and merely makes a third badge geometry that maps to no distinction. The fix is not a danger tone (correctly absent per MUST NOT SHOW) but a reserved neutral-emphatic tone used nowhere else.",
           "criterion": "A7"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L3/6",
-          "severity": "P3",
-          "location": "`Not observable` badge (~x592,y398) vs the grid chips at y1145 and y1183",
-          "finding": "The neutral tone has two unrelated forms. `Not observable` is a full pill with a transparent (white) fill, a #C8C8C8 outline, and a #565656 leading dot. The grid chips are rounded rectangles with a #F3F3F3 fill and no dot. The dot appears on one absence marker and not on the other absence marker (`No timestamp published`), so the extra channel does not sort by meaning either — it sorts by which component happened to render it.",
+          "severity": "P2",
+          "location": "Decoded input grid, SELECTOR and RAW value cells, against the Overview AGE row",
+          "finding": "'There is no value here' has two contradictory colour treatments on one page. In AGE the absence is a muted #565656 chip on #F3F3F3. In SELECTOR and RAW the same meaning is an em dash rendered at #2F2F2F on white — 13.4:1, effectively the same emphasis as a real value such as `public` (#242424, 15.5:1). A reader scanning the value column sees the em dashes at full value weight and the AGE absence demoted, with no rule connecting the two. Since STEP 2(b) introduced these dashes deliberately, they should take the muted token so absence reads as one thing throughout.",
           "criterion": "A7"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L3/7",
-          "severity": "P3",
-          "location": "Decoded input grid — SELECTOR value `—` (~x693,y1483) and RAW value `0x` (~x695,y1520)",
-          "finding": "Both absent-value placeholders render at #242424, the full-emphasis value colour, identical to `public` in the TYPE row (~x714,y1107), which is a real value. The emphasis scale carries no placeholder level. Three hundred pixels above, the AGE row expresses the same idea — this fact is not published — with a muted #565656 chip. So after this round the page holds two unrelated vocabularies for absence: a muted chip and a full-emphasis glyph.",
-          "criterion": "A7"
+          "severity": "P2",
+          "location": "Every container boundary on the page: chip borders in the Overview grid, the notice/empty-state card borders, and the `Succeeded` badge border",
+          "finding": "No container on this page has a boundary that meets the 3:1 non-text contrast floor, and the fills do not compensate. Measured: chip border #C8C8C8 on white 1.67:1 with a #F3F3F3 fill at 1.11:1; card border #A2A2A2 on canvas #ECECEB 2.16:1 with a white fill at 1.18:1; `Succeeded` badge border #16A34A on canvas 2.79:1 with a #DCFCE7 fill at 1.08:1. The same green border reaches 3.30:1 on white (`Finalized`, `Real Aztec mainnet data`), so the identical badge passes inside the grid and fails at the page head purely because of the surface under it — evidence the borders were picked against white and never re-checked against the canvas.",
+          "criterion": "A10"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L3/8",
           "severity": "P3",
-          "location": "Footer provenance strip — heart glyph at ~x1094,y2790, CodeTracer mark at ~x1407,y2791",
-          "finding": "Both marks render at #4F46E5, the exact accent used for every link on the page (Home, aztec, 67511:0, About, Chains, Privacy & settings, Metacraft Labs, CodeTracer, Source on GitHub). The heart is not interactive yet sits inline between two underlined links in that colour, so on one line the accent hue means both `interactive` and `brand decoration`. Both marks are drawn, visible and correctly non-emoji, so this is not a presence failure — only a role overload.",
-          "criterion": "A7"
+          "location": "Breadcrumb `Home` / `aztec` (top of content column), and the nav resolver field placeholder",
+          "finding": "Lowest text-on-surface pairs measured on the page: 5.32:1 for the breadcrumb links, #4F46E5 on the canvas #ECECEB, and 5.40:1 for the resolver placeholder, #565656 on the field fill #DDDDDD. Both clear AA and neither is a defect, but they are the two smallest type sizes rendered and the only two pairs on the page under 6:1 — everything else lands between 6.2:1 and 19.0:1. Worth recording as the floor so a future darkening of the canvas or lightening of the muted token is caught."
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L3/9",
           "severity": "P3",
-          "location": "Raw (chain-native) JSON body, y2470-2600",
-          "finding": "Keys, integers and booleans all render at #242424 with zero token differentiation — `\"l2BlockNumber\"`, `67511`, `false` and `true` are one flat colour. This is the only block on the page with no colour system at all, on a page that otherwise maintains a tight, deliberate palette. Brief §3 sanctions the product lineage's editor tokens inside explorer-register pages, and a chain-native payload is the closest thing to code this view carries.",
-          "criterion": "A7"
+          "location": "Site nav, the resolver field",
+          "finding": "The resolver is a #DDDDDD fill on a white nav (1.36:1) with a #A4A4A4 border and a #565656 placeholder, and no caret or focus treatment is visible. A mid-grey filled field with grey placeholder text is the conventional rendering of a disabled input, and this page's MUST NOT SHOW list forbids 'a disabled control of any kind' — so the one place the misreading is most expensive is this page. #DDDDDD is also the Overview grid's label-column surface, giving one surface value two unrelated roles."
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L3/10",
           "severity": "P3",
-          "location": "Container shadows — Not observable card (bottom edge y600), Overview grid (y1300), Decoded input grid (y1539), note cards (y1661, y1917, y2020 and State changes)",
-          "finding": "Three shadow depths, measured at x800: the Not observable card casts 33px starting at #D5D5D5; both facts grids cast 8px starting at #DADAD9; all four note cards cast nothing. Elevating the primary message and flattening secondary notes would be a coherent ladder, but the note cards that carry the page's permanence claims (`empty permanently, not yet`) sit flattest, and the Raw block sits below even them with no fill at all, so the ladder does not track importance.",
-          "criterion": "A10"
+          "location": "`Raw (chain-native)` section, the code block fill",
+          "finding": "The code block's fill is #ECECEB — byte-identical to the page canvas, verified by sampling inside the block and immediately outside its left border at the same y. Every other section's content sits on a white card raised above that canvas. So #ECECEB means both 'the page floor' and 'a distinct code surface inside content', and the Raw block is the only content box that does not sit on a raised level. Either drop it to a dedicated code surface or raise it to the card white the other sections use.",
+          "criterion": "A7"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L3/11",
+          "severity": "P3",
+          "location": "Footer provenance strip, the heart glyph in 'Built with ♥ by Metacraft Labs'; and the neutral ramp generally",
+          "finding": "Two palette-cohesion notes. (a) The heart is #4F46E5 — the page's interactive colour, used for every link including 'Metacraft Labs' directly after it — but it is not interactive, so indigo leaks out of its role in the one place it sits between two underlined links. The GitHub and CodeTracer marks are correctly indigo because they are part of their links. (b) The canvas #ECECEB carries a one-unit warm cast (B=235) that no other neutral shares — #FFFFFF, #F3F3F3, #DDDDDD, #C8C8C8, #A2A2A2 are all perfectly neutral — so the warmth reads as noise rather than a decision; and the only two chromatic ramps are stock framework defaults (indigo-600, green-100/600/800) sitting on an otherwise bespoke grey ramp."
         }
       ]
     },
@@ -2833,9 +2810,9 @@
       "size": "wide",
       "theme": "light",
       "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
-      "imageSha256": "6133a682b4d669d31b92e4810eb37919ca7133a56d991a19264b47965d0280f8",
-      "reportPath": "reviews/rounds/vd9-r1/tx-detail--mainnet-zero-trace__wide__light__L4.json",
-      "reportSha256": "bdc73eccef97c776ed78708850c5bd9e5db319eeb998b7771b93c40829a1f3f2",
+      "imageSha256": "0873bd037c119f3d20fe642157ee7a5498be87fffddf8c3c2bfc97640460da91",
+      "reportPath": "reviews/rounds/vd9-r2/tx-detail--mainnet-zero-trace__wide__light__L4.json",
+      "reportSha256": "d50286edb204e85f59cafa802c5cfecd194a547195c2e4dcaed32eeb37ce78e4",
       "reviewer": "L4",
       "expectedElements": "present",
       "missing": [],
@@ -2844,57 +2821,64 @@
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L4/1",
           "severity": "P1",
-          "location": "Decoded input, RAW row value cell (x≈670, y≈1520) against the note card below it (y 1555-1650) and the Raw block at y≈2530",
-          "finding": "RAW renders `0x` — the canonical spelling of observed-and-empty calldata — for a transaction whose body was never captured. The note 40px below explicitly disclaims knowing (\"Whether none was published or the body was pruned before it was captured is not something this section can tell\"), and the Raw block at the foot of the page states `\"bodyRetainedAtCapture\": false`. The SELECTOR row 37px above uses `—` for the identical unknown, so one 2-row grid renders one unknown two ways and the second way asserts a fact the page elsewhere denies. This is the new note's honesty making the unchanged RAW fallback visible; it is the only element on the page that reads as a null render rather than a stated absence.",
+          "location": "Overview grid, DATA row, capture paragraph lines 3-6 (x 531-1120, y 760-870), read against the BLOCK row value `67650:0` (y≈1000), the Not observable card's second paragraph (y 480-520) and `\"l2BlockNumber\": 67650` in the Raw block (y≈2500)",
+          "finding": "The new provenance sentence says \"The replay window was blocks 67651-67686 ... 2 transaction(s) inside it WERE still replayable and were caught in time, and the replay runtime refused them\", and closes with \"Transactions below block 67650 ... have been pruned\". This transaction is at block 67650, printed twice elsewhere on the page. 67650 is not inside 67651-67686 and is not below 67650, so the paragraph places the transaction the reader is looking at in neither bucket, while the card 300px above asserts that the runtime refused THIS transaction. The two accounts cannot both be read off the page. The cause is in the generator: `src/blocktracer/chain/ingest.nim:559` binds \"inside it\" to the last window (`replFrom`-`tipAt`), but `refusedCount` aggregates across all capture sessions, and `snapshot.json` `captures[]` shows this hash refused in the earlier 67619-67650 window. The one sentence that has to be believed about a permanent absence is the one that does not survive arithmetic the page itself supplies. Scope the clause to the window in which the refusals occurred, or name the transactions.",
           "criterion": "A9"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L4/2",
           "severity": "P2",
-          "location": "Overview grid, DATA row capture paragraph, y 805-1045 (x 530-1140)",
-          "finding": "The capture paragraph is 10 lines and 240px of a 530px facts grid — 45%, more height than BLOCK, TYPE, AGE, CANONICAL, FINALITY and COST combined (245px) — and sits above all six of them, so a reader scanning for block or finality passes a wall of prose first. Moving it into a full-width `dd` widened the measure to ~80 characters but did not shorten it. Roughly half its length is capture telemetry about the chain, not this transaction: 887 blocks enumerated, 25 settled, longest gap 309 blocks. Those belong on the chain overview; the row needs the badge, the endpoint and the pruning floor.",
+          "location": "Overview grid, COST label cell, x 503-666, y 1175-1264",
+          "finding": "Re-judged from r1/4, partially fixed and newly worse. The camelCase run is gone and `TRANSACTION FEE` now reads as two words, but the longer label wraps to THREE lines in a 163px label column, so the row is 89px against 38px for BLOCK, TYPE, AGE, CANONICAL and FINALITY - 2.3x, up from 56px last round. The value `3070954237478732800 mana (FeeJuice)` occupies one line at the top and leaves ~50px of empty cell beneath it. This is A6's named failure: row height driven by the tallest cell in an unrelated column. The label column is 163px inside a 911px grid whose value column never needs more than ~250px of its 748px; widening the label column to ~230px removes the wrap outright and costs the value column nothing.",
           "criterion": "A6"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L4/3",
           "severity": "P2",
-          "location": "Not observable card, second paragraph (x 530-1160, y 480-560), versus the last sentence of the DATA paragraph at y≈1010",
-          "finding": "The reason a reader meets first is stated in node-API terms — \"getTxByHash prunes at the finalized tip and getTxEffect does not\", \"already below the replayable window\" — with neither \"finalized tip\" nor \"replayable window\" defined anywhere above it. The plain-language translation does exist (\"Transactions below block 67586 are still visible on the network but their bodies have been pruned, so they can no longer be replayed and carry no trace\") but it is the tenth and last line of the densest paragraph on the page, 450px further down and inside a different section. Jargon first, translation last and buried, is the wrong order for the sentence that carries the whole page.",
-          "criterion": "A9"
+          "location": "Overview grid, DATA row, y 723-986, against the six fact rows y 986-1263",
+          "finding": "Re-judged from r1/2, not fixed and one line longer. The capture paragraph is 11 lines and 263px of a 540px facts grid - 49%, marginally more than BLOCK, TYPE, AGE, CANONICAL, FINALITY and COST combined (277px) - and sits above all six, so a reader scanning for block or finality passes a wall of prose first. Roughly half of it is still chain-level telemetry that is not about this transaction: 942 blocks enumerated, 27 settled, longest run with none 309 blocks. Change (c) added the recording-side explanation without removing anything, so the row absorbed the whole increment. The telemetry belongs on the chain overview; this row needs the badge, the endpoint, and the reason this transaction has no trace.",
+          "criterion": "A6"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L4/4",
           "severity": "P2",
-          "location": "Overview grid, COST label cell, x 528-640, y 1242-1298",
-          "finding": "`COST · TRANSACTIONFEE` is the only label in the grid that wraps, and uppercasing the camelCase key destroys the word boundary so the second line reads as one 14-letter word, TRANSACTIONFEE. The wrap also makes the row 56px tall against 37px for the five rows above it, so the grid's row rhythm breaks on its last row. Either title-case the qualifier (`Cost · transaction fee`) or drop it to a suffix beside the unit, which already says FeeJuice.",
-          "criterion": "A6"
+          "location": "Not observable card, second paragraph (x 503-1204, y 480-520), and the same token inside the DATA paragraph line 5 (y≈820)",
+          "finding": "Re-judged from r1/3: the jargon changed rather than cleared. `getTxByHash` and \"finalized tip\" are gone, but the first reason a reader meets is now \"the replay runtime refused with AvmToolchainRegression\" - a bare internal enum name, expanded nowhere on the page, printed twice. It tells a non-expert only that something named after a toolchain said no. The plain-language account that would land (\"their bodies have been pruned, so they can no longer be replayed and carry no trace\") is still the eleventh and last line of the densest paragraph on the page, 400px lower and in a different section. Opaque identifier first, translation last and buried, remains the wrong order for the sentence that carries the whole page.",
+          "criterion": "A9"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L4/5",
           "severity": "P2",
-          "location": "Overview grid, COST value, x≈688, y≈1258",
-          "finding": "`3906250659561864576 mana` is 19 digits with no grouping and no scaled form. The base-ten conversion is a large improvement on the zero-padded 256-bit word and that change landed correctly, but a reader still cannot get the magnitude without counting digits, and two such values could not be compared by eye. Group the digits or carry a scaled form beside the exact one.",
-          "criterion": "A5"
+          "location": "Decoded input note card (x 503-1204, y 1520-1620) against the Raw (chain-native) block (y 2400-2560)",
+          "finding": "New, and the other half of the r1/1 fix. The note says \"Whether none was published or the body was pruned before it was captured is not something this section can tell; where that is known, it is stated above.\" The page does know, and does state it - 900px BELOW, not above, where the Raw block prints `\"bodyRetainedAtCapture\": true`. So the note disclaims knowledge the page publishes, points the reader in the wrong direction to find it, and the fact it points away from is the one that makes the two em dashes above it read as an unknown rather than a contradiction. Either resolve the disjunction in the note from the flag, or drop the \"stated above\" pointer.",
+          "criterion": "A9"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L4/6",
           "severity": "P2",
-          "location": "Events (y 1802), Internal calls (y 1981), State changes (y 2161) — three heading-plus-card blocks spanning y 1790-2280",
-          "finding": "At a 1920x1080 viewport the page is 2950px, 2.7 screens of scroll, and the extra width buys nothing. These three sections consume 490px to carry six lines of text, and the Internal calls and State changes cards are word-for-word identical apart from the subject noun. Each card is 701px wide inside a 912px column inside a 1920px viewport, so about 63% of the viewport width is canvas beside them. At this size the three could sit in one row, or the two trace-derived ones could be one card naming both, and the page would lose a full screen of scroll without losing a word.",
+          "location": "Events (y 1800), Internal calls (y 1980), State changes (y 2140) - three heading-plus-card blocks spanning y 1790-2280",
+          "finding": "Re-judged from r1/6, unchanged and now compounded by change (c). The page is 2909px at a 1920x1080 viewport - 2.7 screens - and the extra width buys nothing; each card is 701px inside a 911px column inside a 1920px viewport, so ~63% of the width is canvas beside them. These three sections spend 531px on six lines, and the Internal calls and State changes cards remain word-for-word identical apart from the subject noun. Counting the whole page, \"no trace\" is now asserted five times - twice in the Not observable card, twice in the DATA paragraph, once in each of the last two cards - so the surface carries less unique information per pixel than it did before. At this size the three could sit in one row, or the two trace-derived ones could be one card naming both.",
           "criterion": "A3"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L4/7",
-          "severity": "P3",
-          "location": "Overview grid, DATA paragraph lines 4-5, y 855-880",
-          "finding": "\"NO TRANSACTION INSIDE IT WAS REPLAYABLE\" is the only all-caps run on the page and it starts mid-line, so it interrupts the sentence it is inside rather than heading anything. All-caps at body size is slower to read than the emphasis is worth here; the claim is strong enough in sentence case, or it could be lifted out as the paragraph's first line.",
-          "criterion": "A4"
+          "severity": "P2",
+          "location": "Overview grid, COST value, x≈688, y≈1195",
+          "finding": "Re-judged from r1/5, not fixed. `3070954237478732800 mana (FeeJuice)` is 19 digits with no grouping and no scaled form. The unit disclosure `(FeeJuice)` is a genuine improvement and landed, but a reader still cannot get the magnitude without counting digits, and two such values could not be compared by eye - which is the whole job of a numeric cell in a facts grid. Group the digits, or carry a scaled form beside the exact one.",
+          "criterion": "A5"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L4/8",
           "severity": "P3",
-          "location": "Not observable card (x 503-1204) against the Overview grid and Raw block (x 503-1415)",
-          "finding": "The page runs two content widths, 701px for the notice cards and 912px for the facts grid and the Raw block, and the primary message — the Not observable card, the one thing a reader must take away — is on the narrower of the two, wrapping to five lines where the wider column would give four. The narrower measure is defensible for prose, but it leaves the most important block on the page looking the least substantial.",
+          "location": "Overview grid, DATA paragraph line 4, the word `WERE` at x≈760, y≈815",
+          "finding": "Re-judged from r1/7: the all-caps run shrank from a full clause to one word but did not go. `WERE` is the only all-caps token in body copy on the page and it sits mid-sentence, so it reads as a shout inside a paragraph rather than as emphasis a reader can use. The contrast the sentence is drawing - replayable, and refused anyway - is already carried by the clause structure; sentence case is enough.",
+          "criterion": "A4"
+        },
+        {
+          "id": "tx-detail--mainnet-zero-trace/wide/light/L4/9",
+          "severity": "P3",
+          "location": "Not observable card (x 503-1204) against the Overview grid and Raw block (x 503-1414)",
+          "finding": "Re-judged from r1/8, unchanged. The page runs two content widths, 701px for the notice cards and 911px for the facts grid and the Raw block, and the primary message - the Not observable card, the one thing a reader must take away - is on the narrower of the two. A third measure now exists inside the grid: the DATA paragraph wraps at ~589px in a 911px row. Three prose measures on one page, with the most important block set to the least substantial of them. The narrow measure is defensible for prose; pick one and give the primary card the width its role implies.",
           "criterion": "A3"
         }
       ]
@@ -2904,9 +2888,9 @@
       "size": "wide",
       "theme": "light",
       "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
-      "imageSha256": "6133a682b4d669d31b92e4810eb37919ca7133a56d991a19264b47965d0280f8",
-      "reportPath": "reviews/rounds/vd9-r1/tx-detail--mainnet-zero-trace__wide__light__L5.json",
-      "reportSha256": "5226c839901b5e51f85961cdda261df14795e10c60839a6b1c4c6321087c5aef",
+      "imageSha256": "0873bd037c119f3d20fe642157ee7a5498be87fffddf8c3c2bfc97640460da91",
+      "reportPath": "reviews/rounds/vd9-r2/tx-detail--mainnet-zero-trace__wide__light__L5.json",
+      "reportSha256": "000633a43ec8342c274a23794bd04ac31591b7144d665f13ea701d162972d3ac",
       "reviewer": "L5",
       "expectedElements": "present",
       "missing": [],
@@ -2915,78 +2899,64 @@
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L5/1",
           "severity": "P2",
-          "location": "Overview grid, last row, label column (x500-620, y1245-1280)",
-          "finding": "The cost label reads `COST · TRANSACTIONFEE` — the producer's camelCase field key `transactionFee` uppercased and glued to the word Cost, wrapping onto two lines and forcing the row taller than every other. The label slot prints whatever key the chain publishes: on `tx-detail--absent` the same slot reads `COST · MANA` and passes only because that key happens to be a word. On the page that carries the product's honesty claim, the one row a reader looks to for what the transaction cost is captioned in RPC vocabulary.",
+          "location": "Not observable card, published reason (line 2); repeated in the Overview Data row paragraph",
+          "finding": "The reason ends in a bare enum literal: 'the replay runtime refused with AvmToolchainRegression'. It is set in the body face with no code treatment and no gloss, and it appears twice. This is the one sentence on the page whose entire job is to be believed, and it terminates in a token from the build system that a reader cannot evaluate, confirm or look up. It reads as a log line pasted into prose, which is the debugger register leaking into an explorer surface. Name the refusal in words a reader can weigh and, if the identifier must survive for operators, demote it to a parenthetical in the mono face.",
           "criterion": "A8"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L5/2",
           "severity": "P2",
-          "location": "Overview grid, cost row value (x688-960, y1253)",
-          "finding": "Base ten landed, but it landed as `3906250659561864576 mana (FeeJuice)` — nineteen undelimited digits no reader can hold, followed by a camelCase token in a parenthetical. Without grouping or unit scaling this is only marginally more human than the hex word it replaced, and `FeeJuice` is a machine identifier sitting where a denomination name belongs. Compare the demo page's `42000 / 100000 mana`, which is legible because the magnitudes are small, not because the treatment is right.",
+          "location": "Overview, Data row paragraph, sentences 2 and 4",
+          "finding": "The provenance paragraph prints template artifacts where finished copy belongs: '2 transaction(s) inside it WERE still replayable' and 'this chain settled 27 transaction(s)'. The counts are known (2 and 27), so the '(s)' is a build-side placeholder shown to the reader, and the all-caps WERE is emphasis by shouting inside a marketing-grade body paragraph. Both undercut the credibility of the sentence they sit in: copy that has not been finished reads as copy that has not been checked.",
           "criterion": "A8"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L5/3",
           "severity": "P2",
-          "location": "breadcrumb, second crumb (x525-560, y166)",
-          "finding": "The chain crumb prints the route slug `aztec` in lowercase, and the third crumb prints the route segment `tx`. The provenance badge 640px below names the same chain `Real Aztec mainnet data`, so one page gives the chain two names and the more prominent one is the URL path. Rendering the path as navigation prose is the same defect as the cost label in a different slot.",
-          "criterion": "A8"
+          "location": "'Raw (chain-native)' section heading and the last two keys of its JSON block",
+          "finding": "The heading claims the payload is chain-native, but 'bodyRetainedAtCapture' and 'effectVisibleAtCapture' are the capture adapter's own bookkeeping, not fields any Aztec node emits. Machine field names are legitimate inside a raw block; a heading that misattributes their provenance is not, on a page whose whole argument is that it distinguishes what the chain said from what the capture did. Either retitle the section or split the adapter's two fields out from the node's three.",
+          "criterion": "A9"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L5/4",
           "severity": "P2",
-          "location": "Overview grid, TYPE row value (x688, y1102), against CANONICAL y1177, AGE y1140, FINALITY y1215",
-          "finding": "The new `Type` row prints the raw enum `public` — lowercase, monospace, unpunctuated — while every other small categorical value in the same grid is a sentence-case chip: `Yes`, `Finalized`, `No timestamp published`. Three treatments for one class of value inside eight rows, and the one that skips the chip is the one that is a bare enum member. `No timestamp published` also stretches the chip the other way, putting a full sentence into a vocabulary the rest of the page uses for status words.",
-          "criterion": "A7"
+          "location": "Decoded input, explanatory note beneath the Selector/Raw rows",
+          "finding": "The note says 'Whether none was published or the body was pruned before it was captured is not something this section can tell; where that is known, it is stated above.' Nothing above states it — the Data paragraph speaks about the chain in general, not this transaction. The answer is stated BELOW, in the raw block, as 'bodyRetainedAtCapture: true', which also contradicts the note's claim that the page cannot tell. A cross-reference that points the wrong way and disclaims a fact the page holds is the one kind of error this product's copy cannot afford.",
+          "criterion": "A9"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L5/5",
           "severity": "P2",
-          "location": "Overview grid, Data row prose, line 4 (x528-990, y860-885)",
-          "finding": "`NO TRANSACTION INSIDE IT WAS REPLAYABLE` is set in all caps mid-sentence. Nothing else in the explorer register shouts, and the emphasis reads defensive — as if the page were rebutting an accusation — which is the opposite of the register this state needs. The very next clause, 'That is what the capture found, not a failure to record', already makes the point in the product's own restrained voice and does not need the caps to carry it.",
-          "criterion": "A8"
+          "location": "Not observable card reason vs. Overview Data row paragraph, final sentence, read against the Block row (67650:0)",
+          "finding": "Two reasons are offered for one absence and neither is tied to this transaction. The card says the replay runtime refused it; the paragraph says the replay window was blocks 67651-67686 and that transactions below 67650 have pruned bodies. This transaction is at 67650, outside the stated window, so a reader doing the arithmetic concludes the refusal cannot apply to it. The reasons are published separately so the reason is what a reader takes away; here they compete instead. State which one is this transaction's.",
+          "criterion": "A9"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L5/6",
-          "severity": "P2",
-          "location": "Overview grid, Data row prose (`25 transaction(s)` y926, `76 block(s)` y948)",
-          "finding": "Template pluralisation surfaces twice in one paragraph. Both counts are known and both are plural, so both should read `transactions` and `blocks`. `(s)` is the single clearest signal on the page that the sentence was assembled by a program rather than written, and it sits inside the marker whose whole job is to be believed.",
-          "criterion": "A10"
+          "severity": "P3",
+          "location": "Overview Data row paragraph ('it is stated here rather than shown as an absence') and Decoded input note ('not something this section can tell')",
+          "finding": "Two clauses address the reader in build-side voice, narrating the page's own editorial policy and its section boundaries rather than the world. A reader has no model of what 'shown as an absence' would have been, or of what a 'section' can or cannot tell. The honesty is welcome; the self-narration belongs in the spec, not on the surface.",
+          "criterion": "A8"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L5/7",
-          "severity": "P2",
-          "location": "Not observable panel, second paragraph (x528-1180, y480-555)",
-          "finding": "The pruning explanation spends five unglossed engineering terms in three sentences: `getTxByHash`, `getTxEffect`, 'the finalized tip', 'the replayable window' and 'this follower'. A reader who does not run a node cannot tell from this whether the limitation is the chain's or the product's — which is the one thing the paragraph exists to establish. The framing is otherwise right (nothing here blames the recorder), so the fix is a leading plain sentence before the method names, not a rewrite.",
-          "criterion": "A9"
+          "severity": "P3",
+          "location": "Overview grid, last row label 'COST . TRANSACTION FEE'",
+          "finding": "The de-camelCasing is a real improvement over the old label, but the replacement introduces a 'Category . Field' compound convention used by no other row in the grid (BLOCK, TYPE, AGE, CANONICAL, FINALITY are all single words), and it wraps to three lines, making the row twice the height of its neighbours for the shortest value in the table. 'Transaction fee' alone carries the same meaning at one line.",
+          "criterion": "A8"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L5/8",
-          "severity": "P2",
-          "location": "Decoded input grid, SELECTOR row (y1476) and RAW row (y1513) against the note below (y1550-1650)",
-          "finding": "The new three-state note is right and reads well, but the grid above it contradicts it. SELECTOR uses `—` for absent; RAW prints `0x`, which asserts that empty call data was published — the exact distinction the note says this section cannot draw ('Whether none was published or the body was pruned ... is not something this section can tell'). Two absence glyphs in a two-row grid, one of them making a claim the prose withdraws. Filed P2 rather than P1 because the note sits immediately below and corrects it, but on this page that distinction is the subject matter.",
-          "criterion": "A9"
+          "severity": "P3",
+          "location": "Overview grid, Cost row value",
+          "finding": "'3070954237478732800 mana (FeeJuice)' is a 19-digit integer with no digit grouping and no human-scale rendering, so the one ordinary quantity on the page reads like a dump rather than a fact. Grouping the digits, or showing a scaled figure with the exact value available, would keep this row in the explorer register. Flagged as register texture; the numeric-treatment lens owns the detail.",
+          "criterion": "A5"
         },
         {
           "id": "tx-detail--mainnet-zero-trace/wide/light/L5/9",
           "severity": "P3",
-          "location": "Not observable panel, second paragraph (x528, y505 and y520)",
-          "finding": "`getTxByHash` and `getTxEffect` are set in the proportional body face. Everywhere else the product sets code-shaped values in monospace — the hash, the block ref, `blocktracer-demo-gen` in the footer disclosure two screens below. Two API method names reading as ordinary words is a register crossing that does not announce itself.",
-          "criterion": "A5"
-        },
-        {
-          "id": "tx-detail--mainnet-zero-trace/wide/light/L5/10",
-          "severity": "P3",
-          "location": "Overview grid, Data row prose, lines 1-2 (x528, y818 and y840)",
-          "finding": "Both capture timestamps are printed to millisecond precision (`2026-08-31T07:39:12.420Z`, `2026-08-31T17:13:36.084Z`) inside a human sentence. The milliseconds carry no meaning a reader can use and give the opening line a log-file cadence, which is the wrong first impression for the page's only provenance claim.",
-          "criterion": "A8"
-        },
-        {
-          "id": "tx-detail--mainnet-zero-trace/wide/light/L5/11",
-          "severity": "P3",
-          "location": "Events section note (x528-1060, y1845-1890)",
-          "finding": "Three of the four empty sections state permanence; Events promises arrival — 'They appear here once this chain's receipts are published' — on a page whose own panel says the node still serves this transaction's effects. Scanning the four boxes gives permanent / pending / permanent / permanent. Held at P3 because the expectation block narrows the permanent-tense requirement to internal calls and state changes, so the transient reading here appears to be deliberate; if receipts for a below-tip transaction can never arrive, this is a P1 honesty failure and should be re-filed.",
+          "location": "expectation block for this view vs. Not observable card and Data row paragraph",
+          "finding": "The MUST NOT SHOW item 'Language blaming the recorder, the engine or BlockTracer' is now contradicted by the page on purpose, and its published rationale ('The recorder never had the chance') is false for these transactions. I judged the recording-side language deliberate and truthful and did not count it forbidden-present. The MUST SHOW item still names getTxByHash pruning as the published reason, which this page no longer gives. Recorded so the divergence is reconciled in the expectation block rather than re-litigated by the next reviewer.",
           "criterion": "A9"
         }
       ]

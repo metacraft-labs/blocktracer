@@ -1,0 +1,117 @@
+Expected elements: present
+
+Every MUST SHOW item is present: identity bar with `← demo`, `0xb63616…6359`, `Partial`, both step directions, scrubber, `128 / 1315`, phase rail; Code holding line 32; Call Trace and Event Log as one tab strip, Call Trace open; Values a pane below it; provenance as the `DATA` row. Nothing forbidden.
+
+This round: (a) half-landed. Code fades correctly — line 61 drops from ink-min 36 to 83, line 60 untouched. The Transaction pane's gradient sits *behind* its text: `"aztec": {` renders full black 19px above the clip while the chip fades from under it (finding 2). (b) landed — `COST · MANA` matches every sibling label in size, weight and colour. (c) landed, and the note was also set down a step, to an 11px glyph band on 19.5px leading. (d) landed — `SELECTOR` and `RAW` carry a 9×2px dash.
+
+Re-judging last round's hierarchy P2: only half fixed. EXECUTIONS moved to the small level; the DECODED INPUT/RAW note did not. It still matches the provenance note exactly — 13px glyph band, 21.5px pitch, ink-min 72, same flush-left measure — so the page-scoped claim still shares a level with a field note, and the two field notes now disagree with each other.
+
+Fix first: set the RAW note to the EXECUTIONS note's level; raise the fade overlay above pane content.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L1/1",
+      "severity": "P2",
+      "location": "Transaction pane: provenance note (x 1543-1908, y 234-354) and the DECODED INPUT/RAW note (x 1543-1908, y 877-974), against the EXECUTIONS note (y 710-756)",
+      "finding": "Last round's finding is half-resolved and the half creates a second problem. The EXECUTIONS note was set down — 11px glyph band on 19.5px pitch, ink-min 86 — but the DECODED INPUT/RAW note was not. It measures identically to the provenance note on every axis: 12-13px glyph band, 21.5px line pitch, ink-min 72, same face, same flush-left measure from x 1543 to x 1908, same absence of rule or tint. So the page-scoped honesty claim about every value on screen is still set at exactly the level of an annotation that scopes one field, and the two field-scoped notes — which ARE peers — now sit at two different levels while the non-peer pair sits at one. The ranking is inverted relative to the semantics. Either bring the RAW note down to the EXECUTIONS note's 11px level so both field notes match and the provenance note stands alone above them, or give the provenance note a treatment of its own (a rule, a tint, a half-step of size) and return the two field notes to one shared level.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L1/2",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) block at the pane's bottom edge: the `\"aztec\": {` line at y 1049-1063, gradient from y 1052 to y 1075",
+      "finding": "The new bottom fade is painted behind the content instead of over it, so in this pane it does the opposite of what it is for. Sampling a glyph-free column at x 1840-1890 shows the chip surface running flat at 239.8 down to y 1050 and then ramping 240.7 -> 254.8 by y 1074 — a real 24px gradient. But the glyph row sitting inside that gradient measures ink-min 36, the blackest ink anywhere on the page, unchanged from the `{` row above it. The type therefore stops dead at the clip while the surface dissolves under it, which reads as 'the JSON block ended here and the pane has trailing padding' rather than 'this continues'. Compare the Code pane, where the device works: line 61 goes to ink-min 83 and mean-ink 162 while line 60 stays at 36. The two panes also run the device at very different strengths — a full 23px row driven to roughly 2.5:1 in Code, a 24px surface-only wash in Transaction. Put the overlay above the content in both, and settle on one fade depth.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L1/3",
+      "severity": "P2",
+      "location": "Transaction pane: `EXECUTIONS` (y 661-673) and `DECODED INPUT` (y 800-808) against the row labels `BLOCK` (y 371-383), `SELECTOR` (y 824-832) and `RAW` (y 849-857)",
+      "finding": "Two levels of the pane's structure are drawn as one. `EXECUTIONS` and `DECODED INPUT` are group headings — the first heads the private/public sub-rows, the second heads SELECTOR and RAW — yet they measure identically to the rows they contain: 9px cap height, same letterspaced uppercase, same weight, ink-min 86 in every case, and the same left edge at x 1543 with no indent on the children. Nothing in the type says `SELECTOR` belongs to `DECODED INPUT` rather than following it as a peer of `BLOCK`. This is what makes the new em-dash rows hard to place: a reader who cannot see that SELECTOR and RAW are inside DECODED INPUT reads two dashes as two unexplained empty fields, and the note that explains them sits below rather than obviously within the group. Set the two headings a step up in weight or size, or indent their children by one step.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L1/4",
+      "severity": "P2",
+      "location": "Code pane, loop strip (y 105-125): `LOOP iterate_asteroids` at x 20-175, `line 4` at x 180-215, `Iteration 3 of 8` at x 222-360",
+      "finding": "Unchanged from last round and still the most visible inverted relationship on the page. `Iteration 3 of 8` is set roughly 14-15px against roughly 11-12px for `LOOP iterate_asteroids` immediately to its left, in the same monospace face, so the ordinal is the largest type in the strip while the loop's identity — the thing that says what is being iterated — is the smallest. The ordinal is also the one piece of information the strip does not need to carry at that size: the eight numbered chips at x 368-910 express it better and sit 8px away. Give the loop name the larger size, or set both at one size and let weight carry the difference.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L1/5",
+      "severity": "P2",
+      "location": "Call Trace opcode column, `1,315` (x 1480-1518, y 137) and `1,208` (y 162), against COST · MANA in the Transaction pane, `88000 / 200000` (x 1685-1790, y 633)",
+      "finding": "Unchanged. Two digit-grouping conventions for quantities of the same kind and magnitude in the same register: opcode counts carry thousands separators, the mana cost of the same transaction — two digits longer — does not. Both are tabular mono, both are costs-or-counts. Humanising the label to `COST · MANA` this round makes the mismatch more conspicuous, because the label now reads as prose while its value still reads as an unformatted machine integer. Pick one convention for every count and cost on the page.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L1/6",
+      "severity": "P2",
+      "location": "Code pane listing, rows 26-27 (glyph bands y 198-212 and y 241-256, with a chip row at y 216-234) and rows 47-49 (y 712, 749, 780)",
+      "finding": "Unchanged. The listing's vertical pitch is not constant: plain rows step 23px, but a row whose inline value chips overflow gains a second visual line — 26 to 27 measures 43px because the `+3` chip sits at y 225, and 47 to 48 measures 37px with 48 to 49 at 31px because of the `+2` chips at y 755 and y 777. In a monospace listing the constant pitch is the primary reading aid; it is what lets the eye track the gutter and count lines without reading them, and it breaks four times in the thirty-five visible rows, unpredictably. Reserve the chip lane's height on every row, or clip chips to the line box and put the overflow entirely behind the `+n` affordance.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L1/7",
+      "severity": "P2",
+      "location": "Tabbed navigation region (x 922-1526, y 68-668): content ends at the `By call order.` footer at y ~325; measured blank from y 325 to y 668",
+      "finding": "The Watch-for measurement, re-taken and unchanged: 343px of the region's 600px height is empty below the last frame — 57 percent — with the seven frames filling only the first 43 percent. Both flanking panes are simultaneously clipped: the Code pane cuts at line 61 with the file continuing, and the Transaction pane cuts mid-JSON inside RAW (CHAIN-NATIVE). The Values pane below (y 672-1080) also ends early, at `i` on y 939, so the navigation column carries roughly 470px of dead height while its neighbours run out of room. The new bottom fades make this legible for the first time — the fade on Code and the fade on Transaction now announce the truncation that this region's empty half could have absorbed. The tab region, not Values, is the one holding height it does not use. L2/L4 own the remedy; recorded here because the presence check asks for the number.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L1/8",
+      "severity": "P3",
+      "location": "Code pane, notice strip at y 178: `Showing from line 26 — the session's position is below, and the lines above it are not in this window.`",
+      "finding": "Unchanged. Ninety-three characters of explanatory prose set in the code face at code size, immediately above line 26 and sharing its left edge, so face and size both match the listing and it scans at first glance as a comment line in the file rather than as pane chrome. Setting it in the UI sans at the 11-12px annotation size the pane titles already use would separate frame from content at no cost in density.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/light/L1/9",
+      "severity": "P3",
+      "location": "Values pane, `masses` (x 931, y 781-794) and `masses[2]` (x 939, y 807-819)",
+      "finding": "Re-measured and softer than I reported last round: the child is indented 8px, which is about one monospace character rather than the under-half-character I claimed. It is still the weakest nesting cue on the page, because it is indentation alone — the Call Trace, two panes up, draws a vertical guide at x 938 for exactly this relationship and Values draws none, so the same idea is expressed twice with different amounts of help. `masses[2]` still scans as a sibling of `mass` two rows below rather than an element of the array above. Add the guide Values is missing.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/wide/light/L1/10",
+      "severity": "P3",
+      "location": "Code pane gutter, x 76-84: the not-taken mark on line 29 (y 295) and the current/taken mark on line 32 (y 364), against the plain steppable dots on lines 26-28 and 31",
+      "finding": "Downgraded from P2 after examining the pixels at 7x, where the marks are better differentiated than I judged last round: the not-taken mark is a grey ring with a diagonal stroke, the taken mark is a teal ring with a centre dot, and the plain steppable mark is a bare teal dot roughly a third the diameter. Three states, three shapes, and the taken/not-taken pair carries a hue difference as a second channel. What remains is that at the rendered 7px the difference between the two rings is a one-to-two-pixel interior detail plus that hue, so the pair is the only confusable one in the set. Differentiating them at the outline — a filled disc against an open ring — would resolve it without a size increase.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L1/11",
+      "severity": "P3",
+      "location": "Four selection strips: region tabs (y 81), iteration chips (y 114), file tabs (y 146), phase rail (x 1225-1480, y 31)",
+      "finding": "Unchanged. The page expresses 'one selected among a set' four different ways within 150px of vertical space: uppercase sans with a heavy underline; a filled grey box with a coloured numeral and a double underline; monospace with a short rounded underline; and uppercase inside a tinted pill segment. Each is defensible alone, but a reader learning this surface has to learn four idioms for one idea. Two treatments — one for tabs, one for step-position rails — would cover all four.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L1/12",
+      "severity": "P3",
+      "location": "Transaction pane: the dashes on `SELECTOR` (x 1897-1905, y 829-830) and `RAW` (y 854-855), against the `No timestamp published` pill on AGE (y 439) and the `Not observable` pill on EXECUTIONS private (y 687)",
+      "finding": "The change from `0x` to a dash is right — an empty hex prefix asserted a payload that is not held — but it leaves the pane saying 'nothing here' in two unrelated idioms within 170px: a worded, toned pill for AGE and for the private execution, and a bare 9 by 2 pixel stroke for SELECTOR and RAW. The dash also has no typographic weight of its own; it is a 2px horizontal rule floating at the value column's right edge in a pane whose rows are separated by 1px full-width rules, so it reads as the lightest mark on the page for a fact the RAW note below spends five lines explaining. A worded placeholder in the same pill vocabulary — or at minimum a dash set at the value type's size and colour rather than as a hairline — would make the two rows one idiom with their neighbours.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L1/13",
+      "severity": "P3",
+      "location": "Identity bar `0xb63616…6359` (x 86-196, y 31); Transaction pane header `0xb636167a…66d46359` (y 111) and the full hash wrapped across y 137-155; FEE PAYER (y 535-556) and TARGET (y 585-607)",
+      "finding": "One hash is truncated three ways on one screen — 6 leading hex plus 4 trailing in the identity bar, 8 plus 8 in the pane header, and in full two rows below that — with no rule a reader can infer about which length means what. Separately, FEE PAYER and TARGET wrap mid-string at an arbitrary character (`...e2a272b5` / `e430d5d932`) with no continuation marker, so a reader checking an address against a clipboard cannot tell whether the wrap inserted or dropped a character. Both lines are right-aligned so the reading order survives, which is why this is a nitpick rather than a defect, but one truncation ratio and a byte-boundary wrap point would make the monospace column verifiable at a glance.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

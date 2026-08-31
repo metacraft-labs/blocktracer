@@ -1,0 +1,89 @@
+Expected elements: present
+
+No must-show item is absent and no must-not-show item appears; the light surface is the capture's theme axis, not a register error. Structurally this is disciplined: all three pane headers rule off at y=94, the Values type column and the Call Trace opcode column both right-align at x=1518, every Transaction value right-aligns at x=1906, and the identity bar runs a clean 8/16/24 scale.
+
+The new vertical fade works. In the Code pane line 61 and its line number both dissolve (L36 to L204 over y1046-1072); in the Transaction pane the RAW block's own grey background fades with it, so nothing terminates on a hard edge. It reads as "more below", not as a cut. It is at the weak end: the vertical ramp is ~26px against ~48px for the horizontal fade in the same pane, so exactly one line falls inside it. At 48px a second, near-gone line would appear and remove all doubt.
+
+Last round's measurement holds. Tabbed region: 347px empty below the "By call order" footer, 57.8% of its 600px. Values: 121px, 30.3% of 399px. Column content totals 529px of 1007px, so no row re-split fixes it — the lever is still the column. The widest frame row leaves 131px between its label end (x1353) and the opcode column (x1484) while the Code pane truncates line 40 mid-identifier at x916.
+
+Fixes, in order: narrow the nav column and give the width to Code; move the DATA hairline above its label.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L2/1",
+      "severity": "P2",
+      "location": "navigation column (x921-1529): Call Trace tabbed region below the 'By call order.' footer at y320, and the Values pane below its last row at y952",
+      "finding": "Re-measured and the prior finding holds unchanged. The tabbed region is 347px empty (y320 to its inner bottom edge y667) = 57.8% of its 600px; Values is 121px empty (y952 to y1073) = 30.3% of its 399px. Combined content in the column is 529px of 1007px available, so re-weighting the ROW split cannot fix it — Values needs only 277px and would still be underfilled. The lever is the COLUMN split, and the horizontal evidence now confirms it: the widest frame row's label ends at x1353 and the opcode column starts at x1484, leaving 131px of dead space in the nav column's best case (382px in the 'main' row), while the Code pane is fading line 40 out mid-identifier at x916 ('shield_regen_perce'). Take width from the nav column and give it to Code.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L2/2",
+      "severity": "P2",
+      "location": "Code pane, the row after line 26 (y205-249) and the row after line 48 (y736-780)",
+      "finding": "The code listing runs a 23px line pitch for 34 of its 36 rows, and breaks to 44px at exactly two: the rows where the overflow chips '+3' (x844-867, cy225) and '+2' (cy759) wrap below the code instead of sitting inline. Two consequences. First, the gutter shows an unexplained double-height gap after lines 26 and 48, so screen rows stop corresponding to source lines. Second, each wrapped chip lands almost exactly equidistant between the two lines it sits between ('+3' is 20px below line 26 and 24px above line 27), so proximity gives no cue which line it annotates — the inline chips that do fit (damage=0, cy250) are baseline-exact on their line, which makes the wrapped ones read as belonging to neither. Right-align the wrapped chip inside its own line's box, or clip it to the line height.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L2/3",
+      "severity": "P2",
+      "location": "Call Trace list, x936, rows 2-7 (y153-300)",
+      "finding": "Exactly one depth guide is drawn, at x936, and it is drawn at that same x on every non-root row regardless of depth. The label ladder is 932 (depth 0) / 954 / 970 / 986, so depth 2 and depth 3 rows carry indentation alone with a guide that marks depth 1's channel, not their own — a fixed tick that means 'not root' rather than 'this deep'. The ladder is also not one step: 932 to 954 is 22px, then 16px per level thereafter, so the first indent is 6px off the scale the rest of the ladder uses. Draw one guide per ancestor level and make the first step 16px like the others.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/wide/light/L2/4",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row: label and 'Synthetic demo data' badge at y196-215, hairline at y224, provenance sentences beginning y232",
+      "finding": "The row's hairline falls BELOW the DATA label instead of above it, so proximity groups the label with the wrong content. The gap from the 'succeeded' status-reason line down to the DATA label is 19px with no rule between them; the gap from the label down to the sentences it heads is 22px AND crosses a rule. Read literally, the pane's row grid puts the identity block (Partial badge, full hash, status reason) and the DATA label in one cell y95-224, and leaves the producer's sentences in an unlabelled cell y225-363. Since the brief's own concern is that this row may be too quiet for the claim it makes, having its label visually annexed by the block above it is the layout half of that problem. Move the rule above the DATA label.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/5",
+      "severity": "P3",
+      "location": "all pane bodies, bottom edge — measured in the Code pane at y1046-1072 and the Transaction pane RAW block at y1049-1073",
+      "finding": "The new vertical fade succeeds: it reads as 'there is more below', not as a clip. The disambiguator is that the whole row fades including the line-number gutter, which a syntax colour could not do, and in the Transaction pane the RAW block's own grey background fades out with its text so the box is open at the bottom rather than cut. But it is not the same fade turned ninety degrees: extrapolating the mask from the rendered glyph luminance, the vertical ramp spans ~26px (alpha 1.0 at y1046 to 0 at y1072) while the horizontal ramp in the SAME pane spans ~48px (x868 to x915). At a 23px line pitch a 26px ramp admits exactly one line, which is why the effect is weakest in the Transaction pane where that one line is low-contrast grey-on-grey. Lengthen the vertical ramp to the horizontal's ~48px and a second, nearly-gone line enters the fade.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/6",
+      "severity": "P3",
+      "location": "identity bar, x370-1203",
+      "finding": "Grouping is carried by proximity only in the left third. The identity cluster is internally 8-9px ('demo' 24-75, hash 85-193, Partial 202-261, 'block' 271-305, '101' 315-335) and separated from what follows by 24px at the divider. From x370 rightward every boundary is 16px: between the four stepping-control pairs (427-444, 496-513, 576-593), between the last pair and the scrubber (656-673), and between the scrubber and 'Engine loading' (932-949). The gap that separates two button pairs is therefore identical to the gap that separates the whole control block from the scrubber, so controls, scrubber and readout read as six peers on one rhythm. The bar already owns a 24px group separator — use it around the control block, as it is used before the phase rail (1203-1228).",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/light/L2/7",
+      "severity": "P3",
+      "location": "pane grid gutters: column gutter x917-920 (Code to nav, nav to Transaction), row gutter y669-674 (tabbed region to Values)",
+      "finding": "The pane grid uses two different gutter values on its two axes: 4px between columns and 6px between rows. The page margin is 4px on all four edges. Neither 4 nor 6 is on the 8/16/24 scale the identity bar uses. The 2px difference is not visible in isolation but it means the grid has no single gutter token; pick one value for both axes.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/8",
+      "severity": "P3",
+      "location": "Code pane, file-tab row (Nargo.toml / Prover.toml / src/main.nr / src/shield.nr) at y136-158",
+      "finding": "Four stacked header rows in the same pane use two different left edges. The 'CODE' title (first ink x13), the LOOP/iteration row (x14) and the 'Showing from line 26' notice (x13) all sit 9px from the pane border at x4; the file-tab row starts at x22, 18px from the border. Nothing in the row justifies the extra 9px of indent, and it is the one row in the pane that does not line up with the three above and below it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/9",
+      "severity": "P3",
+      "location": "Transaction pane metadata rows, AGE / CANONICAL / FINALITY (rules at y423, 455, 487, 518)",
+      "finding": "Rows whose value is a pill are taller than rows whose value is plain text: BLOCK and TYPE are 30px (y363-393, y393-423) and COST-MANA is 30px (y620-650), while AGE is 32px, CANONICAL 32px and FINALITY 31px. Because the three pill rows are consecutive, the drift accumulates to ~5px by the FINALITY rule, so the label baselines in that stretch fall off the 30px pitch the rest of the column keeps. Set a min-height on the row rather than letting the pill size it.",
+      "criterion": "B4"
+    }
+  ]
+}
+```
