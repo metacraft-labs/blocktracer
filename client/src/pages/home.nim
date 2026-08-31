@@ -6,6 +6,7 @@ import std/options
 import isonim/ssr/escape
 import isonim/dsl/ui
 import ../reader
+import ../components/provenance
 import ../viewutil
 import ../debugger/session_layout
 import ../debugger/session_view
@@ -62,9 +63,21 @@ proc homePage*(infos: seq[ChainInfo];
           button(class = "btn primary", `type` = "submit"):
             text "Search"
         tdiv(class = "chainstrip"):
+          # THE STRIP HAS TO SAY WHICH OF THESE IS REAL. Once the tree carries
+          # both a synthetic chain and captured ones, three cards that differ
+          # only by slug ask a reader to know from the name — and a marker keyed
+          # off a name is one rename away from mislabelling its own data. So the
+          # badge comes from the same published `provenance` block the chain's
+          # own banner renders, and a chain whose generation published none gets
+          # no badge rather than a guessed one.
           for info in infos:
-            a(class = "chaincard", href = chainUrl(info.slug)):
+            a(class = "chaincard", href = chainUrl(info.slug),
+              `data-provenance` = info.provenanceKind):
               tdiv(class = "name"): text info.slug
+              if info.provenanceLabel.len > 0:
+                tdiv(class = "row"):
+                  span(class = "badge " & provenanceTone(info.provenanceKind)):
+                    text info.provenanceLabel
               tdiv(class = "meta"):
                 text $info.blockCount & " blocks · " & $info.txCount & " txs · head " & $info.headHeight
         # Rendered only when the tree actually has a replayable transaction to

@@ -20,7 +20,7 @@
 ##   nim c -r --mm:orc -d:isServer -d:release src/static_export.nim
 ##   # or via the Justfile:  just export
 
-import std/[os, strutils, times]
+import std/[os, strutils, times, algorithm]
 import blocktracer/demo/generator
 import blocktracer/chain/ingest
 import ssr
@@ -131,17 +131,32 @@ proc exportSite() =
   # capture serves exactly the synthetic demo it always did. What must never
   # happen is the opposite — a snapshot present and silently half-ingested — so
   # `ingestSnapshot` raises rather than skipping a transaction it cannot publish.
-  let snapshotDir = repoRoot() / "client" / "fixtures" / "chain" / "aztec-testnet"
-  if fileExists(snapshotDir / "snapshot.json"):
+  # EVERY capture in the tree, in a stable order. A second real chain is a
+  # directory, not a code change — which is the whole claim the two-producer
+  # split makes, and this loop is where it is either true or it is not.
+  let chainFixtures = repoRoot() / "client" / "fixtures" / "chain"
+  var snapshotDirs: seq[string]
+  if dirExists(chainFixtures):
+    for kind, path in walkDir(chainFixtures):
+      if kind == pcDir and fileExists(path / "snapshot.json"):
+        snapshotDirs.add path
+  sort(snapshotDirs)
+  if snapshotDirs.len == 0:
+    echo "  + live-chain snapshots: none in this checkout (synthetic demo only)"
+  for snapshotDir in snapshotDirs:
     let ing = ingestSnapshot(IngestConfig(outDir: OutputDir,
                                           snapshotDir: snapshotDir))
+    # A chain with NO traces is reported as such rather than omitted. It is the
+    # expected outcome on a chain whose transactions arrive further apart than
+    # the replay window is wide, and a build log that quietly said nothing about
+    # it would be the first place the fact went missing.
+    let traceNote =
+      if ing.withTrace == 0: "NO replayable transaction in the window"
+      else: $ing.withTrace & " with a published trace (" & $ing.divergent &
+            " divergent, " & $ing.containerBytes & " bytes)"
     echo "  + live-chain snapshot: /" & ing.chain & " — " & $ing.blocks &
-      " blocks, " & $ing.transactions & " transactions, " & $ing.withTrace &
-      " with a published trace (" & $ing.divergent & " divergent, " &
-      $ing.containerBytes & " bytes), " &
+      " blocks, " & $ing.transactions & " transactions, " & traceNote & ", " &
       $ing.pruned & " past the replay horizon"
-  else:
-    echo "  + live-chain snapshot: none in this checkout (synthetic demo only)"
 
   # Step 2: render the explorer views over that tree, at clean URLs.
   let root = newDataRoot(OutputDir)

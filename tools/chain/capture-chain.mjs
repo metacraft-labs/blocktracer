@@ -58,8 +58,16 @@ const arg = (name, fallback) => {
 };
 
 const runtime = arg('runtime');
-const outDir = resolve(arg('out', 'client/fixtures/chain/aztec-testnet'));
 const url = arg('url', 'https://aztec-testnet.drpc.org');
+// THE SLUG IS AN ARGUMENT, because a second real chain has to be a capture, not
+// a second producer. It defaults off the endpoint rather than off nothing, and
+// `ingest.nim` refuses `aztec` outright — that slug belongs to the synthetic
+// demo, and a real chain landing on it would overwrite the demo's blocks and
+// make generated and real data indistinguishable in a URL.
+const chain = arg('chain', url.includes('testnet') ? 'aztec-testnet' : 'aztec-mainnet');
+const label = arg('label', chain === 'aztec-mainnet' ? 'Real Aztec mainnet data'
+  : chain === 'aztec-testnet' ? 'Real Aztec testnet data' : 'Real chain data');
+const outDir = resolve(arg('out', `client/fixtures/chain/${chain}`));
 const avm = arg('avm', process.env.AVM_WASM_PATH);
 const ctWriter = arg('ct-writer', process.env.CT_WRITER_WASM_PATH);
 const nodeBin = arg('node', process.execPath);
@@ -301,7 +309,8 @@ const snapshot = {
   provenance: {
     // WHAT THIS IS, in the snapshot itself, so no consumer has to infer it.
     kind: 'live-capture',
-    chain: 'aztec-testnet',
+    chain,
+    label,
     endpoint: url,
     capturedAt,
     nodeVersion: nodeInfo.nodeVersion,

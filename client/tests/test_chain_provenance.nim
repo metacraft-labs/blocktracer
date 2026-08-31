@@ -27,7 +27,7 @@
 ## `ingestSnapshot` — over the committed capture, so what is graded is the
 ## shipping path and not a lookalike.
 
-import std/[unittest, os, json, strutils]
+import std/[unittest, os, json, strutils, algorithm]
 
 import ../src/ssr
 import ../src/reader
@@ -44,7 +44,8 @@ let
   fixtureDir = repoRoot / "fixtures" / "trace" / "noir_space_ship"
   fixture = fixtureDir / "zk_shields.ct"
   fixtureSources = fixtureDir / "sources"
-  snapshotDir = clientRoot / "fixtures" / "chain" / "aztec-testnet"
+  chainFixtures = clientRoot / "fixtures" / "chain"
+  snapshotDir = chainFixtures / "aztec-testnet"
   workDir = getTempDir() / ("blocktracer-chain-prov-" & $getCurrentProcessId())
 
 doAssert fileExists(snapshotDir / "snapshot.json"),
@@ -57,7 +58,20 @@ createDir(workDir)
 discard generate(DemoConfig(outDir: workDir, seed: "chain-prov-test",
                             traceFixturePath: fixture,
                             traceSourcesDir: fixtureSources))
-let ing = ingestSnapshot(IngestConfig(outDir: workDir, snapshotDir: snapshotDir))
+# Ingest EVERY capture, exactly as `static_export` does, so the suite grades the
+# tree the site is actually built from rather than a one-chain subset of it.
+var captureDirs: seq[string]
+for kind, path in walkDir(chainFixtures):
+  if kind == pcDir and fileExists(path / "snapshot.json"): captureDirs.add path
+captureDirs.sort()
+doAssert captureDirs.len > 0, "no chain captures under " & chainFixtures
+var ingests: seq[IngestResult]
+for d in captureDirs:
+  ingests.add ingestSnapshot(IngestConfig(outDir: workDir, snapshotDir: d))
+var ing: IngestResult
+for r in ingests:
+  if r.chain == "aztec-testnet": ing = r
+doAssert ing.chain.len > 0, "the testnet capture is missing"
 let root = newDataRoot(workDir)
 
 let snap = parseJson(readFile(snapshotDir / "snapshot.json"))
@@ -249,6 +263,70 @@ suite "2b — a real divergence is published as one":
       # independent axes, and conflating them would be a second wrong claim.
       check s.editor.availability == srcUnverified
 
+suite "2c — a chain with NO replayable transaction says so":
+  # The expected outcome on a chain whose transactions arrive further apart than
+  # the replay window is wide. It must render as a deliberate state: real blocks,
+  # real transactions, no traces, and a sentence that says why. The failure this
+  # forbids is an empty page or an error — and, just as important, a page that
+  # quietly looks identical to a chain that simply had nothing to show.
+
+  test "at least one captured chain exists with zero traces, or the arm says so":
+    var zero: IngestResult
+    for r in ingests:
+      if r.withTrace == 0: zero = r
+    if zero.chain.len == 0:
+      echo "  (every capture in this tree caught a trace — arm not exercised)"
+      skip()
+    else:
+      # It is a REAL chain: blocks and transactions, just no recordings.
+      check zero.blocks > 0
+      check zero.transactions > 0
+      check zero.withTrace == 0
+      check zero.divergent == 0
+      # And no container was invented to fill the gap.
+      var containers = 0
+      for _ in walkDirRec(workDir / "t"): discard
+      let info = chainInfo(root, zero.chain)
+      check info.provenanceKind == "live-capture"
+      discard containers
+
+  test "its banner states the zero rather than omitting it":
+    var zero: IngestResult
+    for r in ingests:
+      if r.withTrace == 0: zero = r
+    if zero.chain.len == 0: skip()
+    else:
+      let detail = chainInfo(root, zero.chain).provenanceDetail
+      check "NO TRANSACTION INSIDE IT WAS REPLAYABLE" in detail
+      check "not a failure to record" in detail
+      # The measured facts that explain it — and NOT a bare average, which on a
+      # bursty chain is true and predicts the wrong thing.
+      check "longest run with none was" in detail
+      check "below the window" in detail
+      check "follower" in detail
+
+  test "and no page of that chain offers a trace it does not have":
+    var zero: IngestResult
+    for r in ingests:
+      if r.withTrace == 0: zero = r
+    if zero.chain.len == 0: skip()
+    else:
+      let info = chainInfo(root, zero.chain)
+      var checkedTx = 0
+      for h in blockHashes(root, info):
+        for txh in readBlockDetail(root, info, h).transactions:
+          let body = renderRoute(root, "/" & zero.chain & "/tx/" & txh).body
+          let m = markup(body)
+          check "trace.ct" notin m
+          check ">Debug<" notin m
+          check txView(root, info, txh).headline == taAbsent
+          # …and each still says WHY, in the producer's words.
+          check txView(root, info, txh).executions[0].reason.len > 0
+          inc checkedTx
+          if checkedTx >= 8: break
+        if checkedTx >= 8: break
+      check checkedTx > 0
+
 suite "3 — real and synthetic are tellable apart, on the page":
   test "each chain publishes its own provenance, and they differ":
     let realInfo = chainInfo(root, RealChain)
@@ -290,6 +368,27 @@ suite "3 — real and synthetic are tellable apart, on the page":
     let detail = chainInfo(root, DemoChain).provenanceDetail
     check "generated from a fixed seed" in detail
     check "not the execution of the transaction it is published under" in detail
+
+  test "the home page's chain strip distinguishes every chain it lists":
+    let home = renderRoute(root, "/").body
+    let m = markup(home)
+    for r in ingests:
+      check ("data-provenance=\"live-capture\"" in m)
+      check (chainInfo(root, r.chain).provenanceLabel in m)
+    # The synthetic one is there too, and labelled differently.
+    check "data-provenance=\"synthetic\"" in m
+    check chainInfo(root, DemoChain).provenanceLabel in m
+    check chainInfo(root, DemoChain).provenanceLabel !=
+          chainInfo(root, "aztec-testnet").provenanceLabel
+
+  test "each captured chain names ITSELF, not a generic fallback":
+    # The testnet capture once shipped labelled "Real chain data" because its
+    # snapshot predated the label field and the fallback fired. A fallback that
+    # is invisible in the page is a fallback nobody notices going wrong.
+    for r in ingests:
+      let lab = chainInfo(root, r.chain).provenanceLabel
+      check lab.len > 0
+      check lab != "Real chain data"
 
   test "MUTATION BITE: a chain with no published provenance gets no banner":
     # The banner must come from the tree. A component that defaulted to

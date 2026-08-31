@@ -66,10 +66,15 @@ type
     containerBytes*: int   ## total bytes of published containers
 
 const
-  # The chain slug. It is deliberately NOT `aztec`: the synthetic demo owns that
-  # one, and two chains that cannot be told apart in a URL is the confusion this
-  # whole design exists to prevent.
-  realChain* = "aztec-testnet"
+  # THE SLUG IS DATA, NOT A CONSTANT. It comes out of the snapshot's provenance,
+  # because a second real chain must be a capture-and-publish job rather than a
+  # second producer — which is the property the two-producer split was built for
+  # and the first chance to prove it. What IS fixed is that a real chain never
+  # takes the slug `aztec`: the synthetic demo owns that one, and two chains a
+  # reader cannot tell apart in a URL is the confusion this design exists to
+  # prevent. `ingestSnapshot` refuses that collision rather than trusting the
+  # capture not to have caused it.
+  syntheticChain* = "aztec"
   recorderId = "aztec-avm"
   traceSchema = "ctfs/v4"
   profileName = "default"
@@ -101,8 +106,16 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       "'; this build reads blocktracer/chain-snapshot@1")
 
   let gen = if cfg.generation.len > 0: cfg.generation else: "1"
-  let chain = realChain
   let prov = snap["provenance"]
+  let chain = prov{"chain"}.getStr
+  if chain.len == 0:
+    raise newException(ValueError,
+      "the snapshot names no chain in provenance.chain; refusing to guess a slug")
+  if chain == syntheticChain:
+    raise newException(ValueError,
+      "a live capture claims the slug '" & syntheticChain & "', which the " &
+      "synthetic demo owns. Two chains at one slug would overwrite each other's " &
+      "blocks and make real and generated data indistinguishable in a URL.")
   let win = snap["window"]
   let finalizedAt = win["finalized"].getInt
   let tipAt = win["tip"].getInt
@@ -374,6 +387,39 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # THE PROVENANCE IS PUBLISHED DATA, not a template decision. Every page of this
   # chain renders its banner from here, so "is what I am looking at real?" is
   # answered by the tree rather than by which template happened to be used.
+  # WHY A ZERO-TRACE CAPTURE CAME OUT ZERO — measured, not averaged.
+  #
+  # The obvious sentence to generate here is a RATE: "one transaction per N
+  # blocks against an M-block window, so most captures catch none." It would
+  # have been wrong on the first mainnet capture and wrong in the confident
+  # direction. That capture found 20 transactions in 400 blocks — one per 20,
+  # against a 25-block window, which as a rate predicts roughly one catch per
+  # capture. It caught none, because the arrivals are BURSTY and not spread: 18
+  # of the 20 fell inside a 53-block span, then nothing at all for 309 blocks.
+  # An average over a bursty series is a number that is true and predicts the
+  # wrong thing, which is precisely the shape of claim this product may not
+  # publish.
+  #
+  # So the page states what was observed: how many, over what range, the longest
+  # silence inside it, and how far the most recent transaction sat from the
+  # window it missed. Those are facts a reader can check against the block list
+  # on the same site.
+  var txHeights: seq[int]
+  for t in snap["transactions"]: txHeights.add t["blockNumber"].getInt
+  txHeights.sort()
+  let mostRecentTxBlock = if txHeights.len > 0: txHeights[^1] else: 0
+  var largestGap = 0
+  for i in 1 ..< txHeights.len:
+    largestGap = max(largestGap, txHeights[i] - txHeights[i - 1])
+
+  # The label a reader sees on the banner and on the home page's chain strip.
+  # The capture supplies it; this is a fallback for a snapshot that named none,
+  # and it deliberately does NOT try to prettify the slug beyond saying the data
+  # is real — an invented display name is a claim nobody measured.
+  let provLabel =
+    if prov{"label"}.getStr.len > 0: prov["label"].getStr
+    else: "Real chain data"
+
   let summaryRel = "d" / chain / "g" / gen / "summary.json"
   # The endpoint WITHOUT its scheme. `summary.json` keeps the full URL, which is
   # where a machine-readable endpoint belongs; the rendered sentence names the
@@ -387,12 +433,41 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   for scheme in ["https://", "http://"]:
     if endpointHost.startsWith(scheme):
       endpointHost = endpointHost[scheme.len .. ^1]
+  # WHAT WAS CAPTURED, AND — WHEN IT IS NOTHING — THAT IT WAS NOTHING.
+  #
+  # A chain whose window held no replayable transaction is a real outcome, not a
+  # broken capture, and it is the outcome a sparse chain will USUALLY produce:
+  # if transactions arrive further apart than the window is wide, most captures
+  # catch none. The sentence has to say that in the same breath as the numbers,
+  # because a reader who sees real blocks and real transactions and no traces
+  # will otherwise reasonably conclude the site is broken.
+  #
+  # The two arms differ only in the middle clause. Both state the window, both
+  # state the pruning boundary, and neither apologises: "no transaction inside
+  # the window was replayable" is a measurement, and the density that explains
+  # it is published beside it.
+  let captured =
+    "Captured from " & endpointHost & " at " & prov["capturedAt"].getStr &
+    " (node " & prov["nodeVersion"].getStr & "). The replay window was blocks " &
+    $win["replayableFrom"].getInt & "–" & $tipAt & " (" & $win["blocks"].getInt &
+    " blocks) at that moment. "
+  let middle =
+    if withTrace > 0:
+      $withTrace & " transaction(s) inside it were re-executed and their " &
+      "traces are published here. "
+    else:
+      "NO TRANSACTION INSIDE IT WAS REPLAYABLE, so this chain publishes real " &
+      "blocks and real transactions and no traces. That is what the capture " &
+      "found, not a failure to record. Across the " & $blockRows.len &
+      " blocks enumerated here this chain settled " & $txCount &
+      " transaction(s), and they did not arrive evenly: the longest run with " &
+      "none was " & $largestGap & " blocks, and the most recent one settled in " &
+      "block " & $mostRecentTxBlock & " — " & $(win["replayableFrom"].getInt -
+      mostRecentTxBlock) & " block(s) below the window, so it had already been " &
+      "pruned when this capture ran. Catching one needs a follower that watches " &
+      "the tip continuously rather than a single scan. "
   let provDetail =
-    "Captured from " & endpointHost & " at " &
-    prov["capturedAt"].getStr & " (node " & prov["nodeVersion"].getStr &
-    "). Blocks " & $win["replayableFrom"].getInt & "–" & $tipAt &
-    " were inside the replay window at that moment; " & $withTrace &
-    " transaction(s) were re-executed and their traces are published here. " &
+    captured & middle &
     "Transactions below block " & $finalizedAt & " are still visible on the " &
     "network but their bodies have been pruned, so they can no longer be " &
     "replayed and carry no trace."
@@ -402,7 +477,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     "coverageMode": "selective", "stale": false,
     "provenance": {
       "kind": "live-capture",
-      "label": "Real Aztec testnet data",
+      "label": provLabel,
       "endpoint": prov["endpoint"],
       "capturedAt": prov["capturedAt"],
       "nodeVersion": prov["nodeVersion"],
@@ -411,6 +486,8 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       "finalizedAtCapture": finalizedAt,
       "replayableWindowBlocks": win["blocks"],
       "tracesPublished": withTrace,
+      "mostRecentTxBlock": mostRecentTxBlock,
+      "longestRunWithoutTx": largestGap,
       "detail": provDetail}})
 
   let root = GenerationRoot(contractVersion: ContractVersion, chain: chain,
