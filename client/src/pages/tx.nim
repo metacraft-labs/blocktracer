@@ -150,8 +150,8 @@ proc txPage*(chain: string, v: TxView): string =
           # a different section: proximity was grouping the explanation with the
           # wrong thing. Rounds 1-4 are not recorded in reviews/ledger.json, so
           # that measurement has no citable id; the round-5 findings on the same
-          # separation are ledger@2026-08-31.1:tx-detail/wide/light/L2/3 and
-          # ledger@2026-08-31.1:tx-detail/wide/light/L5/6.
+          # separation are ledger@2026-08-31.2:tx-detail/wide/light/L2/3 and
+          # ledger@2026-08-31.2:tx-detail/wide/light/L5/6.
           #
           # It belongs to the ON-DEMAND row only. §7.2 attaches it to "the
           # Debug button that requests it" — it is the sentence that converts,

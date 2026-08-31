@@ -1,0 +1,81 @@
+Expected elements: REPLACED — "A timeline or scrubber expressing position within the trace" by the bare `128 / 1315` fraction readout in the identity bar
+
+Every other must-show item is present and recognisable: the provenance banner above the bar, the exit to `aztec`, `0xb63616…6359`, `Partial`, `block 101`, four stepping pairs carrying both directions, the FETCHING/OPENING/POSITIONING rail, a Code pane positioned unmistakably at line 32, Call Trace and Event Log as one tab strip with Call Trace open, Values as a pane below it, and the Transaction pane's identity. Nothing forbidden appears. But no graphical time surface renders at this width — the 48-tick scrubber is suppressed below 1780px, and a fraction is a readout, which the backbone already requires separately. That is finding 1, P1, and it caps the rating at 4.
+
+The type system is otherwise disciplined and genuinely dense. What holds it back is that it has three digit-grouping conventions (`1,315` in the ACIR column, `1315` in the readout, `88000` in COST · MANA), two hash strategies inside one pane (middle-ellipsis in the Transaction header, three-line wraps ending in two-character orphans below it), double truncation on deep Call Trace rows, and one uppercase letterspaced treatment doing pane title, group heading and field label alike. The banner's prose is the largest, loosest text in the shell.
+
+Highest-priority fixes: restore a time surface at 1440; give digits and hashes one rule each.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "reviewer": "L1",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "expectedElements": "replaced",
+  "missing": [
+    "A timeline or scrubber expressing position within the trace — no graphical time surface renders at 1440; position is expressed only by the `128 / 1315` fraction, which the backbone requires separately as the position readout"
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L1/1",
+      "severity": "P1",
+      "location": "identity bar, between the fourth stepping pair (ends x≈655) and the `128 / 1315` readout (x≈672-757)",
+      "finding": "The must-show timeline/scrubber is absent at this viewport. The tick scrubber that renders at 1920 is display:none below 1780px, so the only expression of position within the 1315-step trace is the numeric fraction — and that fraction is already the backbone's separately-required position readout, so one element is being counted twice. A number cannot show extent: the reader can read where they are but cannot see how far through they are, which is the whole point of a time surface on a reversible debugger."
+    },
+    {
+      "id": "debugger/laptop/dark/L1/2",
+      "severity": "P2",
+      "location": "identity bar `128 / 1315` (x≈672-757); Call Trace ACIR opcodes column (`1,315`, `1,208`, x≈1085-1135); Transaction pane COST · MANA (`88000 / 200000`, y≈647)",
+      "finding": "Three digit-grouping conventions for counts of the same magnitude on one screen: grouped with a comma in the opcodes column, ungrouped in the step readout, ungrouped in the mana row. B7 asks for comparable formatting across magnitudes, and the two four-digit numbers a reader most wants to compare — 1,315 opcodes and 1315 steps — are set differently sixty pixels apart in the same session.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/3",
+      "severity": "P2",
+      "location": "Transaction pane — header hash `0xb636167a…66d46359` (y≈290) versus the status hash below it (y≈316-338), FEE PAYER (y≈495-547) and TARGET (y≈565-619)",
+      "finding": "Two truncation strategies inside one pane. The pane header uses a middle ellipsis at a byte boundary; the three values under it instead wrap the full hash to two or three lines, breaking mid-byte and leaving two-character orphan lines (`32` under FEE PAYER, `4c` under TARGET). The orphans are right-aligned while the fragments above them start at the value column's left edge, so each hash ends in a stranded pair of hex digits that reads as a separate field.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/4",
+      "severity": "P2",
+      "location": "Call Trace rows 4 and 7 — `calculate_remaining_shie…` with `zk_shields · src/shi…` (y≈392 and y≈468)",
+      "finding": "The deepest frames truncate twice on one row: the frame name loses its tail and the file path loses its filename, so the two identifiers that distinguish `calculate_remaining_shield_pct` from its siblings are both cut. Rows one level shallower keep their full path (`zk_shields · src/shield.nr`), so truncation depth tracks indentation and the frames that are hardest to identify are the ones given least text.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/5",
+      "severity": "P2",
+      "location": "pane titles `CODE` (y≈261), `CALL TRACE` (y≈261), `VALUES` (y≈651), `TRANSACTION` (y≈261) versus column header `FRAME … ACIR opcodes` (y≈291) and the Transaction pane's field labels `BLOCK`, `FEE PAYER`, `DECODED INPUT`, `SELECTOR`, `RAW`",
+      "finding": "One uppercase letterspaced treatment at one size carries three different levels — region title, column header, and field label — so the type gives no rank at all and the levels are separable only by colour and position. In the Transaction pane this is worst: `TRANSACTION` (the pane), `DECODED INPUT` (a group) and `SELECTOR` (a field inside that group) are typographically identical, so the pane's internal structure is not readable without reading it.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/6",
+      "severity": "P2",
+      "location": "Code pane, right edge (x≈683) on lines 26, 40, 41, 42 and 44",
+      "finding": "Long source lines are cut flush at the pane edge mid-token with no ellipsis, no continuation mark and no visible horizontal affordance: line 26 stops at `initial_shield, re`, line 40 at `remaining_shiel`, line 41 at `after each `. A reader cannot tell a complete statement from a bisected one — line 44 reads as `if((remaining_shield + regen) as u32 initial_shield as u32){` with its comparison operator off-screen, which is a syntactically plausible but wrong line. Truncated code must be marked as truncated.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/7",
+      "severity": "P3",
+      "location": "Code pane inline chips — `damage=0` (line 27, x≈325-386), `shield_pct=90` (line 28, x≈347-450), and the dashed `+3` (line 26, x≈613-638) and `+2` (line 32, x≈610-634) chips",
+      "finding": "These are the smallest type on the page, several steps below the code face they annotate, and the `+3` / `+2` overflow chips carry no noun — so the smallest text is also the least self-explaining. The annotation chips are the mechanism that makes a static listing read as a positioned session; at this size they are read only after the code, not with it.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/8",
+      "severity": "P3",
+      "location": "Code pane, line 41 comment (x≈120-670)",
+      "finding": "The rendered source reads `// shields regain a percentage of the maxium capacity after each …` — `maxium` for `maximum`. The Code pane is the flagship surface of this register and its typography is being judged as the product's texture; a typo in the fixture source is the one string on the page a reader is guaranteed to read closely.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

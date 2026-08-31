@@ -1,0 +1,32 @@
+Expected elements: MISSING — a timeline or scrubber expressing position within the trace.
+
+The presence check fails, so the weakest element is the one that is not there.
+
+The single weakest element is the trace position control in the identity bar, in the gap between the last stepping button group (the |<< >>| pair, ending at x~655) and the `128 / 1315` readout at x~675. At this viewport there is no track, no tick strip, no marker — nothing that expresses position within the trace spatially. The bar hands the visitor a numerator and a denominator and asks them to do the arithmetic: 128 of 1315 is 9.7%, a fact that a one-line track would state without being read.
+
+It is the weakest element rather than merely a missing one because everything around it is built to make position legible — the Code pane marks the current line, the call trace highlights the current frame, the Values pane marks changed values, the loop strip draws iteration 3 of 8 as eight boxes — and the one control whose entire job is position in the trace as a whole is the one that draws nothing. A tool whose premise is stepping backwards through time has no depiction of the timeline it steps through. Beside it, the loop iteration strip in the Code pane shows exactly what the bar is missing, 400 px away.
+
+Severity P1: a required element is absent, and the rating is capped at 4.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "reviewer": "ADV",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "expectedElements": "missing",
+  "missing": ["A timeline or scrubber expressing position within the trace"],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/ADV/1",
+      "severity": "P1",
+      "location": "identity bar, the gap between the last stepping button group (x~655) and the '128 / 1315' readout (x~675)",
+      "finding": "The trace timeline is absent at this viewport. Position in a 1315-step trace is expressed only as a text fraction: no track, no tick strip, no position marker. This is the weakest element on the page because every other surface here draws position well — the current line in Code, the current frame in Call Trace, changed values in Values, and eight boxes for iteration 3 of 8 in the loop strip — while the one control whose sole job is position within the whole trace draws nothing at all, on the flagship surface of a product whose premise is moving backwards through that trace."
+    }
+  ]
+}
+```

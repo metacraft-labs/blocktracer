@@ -1,0 +1,66 @@
+Expected elements: present
+
+Every Must-show item is on the page and carries real content: the affirmative `Real Aztec mainnet data` badge with `aztec-mainnet` beside it and the producer's own sentences, inset to the same column as the breadcrumb; the fixed nav with resolver field; the `Not observable` badge with the published pruning reason attributed to the chain's retention; the full hash, `Succeeded` badge and a complete Overview; Internal calls and State changes both in the permanent tense; the permanence claim verbatim; and a footer that ends the page with all three marks (heart, CodeTracer, GitHub) drawn and visible. No Debug/retry/spinner, no trace reference, no error tone. The COST row now reads `0x0000…f97278 mana (FeeJuice)` with no dangling separator.
+
+In density terms the page is legible but under-loaded. At 1920 it is a single ~910px column with ~500px of dead canvas each side, running 2872px tall — 2.7 screens — and the fold at 1080px lands exactly on the top border of the Overview table, so a wide-screen reader sees the banner, hash and reason but not one metadata value. The COST row is the worst-value pixel on the page: 50 leading zeros of a padded 32-byte word occupy ~78% of the row width, and its label is the adapter's raw field name flattened to `TRANSACTIONFEE`, which wraps and doubles the row height.
+
+Highest-priority fixes: format the fee as a decimal quantity with a readable label; use the wide breakpoint to pair Overview with Decoded input and set the three empty-section cards as a row.
+
+Rating: 6/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/1",
+      "severity": "P2",
+      "location": "Overview table, COST · TRANSACTIONFEE row, value cell",
+      "finding": "The fee is printed as the raw zero-padded 32-byte word: 50 leading zeros fill roughly 78% of the cell's width before the 15 significant digits appear, so the row's information-per-pixel is near zero and the magnitude is unreadable at a glance. Render the quantity as a grouped decimal with the unit (e.g. \"105,...,912 mana (FeeJuice)\"), or at minimum strip the leading zeros and keep the full padded word behind a copy/title affordance.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/2",
+      "severity": "P2",
+      "location": "Overview table, label column, COST · TRANSACTIONFEE row",
+      "finding": "The label is the adapter's camelCase field name uppercased, so it renders as the unbroken 14-character token TRANSACTIONFEE with no word boundary — measurably slower to parse than the three single-word labels above it — and it is the only label that wraps, making this row twice the height of BLOCK, CANONICAL and FINALITY while its value occupies one line. Split the field name into words at capitals (\"Transaction fee\") before display so the label column can hold every label on one line at this width.",
+      "criterion": "A6"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/3",
+      "severity": "P2",
+      "location": "whole page at the 1920px viewport — single content column from x≈505 to x≈1418",
+      "finding": "The wide breakpoint is not used: one ~910px column sits centred with ~500px of empty canvas on each side while the page runs 2872px tall, and the 1080px fold falls on the top border of the Overview table, so a reader on this viewport sees the provenance banner, the hash and the reason but not a single metadata value — the half of §7.0 that is explicitly not a consolation prize is entirely below the fold. Pair Overview with Decoded input as two columns at this breakpoint (both hold short values in a half-width cell) to lift the metadata above the fold and cut roughly a screen of scroll.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/4",
+      "severity": "P2",
+      "location": "Events, Internal calls and State changes sections, y≈1690–2230",
+      "finding": "Three heading-plus-card pairs, each two lines of near-identical boilerplate, consume about 780px of vertical space — three quarters of a viewport — to convey one fact the reason card has already stated. At 910px of column each card's text ends well short of its right edge. Set the three as a 3-up row of equal-height cards at the wide breakpoint, or keep the headings stacked and reduce the cards to a single line each, so the section list stays scannable as structure rather than reading as three paragraphs.",
+      "criterion": "A1"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/5",
+      "severity": "P3",
+      "location": "provenance banner, body paragraph — text wraps at x≈1139 inside a card whose right edge is x≈1418",
+      "finding": "The banner's prose is measure-capped about 30% narrower than the card that holds it, leaving an empty gutter down all nine lines and costing roughly two extra lines of height at the very top of the fold. Either narrow the card to its text measure or let the paragraph use the card's width, so the densest text block on the page does not spend fold height on a gutter.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/6",
+      "severity": "P3",
+      "location": "Decoded input section, SELECTOR and RAW rows plus the ABI note card, y≈1370–1580",
+      "finding": "A two-row table and a full note card — about 210px — are spent on two null values, and the RAW value renders as the bare string \"0x\", which reads like a truncated hash rather than \"no calldata\"; the note beneath then says parameters \"are shown as raw bytes\" when none are shown. Collapse the section to one line stating there is no calldata for this transaction, keeping the ABI sentence only where a selector actually exists.",
+      "criterion": "A9"
+    }
+  ]
+}
+```

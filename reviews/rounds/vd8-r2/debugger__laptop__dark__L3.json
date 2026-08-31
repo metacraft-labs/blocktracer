@@ -1,0 +1,83 @@
+Expected elements: REPLACED — "A timeline or scrubber expressing position within the trace" by the bare `128 / 1315` fraction readout in the identity bar
+
+Everything else required is present: banner, exit to `aztec`, truncated hash, `Partial`, block, both stepping directions, phase rail, Code positioned at line 32, Call Trace / Event Log as one tab strip with Call Trace open, Values as a separate pane, Transaction identity. Nothing forbidden. But no time surface renders at 1440, so finding 1 is P1 and the rating is capped at 4.
+
+This dark theme is designed, not inverted: three real surface levels, an editor-grade syntax palette, and — this round's win — position is cyan, changed is amber, navigation keeps indigo, and the open tab drops hue for a neutral underline. Line 32 and the selected frame share one position treatment across panes: B5 passing.
+
+What remains is that amber now carries two meanings, and that the theme's quiet end is too quiet. The line-number gutter, the inline annotation chips, the inactive phase chips and the Transaction pane's explanatory sentence all sit under the small-text contrast floor, and the stepping buttons show no disabled treatment while the rail says the engine is still fetching — so colour is not carrying one of the three things the spec makes it carry.
+
+Highest-priority fixes: separate the outcome badge from the diff amber; lift the gutter and the annotation chips off the floor.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "reviewer": "L3",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "expectedElements": "replaced",
+  "missing": [
+    "A timeline or scrubber expressing position within the trace — absent at this viewport; only the `128 / 1315` fraction remains, and the backbone requires that separately as the position readout"
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L3/1",
+      "severity": "P1",
+      "location": "identity bar, between the last stepping pair (ends x≈655) and `128 / 1315` (x≈672-757)",
+      "finding": "The must-show timeline/scrubber does not render at this viewport. Position within the trace is expressed only as text, which means it is expressed only at one emphasis level and carries no extent — the reader can see the number 128 but nothing shows it against 1315. Previous rounds recorded the scrubber's track at 1.51:1 against the bar; suppressing the element removes the contrast defect by removing the element, which is not a fix to a required component."
+    },
+    {
+      "id": "debugger/laptop/dark/L3/2",
+      "severity": "P2",
+      "location": "amber across: `Partial` badge in the identity bar (x≈205-262) and in the Transaction pane header (x≈1163-1214); `9000` and `2000` plus their row rails in the Values pane (y≈702, y≈869); the `damage : 0 → 2000` chip on code line 32 (x≈492-600)",
+      "finding": "One amber/gold family carries two unrelated roles. On the transaction it means outcome-with-a-caveat (a partially-succeeded transaction, a permanent property of the tx); in Values and on line 32 it means changed-at-this-step (a transient property of the cursor). A reader scanning the Values pane sees the same swatch that labels the transaction's outcome two panes to the right. The changed role was correctly moved off indigo this round; it now needs separating from status the same way.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/3",
+      "severity": "P2",
+      "location": "Code pane line-number gutter, x≈28-56, lines 26-46 (excluding the cyan current line 32)",
+      "finding": "The line numbers are a dim grey on the pane surface, clearly under the 4.5:1 small-text floor — the dimmest functional text in the pane. They are not decoration: the notice directly above them says `Showing from line 26`, the loop row links `line 4`, and the numbers are the coordinates a reader uses to relate the pane to that copy. The executable `·` markers beside them are dimmer still and read as noise rather than as the 'you can stop here' rung the token layer intends.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/4",
+      "severity": "P2",
+      "location": "Code pane inline chips — `damage=0` (line 27, x≈325-386), `shield_pct=90` (line 28, x≈347-450), dashed `+3` (line 26, x≈613-638) and `+2` (line 32, x≈610-634)",
+      "finding": "Grey text on a chip fill barely distinguishable from the code surface, with a dashed hairline border on the overflow chips that is lower contrast than the text it encloses. This is the watch-for case exactly: small text at low contrast is a P2 under the tool rubric, not a density win. The contrast also inverts the meaning — the annotation on the current line is bright amber and legible, while the two annotations on the preceding lines are nearly invisible, so the pane implies only line 32 carries values.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/5",
+      "severity": "P2",
+      "location": "identity bar — the four stepping pairs (x≈373-655) against the phase rail (`FETCHING` lit at x≈785-860, `OPENING` x≈865-925, `POSITIONING` x≈930-1030)",
+      "finding": "The rail says the engine is still FETCHING, and the spec makes the buttons' disabled state one of the three carriers of that loading state — but all eight glyphs render at one medium grey with no disabled treatment, so colour communicates nothing about whether stepping is available yet. Compounding it, the two inactive rail chips are grey on a raised grey fill, under the small-text floor, so the one element that does name the state is also the hardest to read.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/6",
+      "severity": "P2",
+      "location": "Transaction pane, EXECUTIONS block — `aztec private function executed client-side; only proofs, nullifiers and commitments are published — no call structure to trace` (y≈735-785)",
+      "finding": "The smallest prose on the page set in a mid-grey that drops it below every other muted string in the pane. It is doing real explanatory work — it is the reason the `Not observable` badge above it is not a failure — and it is the least legible text in the pane, which inverts its importance relative to the metadata labels around it.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/7",
+      "severity": "P2",
+      "location": "provenance banner prose (y≈78-160) versus Code pane body text (y≈403-895) and the identity bar",
+      "finding": "The banner's four sentences are the brightest body text in the shell — brighter than the source in the Code pane and than everything in the identity bar. The emphasis ladder therefore ranks a static, unchanging notice above the live session it introduces. The banner must be legible and must not be apologetic, both of which it achieves; it does not need to be the strongest text-on-surface pair on the page. One emphasis rung down would keep it clearly readable and let the panes take the top of the ladder.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/8",
+      "severity": "P3",
+      "location": "Transaction pane — `Yes` (CANONICAL, y≈439) and `Safe` (FINALITY, y≈471) against `Not observable` (y≈713) and `Trace ready` (y≈804)",
+      "finding": "Two plain metadata values are drawn in the same bordered-chip chrome as the two genuine status badges below them. `Trace ready` earns its chip (it is a state, and it is green); `Yes` and `Safe` are field values. When badge chrome is applied to non-status values the chip stops meaning 'this is a state', and the reader has to fall back on hue to tell which chips are semantic.",
+      "criterion": "B5"
+    }
+  ]
+}
+```

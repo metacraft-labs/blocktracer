@@ -1,0 +1,82 @@
+Expected elements: present
+
+Provenance banner (badge, `aztec` slug, producer sentences), identity bar with chain-targeted exit, truncated hash, `Partial` chip, both stepping directions, scrubber, phase rail, NOIR tag; Code pane positioned at line 32; Call Trace/Event Log as one tabbed region with Call Trace open and seven frames; Values as a separate pane below with content; Transaction pane. Nothing forbidden: no spinner, no empty pane, no prose band above the panes, no full-width pane row, Values not a tab.
+
+In my lens this reads as a competent dense tool that has been *lightened* rather than *designed for light*. The dark theme's elevation steps survive the flip as differences of a few percent against white, so page background, pane header bands, pane bodies and the provenance banner all occupy one lightness plateau and every pane boundary is carried by a hairline alone — clearest at the VALUES/CALL TRACE seam and the CODE pane's left edge.
+
+The role system is the other half. "Changed" is green in the Code pane (`damage: 0→2000`) and amber in Values (`9000`, `2000`), while amber simultaneously means the `Partial` trace status. "Current" is cyan for the code line and the selected frame but dark-grey fill for iteration 3 of 8. Blue splits three ways across the identity bar (meter fill, FETCHING chip, links). The stepping cluster renders at two ink levels with nothing else distinguishing them, so "disabled while loading" is unreadable.
+
+Highest-priority fixes: give the light theme real surface steps, and make one hue mean "changed" in both panes.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "reviewer": "L3",
+  "image": "screenshots/debugger__wide__light.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L3/1",
+      "severity": "P2",
+      "location": "Code pane inline chip on line 32 (`damage: 0→2000`) versus Values pane rows `remaining_shield 9000` and `damage 2000`; and the `Partial` chip in the identity bar and at the top of the Transaction pane",
+      "finding": "One state, \"this value changed at the current step\", is drawn in two different hues in two panes the eye crosses between constantly: a green outlined chip in Code, amber text with an amber left rule in Values. Worse, that amber is the same amber as the `Partial` trace-status chip, so amber means both \"changed here\" and \"this trace is incomplete\" on one screen — and amber is also the code palette's numeric-literal colour forty pixels away (`100`, `1`, `90`). A reader cannot learn a rule from this. Pick one hue for delta and take it out of the status vocabulary.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/2",
+      "severity": "P2",
+      "location": "Whole shell — the seam between the VALUES pane and the CALL TRACE pane above it, the CODE pane's left edge against the page background, and the provenance banner's boundary with the identity bar",
+      "finding": "Page background, pane header bands, pane bodies and the provenance banner all sit within a few percent lightness of white, so surface level carries no information and every pane boundary depends on a single hairline — the exact failing example named in B4. This is the strongest evidence the light theme is inherited by inversion: an elevation step that is clearly visible as a lift on near-black falls below the perceptual threshold when applied as a drop on near-white. The register's own reference (the desktop app) separates panes by surface, not by rule. Light needs its own, larger, step sizes rather than the dark ramp reflected.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L3/3",
+      "severity": "P2",
+      "location": "Code pane current line (line 32) and Call Trace selected row (`calculate_damage`) — both cyan; versus the loop strip's \"Iteration 3 of 8\" selector where box 3 is a dark grey fill",
+      "finding": "\"Current position\" is expressed by a saturated cyan fill in two panes and by a neutral dark-grey fill in the loop-iteration strip, which is also a position readout and sits inside the same pane as one of the cyan marks. Two colours for one role. The cyan itself is off the page's accent family (everything else interactive is blue/indigo) and has the flat, high-chroma pastel quality of a dark-theme selection colour lightened for white — it is the only place this hue appears. Either promote cyan to the single position role and apply it to the iteration selector, or restate position in the accent family.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/4",
+      "severity": "P2",
+      "location": "Identity bar, stepping control cluster between the exit/hash group and the scrubber — the four button groups spanning roughly x370–x660",
+      "finding": "The four stepping groups render at two clearly different ink levels on an identical white surface, with no other differentiator: no fill change, no border change, no reduced opacity on the container. Because the engine is still loading (`FETCHING`), the reader's live question is which controls are disabled, and the answer is unreadable — a lighter glyph on white reads as a lighter icon weight, not as unavailable. Dimming is a dark-theme disabled idiom that does not survive the flip; light needs a disabled treatment that changes more than ink density.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/light/L3/5",
+      "severity": "P2",
+      "location": "Identity bar — scrubber/meter fill, the `FETCHING` chip and its `OPENING` / `POSITIONING` neighbours, and the link-coloured `← aztec` exit, `line 4`, `Self cost` and `101:0`",
+      "finding": "Three distinct blue-family hue angles sit within 900px of one bar: a dark cyan-slate meter fill, a mid-blue chip on a pale blue wash, and an indigo used for links. Brief §2 makes the accent hue family the thing shared across registers; three angles is not a family, it is three accents. The practical damage is that the `FETCHING` chip is chromatically indistinguishable in role from the link-blue actions beside it, so a live engine phase reads as a clickable badge, while the provenance badge at the top of the page uses the same pale-blue-on-blue treatment for a third meaning again.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/6",
+      "severity": "P3",
+      "location": "Identity bar phase rail — `OPENING` and `POSITIONING` to the right of the `FETCHING` chip",
+      "finding": "The two not-yet-reached phase labels are simultaneously the smallest and the lowest-contrast text on the page: uppercase, tracked, roughly 11px, in a light grey on white. B2 explicitly declines to reward density bought at the cost of contrast. The rail is the honest substitute for a progress percentage, so the phases it has not reached still have to be readable for the reader to know what is coming.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/light/L3/7",
+      "severity": "P3",
+      "location": "Code pane header stack — the `CODE` title row, the file-tab row (`Nargo.toml` … `src/shield.nr`) and the \"Showing from line 26 — the session's position is below…\" notice",
+      "finding": "Three stacked bands share one surface tint and one grey text level, so an informational notice about the window is styled identically to structural pane chrome and the whole stack reads as a single three-row header. The notice is content and should sit on the pane body surface, or carry an informational tint, so the reader can tell chrome from message.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L3/8",
+      "severity": "P3",
+      "location": "Transaction pane — the `Yes` (CANONICAL) and `Safe` (FINALITY) chips versus the `Not observable` chip in the EXECUTIONS block",
+      "finding": "The same neutral grey chip carries two opposite kinds of statement: affirmed facts about the transaction, and the absence of observable data. The adjacent green `Trace ready` shows the palette does have a positive tone available, so the greys read as unstyled defaults rather than a chosen neutral role. Distinguishing a fact chip from a not-available chip would let the right column be scanned by colour.",
+      "criterion": "B5"
+    }
+  ]
+}
+```

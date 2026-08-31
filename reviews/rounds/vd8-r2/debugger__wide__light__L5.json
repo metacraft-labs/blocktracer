@@ -1,0 +1,80 @@
+Expected elements: present
+
+Presence check, item by item, all confirmed at 1920x1080: provenance banner first in the shell above the identity bar (badge "Synthetic demo data", chain slug `aztec`, four producer sentences whose tone matches the label); slim identity bar with truncated hash `0xb63616…6359`, `block 101`, and an exit `← aztec` that targets the CHAIN (correct, not a finding); stepping controls in the bar with both directions (◀ ▶ plus step-into/out and jump-to-ends); scrubber at x≈675–935; position readout `128 / 1315`; phase rail; **Code** pane (not Editor) with the current position unmistakable at line 32; Call Trace and Event Log as ONE tabbed region with CALL TRACE open, seven frames, taking the larger share of that column; **Values** pane (not State) below the tabs with fourteen values; TRANSACTION metadata pane. Nothing forbidden: no spinner, no empty pane, no explanatory prose band above the panes, no full-width pane row, Values is not a tab. The NOIR tag is correct here and the cost row reads cleanly as `88000 / 200000 mana (FeeJuice)`.
+
+In register terms the surface is a tool — flush panes, mono chrome, no marketing furniture — but its shared primitives are drawn from two vocabularies at once, and the banner is imported wholesale from the other register. The identity bar itself reads as grouped (identity | controls | scrubber+status | tags), spoiled only by ~330px of void before NOIR.
+
+Highest-priority fixes: redraw the provenance banner as tool chrome, and unify the pane-title face.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "reviewer": "L5",
+  "image": "screenshots/debugger__wide__light.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L5/1",
+      "severity": "P2",
+      "location": "provenance banner, y 22-178, full width",
+      "finding": "The banner is drawn in the explorer/docs register, not the tool register: a floating rounded card with a blue left-accent rail and hairline border, inset on the page canvas with a 22px top margin, its body set in the explorer's geometric sans at body size with generous leading. Every other surface in this shell is a flush pane on a grey title band. Its longest line ends at x=605 inside a card that runs to x=1912, so ~68% of the full-width band it insists on is empty, and it spends 178px (16.5%) of a 1080 viewport before the tool begins. The content is right and belongs here; the drawing is borrowed. A two-line tool-chrome strip carrying the same sentences would return roughly 100px to the panes.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L5/2",
+      "severity": "P2",
+      "location": "Call Trace / Event Log tab strip (x 930, y 261) versus CODE (x 16, y 261), VALUES (x 932, y 759) and TRANSACTION (x 1542, y 261)",
+      "finding": "The pane-title primitive is not one primitive. CODE, VALUES and TRANSACTION are set in the uppercase monospace that is this product's chrome texture; CALL TRACE and EVENT LOG are set in a letterspaced sans, as is the FRAME column header directly beneath them. Four panes, two title faces, and the odd one out is precisely the region this milestone just restructured into tabs — so the change reads as bolted on rather than native. The same split recurs inside one row: FRAME (sans) and ACIR opcodes (mono) at x 1425, y 292.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L5/3",
+      "severity": "P2",
+      "location": "banner badge (x 8-165, y 44) and phase rail (x 1225-1470, y 203) versus the Partial / Yes / Safe / Not observable / Trace ready chips in the identity bar and TRANSACTION pane",
+      "finding": "The status-chip primitive splits in two. The banner badge and the phase rail are fully-rounded pills; every other status chip on the screen is a ~5px-radius rounded rectangle with a tinted fill and matching border. The banner badge is additionally the only English-phrase chip set in monospace, while Not observable and Trace ready are sans. The register's single most load-bearing label — the one that tells the reader this chain is synthetic — is drawn in a badge vocabulary used nowhere else on the surface, which reads as a component from another page rather than a deliberate emphasis.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L5/4",
+      "severity": "P2",
+      "location": "identity bar status region, x 950-1470, y 211",
+      "finding": "The copy contradicts the surface it sits on. 'Engine loading - 18 MB' with FETCHING lit on the phase rail sits inches from a position readout of 128 / 1315, above four panes that are fully populated and pinned at line 32 with values resolved. Both statements are presumably true of a statically rendered session with the engine still hydrating, but the bar never says so, so one half of it announces a state the other half has already left. In a product that treats honesty as a design property, two adjacent readouts describing different states is the copy problem to fix first: qualify the status ('positioned - engine hydrating, 18 MB') rather than leaving the reader to reconcile them.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/light/L5/5",
+      "severity": "P2",
+      "location": "TRANSACTION pane, label column x 1542, y 253-920",
+      "finding": "Three semantic levels reuse one label primitive. The pane title TRANSACTION, the section headings EXECUTIONS / DECODED INPUT / RAW (CHAIN-NATIVE), and the field labels BLOCK / CANONICAL / FINALITY / FEE PAYER / TARGET / COST-MANA / SELECTOR / RAW are all the same uppercase monospace at the same size, weight and grey. Only the title's grey fill band separates chrome from data; the section headings get nothing, so scanning the column FINALITY and EXECUTIONS read as peers when one is a field and one opens a section. The desktop app distinguishes chrome labels from data labels; here the distinction is carried entirely by a background fill.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L5/6",
+      "severity": "P3",
+      "location": "'line 4' (x 184, y 293), '101:0' (x 1867, y 390), 'Self cost' (x 1493, y 493) versus '< aztec' (x 24, y 211)",
+      "finding": "Two link treatments coexist. The three in-pane targets are blue and underlined - the explorer's document-link affordance - while the exit from the register, the one genuine navigation on the page, is blue and not underlined. 'Self cost' is worse placed than the others: it is a pane control sitting in the call trace's footer strip dressed as body-copy hyperlink. Invert the emphasis so the register exit is the thing that looks like a link and in-pane targets use a tool affordance.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L5/7",
+      "severity": "P3",
+      "location": "TRANSACTION pane, 'Status reason: private-part-succeeded-public-part-succeeded', y 347-370",
+      "finding": "The only item in that column set as a running sentence in the sans body face rather than in the pane's label/value grid, and its value is a raw kebab-case enum printed verbatim across two wrapped lines. It is neither the machine token (which would sit in mono in the grid under a STATUS REASON label) nor English prose. Pick one; as drawn it breaks the column's rhythm to deliver a slug.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L5/8",
+      "severity": "P3",
+      "location": "Code pane notice strip, y 358",
+      "finding": "'Showing from line 26 - the session's position is below, and the lines above it are not in this window.' is honest and worth keeping, but it is fourteen words of conversational prose in a register that states itself elsewhere in three ('By call order.', 'ACIR opcodes'). The desktop-app voice for this is nearer 'window starts at line 26'; the current phrasing carries the explorer's explanatory tone into a tool pane.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

@@ -1,0 +1,66 @@
+Expected elements: present
+
+I checked each required item individually and every one is there. Provenance banner: first in the shell, above the identity bar, badge "Synthetic demo data", chain slug `aztec`, three producer sentences whose tone matches the label. Identity bar: `← aztec` (exit targeting the chain, correct), `0xb63616…6359`, `Partial`, `block 101`, both stepping directions plus step-in/out, a scrubber, the readout `128 / 1315`, the phase rail FETCHING/OPENING/POSITIONING, and a NOIR tag. Code pane titled CODE with line 32 marked at the pinned coordinate. CALL TRACE and EVENT LOG as one tab strip with CALL TRACE open, seven frames, holding the larger share of its column. VALUES a separate pane below the strip, ten values. TRANSACTION metadata pane. No spinner, no empty pane, no light chrome, no full-width prose band below the bar, no full-width pane row, Values not in the tab strip.
+
+In register terms this is convincingly the desktop tool: dark, dense, mono-textured, and the copy is specific and unapologetic throughout. Three crossings back toward the explorer voice weaken it: the banner's marketing-grade prose setting, the oversized annotation paragraphs in the TRANSACTION pane, and half of the CALL TRACE region reading as void.
+
+Highest-priority fixes: reset the provenance banner's type to debugger density so it costs ~90 rows instead of ~180, and give the call trace region's dead height back to Code.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "reviewer": "L5",
+  "image": "screenshots/debugger__wide__dark.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L5/1",
+      "severity": "P2",
+      "location": "provenance banner, top of shell above the identity bar",
+      "finding": "The banner is set in the explorer register's typographic voice — proportional body at roughly 15px, a ~600px measure, generous leading, wrapped to four lines — directly above a surface where every other text object is 11-12px caps or mono. The crossing does not read as deliberate; it reads as a marketing block pasted onto a tool, and the boundary between the two voices is the identity bar rather than a designed transition. The content is required and its tone is right, but its presentation is borrowed from the wrong register, and here that borrowing is expensive: the banner consumes ~180 of 1080 rows in the register whose scarcest resource is rows, and the Code pane pays for it (the listing is cut mid-glyph at line 54). The same three sentences at this register's density would occupy two lines and roughly half the height.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/dark/L5/2",
+      "severity": "P2",
+      "location": "TRANSACTION pane, right column — the 'aztec private function executed client-side…' paragraph under EXECUTIONS and the 'This selector is not in any ABI BlockTracer holds…' paragraph under DECODED INPUT",
+      "finding": "Both explanatory paragraphs are set larger and at looser leading than the data they annotate — they outsize the FEE PAYER and TARGET hashes a few rows above them. That inverts the register's rule that the payload is the largest thing in a pane and commentary sits under it; in the desktop app the addresses would dominate and the note would be secondary text. As drawn, the eye lands on the prose first and the identity second, which is the explorer register's priority, not this one.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/dark/L5/3",
+      "severity": "P2",
+      "location": "navigation column, CALL TRACE region between the tab strip and the VALUES pane header",
+      "finding": "Measured: the region runs from the tab strip at y≈250 to the VALUES header at y≈745, about 490px. The last frame (calculate_remaining_shield_pct, 11) ends at y≈480, so roughly 260px — about half the region — is void below it, broken only by the 'By call order. / Self cost' footer at y≈493. A primary navigation region that is half empty reads as a web app with a fixed-height list, not as the information-maximal desktop tool this register is measured against. The height should go to the Code pane, whose listing is currently cut off, rather than sitting unused here.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/dark/L5/4",
+      "severity": "P2",
+      "location": "identity bar, position readout 'Engine loading — 18 MB   128 / 1315', and CALL TRACE header column 'ACIR opcodes'",
+      "finding": "The readout's 1315 is the same quantity the call trace prints as 1,315 in its opcode column, but the bar drops the thousands separator, so one number is formatted two ways on one screen. Worse for tone: the unlabelled '128 / 1315' sits immediately after '18 MB', so it reads as a second byte quantity or a download fraction rather than as position in ACIR opcodes. In a product that commits to never showing an unlabelled or ambiguous quantity, the position readout is the one place that commitment must be visible in the copy.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/dark/L5/5",
+      "severity": "P3",
+      "location": "TRANSACTION pane — the pane title 'TRANSACTION' versus its field labels 'BLOCK', 'CANONICAL', 'FINALITY', 'FEE PAYER', 'TARGET', 'EXECUTIONS'",
+      "finding": "Pane chrome and content labels share one primitive: the same uppercase letterspaced grey at what reads as the same size. The result is that 'TRANSACTION' does not announce itself as the pane's name — it reads as the first row of a label list. Across the rest of the shell (CODE, CALL TRACE, VALUES) the same primitive does announce a pane, so the vocabulary is doing two jobs and is only unambiguous where no field labels sit beneath it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L5/6",
+      "severity": "P3",
+      "location": "identity bar, right third — 'Engine loading' status text, the phase rail, the NOIR tag and the two icon buttons at the far right edge",
+      "finding": "The bar's left two-thirds read as grouped: hairline rules separate identity from the stepping cluster and the stepping cluster from the scrubber. The right third has no such structure — status text, phase rail, language tag and the share/download pair sit as four unrelated objects, with a wide unexplained gap between the phase rail and NOIR. The bar therefore reads as designed on the left and assembled on the right, which undercuts the grouped-toolbar convention the desktop app establishes.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

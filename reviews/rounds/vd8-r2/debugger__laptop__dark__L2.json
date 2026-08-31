@@ -1,0 +1,81 @@
+Expected elements: REPLACED — "A timeline or scrubber expressing position within the trace" by the bare `128 / 1315` fraction readout in the identity bar
+
+The rest of the backbone is in place and correctly arranged: provenance banner first and full-width above the identity bar, one row of two columns below it with no full-width pane and no page scrollbar, Code beside a tabbed Call Trace / Event Log region with Values as a separate pane under it, and the Transaction pane as a third column. No spinner, no empty pane, no prose band under the banner. But the tick scrubber is suppressed below 1780px, so at 1440 nothing expresses extent — that is finding 1, P1, and it caps the rating at 4.
+
+The two-column split is sound and Code keeps a usable measure. The vertical budget is where it loses. The banner takes the top 20% of the viewport for a four-sentence notice on a ~600px measure in a 1440px band; Code spends four stacked header rows before its first line; the Call Trace region holds ~140px of dead space below its last frame while the Values pane beneath it is bisected by the viewport edge; and the pane column has no bottom gutter where the other three edges have 8px. The bar does not wrap here — it is one row with a single 280px void.
+
+Highest-priority fixes: restore the bottom gutter, and move height from the Call Trace region to Values.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "reviewer": "L2",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "expectedElements": "replaced",
+  "missing": [
+    "A timeline or scrubber expressing position within the trace — the tick scrubber is suppressed at this viewport; only the `128 / 1315` fraction remains, and that is separately required as the position readout"
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L2/1",
+      "severity": "P1",
+      "location": "identity bar, the gap between the last stepping pair (ends x≈655) and `128 / 1315` (x≈672-757)",
+      "finding": "No timeline or scrubber renders at 1440. The element that occupies that slot at 1920 is dropped below 1780px to make the bar fit one line, so the width shortfall was resolved by deleting a must-show element rather than by rebalancing the bar. The bar as captured has a ~280px void between the phase rail (ends x≈1030) and the NOIR/share/download cluster (x≈1320-1415) — the room the scrubber needed is on the line, just in the wrong place."
+    },
+    {
+      "id": "debugger/laptop/dark/L2/2",
+      "severity": "P2",
+      "location": "bottom edge of the shell, y=900 — Code pane last row (line 46), Values pane last row (`regeneration 1000`), Transaction pane (below `RAW 0x`)",
+      "finding": "The pane column terminates flush at the viewport edge with no bottom gutter and no visible pane border, while the top, left and right edges all carry an 8px gutter. All three panes' last rows are bisected mid-glyph by the viewport rather than by a pane boundary, so the column reads as overhanging the viewport rather than as three scroll regions ending at a designed edge. The asymmetry is the tell: a pane that scrolls should still show its own bottom rule inside the gutter.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/3",
+      "severity": "P2",
+      "location": "Call Trace region (y≈248-635) versus the Values pane below it (y≈637-900)",
+      "finding": "The measurement the watch-for item asks for: the region is ~387px tall, its seventh and last frame ends at y≈480 and the `By call order. / Self cost` footer sits at y≈493, leaving ~140px — 36% of the region — empty. Directly below, Values shows eleven rows and bisects the twelfth at the viewport edge with more below the fold. The height is in the pane that has run out of content and starved from the pane that has not; the split should favour Values at this viewport.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/4",
+      "severity": "P2",
+      "location": "provenance banner, y≈0-180, prose block x≈12-610 within the 1440px band",
+      "finding": "The banner takes the top 20% of a 900px viewport, and it spends it badly: the four sentences are set to a ~600px measure at the far left, so roughly 800px of the band is empty while the panes below are the register's scarcest resource. The banner is correctly full-width and correctly first — the cost is fair to raise, and it is being paid for whitespace rather than for content. Two columns of prose, or the badge and slug on the same line as the first sentence, would return ~60px to the pane column.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/5",
+      "severity": "P2",
+      "location": "identity bar, y≈190-232 — clusters at x≈12-340 (identity), 373-655 (controls), 672-757 (readout), 785-1030 (phase rail), 1320-1415 (NOIR / share / download)",
+      "finding": "The bar does not wrap at 1440; it is one row. But proximity does no grouping work across it: the four functional clusters in the middle are separated by roughly equal 18-30px gaps, so identity, controls, readout and rail read as one undifferentiated run, and then a single ~280px void detaches the two actions at the far right. The only grouping that reads is inside the stepping pairs (~4px within a pair, ~12px between pairs). Either the void should be distributed as inter-cluster separation, or the clusters need rules like the one after `block 101`.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/6",
+      "severity": "P2",
+      "location": "Code pane header stack — title row y≈252-272, loop row y≈280-308, file-tab row y≈316-338, notice row y≈350-386; first code line at y≈403",
+      "finding": "Four stacked header bands consume ~155px, 17% of the viewport height, before the first line of code. The Call Trace region beside it reaches its first data row at y≈317. Below the banner's 180px that is 335px of the shell spent before the pinned line, and the current position at line 32 ends up in the vertical middle of the screen with only six lines of context above it. The notice row in particular is a full-width two-line paragraph inside the pane that could be a single line beside the file tabs.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/7",
+      "severity": "P2",
+      "location": "Values pane, value column — scalars right-aligned to x≈1024 (`10000`, `9000`, `10`, `200`, `90`, `2000`) versus the `masses` array left-aligned from x≈775 (y≈741-780)",
+      "finding": "One column with two alignment rules. Every scalar hangs off a shared right edge, and the single array value starts at a left edge nothing else shares and wraps to a second line whose `14]` sits alone under the middle of the row. The result is that the one multi-line row also breaks the column's right edge and doubles the row height, so the pane's rhythm and its alignment both fail at the same row.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/8",
+      "severity": "P3",
+      "location": "Code pane loop row, y≈280-308 — label `LOOP iterate_asteroids line 4 Iteration 3 of 8` ends x≈358, iteration chips start x≈367",
+      "finding": "The label and the eight iteration chips are separated by ~9px, barely more than the ~4px gap between adjacent chips, so `of 8` reads as if it were part of the chip strip. The chips are also pinned to the pane's right edge at x≈677 with no trailing padding, while the label starts at the pane's 14px left inset. Two different edge treatments on one row.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

@@ -1,0 +1,70 @@
+Expected elements: present
+
+Every Must-show item renders: fixed nav with brand and resolver field; the affirmative `Real Aztec mainnet data` banner with the `aztec-mainnet` slug and the producer's sentences, inset in the content column above an aligned breadcrumb; the `Not observable` badge with the published pruning reason located in the chain's retention; full hash, `Succeeded`, and an Overview carrying block, canonicality, finality and cost; Internal calls and State changes both saying "empty permanently, not yet"; the provenance strip with all three marks drawn (heart in accent purple, not emoji), and the footer with the neutral synthetic-or-captured disclosure closing the page. No Must-not-show item appears: no debug/generate/retry affordance, no trace reference, no danger tone, no blame.
+
+In register terms the page belongs to the 2026 web direction — light canvas, near-black type, restrained pills, monospace as texture. What breaks the belonging is the copy.
+
+P1: the Decoded input note describes a different state than the table renders. SELECTOR is correctly em-dashed absent and RAW is empty, yet the note claims raw bytes are shown and that supplying an ABI decodes them — a remedy that cannot succeed, on the one page whose thesis is permanence.
+
+P2s: `COST · TRANSACTIONFEE` leaks the adapter's camelCase field name where the synthetic chain says `MANA`; `transaction(s)`/`block(s)` pluralisation stubs appear three times; the banner shouts one clause in caps and defends itself twice; and its capture-strategy sentence relocates the limitation into our tooling.
+
+Fix the ABI note first, then the label.
+
+Rating: 4/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/1",
+      "severity": "P1",
+      "location": "Decoded input section — the note card beneath the SELECTOR/RAW table, approx. x 504-1202, y 1512-1584 in the 1920x2872 image",
+      "finding": "The note reads \"This selector is not in any ABI BlockTracer holds, so the parameters are shown as raw bytes. Supplying an ABI decodes them.\" but the table directly above it renders SELECTOR as an em dash (correctly: no selector exists) and RAW as an empty `0x`. No raw bytes are shown, there is no selector to miss in an ABI, and supplying an ABI would decode nothing. This is generic unknown-selector copy firing on an absent-payload state, so one state is presented as a different state and a remedy is offered that cannot succeed. On the one page in the product whose entire thesis is \"a permanent answer rather than a failed fetch\", a sentence telling the reader an action on their part would produce more data contradicts the page's central claim in its own voice. Gate the note on an actual unknown-selector value, and when the payload is empty say so — \"this transaction publishes no calldata\" — in the value slot instead of a fallback prefix plus an inapplicable explanation.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/2",
+      "severity": "P2",
+      "location": "Overview table, fourth row, label cell — `COST · TRANSACTIONFEE`, approx. x 504-668, y 1192-1240",
+      "finding": "The label's second half is the adapter's raw camelCase field name `transactionFee`, uppercased by the label style into the unreadable single run `TRANSACTIONFEE`, which also forces this row's label to wrap to two lines while BLOCK, CANONICAL and FINALITY sit on one. The pattern the row belongs to is `COST · <unit>` — the synthetic chain fills that slot with a tidy `MANA`. Here an internal identifier from the ingestion layer has reached a marketing-grade surface, and it is the only label on the page that is not product vocabulary; a reader learns the shape of our adapter rather than the name of the thing they are paying. The value cell compounds it: a 44-zero-padded 32-byte hex string followed by `mana (FeeJuice)`, i.e. the wire encoding plus two competing unit names. Map the field to the chain's own display unit (`MANA`) in the label and render the amount as a decimal quantity in that unit.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/3",
+      "severity": "P2",
+      "location": "Provenance banner, lines 5-6 (\"settled 20 transaction(s)\", \"7 block(s) below the window\") and the Not observable card, line 4 (\"6 block(s) below it\")",
+      "finding": "The parenthesised plural stub `(s)` appears three times across the page's two most important pieces of copy — the banner that establishes this data is real, and the reason that establishes the trace can never exist. It is an unmistakable engineering tell: no shipped web surface in the 2026 direction writes \"20 transaction(s)\". It lands hardest here because these are precisely the two sentences the product asks the reader to believe, and a template artefact in them makes them read as machine output rather than as a statement someone stands behind. Pluralise properly in the producer's string formatting (\"20 transactions\", \"7 blocks\", \"6 blocks\"), handling the singular case rather than deferring it to the reader.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/4",
+      "severity": "P2",
+      "location": "Provenance banner, sentences 2-3 — \"NO TRANSACTION INSIDE IT WAS REPLAYABLE, so this chain publishes real blocks and real transactions and no traces. That is what the capture found, not a failure to record.\"",
+      "finding": "One clause is set in full capitals inside eight lines of otherwise sentence-case prose, and it is immediately followed by a denial (\"not a failure to record\"). The banner is the affirmative-tone element on the page — its job is to state calmly that this data is real — and shouting plus self-defence gives it the voice of an incident notice, which is the opposite of the register the page needs and the opposite of what the rest of the page achieves. The denial is also redundant: the Not observable card twenty lines below already carries the spec-mandated \"a permanent answer rather than a failed fetch\", so the page defends itself twice before it has finished explaining itself once. Drop the capitals to sentence case and let the fact carry its own weight; if emphasis is wanted, use the type system's weight, not caps lock.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/5",
+      "severity": "P2",
+      "location": "Provenance banner, line 7 — \"Catching one needs a follower that watches the tip continuously rather than a single scan.\"",
+      "finding": "This sentence is addressed to whoever maintains the capture tooling, not to someone looking up a transaction: it is a roadmap note about our own ingestion method sitting in the element whose job is to describe the chain. Beyond the audience mismatch it works against the page's required framing. The transaction-level reason correctly locates the limitation in the chain's retention (getTxByHash prunes at the finalized tip), but this line tells the reader that a differently-built capture would have caught replayable transactions — so a reader assembling the two accounts concludes the shortfall is ours after all, on the page whose brief explicitly requires that nothing here reads as our failure. It stops short of a Must-not-show violation because it is scoped to the 400-block enumeration rather than to this transaction, but it is the one sentence pulling against the rest. Move the capture-methodology note to the chain page or an operations log and leave the banner describing what the network published.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/6",
+      "severity": "P3",
+      "location": "Events section, empty-state card (approx. y 1780-1850) read against the identically-styled Internal calls and State changes cards below it",
+      "finding": "Three visually identical empty-state cards run down the page, but two speak in the permanent tense (\"empty permanently, not yet\") and the middle one speaks in the pending tense (\"They appear here once this chain's receipts are published\"). The information is defensible — receipts are not a trace and could genuinely arrive — but the shared card treatment invites the reader to take the three as one message, and one forward-looking promise in that set softens the permanence the page is built to communicate. Either differentiate the pending card visually from the permanent ones, or make the events copy state the same kind of fact the others do — what this chain publishes today, rather than what it might publish later.",
+      "criterion": "A9"
+    }
+  ]
+}
+```

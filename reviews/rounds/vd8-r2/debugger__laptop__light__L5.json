@@ -1,0 +1,75 @@
+Expected elements: MISSING — a timeline or scrubber expressing position within the trace.
+
+The rest of the shell is present and correct: provenance banner above the identity bar with badge, `aztec` slug and the producer's own sentences; a slim identity bar with an exit that targets the chain; Code positioned at line 32; Call Trace and Event Log as one tabbed region with Call Trace open; Values as a pane below the tabs; the Transaction pane. Nothing forbidden. The `NOIR` tag is right on this session and the cost row reads cleanly. But no timeline or scrubber is drawn anywhere — the identity bar goes straight from the stepping groups to the `128 / 1315` readout. That is finding 1, it is P1, and the rating is capped at 4.
+
+On register: the pane vocabulary is the desktop app's — Code, Call Trace, Event Log, Values, in that arrangement — and the sanctioned crossing holds, the Noir listing reading in CodeTracer editor tokens rather than a generic web highlighter. Two things break the continuity. The timeline is a signature primitive of the desktop tool and this surface no longer has one. And the provenance banner, which must be here, is dressed as an explorer-register page section — pill badge, body-face prose at a marketing measure, 178px of band — so the surface opens in the wrong register before the tool starts.
+
+Highest-priority fixes: restore a position graphic at this width, and set the banner in the tool's own density.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "reviewer": "L5",
+  "image": "screenshots/debugger__laptop__light.png",
+  "expectedElements": "missing",
+  "missing": [
+    "A timeline or scrubber expressing position within the trace."
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L5/1",
+      "severity": "P1",
+      "location": "identity bar, between the stepping groups (ending x≈655) and the `128 / 1315` readout (x≈672)",
+      "finding": "There is no timeline and no scrubber on this surface. Position in the trace is stated only as a fraction. Beyond the presence rule, this is the sharpest continuity break with the CodeTracer desktop application on the page: the timeline is one of the tool's signature primitives, it is what a returning desktop user looks for first to orient inside a 1,315-step recording, and a web session that prints a fraction instead is a reinterpretation that has to be relearned. It is also inconsistent within this product — the same view renders one at the wide viewport — so the primitive exists and is being withheld at the width most laptops will open the product at.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/light/L5/2",
+      "severity": "P2",
+      "location": "provenance banner, y 0-178, above the identity bar",
+      "finding": "The banner belongs here and its content is right, but it is drawn in the explorer register: a rounded pill badge, four lines of body-face prose set at a ~580px measure with marketing leading, and 178px of band — 20% of the viewport — before any tool chrome appears. Nothing else on the page is set that way; the panes below it are dense, small-type and hairline-bounded. The first screenful therefore opens as a web page and becomes a debugger only at y=186, which inverts the deliberate, visible transition §3 asks for at this boundary. Set the sentences at the band's own width, in the pane type scale, with the badge and slug on the same line, and the banner reads as the tool's own statement rather than as a section pasted in from the marketing surface.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/light/L5/3",
+      "severity": "P2",
+      "location": "Transaction pane, `Status reason` row, y≈352-393",
+      "finding": "The row reads `Status reason: private-part-succeeded-public-part-succeeded` — a raw wire enum, in kebab case, wrapped over two lines, presented as user-facing copy. Every other sentence on this page is written in product English, including the paragraph six rows below it (`aztec private function executed client-side; only proofs, nullifiers and commitments are published — no call structure to trace`), which is exactly the tone this product's copy is meant to have. One row leaks the serialisation vocabulary into the surface, and it is the row explaining a `Partial` outcome, so it is the row a confused reader goes to. Say it in words: the private part succeeded and the public part succeeded.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/light/L5/4",
+      "severity": "P3",
+      "location": "identity bar, far right: the two action marks at x≈1360-1415 versus the eight stepping buttons at x≈370-655",
+      "finding": "One class of affordance is drawn in two shapes on one strip. The eight stepping controls are square-cornered glyph buttons; the share and download actions immediately to their right are circles, and they are the only circular elements anywhere on the page. Whatever the rank difference between stepping and exporting, it should not be carried by a shape the rest of the product does not use — the circles read as borrowed chrome sitting at the end of the tool's own control strip.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/light/L5/5",
+      "severity": "P3",
+      "location": "`Partial` badge, identity bar x≈205 and Transaction pane header x≈1188",
+      "finding": "The same outcome badge appears twice on one screen at two sizes and two weights, 1,180px apart. The duplication itself is defensible — the bar states identity, the pane states metadata — but the two instances should be one primitive at one size, and here the pane's copy is visibly the larger and heavier of the two, which ranks the metadata restatement above the identity bar's.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/light/L5/6",
+      "severity": "P3",
+      "location": "phase rail, identity bar x≈785-1030 (`FETCHING` chip active)",
+      "finding": "The rail marks FETCHING as the phase in progress while every pane around it is fully populated — code at the pinned line, seven frames, eleven values. That is truthful for a still frame whose engine has not loaded, and the rail is the right vocabulary for saying it, but nothing else on the surface carries the same message: the eight stepping buttons beside it do not read as inert at a glance, so the honest fact has to be inferred from a three-word chip. The rail's claim and the controls' state should read as one statement, not two.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/light/L5/7",
+      "severity": "P3",
+      "location": "Code pane, line 41 comment in `src/shield.nr`",
+      "finding": "The fixture's own source comment reads `// shields regain a percentage of the maxium capacity after each …` — `maxium` for `maximum`. The demo tree is authored content and this listing is the flagship surface's centrepiece, so the typo is the product's copy, not a user's. It is one character in a fixture and costs nothing to fix.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

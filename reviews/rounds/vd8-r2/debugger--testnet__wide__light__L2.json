@@ -1,0 +1,89 @@
+Expected elements: present
+
+All MUST SHOW items are on screen: the affirmative `Real Aztec testnet data` banner above the identity bar naming `aztec-testnet`, its endpoint, moment and the 63629–63678 replay window; an identity bar with a real hash, `block 63675`, both stepping directions, `128 / 345`, the phase rail and an exit that lands on the chain; instruction-level explanations in Code, Call Trace and Values; `Supply sources`; and replay telemetry with `effectsMismatched: 0`. Nothing forbidden: no invented source, no fixture content, no unexplained blank pane, no failure banner. The shell fits 1080 exactly — no page scroll, no overhang, no clipped band.
+
+Structurally the layout is sound; what is wrong is how the space is allocated and how many left edges it uses.
+
+Worst: the split gives 1523px of width to eight lines of prose while the 390px Transaction pane — the only pane holding data — is the only one whose content overflows. Second: the banner spends 200 of 1080 rows to set a 600px measure inside a 1912px card, leaving two-thirds of it empty in the register where rows are scarcest. Third: the fee row wraps to four lines and breaks the pane's label/value grid. Fourth: four different left edges down the page (11 / 14 / 20 / 23). Fifth: the active phase segment's fill does not match its container radius and reads as a stray glyph.
+
+Highest-priority fixes: reflow the banner to its available width, and widen the Transaction column at this viewport.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "reviewer": "L2",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L2/1",
+      "severity": "P2",
+      "location": "three-column pane split: CODE pane (x4-917, y269-1075), CALL TRACE (x922-1527, y269-750), VALUES (x922-1527, y757-1075), TRANSACTION (x1532-1915, y269-1075)",
+      "finding": "The split allocates 1523px of width to eight lines of prose and 383px to everything the session actually knows. The CODE pane is a 913x806 region holding four lines and one button, roughly 93 percent empty; CALL TRACE holds two lines in 605x481; VALUES holds two lines in 605x313. Meanwhile the TRANSACTION pane is the only pane with data and is the only one that runs out of room: its RAW (CHAIN-NATIVE) block reaches the pane's bottom border at y1075 with the JSON object still unclosed, and its fee value wraps three times purely because the column is narrow. This is the starved-pane-beside-an-empty-pane case in B4. For a session with no source, either widen the right column (a 560-620px TRANSACTION column would end the fee wrap and show the rest of the replay object) or let the empty CODE pane yield width, so the split responds to what this trace actually contains.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/2",
+      "severity": "P2",
+      "location": "provenance banner card (x4-1918, y20-200); its prose occupies only x11-610",
+      "finding": "The banner is 180px tall plus a 20px margin above it — 200 of 1080 rows, 19 percent of the viewport — and its paragraph is set to a roughly 600px measure inside a 1912px card, so x610-1910 (68 percent of the band) is empty. It pays full-width cost for third-width content, and those rows come straight out of the panes in the one register where vertical space is the scarcest resource. Reflow the sentences across the available width, or set the badge and slug in a left column with the prose in one or two columns beside them: at a 1200px measure the same text is two or three lines instead of six and returns roughly 90-100px to the pane grid without dropping a word of provenance.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/3",
+      "severity": "P2",
+      "location": "TRANSACTION pane, COST · TRANSACTIONFEE row (label at x1541 y480; value block x1712-1907, y476-532)",
+      "finding": "The raw 66-character hex fee wraps into three right-aligned lines plus a fourth line for 'mana (FeeJuice)', making this row about 72px tall against 30px for BLOCK, CANONICAL and FINALITY directly above it. The label sits alone on the first of four lines, so the label/value pairing that governs every other row in the pane is lost, and because the block is right-aligned its left edge is ragged (lines 1-2 begin at x1712, line 3 at x1766) — the eye has no column to follow. The wrap points fall mid-byte. Fix the row rather than the string: give the value a fixed left-aligned column and wrap on byte or 16-character boundaries, or middle-truncate as the hashes already do, so the row returns to the pane's single-line rhythm.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/4",
+      "severity": "P2",
+      "location": "left margin of the shell, top to bottom: banner body text x11, CODE pane header label x14, CODE pane body text x20, identity-bar back-link '← aztec-testnet' x23",
+      "finding": "Four different left edges within 12px of each other and none of them shared, so scanning down the left side of the page nothing lines up. The stagger has three separate causes: the banner card uses about 7px of inner padding where the pane cards use 15px for body content; the identity bar is not a card and carries its own 23px inset; and within a single pane the header label (x14) and the body text it heads (x20) are 6px apart, which is a misalignment inside one component. Pick one content edge for the shell — the pane body edge at x20 is the natural one since it governs the largest area — and set the banner padding, the identity-bar inset and the pane header label to it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/5",
+      "severity": "P2",
+      "location": "identity bar, phase rail, active FETCHING segment (container x1313-1571, y221-245; artifact at x1313-1317)",
+      "finding": "The active segment's blue fill is inset from the container's pill border and its corner radius does not match the container's, so at the rail's left end a 2px dark-blue arc sits outside the fill, separated from it by a white sliver. At 100 percent this reads as an opening parenthesis before the word FETCHING — a layout artifact that scans as a text character in the page's primary state indicator. Clip the active fill to the container (inherit the pill radius on the first and last segments, or apply overflow clipping on the rail) so the highlight meets the border with no gap.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/6",
+      "severity": "P3",
+      "location": "CODE pane (content ends y511, pane ends y1075), CALL TRACE (content ends y353, pane ends y750), VALUES (content ends y833, pane ends y1075)",
+      "finding": "Asked whether the empty regions read as deliberate: yes, but only just. Each pane is framed and titled, so none reads as a failed render, and the emptiness itself is correct. What is weak is the composition — all three place their explanation flush to the pane's top-left and leave 397px, 397px and 242px of unanchored space below it, so the eye is pulled to the top-left corner of a large void three times. Anchoring each explanation as a bounded notice block (a bordered or tinted card at a fixed measure, optionally centred in the pane's upper third) would make the empty area read as a designed state rather than as content that stopped early, without showing one word less.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/7",
+      "severity": "P3",
+      "location": "identity bar, stepping-control cluster (x473-758, y221-245): four button pairs at x473-530, x546-598, x616-678, x696-758",
+      "finding": "The four control groups have three different widths (57, 52, 62 and 62px) because each button is sized to its glyph rather than to a fixed control size; individual buttons run 26 to 32px, a 23 percent spread across eight buttons of the same class. The gaps between groups are consistent at 16-18px, so the irregularity reads as the buttons themselves being uneven. Set one fixed min-width for the icon buttons so the cluster has a single horizontal rhythm.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/8",
+      "severity": "P3",
+      "location": "CODE pane, 'Supply sources' button (left border x13.7, y488-511) versus the prose above it (x20.8)",
+      "finding": "The button's left edge sits about 7px left of the paragraph it answers; it happens to line up with the pane header label at x14 instead. Since it is the pane's only interactive element and its whole job is to be the route out of the limitation the prose describes, it should share that prose's left edge. Align the button to the pane body edge.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/9",
+      "severity": "P3",
+      "location": "shell outer margins: 20px of page background above the banner card (y0-20) versus 4px at the left and right edges and 5px column gutters",
+      "finding": "The outer margin is 20px on top and 4px on the sides, and the internal gutters are 5px, so the shell's own frame uses three values that are not on one scale. In a register that fits its whole layout into 1080px the 20px band above the banner is also the most expensive of the three. Bring the top margin onto the same step as the side margins and gutters.",
+      "criterion": "B1"
+    }
+  ]
+}
+```

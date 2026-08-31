@@ -1,0 +1,66 @@
+Expected elements: present
+
+Every must-show item renders and no must-not-show item appears. The affirmative `Real Aztec mainnet data` banner sits inset with `aztec-mainnet` and the producer's sentences; `Not observable` carries the published pruning reason; Overview shows block, canonicality, finality and cost; internal calls and state changes both say "permanently, not yet"; footer, provenance strip and all three marks are drawn in visible indigo. A full-page hue histogram finds exactly two chromatic families — green and indigo — and zero red or amber pixels, so the must-not-show "error colour or danger tone" is cleanly satisfied. Every text-on-surface pair I measured clears AA: lowest is the nav placeholder #565656 on #dddddd at 5.4:1; body prose runs 9.2–15.5:1. This is a designed light theme, not an inverted dark one.
+
+The colour issues are role assignment, not palette. Green marks three affirmative facts but the adjacent `CANONICAL: Yes` — equally affirmative — is a neutral pill, so no rule governs which facts get chromatic reinforcement. Worse, the page's headline state is its palest chip: `Not observable` is white-on-white with a hairline while routine metadata shouts green, inverting emphasis against meaning. Containers use three unmapped treatments, and the Raw panel's fill equals the canvas exactly.
+
+Highest-priority fixes: give `Not observable` a distinct non-alarming strong-neutral tone, and settle one rule for when an affirmative value earns green.
+
+Rating: 7/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/1",
+      "severity": "P2",
+      "location": "state card, `Not observable` badge, versus the `Succeeded` badge beside the hash and the `Finalized` badge in the Overview table",
+      "finding": "Colour emphasis runs opposite to information weight. The page's headline state is its lowest-emphasis chip — white fill, #c8c8c8 hairline, #565656 text — while three routine facts carry saturated green (#dcfce7 fill, #16a34a border, #166534 text). A reader scanning by colour sees three affirmative chips and misses the one statement the page exists to make. Give the not-observable state its own strong-neutral tone — a filled neutral at the green chips' saturation weight, e.g. a #e4e4e4 fill with a #767676 border and #242424 text — so it is the most emphatic chip on the page without borrowing an alarm hue.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/2",
+      "severity": "P2",
+      "location": "Overview table, CANONICAL row versus FINALITY row",
+      "finding": "Green is applied to affirmative values inconsistently within one grid. `Finalized` is a green pill and `Yes` — one row above, equally affirmative — is a neutral #f3f3f3 pill with identical border and text colours. Nothing on the page states which affirmative facts earn chromatic reinforcement, so green reads as decoration rather than a role. Pick one rule: either every affirmative enum value is green, or green is reserved for a named axis (consensus state only) and canonicality plus outcome revert to neutral.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/3",
+      "severity": "P2",
+      "location": "Raw (chain-native) panel, versus the Events / Internal calls / State changes notes and the Overview table",
+      "finding": "Three container surface treatments coexist with no mapping to what they hold: shadowed white (provenance banner, state card, Overview and Decoded input tables), flat white with a #a2a2a2 hairline and no shadow (the four prose notes), and outline-only whose fill is #ececeb — pixel-identical to the page canvas — for the Raw JSON panel. The Raw panel therefore has zero fill contrast against the page and reads as a stray outline rather than a surface. Either give it the flat-white fill the other panels use, or, if a recessed code well is intended, take it at least two steps below canvas (around #e0e0df) so the recess is visible and define which containers are raised and which are recessed.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/4",
+      "severity": "P3",
+      "location": "Overview and Decoded input tables, label column; and the resolver field in the fixed nav",
+      "finding": "The label-column fill is #dddddd, which is darker than the page canvas #ececeb, so a sub-cell inside an elevated white card sits below the un-elevated page background and the elevation ramp is not monotonic. The same #dddddd is also the nav resolver input's fill, giving one surface token two jobs — table label cell and text input. Lighten the label cell to sit between canvas and card (around #f3f3f3, the token the `Yes` pill already uses) and keep #dddddd for input fills only.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/5",
+      "severity": "P3",
+      "location": "footer provenance strip, the heart in `Built with <heart> by`; and the Chains / About links in the fixed nav",
+      "finding": "The accent indigo #4f46e5 carries the link role everywhere in content — breadcrumb, the `67113:0` block link, all four footer links — but has exceptions in both directions: the heart glyph is the same #4f46e5 while being non-interactive, and the nav's Chains and About links are #484848 with no underline. Decide whether indigo is the link colour, then tint the heart off the accent (a body-text or muted-accent fill) and either promote the nav links to the link colour or record chrome-grey as a deliberate nav treatment.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L3/6",
+      "severity": "P3",
+      "location": "state card, second paragraph (the getTxByHash pruning reason); and the provenance banner body copy",
+      "finding": "The two passages the expectation block grades as content sit at the page's lowest content emphasis. Inside the state card the generic lead sentence is #242424 while the published pruning reason below it is #484848, demoting the substantive text under the boilerplate; the banner's producer sentences are also #484848, the same token as the footer's fine print. Contrast is fine (9.2:1), but the emphasis ladder argues against the content. Set the published reason and the banner body at #242424 and reserve #484848 for genuinely secondary copy.",
+      "criterion": "A4"
+    }
+  ]
+}
+```

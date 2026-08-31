@@ -1,0 +1,73 @@
+Expected elements: present
+
+Every §4 must-show item is present and legible: nav with resolver, the affirmative `Real Aztec mainnet data` banner with slug and producer sentences, breadcrumb, full hash plus `Succeeded`, the `Not observable` badge with the published pruning reason, Overview with block/canonicality/finality/cost, all six sections in permanent tense, the provenance strip with all three marks drawn, the correct footer disclosure. Nothing forbidden. Typographically the page reads as correct rather than broken: four clean levels (≈35 px mono title / 24 px section heads / 15 px body at 22 px leading / 12 px tracked caps labels), mono confined to values.
+
+Findings. The two worst are in the Overview cost row: the value is a 32-byte hex word with ~50 leading zeros set unbroken, so the magnitude is unreadable and the meaningful digits sit at the far right edge of the cell — while the title and breadcrumb elide hashes; and its label, the adapter's camelCase field uppercased to `TRANSACTIONFEE`, loses its only word boundary, wraps, and doubles that row's height. The footer disclosure runs ~129 characters per line where every other paragraph is capped near 85. In the `Not observable` card, paragraph leading is 25 px against a 22 px line, so the published reason — the page's whole point — is typographically indistinguishable from the framing sentence above it.
+
+Highest-priority fixes: format the fee as a quantity (or elide it like every other hash) and de-camelCase the label; give the reason paragraph real separation.
+
+Rating: 6/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "reviewer": "L1",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/1",
+      "severity": "P2",
+      "location": "Overview table, COST · TRANSACTIONFEE row, value cell",
+      "finding": "The fee is set as an unbroken 66-character mono run, `0x0000…(50 zeros)…175c1a29c1f97278 mana (FeeJuice)`: roughly three quarters of the glyphs are padding and the eight characters that carry the magnitude sit at the far right of a ~890 px cell, so the row cannot be read as a quantity at any glance. The page elides hashes everywhere else (title `0x1c37…0410`, breadcrumb) but applies neither elision, digit grouping nor decimal conversion to the one value that is a number. Render the amount as a formatted decimal in tabular figures with the unit after it, and keep the raw word for the Raw (chain-native) block or a title attribute.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/2",
+      "severity": "P2",
+      "location": "Overview table, label column, fourth row (`COST · TRANSACTIONFEE`)",
+      "finding": "Uppercasing the adapter's camelCase field name destroys its only word boundary: `transactionFee` becomes the 14-character unspaced token `TRANSACTIONFEE`, which no longer scans as two words in a tracked all-caps label. It then wraps onto a second line, making this row ~52 px tall against ~27 px for BLOCK, CANONICAL and FINALITY, so the label column's rhythm breaks on its last row. Split the identifier on case (`COST · TRANSACTION FEE`) or map it to a display label; the label column is not wide enough to absorb an unbreakable token.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/3",
+      "severity": "P2",
+      "location": "footer, the \"No account, no tracking…\" disclosure paragraph",
+      "finding": "This paragraph is the only prose on the page with no measure cap: it runs the full ~910 px content width at ~129 characters per line, nearly double the readable maximum and half again the ~85-character measure that the provenance banner and every card body already hold to (the banner wraps at ~611 px inside the same 910 px card, so a max-width exists there and simply is not applied here). Give the disclosure the same prose max-width as the banner.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/4",
+      "severity": "P2",
+      "location": "`Not observable` card, the break between \"…The published reason states why.\" and \"The node still serves this transaction's effects…\"",
+      "finding": "Line pitch inside a paragraph is 22 px and the pitch across the paragraph break is 25 px, so a 3 px difference is the only signal that the second block is a different voice — the published chain reason reads as a continuation of BlockTracer's framing sentence. On the one page whose entire job is to make the REASON the takeaway, the reason gets no typographic distinction at all: no extra leading, no weight change, no attribution treatment. Separate the two paragraphs by a full line, and set the quoted chain reason apart (indent, rule, or a lighter/secondary emphasis level).",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/5",
+      "severity": "P3",
+      "location": "page header, `0x1c37…0410` title and the full-hash line directly beneath it",
+      "finding": "The largest type on the page (~35 px mono) is an abbreviation of the ~15 px line immediately below it, so the H1 carries strictly less information than its own subtitle and the two lines compete for the same role. Either promote the full hash to the title at a size that fits the column, or keep the elided title and demote the full value to a copy-on-demand affordance rather than a second full-width line of the same string.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/6",
+      "severity": "P3",
+      "location": "section headings — Events, Internal calls, State changes",
+      "finding": "All six section headings (Overview, Decoded input, Events, Internal calls, State changes, Raw) are one size, weight and colour, but only four are preceded by a horizontal rule; Internal calls and State changes have none. Without reading the words, those two therefore read as subordinate to Events rather than as its peers, which is exactly backwards on this view where the two trace-derived sections are the ones a reader must notice are permanently empty. Either rule every sibling heading or none.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/7",
+      "severity": "P3",
+      "location": "breadcrumb line, `Home / aztec-mainnet / tx / 0x1c37…0410`",
+      "finding": "The crumb mixes faces mid-line at one nominal size: `Home` is set in the sans while `aztec-mainnet`, `tx` and the elided hash are mono. The mono's smaller apparent x-height makes the first crumb read as larger than the rest, so a single-level trail looks like two levels. Set the whole crumb in one face, or accept the mono for identifiers and nudge its size up to optically match.",
+      "criterion": "A5"
+    }
+  ]
+}
+```

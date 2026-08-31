@@ -1,0 +1,73 @@
+Expected elements: present
+
+Every must-show item is on the page and no must-not-show item is: the affirmative green provenance banner sits first with slug, endpoint, moment and replay window; the identity bar carries the truncated hash, `block 63675`, an exit that lands on `aztec-testnet`, eight stepping buttons, `128 / 345` and the phase rail; all three source-less panes explain themselves in their own words; `Supply sources` is present; `effectsMismatched: 0` is legible in the transaction pane. No invented source, no fixture content, no failure banner, no page scrollbar. The previously reported dangling `" / "` and the uppercase NOIR tag are both absent.
+
+In my lens the page is legible but its colour system is inherited rather than designed. Every neutral is mathematically achromatic (#101010/#242424/#484848/#565656/#C8C8C8/#DDDDDD/#ECECEB) while every accent is an unmodified stock value from four unrelated hue families — indigo-600 links, blue-600/100/800 phase rail, cyan-800 progress fill, green-600/100/800 chips — with no shared cast tying the light theme to the CodeTracer dark surface. Text contrast passes everywhere (lowest is the inactive EVENT LOG tab at 5.40:1); the failures are all systemic: no elevation model, one green chip carrying three different meanings, emphasis ink allocated against importance, and two button treatments for one primitive.
+
+Highest-priority fixes: give the shell real surface levels so the provenance banner, identity bar and pane bodies are not all #FFFFFF, and collapse the loading indicator onto one accent hue.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L3/1",
+      "severity": "P2",
+      "location": "whole shell, concentrated on the identity bar (y 213-263)",
+      "finding": "The light theme is a default palette, not a designed counterpart to the CodeTracer dark surface. Every neutral is exactly achromatic (#101010, #242424, #484848, #565656, #919191, #A2A2A2, #C8C8C8, #DDDDDD, #F3F3F3, #ECECEB) while every accent is an unmodified stock value drawn from four unrelated hue families: indigo-600 #4F46E5 (exit link, BLOCK value), blue-600 #2563EB / blue-100 #DBEAFE / blue-800 #1E40AF (phase rail), cyan-800 #155E75 (progress fill), green-600 #16A34A / green-100 #DCFCE7 / green-800 #166534 (chips). Nothing carries a shared hue cast, so the theme reads as framework defaults over a gray ramp. Pick one accent family for the product, derive the rest from it, and give the neutrals a slight cast that ties the light theme to the dark one.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/2",
+      "severity": "P2",
+      "location": "provenance banner (y 20-200), identity bar (y 201-263), and all four pane bodies",
+      "finding": "There is no elevation system: the provenance banner, the identity bar and every pane body are all #FFFFFF, and the banner and identity bar are divided only by a bare #A2A2A2 hairline at y=200 with no gutter, so the register's only provenance marker is fused to the command bar. The two other surface values invert the model rather than extend it: the pane header band is #DDDDDD, darker than the #ECECEB page canvas it sits on, and the RAW (chain-native) code block in the transaction pane reuses #ECECEB exactly, so the innermost inset surface equals the outermost canvas and the pane bottom edge (y 1075) reads as a hole rather than a raised edge. Define three distinct surface levels (canvas, pane, inset) and put the banner and the identity bar on different ones.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/3",
+      "severity": "P2",
+      "location": "identity bar: progress bar (x 775-1035) and phase rail (x 1320-1570)",
+      "finding": "One engine-loading state is expressed in two unrelated accent families 300px apart on the same bar: the determinate progress fill is cyan-800 #155E75 while the phase rail marks the active FETCHING phase with a blue-100 #DBEAFE fill, blue-800 #1E40AF text and a blue-600 #2563EB left bar. Worse, that blue-600 accent bar sits within 30 degrees of hue of the indigo-600 #4F46E5 used for navigable links on the same bar, so two near-identical blues carry different meanings (active phase vs. link) side by side. Render the progress fill in the same accent as the active phase chip, and keep the link hue clearly separated from it.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/4",
+      "severity": "P2",
+      "location": "TRANSACTION pane: full hash (y 332-370) vs. COST TRANSACTIONFEE value (y 475-535) vs. identity bar hash (x 140-255)",
+      "finding": "Text emphasis is allocated against importance. The same data type (monospace hex) appears at three ink levels: the truncated hash on the identity bar is #101010, the raw fee quantity and the RAW JSON are #242424, and the full transaction hash - the transaction pane's identity line - is #484848, the same ink as ordinary body prose in the Code and Values panes. The least meaningful value on the page, an undecoded 32-byte fee blob wrapping three lines, therefore carries more emphasis than the identity it belongs to, and its ink gives no signal that it is raw rather than formatted (only the #484848 'mana (FeeJuice)' unit says so). Promote the full hash to the primary ink level and demote the undecoded fee to the same de-emphasised level as other raw byte values.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/5",
+      "severity": "P2",
+      "location": "stepping controls (x 470-760, y 218-248) vs. 'Supply sources' button (x 12-122, y 488-512)",
+      "finding": "One button primitive has two colour treatments, and the register's primary controls are the fainter of the two. The eight stepping buttons use a #C8C8C8 border on white - 1.67:1, below the 3:1 non-text floor - with #565656 glyphs, so the group reads as ghost outlines; the 'Supply sources' button uses a #A2A2A2 border (2.55:1) with a #101010 label. Neither reaches 3:1, and there is no role difference to justify the divergence. Unify the button border and label tokens and raise the border to at least 3:1 against #FFFFFF.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/6",
+      "severity": "P2",
+      "location": "'Real Aztec testnet data' badge (x 6-186, y 42-65), 'Succeeded' chips on the identity bar and in the TRANSACTION pane, 'Trace ready' chip (y 580-602)",
+      "finding": "The green chip role carries three different kinds of statement in identical clothing - fill #DCFCE7, border #16A34A, text #166534 in all four instances. 'Real Aztec testnet data' is a provenance claim about where the data came from, 'Succeeded' is a fact the chain reported, and 'Trace ready' is a claim about a product artefact. In the register the brief flags as the one where a reader is most likely to confuse a product claim with a chain fact, the colour system says all three are the same kind of assertion. Also, the #16A34A border sits at exactly 3.00:1 on its own #DCFCE7 fill. Give provenance its own chip role, distinct from chain-reported status.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/7",
+      "severity": "P3",
+      "location": "identity bar progress bar, boundary at x=868 (y 228-238)",
+      "finding": "Inside the progress bar the cyan-800 #155E75 fill and the #919191 track differ by only 2.31:1, so the one boundary the component exists to show is the weakest edge on the identity bar; the #919191 track is also the heaviest neutral on that bar, darker than the #DDDDDD pane headers, so the unfilled remainder reads as filled. The adjacent '128 / 345' readout carries the same information in text, so nothing is lost today. Lighten the track to a #DDDDDD-class neutral so the fill boundary clears 3:1.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

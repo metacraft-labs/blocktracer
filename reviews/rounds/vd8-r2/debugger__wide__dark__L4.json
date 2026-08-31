@@ -1,0 +1,81 @@
+Expected elements: present
+
+Presence check passes at 1920x1080. Provenance banner (badge, "Synthetic demo data", chain slug `aztec`, four producer sentences) sits above a slim identity bar carrying the truncated hash, `Partial`, block 101, an exit to the chain, both stepping directions, the scrubber, phase rail and the NOIR tag. Code pane is positioned at line 32 with a run marker; Call Trace and Event Log are one tab strip with Call Trace open and seven frames; Values is a separate pane below with eleven rows; the Transaction pane carries identity. No spinner, no empty pane, no light chrome, no removed loading paragraph, no Values tab.
+
+Through the density lens the panes themselves are well packed — 23px code rows, a right-aligned opcode column, 25px value rows — but the vertical budget is misallocated. The centre column carries roughly 310px of dead space (about 250px below the last call frame, another 60px under the last value row) while both neighbours are truncated: Code clips lines 40 and 53 flush against x≈912 with no ellipsis or scroll affordance, and the Transaction pane is cut mid-JSON at the viewport edge and wraps FEE PAYER and TARGET across two lines mid-hex. The banner takes 185px (17% of the viewport) to set a four-line paragraph to a 370px measure inside a 1920px band that is otherwise empty.
+
+Highest-priority fixes: give the centre column's slack to Code or Transaction, and set the banner prose to a wide measure so it costs two lines instead of four.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "reviewer": "L4",
+  "image": "screenshots/debugger__wide__dark.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L4/1",
+      "severity": "P2",
+      "location": "centre column — Call Trace region (y≈250–745) and Values pane (y≈748–1080)",
+      "finding": "The navigation region ends at the seventh frame (y≈478) and its footer row 'By call order. / Self cost' (y≈493), leaving roughly 250px — about half the region — empty; the Values pane below ends at its last row 'i / 2 / u32' (y≈1011) with a further ~60px empty. That is ~310px of unused height, ~29% of the viewport, sitting in the one column whose content is complete, while the Code pane is scrolled (showing lines 26–54 of a longer file) and the Transaction pane is clipped mid-JSON at the bottom edge. The 3/5–2/5 split should be content-driven, or the slack should be given to a neighbour that is actually truncated.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L4/2",
+      "severity": "P2",
+      "location": "provenance banner, y≈0–185",
+      "finding": "The banner spends 185px — 17% of the viewport, about seven code rows or seven call-trace frames — to set four sentences at a ~370px measure inside a 1920px full-width band whose remaining ~1,500px is empty. The content is required and correct; the cost is not. Setting the same prose to a ~900px measure makes it two lines and returns ~55–60px to the panes below at no loss of information.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/dark/L4/3",
+      "severity": "P2",
+      "location": "Code pane, right edge x≈912, lines 40 and 53",
+      "finding": "Long lines are clipped flush against the pane border with no ellipsis, fade or horizontal scroll affordance: line 40 ends '…shield_regen_perce' and line 53 ends '…damage: Field, r'. A reader cannot tell whether the signature continues or the fixture is truncated. The Code pane holds 47% of the width and still cannot fit a signature, which makes the ~310px of vertical air in the column beside it read as a misallocation rather than breathing room.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L4/4",
+      "severity": "P2",
+      "location": "Transaction pane, FEE PAYER (y≈478–503) and TARGET (y≈529–554) rows",
+      "finding": "At ~390px the pane wraps addresses across two lines mid-hex ('0x01c8f081e2abedf0184953e2a272b5' / 'e430d5d932'; '0x1b31c04d5920b0b5936f12e6fe8f17' / 'a59161624c'). A wrapped hex string breaks the monospace column that makes two addresses comparable at a glance, and costs a row each without adding information. Either truncate with a copy affordance, as the identity bar already does, or take ~60px of width from the centre column, which has height to spare and does not need the extra measure.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L4/5",
+      "severity": "P2",
+      "location": "identity bar, stepping controls x≈375–650",
+      "finding": "Eight unlabelled ~12px glyph buttons sit in four clusters across ~275px. Both directions are visible, which the spec requires, but at this size and spacing reverse-step, step-over, step-into and frame-out/frame-in are not discriminable without hovering — the two arrow pairs at x≈450–495 and x≈520–570 are near-identical silhouettes. Density here is right; per-control legibility is the failure. Distinct glyph shapes or a hairline separator with a group caption would keep the footprint and recover the discrimination.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/dark/L4/6",
+      "severity": "P3",
+      "location": "Code pane, inline value chips — '+3' at x≈856 y≈404, '+2' at x≈856 y≈936 and x≈840 y≈956",
+      "finding": "The collapsed-value count chips are the smallest and dimmest text on the surface (~9–10px on a low-contrast fill) yet they carry the count of hidden values, which is the one thing that tells a reader something is missing from the row. Raising them to the size of the adjacent 'damage=0' chips would cost no space.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L4/7",
+      "severity": "P3",
+      "location": "identity bar, status readout 'Engine loading — 18 MB 128 / 1315' at x≈950–1210",
+      "finding": "This transient status is the largest text in the identity bar and larger than the permanent pane titles CODE, CALL TRACE, VALUES and TRANSACTION. Under load the eye is pulled to the item that will disappear rather than to the structure that will not; the phase rail beside it already carries the same meaning at caps size.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/dark/L4/8",
+      "severity": "P3",
+      "location": "Code pane, bottom edge y≈1075, line 54",
+      "finding": "The last code row is cut horizontally by the viewport edge, leaving a half-height glyph row that reads as a rendering artefact rather than as continuing content. Clipping to a whole row, or fading the final row, would make the overflow deliberate.",
+      "criterion": "B1"
+    }
+  ]
+}
+
+```

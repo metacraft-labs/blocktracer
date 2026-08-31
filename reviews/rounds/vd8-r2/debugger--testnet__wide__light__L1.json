@@ -1,0 +1,68 @@
+Expected elements: present
+
+Every MUST SHOW item is there: the affirmative `Real Aztec testnet data` banner above the identity bar naming `aztec-testnet`, its endpoint, moment and 63629–63678 window; an identity bar with a real hash, `block 63675`, both stepping directions, `128 / 345` and the phase rail; an exit that lands on the chain; instruction-level explanations in their own words in Code, Call Trace and Values; `Supply sources`; and replay telemetry with `effectsMismatched: 0`. No invented source, no `aztec` slug, no fixture content, no unexplained blank pane, no failure banner. No dangling separator in the cost row and no language tag on the identity bar.
+
+Typographically the page is clean and the mono texture is right, but the type scale carries almost no hierarchy where it matters most.
+
+Worst: the COST · TRANSACTIONFEE value is a 66-character raw hex quantity set unwrapped-but-wrapping across three right-aligned lines, turning a one-line label/value row into a four-line block whose only significant digits land last. Second: in the same pane, section headings (EXECUTIONS, DECODED INPUT) are typographically identical to field labels (BLOCK, SELECTOR, RAW), so the pane reads as one flat list of eleven labels. Third: the banner's five-line paragraph is the largest run of text on the page, outweighing the session's own identity.
+
+Highest-priority fixes: format or middle-truncate the fee like every other quantity, and introduce one weight or size step between section headings and field labels in the Transaction pane.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "reviewer": "L1",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L1/1",
+      "severity": "P2",
+      "location": "TRANSACTION pane, COST · TRANSACTIONFEE row (approx x1540-1910, y480-548)",
+      "finding": "The fee is rendered as a full 66-character raw hex quantity in mono, right-aligned, wrapping onto three lines at arbitrary character offsets, with the unit 'mana (FeeJuice)' on a fourth line in the proportional face. Every other row in this pane (BLOCK, CANONICAL, FINALITY) is a single-line label/value pair, so this row is four times the height of its neighbours and its label sits alone opposite a block of digits. The 47 leading zeros dominate and the only meaningful digits (185cfcc84d2f103f) land on the last line, so the value cannot be read at a glance or compared to anything. Format it as a decimal mana figure, or apply the same middle-ellipsis truncation the page already uses for hashes (0x0000…f103f) and keep the full value on copy/hover, so the row returns to one line and one type level.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/2",
+      "severity": "P2",
+      "location": "TRANSACTION pane label column, EXECUTIONS (y568) and DECODED INPUT (y619) versus BLOCK (y386), CANONICAL (y416), FINALITY (y448), SELECTOR (y643), RAW (y668), RAW (CHAIN-NATIVE) (y771)",
+      "finding": "Section headings and field labels are set in exactly the same face, size, weight, colour, letter-spacing and case. Nothing in the type says that SELECTOR and RAW are children of DECODED INPUT while BLOCK is a peer field, so the pane reads as one flat list of eleven identical labels and the reader must parse the values to recover the structure. Introduce one step of separation: either raise section headings a size and weight, or drop field labels to a lighter secondary level, and indent the rows that belong to a section.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/3",
+      "severity": "P2",
+      "location": "provenance banner prose (x14-610, y78-182) relative to the identity-bar hash '0x0858d6…7fb2' (x143, y233)",
+      "finding": "The banner's five-line paragraph is set at the same body size as pane content and is by a wide margin the largest and longest run of text on the page, while the session's subject — the transaction hash — is a single string on the identity bar at roughly the same size and no greater weight. Read without reading, the page announces itself as a paragraph of provenance chrome rather than as a debugging session over a specific transaction. Give the banner prose a distinct secondary level (one step down in size, or a lighter weight, kept above the legibility floor) and give the identity-bar hash a step up, so the top two bands read as annotation and subject rather than as two equals.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/4",
+      "severity": "P3",
+      "location": "CODE pane paragraph (x20-605, y322-448), CALL TRACE pane (x930-1500, y315-353), VALUES pane (x930-1508, y796-833)",
+      "finding": "The three limitation explanations are set at the same size, weight and colour as each other and as the banner prose, so the type scale has no level for a pane state message. In a pane roughly 780px tall holding two sentences flush to its top edge, that gives the reader no typographic signal that the emptiness is deliberate rather than content that failed to render. The CODE pane compounds it: 'Stepping continues at instruction level.' is a second paragraph identical in every type attribute to the explanation whose last clause already said 'Stepping is complete', so it reads as a stray repeat rather than a live status line. Add a state-message level (secondary colour or a size step, optionally with a small caps label) and set the status line at a different level from the explanation.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/5",
+      "severity": "P3",
+      "location": "identity bar hash (x143, y233) versus TRANSACTION pane header hash (x1642, y312) and the full hash beneath it (x1540-1908, y330-368)",
+      "finding": "Two truncation shapes for the same value are on screen at once: 6+4 ('0x0858d6…7fb2') on the identity bar and 8+8 ('0x0858d644…22e67fb2') in the pane header. Directly below, the full 64-character hash wraps after character 41, splitting a byte ('…430aabc0' / '6ef9ace…'), so the two lines cannot be scanned as byte groups. Standardise on one truncation shape across the view and break the full hash on byte boundaries or in fixed 8- or 16-character groups.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/6",
+      "severity": "P3",
+      "location": "TRANSACTION pane, DECODED INPUT section, RAW row value (x1890, y671)",
+      "finding": "The value renders as a bare '0x' with no digits after it, right-aligned against the pane edge in the same mono treatment used for truncated values elsewhere on the page. Typographically it reads as a value that has been clipped, not as an empty calldata payload. Distinguish it from a truncation — '0x (empty)', or the em-dash used for absent values — so the type does not imply missing characters.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

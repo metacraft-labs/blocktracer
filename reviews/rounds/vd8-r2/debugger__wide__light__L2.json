@@ -1,0 +1,110 @@
+Expected elements: present
+
+All backbone items are on the page: provenance banner above the identity bar (badge, `aztec` slug, producer prose); slim identity bar with the chain-targeting exit `← aztec`, truncated hash, `Partial`, block, four stepping groups including both directions, scrubber, position readout, phase rail, `NOIR` tag and two actions; Code pane positioned at line 32 (cyan row + gutter accent); Call Trace and Event Log as one tabbed region with Call Trace open and seven frames; Values a separate pane below it; Transaction pane at right. No spinner, no empty pane, no full-width prose band between bar and panes, no page scroll.
+
+The clipping fix landed cleanly: all three columns terminate on one border at y=1075 with a 4px margin to the floor, no scrollbar at x=1916–1919. Vertical centering in the identity bar is exact (every object centred on y=210.5) and the Values numeric column right-aligns at x=1406 in all ten rows.
+
+The measurement asked for: the tabbed region is y248–741 (492px, 60% of the 826px column) and 240px of it — 49% — is empty below the "By call order." footer, which floats mid-pane rather than sitting on the pane floor. The Values pane gets 328px (40%) and is 82% full, 59px of slack. The height belongs to Values.
+
+Above the panes, 244px of chrome: a 24px band of bare background at y0–23, then a 156px banner whose content uses only x10–602 of 1920.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "reviewer": "L2",
+  "image": "screenshots/debugger__wide__light.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L2/1",
+      "severity": "P2",
+      "location": "middle column, Call Trace / Event Log tabbed region, y 500–740",
+      "finding": "The tabbed region runs y248–741 (492px, 60% of the 826px pane column) but its content — tab strip, FRAME header, seven frames, footer — ends at y=499. 240px, 49% of the region, is empty white below the 'By call order. / Self cost' footer, and the footer is not pinned to the pane floor, so it reads as a row of the frame list with a void beneath it. The Values pane below gets 328px (40%) and fills it to within 59px. At this fixture the height is allocated to the pane that needs it least.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/2",
+      "severity": "P2",
+      "location": "page edges — y 0–23, y 1076–1079, x 0–3 / x 1916–1919",
+      "finding": "The shell's outer margins are four different values. There is a 24px band of bare page background above the provenance banner (y0–23, no border, no content), the banner card is full-bleed x0–1919, the pane column insets 4px on both sides (borders at x=4 and x=1915), and the bottom margin is 4px (border y=1075). The same 4px is also the gutter between panes, so the column's relationship to the viewport edge is indistinguishable from its relationship to its neighbour. The 24px top band is dead space in the register where rows are scarcest.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/3",
+      "severity": "P2",
+      "location": "provenance banner, y 24–179",
+      "finding": "The banner costs 156px plus the 24px above it — 180px, 17% of the viewport — and uses 31% of its own width: badge at x10–166 and four prose lines from x=11 to a maximum of x=602, leaving 1300px of empty card to the right. Set as two columns, or with the prose beside the badge rather than below it, the same content fits in two or three lines and returns roughly 60–90px to the pane column. Full-width is the spec; a one-third-width text block inside a full-width card is not.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L2/4",
+      "severity": "P2",
+      "location": "identity bar vs pane column, left and right edges",
+      "finding": "The identity bar shares no vertical edge with anything below it. Bar content runs x24 (the '←') to x1895 (download button); the pane column borders are at x=4 and x=1915 and pane title text sits at x=13 / x=931 / x=1542. So the bar's first object is 20px right of the pane border and 11px right of 'CODE', and its last object stops 11px short of the Transaction pane's right-aligned values (x=1906). Scanning either edge of the page, the top band steps in and out of the column beneath it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/5",
+      "severity": "P2",
+      "location": "TRANSACTION pane, label column, rows BLOCK / CANONICAL / FINALITY / FEE PAYER / TARGET / COST·MANA",
+      "finding": "Labels are top-aligned to their values, not baseline-aligned. Measured cap-tops: BLOCK 380 vs 383, CANONICAL 410 vs 413, FINALITY 441 vs 444, FEE PAYER 473 vs 476, TARGET 524 vs 527, COST·MANA 575 vs 577 — the label sits 3px high in every row, and because the label is set smaller its baseline lands ~4px above the value's. Top-alignment is right for the two rows whose value wraps; in the four single-line rows it puts a whole six-row label column off the values' baseline.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/6",
+      "severity": "P2",
+      "location": "TRANSACTION pane, identity rows y 276–330 and FEE PAYER / TARGET rows y 465–566",
+      "finding": "Three overflow strategies for the same 42-character hex string inside 300px of one pane: truncated with an ellipsis ('0xb636167a…66d46359', row 1), set full on one line (row 2, x1542–1906), and wrapped mid-string across two right-aligned lines (FEE PAYER '…e2a272b5' / 'e430d5d932'; TARGET '…e6fe8f17' / 'a59161624c'). The wrap is forced by width: the pane is 383px, 20% of the shell, and the label column takes ~120px of it, so the value column can no longer hold what the pane holds unlabelled two rows above. Either the pane needs width taken from Code (911px interior) or the labelled rows need the same ellipsis rule as row 1.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L2/7",
+      "severity": "P2",
+      "location": "Code pane header stack, file-tab row y 313–340",
+      "finding": "Four stacked header rows in one pane use three left edges: 'CODE' at x=13, 'LOOP iterate_asteroids …' at x=14, the file tabs 'Nargo.toml Prover.toml src/main.nr src/shield.nr' at x=22, and the 'Showing from line 26 —' notice at x=13. The tab row is indented 9px further than the rows immediately above and below it, and no chip or background is drawn behind 'Nargo.toml' to account for the inset, so it reads as a misalignment rather than as padding.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/8",
+      "severity": "P3",
+      "location": "Code pane gutter (y 462–484 and y 532–554) and Values pane rows 'remaining_shield' / 'damage' (x 922)",
+      "finding": "Three left-edge accent bars, three geometries. The current-line accent is 2px teal at x=5–6, flush to the pane border at x=4; the line-29 event marker is 2px grey at x=7–8, inset 2px further; the Values change markers are 1px amber at x=922, flush to that pane's border at x=921. Same primitive, same job (mark this row), three widths and two offsets.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L2/9",
+      "severity": "P3",
+      "location": "identity bar, phase rail, active FETCHING segment, x 1229–1233",
+      "finding": "The active segment's blue left accent is a straight 1px stroke at x=1231 that the pill's border-radius clips to the middle ~14px of its height, so it renders as a stray blue tick floating inside the rounded left end rather than as the segment's edge. The fill (219,234,254) starts cleanly at x=1232; only the accent fails to follow the radius.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/10",
+      "severity": "P3",
+      "location": "the three pane header strips, y 248–275",
+      "finding": "Header strips are not the same height: Code 248–273 and Transaction 248–273 (25px), but the Call Trace / Event Log tab strip is 248–275 (27px) because the active-tab underline sits at y271–273, 2px above the strip's own bottom border. The result is a doubled rule under 'CALL TRACE' and a middle column whose first content row starts 2px below its neighbours', even though all four titles are correctly baseline-aligned at y=264.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/11",
+      "severity": "P3",
+      "location": "Code pane, bottom edge y 1064–1075",
+      "finding": "Line 54 is bisected horizontally by the pane's bottom border with zero bottom padding — roughly half a glyph height is visible and unreadable. The same pane handles horizontal overflow well (lines 40 and 53 dissolve into a soft fade at the right edge), so the two axes of one pane get two different overflow treatments. A few px of bottom padding, or the same fade applied vertically, would make the cut deliberate.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/12",
+      "severity": "P3",
+      "location": "identity bar, y 197–224",
+      "finding": "The bar reads as grouped rather than as a strip of unrelated objects — identity, divider at x=345, then four control pills at an even 16px pitch, scrubber, readout, phase rail, and two right-anchored actions after a 326px gap — and every object is centred on y=210.5 exactly. Working against that are four object heights in one 28px band: stepping groups 28px, share/download buttons 26px, Partial badge and phase rail 22px, scrubber track 16px. Two interactive button families 2px apart in height is the one that shows.",
+      "criterion": "B10"
+    }
+  ]
+}
+```

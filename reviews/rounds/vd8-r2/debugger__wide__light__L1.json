@@ -1,0 +1,115 @@
+Expected elements: present
+
+Presence check passes. Provenance banner (badge, tone, `aztec` slug, four producer sentences) sits first, above a slim identity bar carrying `← aztec`, the truncated hash, `Partial`, block, both stepping directions, scrubber, `128 / 1315`, phase rail and the `NOIR` tag. Code pane with line 32 marked, Call Trace/Event Log as one tab strip with Call Trace open, Values as a pane below it, Transaction pane. No spinner, no empty pane, no full-width pane row, no prose band between bar and panes.
+
+Typographically the page is competent — mono for identifiers, sans for paths, right-aligned tabular opcode counts, a good syntax palette, and a designed fade mask on horizontal overflow. What it lacks is a working label level. The 10px letterspaced uppercase style carries six roles at once, so `TRANSACTION` reads at exactly the rank of `BLOCK`, `FINALITY` and `FEE PAYER` inside it. Above that, the provenance paragraph is set at explorer scale (~15px sans, 4 lines) and is the loudest type on a debugger screen. Numbers disagree with themselves: `1,315` in the call trace, `1315` in the identity bar for the same total, `10000` and `88000 / 200000` elsewhere. Hashes are truncated three different ways, including a mid-string wrap on FEE PAYER and TARGET.
+
+Highest-priority fixes: give the pane title a rank its own field labels do not share, and set the banner at the debugger's type scale. Second: one thousands-separator rule and one hash-truncation rule product-wide.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "reviewer": "L1",
+  "image": "screenshots/debugger__wide__light.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L1/1",
+      "severity": "P2",
+      "location": "Transaction pane — header 'TRANSACTION' versus its field labels BLOCK / CANONICAL / FINALITY / FEE PAYER / TARGET / COST · MANA / EXECUTIONS",
+      "finding": "One 10px letterspaced-uppercase style carries six different roles on this screen: pane title (CODE, VALUES, TRANSACTION), tab label (CALL TRACE, EVENT LOG), column header (FRAME), field label (BLOCK…RAW (CHAIN-NATIVE)), phase-rail step (FETCHING/OPENING/POSITIONING) and the NOIR language tag. Same size, same weight, same tracking, same grey. The consequence is visible in the Transaction pane: its title does not outrank the labels of its own rows, and the pane reads as a list of eleven equal labels of which the first happens to be the pane's name. Only the header's background tint separates them, so the hierarchy is carried by fill rather than by type.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L1/2",
+      "severity": "P2",
+      "location": "provenance banner, top of shell, x≈12–605, y≈78–160",
+      "finding": "The banner's four sentences are set at explorer-register scale — roughly 15px sans on ~22px leading over a ~600px measure — inside a register whose labels are ~10px and whose code is ~13px mono. It is the largest, darkest, longest continuous run of type on the page, so the first thing the eye resolves on a positioned debugger session is boilerplate, ahead of the identity bar and every pane title. This is not an argument for cutting a word: set at the debugger's own scale and leading the same four sentences occupy roughly two rows instead of four, and the rows return to the panes.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L1/3",
+      "severity": "P2",
+      "location": "call trace opcode column vs identity bar position readout vs Values pane vs Transaction pane COST · MANA row",
+      "finding": "Numeric formatting is not comparable across magnitudes. The call trace prints 1,315 and 1,208 with thousands separators; the identity bar prints what is evidently the same total as 1315 in '128 / 1315'; the Values pane prints 10000, 9000, 2000, 1000 bare; COST · MANA prints '88000 / 200000'. Three conventions for the same magnitude class on one screen, and the two forms of 1315 sit 600px apart in the same horizontal band.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L1/4",
+      "severity": "P2",
+      "location": "Code pane, notice row above line 26",
+      "finding": "'Showing from line 26 — the session's position is below, and the lines above it are not in this window.' is set in the monospace code face at the listing's own size, flush with the gutter, directly above line 26. UI prose and source are in the same face at the same size, so the sentence reads as a line of the program until you parse it. It is also an ~85-character monospace measure, which is long for a mono line. Only the grey band separates it from the code.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L1/5",
+      "severity": "P2",
+      "location": "Code pane header strip, 'LOOP iterate_asteroids line 4 Iteration 3 of 8'",
+      "finding": "Four typographic treatments in one ~20px line: 'LOOP' and 'iterate_asteroids' in ~13px mono at mid grey, 'line 4' as an underlined blue proportional link at a smaller size, then 'Iteration 3 of 8' in mono at a visibly larger size and darker weight. The largest, darkest text in the strip is the ordinal, so the iteration counter outranks the loop it counts; and the underlined sans link is set inside a mono run, which breaks the line's baseline texture mid-phrase.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L1/6",
+      "severity": "P2",
+      "location": "Code pane, bottom edge — line 54, y≈1071–1075",
+      "finding": "The last row is sliced through: only the top ~4px of line 54's glyphs render before the pane's own rounded bottom border crosses them, leaving a band of clipped ascenders at the foot of the viewport. The same pane masks its horizontal overflow with a designed fade (visible on lines 40 and 53, and matching the RAW block), so the two overflow directions are treated inconsistently — one is designed, the other is a raw cut. A row-height-aligned clip, or the same fade applied vertically, would remove the sliced glyphs.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/light/L1/7",
+      "severity": "P2",
+      "location": "identity bar hash vs Transaction pane header hash vs Transaction pane FEE PAYER and TARGET rows",
+      "finding": "Three truncation strategies for one class of value. The identity bar uses 0xb63616…6359 (6 lead, 4 tail); the Transaction pane header uses 0xb636167a…66d46359 (8 lead, 8 tail) directly above the same hash printed in full; FEE PAYER and TARGET are printed in full and hard-wrapped mid-string onto a right-aligned second line, stranding 'e430d5d932' and 'a59161624c' as orphan fragments with no ellipsis, no continuation marker and no byte boundary. A reader cannot tell the second line continues the first rather than being a second field.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L1/8",
+      "severity": "P3",
+      "location": "call trace column-header row, 'FRAME' and 'ACIR opcodes'",
+      "finding": "Two headers of identical rank in one row, set two ways: FRAME is letterspaced uppercase sans, while 'ACIR opcodes' is a mono uppercase acronym followed by a lowercase proportional word. Neither reads as the same object as the other.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L1/9",
+      "severity": "P3",
+      "location": "Transaction pane, EXECUTIONS section — 'private' and 'public' sub-labels",
+      "finding": "The pane runs two label vocabularies. Row labels are uppercase letterspaced sans (BLOCK, TARGET, EXECUTIONS, DECODED INPUT); the sub-labels under EXECUTIONS are lowercase monospace ('private', 'public'), which is the pane's data face. The sub-labels therefore read as values rather than as labels for the pills beside them.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/light/L1/10",
+      "severity": "P3",
+      "location": "Values pane, right-hand type column",
+      "finding": "Field, u32 and [Field; 8] are Noir type identifiers set in the UI proportional face while the name and value columns beside them are mono. Everywhere else on this screen the rule is code identifier → mono, path or description → sans (the call trace applies it cleanly: calculate_damage mono, zk_shields · src/shield.nr sans). The type column inverts it.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L1/11",
+      "severity": "P3",
+      "location": "Values pane 'masses[2]' row; call trace indentation guide",
+      "finding": "Nesting is carried by indentation alone in two places. 'masses[2]' is indented under 'masses' by roughly one monospace character (~7px) with no guide, which is too small to read as a child at a glance. In the call trace a single vertical guide sits at one fixed x for every frame below the root, so it marks 'not top level' rather than depth — depths 1, 2 and 3 are separated by indent only.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/wide/light/L1/12",
+      "severity": "P3",
+      "location": "call trace, current frame row 6 ('calculate_damage · 63') versus row 3",
+      "finding": "The current frame carries no typographic emphasis — same face, size, weight and colour as the identical 'calculate_damage zk_shields · src/shield.nr 63' three rows above it. The cyan fill does the whole job. It works at seven frames; with two rows this similar it is worth putting a weight or a marker glyph on the current frame so position survives at realistic depth.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L1/13",
+      "severity": "P3",
+      "location": "identity bar, between 'Engine loading — 18 MB' and the position readout '128 / 1315'",
+      "finding": "Two unrelated quantities abut in the same dark grey with roughly a word-and-a-half of space between them. The size step from the ~13px status text to the ~15px semibold readout is not enough separation, so the strip reads as one numeric run, '18 MB 128 / 1315', before it resolves into a byte count and a step index.",
+      "criterion": "B3"
+    }
+  ]
+}
+```

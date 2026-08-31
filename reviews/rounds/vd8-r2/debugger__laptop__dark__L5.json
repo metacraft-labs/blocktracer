@@ -1,0 +1,67 @@
+Expected elements: MISSING — a timeline or scrubber expressing position within the trace.
+
+That is finding #1, it is P1, and the rating is capped at 4. The identity bar shows the stepping toolbar, the phase rail and `128 / 1315`, but nothing that draws position spatially; a desktop CodeTracer user reads a trace position off a track, and at this width there is none.
+
+Register-wise the surface is otherwise convincingly the tool: dark, dense, editor palette in the Code pane, editor-style file tabs, inline value chips (`damage: 0->2000`), and the desktop pane vocabulary intact — CODE, CALL TRACE, EVENT LOG, VALUES, TRANSACTION. The language mark NOIR is correct here.
+
+Where the register slips: the provenance banner opens the flagship tool surface with four lines of proportional marketing-voice body copy on a full-width band — the copy is honest and well written, but its typographic register is the explorer's, and it is the first thing the eye lands on. The Transaction pane then prints a raw wire enum as human copy: "Status reason: private-part-succeeded-public-part-succeeded". Badge primitives disagree across one screen — an outlined blue pill, an outlined orange chip, two filled chips and a bare uppercase mark. And four panes carry three different header treatments.
+
+Highest-priority fixes: set the banner in the tool's own voice and type, and render the status reason as a phrase rather than a wire identifier.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "reviewer": "L5",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "expectedElements": "missing",
+  "missing": ["A timeline or scrubber expressing position within the trace"],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L5/1",
+      "severity": "P1",
+      "location": "identity bar, between the stepping toolbar and the '128 / 1315' readout",
+      "finding": "No timeline or scrubber is present. Position in the trace is stated only as a text fraction. Reverse-in-time navigation is this product's premise and the desktop app expresses trace position as a track; a bar that names the step but never draws it breaks the continuity that makes this recognisable as the same tool."
+    },
+    {
+      "id": "debugger/laptop/dark/L5/2",
+      "severity": "P2",
+      "location": "Transaction pane, 'Status reason' row below the hash",
+      "finding": "The row reads 'Status reason: private-part-succeeded-public-part-succeeded' — a raw hyphenated wire enum presented as human copy, in a product whose tone elsewhere on this screen is composed sentences ('aztec private function executed client-side; only proofs, nullifiers and commitments are published'). Tone is a design property here and this row is untranslated machine state.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/3",
+      "severity": "P2",
+      "location": "provenance banner, y=0-180, above the identity bar",
+      "finding": "The banner is required and its content is right, but it is set in the explorer register: proportional body face, four lines at marketing leading, a wide prose measure on a full-width band. It is the first surface a visitor meets on the tool's flagship screen and it reads as a landing-page callout with a debugger underneath rather than as the tool disclosing its own provenance. The crossing does not read as deliberate.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/4",
+      "severity": "P2",
+      "location": "pane headers across the four panes — 'CODE', the 'CALL TRACE / EVENT LOG' tab strip, 'VALUES', 'TRANSACTION'",
+      "finding": "Three header treatments in one row of panes: a plain uppercase title bar (Code, Values, Transaction), a two-tab strip with an underlined active tab, and — inside Code only — two further header rows (the LOOP/iteration strip and the file-tab row) styled unlike any other pane's chrome. The tabbed region is a deliberate divergence; the extra Code header rows are not visibly part of the same primitive.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/5",
+      "severity": "P3",
+      "location": "badges across the screen — 'Synthetic demo data' (banner), 'Partial' (identity bar and Transaction pane), 'Not observable' and 'Trace ready' (Transaction pane), 'NOIR' (identity bar right)",
+      "finding": "Five badge treatments coexist: an outlined blue pill, an outlined orange chip, a grey filled chip, a green filled chip and a bare letter-spaced uppercase mark. 'Partial' is at least identical in both places it appears, which is the standard the rest should meet; as it stands the shared badge primitive does not read as one primitive.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/6",
+      "severity": "P3",
+      "location": "identity bar, left cluster: the back link and chain slug",
+      "finding": "The exit renders as an explorer-style breadcrumb ('<- aztec' in the body face) directly abutting tool chrome (mono hash, outcome chip, stepping glyphs). The exit targeting the chain is correct; its styling is the one item on the bar borrowed from the explorer header the register is supposed to have dropped.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

@@ -1,0 +1,31 @@
+Expected elements: present
+
+Presence check passes on every item. The fixed nav sits above a body that clears it; the provenance banner is in the content column, left-aligned with the breadcrumb, affirmative green, `Real Aztec mainnet data` beside `aztec-mainnet`, with the producer's sentences below. The `Not observable` badge carries the published pruning reason and locates it in the chain's retention. The full hash, `Succeeded` badge and a four-row Overview are all present. Internal calls and State changes both say "empty permanently, not yet". Footer closes the page; the disclosure does not claim demo data; heart, CodeTracer mark and GitHub mark are all drawn and visible. Nothing forbidden appears — no retry, no spinner, no trace reference, no danger tone.
+
+The weakest element is the value cell of the last Overview row, COST · TRANSACTIONFEE. The dangling separator is gone, but what remains is worse than the separator ever was: the page's only quantity is rendered as a 66-character zero-padded hex word whose 47 leading zeros consume the full data column, pushing the sixteen significant digits to the far right edge before `mana (FeeJuice)`. A reader cannot tell the order of magnitude of the fee, which is the only question this row exists to answer. It is also the only double-height row in the table, because the flattened all-caps label wraps. Rubric A5 asks for tabular figures and truncation at meaningful boundaries; a cost printed as an address fails both.
+
+Highest-priority fix: render the fee as a decimal mana amount, keeping the raw word available on demand.
+
+Rating: null (ADV)
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/ADV/1",
+      "severity": "P2",
+      "location": "Overview table, final row — the COST · TRANSACTIONFEE value cell",
+      "finding": "The page's only quantity is printed as a 66-character zero-padded hex word: 47 leading zeros fill the data column and push the significant digits (175c1a29c1f97278) to the far right before 'mana (FeeJuice)'. The fee's order of magnitude is unreadable, so the one row whose job is to say what this transaction cost says nothing a reader can use. The row is also the only double-height one in the table because its camelCase-flattened all-caps label wraps to two lines. A cost is a number and is being treated as an address.",
+      "criterion": "A5"
+    }
+  ]
+}
+```

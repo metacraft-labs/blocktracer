@@ -1,0 +1,59 @@
+Expected elements: present
+
+Every must-show item is on the page and in the right place: nav with brand and resolver; the affirmative `Real Aztec mainnet data` banner with its slug and producer sentences, sitting in the content column on the same 504 px left edge as the breadcrumb below it; the hero with full hash and `Succeeded`; the `Not observable` card with the published pruning reason; Overview with block, canonicality, finality and cost; all six content sections in the permanent tense; the provenance strip with all three marks drawn; and the footer disclosure, correctly not claiming this page is demo data. Nothing forbidden is present. Structurally the page is sound: one left edge holds for every block, both tables share a 161 px label column, card padding is a consistent 26 px, and there is no overflow, clipping or horizontal scroll.
+
+What is inconsistent is width and section rhythm. The page declares a 911 px column (rules, both tables and the Raw block all end at x=1415), but every prose card stops at x=1203, and the banner alone keeps the full 911 px box while capping its text near 630 px, leaving ~280 px of empty white down its right side. Section lead-ins come in two sizes: ~131 px plus a rule for Overview, Decoded input, Events and Raw; 55 px and no rule for Internal calls and State changes, whose headings then sit only 32 px above their own cards.
+
+Highest-priority fixes: give the banner the same 700 px prose box the other cards use, and give all six sections one lead-in.
+
+Rating: 7/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "reviewer": "L2",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/1",
+      "severity": "P2",
+      "location": "provenance banner card, y 136-423, x 504-1415 (right two-fifths of the card, beside the producer paragraph)",
+      "finding": "The banner is the only prose container rendered at the full 911 px column width while its text measure is capped around 630 px: every line ends by x=1136 inside a box whose inner edge is x=1390, so ~280 px — a third of the widest, tallest card on the page — is empty white, against 26 px of left padding. Every other prose container here (Not observable card, the ABI note, the three empty-state cards) solves the same problem the opposite way, by capping the box itself at 700 px so the text fills it. Two strategies for one problem, and the ragged one is on the element whose job is to be believed. Cap the banner box at the same 700 px as the other cards, or drop the internal measure cap and let the paragraph use the box it was given.",
+      "criterion": "A1"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/2",
+      "severity": "P2",
+      "location": "vertical rhythm between sections — rules at y=1007, 1345, 1684, 2299 versus the unruled Internal calls (heading y=1894) and State changes (heading y=2074)",
+      "finding": "Six peer sections get two different separations. Overview, Decoded input, Events and Raw each open with a full-width hairline and ~131 px of clear space above the heading (~100 px card-to-rule plus 31 px rule-to-heading). Internal calls and State changes open with 55 px and no rule. Because each heading sits 32 px above its own card, the proximity ratio through that stretch is 55:32 — 1.7:1 — where the ruled sections run about 8:1, so the two trace-derived sections read as sub-blocks of Events rather than its peers. Either give all six the same rule and lead-in, or, if Events/Internal calls/State changes are meant to be one group, make the intra-group gap unambiguously tighter than the heading-to-card gap it competes with.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/3",
+      "severity": "P3",
+      "location": "gap between each section heading and its first content block — Overview y=1054-1070 versus Events y=1731-1763",
+      "finding": "One structural relationship is spaced at two values. A heading followed by a table or the Raw block clears 15-16 px (Overview 1054->1070, Decoded input 1393->1408, Raw ~2347->2362); a heading followed by a card clears 32 px (Events 1731->1763, Internal calls 1910->1942, State changes ~2090->2122). Both values are on the scale, but the doubling tracks the child element's type rather than any difference in relationship, so the page's section openings do not repeat. Set one heading-to-content value and let the card's own border, not its margin, carry the difference.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/4",
+      "severity": "P3",
+      "location": "Overview table, fourth row (COST · TRANSACTIONFEE), y 1183-1246",
+      "finding": "The 161 px label column cannot hold this label on one line, so it breaks after `COST ·` and the row becomes 63 px tall against 37, 38 and 38 px for BLOCK, CANONICAL and FINALITY — the table's row rhythm breaks on its last row. The value is top-aligned to the label's first line (value band 1197-1209 in a row whose centre is 1214), so it also sits ~11 px above the row centre and off the vertical rhythm of the three values above it. Widening the label column is not free here — the value already runs to x=1358 inside a 1390 px inner edge — so the fix is a shorter display label or a shorter value, after which the row returns to the 38 px pitch.",
+      "criterion": "A6"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/5",
+      "severity": "P3",
+      "location": "right edge of the content column between the ABI note (y=1507) and the Raw section rule (y=2299)",
+      "finding": "For roughly 790 px of page height the only things reaching the column's right edge at x=1415 are two hairline rules; all four cards in that stretch stop at x=1203, so 212 px of the declared column stays empty and each section reads as unfinished on the right while a thin line juts past it. The full width is legitimately used higher up (both tables, the Raw block), so the column itself is not wrong — but the rules should not be the widest thing in a section. Either inset the rules to the width of the content they head, or give the empty-state cards the full column width.",
+      "criterion": "A3"
+    }
+  ]
+}
+```

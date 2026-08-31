@@ -1,0 +1,91 @@
+Expected elements: MISSING — a timeline or scrubber expressing position within the trace
+
+That absence is finding #1, it is P1, and my rating is 4. Nothing between the fourth button pair and the phase rail carries a track, ticks or a playhead, and no pane holds a time surface; the `1…8` strip in the Code pane scrubs one loop, not the trace. The bar has roughly 285px of empty space to its right, so the omission is not a width forcing at 1440.
+
+Structurally the page is sound: one row of two columns, Code beside a tabbed Call Trace / Event Log region with Values below it and the Transaction pane at the right, consistent 8px gutters, consistent pane-header insets, no page scrollbar, no full-width pane.
+
+The layout problem is that space is pooled where nothing needs it. The banner takes 185px of a 900px viewport for a 600px-wide paragraph; the tabbed region holds 115px of dead height under its last frame; the identity bar holds a 285px void. Meanwhile the Values and Transaction panes are sliced mid-row at the viewport edge, and the Code pane clips its own source at its right border.
+
+Highest-priority fixes: (1) restore the timeline into the bar's existing slack; (2) move the tabbed region's 115px of empty height into the Values pane below it, which is the pane currently being cut.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "reviewer": "L2",
+  "image": "screenshots/debugger__laptop__light.png",
+  "expectedElements": "missing",
+  "missing": [
+    "A timeline or scrubber expressing position within the trace"
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L2/1",
+      "severity": "P1",
+      "location": "identity bar, between the fourth stepping-button pair (x≈655) and the phase rail (x≈780)",
+      "finding": "No timeline or scrubber is laid out anywhere on the page. The bar runs straight from the last button pair to the '128 / 1315' readout to the phase rail, and no pane carries a time surface. The Code pane's 'Iteration 3 of 8' tick strip spans one loop, not the trace. The bar is a single row at this viewport with roughly 285px of empty space between the rail and the 'NOIR' tag — more than a 160px track would need — so the element is absent by layout decision rather than by shortfall.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L2/2",
+      "severity": "P2",
+      "location": "Call Trace tabbed region, below the 'By call order. / Self cost' footer (y≈505) down to the region border (y≈620)",
+      "finding": "The measurement the change has not made: the region runs y≈246–620 (374px) and its content — seven frames ending at y≈480 plus the footer at y≈493 — stops at y≈505, leaving about 115px, roughly 31% of the region, permanently empty. Directly below it the Values pane (y≈630–900) is clipping its ninth row at the viewport edge. The height belongs to the Values pane, not the tabbed region; the split should be driven by content or the region should shrink to fit.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/3",
+      "severity": "P2",
+      "location": "provenance banner, y≈30–185",
+      "finding": "The banner occupies about 185px — 21% of a 900px viewport — for a four-line paragraph whose measure is roughly 600px, so about 840px of the band is empty to the right of the text and 185 rows come out of the pane column that is simultaneously cutting rows off at the bottom. The band is sanctioned; its vertical cost at this viewport is not paid for. Setting the prose in two columns beside the badge, or reclaiming the leading, would return most of it.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L2/4",
+      "severity": "P2",
+      "location": "identity bar, between the phase rail (ends x≈1030) and the 'NOIR' tag (x≈1330)",
+      "finding": "A ~285px void splits the bar into two clusters — everything session-related packed into the left 1030px, two icon actions and a tag stranded at the right edge. Proximity therefore groups the actions with nothing, and the bar reads as a strip of unrelated objects at its right end while its left end is dense. Either the actions move in against the rail or the gap is filled by the element that used to occupy it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/5",
+      "severity": "P2",
+      "location": "bottom of the pane column: Values pane 'regeneration' row and Transaction pane 'RAW' row at y≈890",
+      "finding": "The pane column does not resolve at the viewport edge. The Values pane's last row and the Transaction pane's 'RAW' row are sliced horizontally by y=900 with no pane bottom border and no visible scroll affordance in either, while the Code pane closes with a border just above. Three panes in one row ending at three different vertical positions, one of them mid-row, reads as clipping rather than as scrolling.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/6",
+      "severity": "P2",
+      "location": "Code pane, right border (x≈680), lines 26, 40, 41 and the '+3' chip at y≈423",
+      "finding": "Content meets the pane border with no right gutter: lines 40 and 41 are cut flush against the border, and line 26's inline value chip '+3' is pushed off its own line onto a half-row at y≈423 between rows 26 and 27, breaking the listing's line grid. The overflow is unindicated — no ellipsis, no fade, no horizontal scrollbar — so the pane's right edge is doing the truncation silently.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/7",
+      "severity": "P2",
+      "location": "top-left of the page: pane column border (x≈8), banner badge and prose (x≈10–12), identity bar back-link (x≈20)",
+      "finding": "Three left edges inside the top 250px of the page. The banner's badge and first paragraph line start about 10–12px from the viewport edge, the identity bar's '← aztec' starts about 20px in, and the pane column's own border sits at about 8px. Nothing on the page establishes a single left margin, and because the three zones are stacked the staircase is directly visible.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/8",
+      "severity": "P3",
+      "location": "column widths: Code ≈674px, nav column ≈456px, Transaction pane ≈278px",
+      "finding": "Width is allocated away from the pane that needs it. The Transaction pane is the narrowest column and holds the longest values, so every 66-character identifier wraps to three lines with a two-character last line, while the Code pane — the widest — still clips its own source at its border, meaning the extra width it holds does not buy it a complete line anyway. At this viewport the Code pane is the pane that should lose width first, and it is the one that loses it last.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/9",
+      "severity": "P3",
+      "location": "Values pane, 'masses' row (y≈745–780)",
+      "finding": "Every other row in the pane is on a ~25px pitch; the 'masses' row is roughly double that because the array wraps, and its continuation is not aligned to the value column, so the pane's scan rhythm breaks once in the middle of the list. Constraining the array to one line with an inline overflow marker would keep the rhythm intact.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

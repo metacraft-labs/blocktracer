@@ -1,0 +1,82 @@
+Expected elements: MISSING — a timeline or scrubber expressing position within the trace.
+
+Everything else on the must-show list is here: provenance banner above the identity bar (badge, `aztec` slug, four producer sentences), a slim single-row identity bar with a chain-targeted exit, truncated hash, `Partial`, block, four stepping groups in both directions, the `128 / 1315` readout and the phase rail; Code positioned at line 32; Call Trace and Event Log as one tabbed region with Call Trace open and seven frames; Values as its own pane below, not a tab; the Transaction pane. No forbidden item. But the identity bar carries no timeline and no scrubber at this viewport — between the last button group (x≈655) and the readout (x≈672) there is nothing, and position within 1,315 steps is expressed only as a numeric fraction. That is finding 1, it is P1, and the rating is capped at 4.
+
+As a density surface the filled rows are strong — tabular ACIR column, marked changed values, excellent inline value chips — but the 900px budget is spent badly. 178px (20%) goes above the first pane to a banner whose prose sits in a 580px measure inside a 1440px band; all three panes are consequently sliced mid-glyph at y=900; and the call-trace region wastes 123px while the Values pane below it is truncated.
+
+Highest-priority fixes after restoring a position graphic: give the Values pane the height the call-trace region is not using, and set the banner's prose at the band's own width.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "reviewer": "L4",
+  "image": "screenshots/debugger__laptop__light.png",
+  "expectedElements": "missing",
+  "missing": [
+    "A timeline or scrubber expressing position within the trace."
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L4/1",
+      "severity": "P1",
+      "location": "identity bar, between the last stepping group (x≈600-655) and the `128 / 1315` readout (x≈672-757)",
+      "finding": "No timeline and no scrubber is rendered at 1440. The only expression of position in the trace is the numeric fraction `128 / 1315`, and a fraction is a readout, not a timeline: nothing on the page draws WHERE step 128 falls in 1,315, so proportional position — the one fact a stepping surface exists to keep in view — cannot be read at a glance. It is present at the wide viewport, which makes this a viewport-conditional drop rather than a design that never had one, and it is the wrong thing to have dropped: the bar retains a 3-chip phase rail (x≈785-1030), a language tag and two action marks, all of which are stated or reachable elsewhere, while the element that expresses the session's own coordinate is the one removed. Either restore a capped-width position graphic at this width or amend the expectation; as captured the view does not show a required element.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L4/2",
+      "severity": "P2",
+      "location": "navigation column: Call Trace region (y 245-630) versus Values pane (y 637-900)",
+      "finding": "The call-trace region is 385px tall. Seven frames end at y≈480, the `By call order. / Self cost` footer sits at y≈493, and everything from y≈505 to y≈628 — 123px, 32% of the region — is blank. The Values pane immediately below gets 263px, shows nine rows, and is cut mid-row at the viewport bottom (`regeneration 1000` sliced) with further values unreachable. That is the answer to the open measurement: the Values pane should have the height. Seven frames fill barely half the region they are given, while the value list already overflows and a real Noir frame has dozens of locals. Let the tabbed region size toward its content with a floor and give the remainder to Values.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L4/3",
+      "severity": "P2",
+      "location": "provenance banner, y 0-178",
+      "finding": "The banner takes 178px — 20% of a 900px viewport, about seven code rows or seven call-trace frames — before the identity bar starts. The cost is not the content, which is required, but the layout: four lines of prose set at a ~580px measure inside a 1440px band, leaving roughly 850x130px of the band blank. The same sentences at a 1000-1100px measure are two lines; badge, slug and two lines lands near 110px and returns ~65px to a pane column that is currently clipping all three of its panes at the viewport bottom. This is the register's scarcest resource being spent on the widest whitespace on the page.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/4",
+      "severity": "P2",
+      "location": "Code pane header stack, y 245-390 (pane title, LOOP/iteration row, file-tab strip, two-line prose note)",
+      "finding": "Four stacked bands and ~145px — 22% of the pane's 655px, about six code lines — sit above the first code line, in a pane whose content is cut mid-glyph at line 46 by the viewport bottom. Twenty-one code lines are visible. The band carrying the least is the two-line sentence at y≈357-375, `Showing from line 26 — the session's position is below, and the lines above it are not in this window.`, which restates what the line-number gutter already states and is the only one of the four with no navigation in it; the other three (iteration selector, file tabs, LOOP context) all earn their rows. Folding that sentence into the gutter or the pane title returns code lines at the viewport where they are scarcest.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/5",
+      "severity": "P2",
+      "location": "Code pane, right edge (x≈680) on lines 26, 40 and 41",
+      "finding": "Long lines are hard-cut at the pane border with no ellipsis, no fade and no visible overflow affordance: line 26 stops at `calculate_remaining_shield_pct(initial_shield, re`, line 40 at `fn calculate_shield_regeneration(initial_shield:Field, remaining_shiel`, line 41 mid-comment at `after each`. A reader cannot distinguish a truncated line from a complete one, which matters most on line 40 — a signature whose remaining parameters are simply not indicated. At 675px the Code pane is the first thing this viewport starves, so the truncation is expected; the absence of any mark for it is not.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L4/6",
+      "severity": "P2",
+      "location": "Transaction pane, hash header (y≈289) and the FEE PAYER (y≈503-545) and TARGET (y≈572-618) rows",
+      "finding": "The metadata column is ~280px and spends nine rows on values it states twice or breaks badly. The transaction hash appears truncated as `0xb636167a…66d46359` in the pane header and then again in full on the two rows immediately below it. FEE PAYER and TARGET each wrap a 20-byte value across three lines whose last line carries two characters (`32`, `4c`), so each costs three rows and neither can be compared against another address at a glance. One data type is given three different treatments on one screen — middle ellipsis in the identity bar, middle ellipsis in this pane's header, and a ragged three-line wrap two rows later — and the most expensive treatment is the least legible, in the pane whose bottom row is already clipped.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L4/7",
+      "severity": "P3",
+      "location": "Values pane, `masses` row (y≈745-785)",
+      "finding": "One row is three lines tall because its array literal `[100, 2000, 200, 100, 100, 50, 50, 14]` wraps, setting a row height triple its neighbours' ~25px in a pane that is already cut off at the viewport bottom. The row's own right-hand cell already carries `[Field; 8]`, so the length is stated independently of the literal; eliding to one line with the full value on demand costs the reader nothing and returns two value rows.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/8",
+      "severity": "P3",
+      "location": "bottom edge of all three columns at y=900 (Code line 46, Values `regeneration`, Transaction `RAW`)",
+      "finding": "No column draws a bottom border or any scroll affordance; all three simply stop at the viewport edge with a half-height row sliced mid-glyph. The shell no longer overhangs, which is the fix that mattered, but the result still gives a reader no way to tell 'there is more, scroll' from 'this was clipped'. A bottom rule on the pane column, or a half-row fade, would make the truncation a statement rather than an artefact.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

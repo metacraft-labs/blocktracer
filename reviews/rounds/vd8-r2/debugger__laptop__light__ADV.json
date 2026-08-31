@@ -1,0 +1,33 @@
+Expected elements: MISSING — a timeline or scrubber expressing position within the trace.
+
+The presence check fails, so the single weakest element is chosen for me: it is the one that is not there.
+
+The weakest element is the identity bar's position expression, at x≈672-757 in the bar at y≈186-236, immediately right of the four stepping groups. It consists of the string `128 / 1315` and nothing else. No timeline, no scrubber, no tick run, no marker — nothing on this 1440x900 surface draws where step 128 sits inside 1,315. It is the weakest element because it is the one place a stepping tool is obliged to answer "where am I" spatially, and it answers arithmetically instead, leaving the reader to divide. Everything around it is dense and confident — the ACIR column is tabular, the current line is unmistakable in both Code and Call Trace, the value chips are the best thing on the page — which makes the gap conspicuous rather than forgivable: the bar still has room for a three-chip phase rail, a language tag and two action marks, all of them restatements of facts available elsewhere, while the session's own coordinate has no graphic at all. It is present at the wide viewport, so this is a withdrawal at laptop width, not an omission of something never designed.
+
+P1, and the rating is capped at 4.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "reviewer": "ADV",
+  "image": "screenshots/debugger__laptop__light.png",
+  "expectedElements": "missing",
+  "missing": [
+    "A timeline or scrubber expressing position within the trace."
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/ADV/1",
+      "severity": "P1",
+      "location": "identity bar, position readout at x≈672-757 (y≈186-236), between the last stepping group and the phase rail",
+      "finding": "The single weakest element on this page is the position expression, because at this viewport it has been reduced to the bare fraction `128 / 1315` with no timeline, scrubber, tick run or marker anywhere on the surface. A required element is therefore absent, and the loss is the specific one this product cannot afford: the whole premise is stepping forwards and backwards through a recording, and the surface gives the reader no spatial answer to where in that recording they are — 9.7% into the trace is something they must compute. The bar has not run out of room for it in any way a reader can see: it still carries a three-chip phase rail (x≈785-1030), a `NOIR` tag and two circular action marks, each restating something available elsewhere on the page, and it sits on a single line with the identity cluster ending at x≈340. The same view renders a scrubber at the wide viewport, so the element exists and is being withheld at laptop width. Restore a capped-width position graphic in the bar, or move it to the top edge of the Code pane where it costs the bar nothing.",
+      "criterion": "B5"
+    }
+  ]
+}
+```

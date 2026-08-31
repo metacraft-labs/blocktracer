@@ -1,0 +1,91 @@
+Expected elements: MISSING — a timeline or scrubber expressing position within the trace
+
+That absence is finding #1, it is P1, and my rating is 4. The identity bar carries the back-link, hash, `Partial`, `block 101`, four button pairs, `128 / 1315`, the phase rail, `NOIR` and two icon actions — but no track, no ticks, no playhead anywhere between the controls and the rail, and no time surface in any pane. The `1…8` strip in the Code pane is a scrubber over one loop, not over the trace. The fraction is the position *readout*, which the block lists as a separate item.
+
+Typographically the page is otherwise competent: one consistent pane-title level, right-aligned comma-grouped opcode counts in the Call Trace, right-aligned tabular values in Values. The failures are all at the edges of the type system.
+
+The hierarchy is inverted at the top: the provenance prose is the largest, loosest text on the screen, senior to every pane title. Truncation is the worst offender — three strategies for one data type (middle-ellipsis in the bar, hard wrap with two-character orphans in the Transaction pane, right-ellipsis that eats the filename in the Call Trace), plus source lines cut at the pane border with no ellipsis at all.
+
+Highest-priority fixes: (1) restore a trace timeline; (2) settle one identifier-truncation rule and apply it in all three places; (3) tighten the Code pane's ~1.85 leading.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "reviewer": "L1",
+  "image": "screenshots/debugger__laptop__light.png",
+  "expectedElements": "missing",
+  "missing": [
+    "A timeline or scrubber expressing position within the trace"
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L1/1",
+      "severity": "P1",
+      "location": "identity bar, between the fourth stepping-button pair (x≈655) and the phase rail (x≈780)",
+      "finding": "There is no timeline or scrubber. Position in the trace is expressed only by the numeric fraction '128 / 1315'; there is no track, no tick run and no playhead in the bar, and no time surface in any pane. The Code pane's 'Iteration 3 of 8' strip is a scrubber over one loop, not over the trace. The expectation block lists the position readout and the timeline as separate required items, so the fraction does not satisfy this one. Note that the bar has ~285px of unused space between the rail and the 'NOIR' tag, so the removal is not forced by width at this viewport.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L1/2",
+      "severity": "P2",
+      "location": "provenance banner, the four prose lines under the 'Synthetic demo data' badge",
+      "finding": "The banner's prose is the largest and most loosely set type on the page — roughly 15px at ~1.6 line-height over four lines — which makes it typographically senior to every pane title, to the '128 / 1315' position readout and to all session content. In the tool register the boilerplate now outranks the session. One step down the scale and one step tighter on leading would restore the ranking without dropping a word.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/light/L1/3",
+      "severity": "P2",
+      "location": "Code pane, source listing, lines 26–46",
+      "finding": "Line pitch is ~24px on ~13px monospace (≈1.85), which is web-body leading in a code listing: twenty lines fill 488px where the desktop app's density would show roughly half again as many. This is the rare density finding whose fix shows MORE information, not less.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L1/4",
+      "severity": "P2",
+      "location": "identity bar hash vs. Transaction pane hero/FEE PAYER/TARGET vs. Call Trace frame column",
+      "finding": "Three truncation strategies for one data type on one screen. The identity bar middle-truncates ('0xb63616…6359'); the Transaction pane hard-wraps the same 66-character hash over three lines and wraps FEE PAYER and TARGET to three lines each with two-character orphans ('32', '4c') on the last; the Call Trace truncates from the right, so 'zk_shields · src/shi…' discards the filename, which is the only part that distinguishes one frame's file from another's. Right-truncating a path removes exactly the informative tail.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L1/5",
+      "severity": "P2",
+      "location": "Code pane, right edge (x≈680): lines 26, 40, 41",
+      "finding": "Source lines are cut at the pane border with no ellipsis and no visible horizontal-scroll affordance — line 40 stops at 'remaining_shiel', line 41 at 'after each', line 26 at 'initial_shield, re'. The explanatory note above them runs into the same border ('…the lines above it are not in' / 'this window.'). Invisible truncation makes a partial line read as a complete one, which in a code listing is a correctness problem, not a cosmetic one.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L1/6",
+      "severity": "P2",
+      "location": "Code pane, loop strip at y≈293",
+      "finding": "Four typographic treatments in one 20px row: 'LOOP' in tracked grey caps, 'iterate_asteroids' in mono, 'line 4' as an underlined link, and 'Iteration 3 of 8' in a large dark UI weight that is the boldest, largest text in the pane — heavier than the pane's own 'CODE' title. The strip's most prominent phrase is its least specific one, and the row reads as four unrelated objects rather than one caption.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/light/L1/7",
+      "severity": "P3",
+      "location": "identity bar, phase rail 'FETCHING / OPENING / POSITIONING' (x≈780–1030)",
+      "finding": "The three chips are identical in size, weight and tracking, so which phase is in progress is carried by fill alone and the rail is not readable without reading it. A weight or case step on the active chip would let the rail be scanned at a glance, which is the whole purpose of a rail over a sentence.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/light/L1/8",
+      "severity": "P3",
+      "location": "Values pane, 'masses' row (y≈752–770)",
+      "finding": "The array literal wraps, but the continuation ('14]') is not aligned to the value column's left edge and the type cell '[Field; 8]' stays on the first line, so a single row reads as two ragged half-rows and the value/type columns lose their shared baseline for that entry alone.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L1/9",
+      "severity": "P3",
+      "location": "identity bar, 'NOIR' tag at x≈1330",
+      "finding": "The language tag is set in small grey caps that match no other level in the bar and carries no adjacent label, so beside the two icon buttons it reads as a stray token rather than as the session's source language. It is correct that it is here; it is not typographically placed.",
+      "criterion": "B3"
+    }
+  ]
+}
+```

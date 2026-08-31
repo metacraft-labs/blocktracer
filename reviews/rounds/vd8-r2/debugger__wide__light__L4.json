@@ -1,0 +1,87 @@
+Expected elements: present
+
+All must-show items are on the page: provenance banner above the identity bar (badge, `aztec` slug, producer sentences), identity bar with a chain-targeted exit, truncated hash, `Partial`, block, four stepping groups, scrubber, position readout and phase rail; Code pane positioned at line 32; Call Trace and Event Log as one tabbed region with Call Trace open and seven frames; Values as a separate pane below with eleven values; Transaction metadata pane. No forbidden item: no spinner, no empty pane, no full-width pane row, no prose band above the panes, Values is not a tab. The `NOIR` tag is correct here and the cost row reads cleanly.
+
+As a density surface this is strong in the rows it fills — the ACIR column is tabular and right-aligned, changed values are marked, inline value chips are excellent — but it spends its scarcest resource badly. 178px (16.5% of the viewport) goes above the first pane, and the banner sets four lines at a 580px measure inside a 1904px band, leaving roughly 1330x130px blank. The call-trace region is 47% empty below its last frame while the Code and Transaction panes are both cut off at the viewport bottom. Two metadata rows carry only `0x` under prose claiming raw bytes are shown.
+
+Highest-priority fixes: give the Values pane the height the call-trace region is not using, and widen the banner's measure to return ~60px to the panes.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "reviewer": "L4",
+  "image": "screenshots/debugger__wide__light.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L4/1",
+      "severity": "P2",
+      "location": "navigation column, Call Trace region (y 245-740) vs Values pane (y 745-1080)",
+      "finding": "The call-trace region is 495px tall; the last frame ends at y 480 and the 'By call order. / Self cost' footer at y 505, leaving 235px — 47% of the region — empty. The Values pane below it fits eleven rows with ~45px of slack, while the Code pane is cut mid-glyph at line 54 and the Transaction pane's RAW JSON is cut mid-object at \"transfer\". The answer to the open measurement is that the Values pane should have the height: a real Noir frame has dozens of locals and this fixture already fills eleven rows, whereas seven frames fill barely half the region they are given. Make the tabbed region shrink toward its content and let Values take the remainder.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L4/2",
+      "severity": "P2",
+      "location": "provenance banner, y 0-178",
+      "finding": "The banner takes 178px, 16.5% of the 1080px viewport and about seven code rows or seven call-trace frames, before the identity bar begins. Its cost is not the content but the layout: four lines of prose set at a ~580px measure inside a 1904px band, so roughly 1330x130px of the band is blank. The same sentences at a 1100-1200px measure are two lines, and badge + slug + two lines lands near 110px, returning ~60px to the pane column that is currently clipping two panes.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L4/3",
+      "severity": "P2",
+      "location": "Transaction pane, DECODED INPUT block (SELECTOR and RAW rows, y ~775-810)",
+      "finding": "SELECTOR and RAW both render as a bare `0x` with no bytes after the prefix, and the three lines of prose immediately below assert that \"the parameters are shown as raw bytes\". No bytes are shown. Five rows of the register's scarcest resource carry zero information, and the copy describes a state the rows do not contain. If there is genuinely no calldata, the honest row is a named absence, not a prefix.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/light/L4/4",
+      "severity": "P2",
+      "location": "Transaction pane, FEE PAYER (y ~480-505) and TARGET (y ~530-555)",
+      "finding": "Both 20-byte values wrap onto a second, right-ragged line broken at an arbitrary character (…e2a272b5 / e430d5d932). Each costs two rows in the pane whose bottom content is already clipped, and a two-line ragged block is materially harder to compare against another address than a single line. The same data type is middle-ellipsis-truncated in the identity bar (0xb63616…6359) and in this pane's own header (0xb636167a…66d46359), so one screen carries two treatments and the expensive one is the less legible.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L4/5",
+      "severity": "P2",
+      "location": "Code pane, lines 40 and 53 at the pane's right edge (x ~910)",
+      "finding": "Long signatures are hard-cut mid-token — \"shield_regen_perce\" on line 40, \"damage: Field, r\" on line 53 — with no ellipsis, no fade and no visible overflow affordance, so the reader cannot tell whether more parameters exist. The Transaction pane's RAW block on the same screen does apply a right-edge fade to its overflowing hex, so the product already has a treatment for this and the Code pane is not using it.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L4/6",
+      "severity": "P2",
+      "location": "Code pane header stack, y 245-385 (pane title, LOOP/iteration row, file tabs, prose row)",
+      "finding": "Four bands and ~140px — 17% of the pane's 835px, about six code lines — sit above the first code line in a pane whose content is cut mid-line at the viewport bottom. The worst offender is the full-width sentence \"Showing from line 26 — the session's position is below, and the lines above it are not in this window.\", which restates what the line-number gutter already states and is the only band of the four carrying no navigation. Folding it into the gutter or the pane title returns a code line and removes a paragraph from a register that admits exactly one prose band.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L4/7",
+      "severity": "P3",
+      "location": "identity bar, stepping controls x 372-660 and the empty span x 1478-1800",
+      "finding": "Eight icon-only buttons in four visually identical pairs, each a ~14px arrow glyph in a ~28px button, with no labels and no keyboard hints — at a glance step-over, step-into, frame boundary and run-to-end are indistinguishable. Meanwhile 322px of the bar between the phase rail and the NOIR tag is empty. That empty span is the budget the differentiation needs; B10's \"keyboard affordances are indicated\" is the only part of the criterion this bar misses, and it misses it while holding the space to fix it.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/light/L4/8",
+      "severity": "P3",
+      "location": "Transaction pane, y ~283-320 (hash header and the line below it)",
+      "finding": "The transaction hash appears twice on consecutive rows — `0xb636167a…66d46359` truncated beside the Partial badge, then the full 42-character value on the row immediately below. One row of the pane is spent restating the row above it, in the pane whose RAW block is clipped by the viewport bottom. Keep the full value and drop the truncation from the header row, or vice versa.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L4/9",
+      "severity": "P3",
+      "location": "Code pane, code rows y 385-1080",
+      "finding": "Code rows run ~23px at roughly 13px mono, a 1.75 line-height that is loose for this register; 29 lines fill ~695px where ~19px rows would show 36. This is partly earned — the inline value chips (`damage: 0→2000`, `shield_pct=90`) need vertical room and the overflow chips at lines 26 and 48 already take half-rows of their own — so it is a tension rather than a clean loss, but the rows without chips do not need the leading.",
+      "criterion": "B1"
+    }
+  ]
+}
+```

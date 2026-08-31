@@ -1,0 +1,82 @@
+Expected elements: present
+
+Provenance banner (badge, `aztec` slug, producer's sentences), identity bar with chain-targeted exit, both stepping directions, scrubber, phase rail, readout, `NOIR` tag; Code positioned at line 32; Call Trace / Event Log one tabbed region, Call Trace open, eight frames; Values a separate pane below; Transaction metadata pane. Nothing forbidden: no spinner, no empty pane, no light chrome, no prose band above the panes, no full-width pane row, Values not a tab. 1920x1080.
+
+This dark theme reads as designed rather than inverted — the Code pane carries a real editor palette and the blue current-position band appears in both Code and Call Trace — but the accent system is overloaded and the identity bar's luminance order is wrong.
+
+Amber does three jobs at once (P2): degraded status (`Partial` pills), changed value (Values `9000`/`2000`, code chips `0->2000`), and numeric literals. All three appear on line 32. Three unrelated cool accents (P2): green scrubber fill, cyan `FETCHING`, blue links — and the `Synthetic demo data` badge, the one element that must not read as chrome, is coloured like a hyperlink. The unfilled scrubber track is the brightest large object in the bar, outranking `128 / 1315` beside it (P2). Stepping controls show no enabled/disabled colour separation mid-load (P2). `EVENT LOG` and the metadata label column sit under the contrast floor (P2). Red is spent entirely on comments, leaving no free hue for failure (P2).
+
+Fix first: split amber, and demote the scrubber track.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "reviewer": "L3",
+  "image": "screenshots/debugger__wide__dark.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L3/1",
+      "severity": "P2",
+      "location": "whole shell — `Partial` pills (identity bar and Transaction pane), Values rows `remaining_shield` 9000 / `damage` 2000, Code pane inline chips `damage: 0->2000` and `result=90 ->90`, numeric literals on lines 32 and 42",
+      "finding": "One amber carries three unrelated meanings: degraded trace status, changed-value diff, and editor numeric literal. Line 32 shows all three within a single row — the literal `100` in `mass * (100 - shield_pct)` and the chip `damage: 0->2000` are the same hue two centimetres apart, so the reader cannot tell an authored constant from a value that just changed. Give the diff role its own hue (or reserve amber for diff alone and move `Partial` to a distinct warning tone).",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/2",
+      "severity": "P2",
+      "location": "identity bar, scrubber track (approx. x=700-935)",
+      "finding": "The unfilled portion of the scrubber track is a light mid-grey and is the brightest large object in the bar — brighter than the `Partial` badge and reading at roughly the weight of active text. An empty track carries no information yet draws the eye before the position readout `128 / 1315` immediately to its right. Drop the track to the bar's border value and let the fill be the only lit element.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/dark/L3/3",
+      "severity": "P2",
+      "location": "identity bar (scrubber fill, phase rail `FETCHING`), Code pane header `line 4`, Call Trace footer `Self cost`, Transaction pane `101:0`, provenance banner `Synthetic demo data` badge",
+      "finding": "Four cool accents inside roughly forty degrees of hue, each meaning something different: green-teal for scrubber fill, cyan for the active phase, blue for links, and the same blue again for the provenance badge. They read as accidents of four separate components rather than one accent family. Two consequences: the green fill implies 'done/ok' for a bar that only expresses position, and the provenance badge — the one element on this register that must not read as chrome — is coloured exactly like a hyperlink.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/4",
+      "severity": "P2",
+      "location": "tab strip `EVENT LOG`; Transaction pane label column `BLOCK` through `RAW (CHAIN-NATIVE)`; Call Trace header `ACIR opcodes`; identity bar `OPENING` / `POSITIONING` / `NOIR`",
+      "finding": "The dimmest text tier sits at roughly 3:1 on the pane surface at 10-11px. The inactive `EVENT LOG` tab is the worst placement of it: that label is the sole affordance revealing the event log exists, and it is currently the least legible text in its region. The Transaction pane's label column is the key half of every key/value pair and is dimmer than the prose paragraphs below it. Raise the low-emphasis tier to clear 4.5:1; density is not the thing being traded away here, only luminance.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L3/5",
+      "severity": "P2",
+      "location": "identity bar, the four stepping-control groups between the `Partial` badge and the scrubber",
+      "finding": "All four groups render at two barely-separated greys and none carries an accent. With the engine mid-load (`Engine loading — 18 MB`, phase rail on FETCHING) there is no colour signal separating a control that is live from one that is inert, so the disabled state that the shell relies on to carry loading is not readable as a state. Reverse stepping — the product's premise — is also the same grey as everything else; it has no colour claim on the bar it lives in.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/dark/L3/6",
+      "severity": "P2",
+      "location": "Code pane, line 41 comment `// shields regain a percentage of the maxium capacity after each hit`",
+      "finding": "The only red on the entire screen is the comment colour. In a dark tool register red is the failure hue, and here it is spent on the lowest-priority text in the densest pane — a salmon comment pulls harder than the current-position row six lines below it. It also leaves nothing unclaimed for a divergent or failed trace, which would have to borrow amber, and amber is already carrying three jobs (finding 1). Move comments to a desaturated grey-green and hold red.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L3/7",
+      "severity": "P3",
+      "location": "Transaction pane — `Yes` (CANONICAL), `Safe` (FINALITY), `Not observable` (private execution), `Trace ready` (public execution)",
+      "finding": "One neutral grey outlined pill means both affirmation (`Yes`, `Safe`) and unavailability (`Not observable`), while `Trace ready` alone gets green. Scanning the pane by colour, a positive fact and a limitation are indistinguishable, and the single green makes the greys read as 'not ready' by contrast. Either give all four a role tone or give none of them one.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/8",
+      "severity": "P3",
+      "location": "provenance banner / identity bar boundary, and the gutters between the Code, Call Trace and Transaction panes",
+      "finding": "Surface levels are compressed: the banner, the identity bar and the inter-pane gutters all sit at essentially the same near-black, with pane bodies only a few points lighter. The provenance banner — this register's only device for saying whose data this is — is separated from the identity bar by a hairline alone and inherits the same surface, so it reads as the top of the chrome rather than as content. One more step of separation on the banner (or on the pane bodies) would make the shell's three levels legible without spending a pixel of pane height.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

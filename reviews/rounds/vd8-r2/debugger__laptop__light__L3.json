@@ -1,0 +1,86 @@
+Expected elements: MISSING — a timeline or scrubber expressing position within the trace
+
+That absence is finding #1, it is P1, and my rating is 4. There is no track, elapsed run or playhead anywhere in the identity bar or in any pane; only the `128 / 1315` fraction. The loop strip in the Code pane scrubs one loop, not the trace.
+
+On colour: this is not a dark theme inverted — the light surface is deliberate and the register still reads as a tool, not as marketing. The cyan position family is well chosen and is genuinely doing one job in the Code gutter and the Call Trace.
+
+The problem is that two hue families each carry two meanings. Amber is both the `Partial` outcome badge and the changed-at-this-step marker, so an outcome badge and a mutated numeral are the same colour on one screen. Blue is the hyperlink role, the active phase chip and the non-interactive `Synthetic demo data` badge, which is outlined and tinted like a link and is not one. And the one surface where a position mark still exists — the loop tick strip — marks the current iteration in neutral grey, not in the position colour used two panes away.
+
+Surface levels are thin: banner, identity bar and pane interiors are all the same white, separated only by hairlines.
+
+Highest-priority fixes: (1) split the amber role — outcome badges off the changed-value family; (2) put the loop strip's current tick on the position colour.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "reviewer": "L3",
+  "image": "screenshots/debugger__laptop__light.png",
+  "expectedElements": "missing",
+  "missing": [
+    "A timeline or scrubber expressing position within the trace"
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L3/1",
+      "severity": "P1",
+      "location": "identity bar, between the fourth stepping-button pair (x≈655) and the phase rail (x≈780)",
+      "finding": "No timeline or scrubber is present: there is no track, no elapsed run and no playhead in the bar, and no pane carries a time surface. Position in the trace is stated only by the '128 / 1315' fraction, which the expectation block lists as the separate 'position readout' item. The Code pane's 'Iteration 3 of 8' tick strip covers one loop, not the trace. The consequence for this lens is that the whole track / track-elapsed / playhead colour family has no instance on the page and cannot be judged at all.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/2",
+      "severity": "P2",
+      "location": "amber: 'Partial' badge (identity bar x≈205 and Transaction pane hero y≈289) vs. changed values in the Values pane ('9000' y≈702, '2000' y≈869, their left row-markers) and the 'damage: 0→2000' chip in the Code pane (y≈559)",
+      "finding": "One hue, two roles. Amber marks the transaction's outcome ('Partial') and simultaneously marks 'this value changed at this step'. A reader who has learned amber = changed in the Values pane meets the same amber as a status badge in the bar and in the metadata pane. The changed role is the one that must stay unambiguous because it is read at every step; the outcome badge should move to the status family it belongs to.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/3",
+      "severity": "P2",
+      "location": "blue: 'line 4' (Code pane y≈293), 'Self cost' (Call Trace footer y≈493), '101:0' (Transaction pane y≈409), the 'FETCHING' phase chip (identity bar x≈782), and the 'Synthetic demo data' badge (banner y≈52)",
+      "finding": "The blue family carries three meanings at once: the hyperlink role, the engine's active-phase chip, and a provenance badge that is neither a link nor a status. The badge is the worst of the three — outlined and tinted in the same blue family as every hyperlink on the page, positioned first in the reading order, and not interactive. Provenance is a content classification and needs a hue that is not spoken for by navigation or by engine state.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/4",
+      "severity": "P2",
+      "location": "Code pane loop strip, tick '3' (x≈463, y≈293), against the current source line (y≈562) and the current Call Trace frame (y≈443)",
+      "finding": "The position role is not applied consistently. The current source line and the current call frame both take the cyan position fill and are unmistakable. The current loop iteration is marked instead by a thin dark underline on a neutral grey fill — the same neutral as the two already-elapsed ticks — so the one remaining time-like surface on the page uses neither the position colour nor a distinct elapsed colour. Ticks 1–2 (elapsed) and tick 3 (current) differ only by an underline.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/5",
+      "severity": "P2",
+      "location": "muted grey text: Code pane note 'Showing from line 26 — …' (y≈357), Transaction pane note 'aztec private function executed client-side; …' (y≈742), Call Trace footer 'By call order.' (y≈493), the 'ACIR opcodes' column header (y≈291)",
+      "finding": "One muted grey serves both decorative labels and load-bearing sentences. The two notes are the only place the page explains why the listing starts at line 26 and why the private half has no call structure, yet they are tinted identically to a column header and a sort caption, at the page's smallest size. Nothing in the emphasis scale separates text a reader must read from text they can skip, so the two sentences that carry unique information sit at the bottom of the hierarchy.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L3/6",
+      "severity": "P2",
+      "location": "surface levels: provenance banner (y≈30–185), identity bar (y≈190–240), pane interiors",
+      "finding": "The banner, the identity bar and the pane bodies are all the same white; only hairlines distinguish three functionally different zones, and the only tonal step in the theme is the faint fill on the pane header strips. The light theme is therefore carried almost entirely by borders, which is the signature of a dark theme lightened rather than a light theme designed — the dark build has surface-raised/sunken levels doing this work, and here they have collapsed to one level.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L3/7",
+      "severity": "P3",
+      "location": "identity bar, the four stepping-button pairs (x≈370–660)",
+      "finding": "The four pairs do not read as one state. The first pair's glyphs are visibly darker than the three pairs to their right, so with the engine still in 'FETCHING' the group looks partly live and partly not. If all four are disabled until the engine is up they should share one disabled tint; if only some are, the difference needs to be legible as a decision rather than as a rendering variance.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/laptop/light/L3/8",
+      "severity": "P3",
+      "location": "identity bar, 'NOIR' tag at x≈1330",
+      "finding": "The language tag is the lowest-contrast text in the bar, tinted at roughly the same level as the dimmed stepping glyphs beside it, so a permanent property of the session is rendered at the emphasis level the page uses for unavailable controls. It is correct that it is present on this view; it is coloured as though it were inert.",
+      "criterion": "B2"
+    }
+  ]
+}
+```

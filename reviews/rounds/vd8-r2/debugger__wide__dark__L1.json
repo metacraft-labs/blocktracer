@@ -1,0 +1,87 @@
+Expected elements: present
+
+All required elements render. The provenance banner sits first, above a slim identity bar carrying the exit to `aztec`, the truncated hash, `Partial`, block 101, both stepping directions, a scrubber, the `128 / 1315` readout and the FETCHING/OPENING/POSITIONING rail. Code is titled Code with line 32 unmistakably current; Call Trace and Event Log are one tab strip with Call Trace open and seven frames; Values is a separate pane below it, not a third tab; the Transaction pane carries identity. Nothing forbidden appears — no spinner, no empty pane, no full-width prose band below the banner, no light chrome. The three landed fixes read correctly: the capture is a true 1920x1080 with nothing clipped at the bottom, the `NOIR` tag is earned, and the cost row now reads `88000 / 200000 mana (FeeJuice)` with no dangling separator.
+
+In my lens the page is competent and dense, but its numeric and truncation rules are not one rule. Thousands separators appear only in the call trace's opcode column; the same magnitudes elsewhere run unseparated. The same hash gets three treatments in the Transaction pane alone, two of them wrapping mid-byte. Code lines hard-clip mid-identifier with no ellipsis or scroll cue. And the disclaimer is the largest, loosest type on a tool surface — a hierarchy inversion that also costs the panes roughly 180 px.
+
+Highest-priority fixes: one numeric formatter across every pane, and one hash truncation rule (middle-ellipsis, no wrapping).
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "reviewer": "L1",
+  "image": "screenshots/debugger__wide__dark.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L1/1",
+      "severity": "P2",
+      "location": "numeric columns across all four panes: call trace opcode column vs. identity bar readout, Transaction pane COST · MANA row, Values pane value column",
+      "finding": "Thousands separators are applied in exactly one place. The call trace right column reads 1,315 and 1,208; the identity bar readout beside it prints the same magnitude as 128 / 1315; the Transaction pane's COST · MANA row reads 88000 / 200000; and every four-digit figure in Values (10000, 9000, 2000, 1000) is unseparated. The call trace's 1,315 and the identity bar's 1315 are the SAME number rendered two ways about 400 px apart, which is the pair a reader is most likely to compare. Pick one rule and apply it to every integer on the surface; if the intent was 'separators only above 9,999' then 1,315 is the outlier and should lose them.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/2",
+      "severity": "P2",
+      "location": "Transaction pane (right rail): FEE PAYER and TARGET value cells, vs. the pane's own badge row and the identity bar",
+      "finding": "Four truncation strategies for one data type. The identity bar elides 6+4 (0xb63616…6359); the Transaction pane badge row elides 8+8 (0xb636167a…66d46359); the line immediately beneath that badge prints the full 40-character value, so the 8+8 elision buys nothing and the same hash appears twice on consecutive lines at two sizes; and FEE PAYER and TARGET do not elide at all — they hard-wrap onto a second right-aligned line (…0184953e2a272b5 / e430d5d932 and …936f12e6fe8f17 / a59161624c), splitting mid-byte, so a reader cannot tell whether the second line is a continuation or a second field. In a product whose texture is hashes this is the single most visible typographic inconsistency on the page.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/3",
+      "severity": "P2",
+      "location": "provenance banner, full-width band above the identity bar",
+      "finding": "The disclaimer is set at the largest body size on the page with the loosest line-height, while the panes it sits above run at roughly 11–12 px. On a tool surface the type scale therefore peaks on the sentence a returning visitor reads once. Compounding it, the measure is held to about 600 px of a 1920 px viewport — roughly 65 characters — so four lines are used where two would fit comfortably at a 90–100 character measure, and those two extra rows plus the leading come out of the pane column (the band occupies ~180 px of 1080). Dropping the banner one step on the scale and widening the measure would keep every word and return height to Code and Values.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/dark/L1/4",
+      "severity": "P2",
+      "location": "Code pane, right edge at lines 40 and 53",
+      "finding": "Long source lines are hard-clipped mid-identifier at the pane boundary with no ellipsis, no fade and no visible horizontal scroll affordance: line 40 stops at `shield_regen_perce` and line 53 at `damage: Field, r`. Every other truncation on the page announces itself (the ellipsis in the hashes, the `+3` / `+2` overflow chips in this very pane's value gutter), so this one reads as a render fault rather than a deliberate cut. A gradient mask or a persistent thin scrollbar would make the cut legible as a cut.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/5",
+      "severity": "P2",
+      "location": "Transaction pane, the three-line paragraph under EXECUTIONS — 'aztec private function executed client-side; only proofs, nullifiers and commitments are published — no call structure to trace'",
+      "finding": "The most information-dense sentence in the pane is set at the smallest size on the page and at a dim emphasis level, over a measure of roughly 45 characters, so it breaks into three lines with tight leading. It explains why the private execution has no trace — the pane's least obvious fact — and it is typographically the pane's least prominent element, ranking below the CANONICAL / FINALITY badges that carry one word each. One step up in size and one step up in emphasis would cost no rows.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L1/6",
+      "severity": "P3",
+      "location": "Code pane, loop-context strip: 'LOOP iterate_asteroids  line 4  Iteration 3 of 8'",
+      "finding": "Three type treatments share one 20 px line with no clear primary: `LOOP` as a tracked uppercase label, `iterate_asteroids` as bold mono, `line 4` as an underlined sans link, and `Iteration 3 of 8` at a visibly larger size than any of them. The largest text in the strip is the least specific fact in it — the iteration count is already spelled out by the highlighted chip 3 in the 1–8 rail immediately to its right. Demote 'Iteration 3 of 8' to the label size and let the function name lead.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/dark/L1/7",
+      "severity": "P3",
+      "location": "Code pane, inline value chips on lines 27, 28, 32, 49 and 50",
+      "finding": "The chip notation mixes three forms within nine visible lines: `damage=0`, `shield_pct=90` and `mass=200` use `=`; line 32 uses a colon and an arrow, `damage: 0→2000`; line 50 pairs `result=90` with a bare `→90` chip carrying no name. If `=` means 'value here' and `→` means 'changed here', the colon in the changed form is the odd character out, and the unnamed `→90` chip on line 50 gives the reader no way to know which binding moved.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/8",
+      "severity": "P3",
+      "location": "call trace pane, column header row: 'FRAME' at left vs. 'ACIR opcodes' at right",
+      "finding": "The two headers of one table are cased differently. `FRAME` is tracked uppercase; opposite it `ACIR` is uppercase (correctly, as an acronym) but `opcodes` is lowercase, so the right header reads as an acronym followed by a stray word rather than as a peer column label. `ACIR OPCODES` in the same tracked uppercase, or 'Frame' / 'ACIR opcodes' in sentence case, would make it one header row.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L1/9",
+      "severity": "P3",
+      "location": "Transaction pane, 'Status reason: private-part-succeeded-public-part-succeeded'",
+      "finding": "The slug wraps on one of its own internal hyphens, breaking after 'public-part-' so the second line opens with 'succeeded'. The line break is typographically indistinguishable from the hyphens that are part of the identifier, so a reader cannot recover the exact token. A slug is a single unit: set it in the mono face used for other machine values and break it with an explicit wrap marker, or let it overflow-wrap without landing on a hyphen.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

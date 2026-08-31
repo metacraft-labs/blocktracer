@@ -1,0 +1,80 @@
+Expected elements: present
+
+Every MUST SHOW item is on the page: the affirmative provenance banner (badge, `aztec-testnet`, endpoint, capture moment, 63629–63678 replay window), the identity bar with a real hash, block 63675, an exit that lands on the chain, stepping controls, a 128/345 readout and the phase rail; three panes that each explain the missing source in their own words; a `Supply sources` route out; and the replay telemetry with `effectsMismatched: 0`. No invented source, no fixture leakage, no failure banner, no dangling cost operand, no NOIR tag. The shell fits 1080.
+
+Through the density lens this is the weak capture. The product records 345 instruction indices and is currently at 128, yet the 910×805 Code pane shows none of them — it holds four lines of prose, a redundant fifth, a button, and 555px of blank. Two thirds of a 1920×1080 viewport carry nine lines of text while the one pane with data, 380px wide, wraps a 32-byte fee across three lines and clips its JSON at its bottom edge. The extra width this viewport offers is spent entirely on empty panes.
+
+Highest-priority fixes: render the recorded program-counter stream in the Code pane with 128 marked — the copy already says only the text is missing — and reallocate width to the Transaction pane so the fee and telemetry stop wrapping.
+
+Rating: 5/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 5,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L4/1",
+      "severity": "P2",
+      "location": "CODE pane, x 6-916 / y 270-1075",
+      "finding": "The trace has 345 recorded instruction indices and is positioned at 128, but the pane displays none of them: four lines of prose, one redundant restatement ('Stepping continues at instruction level.'), a button, and 555px of blank below it. The pane's own copy says stepping is complete and only the text is missing, so render the program-counter stream as rows (index, PC, and where known opcode) with 128 highlighted. That turns the register's largest surface from an apology into the instruction listing it is describing.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/2",
+      "severity": "P2",
+      "location": "three-pane split: CODE (910px), CALL TRACE/VALUES (606px), TRANSACTION (380px)",
+      "finding": "Space is allocated inversely to content. The 1516px left two thirds carry nine lines of prose across roughly 1.2 megapixels, while the 380px TRANSACTION pane holds every fact on the page and pays for it: the fee wraps over three lines and the RAW (CHAIN-NATIVE) block is cut off at the pane's bottom edge mid-object. At 1920 the additional width over a 1280 layout goes entirely into empty panes. Widen the TRANSACTION column at this breakpoint, or promote the replay telemetry into the empty left region.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/3",
+      "severity": "P2",
+      "location": "TRANSACTION pane, COST · TRANSACTIONFEE row, y 468-548",
+      "finding": "The fee renders as an unformatted 32-byte hex quantity wrapped over three right-aligned lines plus a fourth line for 'mana (FeeJuice)', making the row ~80px tall against ~32px for BLOCK, CANONICAL and FINALITY and destroying the single-line label/value grid those rows establish. The wraps also fall mid-byte. Render the decoded mana figure with tabular digits on one line and keep the raw hex as a secondary or copy-on-demand value; if it must stay raw, elide the 58 leading zeros rather than wrapping them.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/4",
+      "severity": "P2",
+      "location": "TRANSACTION pane, DECODED INPUT block, SELECTOR and RAW rows, y 618-680",
+      "finding": "SELECTOR renders as a bare en-dash and RAW renders as a bare '0x' with no bytes after the prefix, directly above prose stating that 'the parameters are shown as raw bytes'. No bytes are shown, so a prefix with no operand reads as a truncated render rather than an empty value, and the sentence below contradicts what is on screen. Either print the raw calldata bytes, or replace both values with an explicit 'none recorded' and reword the sentence to match.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/5",
+      "severity": "P2",
+      "location": "identity bar, progress bar x 778-1035 and position readout x 1220-1300",
+      "finding": "The widest horizontal element on the identity bar is a partly filled bar that encodes engine bytes downloaded, not trace position, and it sits in the same control group as the 128 / 345 readout, where a debugger user reads a long horizontal bar as a timeline scrubber. The actual position has no graphical representation in any pane. Move the download bar away from the position cluster (or reduce it to a compact spinner beside its label) and give 128 / 345 the scrubber treatment.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/6",
+      "severity": "P3",
+      "location": "CALL TRACE pane, x 921-1527 / y 270-748",
+      "finding": "The pane states that frames are recorded but never says how many, and shows none of them, leaving ~400px blank. Frame count, depth and PC range are data this recording has even without symbols; listing anonymous frames as 'frame 0 · depth 0 · pc 12-97' rows would make the pane scannable and would quantify the claim it currently only asserts.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/7",
+      "severity": "P3",
+      "location": "TRANSACTION pane header, y 300-370",
+      "finding": "The transaction hash appears three times in the top 160px of the page: truncated beside the Succeeded badge, in full wrapped over two lines immediately below, and again truncated on the identity bar. In the narrowest and most content-starved pane on the page this costs three rows for one value. Drop the truncated copy in the pane and keep the full hash only.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/8",
+      "severity": "P3",
+      "location": "identity bar, stepping control cluster x 470-770",
+      "finding": "Eight unlabelled glyphs of roughly 11px sit in four groups, and three pairs are hard to discriminate at that size: the two bracketed arrows, the two double-chevrons and the two diagonal arrows all read as 'jump to an end'. There is ~380px of unused bar between the phase rail and the share/download icons at this viewport; spend some of it on keyboard hints or short labels rather than leaving it empty.",
+      "criterion": "B2"
+    }
+  ]
+}
+```

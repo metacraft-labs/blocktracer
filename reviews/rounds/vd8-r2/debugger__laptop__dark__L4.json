@@ -1,0 +1,72 @@
+Expected elements: MISSING — a timeline or scrubber expressing position within the trace.
+
+That is finding #1, it is P1, and it caps the rating at 4. The identity bar carries the stepping toolbar, the phase rail and the fraction `128 / 1315`, but there is no tick strip, track or any spatial expression of where step 128 sits inside 1315 — the bar goes straight from the last button group to the numeric readout. A fraction is a readout, not a timeline; the must-show lists both.
+
+On density otherwise: the pane row gets 654 of 900 px because the provenance banner takes 180 px (20% of the viewport) to set four lines of prose across only the left 41% of the width — 850×120 px of that band is empty, and those rows come out of the register's scarcest resource. The measurement the change had not made: the Call Trace region is 389 px tall, its seven frames and the "By call order." footer end at ~508, leaving ~127 px (33%) empty, while the Values pane directly below it is cut mid-row at the fold with more values underneath. The height is in the wrong half of that column. The Code pane meanwhile clips lines 26, 40–44 mid-identifier at its right edge, and clips a `+3` value chip, with no scrollbar.
+
+Highest-priority fixes: restore a position expression at ≤1780 px, and move ~120 px from the call-trace region to Values.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "reviewer": "L4",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "expectedElements": "missing",
+  "missing": ["A timeline or scrubber expressing position within the trace"],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L4/1",
+      "severity": "P1",
+      "location": "identity bar, between the last stepping button group and the '128 / 1315' readout",
+      "finding": "No timeline or scrubber. Position within a 1315-step trace is expressed only as the text fraction '128 / 1315'; there is no tick strip, track or marker anywhere in the bar, so the surface carries no spatial sense of where in the trace the session sits. The fraction satisfies the separate 'position readout' item, not this one."
+    },
+    {
+      "id": "debugger/laptop/dark/L4/2",
+      "severity": "P2",
+      "location": "provenance banner, full-width band y=0-180",
+      "finding": "The banner spends 180 px — 20% of a 900 px viewport, and the rows come straight out of the pane column — on four lines of prose whose measure ends at x=590. Roughly 850x120 px of the band is empty. At this height the banner is padded like an explorer-register callout while three panes below it are cut off at the fold.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/3",
+      "severity": "P2",
+      "location": "middle column — Call Trace region (y 246-635) versus Values pane (y 638-900)",
+      "finding": "Measured: the tabbed region is ~389 px tall; the seven frames end at y~480 and the 'By call order. / Self cost' footer at y~500, leaving ~127 px (33% of the region) permanently empty. The Values pane below has 262 px and is cut mid-row at the viewport fold with further values underneath. The region with slack is the one with less content; the ~120 px belongs to Values.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/4",
+      "severity": "P2",
+      "location": "Code pane, right edge (x~680) at lines 26, 40, 41, 42, 44",
+      "finding": "Code is clipped mid-identifier at the pane edge ('calculate_remaining_shield_pct(initial_shield, re', 'fn calculate_shield_regeneration(initial_shield:Field, remaining_shiel') with no horizontal scrollbar or wrap indicator, and the '+3' value chip on line 26 is cut in half. At 674 px the Code pane loses measure first while the 282 px Transaction pane keeps its width — the wrong thing was dropped at this viewport.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/5",
+      "severity": "P2",
+      "location": "Transaction pane, FEE PAYER and TARGET rows",
+      "finding": "64-character identifiers are hard-wrapped into three ragged lines each, orphaning a two-character fragment on its own line ('...32', '...4c'); the header hash wraps similarly. Each address costs three rows in the pane with the least width and is unscannable as a value — the wrap breaks mid-byte at an arbitrary column rather than truncating at a meaningful boundary.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/6",
+      "severity": "P3",
+      "location": "Code pane, the two-line notice at y 357-376 above line 26",
+      "finding": "The notice 'Showing from line 26 - the session's position is below, and the lines above it are not in this window.' spends ~40 px (about two code rows) restating what the gutter numbers already say, and runs flush to the pane's right edge with no gutter while the code below it is inset.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/7",
+      "severity": "P3",
+      "location": "bottom edge of the Values and Transaction panes at y=900",
+      "finding": "Both panes end in a half-rendered row ('regeneration 1000 Field', 'RAW 0x') with no visible scrollbar and no pane bottom border, so it is ambiguous whether the panes scroll or the content is simply lost below the fold.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

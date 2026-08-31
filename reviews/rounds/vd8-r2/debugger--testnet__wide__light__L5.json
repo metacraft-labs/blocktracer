@@ -1,0 +1,80 @@
+Expected elements: present
+
+Every required element is on the page. The banner is affirmative, names `aztec-testnet`, its endpoint, its moment and the 63629–63678 replay window. The identity bar carries a real hash, block 63675, both stepping directions, 128/345 and the phase rail, and its exit `← aztec-testnet` lands on the chain (correct, not a finding). The three no-source panes each explain themselves in the chain's terms, `Supply sources` is present, and the replay telemetry including `effectsMismatched: 0` is in the transaction pane. The three named fixes verify: **no NOIR tag on the identity bar**, the cost row has an operand and a unit rather than a dangling separator, and the shell terminates inside 1080 instead of overhanging.
+
+In my lens the copy is the strongest thing here — it attributes the limitation to the chain, never apologises, and holds one voice across three panes. The surface is weaker. I considered a P1 register error and rejected it: uppercase pane headers, a full-bleed hairline pane grid, monospace hashes, dense key/value rows and a raw JSON block are tool vocabulary, not marketing vocabulary. But the light theme reads as the explorer palette applied to a pane layout, the banner arrives in explorer dress, and the pane notes are set as marketing prose — so the register boundary is softest exactly where a visitor crosses it.
+
+Highest-priority fixes: give the empty panes a deliberate empty-state treatment, and stop the banner spending 20% of the viewport on a 600px measure.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L5/1",
+      "severity": "P2",
+      "location": "the no-source explanations in the CODE, CALL TRACE and VALUES panes (CALL TRACE body, x approx. 930-1500, y approx. 320-350, above roughly 700px of empty pane)",
+      "finding": "The explanations are set as explorer-register body prose — proportional sans at roughly the same size as marketing copy, a 570px measure, paragraph spacing — floated at the top-left of otherwise empty panes with no empty-state treatment at all. Nothing distinguishes a pane that is correctly empty from one that failed to render: no muted surface, no framing, no centring, no icon, no rule under the note. The desktop app would set this as a small muted pane note, not as an article. Give the three notes one shared empty-state component: reduced size, muted foreground, vertically placed within the pane rather than pinned to its top edge, so the emptiness reads as a decision.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/2",
+      "severity": "P2",
+      "location": "provenance banner, full width above the identity bar (y approx. 10-205)",
+      "finding": "The banner is imported into the debugger shell in explorer dress: a rounded card on a light canvas, generous internal padding, and a roughly 600px prose measure inside a 1900px band, so it spends about 20% of the viewport's rows while leaving two-thirds of its own width empty. In the one register where rows are the scarcest resource, that is the register crossing being made at the top of the page by the explorer. Keep the content verbatim, but re-dress it for this register — set the sentences at pane-note size, run them across the available width in two columns or one long line, and drop the card chrome so it reads as a shell band rather than a marketing block.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/3",
+      "severity": "P2",
+      "location": "TRANSACTION pane, COST · TRANSACTIONFEE row (x approx. 1710-1905, y approx. 480-545)",
+      "finding": "The fee arrives as a 32-byte hex quantity and is rendered raw: 40 leading zeros wrapping across three right-ragged lines, with `mana (FeeJuice)` stranded beneath, breaking the label/value grid that every other row in the pane holds. The same primitive is a formatted mana figure on the synthetic chain, so one product primitive renders two different ways depending only on which chain reached it, and on the real one it is unreadable as a quantity. Normalise the hex to a decimal mana value at render and keep the raw hex behind a title or a secondary line, so the row stays one line and the unit stays adjacent to its number.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/4",
+      "severity": "P2",
+      "location": "identity bar, centre — `Engine loading — 18 MB` with a part-filled bar and the FETCHING chip lit (x approx. 775-1575, y approx. 233)",
+      "finding": "One bar asserts two states of the same session. The phase rail says the engine is still FETCHING and has not reached OPENING or POSITIONING, while eight pixels to its right the readout claims a concrete position of 128/345, and the transaction pane says `Trace ready`. A position cannot be known before the trace is opened, so the readout is asserting a state the rail says has not happened. Suppress or dim the position readout until the rail reaches POSITIONING, or label the two so a reader can see that one describes the served session and the other the hydrating engine.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/5",
+      "severity": "P2",
+      "location": "TRANSACTION pane, DECODED INPUT block — the SELECTOR row (value `—`), the RAW row (value `0x`) and the sentence below them (y approx. 615-750)",
+      "finding": "The copy and the rows contradict each other. The sentence reads \"This selector is not in any ABI BlockTracer holds, so the parameters are shown as raw bytes\", but SELECTOR shows an em-dash meaning there is no selector at all, and RAW shows a bare `0x` with no bytes after it — the same dangling-operand shape the cost row was just fixed for. The explanation promises raw bytes the pane does not contain, which is the one voice failure on a page whose copy is otherwise exact. Branch the sentence: when there is no selector and no calldata, say that this call carries no input rather than explaining an ABI miss that did not occur, and render the empty value as `—` rather than `0x`.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/6",
+      "severity": "P2",
+      "location": "whole surface at the light theme — the page canvas behind the pane grid and the white pane fills (e.g. the CODE pane, x approx. 5-915)",
+      "finding": "The light theme of this register looks inherited from the explorer rather than designed for the tool: the same near-white canvas, the same card-like pane fills, the same green/blue accent treatment as an explorer page, with pane boundaries carried by a single hairline. Section 3 requires the crossing into the debug route to be a deliberate, visible transition, and at this theme a visitor gets no signal that the register changed. Differentiate the debugger's light theme from the explorer's — a distinctly cooler or darker canvas behind the panes, stronger pane separators, and a tighter row rhythm — so the light theme is the same tool in daylight rather than the marketing surface with panes in it.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/7",
+      "severity": "P3",
+      "location": "CODE pane, `Supply sources` button (x approx. 14-120, y approx. 488-511)",
+      "finding": "This is the only route out of the page's central limitation, and it is rendered in the weakest button style available — a small light outline on a white pane, below two paragraphs, with less visual weight than the `Succeeded` badge in the identity bar. Promote it to the pane's primary affordance so the missing text plainly reads as something the visitor can supply.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/8",
+      "severity": "P3",
+      "location": "TRANSACTION pane, RAW (CHAIN-NATIVE) JSON block, bottom edge of the viewport (y approx. 1063-1080)",
+      "finding": "The JSON stops mid-object at `\"effectsMismatched\": 0,` with no closing brace and no visible scrollbar or fade, so it is indistinguishable from a truncated render — the same deliberate-versus-broken ambiguity as the empty panes. Add a persistent scroll affordance or a bottom fade on the block so the reader can see the content continues.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

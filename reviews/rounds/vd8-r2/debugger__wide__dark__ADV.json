@@ -1,0 +1,29 @@
+Expected elements: present
+
+Presence check passes. The shell fits 1920x1080 with no page-level scroll. The provenance banner leads the shell above the identity bar with the `Synthetic demo data` badge, the `aztec` slug and the producer's own four sentences, and its tone matches its label. The identity bar carries `← aztec` (exit to the chain — correct, not a finding), `0xb63616…6359`, `Partial`, `block 101`, both stepping directions plus frame and run controls, the scrubber, `128 / 1315`, the FETCHING/OPENING/POSITIONING rail, and the `NOIR` tag (correct here). Code is titled Code and line 32 is unmistakably current. Call Trace and Event Log are one tab strip with Call Trace open; Values is a separate pane below it, not a third tab; eight frames; no spinner, no blank pane, no full-width prose band restating engine loading, no full-width pane row. The `COST · MANA` row reads `88000 / 200000 mana (FeeJuice)` — the dangling separator is gone.
+
+The weakest element is the provenance banner itself — not its content, which is right, but its cost. It is the largest single consumer of the register's scarcest resource and it spends that resource on emptiness, in a view whose Code pane is clipping and whose right rail is cut mid-JSON.
+
+Highest-priority fix: set the banner prose at pane-body scale and flow it across the band it already occupies, returning roughly 80 px to the panes.
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/ADV/1",
+      "severity": "P2",
+      "location": "provenance banner, the full-width band above the identity bar — roughly the top 160 px of the 1080 px viewport, prose column ending near x=600",
+      "finding": "The banner is correct as content and wrong as layout. It occupies about 160 px of 1080 — roughly 15% of the viewport, and about 30% of everything above the panes — while using only the leftmost ~600 px of a 1920 px band. Around two thirds of the band it claims is empty. The prose is set at explorer-register scale: four lines at ~22 px leading, against ~12 px identity-bar text and ~13 px pane rows a few pixels below it. That is marketing-grade padding sitting directly on top of a tool surface, which is the B1 failure verbatim — space spent where it buys nothing while the content it displaces is scrolled. The displacement is visible in the same frame: the Code pane clips line 54 at the viewport edge, the Transaction pane's RAW (CHAIN-NATIVE) JSON is cut mid-object at `\"transfer\"`, and the Values pane ends flush against the bottom with `i` as its last visible row. The banner's own expectation block anticipates this — it is full-width by design and the rows come out of the panes — so the question it poses is whether the rows are earned, and at this measurement they are not. Nothing about the banner's honesty function requires four stacked lines in a 600 px measure; the same badge, slug and sentences flowed across the full band at pane-body scale would cost roughly 80 px instead of 160 and return that height to the region that is currently truncating a JSON object. It is not P1: the banner is present, legible, correctly toned and correctly placed first in the shell. It is P2 because the register's own rubric names this exact trade, and on this page the trade is currently being lost.",
+      "criterion": "B1"
+    }
+  ]
+}
+```

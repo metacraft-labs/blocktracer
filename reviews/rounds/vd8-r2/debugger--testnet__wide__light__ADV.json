@@ -1,0 +1,29 @@
+Expected elements: present
+
+Presence check passes. The provenance banner leads the shell above the identity bar, affirmative in tone and label alike ("Real Aztec testnet data", `aztec-testnet`), and carries endpoint, moment and replay window. The identity bar has a real hash, `block 63675`, both stepping directions, `128 / 345`, the phase rail, and an exit that lands on `aztec-testnet`. All three source-starved panes speak in their own words, `Supply sources` offers the way out, and the transaction pane shows real chain facts down to `effectsMismatched: 0`. No invented file, line, function or variable name anywhere; no fixture content; no engine-failure banner; no blank unexplained pane. No NOIR tag on the identity bar. The shell fits 1920x1080.
+
+The weakest element is the `COST · TRANSACTIONFEE` row in the transaction pane. The dangling " / " is genuinely gone — `mana (FeeJuice)` now reads as a clean unit. Three defects are not. Judged afresh, this is still the only row on the page that is wrong rather than merely sparse, and it sits on the pane that carries the view's entire claim: that real chain data renders as well as the fixture. Here it visibly does not.
+
+Highest-priority fix: decode the fee to a decimal quantity with the raw word available on demand, and label the row from the vocabulary, not the adapter field.
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/ADV/1",
+      "severity": "P2",
+      "location": "Transaction pane (right rail), the COST · TRANSACTIONFEE row, between FINALITY and EXECUTIONS",
+      "finding": "The dangling \" / \" is fixed; the unit now reads cleanly as `mana (FeeJuice)`. Three defects remain, and together they still make this the weakest element on the page. (a) The fee is a 32-byte word printed raw — `0x` followed by 64 nibbles of which roughly 46 are literal zero padding, with the only significant part, `185cfcc84d2f103f`, stranded at the end. It is a quantity a reader cannot read, compare, or sanity-check, on the one view whose purpose is to show that real chain data survives the formatting path the fixture never reaches. (b) It wraps across three right-aligned lines plus a fourth for the unit, so the row stands about four times the height of BLOCK, CANONICAL and FINALITY and its value block overruns leftward under the label on the first two lines — the label/value column relationship that holds for every other row in the pane collapses here, and it collapses in the pane's most valuable vertical space, which this register already spends on a full-width banner. (c) The label is still the adapter's raw camelCase field `transactionFee`, uppercased into the unbroken token `TRANSACTIONFEE`, sitting beside BLOCK, CANONICAL, FINALITY, EXECUTIONS and DECODED INPUT — every one of which is real English. It is a vocabulary leak from the data layer straight onto the surface. Nothing else on this page is broken: the empty panes are empty by necessity and each says why in its own voice, and the telemetry is intact. This row is the single place where the product looks like it polished the fixture and left real data raw — which is precisely the impression this capture exists to refute.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

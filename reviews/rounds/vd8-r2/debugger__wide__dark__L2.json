@@ -1,0 +1,74 @@
+Expected elements: present
+
+All backbone items are on the page: provenance banner above the identity bar (badge, `aztec` slug, producer prose), slim identity bar with the chain-targeting exit `← aztec`, hash, stepping controls in both directions, scrubber, phase rail and the `NOIR` tag; Code pane positioned at line 32; Call Trace and Event Log as one tabbed region with Call Trace open and eight frames; Values as a separate pane below it; Transaction metadata at right. No spinner, no empty pane, no light chrome, no full-width prose band between the bar and the panes, no page scrollbar.
+
+In layout terms the shell now fits 1080 — the overhang is gone and the vertical spacing reads as one scale (≈7px pane gutters, 16px above the pane row, ≈34px banner padding). Four things still cost rows or break alignment. The banner is 180px (17% of the viewport) for a 590px prose measure — 31% of a full-width band — so ~80px is recoverable by widening the measure and inlining the badge, and that 80px lands directly on the Code and Transaction panes, which are the two cut off at the floor. Those two end on a half-rendered row at the exact viewport edge with no bottom rule and no scrollbar, so the floor reads as a crop; Values ends on a completed row. The Call Trace region is ~48% blank below "By call order." while Values has ~67px slack. Value chips in Code are anchored two ways, and the Transaction pane handles hash overflow three ways.
+
+Fix first: reclaim banner rows; give the pane column a bottom edge.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "reviewer": "L2",
+  "image": "screenshots/debugger__wide__dark.png",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L2/1",
+      "severity": "P2",
+      "location": "provenance banner, top of shell (y≈0–180)",
+      "finding": "The banner takes ~180px — 17% of the 1080px viewport — to carry a badge row and four lines of prose set to a ~590px measure, i.e. 31% of the 1920px band it occupies. The remaining ~1300px of the band is empty while the height it costs comes out of the panes below. Widening the measure to ~1100px drops the prose to two lines and setting the 'Synthetic demo data' badge and 'aztec' slug inline with the first line removes another row: ~80px recoverable without cutting a word. Those 80px land on the Code and Transaction panes, the two that are cut off at the viewport floor, so the banner's cost is currently unfair at this viewport.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/dark/L2/2",
+      "severity": "P2",
+      "location": "bottom edge of the pane column — Code pane (line 54) and Transaction pane (RAW CHAIN-NATIVE block), y≈1080",
+      "finding": "The column no longer overhangs and there is no page-level scrollbar, but it does not terminate cleanly: the Code pane ends on a half-height row (line 54 sliced through the glyphs) and the Transaction pane's raw JSON runs off the edge mid-object, both with no bottom rule, no gutter and no scrollbar or fade to signal that the region scrolls. The Values pane, by contrast, ends on a completed row with space beneath it. Three columns terminate three different ways, and the two that terminate on a sliced row read as the old clipping bug rather than as scroll regions. Give the pane column the same bottom inset as its side gutters (≈7px) and let each pane close on its own border.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/3",
+      "severity": "P2",
+      "location": "Call Trace tabbed region, below the 'By call order. / Self cost' footer (y≈505–741)",
+      "finding": "MEASUREMENT the change had not made: the tabbed region spans y≈248–741 (≈493px). Header, eight frames and the footer strip end at y≈505, leaving ≈236px — 48% of the region — blank. The Values pane below it (y≈748–1078, ≈330px) holds twelve rows ending at y≈1011 and has only ≈67px of slack. So neither pane is starved, but the 3/5 share is given to the region that uses it least, and the 'By call order. / Self cost' strip is left floating mid-pane with a 236px void under it rather than sitting on a pane floor. Either let the region shrink to its content and pass the height to Values, or dock the footer strip to the region's bottom edge so the empty space reads as headroom for deeper traces instead of as an unfinished pane.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/4",
+      "severity": "P2",
+      "location": "Code pane, inline value chips on lines 26, 27, 28, 32, 48, 49, 50",
+      "finding": "The chips use two anchoring rules in the same column. On lines 27, 28, 32 and 50 they hug the last code glyph (e.g. 'damage=0' immediately after line 27; the three chips packed after line 32). On lines 26 and 48 the overflow counter sits near the pane's right edge at x≈855, roughly 400px right of the end of line 26's code with nothing between, so the eye has to travel the full pane width to associate '+3' with its line — and line 49 has one chip hugging the code ('result=90') and a '+2' out near the right edge. Proximity is doing the grouping everywhere else in this pane, so pick one rule: either always adjacent to the code, or always in a fixed right-hand chip column that the hugging chips also respect.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L2/5",
+      "severity": "P2",
+      "location": "Transaction pane, FEE PAYER and TARGET rows (y≈480–555) and the RAW (CHAIN-NATIVE) block (y≈1015)",
+      "finding": "Three overflow strategies inside one pane. The top hash fits on one line; FEE PAYER and TARGET wrap onto a right-aligned second line ('e430d5d932', 'a59161624c') whose left edge aligns to nothing, so a single hash reads as two separate right-aligned values stacked in a label/value grid; and the RAW block hard-clips '\"contract\": \"0x1b31c04d5920b0b5936f12' at the pane's right edge with no ellipsis and no visible horizontal scrollbar. The wrapped continuations are the worse of the two — in a right-aligned value column a second right-aligned fragment is indistinguishable from a second value. Break the hash on a fixed grouping and left-align the continuation to the value column's left edge, and give the raw block one consistent affordance (ellipsis or a visible horizontal scroller).",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L2/6",
+      "severity": "P3",
+      "location": "identity bar, between the phase rail (ends x≈1475) and the NOIR tag / share / download cluster (starts x≈1795)",
+      "finding": "The bar groups well on its left three-quarters — identity, then a stepping cluster whose three sub-groups are separated by hairline dividers, then scrubber, status readout and phase rail, each gap in the 12–24px range. The gap before the right-hand cluster is ≈320px, more than 5× any other gap in the bar, so NOIR/share/download read as detached rather than deliberately pinned. Pinning actions right is defensible; a divider before the cluster, or absorbing the slack into the scrubber's width, would make the pin read as intent.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/dark/L2/7",
+      "severity": "P3",
+      "location": "Code pane header stack, y≈248–384 (title row, LOOP breadcrumb + iteration selector, file tab row, 'Showing from line 26 …' notice)",
+      "finding": "Four stacked full-width bands consume ≈136px before the first code line, ~16% of the pane's height, in the pane the change just gave the full height of the region. Their left edges also do not agree: 'CODE' and 'LOOP iterate_asteroids' start at the same inset, the file tabs sit a few px right of it and the 'Showing from line 26' notice a few px left of it, so four bands present three left edges down a single pane. Merge the title row with the LOOP breadcrumb (the iteration selector already right-aligns in that row) and align all four bands to one inset.",
+      "criterion": "B4"
+    }
+  ]
+}
+
+```

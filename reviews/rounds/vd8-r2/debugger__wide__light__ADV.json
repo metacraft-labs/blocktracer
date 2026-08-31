@@ -1,0 +1,29 @@
+Expected elements: present
+
+Presence check passes. The provenance banner leads the shell above the identity bar with badge, `aztec` slug and the producer's own sentences, and its tone matches its label. The identity bar carries `0xb63616…6359`, `Partial`, `block 101`, both stepping directions plus frame and run jumps, the scrubber, `128 / 1315`, the phase rail and an exit that lands on the chain (`← aztec`) — correct, not a finding. The `NOIR` tag is correct here. Code is titled Code and line 32 is unmistakably the position, in the gutter, the row fill and the `damage: 0→2000` callout. Call Trace and Event Log are one tab strip with Call Trace open; the trace has seven frames; Values is a pane BELOW that strip, not a third tab, with eleven values. `COST · MANA` reads `88000 / 200000 mana (FeeJuice)` — the dangling separator is gone. No spinner, no empty pane, no prose band between the bar and the panes, no full-width pane row. The shell fits 1920×1080.
+
+The weakest element is the provenance banner itself — not its content, which is exact, but its layout, which is the one part of this page still drawn to explorer-register rules.
+
+Highest-priority fix: set the banner's sentences to the band's real width at pane leading and pane padding, returning roughly 90 px — four code lines — to the panes.
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/wide/light/ADV/1",
+      "severity": "P2",
+      "location": "Provenance banner, the full-width band at the top of the shell above the identity bar (y ≈ 0–186)",
+      "finding": "The banner is typeset to the explorer register inside the debugger register, and it is the only element on the page that is. It is 1920 px wide and its prose is confined to a 590 px measure at the far left, so about 69% of the band it charges for is blank; the four sentences run at explorer body size with roughly 22 px leading and sit inside ~40 px of top and ~34 px of bottom padding, none of which is the padding any pane on this page uses. The result is 186 px — 17% of the viewport, 22% of everything below the identity bar — spent on four short lines that the band's own width could carry in two at pane leading, for a reclaimable ~90 px. The brief makes the banner's presence and its full width non-negotiable and its content is not the complaint: the badge, the `aztec` slug and the sentences are exactly right, and the distinction they draw (synthetic hash, real recorded Noir trace) is the one thing no other surface in this register can say. The complaint is that the register's scarcest resource is rows and this is the largest single discretionary spend of them on the page, paid by the two panes that visibly clip: the Code pane cuts line 54 through the middle of its glyphs at the viewport edge, and the Transaction pane's RAW (CHAIN-NATIVE) block runs off the bottom mid-token. Four more code lines and three more JSON rows are the exact size of the margin. Nothing here needs to show less information; it needs to be laid out like the tool it sits on top of.",
+      "criterion": "B1"
+    }
+  ]
+}
+```
