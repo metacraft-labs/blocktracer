@@ -282,6 +282,44 @@ proc costLabel*(name: string): string =
   of "noteHashes": "Note hashes"
   else: name
 
+func unbreakableDimension*(s: string): string =
+  ## A cost dimension's own spaces become NO-BREAK spaces, so the only place a
+  ## `Cost · <dimension>` label may break is at the separator.
+  ##
+  ## This exists because `costLabel` above fixed the words and made the LAYOUT
+  ## worse, which round vd9-r2 measured and filed against the fix rather than
+  ## against the defect it replaced. Measured on
+  ## `tx-detail--mainnet-zero-trace/wide/light`, label cell 160px wide:
+  ##
+  ##   * before `costLabel`: `COST · TRANSACTIONFEE` — one unbreakable
+  ##     fourteen-letter run, wrapped after the separator, row 60px against a
+  ##     37px grid row: **1.62x**;
+  ##   * after `costLabel`: `COST · TRANSACTION FEE` — correct English, and it
+  ##     breaks in one more place, so it wrapped to THREE lines at 84px:
+  ##     **2.27x**. Worse than what it replaced, on the axis the original
+  ##     finding was about;
+  ##   * with this: `COST ·` / `TRANSACTION FEE`, two lines, 60px, **1.62x** —
+  ##     the words of the fix at the height of the thing it fixed.
+  ##
+  ## It does NOT get the row to 1.0x and cannot. The `dt` is a 160px track with
+  ## `6px 24px` padding, so the label has a 112px content box, and
+  ## `TRANSACTION FEE` measures 112.4px at 12px/0.72px tracking — over by four
+  ## tenths of a pixel. Every cost dimension this tree publishes whose name is
+  ## two words is in the same position (`PROOF SLOTS`, `NOTE HASHES`), and so
+  ## was `TRANSACTIONFEE` before any of this. The row is two lines because the
+  ## column is too narrow for a cost dimension in caps, which is a geometry
+  ## decision and not a string one — see `reviews/QUEUED-DECISIONS.md` Q9, and
+  ## note that `--bt-layout-label-column` is ALSO the max-width of the
+  ## omniscience inline-value chip (`debugger_css.nim` `.fv`), so widening it
+  ## is not the one-line change it looks like.
+  ##
+  ## Applied at the JOIN SITE and not inside `costLabel`, deliberately: the
+  ## no-break is a fact about the two-part label this row composes, not about
+  ## the dimension's name. `costLabel` keeps returning ordinary text, so the
+  ## fall-through arm still hands an unknown chain's dimension back verbatim
+  ## and the tests that read it are reading words rather than typography.
+  s.replace(" ", " ")
+
 proc outcomeReasonLabel*(o: OutcomeOverall): string =
   ## What to call `outcome.reason`.
   ##
@@ -523,7 +561,7 @@ proc txMetadataRows*(chain: string, v: TxView, info: ChainInfo): seq[MetaRow] =
     if c.token.len > 0: suffix.add " (" & c.token & ")"
     # `costAmount` and NOT a second `c.used & " / " & c.limit`: the ceiling is
     # optional on a real chain, and the guard that knows so lives in one place.
-    result.add MetaRow(label: "Cost · " & costLabel(c.name),
+    result.add MetaRow(label: "Cost · " & unbreakableDimension(costLabel(c.name)),
                        value: costAmount(c),
                        suffix: suffix, identifier: true)
 
