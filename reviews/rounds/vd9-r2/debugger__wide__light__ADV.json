@@ -1,0 +1,29 @@
+Expected elements: present
+
+All MUST SHOW items check out: slim identity bar with truncated hash, `Partial` badge, `block 101` and a `← demo` exit that lands on the chain; four stepping groups plus scrubber, `128 / 1315` readout and the FETCHING/OPENING/POSITIONING rail; Code pane with the current position unmistakable on line 32; CALL TRACE / EVENT LOG as one tabbed region with Call Trace open and seven frames; Values as a separate pane below the tabs, not a third tab; Transaction pane whose `DATA` row carries the `Synthetic demo data` badge and the producer's own sentences. No spinner, no empty pane, no prose band above the panes, no full-width pane row. Register is right — dense and tool-like, not marketing-light.
+
+The weakest element is the four stepping-control groups in the identity bar, x≈370–655. The inert treatment does not carry it, and I measured why. The eight stepping buttons and the two live share/download buttons at x≈1838–1896 are built from the identical chassis: same white surface, same #C8C8C8 1px border, same radius, same size, same glyph weight. The only thing separating "cannot act" from "click me" is glyph ink — #565656 versus #101010, 7.34:1 versus 19:1. Worse, #565656 is not a disabled token on this page; it is the ordinary secondary token, spending three other meanings inside the same 46px strip — the `NOIR` label 6px from the live share button, the not-yet-reached `OPENING` and `POSITIONING` chips, and the `RAW (CHAIN-NATIVE)` section label. So the shift the visitor is asked to read as "the engine is still being fetched, these are dead" is the same grey the bar uses for "less important", sitting beside two identically-drawn buttons that are alive. The bar's honesty rests entirely on the words `Engine loading — 18 MB` and the active FETCHING chip; the controls contribute nothing and quietly contradict them. The information is true, so this is presentation, not broken data — P2, not P1.
+
+Runner-up, for the record and not as a second finding: 338px of the ~600px call-trace region is void below `By call order.` while the Transaction and Code panes both overflow — but with only seven frames in the fixture that is as much an artefact of the fixture as of the layout, and it misleads no one.
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/wide/light/ADV/1",
+      "severity": "P2",
+      "location": "identity bar, the four stepping-control groups at x≈370-655, judged against the live share/download buttons at x≈1838-1896",
+      "finding": "The inert treatment applied to the stepping controls is a glyph-ink change and nothing else, and the ink it changes to is not a disabled token. Stepping buttons render at #565656 on a white surface with a #C8C8C8 1px border; the live share and download buttons use the identical surface, border, radius, size and glyph weight and differ only in ink at #101010 — 7.34:1 against 19:1. #565656 is simultaneously the page's ordinary secondary token, carrying the static NOIR label 6px from the live share button, the not-yet-reached OPENING and POSITIONING chips in the phase rail, and the RAW (CHAIN-NATIVE) section label in the Transaction pane. One colour role therefore means 'cannot act', 'has not happened yet' and 'less important' inside the same 46px strip, so a ~20% ink shift on an otherwise fully intact button chassis is the entire signal that eight controls are dead while the bar states the engine is still fetching. Give the disabled state its own treatment the page uses nowhere else — drop the surface to the bar's recessed tone and reduce the border, or dim the whole group's opacity so the chassis, not just the ink, reads as switched off. The information is honest (Engine loading - 18 MB, FETCHING active, 128 / 1315), so this is presentation rather than broken data.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

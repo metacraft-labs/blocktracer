@@ -1,0 +1,126 @@
+Expected elements: present
+
+Every Must-show item renders, no Must-not-show item appears: chain-targeting exit, both stepping directions, scrubber, `128 / 1315`, phase rail; Code positioned at line 32; Call Trace and Event Log as one tab strip with Call Trace open; Values a pane below it; the `Data` row badged `Synthetic demo data`. It reads as the desktop tool in a light theme, not marketing chrome.
+
+(a) landed — capitalised `Aztec` reads as a chain family, not a slug fighting `demo`; its terminal stop is unverifiable, the sentence being clipped mid-word by the pane's fade. (b) unverifiable here: `Selector` and `Raw` sit below the Transaction pane's visible extent, which ends at EXECUTIONS. (d) partly landed — the fade is real on Code and Transaction, but the Code pane's actual overflow at 1440 is horizontal (lines 41, 42, 48 cut mid-token) and got no such treatment; costs are humanised in `No timestamp published` and `Not observable`, not in `COST · MANA … 88000 / 200000 mana (FeeJuice)`.
+
+(c) re-filed plainly: `Status reason: private-part-succeeded-public-part-succeeded` is a kebab enum printed as prose, sitting above the provenance row, so the first sentence-shaped thing in the honesty pane is a machine literal.
+
+Fresh: the Code pane's framing note reads as denying the visible highlight; the phase rail emphasises FETCHING in a fully positioned session; Call Trace is ~48% empty while Values runs to its edge.
+
+Top fixes: humanise the status reason and move it below `Data`; give Code a right-edge overflow affordance.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L5/1",
+      "severity": "P2",
+      "location": "Transaction pane, second row, directly under the Partial hash and above the DATA row",
+      "finding": "Re-filed from the previous round: `Status reason: private-part-succeeded-public-part-succeeded` is a raw enum literal printed where a sentence belongs, hyphen-wrapped across two lines and with no terminal stop. It is worse for its position — it is the first sentence-shaped text in the pane that carries this register's honesty claim, so a reader meets a machine identifier before they meet `Synthetic demo data` and the producer's prose. The pane's other state rows were humanised in this round (`No timestamp published`, `Not observable`), which makes this the only untranslated one and reads as an oversight rather than a deliberate register choice. Suggested: `Both the private and public parts succeeded.`",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/light/L5/2",
+      "severity": "P2",
+      "location": "Code pane, full-width note strip between the file tabs and line 26",
+      "finding": "\"Showing from line 26 — the session's position is below, and the lines above it are not in this window.\" reads as stating the current position is off-screen below the viewport, which directly contradicts the cyan current-position indicator visible on line 32 six rows down. The pronoun in \"the lines above it\" is also ambiguous between line 26 and the position. In the one pane whose job is to say where you are, prose that can be read as denying the marker beside it is a tone failure. Name the line number instead: \"Listing starts at line 26; the session is at line 32. Earlier lines are not loaded.\"",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L5/3",
+      "severity": "P2",
+      "location": "Code pane, right edge, lines 41, 42, 48 and 49",
+      "finding": "Code lines are cut mid-token at the pane's right edge (`after each`, `/ 100;`, `remaining_shi`, `initial_shield as`) with no horizontal scrollbar, no right-edge fade and no ellipsis — the text simply stops at the boundary. This round added a bottom fade to every pane body, but at 1440 the Code pane's real overflow is horizontal, so the new primitive was applied to the edge that was not overflowing and withheld from the one that is. Apply the same fade treatment to the right edge, or truncate visibly.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L5/4",
+      "severity": "P2",
+      "location": "Identity bar, right of the position readout — the FETCHING / OPENING / POSITIONING rail",
+      "finding": "FETCHING is rendered filled and accented while OPENING and POSITIONING are neutral outlines, which reads as \"the engine is currently fetching\". The session is demonstrably past that: code is listed, the position indicator is on line 32, Values are populated with changed-value marking, and the stepping controls are enabled. The rail's emphasis is ambiguous between \"current phase\" and \"phase reached\", and under the first reading it presents a loaded session as a loading one. Either mark all three as complete or collapse the rail once positioning finishes.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/light/L5/5",
+      "severity": "P2",
+      "location": "Call Trace region versus the Values pane, middle column",
+      "finding": "Measurement the brief asked for: the Call Trace region runs roughly y=70 to y=560 (~490px); the seventh and last frame ends near y=300 and the `By call order.` footer sits at y=313, leaving ~235px — about 48% of the region — empty. The Values pane below it (~325px) is full to its bottom edge, with `i` flush against the boundary and more rows implied. The Values pane is the one that should have the height at this viewport; the current split gives three fifths of the column to a list the fixture fills in its first half.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L5/6",
+      "severity": "P2",
+      "location": "Transaction pane, COST · MANA row, versus the Call Trace ACIR opcodes column",
+      "finding": "`88000 / 200000` is printed without thousands separators while the same-magnitude counts one pane to the left render as `1,315`, `1,208`. Two numeric formattings for comparable magnitudes on one screen is a shared-primitive inconsistency, and the cost row is the one a reader is most likely to compare against an explorer-register page.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L5/7",
+      "severity": "P3",
+      "location": "Transaction pane, COST · MANA row label and value",
+      "finding": "The label reads `COST · MANA` and the value repeats the unit as `88000 / 200000 mana (FeeJuice)`, so \"mana\" is stated twice and `FeeJuice` — a protocol-side asset identifier in camel case — is parenthesised without explanation. The middle-dot compound label is itself build-side shorthand. `Mana` as the label with `88,000 of 200,000 (paid in Fee Juice)` as the value would carry the same information as a human label.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L5/8",
+      "severity": "P3",
+      "location": "Transaction pane, FINALITY row",
+      "finding": "The value badge reads `Safe` — an Ethereum consensus enum literal (safe / justified / finalized) surfaced verbatim on a chain the EXECUTIONS note identifies as Aztec-family. It is an adapter field value borrowed from another chain's vocabulary and shown with no gloss, so it reads as an enum name rather than a claim about this transaction.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/light/L5/9",
+      "severity": "P3",
+      "location": "Identity bar, far left — the `← demo` exit",
+      "finding": "The exit prints the lowercase registry slug `demo` as the chain's name. This is the same class of problem the previous round's `aztec` finding named and (a) fixed inside the pane: a slug where a display name belongs. Having capitalised `Aztec` in the EXECUTIONS note, the bar is now the only place still showing a raw slug, so the inconsistency moved rather than closed.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/light/L5/10",
+      "severity": "P3",
+      "location": "Transaction pane, DATA row position",
+      "finding": "The brief specifies the provenance marker as the FIRST row of the Transaction pane. It renders third — after the Partial-badge hash block and after the Status reason line. The substance is right (labelled `Data`, toned badge, producer's sentences, tone consistent with the label), so this is not a presence failure, but the row is quieter than the spec intends: two blocks of hash and one enum precede the only place a reader can learn whose data this is.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/light/L5/11",
+      "severity": "P3",
+      "location": "Transaction pane, bottom edge, EXECUTIONS note",
+      "finding": "The new bottom fade lands on the sentence \"Aztec private functions execute client-side; only proofs, nullifiers and commitments are…\", dimming and cutting the pane's honesty statement mid-word. The fade is correct as a scroll affordance but it is applied over the one paragraph whose job is to be read, so the pane's most load-bearing copy is also its faintest. Consider ordering the pane so the EXECUTIONS note is not the row the fade falls on at 900px height.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/light/L5/12",
+      "severity": "P3",
+      "location": "Code pane, line 41 comment",
+      "finding": "The rendered source comment reads \"regain a percentage of the maxium capacity\" — `maxium` for `maximum`. It is fixture text, but this is the flagship surface of the product register and the typo is in the largest pane at readable size.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L5/13",
+      "severity": "P3",
+      "location": "Code pane, right gutter at lines 26, 48 and 50 — the dashed `+3` / `+2` chips",
+      "finding": "Small dashed chips reading `+3` and `+2` sit in the gutter beside the inline value pills with no label, key or unit. They are adjacent to pills like `damage: 0→2000`, so a reader will guess \"more values here\", but the surface never says so. An unlabelled numeric chip is the kind of build-side shorthand this hunt is looking for.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/light/L5/14",
+      "severity": "P3",
+      "location": "Identity bar, between the `128 / 1315` readout and the phase rail, and the gap between POSITIONING and NOIR",
+      "finding": "At 1440 the bar does not wrap, but it reads as a strip of adjacent objects rather than grouped ones: the position readout abuts the phase rail with no separator or spacing change, so `1315` and `FETCHING` scan as one unit, while roughly 200px of unallocated space sits between POSITIONING and the NOIR chip. Stepping cluster, scrubber+readout, and phase rail are three groups drawn with one spacing value.",
+      "criterion": "B10"
+    }
+  ]
+}
+```

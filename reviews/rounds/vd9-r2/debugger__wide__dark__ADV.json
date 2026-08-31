@@ -1,0 +1,27 @@
+Expected elements: present
+
+Presence check passes on every item. The identity bar carries the truncated hash, the `Partial` badge, `block 101`, an exit (`← demo`) that lands on the chain, eight stepping buttons in four grouped pairs with both directions visible, a determinate scrubber, the `128 / 1315` readout and the FETCHING/OPENING/POSITIONING phase rail. Call Trace and Event Log are one tabbed region with Call Trace open; Values is a pane below it, not a third tab. The provenance marker is the `Data` row inside the transaction pane, with a toned `Synthetic demo data` badge and the producer's own sentences — no band above the identity bar. The current position at line 32 is unmistakable: cyan gutter bar, cyan line number, tinted band, and an amber `damage: 0→2000` chip that distinguishes the changed value from the unchanged ones beside it. The pane-bottom fades are real and measurable (the last glyph row in both the Code and Transaction panes ramps ~240 → ~110 over the final 15 px).
+
+The weakest element is the height of the Call Trace / Event Log tabbed region in the middle column. The region spans y=68–669 (601 px); its seven frames plus the `By call order.` / `Self cost` footer end at y=320, leaving 348 px — 58% of the region — as void. The Values pane beneath it carries another 132 px of slack below `i`, so 480 px of the middle column, 48% of it, is empty. That emptiness sits directly beside a Transaction pane whose content is fading off the bottom edge mid-`"aztec": {` and a Code pane cut at line 61. In the register where density is the stated virtue, the column with nothing to show is holding the height, and the two columns with more to show are the ones being truncated. The Watch-for asks which of the two — the region or Values — should own the height; the pixels answer neither. Both have slack, so the split ratio is set by proportion rather than by content, and the correct fix is to size the tabbed region to its frames and let the surplus fall to the panes whose content actually overflows.
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/ADV/1",
+      "severity": "P2",
+      "location": "middle column, Call Trace / Event Log tabbed region — the area below the 'By call order.' / 'Self cost' footer row, y≈321–669",
+      "finding": "The tabbed region is 601 px tall but its content ends at y=320, leaving 348 px (58% of the region) empty; the Values pane below adds another 132 px of slack, so 48% of the middle column is void. Meanwhile the Transaction pane beside it fades its content off the bottom edge mid-'\"aztec\": {' and the Code pane is cut at line 61. The split is sized by ratio rather than by content: the column with nothing left to show holds the height, and the two columns that overflow are the ones truncated. Size the tabbed region to its frames and give the surplus to the panes that are actually scrolling.",
+      "criterion": "B4"
+    }
+  ]
+}
+```
