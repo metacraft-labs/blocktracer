@@ -1,0 +1,96 @@
+Expected elements: present
+
+Backbone drawn: fixed nav, breadcrumb, footer with product line, three links, disclosure, all three marks. Exactly one provenance marker — the `Data` row, `Synthetic demo data`. No Debug button, no disabled control, no empty panel. The decoded-input section carries no 'supply an ABI' action; I record that present-by-design rather than missing, because §1 forbids a control that cannot succeed and the note now says so.
+
+The changes: (a) landed in half. RAW (687,1008) no longer prints `0x` and no longer offers a copy affordance — it prints an em dash. But SELECTOR above prints `0x1a2b3c4d`, so the shared emptiness test is never exercised here and the two rows read as a contradiction (finding 1). (b) is not observable here: the only cost label is `COST · MANA`, unchanged, and the label column is uppercase, so a humanised string still renders `COST · TRANSACTION FEE`. (c) landed in its second half verbatim — "An ABI would not help, and BlockTracer cannot yet be given one in any case" — but the opener reads "This selector is not in any ABI BlockTracer holds…", not the claimed "BlockTracer holds no call data…".
+
+Of the carried P2s four stand (chip rung, AGE sentence, section rules, hero finality). The H1/H2 collapse does not: 24px figure height against 17px cap is a genuine 1.4x step, downgraded to P3 for the weight inversion alone.
+
+Fixes: give SELECTOR and RAW one absence vocabulary; take the AGE statement out of the token chip.
+
+Rating: 6/10
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/L1/1",
+      "severity": "P2",
+      "location": "Decoded input, RAW row value (687,1002)-(700,1016), directly under SELECTOR value `0x1a2b3c4d` (687,975)",
+      "finding": "New this round. RAW now renders a bare em dash at the 14px value rung, in the row immediately beneath a row that renders four bytes of the very payload the dash denies — a selector IS the first bytes of the call data, so the pair reads as a contradiction rather than as one emptiness test. It also gives the page a third vocabulary for absence in three sections: a worded chip (AGE `No timestamp published`), worded sentences (Events, Internal calls, State changes), and now a glyph with no words at all, whose explanation is 45px below it in a separate card. Either label the row `ARGUMENTS`, or set RAW to the selector bytes it is a prefix of.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/2",
+      "severity": "P2",
+      "location": "Overview grid, value column: TYPE `public` (687,965) versus CANONICAL `Yes` (687,1046) and FINALITY `Pending` (687,1084)",
+      "finding": "Carried and re-verified by measurement. The value column runs at two type rungs for one class of data: `public` is plain 14px mono (x-height 7px, ascender 10px), while `Yes` and `Pending` are 12px letterspaced mono (x-height 6px) inside a bordered chip — the same rung as the 12px uppercase label column opposite them. All three are short categorical enums, so the split does not track data type and a reader cannot infer what the chip means. The chip is also the page's smallest type, applied to values, next to labels of the same size.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/3",
+      "severity": "P2",
+      "location": "Overview grid, AGE row value (690,1000)-(855,1018)",
+      "finding": "Carried and strengthened. `No timestamp published` — 22 characters of English, the grid's only honest-absence statement — is set at 12px letterspaced monospace inside the chip the page reserves for one-word machine tokens, making it the smallest type on a 2840px page and two rungs below the values it sits among. Letterspaced mono makes a sentence read as a value the chain emitted, which is the opposite of what the row exists to say. It should be set unchipped in the body face at the value rung.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/4",
+      "severity": "P2",
+      "location": "section rules: full-width hairlines at y=716, 1314, 1675 and 2290, above Overview (506,747), Decoded input (506,1345) and Raw (506,2321); no rule above Internal calls (506,1885) or State changes (506,2064)",
+      "finding": "Carried and re-verified. All six section headings are identical — 17px cap height, bold, same colour — so the hairline is the only heading-level signal on the page, and it falls above four of six peers. The resulting groups are {Overview}, {Decoded input}, {Events, Internal calls, State changes}, {Raw}: three sections read as one block whose members look exactly like the three that stand alone. The grouping also cuts against the page's own copy, which says Events comes from the receipt while the two beneath it come from the trace. With eight sections in one scroll the heading treatment has to be navigable without reading; here it groups without saying so.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/5",
+      "severity": "P2",
+      "location": "hero (506,200)-(1150,310) versus Overview grid FINALITY row (687,1084)",
+      "finding": "Carried. The expectation block places the finality badge in the hero; the hero carries only the `Succeeded` status badge, the truncated hash and the copy box. Finality appears nine rows down as `Pending`, at the 12px chip rung shared with CANONICAL, so a reader who takes the hero and the primary action — the top 440px — sees an unqualified success and no signal that the transaction is not yet final. Recorded P2 and not P1 because the badge is present, labelled and legible: its position in the hierarchy is wrong, not the information.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/6",
+      "severity": "P3",
+      "location": "hero H1 `0x27a6…9a6c` (506,236)-(712,259) against the section headings, e.g. Overview (506,747)-(600,763)",
+      "finding": "Downgraded from P2 after measurement. The H1's figure height is 24px against the headings' 17px cap height — a 1.41x step that does read as two levels, so last round's `effectively one level` no longer holds. What remains is a weight inversion: the H1's stems measure 3px on a 24px glyph (0.125) while the headings' measure 3-4px on a 17px cap (0.21), so the single level-one title is the lightest relative stroke on the page and the six repeated level-two headings are the heaviest. Size and weight still pull in opposite directions; the step now survives it.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/7",
+      "severity": "P3",
+      "location": "Overview grid, COST · MANA row value (687,1185)-(960,1205)",
+      "finding": "Downgraded from P2. `42000  /  100000 mana (FeeJuice)` sets two quantities joined by a bare slash with no sub-label distinguishing usage from limit, and neither figure is grouped, so two five- and six-digit magnitudes must be compared digit by digit. The used/limit slash is a widely-read explorer idiom and the figures are correctly tabular mono with the unit dropped to the proportional muted face, so this is a refinement rather than a failure. Note also that the round's label humanisation is not visible here: the only cost label on this view is `COST · MANA` and the label column is uppercase, so a humanised source string would still render `COST · TRANSACTION FEE`.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/8",
+      "severity": "P3",
+      "location": "footer disclosure line (506,2740)-(1416,2780)",
+      "finding": "Carried. The disclosure sets roughly 130 characters on its first line across a 920px column, about double the ~70-character measure the provenance sentences (687,825), the trace note (528,465) and the three section notes hold to. Two lines, so it is readable; it is the one place on the page where prose is set to its container rather than to a measure.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/9",
+      "severity": "P3",
+      "location": "copy affordance, hero (506,276)-(925,308) and the `click to select` caption at (935,288)",
+      "finding": "Carried. The full hash sits at ~16px monospace, regular weight, on a white fill inside a hairline rounded border, with the gesture named by a 13px grey caption set outside the box. Nothing in the weight or the caption's prominence says the box is pressable; it reads as a read-only field displaying the value. A caption in the label register, or the value at control weight, would resolve it.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail/wide/light/L1/10",
+      "severity": "P3",
+      "location": "Raw (chain-native) code block, lines at y=2375, 2398, 2423, 2446, 2467, 2490",
+      "finding": "Carried and measured. Line pitch is 23px on ~14px monospace (~1.64), the body-prose line-height applied to code, while one indent level is two spaces — about 17px. The lines therefore sit further apart than the indentation is wide, so the nesting reads weaker than it is in the page's only preformatted region. A pitch near 20px would let the indent structure carry.",
+      "criterion": "A5"
+    }
+  ]
+}
+```

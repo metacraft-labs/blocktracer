@@ -1,0 +1,89 @@
+Expected elements: present
+
+All backbone items render: nav with resolver, footer with the correct non-asserting disclosure, and the provenance strip with all three marks drawn (text-presentation heart, CodeTracer and GitHub marks in the link indigo). Exactly one provenance marker — the `Data` row, form (c) — sits first in the grid and lands before the empty sections. No debug, retry, spinner or danger tone. The recording-side language is deliberate this round and its prohibition's premise ("the recorder never had the chance") is now false, so I do not count it forbidden.
+
+The page reads as correct, not broken. But the sentence whose only job is to be believed ends in `AvmToolchainRegression` — a bare camelCase enum, unglossed, set in the body face, twice (Not observable card; Data paragraph). A reader cannot evaluate it, and it converts a human admission into a machine echo. The same paragraph shouts `WERE` and prints `2 transaction(s)` / `27 transaction(s)`, so the most load-bearing prose on the page carries template artifacts.
+
+Three further crossings: `Raw (chain-native)` heads a block whose last two fields, `bodyRetainedAtCapture` and `effectVisibleAtCapture`, are capture-adapter bookkeeping, not chain-native; the decoded-input note's "where that is known, it is stated above" resolves to nothing, while the answer sits below it; and the card's refusal reason competes with the paragraph's pruning reason for a transaction at block 67650, outside the stated 67651–67686 window.
+
+Fixes: gloss or replace the enum in prose, and pluralise from the real counts.
+
+Rating: 6/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/1",
+      "severity": "P2",
+      "location": "Not observable card, published reason (line 2); repeated in the Overview Data row paragraph",
+      "finding": "The reason ends in a bare enum literal: 'the replay runtime refused with AvmToolchainRegression'. It is set in the body face with no code treatment and no gloss, and it appears twice. This is the one sentence on the page whose entire job is to be believed, and it terminates in a token from the build system that a reader cannot evaluate, confirm or look up. It reads as a log line pasted into prose, which is the debugger register leaking into an explorer surface. Name the refusal in words a reader can weigh and, if the identifier must survive for operators, demote it to a parenthetical in the mono face.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/2",
+      "severity": "P2",
+      "location": "Overview, Data row paragraph, sentences 2 and 4",
+      "finding": "The provenance paragraph prints template artifacts where finished copy belongs: '2 transaction(s) inside it WERE still replayable' and 'this chain settled 27 transaction(s)'. The counts are known (2 and 27), so the '(s)' is a build-side placeholder shown to the reader, and the all-caps WERE is emphasis by shouting inside a marketing-grade body paragraph. Both undercut the credibility of the sentence they sit in: copy that has not been finished reads as copy that has not been checked.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/3",
+      "severity": "P2",
+      "location": "'Raw (chain-native)' section heading and the last two keys of its JSON block",
+      "finding": "The heading claims the payload is chain-native, but 'bodyRetainedAtCapture' and 'effectVisibleAtCapture' are the capture adapter's own bookkeeping, not fields any Aztec node emits. Machine field names are legitimate inside a raw block; a heading that misattributes their provenance is not, on a page whose whole argument is that it distinguishes what the chain said from what the capture did. Either retitle the section or split the adapter's two fields out from the node's three.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/4",
+      "severity": "P2",
+      "location": "Decoded input, explanatory note beneath the Selector/Raw rows",
+      "finding": "The note says 'Whether none was published or the body was pruned before it was captured is not something this section can tell; where that is known, it is stated above.' Nothing above states it — the Data paragraph speaks about the chain in general, not this transaction. The answer is stated BELOW, in the raw block, as 'bodyRetainedAtCapture: true', which also contradicts the note's claim that the page cannot tell. A cross-reference that points the wrong way and disclaims a fact the page holds is the one kind of error this product's copy cannot afford.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/5",
+      "severity": "P2",
+      "location": "Not observable card reason vs. Overview Data row paragraph, final sentence, read against the Block row (67650:0)",
+      "finding": "Two reasons are offered for one absence and neither is tied to this transaction. The card says the replay runtime refused it; the paragraph says the replay window was blocks 67651-67686 and that transactions below 67650 have pruned bodies. This transaction is at 67650, outside the stated window, so a reader doing the arithmetic concludes the refusal cannot apply to it. The reasons are published separately so the reason is what a reader takes away; here they compete instead. State which one is this transaction's.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/6",
+      "severity": "P3",
+      "location": "Overview Data row paragraph ('it is stated here rather than shown as an absence') and Decoded input note ('not something this section can tell')",
+      "finding": "Two clauses address the reader in build-side voice, narrating the page's own editorial policy and its section boundaries rather than the world. A reader has no model of what 'shown as an absence' would have been, or of what a 'section' can or cannot tell. The honesty is welcome; the self-narration belongs in the spec, not on the surface.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/7",
+      "severity": "P3",
+      "location": "Overview grid, last row label 'COST . TRANSACTION FEE'",
+      "finding": "The de-camelCasing is a real improvement over the old label, but the replacement introduces a 'Category . Field' compound convention used by no other row in the grid (BLOCK, TYPE, AGE, CANONICAL, FINALITY are all single words), and it wraps to three lines, making the row twice the height of its neighbours for the shortest value in the table. 'Transaction fee' alone carries the same meaning at one line.",
+      "criterion": "A8"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/8",
+      "severity": "P3",
+      "location": "Overview grid, Cost row value",
+      "finding": "'3070954237478732800 mana (FeeJuice)' is a 19-digit integer with no digit grouping and no human-scale rendering, so the one ordinary quantity on the page reads like a dump rather than a fact. Grouping the digits, or showing a scaled figure with the exact value available, would keep this row in the explorer register. Flagged as register texture; the numeric-treatment lens owns the detail.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L5/9",
+      "severity": "P3",
+      "location": "expectation block for this view vs. Not observable card and Data row paragraph",
+      "finding": "The MUST NOT SHOW item 'Language blaming the recorder, the engine or BlockTracer' is now contradicted by the page on purpose, and its published rationale ('The recorder never had the chance') is false for these transactions. I judged the recording-side language deliberate and truthful and did not count it forbidden-present. The MUST SHOW item still names getTxByHash pruning as the published reason, which this page no longer gives. Recorded so the divergence is reconciled in the expectation block rather than re-litigated by the next reviewer.",
+      "criterion": "A9"
+    }
+  ]
+}
+```

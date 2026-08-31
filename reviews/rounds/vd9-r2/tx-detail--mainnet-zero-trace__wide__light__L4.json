@@ -1,0 +1,91 @@
+Expected elements: present
+
+Every must-show renders: nav with resolver, breadcrumb, full hash, `Succeeded`, the neutral `Not observable` badge, a seven-row Overview whose first row is the sole provenance marker (`Real Aztec mainnet data`), four sections each stating a permanent absence, a footer with all three marks drawn. No debug/retry/spinner, no trace reference, no error tone.
+
+Change (a) landed: `SELECTOR` and `RAW` both render `—`. Change (b) landed as copy but regressed as layout — `COST · TRANSACTION FEE` now wraps to three lines in a 163px label column, making that row 89px against 38px for the five above it, with 50px of dead space under a one-line value. The label column has 294px of slack beside it.
+
+Change (c) is my P1, and it is not a density complaint. The new sentence scopes both refusals to "blocks 67651–67686". This transaction is at `67650:0` — stated twice on the same page — so by the page's own arithmetic it is neither inside the replay window nor "below block 67650", while the card above says the runtime refused *it*. The reader is left unable to place the transaction in front of them.
+
+Density: the DATA row is 263px of a 540px grid, 49%, still ahead of every fact and still carrying chain-level telemetry. The page is 2909px — 2.7 screens — and 63% of a 1920px viewport is canvas.
+
+Fixes: scope the refusal sentence to the capture window that produced it; widen the label column.
+
+Rating: 4/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/1",
+      "severity": "P1",
+      "location": "Overview grid, DATA row, capture paragraph lines 3-6 (x 531-1120, y 760-870), read against the BLOCK row value `67650:0` (y≈1000), the Not observable card's second paragraph (y 480-520) and `\"l2BlockNumber\": 67650` in the Raw block (y≈2500)",
+      "finding": "The new provenance sentence says \"The replay window was blocks 67651-67686 ... 2 transaction(s) inside it WERE still replayable and were caught in time, and the replay runtime refused them\", and closes with \"Transactions below block 67650 ... have been pruned\". This transaction is at block 67650, printed twice elsewhere on the page. 67650 is not inside 67651-67686 and is not below 67650, so the paragraph places the transaction the reader is looking at in neither bucket, while the card 300px above asserts that the runtime refused THIS transaction. The two accounts cannot both be read off the page. The cause is in the generator: `src/blocktracer/chain/ingest.nim:559` binds \"inside it\" to the last window (`replFrom`-`tipAt`), but `refusedCount` aggregates across all capture sessions, and `snapshot.json` `captures[]` shows this hash refused in the earlier 67619-67650 window. The one sentence that has to be believed about a permanent absence is the one that does not survive arithmetic the page itself supplies. Scope the clause to the window in which the refusals occurred, or name the transactions.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/2",
+      "severity": "P2",
+      "location": "Overview grid, COST label cell, x 503-666, y 1175-1264",
+      "finding": "Re-judged from r1/4, partially fixed and newly worse. The camelCase run is gone and `TRANSACTION FEE` now reads as two words, but the longer label wraps to THREE lines in a 163px label column, so the row is 89px against 38px for BLOCK, TYPE, AGE, CANONICAL and FINALITY - 2.3x, up from 56px last round. The value `3070954237478732800 mana (FeeJuice)` occupies one line at the top and leaves ~50px of empty cell beneath it. This is A6's named failure: row height driven by the tallest cell in an unrelated column. The label column is 163px inside a 911px grid whose value column never needs more than ~250px of its 748px; widening the label column to ~230px removes the wrap outright and costs the value column nothing.",
+      "criterion": "A6"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/3",
+      "severity": "P2",
+      "location": "Overview grid, DATA row, y 723-986, against the six fact rows y 986-1263",
+      "finding": "Re-judged from r1/2, not fixed and one line longer. The capture paragraph is 11 lines and 263px of a 540px facts grid - 49%, marginally more than BLOCK, TYPE, AGE, CANONICAL, FINALITY and COST combined (277px) - and sits above all six, so a reader scanning for block or finality passes a wall of prose first. Roughly half of it is still chain-level telemetry that is not about this transaction: 942 blocks enumerated, 27 settled, longest run with none 309 blocks. Change (c) added the recording-side explanation without removing anything, so the row absorbed the whole increment. The telemetry belongs on the chain overview; this row needs the badge, the endpoint, and the reason this transaction has no trace.",
+      "criterion": "A6"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/4",
+      "severity": "P2",
+      "location": "Not observable card, second paragraph (x 503-1204, y 480-520), and the same token inside the DATA paragraph line 5 (y≈820)",
+      "finding": "Re-judged from r1/3: the jargon changed rather than cleared. `getTxByHash` and \"finalized tip\" are gone, but the first reason a reader meets is now \"the replay runtime refused with AvmToolchainRegression\" - a bare internal enum name, expanded nowhere on the page, printed twice. It tells a non-expert only that something named after a toolchain said no. The plain-language account that would land (\"their bodies have been pruned, so they can no longer be replayed and carry no trace\") is still the eleventh and last line of the densest paragraph on the page, 400px lower and in a different section. Opaque identifier first, translation last and buried, remains the wrong order for the sentence that carries the whole page.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/5",
+      "severity": "P2",
+      "location": "Decoded input note card (x 503-1204, y 1520-1620) against the Raw (chain-native) block (y 2400-2560)",
+      "finding": "New, and the other half of the r1/1 fix. The note says \"Whether none was published or the body was pruned before it was captured is not something this section can tell; where that is known, it is stated above.\" The page does know, and does state it - 900px BELOW, not above, where the Raw block prints `\"bodyRetainedAtCapture\": true`. So the note disclaims knowledge the page publishes, points the reader in the wrong direction to find it, and the fact it points away from is the one that makes the two em dashes above it read as an unknown rather than a contradiction. Either resolve the disjunction in the note from the flag, or drop the \"stated above\" pointer.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/6",
+      "severity": "P2",
+      "location": "Events (y 1800), Internal calls (y 1980), State changes (y 2140) - three heading-plus-card blocks spanning y 1790-2280",
+      "finding": "Re-judged from r1/6, unchanged and now compounded by change (c). The page is 2909px at a 1920x1080 viewport - 2.7 screens - and the extra width buys nothing; each card is 701px inside a 911px column inside a 1920px viewport, so ~63% of the width is canvas beside them. These three sections spend 531px on six lines, and the Internal calls and State changes cards remain word-for-word identical apart from the subject noun. Counting the whole page, \"no trace\" is now asserted five times - twice in the Not observable card, twice in the DATA paragraph, once in each of the last two cards - so the surface carries less unique information per pixel than it did before. At this size the three could sit in one row, or the two trace-derived ones could be one card naming both.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/7",
+      "severity": "P2",
+      "location": "Overview grid, COST value, x≈688, y≈1195",
+      "finding": "Re-judged from r1/5, not fixed. `3070954237478732800 mana (FeeJuice)` is 19 digits with no grouping and no scaled form. The unit disclosure `(FeeJuice)` is a genuine improvement and landed, but a reader still cannot get the magnitude without counting digits, and two such values could not be compared by eye - which is the whole job of a numeric cell in a facts grid. Group the digits, or carry a scaled form beside the exact one.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/8",
+      "severity": "P3",
+      "location": "Overview grid, DATA paragraph line 4, the word `WERE` at x≈760, y≈815",
+      "finding": "Re-judged from r1/7: the all-caps run shrank from a full clause to one word but did not go. `WERE` is the only all-caps token in body copy on the page and it sits mid-sentence, so it reads as a shout inside a paragraph rather than as emphasis a reader can use. The contrast the sentence is drawing - replayable, and refused anyway - is already carried by the clause structure; sentence case is enough.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L4/9",
+      "severity": "P3",
+      "location": "Not observable card (x 503-1204) against the Overview grid and Raw block (x 503-1414)",
+      "finding": "Re-judged from r1/8, unchanged. The page runs two content widths, 701px for the notice cards and 911px for the facts grid and the Raw block, and the primary message - the Not observable card, the one thing a reader must take away - is on the narrower of the two. A third measure now exists inside the grid: the DATA paragraph wraps at ~589px in a 911px row. Three prose measures on one page, with the most important block set to the least substantial of them. The narrow measure is defensible for prose; pick one and give the primary card the width its role implies.",
+      "criterion": "A3"
+    }
+  ]
+}
+```

@@ -1,0 +1,31 @@
+Expected elements: present
+
+The three changes land. `Selector` holds `0x1a2b3c4d` and `Raw` shows an em dash where nothing is held, which is the correct mark for absence and no longer a `0x` that reads as a real empty payload. The cost row is humanised — `COST · MANA`, `42000 / 100000 mana (FeeJuice)` — separator and unit both readable. The decoded-input note now ends on what is true rather than on an ABI remedy: "An ABI would not help, and BlockTracer cannot yet be given one in any case." One provenance marker only, the `Data` row at the head of the facts grid, badge plus producer sentences. All eight sections carry a statement, no empty panel, no Debug button, no disabled stand-in. Footer, disclosure, nav and all three provenance marks (heart, CodeTracer, GitHub) are drawn and visible.
+
+The single weakest element is the copy affordance for the full hash in the hero — the bordered white box holding `0x27a6c250bda5f426cac12790abe9cff80fb29a6c` and the grey `click to select` label to its right. Copying the hash is the most-performed act on a transaction page, and here the only cue for it is a small low-contrast grey sentence sitting outside the thing it describes: no icon, no button, no visible control in the resting state. It also names a lesser act than the one expected — `select`, not `copy` — and the box it labels is a rounded, bordered field cut to the same pattern as the nav's resolver input, so the whole assembly reads as a disabled text input with a hint beside it rather than as an action. It is the one element on this page where I had to deliberate whether the MUST SHOW item was present at all.
+
+Last round's `Pending` pill is no longer the weakest. Its problem is emphasis, not the element: the row is labelled, legible, correctly placed, and neutral grey is a defensible reading of a state that is normal rather than alarming — colouring it would read as a warning. The hash affordance is weak in itself, in the hero, on three axes at once.
+
+Rating: null (presence check passed)
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/ADV/1",
+      "severity": "P2",
+      "location": "Hero, the line directly beneath the H1 — the bordered full-hash box (approx. x 504-920, y 278-308 in the 1920x2840 image) and the grey `click to select` label immediately to its right at approx. x 932-1025",
+      "finding": "The copy affordance for the full transaction hash is rendered as prose, not as a control. In the resting state there is no icon, no button and no border, fill or weight change to mark the box as interactive — the sole cue is a ~13px low-contrast grey label set outside the element it governs, which a reader scanning the hero will take for a caption rather than an instruction. It also names a smaller action than the one a block-explorer reader arrives expecting: `select`, not `copy`, so even a reader who does read it is told the page will do less for them than every competitor's hash row does. Compounding both, the container is a rounded, thin-bordered white field built to the same pattern as the resolver input in the fixed nav, so the assembly parses as a read-only text field with helper text rather than as the page's most-used action. Copying the hash is the single most-performed interaction on a transaction page and this is the page a competitor comparison lands on; every other control on the screen — `Generate trace`, the `102:0` block link, the footer links — is drawn as unambiguously actionable, which makes this one the outlier rather than the house style. This is the only MUST SHOW item on the page where present-versus-absent was a judgement call, and that is what makes it the weakest element here.",
+      "criterion": "A10"
+    }
+  ]
+}
+```

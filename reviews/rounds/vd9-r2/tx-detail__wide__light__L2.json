@@ -1,0 +1,89 @@
+Expected elements: present — every §4 must-show renders, and no must-not-show item appears.
+
+All three changes landed, and none moved anything else. (a) The Raw row's em dash starts at x=690, the exact left edge every other value uses; Selector still carries `0x1a2b3c4d`; no `0x` survives. (b) `COST · MANA` is one line and its row runs y1177–1213 — 36px, identical to BLOCK, TYPE, FEE PAYER and TARGET, within 1px of the badge rows. The 1.6x row is gone and nothing below shifted. (c) The note is three lines in the same 700px card, no control, no extra height.
+
+My three carried findings hold, re-measured and unchanged. Two right edges: every bordered prose panel ends at x=1203, while both grids, the raw `<pre>`, all four section rules, the nav field and the footer end at x=1415 — 212px, left edges agreeing at x=504. Heading baseline to content top is 15px at both grids, 20px at the raw block, 33px at all four notice cards. `Succeeded` sits at y=247, `Pending` at y=1084 — 837px.
+
+Two new. The DATA provenance paragraph starts at x=529, the label column's text edge, while all nine values start at x=690, and it opens a 97px white gap (y817–914) in the label column's grey band. `Internal calls` (57px above, 50px below) and `State changes` (56/51) float equidistant between the previous card and their own.
+
+Highest-priority fixes: settle on one right edge; settle on one heading-to-content gap.
+
+Rating: 6/10
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/L2/1",
+      "severity": "P2",
+      "location": "page right edge — trace card (x504-1203, y359-610), decoded-input note (x504-1203, y1479-1572), Events note (y1756-1828), Internal calls note (y1935-2007), State changes note (y2114-2187), against the section rules at y716/1314/1675/2290, both facts grids (y779-1213, y1377-1451), the raw <pre> (y2357-2519), the nav resolver field and the footer content — all of which end at x=1415",
+      "finding": "Unchanged from vd9-r1 and re-measured to the pixel: the column has two right edges 212px apart, alternating down the whole scroll. Every bordered panel carrying prose stops at x=1203; every rule, grid, the raw block and both pieces of site chrome run to x=1415. The left edges agree exactly at x=504, so the reader cannot read the 1203 edge as a narrower measure — it reads as a container that failed to fill. The four section rules make it worst: each is a 912px hairline drawn straight across a stack whose visible card edges stop 212px short of it.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/2",
+      "severity": "P2",
+      "location": "section headings — Overview (baseline y764, grid top y779), Decoded input (y1362 / y1377), Raw (chain-native) (y2337 / y2357) versus Events (y1723 / y1756), Internal calls (y1902 / y1935), State changes (y2081 / y2114)",
+      "finding": "Unchanged from vd9-r1: one relationship is set at three values on one page. Heading baseline to the top of its first content is 15px where that content is a facts grid, 20px where it is the raw <pre>, and 33px where it is a notice card. The gap tracks the component that follows rather than the heading, so the same heading level binds tightly to a grid and loosely to a card, and the six sections do not read as peers. Pick one value — 24px would sit on the scale the rest of the page uses (30px rule-to-heading, 56px card-to-heading, ~102px section-to-section).",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/3",
+      "severity": "P2",
+      "location": "hero — `Succeeded` badge at x724-833, y232-262 — versus the Overview grid's FINALITY row, `Pending` badge at x680-750, y1067-1100",
+      "finding": "Unchanged from vd9-r1 and re-measured: 837px of vertical separation, with eight grid rows between them. Status and finality are one judgement about whether this transaction counts, and proximity here says they are unrelated. §7.2 places the finality badge in the hero beside the status; the hero has room — the h1 plus badge end at x=833 and the row is empty to x=1415. Moving `Pending` beside `Succeeded` also removes the page's only badge pair separated by more than the viewport height.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/4",
+      "severity": "P2",
+      "location": "Overview grid, DATA row — the provenance paragraph occupying y817-914, text ink x529-1121, against the label column fill x505-665 and the nine value cells whose text starts at x=690",
+      "finding": "New. The provenance sentences start at x=529 — the label column's own text edge — while every value in both grids starts at x=690, so the longest passage on the page is the one item in the grid that does not sit in the value column. Because the paragraph spans the full 912px, it also punches a 97px white gap (y817-914) through the label column's continuous grey band, which otherwise runs unbroken from y780 to y1213; a reader scanning the label column hits a hole four rows from the top. Either indent the paragraph to x=690 so it belongs to the DATA row's value cell, or drop the label-column fill for the whole DATA group so the break is deliberate rather than a leak.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/5",
+      "severity": "P2",
+      "location": "`Internal calls` heading (cap top y1885) between the Events card ending y1828 and its own card starting y1935; `State changes` heading (cap top y2063) between the Internal calls card ending y2007 and its own card starting y2114",
+      "finding": "New. Both headings are equidistant from the section above and the content below — 57px above / 50px below, and 56px / 51px — which is the failure §5 A2 names verbatim. Neither heading has a rule above it (Overview, Decoded input, Events and Raw all do), so spacing is the only grouping signal available and it is not being used: at a glance the heading reads as trailing the previous card as readily as introducing its own. Cutting the below-gap to the 24-33px band the other four sections use, or widening the above-gap toward the ~102px section rhythm, would settle it.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/6",
+      "severity": "P3",
+      "location": "Overview grid, value column — badge borders at x=680 (DATA y798, AGE y1007, CANONICAL y1045, FINALITY y1083) versus plain value text at x=690 (BLOCK, TYPE, FEE PAYER, TARGET, COST · MANA)",
+      "finding": "Carried from vd9-r1 and worth accepting rather than fixing. The value column's visible left edge alternates between x=680 and x=690 over nine rows. It is defensible: each badge's own text begins at x=689-691, so the offset is a deliberate negative inset that makes the badge's letters align with the plain values, which is the more important edge. Recording it so the next reviewer does not re-derive it as a defect.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/7",
+      "severity": "P3",
+      "location": "trace card, the inner hairline at y548 (x529-1179) between the three-line explanation (ink ending y519) and the line `Internal calls and state changes come from the execution trace.` (ink starting y566)",
+      "finding": "New. The divider is not centred in the space it divides: roughly 26px of clearance above it and 13px below, once line boxes rather than ink are accounted for. It therefore reads as attached to the sentence beneath it rather than as a separator between two zones of one card, which is at odds with the card's otherwise symmetric 25/24px horizontal and 28px vertical padding.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/8",
+      "severity": "P3",
+      "location": "Raw (chain-native) block, x504-1415, y2357-2519 — text ink x531-1040, y2375-2503",
+      "finding": "New. The one preformatted region on the page uses 27px of horizontal padding against roughly 16-18px vertical, so its content sits noticeably closer to the top and bottom edges than to the left. Every other bordered surface on the page is padded evenly (notice cards 24/24 with 19px ink inset; facts-grid cells 25px). Equalising to 24px would bring the block onto the same inset as its neighbours.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail/wide/light/L2/9",
+      "severity": "P3",
+      "location": "hero — h1 ink ends x711, `Succeeded` badge border starts x724; trace card — `Generate trace` button ends x679, `On demand` chip border starts x696",
+      "finding": "Carried from vd9-r1. The page's two control-plus-chip pairs use different gaps, 13px and 17px, 150px apart vertically. Both pairs are otherwise well set — the badge's bottom edge y262 lands on the h1 baseline, and the chip's vertical centre y410 matches the button's y411 — so a single 16px gap would finish them.",
+      "criterion": "A2"
+    }
+  ]
+}
+```

@@ -1,0 +1,77 @@
+Expected elements: present
+
+Presence holds: the `Data` provenance row is the only marker form on the page, Age reads "No timestamp published", all eight sections carry data or a statement, the footer's heart, CodeTracer and GitHub marks are all drawn in visible indigo, Generate trace is the strongest control, and there is no Debug button, empty panel or disabled control. Finality sits in the grid rather than the hero — present and labelled, so not a presence failure.
+
+Round changes. (a) Landed: RAW renders `—`; SELECTOR holds `0x1a2b3c4d`, so the rule is not exercised there. It inherited the value colour — finding 5. (b) Partial: the only cost row reads `COST · MANA`; the dot form landed but the second segment is still the raw resource key and duplicates the unit in the value. (c) Landed.
+
+All three re-measures hold. Age/Canonical/Finality still share one token (#F3F3F3 / #C8C8C8 / #565656) across absent-datum, affirmative fact and in-progress state while green #DCFCE7/#166534 proves affirmative exists. Indigo #4F46E5 (243°) and blue #2563EB (221°) are now 16px apart, not 14, and the chip is the page's only outline pill, so it reads as a secondary button. Raw is still the only container at canvas level (#ECECEB), held by a #A2A2A2 hairline at 2.16:1.
+
+Contrast is good: every text-on-surface pair clears AA, lowest 5.32:1 (breadcrumb link #4F46E5 on canvas), then 5.40:1 (resolver placeholder). Light-first, not inverted.
+
+Fixes: raise the border token above 3:1; split the grey chip into three tones.
+
+Rating: 6/10
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/L3/1",
+      "severity": "P2",
+      "location": "Overview grid, value cells of the Age, Canonical and Finality rows",
+      "finding": "One chip token — fill #F3F3F3, border #C8C8C8, text #565656 — carries three unrelated meanings: an absent datum (\"No timestamp published\"), an affirmative fact (\"Yes\") and an in-progress state (\"Pending\"). The palette demonstrably has the tones to separate them: the hero's Succeeded chip is #DCFCE7 / #16A34A / #166534 and the Data badge is #DBEAFE / #2563EB / #1E40AF. Canonical: Yes is a confirmed positive rendered in the same grey as a missing value, so the grid's only three status cells are indistinguishable by colour and must all be read. Unchanged since round 1.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/2",
+      "severity": "P2",
+      "location": "Hero action card — Generate trace button (x 529-679) and the On demand chip (x 696-797)",
+      "finding": "Indigo #4F46E5 (hue 243, L 59%) and blue #2563EB (hue 221, L 53%) sit 16px edge to edge, 22 degrees and 6 lightness points apart. Last round measured 14px; the gap moved by 2px and the hue relationship did not change, so the finding stands. The chip compounds it: white fill, 1px saturated #2563EB border, #1E40AF label — the only outline pill on a page whose other three chips (Succeeded, Data, the grey trio) are all tinted-fill. Outline-pill-beside-filled-button is the standard secondary-button pattern, so a non-interactive state label reads as the second half of a button pair, and the indigo/blue distinction the design relies on is not perceivable at that separation.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/3",
+      "severity": "P2",
+      "location": "Raw (chain-native) block, y 2353-2524; also the hero hash chip and the Overview grid cell borders",
+      "finding": "The border token family sits below the 3:1 non-text floor on every surface it is used on, and worst where it carries the most load. The Raw block is the only container on the page with no fill — it is #ECECEB, identical to the canvas — so a 1px #A2A2A2 hairline at 2.16:1 is the sole thing containing the largest, densest region on the page. Unchanged since round 1, to the second decimal. The same #A2A2A2 reaches only 2.55:1 on the white note panels, the hero hash chip's #C8C8C8 boundary is 1.67:1 on white despite being the click-to-select affordance, and the grid's internal separators are the same 1.67:1. Three container treatments coexist: the hero card (white, shadow, no border), the notes and grid (white, hairline, no shadow) and Raw (no fill, hairline).",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/4",
+      "severity": "P2",
+      "location": "Overview grid, Data row — the Synthetic demo data badge",
+      "finding": "The badge the spec calls for \"in the neutral tone\" renders in the accent-blue family: fill #DBEAFE, border #2563EB, text #1E40AF. That is not this page's neutral tone — grey #F3F3F3 / #565656 is, and finding 1 shows it being spent on three rows that do not need it. The consequence is that the one element graded as content rather than decoration wears the same #2563EB as the hero's trace-state chip and sits one hue step from the primary action's #4F46E5, so a caveat about data provenance is drawn with accent weight and reads as a highlight. Contrast is fine (7.15:1); the tone assignment is the problem.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/5",
+      "severity": "P3",
+      "location": "Decoded input grid, RAW row value cell",
+      "finding": "New this round as a consequence of change (a). The em dash is drawn in #242424, the same full-emphasis value colour as the real selector directly above it, so \"no payload\" and \"0x1a2b3c4d\" carry identical weight. The page already has a muted treatment for absence — the Age row's #565656 chip — so it now states absence two ways. Setting the dash to #565656 would align it.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/6",
+      "severity": "P3",
+      "location": "Site nav resolver field, and the Overview / Decoded input grids' label column",
+      "finding": "#DDDDDD is both the fill of the page's only text input and the fill of every static label cell, and both carry a grey hairline. The one editable surface on the page is therefore the same colour as a read-only column, distinguished only by the placeholder's wording.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail/wide/light/L3/7",
+      "severity": "P3",
+      "location": "Footer, right column — the heart in \"Built with ♥ by Metacraft Labs\"",
+      "finding": "The heart is #4F46E5, the same token as the three real links beside it, while the sentence around it is #484848. A reader scanning that column for links sees four indigo marks, one of which is decorative and not interactive.",
+      "criterion": "A7"
+    }
+  ]
+}
+```

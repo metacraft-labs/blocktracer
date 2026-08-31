@@ -1,0 +1,27 @@
+Expected elements: present
+
+Presence holds in full. Exactly one provenance marker is on the page — the `Data` row at the top of the Overview grid, badge `Real Aztec mainnet data` in the affirmative tone, capture sentences beneath it — and it lands as the first fact, before any empty section. `Not observable` is present with the published reason quoted verbatim. Both `Selector` and `Raw` now render an em dash; the `0x` that I filed last round is gone, and the two rows are visibly consistent. `Cost · Transaction fee` reads correctly. Internal calls and state changes both say "empty permanently, not yet". No debug affordance, no retry, no spinner, no trace reference, no danger tone. On the recording-side language: the reason names the replay runtime rather than the chain's retention, but it is true of this capture (`bodyRetainedAtCapture: true`), the producer defends the choice in the provenance sentence itself, and I will not file the page for being accurate against a stale premise.
+
+The weakest element is the second sentence of the `Not observable` card, at the top of the page: "This transaction could not be re-executed: the replay runtime refused with AvmToolchainRegression. No trace was recorded for it." The sentence above it promises "a permanent answer rather than a failed fetch", and then the only reason the card offers for that permanence is a fixable toolchain bug in our own engine. A named software regression is the most transient thing this page could possibly cite. Every reader who understands the sentence draws the one conclusion the page exists to prevent — fix the runtime, re-run it, come back — and the card never says the thing that actually makes the answer permanent: the body has since been pruned, so there will never be a second attempt. The provenance paragraph below does not rescue it, and on its own numbers cannot: it states the replay window as blocks 67651–67686, which does not contain this transaction at 67650, and then says bodies are pruned "below block 67650", which does not contain it either. This transaction falls outside both sets the paragraph describes, so a reader who checks the arithmetic to place it finds it placed nowhere. The permanence claim is present as a string and unsupported as an argument. One clause in the card — that the body is now beyond the retention window, so the refusal can never be retried — closes it.
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/ADV/1",
+      "severity": "P2",
+      "location": "`Not observable` card at the top of the page, second sentence of the reason body",
+      "finding": "The card claims \"a permanent answer rather than a failed fetch\" and then supports it only with \"the replay runtime refused with AvmToolchainRegression\" — a fixable bug in our own engine, which reads as the most retryable reason imaginable. The fact that makes the answer permanent, that this transaction's body has since been pruned so the refusal can never be re-attempted, is never stated in the card. The provenance paragraph cannot supply it: it gives the replay window as blocks 67651-67686, which excludes this transaction at 67650, and describes pruning as applying \"below block 67650\", which also excludes it, so the transaction sits outside both sets the paragraph describes. Add one clause to the card tying the refusal to the now-pruned body.",
+      "criterion": "A9"
+    }
+  ]
+}
+```

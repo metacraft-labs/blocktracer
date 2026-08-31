@@ -1,0 +1,91 @@
+Expected elements: present
+
+(a) landed: the Decoded input `RAW` row renders `—` (x 688–698, y 1414–1450) instead of `0x`; `SELECTOR` still shows `0x1a2b3c4d` because that value exists. (b) did not land visibly on this fixture: the label still renders `COST · MANA` (y=1195) — `mana` humanises to `Mana`, but the label column's uppercase transform erases the difference; only multi-word keys such as `transactionFee` would change. (c) landed: the note is now 38 words over three lines (y 1475–1573) and correctly carries no "supply an ABI" action, since one cannot succeed. Its cost is the page growing 2818→2840px.
+
+My three re-measurements:
+
+Hero/finality — HOLDS, unchanged. `Succeeded` centre y=247; `AGE` y=1008 (761px below); `FINALITY` y=1083 (836px below). New detail: the 1080 fold cuts the FINALITY row (1064–1102), so `Pending` is half-clipped at this viewport.
+
+41% empty — HOLDS exactly. Grid spans x 503–1416 (913px); the longest value, the FEE PAYER hash, ends x=1043; 373px = 40.9% empty on all nine rows. The Raw JSON block repeats it; the `RAW` row is 98.9% empty.
+
+475px/46 words — HOLDS, but my word count was wrong. Events heading (y=1704) to State changes card (y=2187) is 483px, 45% of a viewport, carrying 53 words (19/17/17), one still restating the hero card's line at y=571.
+
+Fixes: pair the grid rows or narrow the column; fold the three trace statements into one.
+
+Rating: 6/10
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/L4/1",
+      "severity": "P2",
+      "location": "hero status badge at (725-835, y 232-262); AGE row y 989-1027 and FINALITY row y 1064-1102 in the Overview grid",
+      "finding": "Unchanged from vd9-r1 and re-measured: the hero carries status alone. `Succeeded` sits at y=247; the age statement is 761px below it and the `Pending` finality badge 836px below it, both as grid rows. New this round: at 1920x1080 the fold falls at y=1080, which cuts the FINALITY row (1064-1102) in half, so the one fact that qualifies a green `Succeeded` is clipped at exactly the fold rather than merely below it. The information is present, so this is placement, not breakage — but the hero has 480px of unused width at x>1203 to carry both."
+    },
+    {
+      "id": "tx-detail/wide/light/L4/2",
+      "severity": "P2",
+      "location": "Overview grid, x 503-1416, y 780-1214; Decoded input grid y 1375-1450; Raw block y 2344-2549",
+      "finding": "Unchanged from vd9-r1: one label/value pair per 913px row at a 1920px viewport. The longest value on the page, the FEE PAYER hash at y=1195, ends at x=1043, so 373px — 40.9% — is empty on all nine rows, and the grid still costs 434px of scroll. The Raw JSON block repeats the ratio exactly (longest line ends x=1044). The page is now 2840px, 2.63 viewport heights, to deliver nine grid rows, five sentences and six lines of JSON, and the whole column is 913px of a 1920px viewport. Two pairs per row, or a narrower column with the freed width used, would remove roughly 200px of scroll without dropping anything.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail/wide/light/L4/3",
+      "severity": "P2",
+      "location": "Events heading y=1704 through the State changes card ending y=2187",
+      "finding": "Unchanged from vd9-r1 (475px reported there; 483px now, the 8px being downstream drift from the longer ABI note). Three headings and three identically shaped 700px cards spend 483px — 45% of a 1080px viewport — on 53 words: 19 in Events, 17 in Internal calls, 17 in State changes. My r1 count of 46 was low; correcting it makes the ratio worse, not better. The trace card already prints `Internal calls and state changes come from the execution trace.` at y=571, and the two lower cards restate it split in two. The identical card shape also makes the run read as one block rather than three sections.",
+      "criterion": "A1"
+    },
+    {
+      "id": "tx-detail/wide/light/L4/4",
+      "severity": "P3",
+      "location": "right edges: Overview grid, Decoded input grid and Raw block end at x=1416; trace card, ABI note and the three statement cards end at x=1203",
+      "finding": "Unchanged from vd9-r1: the column has two right edges 213px apart, alternating down the page. The cost is not only alignment — the ABI note at y 1475-1573 wraps to three lines against a 700px measure while the grid 25px above it runs to x=1416, so the narrower cards wrap early against unused column width.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail/wide/light/L4/5",
+      "severity": "P3",
+      "location": "Raw (chain-native) block, x 503-1416, y 2344-2549",
+      "finding": "Unchanged from vd9-r1: the one preformatted region holds six lines whose longest reaches x=1044, so 41% of the block is empty and it carries a four-key transaction object with no receipt object beside it, which the expectation asks for. There is still no visible max-height, scroll container or copy control, so at realistic volume — a real receipt is hundreds of lines — this block would run the page height past 2840px unbounded."
+    },
+    {
+      "id": "tx-detail/wide/light/L4/6",
+      "severity": "P3",
+      "location": "Overview grid label column, x 517-664, e.g. `COST · MANA` at y=1195",
+      "finding": "Unchanged from vd9-r1: the labels are roughly 10px uppercase, letterspaced, in a mid grey — the smallest and lightest text on the page — and they are the only wayfinding into a nine-row grid whose rows are 38px tall. The size budget is inverted: there is generous row height to scan by and the thing being scanned is set at the floor.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail/wide/light/L4/7",
+      "severity": "P3",
+      "location": "DATA row and provenance note at the head of the Overview grid, y 780-914",
+      "finding": "Unchanged from vd9-r1: the DATA row plus its note stand 134px tall against 38px rows, 31% of the grid's height, so every scannable fact begins 134px into a grid the reader entered under the heading `Overview`. The note's own measure also stops at x=1121, leaving 295px of the row empty. A secondary size under the badge would keep the claim and return the row rhythm at the grid's head.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail/wide/light/L4/8",
+      "severity": "P3",
+      "location": "Decoded input grid, RAW row, value at x 688-698, y 1414-1450",
+      "finding": "New, and a consequence of change (a). Replacing `0x` with `—` is the honest call — `0x` asserted a zero-length payload the tree does not have — but it leaves a 10px glyph occupying a 913px x 36px row, 98.9% empty, and it is the third idiom this page uses for the same idea within 570px of scroll: the AGE row states absence as a bordered chip reading `No timestamp published` (y=1008), the RAW row as a bare em dash, and the Events/Internal calls/State changes sections as prose cards. The AGE chip is the strongest of the three and is the page's own pattern; the em dash carries none of its specificity and relies on the note 25px below to do the explaining.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail/wide/light/L4/9",
+      "severity": "P3",
+      "location": "Decoded input section, heading y=1329 through the note card ending y=1573",
+      "finding": "New, and a consequence of change (c). The section now spends 244px of scroll to report an eight-character selector: a 46px heading, a two-row 75px grid holding `0x1a2b3c4d` and an em dash, and a 98px three-line note. The note itself grew to 38 words and accounts for the page going from 2818px to 2840px. Its last clause, `An ABI would not help, and BlockTracer cannot yet be given one in any case.`, states two overlapping facts where one would do; the honesty gain over the previous promise is real, but it was bought with a line of scroll rather than by rewriting the sentence.",
+      "criterion": "A1"
+    }
+  ]
+}
+```

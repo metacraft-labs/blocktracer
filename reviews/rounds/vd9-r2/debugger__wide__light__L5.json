@@ -1,0 +1,91 @@
+Expected elements: present
+
+Identity bar (exit to the chain, both step directions, scrubber, readout, phase rail), Code positioned on line 32, Call Trace + Event Log as one tabbed region with Call Trace open, Values as a separate pane below it, and the `Data` provenance row inside the transaction pane are all present. No provenance band, no prose band, no full-width pane, no spinner. The register still reads as the desktop tool.
+
+(a), (b) and (c) all landed. The EXECUTIONS note is now a punctuated sentence; the decoded-input note names BlockTracer as the holder and that subject is right — the sentence is about what the holder cannot know; the em dash is the correct table convention and declining "None published" was the honest call. (c) exposed something it did not cause: with `0x` gone, the label `RAW` collides with `RAW (CHAIN-NATIVE)` 130px below, and both wear the same caps style as the group headers `DECODED INPUT` and `EXECUTIONS`, so one label primitive serves two structural levels.
+
+Re-filing (d) plainly: `Status reason: private-part-succeeded-public-part-succeeded` is still a raw enum given an English label, wrapping two lines, two rows above the badge that claims to say what this data is. It is a defect.
+
+Fresh: the Code pane's elision notice is set in the code face at code size and ends "not in this window" — UI prose typeset as program text, using the virtual-scroll noun.
+
+Fix first: the code-pane notice; then the status-reason enum.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L5/1",
+      "severity": "P2",
+      "location": "Transaction pane, identity block, third line (x 1542-1900, y 152-186), two rows above the DATA row",
+      "finding": "RE-FILED from vd9-r1/L5/1, unchanged and still a defect. 'Status reason: private-part-succeeded-public-part-succeeded' pairs an English label with a hyphenated adapter enum that wraps across two lines. It is the first explanatory line in the pane, and it sits two rows above the badge whose entire job is to tell the reader what this data is. The other three notes in this pane are now full sentences, so this is the only untranslated machine string left in the pane's prose column. 'The private part and the public part both succeeded.' says the same thing in the register's voice.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/light/L5/2",
+      "severity": "P2",
+      "location": "Code pane, elision notice band directly above line 26 (x 12-914, y 168-190)",
+      "finding": "'Showing from line 26 — the session's position is below, and the lines above it are not in this window.' is UI prose set in the code monospace face at code size, in a full-width band flush against line 26, so it reads as a line of the program. Section 3 sanctions exactly one register crossing — editor tokens into explorer pages — not UI copy into the editor face; the call trace's own footer sentence ('By call order.', y 314) is correctly in the UI sans face, so the page runs two faces for the same kind of copy. The copy also leaks a build-side noun: 'this window' is the virtual line window, which a visitor will read as the browser window, and 'the position is below' invites 'below the visible area' when line 32 is highlighted six rows down and plainly in view.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L5/3",
+      "severity": "P2",
+      "location": "Transaction pane, label column x 1542-1620: DECODED INPUT (y 798-816), SELECTOR (y 820-840), RAW (y 846-866), RAW (CHAIN-NATIVE) (y 988-1005); compare EXECUTIONS (y 655-673) and BLOCK/TYPE/AGE (y 370-450)",
+      "finding": "Caused-adjacent to (c): once the bare '0x' was removed, the label column is the only thing carrying these rows, and it turns out one primitive is doing two jobs. Group headers (DATA, EXECUTIONS, DECODED INPUT, RAW (CHAIN-NATIVE)) and value rows (BLOCK, TYPE, AGE, SELECTOR, RAW) are set in the identical caps-grey style at the identical size and indent, distinguished only by whether a value happens to sit at the right edge. The visible cost is that the word RAW appears twice, 130px apart, at the same weight, for two different objects — an empty row nested under DECODED INPUT and a populated chain-native JSON group — with only a parenthetical to tell them apart, and a note between them saying no call data exists. Group headers need a different weight, indent or rule from rows.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L5/4",
+      "severity": "P2",
+      "location": "Identity bar: 'Engine loading — 18 MB' (x 950-1105) and the position readout '128 / 1315' (x 1122-1205), between the scrubber (x 675-935) and the phase rail (x 1225-1480)",
+      "finding": "RE-FILED from vd9-r1/L5/5, unaddressed. The position readout is still separated from its own scrubber by the engine-loading status and set 17px from that status's last token, while the gap to the phase rail on its right is wider. The two objects expressing position are split by an unrelated one and the readout reads as a continuation of the download figure — '18 MB 128 / 1315'. Only the mono face keeps them apart, and the readout carries no unit or label of its own. Moving it adjacent to the scrubber would make the bar read as three groups rather than a strip.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/light/L5/5",
+      "severity": "P3",
+      "location": "Identity bar exit '← demo' (x 22-76) versus the EXECUTIONS note 'Aztec private functions...' (x 1542-1900, y 707-762) and the RAW (CHAIN-NATIVE) key '\"aztec\":' (x 1570, y 1055)",
+      "finding": "The (a) fix landed as a sentence but left a naming seam it now makes visible: one chain is named three ways in one viewport — 'demo' as a lowercase slug in the exit link, 'this chain' in the DATA note, and 'Aztec' in the EXECUTIONS note. The capitalisation choice is defensible (Aztec is the protocol, demo is the instance) but nothing on the page establishes that relationship for the reader, so 'Aztec' reads as a leaked recorder-family name. The only on-page evidence is the lowercase JSON key '\"aztec\"' in the raw block at the bottom edge, which is the one place a reader should not have to look. Either the exit should read 'Demo' with the chain's family named once in the DATA note, or the EXECUTIONS note should say 'private functions on this chain'.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L5/6",
+      "severity": "P3",
+      "location": "Transaction pane, value column x 1770-1905: AGE 'No timestamp published' (y 430-450), CANONICAL 'Yes' (y 460-482), FINALITY 'Safe' (y 492-512), EXECUTIONS 'Not observable' (y 678-698) against 'Partial' (y 100-124), 'Synthetic demo data' (y 197-217), 'Trace ready' (y 768-790), and TYPE 'private + public' as plain mono (y 400-420)",
+      "finding": "The badge primitive carries two jobs with no rule a reader can infer. Toned badges mean status (orange Partial, blue Synthetic demo data, green Trace ready) but neutral grey badges of the same shell wear plain scalar answers — 'Yes' and 'Safe' are given the same object as the page's provenance claim — while TYPE's equally categorical 'private + public' is plain monospace with no badge at all. Three consecutive rows in badges followed by two out of them makes the pill read as decoration rather than as the semantic marker the toned instances rely on. Reserving the shell for toned status and setting plain answers as text would restore it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L5/7",
+      "severity": "P3",
+      "location": "Code pane gutter, x 79: '⊘' on line 29, '⊙' on line 32, '·' on lines 26-28, 31, 34 onward",
+      "finding": "RE-FILED from vd9-r1/L5/6, unaddressed. The branch marks are the right idea but the pane runs a three-glyph vocabulary with no key anywhere on the page. Two ringed glyphs distinguished only by dot-versus-slash at roughly 10px is a distinction a first-time visitor must guess at, and the desktop app teaches its gutter vocabulary. A legend in the CODE header, or naming the state once in the loop strip at y 100-130, would make the mark self-teaching.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L5/8",
+      "severity": "P3",
+      "location": "Call Trace footer 'Self cost' (x 1465-1520, y 305-323); compare '101:0' (x 1862-1905, y 379), 'line 4' (x 183-213, y 114) and '← demo' (x 22-76, y 24)",
+      "finding": "RE-FILED from vd9-r1/L5/7, unaddressed. Three link treatments are visible in one viewport: the exit as un-underlined accent text, '101:0' and 'line 4' as underlined blue, and 'Self cost' as a heavier violet-blue underline that reads as a browser default. The underline is the explorer register's document primitive; a dense tool normally carries the accent without it. Separately, one control's two sort states are typeset in two vocabularies — the active state as a sentence with a full stop ('By call order.'), the alternative as a web link. Making both states the same object would settle both halves.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L5/9",
+      "severity": "P3",
+      "location": "Transaction pane, COST · MANA row, unit suffix at x 1845-1905 (y 625-645)",
+      "finding": "RE-FILED from vd9-r1/L5/8, unaddressed. The value reads '88000 / 200000 mana (FeeJuice)'. The parenthetical is a camelCase chain identifier sitting immediately beside a lowercase prose unit, so one row shows both conventions; the chain's own spelling is 'Fee Juice'. The row also states the unit twice — once in the label as 'MANA' and once in the value as 'mana' — so the only new information in the suffix is the asset name that is misspelled as a code token.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

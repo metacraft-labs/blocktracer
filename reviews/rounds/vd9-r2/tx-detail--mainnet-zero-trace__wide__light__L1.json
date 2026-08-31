@@ -1,0 +1,68 @@
+Expected elements: present
+
+Nav, breadcrumb, full hash, `Not observable` with its published reason, the `Data` row carrying `Real Aztec mainnet data` (the only provenance marker — no band, no chip), Overview, every content section in the permanent tense, the raw block, and a footer whose three marks are all drawn. No debug/retry/spinner, no trace reference, no danger tone.
+
+Round-2 checks: (b) and (c) landed — Selector and Raw are both em dashes, the note reads "BlockTracer holds no call data". (e) does not reproduce: the cost digits carry a dotted zero and match `67650:0` and `public`, while the sans digits in the provenance paragraph (`2026-08-31T18:44:30.452Z`) have undotted zeros. Mono face confirmed; finding withdrawn. (d): the reason now names the runtime refusal rather than pruning, contradicting §4's still-stale "below the finalized tip" wording — the page's own raw block (`bodyRetainedAtCapture: true`) backs the new text, so I am not filing it.
+
+(a) only half-landed. The string is humanised, but the label cell still uppercases it and the longer label now wraps to three lines: `COST ·` / `TRANSACTION` / `FEE`. Measured, that row is 85 px against 37–38 px for BLOCK/TYPE/AGE/CANONICAL/FINALITY — 2.2x, worse than the 1.6x I filed. Fix the column, not the string.
+
+Second: the DATA row's ten-line paragraph sits at the same size and colour as the grid's values and fills ~74% of the grid's height, so narrative and fact share one tier.
+
+Rating: 7/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/1",
+      "severity": "P2",
+      "location": "Overview grid, last row, label cell — `COST · TRANSACTION FEE`",
+      "finding": "The humanised label is still rendered through the label column's uppercase transform, and at 162 px of column width the three words break onto three lines (`COST ·` / `TRANSACTION` / `FEE`). Measured on the pixels, that row is 85 px tall against 37, 37, 38, 38 and 38 px for BLOCK, TYPE, AGE, CANONICAL and FINALITY — 2.2x the grid's row height, so the last row of the facts table is visibly a different rhythm from the five above it, and the value `3070954237478732800 mana (FeeJuice)` sits at the top of an 85 px cell with 45 px of empty cell beneath it. Humanising the string cured the mid-word break but made the row taller than the camelCase version I filed (1.6x). The remedy is in the column, not the string: widen the label column to hold the longest label on two lines, or drop text-transform: uppercase so `Cost · Transaction fee` fits on one.",
+      "criterion": "A6"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/2",
+      "severity": "P2",
+      "location": "Overview grid, DATA row, the provenance paragraph beneath the `Real Aztec mainnet data` badge",
+      "finding": "The grid otherwise uses exactly two type registers — an 11 px letterspaced uppercase label and a ~14 px mono value. The provenance paragraph introduces a third, proportional sans body copy, at the same size and the same text colour as the values, and runs ten lines, roughly 74% of the grid's total height. Narrative and fact therefore carry identical typographic weight, and the six actual facts begin ~370 px below the section heading. The badge does land first, as intended, but the sentences behind it do not read as annotation to it — they read as the grid's content. Dropping the paragraph one step (13 px, secondary text colour) would keep the claim first while letting BLOCK through COST regain primacy.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/3",
+      "severity": "P3",
+      "location": "Overview grid, DATA row paragraph, line 4 — \"WERE still replayable\"",
+      "finding": "Emphasis is carried by full capitals inside otherwise even body prose. It is the only capitalised emphasis on the page, and at this size it reads as shouting rather than as stress. Weight or italic would carry the same contrast without breaking the paragraph's colour.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/4",
+      "severity": "P3",
+      "location": "Overview grid, COST row value — `3070954237478732800 mana (FeeJuice)`",
+      "finding": "Nineteen digits run ungrouped, so the magnitude can only be read by counting glyphs. The mono face is correct (this is the finding I filed last round and am withdrawing), but a thin separator every three digits, or a grouped rendering with the exact integer retained for selection, would make the number readable at a glance.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/5",
+      "severity": "P3",
+      "location": "Overview grid, DATA row paragraph — \"2 transaction(s) inside it\" and \"settled 27 transaction(s)\"",
+      "finding": "The parenthetical plural is used twice where the count is known and non-unit. It is a template artefact showing through finished copy, and it is the only place on the page where the prose reveals its generator.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L1/6",
+      "severity": "P3",
+      "location": "Raw (chain-native) section, the JSON block",
+      "finding": "Keys, string quotes, numbers and booleans are all set in one weight and one colour, so the structure has to be parsed from punctuation alone. §3 sanctions the editor's tokens inside explorer pages; even a weight difference between key and value would make the six lines scannable. Flagged from the type side — the colour half of this belongs to L3.",
+      "criterion": "A5"
+    }
+  ]
+}
+```

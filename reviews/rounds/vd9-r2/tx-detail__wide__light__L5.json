@@ -1,0 +1,82 @@
+Expected elements: present
+
+**On the ABI element (my P1 from r1): I consider Rule 2 satisfied and I am withdrawing it.** My finding asked for an action; the investigation showed the action cannot exist. Decisively, the element's action branch is conditioned on *raw bytes* — and this transaction has none (`Raw —`). An ABI decodes call data; there is no call data. So a `supply an ABI` control here would be inert even in a product that accepted ABIs, which makes it precisely the "retry that cannot succeed" §1 calls an honesty failure and this page's MUST-NOT-SHOW calls a disabled stand-in. Rule 2 admits "data, or a statement of why not"; the note gives both, and states that nothing would fix it. The expectation was not weakened to get there. Element present.
+
+Register is right: light canvas, near-black geometric sans, mono texture on every hash, no Debug affordance, no empty panel. (b) reads as fixed — `BlockTracer` is the correct product-side noun.
+
+Findings: the hero shows only green `Succeeded` while `Pending` finality sits at row six of Overview, so a glance reads settled. Section rules appear above Overview / Decoded input / Events / Raw but not above Internal calls or State changes. Absent data speaks two dialects — the AGE chip `No timestamp published` versus RAW's bare `—`. Plus copy and chip-tone nits.
+
+Top fixes: lift the finality badge into the hero; give RAW the AGE row's labelled chip.
+
+Rating: 7/10
+
+```json
+{
+  "view": "tx-detail",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "tx-detail/wide/light/L5/1",
+      "severity": "P2",
+      "location": "hero, beside the H1 hash `0x27a6…9a6c`",
+      "finding": "The expected element places the finality badge in the hero; only the green `Succeeded` status badge is there. Finality renders as `Pending` in row six of the Overview grid, roughly 800px further down. In the explorer register the hero is the at-a-glance answer, and an affirmative-toned badge standing alone there reads as settled. Move the `Pending` finality badge next to `Succeeded` so the two qualify each other.",
+      "criterion": "A4"
+    },
+    {
+      "id": "tx-detail/wide/light/L5/2",
+      "severity": "P2",
+      "location": "section headings across the page body",
+      "finding": "The full-measure hairline section rule is applied to four of six peer headings: it sits above `Overview`, `Decoded input`, `Events` and `Raw (chain-native)`, but not above `Internal calls` or `State changes`. All six headings are the same type level, so the rule marks groups that do not exist and the eight-sections-in-one-scroll navigation cue stops being trustworthy. Apply the divider to every peer heading or to none.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail/wide/light/L5/3",
+      "severity": "P2",
+      "location": "Decoded input grid, RAW row versus Overview grid, AGE row",
+      "finding": "The same facts-grid primitive speaks two dialects for absent data. The AGE row carries a labelled chip, `No timestamp published`, which is the voice the brief asks for. The RAW row carries a bare em dash. Both mean 'the tree holds nothing here', and the em dash is the less informative of the two and the one that most resembles a rendering failure. Give RAW a `No call data` chip in the AGE row's treatment; the explanatory note below then reinforces rather than rescues it.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail/wide/light/L5/4",
+      "severity": "P3",
+      "location": "Overview grid, DATA row — the `Synthetic demo data` provenance chip",
+      "finding": "The provenance chip is the only accent-hued chip on the page: it takes the indigo/blue hue family that the primary `Generate trace` button, the breadcrumb links and the `102:0` block link all use. Its three grid siblings (`No timestamp published`, `Yes`, `Pending`) are neutral grey and `Succeeded` is green. The label is not contradicted — blue reads informational, not affirmative — so this is not a tone failure, but the marker borrows the brand's action hue for a statement that is neither an action nor a link. A distinct neutral-informational tone outside the link hue would let it read as fact.",
+      "criterion": "A7"
+    },
+    {
+      "id": "tx-detail/wide/light/L5/5",
+      "severity": "P3",
+      "location": "Decoded input, explanatory note under the grid",
+      "finding": "Two copy defects in the new sentence. `This selector is not in any ABI BlockTracer holds` garden-paths — with the relative pronoun elided, `ABI BlockTracer` parses as a compound noun on first read; insert `that`. And `An ABI would not help, and BlockTracer cannot yet be given one in any case` ends weakly: `in any case` is redundant after `and`, and `yet` smuggles a roadmap promise into a statement of present fact. Suggest: `…so there are no parameters to decode. An ABI would not help here, and BlockTracer cannot be given one.`",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail/wide/light/L5/6",
+      "severity": "P3",
+      "location": "Overview grid, `COST · MANA` row",
+      "finding": "The humanisation reported for this round has not reached this row: the label renders `COST · MANA` and the value `42000 / 100000 mana (FeeJuice)`. It is the only compound label in a column where every sibling is a single plain-English noun (`BLOCK`, `TYPE`, `AGE`, `CANONICAL`, `FINALITY`, `FEE PAYER`, `TARGET`), and it repeats the unit that the value already states. Either drop the resource noun from the label (`COST`, value keeps `mana`) or complete the humanisation the way `Cost · Transaction fee` was described.",
+      "criterion": "A5"
+    },
+    {
+      "id": "tx-detail/wide/light/L5/7",
+      "severity": "P3",
+      "location": "hero card note, Internal calls note, State changes note",
+      "finding": "One fact is stated three times in three wordings on a single scroll: the hero's spec-mandated `Internal calls and state changes come from the execution trace.`, then `Internal calls come from the execution trace. They appear here once this transaction has a recorded trace.`, then the same sentence again for state changes. The repetition is structural rather than careless, but three near-variants read as templated where the surrounding copy reads as written. Consider having the two section notes lead with what they would show rather than restating their source.",
+      "criterion": "A9"
+    },
+    {
+      "id": "tx-detail/wide/light/L5/8",
+      "severity": "P3",
+      "location": "hero card note versus footer data disclosure",
+      "finding": "The hero note says generating a trace `needs an account`; the footer on the same page opens `No account, no tracking`. Both are true and the account requirement is the one sanctioned path, but a reader who sees both on one page sees a contradiction and has no cue that the requirement is the exception. One clause defuses it — e.g. `it is the only thing in BlockTracer that needs an account, and nothing is computed in your browser`. Tone only; the honesty is intact.",
+      "criterion": "A9"
+    }
+  ]
+}
+```

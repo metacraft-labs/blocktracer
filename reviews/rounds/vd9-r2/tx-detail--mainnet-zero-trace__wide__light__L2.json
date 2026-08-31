@@ -1,0 +1,67 @@
+Expected elements: present
+
+All site chrome, the `Not observable` badge with the published pruning reason, exactly one provenance marker (the `Real Aztec mainnet data` DATA row), the full metadata and every permanent-tense section statement are present; nothing forbidden appears.
+
+The page keeps one centred 912px column (x=504-1415) — honoured by the nav, breadcrumb, section rules, both facts grids, the Raw block and the footer — with 101px above every rule and a consistent 24-25px inset. Three things break it.
+
+(a) did not land: `COST · TRANSACTION FEE` still renders uppercase and still wraps to three lines in the 160px label column, so the grid's closing row is 85px against 37-38px for BLOCK-FINALITY, leaving ~59px of dead white under the fee value.
+
+The edge mismatch holds exactly as measured last round: all five note cards end at x=1203, the column at x=1415 — a 212px empty gutter running y=356-2235, broken only where the grids and rules reach the real edge.
+
+(c) breaks the DATA row's two-column grid: the grey label gutter is interrupted for 227px (y=759-986) and the paragraph starts at x=529, 161px left of its own badge (x=680) and of every other value (x=690). At 265px the row is 49% of the grid's height.
+
+(b) is clean: both em dashes sit on the value inset and Selector/Raw stay at 37/38px.
+
+Fixes: widen the label column to ~200px; take the note cards to 912px.
+
+Rating: 6/10
+
+```json
+{
+  "view": "tx-detail--mainnet-zero-trace",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/tx-detail--mainnet-zero-trace__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/1",
+      "severity": "P2",
+      "location": "Overview facts grid, last row (Cost · Transaction fee), y=1174-1259",
+      "finding": "The relabel did not change the render. The label column is 160px wide (x=505-664) with a 25px inset, leaving ~110px of usable width, and the label still renders uppercase, so it wraps to three lines — 'COST ·' / 'TRANSACTION' / 'FEE'. The row is 85px tall against 37-38px for BLOCK, TYPE, AGE, CANONICAL and FINALITY, and because the value is top-aligned there is ~59px of empty white under '3070954237478732800 mana (FeeJuice)'. As the closing row of the grid it is the last thing the eye leaves, and the row rhythm is broken by the tallest cell in the label column rather than by any data. Widen the label column to ~200px — the value column has ~290px of unused width, the longest value ending at x=1120 inside a cell that runs to x=1415 — or drop the uppercase transform so 'Cost · Transaction fee' fits on one or two lines.",
+      "criterion": "A6"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/2",
+      "severity": "P2",
+      "location": "every bordered note card on the page — the 'Not observable' notice (y=356-576), the Decoded-input note (y=1522-1620), Events (y=1800-1876), Internal calls (y=1979-2056), State changes (y=2159-2235)",
+      "finding": "Re-measured, and it holds unchanged: all five cards share the column's left edge at x=504 but stop at x=1203 (700px wide), while the content column ends at x=1415 (912px). The 1415 edge is not incidental — the nav, the breadcrumb, all four section rules, the Overview grid, the Decoded-input grid, the Raw code block and both footer columns all land on it. The result is a 212px strip of bare canvas running the full height of the body, y=356 to y=2235, punctured only where a grid or a rule reaches the true edge. On a page that is mostly statements-in-cards, the dominant vertical edge is the wrong one, and the ragged right side reads as an unfinished container rather than a measure decision. Take the cards to the full 912px, or cap the column at 700px so one edge governs.",
+      "criterion": "A10"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/3",
+      "severity": "P2",
+      "location": "Overview facts grid, DATA row — badge sub-row y=721-759, prose sub-row y=759-986",
+      "finding": "The longer provenance sentence is laid out as a full-bleed sub-row that abandons the grid's two-column structure. The grey label gutter (x=505-664) runs continuously for every other row but is interrupted for 227px between y=759 and y=986, so the paragraph reads as a row whose label cell has gone missing. The paragraph's left edge is x=529 — the label column's text inset — which puts it 161px to the left of the badge it explains (x=680) and of every other value on the page (x=690). A row separator identical to the BLOCK/TYPE/AGE dividers sits at y=759 between the badge and its own sentences, cutting one statement into two rows. Either indent the prose to x=690 so it sits under its badge in the value column, or drop the y=759 divider and let the label gutter run the full height of the DATA row so the block reads as one cell.",
+      "criterion": "A2"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/4",
+      "severity": "P3",
+      "location": "Overview facts grid, DATA row prose, x=529-1131 inside a row that runs to x=1415",
+      "finding": "The provenance paragraph wraps at ~602px inside an 885px content box, leaving ~285px of unused width to the right of all ten lines — a void that exists in no other row of the grid. Combined with the row's total height of 265px, the DATA row is 49% of the grid's 538px, so the Overview reads as half paragraph and half table. The measure cap is defensible on its own, but three different prose widths coexist on this page (602px here, 590px in the note cards, 909px in the footer disclosure). Either let the row's prose use the full 885px so the 265px buys fewer lines, or give the page one prose measure.",
+      "criterion": "A3"
+    },
+    {
+      "id": "tx-detail--mainnet-zero-trace/wide/light/L2/5",
+      "severity": "P3",
+      "location": "section headings — Events (baseline y=1768 to card y=1800), Internal calls (1947 to 1979), State changes (~2126 to 2159) versus Overview (705 to grid 721), Decoded input (~1405 to 1423), Raw (~2382 to block 2399)",
+      "finding": "The gap between an h2 and the box below it is 32-33px when that box is a note card and 16-18px when it is a facts grid or the Raw code block — two values for the same relationship at the same heading level. Everything else on the page holds one scale (101px from content bottom to the next rule, 29-31px from rule to heading, 54-55px from a card to the next heading), which makes the doubled heading-to-card gap the one place the rhythm audibly changes. Settle on one heading-to-content step.",
+      "criterion": "A2"
+    }
+  ]
+}
+```
