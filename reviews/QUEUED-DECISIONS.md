@@ -476,3 +476,50 @@ on the page at 30.5px while being the pane that overflows.
 
 The row-split option that opened this entry is now positively excluded by
 measurement rather than merely doubted.
+
+## Q12. "maxium" — a typo in source we display but did not write
+`debugger/laptop/dark` L5, vd9-r2, filed P3.
+
+`client/fixtures/demo-session/src/shield.nr:41` reads "shields regain a
+percentage of the maxium capacity after each hit". It is real and it is on screen
+in the flagship demo.
+
+It is NOT fixed, and the reason is worth stating because the fix looks free. That
+file is a Noir program the debugger is DEBUGGING — a third party's puzzle source,
+rendered verbatim as the subject of a replay session, with recorded values and
+executed-line sets keyed to it. Correcting an author's comment because it appears
+in our screenshots is editing the specimen. The same instinct applied to a real
+chain's published `reason` is the thing this campaign has twice refused.
+
+Options:
+  (a) leave it — the source is the subject and is shown as it is;
+  (b) fix it, accepting that our copy diverges from upstream in a comment;
+  (c) swap the fixture for one without the typo.
+
+Recommendation: (a). A debugger that silently improves the code it is showing you
+is worse than one that shows a typo. If the demo's source is ever authored rather
+than borrowed, this stops being a question.
+
+### Q11 — the mechanism, isolated
+`debugger/laptop/dark` L2, vd9-r2, found why the fade costs contrast, and it is
+not the ramp length after all:
+
+  "the bottom fade reads as continuation in the Code pane but is **anchored to
+  the pane border rather than the content box**, so in the Transaction pane it
+  swallows the last complete prose line (4.07:1 -> 2.10:1 across one 11px line
+  box) while **9px of padding below it stays untouched**."
+
+That is the whole defect in one sentence. The mask is on `.panebody`, whose box
+includes its padding, so the ramp begins at the PANE BORDER and spends its first
+9px fading empty padding — then hits live text with most of its opacity already
+gone. The ramp is not too long; it is in the wrong place, and lengthening it
+(which I briefly did and reverted) would have pushed the fully-transparent end
+further INTO the text rather than moving the ramp off the padding.
+
+This confirms option (a) — mask an inner wrapper rather than the scroll container
+— and upgrades it from "the option that answers all four measurements" to the one
+the measurements point at directly. It also explains why the Code pane reads
+correctly and the Transaction pane does not: `.src` carries its own mask on the
+content element, so the Code pane was already doing (a) by accident.
+
+Unchanged conclusion, much better grounded: fix the anchor, not the length.

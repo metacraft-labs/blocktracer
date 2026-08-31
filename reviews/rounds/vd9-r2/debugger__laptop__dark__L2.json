@@ -1,0 +1,70 @@
+Expected elements: present
+
+Grid unchanged and clean: uniform 4px gutters (x687-690, x1145-1148, y562-565), 9px content insets in all four panes, Values columns right-aligned at x=1023 and x=1134, Call Trace opcodes at x=1134, identity bar ink y18-44 in a 0-63 band with control groups on a uniform 18px gap (boxes x371-426, 445-495, 514-575, 594-655). No wrap, no page scroll at 1440.
+
+Re-measures. **Badge raggedness is fixed.** `Synthetic demo data`, `Yes` and `Safe` now end at x=1426, flush with the plain values (1425-1426); only `No timestamp published` sits 1px proud at 1427. Sub-pixel — not re-filed. **The header stack holds, unchanged:** CODE x=13, LOOP row x=14, file tabs x=22, note x=13. The 8px tab stagger is exactly as reported.
+
+The fade reads as continuation in the Code pane and only there. Ramp measured 25-28px at this viewport, terminating at the pane border. In Code (23px pitch) it dims line 51's tail and reduces line 52's sliver to 1.1:1 — correct. In Transaction (19px pitch) it swallows the last *complete* prose line, y875-885, whose peak ink falls 123→79 across one 11px line box (4.07:1 → 2.10:1), and then 9px of untouched bottom padding follows. Same ramp, a third spent on padding in one pane and none in the other. Finding 1.
+
+Carried forward: 240px void in Call Trace, the DATA row's inverted hairline, the chip pitch.
+
+Fix first: anchor the ramp to the content box and lengthen it to two line heights.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L2/1",
+      "severity": "P2",
+      "location": "Transaction pane bottom, x1158-1426 y866-895 (EXECUTIONS note) — compare Code pane bottom, x8-680 y868-895",
+      "finding": "The new bottom fade is anchored to the pane's border rather than to its scroll content box, and is not sized against the line grid. Measured here: full-strength body prose peaks at 145 (5.47:1); the ramp reaches alpha 1.0 at y~870 and 0 at y~895, i.e. 25px. The Code pane's ramp is the same length (y868-896, ~28px) but that pane has no bottom padding, so all 28px land on content and the effect is right: line 51's tail dims to 7.4:1 and line 52's half-clipped sliver drops to 1.1:1, which reads unambiguously as 'more below'. The Transaction pane has a 9px bottom inset, so only ~16px of the ramp touch content — and what they touch is the last COMPLETE line, y875-885, whose peak ink falls 123 to 79 down the line box (4.07:1 at the x-height, 2.10:1 at the baseline). A fully laid-out line dimmed unevenly top-to-baseline, with blank padding beneath it, reads as a rendering artefact rather than as continuation; the Code pane escapes this only because its clipped line happens to be a sliver. Anchor the gradient to the scroll container's content box so the inset is excluded, and give it about two line heights (40-46px) so the cue spans a boundary instead of one line.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/2",
+      "severity": "P2",
+      "location": "Call Trace / Event Log tabbed region — empty band y321-560, x692-1144",
+      "finding": "Unchanged from the previous round and unaddressed by this one. The tabbed region is y68-561 = 494px; the last content pixel is y=320 (the 'By call order. / Self cost' footer, last frame row ending y~296); 240px, 48.6% of the region, renders blank. Measured against the frame list alone (below the FRAME / ACIR opcodes header at y=126) it is 53.1%. The column's split is 494px / 330px = 59.7% / 40.3% of an 828px column. The obvious re-weighting still does not follow from the numbers: the Values pane below is 87% full (content ends y=851 in a pane ending y=895) and does not overflow, so shifting weight between them only moves dead space. The pane that actually clips is Transaction, in the right column, which this weight cannot feed. The finding stands as 29% of the middle column rendering blank while a sibling column fades content out at its edge.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/3",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row — hairline at y=246; label + badge y219-241; prose y250-443",
+      "finding": "Unchanged. The pane's first row rule falls at y=246, BETWEEN the `DATA` label with its `Synthetic demo data` badge and the eight lines of provenance prose those two introduce. There is still no rule above the label — the rules run 246, 450, 480, 510, 542, 573, 605, 677, 749, 795, so 246 is the first. Proximity therefore groups the DATA label upward with the status-reason line and leaves the prose as an unlabelled block reading as preamble to BLOCK. This is the register's only provenance marker and the rule is drawn on the wrong side of it. Suppress the separator inside the DATA row and add one above the label.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/4",
+      "severity": "P2",
+      "location": "Code pane — overflow chips at x615-637, y234-247 (after line 26), y769-782 (after 48), y813-826 (after 49)",
+      "finding": "Unchanged. Measured off the gutter digits, the listing runs on a 23px line pitch, and the `+3` / `+2` overflow chips wrap onto a line of their own, forcing a 44px pitch three times inside the visible 26-line window (26 to 27, 48 to 49, 49 to 50). Two spacing values for one repeating element, about 63px of pane spent, and each orphaned chip now lands under both the horizontal edge fade and, for the last of them, the new bottom fade, so it reads as belonging to nothing. Reserve the chip a fixed right-hand column that does not wrap, or let it truncate in place.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/5",
+      "severity": "P3",
+      "location": "Identity bar outer edges — leftmost ink x=24 (`←` of `← demo`), rightmost control box edge x=1415 (download button, box y19-44)",
+      "finding": "The identity bar is inset 24px from both viewport edges, but nothing below it shares that edge: the pane borders sit at x=4 and x=1435 and the pane content edges at x=13 and x=1426. So the bar's left edge is 11px inboard of the Code pane's `CODE` title and its right edge 11px inboard of the Transaction pane's right-aligned value column, on a page whose whole vertical structure is otherwise edge-aligned. Symmetric, so it does not read as an error, but it means the top band floats on its own grid. Setting the bar's inline padding so its ink lands on x=13 and x=1426 would give the page one vertical edge top to bottom.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/6",
+      "severity": "P3",
+      "location": "Code pane header stack — CODE title y74-90, LOOP row y104-120, file tabs y136-157, note y170-200",
+      "finding": "Re-measured and unchanged. Four stacked header rows, three left edges: the CODE title sets at x=13, the LOOP / iteration row at x=14, the 'Showing from line 26...' note at x=13, but the file-tab row (Nargo.toml / Prover.toml / src/main.nr / src/shield.nr) starts at x=22 — an 8px stagger, visible because the tab row sits directly under the LOOP row and shares its 40,40,40 header band with no pill background of its own to justify the inset. Give the tab strip a negative inline offset so the first tab's glyph edge lands on x=13.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

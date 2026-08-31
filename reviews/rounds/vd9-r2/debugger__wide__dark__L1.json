@@ -1,12 +1,12 @@
 Expected elements: present
 
-All must-shows render; nothing forbidden. Requested measurement: the tabbed region runs y68–669 (601px), its footer ends y≈320, leaving ~346px (58%) empty; Values (y675–1075) leaves ~124px (31%). Both panes beside them overflow. Code shows 36 rows at a 23px pitch, all legible.
+All must-shows render; nothing forbidden. Requested measurement: the tabbed region runs y68–669 (601px), its footer ends y≈320, leaving ~346px (58%) empty; Values (y675–1075) leaves ~124px (31%). Both panes beside them overflow. Code shows 36 legible rows at a 23px pitch.
 
 Iteration changes. (a) Landed on the two panes that overflow, and correctly inert on Values and Call Trace — measured flat #1B1B1B to the border. But the ramp is 24px against a 23px line pitch, so it catches exactly one line and grades it inside the glyph: code line 61 falls 239→100 between ascender and baseline (findings 3, 4). (b) Not observable — this fixture's only cost dimension is `mana`, whose humanised form is the same string; the row is byte-identical to r1 (finding 14). (c) Landed. (d) Landed; `0x` is gone and the em dash is correctly quiet, but the pane now spells "absent" three ways in 400px (finding 15).
 
-Re-judged from r1: the address wrap (5), the 44px rows (6) and the mono notice strip (7) stand. The gutter rings (r1 #2) drop to P3 — hue and the row highlight carry the state; only the `ø`/zero collision remains. The mixed-face call-trace row (r1 #3) drops to P3 — the split is a defensible convention. r1 #8 rises to P2 on measurement (2).
+Re-judged from r1: the address wrap (5), the 44px rows (6) and the mono notice strip (7) stand. The gutter rings (r1 #2) drop to P3 — hue and the row highlight carry the state; only the `ø`/zero collision remains. The mixed-face call-trace row (r1 #3) drops to P3, a defensible convention. r1 #8 rises to P2 on measurement (2).
 
-New headline: four panes, two title treatments — CODE/VALUES/TRANSACTION at #A2A2A2, the CALL TRACE tab at #F3F3F3, same 9px cap height.
+New headline: four panes, two title treatments — CODE/VALUES/TRANSACTION at #A2A2A2, the CALL TRACE tab at #F3F3F3, same 9px cap.
 
 Fixes first: one pane-title value; move the fade mask to an inner wrapper.
 

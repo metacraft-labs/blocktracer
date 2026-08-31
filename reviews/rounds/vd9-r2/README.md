@@ -99,7 +99,9 @@ Seven reports in this directory are still not in the ledger and
 correct and should stay failing until they are either re-run or superseded.
 
 
-## Final state of this round — four triples were never completed
+## (Superseded by the section at the end of this file — dispatch was retried.)
+
+## First stall — four triples were incomplete at that point
 
 Dispatch was retried after the first stall and the reviewers restarted, but
 throughput collapsed a second time: sixteen agents ran for hours against a
@@ -143,3 +145,59 @@ The single most useful one is `debugger--testnet/wide/light`, which has not been
 reviewed at all this round: its subject publishes `transactionFee`, so the Q9
 cost-label wrap regression should reproduce there and be measurable, and it is
 the only real-chain subject in the debugger register.
+
+
+## Actual final state — 30 of 42, and the four outstanding triples sit at 4/6
+
+Dispatch was retried a second time after capacity recovered, and most of the
+round ran. Thirty reports exist.
+
+INGESTED — three complete triples, re-reviewed against the current capture:
+
+  tx-detail/wide/light                      6/6  G1 ok
+  tx-detail--mainnet-zero-trace/wide/light  6/6  G1 FAIL (stale expectation, corrected in 40aa0e0)
+  debugger/wide/light                       6/6  G1 ok
+
+NOT INGESTED — every one of these is a genuinely INCOMPLETE triple, and the
+missing lenses are the slow measurement ones (L2 and L3), which the rate limit
+starved last:
+
+  debugger/wide/dark            L1 L4 L5 ADV   (4/6 — missing L2, L3)
+  debugger/laptop/light         L1 L4 L5 ADV   (4/6 — missing L2, L3)
+  debugger/laptop/dark          L1 L2 L4 L5    (4/6 — missing L3, ADV)
+  debugger--testnet/wide/light  none           (0/6 — never dispatched in r2)
+
+Their twelve loose reports are kept as evidence and are NOT in the ledger, so the
+ledger still grades vd9-r1's reviews of the PRE-FIX capture for those four
+triples and `gate.mjs` reports them G2-superseded. That is the honest reading.
+
+`just review-verify reviews/rounds/vd9-r2` names the twelve and FAILS. Correct;
+leave it failing.
+
+## What the incomplete triples nonetheless established
+
+Being incomplete does not make them uninformative — four of six lenses on three
+triples is a lot of independent measurement, and it produced the round's two best
+results:
+
+  * **The pane fade is confirmed working**, by three reviewers who had filed the
+    panes as CLIPPED and withdrew it — including "the fade is on both axes in
+    Code and correctly absent where content ends" and a measured ramp of
+    ~240 -> ~110 over the final 15px.
+  * **Q11's mechanism was isolated**: the mask is anchored to the pane BORDER
+    rather than the content box, so it spends its first 9px fading padding and
+    then hits live text with its opacity mostly gone (4.07:1 -> 2.10:1). That is
+    why the Code pane reads correctly — `.src` masks the content element and was
+    already doing the right thing by accident.
+  * **Q2 is settled in shape**: 48.7-58% empty at every viewport and theme
+    measured, reproducing to within one pixel between rounds, and BOTH laptop
+    lenses independently found Values nearly full — so the row-split answer is
+    excluded and the lever is the column widths.
+
+## To finish
+
+Do NOT re-capture; assertion F is green over the current corpus. Dispatch the
+twelve missing reviews — six of them are `debugger--testnet/wide/light`, which
+has not been reviewed at all this round and is the only real-chain subject in the
+debugger register, so the Q9 cost-label wrap regression should be measurable
+there. Ingest each triple only at 6/6.
