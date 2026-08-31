@@ -56,7 +56,7 @@ preview-live: export-hydrated replay-engine
 
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
-test: test-export test-viewmodels test-debug-route test-hydration-tag test-explorer-breadth
+test: test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth
 
 # The static-export round-trip test: compile + run the real exporter into a
 # temp dir, then assert the three view types render for the demo entities and
@@ -79,6 +79,18 @@ test-viewmodels:
 # `just debug-panes` in the repository root's Justfile.
 test-debug-route:
     nim c -r --mm:orc --hints:off tests/test_debug_route.nim
+
+# How a session BECOMES positioned, as opposed to how a positioned one renders.
+#
+# `test_debug_route.nim` covers the second exhaustively and the first not at
+# all: its cases build a fixture from `demo_session.FixtureFile`/`FixtureLine`
+# and then assert those same two constants back, so fixture and assertion share
+# a source. It could not have caught a session that opened on the wrong file,
+# and it did not. Nothing in this suite may name a path or a line as the
+# expected answer — every expectation is a RELATION over the session's own
+# reported position.
+test-entry-state:
+    nim c -r --mm:orc -d:isServer --hints:off tests/test_entry_state.nim
 
 # The hydration bundle's <script> is EMITTED when one is declared. Compiled
 # WITH -d:hydrationBundle on purpose: every other suite compiles without it and

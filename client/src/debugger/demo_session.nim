@@ -458,12 +458,32 @@ proc withPublishedSources*(session: var DebugSessionView; bundle: JsonNode) =
   if not session.hasFrame: return
   let docs = sourceDocumentsFromBundle(bundle)
   if docs.len == 0: return
+  # The position the session is ALREADY at, read off the session before its
+  # documents are replaced. This used to be `FixtureFile` / `FixtureLine`, and
+  # that was the defect: a bundle for any program the constant does not describe
+  # left `activeIndex` at 0 — which after `sourceDocumentsFromBundle`'s sort is
+  # whatever path sorts first, typically `Nargo.toml` — while `currentLine` kept
+  # a line number belonging to a different file. `openAtCurrent` then windowed
+  # the manifest to lines at or after `currentLine - lead` and kept NONE, so the
+  # pane opened on an empty document.
+  #
+  # `activeIndex` cannot survive the replacement (it indexes the OLD seq) and
+  # `currentLine` alone cannot locate a document, so the path has to be taken
+  # before line 1 of the replacement. That is the whole fix: the product now
+  # derives its own position instead of borrowing the fixture's.
+  let posPath = activeDocument(session.editor).path
+  let posLine = session.editor.currentLine
   var pane = session.editor
   pane.documents = docs
   pane.activeIndex = 0
   markExecuted(pane, executedLines())
-  if documentIndex(pane, FixtureFile) >= 0:
-    focus(pane, FixtureFile, FixtureLine)
+  if posPath.len > 0 and posLine > 0 and documentIndex(pane, posPath) >= 0:
+    focus(pane, posPath, posLine)
+  else:
+    # The bundle does not carry the file the session is in. The pane may open on
+    # whatever it has, but it may NOT keep a line number that belongs to a file
+    # it is not showing: that is the coordinate that empties the window.
+    pane.currentLine = 0
   # The overlay is re-derived against the NEW documents. `newSourceDocument`
   # built them with no annotations, so a bundle that won without this line would
   # win by silently deleting the values — the same class of loss `markExecuted`

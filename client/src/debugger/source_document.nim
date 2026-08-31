@@ -190,6 +190,20 @@ proc openAtCurrent*(pane: EditorPane; lead: int = SourceLeadIn): EditorPane =
                               language: pane.documents[idx].language)
   for ln in pane.documents[idx].lines:
     if ln.number >= first: window.lines.add ln
+  # A window that keeps NO lines is never an improvement on the whole document,
+  # and it is the shape a caller's mistake takes here rather than an input worth
+  # honouring: `currentLine` belongs to some other file, so `first` is past this
+  # document's last line. Returning the document unwindowed shows the file the
+  # pane selected instead of showing nothing at all.
+  #
+  # This is a guard and not the fix — the callers that could produce the
+  # mismatch have been corrected (`demo_session.withPublishedSources`,
+  # `source_island.decodeSourceIsland`, both of which now clear `currentLine`
+  # when they cannot locate it). It stays because the failure it prevents is
+  # invisible: a pane rendering zero lines satisfies every assertion written
+  # about the lines it renders, so the next caller to get this wrong would not
+  # be caught by any test that walks them.
+  if window.lines.len == 0: return
   result.documents[idx] = window
 
 proc windowAround*(pane: EditorPane; radius: int): EditorPane =

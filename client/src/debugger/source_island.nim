@@ -129,6 +129,7 @@ proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
   result.currentLine = currentLine
   let docs = payload{"documents"}
   if docs == nil or docs.kind != JArray: return result
+  var matched = false
   var index = 0
   for d in docs:
     let path = d{"path"}.getStr("")
@@ -140,7 +141,9 @@ proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
       path, d{"language"}.getStr(""), d{"text"}.getStr(""),
       executed = executed,
       currentLine = (if path == currentPath: currentLine else: 0))
-    if path == currentPath: result.activeIndex = index
+    if path == currentPath:
+      result.activeIndex = index
+      matched = true
     inc index
   # The pane opens on the file the session is IN. Falling back to the island's
   # own `activeIndex` would be worse than the default: it records where the
@@ -148,3 +151,19 @@ proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
   # the session has left.
   if currentPath.len == 0:
     result.activeIndex = payload{"activeIndex"}.getInt(0)
+  elif not matched:
+    # The engine named a file this bundle does not carry. Two things follow, and
+    # the second is the one that was missing.
+    #
+    # `activeIndex` falls back to the island's, because a document the static
+    # export chose is a better guess than "index 0", which after the bundle's
+    # sort is whatever path sorts first — a `Nargo.toml` rather than any code.
+    #
+    # And `currentLine` is CLEARED. It is a coordinate in a file that is not on
+    # screen; carried onto a document it does not describe it marks the wrong
+    # line, and — because `openAtCurrent` windows from `currentLine - lead` —
+    # against a short manifest it keeps no lines at all and the pane renders
+    # empty. A pane that cannot show the position says so by not marking one,
+    # which is what an unpositioned pane already means everywhere else.
+    result.activeIndex = payload{"activeIndex"}.getInt(0)
+    result.currentLine = 0
