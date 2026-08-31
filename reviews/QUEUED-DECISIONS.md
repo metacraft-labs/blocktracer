@@ -351,3 +351,54 @@ Recommendation: (a). The module already decided that a claim specific enough to
 be wrong belongs with the published reason rather than in the enum's sentence; it
 simply did not apply that to the word "permanent". (c) is not available — it is
 the §14.1a breach, on the page whose entire job is to be believed.
+
+## Q11. The pane bottom fade works and costs contrast, and both are measured
+Three lenses reviewed the fade added this session on `debugger/wide/light`, and
+they do not agree, which is the finding.
+
+FOR it:
+  - L2: it reads as "there is more below" rather than as a cut — "the whole row
+    including the line-number gutter dissolves, and the RAW block's own
+    background fades with it so nothing ends on a hard edge". It also confirmed
+    the fade resolved the mid-glyph cut five reviewers had filed as a clip.
+  - L4: "fixes the mid-glyph cut", but at a ~24px ramp against a 23px line pitch
+    it "reads as 'the last line is dim' rather than 'there is more'".
+  - Both measured the vertical ramp at ~26px against the HORIZONTAL fade's ~48px
+    in the same pane, and both wanted it longer.
+
+AGAINST lengthening it:
+  - L3 measured what it costs: at ~29px the band already exceeds the 23px line
+    pitch and drives the last fully-inside-the-box line to **2.19-2.22:1** and a
+    coverage dot to **2.43:1** — under the floor, on text that has not left the
+    box.
+  - L1 reports that in the Transaction pane the fade "renders behind its text".
+  - L3 also found a second problem no ramp length fixes: masking the pane BODY
+    fades the RAW block's own `#ECECEB` surface to `#FBFBFB` and erases its
+    bottom boundary. The mask is applied to the scroll container, so it takes the
+    surface with the ink.
+
+The ramp was moved to `2xl` on L2/L4's evidence and reverted within the hour on
+L3's, because a ratio against a floor outranks a legibility reading. It is back
+at `lg` — the state all three actually reviewed.
+
+**Both camps are right, and that is the useful result:** at a 23px line pitch
+there is no ramp length that both reads as continuation and keeps the last line
+legible. So the next move is a different treatment, not a different number.
+
+Options:
+  (a) fade the INK only, not the scroll container — put the mask on an inner
+      wrapper so the pane's surfaces and borders stay solid. Fixes L3's second
+      finding and L1's "behind its text", and lets the ramp lengthen without
+      washing surfaces;
+  (b) drop the mask and mark overflow with an edge rule or a persistent
+      scrollbar — no contrast cost at all, less elegant, and it reintroduces the
+      hard edge L2 credits the fade with removing;
+  (c) keep the fade but apply it only when the pane actually overflows, which
+      needs script and this route ships none;
+  (d) leave it at `lg` and accept one dim last line.
+
+Recommendation: (a). It is the only option that answers all four measurements,
+and it keeps the "one overflow treatment, and it is the fade" rule the stylesheet
+already commits to. Not done here because it is a structural change to every
+pane, reviewed by nobody, at the end of a session — exactly the shape of change
+this campaign keeps having to undo.

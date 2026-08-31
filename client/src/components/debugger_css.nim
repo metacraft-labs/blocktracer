@@ -283,7 +283,28 @@ html[data-register="debugger"],
    pane's own edge and fill stay solid and only the text under them goes.
 
    A pane whose content does NOT reach the bottom is unaffected: the faded band
-   is over empty surface, and masking nothing changes nothing. */
+   is over empty surface, and masking nothing changes nothing.
+
+   THE RAMP STAYS AT `lg` AND THE LENSES DISAGREE ABOUT WHETHER IT SHOULD.
+   It was briefly moved to `2xl` — the horizontal fade's rung — on the strength
+   of L2 and L4, who both read the treatment as correct and both measured the
+   vertical ramp at ~26px against the horizontal fade's ~48px in the same pane,
+   L4 putting it as "the last line is dim" rather than "there is more".
+
+   L3 then measured what the ramp COSTS, and the move was reverted the same hour.
+   At ~29px the band already exceeds the 23px line pitch, and it drives the last
+   fully-inside-the-box line to 2.19-2.22:1 and a coverage dot to 2.43:1 — under
+   the floor, on text that has not left the box. Lengthening the ramp makes a
+   measured contrast failure worse in order to make a legibility reading better,
+   and a ratio against a floor outranks a reading.
+
+   The two findings are both correct, which is the useful result: at this line
+   pitch there is no ramp length that both reads as continuation and keeps the
+   last line legible, so the next move is a different treatment rather than a
+   different number. `reviews/QUEUED-DECISIONS.md` Q11 carries the options,
+   including the second half of L3's finding — that masking the pane BODY also
+   fades the RAW block's own surface and erases its bottom boundary, which no
+   ramp length fixes. */
 .panebody{flex:1 1 0;min-height:0;overflow:auto;
   -webkit-mask-image:linear-gradient(to bottom,currentColor
     calc(100% - var(--bt-space-lg)),transparent);

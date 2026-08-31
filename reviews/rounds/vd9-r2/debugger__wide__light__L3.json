@@ -1,0 +1,113 @@
+Expected elements: present
+
+All backbone items render: identity bar with `← demo` exiting to the chain, both stepping directions, scrubber, 128/1315 readout, phase rail; Code with a pinned line 32 (band + left rail + ⊙); Call Trace/Event Log as one tab strip with Call Trace open; Values below it, not in the strip; the `DATA` provenance row with its badge and sentences. Its tone does not contradict its label — blue reads informational, not success or error. Light here is a theme, not a register error: the surface is dense and tool-shaped, and the levels are re-derived rather than inverted (header #DDDDDD recessed under the #FFFFFF pane body, canvas #ECECEB, semantic tints are true light-mode 100/200 fills with 600–900 ink). Outside the three places named below, every static text pair I sampled measures ≥4.63:1.
+
+The new fade is right to be conditional — Call Trace and Values, which do not overflow, show none. But its ramp (~29px) exceeds the 23px line pitch, so it always eats one whole legible line inside the box, and it masks the pane body rather than the ink, dissolving the RAW block's own surface. Cyan carries five meanings across four tokens, with two exact-hex collisions. Highest-priority fixes: shorten and rescope the fade; give the current iteration pill and the scrubber tick real contrast.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L3/1",
+      "severity": "P2",
+      "location": "Code pane, last line (61) at y1052-1066; Transaction pane, `\"aztec\": {` row at y1049-1062",
+      "finding": "The new bottom fade pushes a complete, unclipped line below the contrast floor while it is still fully inside the pane. Measured on the constant-ink line-number column, line 61 runs #6F6F6F (5.02:1) at the glyph top to #AEAEAE (2.22:1) at the glyph bottom, i.e. alpha 0.85 -> 0.48; its code text runs 4.81:1 -> 2.19:1. Glyph bottoms sit 12px clear of the pane border at y1075. Same in the Transaction pane: 13.13:1 -> 3.04:1, ending 13px above the border. The ramp measures ~29px against a 23px line pitch, so it can never soften only the clipped sliver — it always consumes one whole readable row. Fix: hold alpha at 1.0 for the first ~12px of the ramp and fade only the final 10-12px, so the last fully-rendered line stays above 4.5:1.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/light/L3/2",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) inset code block, y1048-1074",
+      "finding": "The mask is applied to the pane body, not to the ink, so it erases surface levels as well as text. The inset block's own background is washed from #ECECEB to #F0F0EF by y1055, #F7F7F7 by y1064 and #FBFBFB by y1074 — the block loses its container tone and its bottom boundary entirely. The reversal is the damaging part: the page canvas immediately below the pane border is #ECECEB, darker than the faded block above it, so the surface gets lighter approaching the edge and then abruptly darker past it, which reads as the block ending rather than continuing — the opposite of what the fade was added to say. Fix: scope the mask to the scrolling content layer, or composite the gradient toward the block's own #ECECEB rather than toward transparent.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L3/3",
+      "severity": "P2",
+      "location": "Code pane gutter, coverage mark for line 61 at x78-79, y1058-1060",
+      "finding": "The fade extinguishes a state marker while it is still inside the pane. Line 61's coverage dot renders at #74AFBF / #6BAABA = 2.43:1 and 2.60:1 against white, where the other eighteen dots all measure 4.87:1 (core #1A7B95). It is a 2x2px graphical mark 15px above the pane border and now sits below the 3:1 non-text floor, so a reader scanning the coverage column reads line 61 as having no coverage — a state rendered as a different state. Not P1 only because the affected row is the one the reader is about to scroll past. Fixed by finding 1's shorter ramp, but worth verifying separately: small marks lose legibility to a mask far faster than glyph strokes do.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/4",
+      "severity": "P2",
+      "location": "Code pane header, loop-iteration strip, pill `3` at x508-564, y100-128",
+      "finding": "The current loop iteration is the faintest item in its own strip. Pill 3's digit and its underline are #164E63 on the #919191 pill fill = 2.89:1, while the non-current past pills `1` and `2` carry #242424 on the identical fill at 4.93:1. The single digit that says which of eight iterations you are looking at is 1.7x fainter than its neighbours, and its cyan underline — the only other cue — measures the same 2.89:1, below the 3:1 non-text floor. Contrast hierarchy is inverted against importance. Fix: keep the cyan as the identity cue but raise it to at least #0E7490 on a lighter selected fill, or invert the pill (dark fill, #FFFFFF digit) so the current iteration is the highest-contrast, not the lowest.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/5",
+      "severity": "P2",
+      "location": "Code pane header, loop-iteration strip, pills `4`-`8` at x576-904, y100-128",
+      "finding": "Future-iteration digits sit below the small-text floor. Pills 4, 5 and 8 measure #727272-#747474 on #DDDDDD = 3.44-3.54:1 at the darkest stroke core, and 2.64-3.30:1 across the bulk of the antialiased stroke, at roughly 11px. This is the page's only remaining not-yet-reached / disabled-ish treatment and it was set by lightening the ink rather than by choosing a pair. Fix: keep the #DDDDDD fill and set the digit to #565656 (5.40:1 on that fill), which still reads as recessed against the #242424 of the executed pills.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/light/L3/6",
+      "severity": "P2",
+      "location": "Identity bar scrubber (y26-38) versus the iteration strip directly below it (y100-128)",
+      "finding": "The token #919191 carries opposite meanings 60px apart in the same visual band. On the scrubber it is the UNREACHED remainder: the #155E75 elapsed fill runs x673-696 and the grey runs x697-932, i.e. 9.2% filled for step 128/1315. On the iteration strip immediately below, #919191 fills iterations 1-3 — the ones ALREADY EXECUTED — with #DDDDDD for the unreached 4-8. Two progress indicators, one grey, inverted semantics. Fix: pick one direction for 'consumed' and use the same fill for both; the scrubber's #155E75 elapsed / #919191 remaining is the more conventional pair, so the iteration strip should invert.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/7",
+      "severity": "P2",
+      "location": "Whole frame — Code gutter x72-90, Code line band y352-374, Call Trace selected row y255-273, scrubber x673-696, iteration pill 3, and the `Field`/`u32` tokens throughout the Code pane",
+      "finding": "Cyan carries five distinct meanings across four tokens, with two exact-hex collisions. Full-frame census: #A5F3FC (26,286px), #0E7490, #155E75 (994px), #164E63 (278px), covering (1) current position — Code line band, Call Trace selected row and left rail, correctly one token in both panes; (2) trace coverage — nineteen `·` marks; (3) scrubber elapsed; (4) selected loop iteration; (5) the `Field` and `u32` type tokens in the editor palette. Collision A: the ⊙ current-position marker and the `·` coverage marks are the SAME token — the dot core #1A7B95 solves to #0E7490 at alpha 0.95 over white, and the ring core is #0E7490 at alpha 1.0. Collision B: the scrubber's elapsed fill and the `Field`/`u32` type tokens are both exactly #155E75. Fix: reserve the cyan family for position alone and move coverage to a neutral, which also resolves finding 8.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L3/8",
+      "severity": "P2",
+      "location": "Code pane gutter — ⊘ at x75-82/y291-299, ⊙ at x75-82/y360-368, `·` marks at x78-79 on nineteen rows",
+      "finding": "Re-measured independently; confirming the recorded defect and revising my own round-1 conclusion. ⊘ core #484848 on #FFFFFF = 9.15:1. ⊙ core #0E7490 on the #A5F3FC band = 4.29:1, but only 4 of the ring's 24 ink pixels reach it — the flanks measure 3.91, 2.71, 2.13 and 1.69:1, so most of the ring is under the 3:1 non-text floor, which reproduces the other lens's 2.40/2.23 flank finding. Greyscaled, the ⊙ core is 107/255 and the `·` core is 113/255 — a 6-value difference, so without colour the current-position marker and a coverage mark have effectively identical ink and are separated only by size (7x8px ring vs 2x2px square). Against ⊘, ⊙ carries 123 units of ink-vs-local-background to ⊘'s 183, a 33% deficit. I withdraw 'distinguishable with zero margin' and join the majority: not reliably distinguishable without colour. No new fix implied beyond the pending glyph redesign; recording the measurement so the redesign has a target — give ⊙ an achromatic ring at ≥3:1 on the band and let the interior dot, not the hue, carry the meaning.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/9",
+      "severity": "P2",
+      "location": "Identity bar `FETCHING` chip (x1234-1300, y22-42) and Transaction pane `Synthetic demo data` badge (x1760-1905, y198-220)",
+      "finding": "One blue token serves a transient phase indicator and the page's provenance claim. Both sit on an identical #DBEAFE fill; text is #1E40AF and #2563EB, borders both in the 221-226deg blue. The tone does not contradict the label — informational blue is right for 'synthetic' — so this is not the P1 the presence check guards. But the provenance row is the one thing on this page graded as content rather than chrome, and it currently wears the same colour as a chip that disappears in a second. Fix: give the provenance badge its own tone (a neutral-slate or a distinct violet) so the page's single honesty claim is not a member of the loading-state palette.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L3/10",
+      "severity": "P2",
+      "location": "Identity bar phase rail, x1228-1476, y20-44",
+      "finding": "The rail's active state is carried by colour alone. Active `FETCHING` is #1E40AF on #DBEAFE = 7.15:1; inactive `OPENING` and `POSITIONING` are #565656 on #FFFFFF = 7.34:1 — the inactive chips are marginally HIGHER contrast than the active one. The only remaining cue is the #DBEAFE fill, a 1.22:1 step from white. Greyscaled the rail has no active state at all, which matters because the rail is one of the two things the brief says must carry the engine's loading state. Fix: add weight or a filled indicator to the active chip and drop the inactive ones to #767676 (4.54:1), so activity survives desaturation.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L3/11",
+      "severity": "P2",
+      "location": "Transaction pane, `SELECTOR` and `RAW` rows, value column at x1890-1906, y820-865",
+      "finding": "The new em dash placeholder sits below the text floor. It renders at #8A8A8A on #FFFFFF = 3.45:1, against #565656 / 7.34:1 for the `SELECTOR` and `RAW` labels on the same rows, and at 1-2px stroke weight it is close enough to the #C8C8C8 row rules to be taken for one. Replacing `0x` with an em dash is the right change; the tone is not. Fix: set the dash to the same #565656 the label uses, or at minimum #767676 (4.54:1).",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/light/L3/12",
+      "severity": "P3",
+      "location": "Code pane, the four stacked bands from y69 to y191",
+      "finding": "#DDDDDD is the only non-white surface step in the Code pane and it carries four roles plus a fifth: pane header band (y69-98), LOOP context row (y100-127), file-tab strip (y129-159), the `Showing from line 26...` window notice (y165-191), and the inline value chips (`damage=0`, `+3`, `damage: 0->2000`). The result is 123px of one grey at the top of the pane, and the divider weights do not track the hierarchy: the strong #A2A2A2 (2.55:1) separates the LOOP row from the tab strip, which are peers, while the weak #C8C8C8 (1.67:1) separates the notice — the only one of the four that is a message rather than chrome — from the code body. Fix: give the notice its own tint so it reads as a message, and reserve #A2A2A2 for the pane boundary.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L3/13",
+      "severity": "P3",
+      "location": "Code pane — function names throughout versus the `damage: 0->2000` chip at x490-600/y352-372 and the changed values and accent bars in the Values pane at x920-1410",
+      "finding": "The warm end of the palette doubles up. Function names in the editor palette are #713F12 (hue 28deg) and the changed-value role — the inline diff chip, the `9000`/`2000` values and the left accent bars — is #854D0E (hue 32deg); at 11px on a single code line the two are indistinguishable, so 'this is a function' and 'this value changed at this step' share a colour. Two smaller instances: source comments and the `Trace ready` badge text are both exactly #166534, and numeric literals (#6D28D9) sit 20deg from the link indigo (#4F46E5), with the `line 4` link and the literal `100` fifteen rows apart in the same pane. Editor tokens are a sanctioned separate namespace, so this is a nitpick rather than a role failure — but the diff role is UI, not syntax, and should not sit inside the editor's warm range.",
+      "criterion": "B7"
+    }
+  ]
+}
+```
