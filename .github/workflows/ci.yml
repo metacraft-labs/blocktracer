@@ -14,37 +14,65 @@ name: ci
 # that is deployed and ungated — and on a trigger naming a branch that does not
 # exist, which is what made this invisible: dead trigger and working trigger read
 # identically in YAML.
-# THE THREE NIM JOBS — why `Install Nim` failed in all of them at once.
 #
-# `contract`, `client-sdk` and `viewmodels` all failed their `Install Nim` step
-# on the first mainline run, and it was ONE cause, not three. The action's
-# `install_nim.sh` resolves an `x`-ranged version by asking the GitHub API for
-# nim-lang/Nim's tags, and it sends the header unconditionally:
+# ---------------------------------------------------------------------------
 #
-#     curl -H "Authorization: Bearer ${repo_token}" .../git/refs/tags | jq -r '.[].ref'
+# THE THREE NIM JOBS — ONE TOOLCHAIN, AND IT COMES FROM THE FLAKE.
 #
-# `repo-token` has NO default in the action, and none of the three jobs passed
-# one — so the header went out as a literal `Authorization: Bearer ` and GitHub
-# answered `401 Bad credentials`, a 112-byte JSON OBJECT. Three things then went
-# wrong in sequence, and only the last one was visible:
+# `contract`, `client-sdk` and `viewmodels` used to install Nim with
+# `jiro4989/setup-nim-action@v2`, pinned to the floating range "2.2.x". All
+# three failed their `Install Nim` step on the first mainline run, and it was
+# ONE cause, not three. Recorded because the log named the wrong thing:
 #
-#   1. `jq -r '.[].ref'` iterated the error object's values and died with
-#      `Cannot index string with string "ref"`.
-#   2. It died INSIDE A PIPELINE, so `set -eu` never saw it: the pipeline's
-#      status is `sed`'s, and `sed` succeeded on empty input. The resolved
-#      version became the empty string and the script carried on.
-#   3. The empty version built a download URL that 404s, curl saved the error
-#      page, and `tar` reported `This does not look like a tar archive`.
+#   The action resolves an `x`-ranged version by asking the GitHub API for
+#   nim-lang/Nim's tags, and sends the header unconditionally:
 #
-# So the log named a corrupt tarball for what was an unauthenticated API call.
-# The README's "It works without setting this parameter" is WRONG for any
-# `2.n.x` version: an ABSENT Authorization header would have worked at the
-# unauthenticated rate limit, but an EMPTY one is refused outright. Every
-# `2.n.x` example in that same README passes `repo-token`.
+#       curl -H "Authorization: Bearer ${repo_token}" .../git/refs/tags | jq -r '.[].ref'
 #
-# Why it took 178 commits to see: these three jobs are the only ones that
-# install Nim from the network rather than from the flake, and no run of them
-# reached a runner in that time.
+#   `repo-token` has NO default and no job passed one, so the header went out as
+#   a literal `Authorization: Bearer ` and GitHub answered `401 Bad
+#   credentials` — a 112-byte JSON object. Then, in sequence: `jq -r '.[].ref'`
+#   died indexing a string; it died INSIDE A PIPELINE, so `set -eu` never saw it
+#   (the status is `sed`'s, and `sed` succeeds on empty input); the version
+#   resolved to the empty string; the download URL 404'd; and `tar` reported
+#   `This does not look like a tar archive`. A corrupt tarball reported for what
+#   was an unauthenticated API call. An ABSENT header would have worked at the
+#   unauthenticated rate limit — an EMPTY one is refused outright, so the
+#   action's README ("It works without setting this parameter") is wrong for any
+#   `2.n.x` version.
+#
+# Passing `repo-token` fixes that failure, and it was verified to: `contract`
+# went green on a runner with one line. It is NOT what this file does, because
+# it leaves two worse problems standing:
+#
+#   * "2.2.x" IS A FLOATING RANGE. It resolves at runtime against whatever
+#     nim-lang/Nim has tagged, so CI could pass on a different compiler from the
+#     one flake.lock pins and every developer uses. A toolchain that drifts is
+#     the thing the flake exists to prevent.
+#   * A THIRD-PARTY ACTION IN THE TOOLCHAIN PATH is supply-chain surface, and it
+#     is surface this repository already pays nothing for anywhere else.
+#
+# So all three now do what `debug-route`, `journeys`, `visual-design-canary` and
+# the Cloudflare deploy already did: `nix develop .#ci --command`, on the same
+# self-hosted label, with Nim from flake.lock (2.2.10, pinned, no API call and
+# no download). Measured before the switch: the flake's shell and the range
+# resolved to the SAME compiler, so this pins what was already true rather than
+# changing it.
+#
+# IT ALSO REMOVED THE THREE SIBLING CHECKOUTS. `.#ci` exports ISONIM_SRC,
+# NIM_EVERYWHERE_SRC, CODETRACER_SRC and DESIGN_SYSTEM_SRC from pinned flake
+# inputs, so the Embed SDK / IsoNim / nim-everywhere checkouts these jobs used
+# to do by hand are redundant — and the flake input is the WHOLE tree, which
+# dissolves a second defect: the hand-rolled checkout was sparse on
+# `src/frontend` only, and `src/frontend/.../flow_vm.nim` imports
+# `../../../common/flow_mode_wire`, so both cross-repo suites died with `cannot
+# open file` the moment they got far enough to compile. flake.nix's codetracer
+# rev and `ci/embed-sdk-pin.env`'s CODETRACER_REF are required to be equal and
+# are (8d1c84a); the flake is now the only one of the two these jobs read.
+#
+# Why it took 178 commits to see any of it: these three jobs were the only ones
+# taking a toolchain from the network rather than from the flake, and no run of
+# them reached a runner in that time.
 on:
   push:
     branches: [dev, staging, live]
@@ -72,124 +100,83 @@ jobs:
         run: bash ci/test/ci-coverage-test.sh
 
   contract:
-    runs-on: ubuntu-latest
+    runs-on: eph-linux-x64
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Nim
-        uses: jiro4989/setup-nim-action@v2
+      - name: Setup Nix
+        uses: metacraft-labs/nixos-modules/.github/setup-nix@main
         with:
-          nim-version: "2.2.x"
-          # NOT optional, despite what the action's README says. See the
-          # "THE THREE NIM JOBS" note at the top of this file: an absent
-          # token makes the action send `Authorization: Bearer ` and get a
-          # 401, which it then treats as a tag list.
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          trusted-public-keys: ${{ vars.TRUSTED_PUBLIC_KEYS }}
+          substituters: ${{ vars.SUBSTITUTERS }}
+          nix-github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Conformance test suite
-        run: nimble test -y
+        # The package declares no third-party requires — stdlib only — so
+        # `nimble test` resolves nothing over the network.
+        run: nix develop .#ci --command nimble test -y
 
       - name: Demo generator emits a contract-conformant tree
         run: |
-          nim c -r --hints:off src/blocktracer_demo_gen.nim --out:demo-site
-          nim c -r --hints:off src/blocktracer_validate.nim demo-site
+          nix develop .#ci --command bash -c '
+            nim c -r --hints:off src/blocktracer_demo_gen.nim --out:demo-site &&
+            nim c -r --hints:off src/blocktracer_validate.nim demo-site'
 
       - name: Determinism — regenerate and diff
         run: |
-          nim c -r --hints:off src/blocktracer_demo_gen.nim --out:demo-site-2
+          nix develop .#ci --command bash -c '
+            nim c -r --hints:off src/blocktracer_demo_gen.nim --out:demo-site-2'
           diff -r demo-site demo-site-2
 
   # M12a — @blocktracer/client. Its own job, because the boundary guard is the
   # cheap half (bash + awk, no toolchain) and must not wait on a Nim build to
   # tell someone their import crossed the layer.
   client-sdk:
-    runs-on: ubuntu-latest
+    runs-on: eph-linux-x64
     steps:
       - uses: actions/checkout@v4
 
-      - name: Read the pinned Embed SDK
-        id: pin
-        # Only the KEY=VALUE lines; the file's comments explain WHY the pin is
-        # recorded as a commit and are not step outputs.
-        run: grep -E '^[A-Z_]+=' ci/embed-sdk-pin.env >> "$GITHUB_OUTPUT"
-
-      # The Embed SDK lives in another repository. Only src/frontend is needed
-      # (6.7 MB of the tree), so the checkout is sparse and blobless.
-      - name: Check out the pinned CodeTracer Embed SDK
-        uses: actions/checkout@v4
+      - name: Setup Nix
+        uses: metacraft-labs/nixos-modules/.github/setup-nix@main
         with:
-          repository: ${{ steps.pin.outputs.CODETRACER_REPO }}
-          ref: ${{ steps.pin.outputs.CODETRACER_REF }}
-          path: codetracer
-          filter: blob:none
-          sparse-checkout: |
-            src/frontend
-            ci/test
-          sparse-checkout-cone-mode: false
+          trusted-public-keys: ${{ vars.TRUSTED_PUBLIC_KEYS }}
+          substituters: ${{ vars.SUBSTITUTERS }}
+          nix-github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check out the pinned IsoNim
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ steps.pin.outputs.ISONIM_REPO }}
-          ref: ${{ steps.pin.outputs.ISONIM_REF }}
-          path: isonim
-          filter: blob:none
-
-      - name: Check out the pinned nim-everywhere
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ steps.pin.outputs.NIM_EVERYWHERE_REPO }}
-          ref: ${{ steps.pin.outputs.NIM_EVERYWHERE_REF }}
-          path: nim-everywhere
-          filter: blob:none
+      # No Embed SDK / IsoNim / nim-everywhere checkouts: `.#ci` exports
+      # CODETRACER_SRC, ISONIM_SRC and NIM_EVERYWHERE_SRC from pinned flake
+      # inputs, and the codetracer input is the WHOLE tree rather than a sparse
+      # slice of it. See the note at the top of this file.
 
       - name: Client SDK import boundary — the guard's own self-test
         # Every rule driven against a synthetic tree carrying ONE deliberate
         # violation, INCLUDING the Embed SDK cases. So the upward half of the
         # boundary — "the Embed SDK contains no chain concept" — is exercised
-        # against synthetic trees here as well as against the real package below.
+        # against synthetic trees here as well as against the real package
+        # below.
         #
-        # It runs AFTER the checkouts and with CODETRACER_SRC set, because two
-        # of its 28 cases need the sibling repository and SKIP without it: the
-        # real-Embed scan, and the cross-repository assertion that both halves
-        # of the boundary use the same CHAIN_TOKENS list. Run before the
-        # checkouts this step reports "26 case(s), 2 skipped" and the one check
-        # that catches the two lists drifting apart never executes anywhere.
-        # It still runs before the Nim install, so a crossed import is reported
-        # without waiting on a toolchain.
-        env:
-          CODETRACER_SRC: ${{ github.workspace }}/codetracer
-        run: ci/test/client-sdk-boundary-test.sh
+        # It needs CODETRACER_SRC, because two of its 28 cases need the sibling
+        # repository and SKIP without it: the real-Embed scan, and the
+        # cross-repository assertion that both halves of the boundary use the
+        # same CHAIN_TOKENS list. Without it this step reports "26 case(s), 2
+        # skipped" and the one check that catches the two lists drifting apart
+        # never executes anywhere. `.#ci` supplies it.
+        run: nix develop .#ci --command ci/test/client-sdk-boundary-test.sh
 
       - name: Client SDK import boundary — against the REAL Embed SDK
-        # --require-embed: with the checkout above in place, "no Embed SDK
-        # source" is a failure rather than a skip, so this step cannot pass by
-        # quietly not running.
-        env:
-          CODETRACER_SRC: ${{ github.workspace }}/codetracer
-        run: ci/test/client-sdk-boundary.sh --require-embed
-
-      - name: Install Nim
-        uses: jiro4989/setup-nim-action@v2
-        with:
-          nim-version: "2.2.x"
-          # NOT optional, despite what the action's README says. See the
-          # "THE THREE NIM JOBS" note at the top of this file: an absent
-          # token makes the action send `Authorization: Bearer ` and get a
-          # 401, which it then treats as a tag list.
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+        # --require-embed: with CODETRACER_SRC set, "no Embed SDK source" is a
+        # failure rather than a skip, so this step cannot pass by quietly not
+        # running.
+        run: nix develop .#ci --command ci/test/client-sdk-boundary.sh --require-embed
 
       - name: Client SDK — consumer-side conformance suite
         # No Embed SDK on the Nim path, deliberately: the chain half compiling
-        # without a debugger is the layering (Client-SDK.md §5).
-        run: nim c -r --hints:off tests/tclientsdk.nim
+        # without a debugger is the layering (Client-SDK.md §5). CODETRACER_SRC
+        # being *set* does not put it on the path — nothing here imports it.
+        run: nix develop .#ci --command nim c -r --hints:off tests/tclientsdk.nim
 
       - name: Client SDK — the handoff, against the real Embed SDK
-        env:
-          CODETRACER_SRC: ${{ github.workspace }}/codetracer
-          ISONIM_SRC: ${{ github.workspace }}/isonim
-          NIM_EVERYWHERE_SRC: ${{ github.workspace }}/nim-everywhere
-        run: ci/test/embed-handoff-test.sh --require
+        run: nix develop .#ci --command ci/test/embed-handoff-test.sh --require
 
   # VD.1 — the review brief and the quality gate. Its own job because it needs
   # neither Nim nor a browser: all three verifications are decisions over the
@@ -302,13 +289,15 @@ jobs:
         # ever failed, CI must not carry on against a mutated tree.
         run: git diff --exit-code
 
-      - name: The gate decides — every condition independently blocks
-        # verify_gate_definition_is_machine_checkable. Synthetic ledgers, one
-        # per condition, plus the four fail-closed paths. Since VD.2 it also
-        # covers `--foundations`: that the narrowed gate still fails on a
-        # foundations defect, does NOT fail on a page-level one, reports the
-        # full gate alongside itself, and leaves G2/G4/G5 unrelaxed.
-        run: node tools/capture/gate-selftest.mjs
+      # NOTE: "The gate decides" USED TO BE HERE and has moved to
+      # `visual-design-canary`. `gate-selftest.mjs` hashes a real capture —
+      # screenshots/debugger__wide__dark.png — to prove G2's "the exact image"
+      # cases can tell a stale hash from a missing file, and `screenshots/` is
+      # gitignored, so on a fresh checkout it is never there. It refuses to run
+      # rather than skipping, which is correct, and it means this job could
+      # never have run it. It is exactly the argument already written beside
+      # `ingest-selftest.mjs` in the canary job — the twin was moved for this
+      # reason and this one was left behind.
 
       - name: The deliberate break is detected
         # verify_deliberate_break_is_detected, re-graded from every recorded
@@ -440,9 +429,26 @@ jobs:
         # no stale image; check-coverage then decides both halves — every
         # inventory entry named, and every image on disk corresponding to a
         # named view.
+        #
+        # `.#capture` and WITHOUT `--no-build`, unlike the canary step above.
+        # Thirty-two of the named views are hydration-only and are served from
+        # `client/dist-hydrated`, a SECOND tree built with
+        # `-d:hydrationBundle=/assets/hydrate.js`. The step above builds only
+        # the plain tree, so under `--no-build` every one of those views was
+        # reported uncaptured and check-coverage failed — correctly; it exists
+        # to notice a named view that no image covers.
+        #
+        # `capture.mjs` builds both trees itself when it is allowed to
+        # (`runHydratedExporter` runs `hydrate/build.sh` and then the exporter),
+        # and it cross-checks that the two trees came from ONE fixture. That
+        # needs the Nim toolchain, which `.#capture-env` does not carry and
+        # `.#capture` does — the same distinction the `journeys` job documents.
+        # The plain exporter is a pure function of a fixed seed, so rebuilding
+        # it here reproduces the bytes the canary just measured.
         run: |
-          nix run .#capture-env -- node tools/capture/capture.mjs --no-build
-          nix run .#capture-env -- node tools/capture/check-coverage.mjs
+          nix develop .#capture --command bash -c '
+            vd0-capture-env node tools/capture/capture.mjs &&
+            node tools/capture/check-coverage.mjs'
 
       - name: The ingest tool refuses what a hand would write
         # `just review-ingest-selftest`. It belongs in THIS job and not beside
@@ -456,6 +462,21 @@ jobs:
         # with the screenshots the step before it just rewrote — which is the
         # whole reason it is safe to put here.
         run: nix run .#capture-env -- node tools/capture/ingest-selftest.mjs
+
+      - name: The gate decides — every condition independently blocks
+        # verify_gate_definition_is_machine_checkable. Synthetic ledgers, one
+        # per condition, plus the four fail-closed paths. Since VD.2 it also
+        # covers `--foundations`: that the narrowed gate still fails on a
+        # foundations defect, does NOT fail on a page-level one, reports the
+        # full gate alongside itself, and leaves G2/G4/G5 unrelaxed.
+        #
+        # HERE, not in `visual-design`, for the same reason as the step above:
+        # its G2 cases hash screenshots/debugger__wide__dark.png to prove they
+        # can distinguish a stale hash from a missing file, and it fails closed
+        # when that image is absent instead of skipping. `screenshots/` is
+        # gitignored, so the only place it exists is after the regeneration two
+        # steps up.
+        run: nix run .#capture-env -- node tools/capture/gate-selftest.mjs
 
       - name: The VD.0 verifications, end to end
         # selftest.mjs re-runs all four against a throwaway output directory,
@@ -483,86 +504,42 @@ jobs:
   # with the real Embed SDK so the wire spellings the panes parse cannot drift
   # from the ones this layer emits.
   viewmodels:
-    runs-on: ubuntu-latest
+    runs-on: eph-linux-x64
     steps:
       - uses: actions/checkout@v4
 
-      - name: Read the pinned Embed SDK
-        id: pin
-        run: grep -E '^[A-Z_]+=' ci/embed-sdk-pin.env >> "$GITHUB_OUTPUT"
-
-      - name: Check out the pinned IsoNim
-        uses: actions/checkout@v4
+      - name: Setup Nix
+        uses: metacraft-labs/nixos-modules/.github/setup-nix@main
         with:
-          repository: ${{ steps.pin.outputs.ISONIM_REPO }}
-          ref: ${{ steps.pin.outputs.ISONIM_REF }}
-          path: isonim
-          filter: blob:none
+          trusted-public-keys: ${{ vars.TRUSTED_PUBLIC_KEYS }}
+          substituters: ${{ vars.SUBSTITUTERS }}
+          nix-github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check out the pinned nim-everywhere
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ steps.pin.outputs.NIM_EVERYWHERE_REPO }}
-          ref: ${{ steps.pin.outputs.NIM_EVERYWHERE_REF }}
-          path: nim-everywhere
-          filter: blob:none
-
-      - name: Check out the pinned CodeTracer Embed SDK
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ steps.pin.outputs.CODETRACER_REPO }}
-          ref: ${{ steps.pin.outputs.CODETRACER_REF }}
-          path: codetracer
-          filter: blob:none
-          sparse-checkout: |
-            src/frontend
-            ci/test
-          sparse-checkout-cone-mode: false
-
-      - name: Install Nim
-        uses: jiro4989/setup-nim-action@v2
-        with:
-          nim-version: "2.2.x"
-          # NOT optional, despite what the action's README says. See the
-          # "THE THREE NIM JOBS" note at the top of this file: an absent
-          # token makes the action send `Authorization: Bearer ` and get a
-          # 401, which it then treats as a tag list.
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      # As in `client-sdk`: the Embed SDK, IsoNim and nim-everywhere come from
+      # the flake's pinned inputs, not from hand-rolled sibling checkouts.
 
       - name: Tier 1 — every §14 chain row, established from a mock chain
         # No Embed SDK on the path: BlockTracer's own ViewModels are chain-aware
         # and need no debugger to be tested, which is the same layering claim
         # tests/tclientsdk.nim makes one layer down.
-        env:
-          ISONIM_SRC: ${{ github.workspace }}/isonim
-          NIM_EVERYWHERE_SRC: ${{ github.workspace }}/nim-everywhere
-        working-directory: client
-        run: nim c -r --mm:orc --hints:off tests/test_chain_viewmodels.nim
+        run: |
+          nix develop .#ci --command bash -c \
+            'cd client && nim c -r --mm:orc --hints:off tests/test_chain_viewmodels.nim'
 
       - name: The degraded-state seam, against the real Embed SDK
-        env:
-          CODETRACER_SRC: ${{ github.workspace }}/codetracer
-          ISONIM_SRC: ${{ github.workspace }}/isonim
-          NIM_EVERYWHERE_SRC: ${{ github.workspace }}/nim-everywhere
-        run: ci/test/viewmodel-seam-test.sh --require
+        run: nix develop .#ci --command ci/test/viewmodel-seam-test.sh --require
 
       # M8a — the other half of the debug route. The route itself is checked
       # with no debugger on the path (the `debug-route` job below); these two
-      # need the real Embed SDK and so belong here, where it is already
-      # checked out at the pin.
+      # need the real Embed SDK and so belong here.
       - name: The debug panes, over the Embed SDK's own five ViewModels
-        env:
-          CODETRACER_SRC: ${{ github.workspace }}/codetracer
-          ISONIM_SRC: ${{ github.workspace }}/isonim
-          NIM_EVERYWHERE_SRC: ${{ github.workspace }}/nim-everywhere
-        run: ci/test/debug-panes-test.sh --require
+        run: nix develop .#ci --command ci/test/debug-panes-test.sh --require
 
       - name: The vendored layout model still agrees with upstream
-        env:
-          CODETRACER_SRC: ${{ github.workspace }}/codetracer
         run: |
-          ci/test/layout-model-vendor.sh --require
-          ci/test/layout-model-vendor-test.sh
+          nix develop .#ci --command bash -c '
+            ci/test/layout-model-vendor.sh --require &&
+            ci/test/layout-model-vendor-test.sh'
 
   # M8a/M8b — the `/{chain}/tx/{hash}/debug` route, with NO debugger on the Nim
   # path. The route, the arrangement walked off CodeTracer's LayoutNode, the
