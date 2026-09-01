@@ -232,12 +232,22 @@ proc availabilityState*(a: TraceAvailability): string =
   of taDivergent: "Divergent"
 
 proc roleLabel*(role: string): string =
-  ## An adapter's role name → the label column's own vocabulary. The VD.1 round,
-  ## and ledger@2026-08-29.1:tx-detail/wide/light/L5/7 — internal architecture
-  ## leaking into visitor-facing copy: `feePayer` sat beside `Block`, `Canonical` and
-  ## `Finality`, so one column carried two languages. Unknown roles fall through
-  ## verbatim rather than being hidden — a new chain family must show up as an
-  ## unstyled label to be noticed, not vanish.
+  ## An adapter's role name → the label column's own vocabulary. Internal
+  ## architecture was leaking into visitor-facing copy: `feePayer` sat beside
+  ## `Block`, `Canonical` and `Finality`, so one column carried two languages.
+  ## Cited by REPORT PATH rather than as `ledger@revision:id`, for the same
+  ## reason as `costAmount` above — the VD.1 ledger this was originally filed
+  ## against has been replaced several times over and its ids now name other
+  ## findings. The reviewer's own words survive verbatim in the VD.1 break
+  ## round, reviews/break-round-debug-affordance.json: L1's report records "a
+  ## raw `feePayer` field name in a Capitalised label set", and the file's
+  ## `_productFindingsSurfaced` list carries it as "The label column mixes
+  ## prose labels (Block, Canonical, Finality) with raw adapter field names
+  ## (feePayer)." That file is a recorded outcome, not a round's working
+  ## ledger, so it does not change meaning when the next round lands.
+  ##
+  ## Unknown roles fall through verbatim rather than being hidden — a new chain
+  ## family must show up as an unstyled label to be noticed, not vanish.
   case role
   of "feePayer": "Fee payer"
   of "from", "sender": "From"

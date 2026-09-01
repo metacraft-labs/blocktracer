@@ -235,10 +235,21 @@ proc txPage*(chain: string, v: TxView, info: ChainInfo): string =
           # Page-Descriptions §7.2 puts this line BESIDE the Debug action that
           # requests it. VD.2's round 2 measured it ~1000px below the button, in
           # a different section: proximity was grouping the explanation with the
-          # wrong thing. Rounds 1-4 are not recorded in reviews/ledger.json, so
-          # that measurement has no citable id; the round-5 findings on the same
-          # separation are ledger@2026-08-31.2:tx-detail/wide/light/L2/3 and
-          # ledger@2026-08-31.2:tx-detail/wide/light/L5/6.
+          # wrong thing. Rounds 1-4 are not recorded in reviews/ledger.json and
+          # no report file survives from them, so that measurement has no
+          # citable id anywhere in the tree — it is STATED here, not offered as
+          # evidence, and the round that produced it has been superseded twice
+          # over (vd9-r1, vd9-r2).
+          #
+          # The separation itself is closed — the line sits inside the trace
+          # card now — and what is still open against it is the card's own
+          # interior: ledger@2026-08-31.14:tx-detail/wide/light/L2/7 measures
+          # the hairline directly above this sentence at ~26px clear above and
+          # ~13px below, so the divider reads as attached to the sentence
+          # rather than as a separator between two zones of one card; and
+          # ledger@2026-08-31.14:tx-detail/wide/light/L5/7 finds this sentence,
+          # the Internal-calls note and the State-changes note saying one fact
+          # three ways on a single scroll.
           #
           # It belongs to the ON-DEMAND row only. §7.2 attaches it to "the
           # Debug button that requests it" — it is the sentence that converts,

@@ -511,27 +511,35 @@ const PLANTS = [
   // ── B4: a citation that stopped resolving ────────────────────────────────
 
   {
+    // The plant keeps the CURRENT revision and moves only the id, so the one
+    // thing under test is "an id that is not in the ledger". `L1/99` is
+    // verified absent from the 2026-08-31.14 ledger; had it existed, this
+    // case would pass while asserting nothing.
     rule: "B4", name: "a citation naming a finding id that does not exist", file: STYLES,
-    from: "ledger@2026-08-29.2:tx-detail/wide/light/L1/6",
-    to: "ledger@2026-08-29.2:tx-detail/wide/light/L1/99",
+    from: "ledger@2026-08-31.14:tx-detail/wide/light/L1/6",
+    to: "ledger@2026-08-31.14:tx-detail/wide/light/L1/99",
     names: "L1/99",
   },
   {
-    // The case that actually happened, three times now. The ledger was
+    // The case that actually happened, four times now. The ledger was
     // replaced, the ids were reused, and every citation kept parsing while
-    // meaning something else. Round 5's ingest moved the revision again
-    // (`2026-08-29.1` → `2026-08-29.2`), so `.1` is the revision that has just
-    // been superseded and is the honest thing to plant here.
+    // meaning something else. vd9-r2's ingest moved the revision again
+    // (`2026-08-31.13` → `2026-08-31.14`), so `.13` is the revision that has
+    // just been superseded and is the honest thing to plant here. The id is
+    // held FIXED across the plant and `tx-detail/wide/light/L1/6` is verified
+    // to exist in the `.13` ledger too, so the single planted defect is the
+    // stale revision and nothing else — a plant whose id had also gone would
+    // turn B4 red for the wrong reason and prove nothing about revisions.
     //
     // NOTE the anchors above and below track `styles.nim`'s CURRENT revision,
     // and must be moved with it. A `from:` that no longer appears in the file
     // makes this case fail rather than silently pass, which is the behaviour
-    // wanted — this bump was caught exactly this way, as VD.5's own was before
-    // it.
+    // wanted — vd9-r2's bump was caught exactly this way, as VD.5's own was
+    // before it.
     rule: "B4", name: "a citation of a SUPERSEDED ledger revision", file: STYLES,
-    from: "ledger@2026-08-29.2:tx-detail/wide/light/L1/6",
-    to: "ledger@2026-08-29.1:tx-detail/wide/light/L1/6",
-    names: "2026-08-29.1",
+    from: "ledger@2026-08-31.14:tx-detail/wide/light/L1/6",
+    to: "ledger@2026-08-31.13:tx-detail/wide/light/L1/6",
+    names: "2026-08-31.13",
   },
 
   // ── The evasions tried against the FIX OF THE FIX, and closed ────────────

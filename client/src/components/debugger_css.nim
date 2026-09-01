@@ -296,9 +296,9 @@ html[data-register="debugger"],
    it (255,255,255 light / 27,27,27 dark), so fading it toward the pane changes
    nothing visible. `pre.raw` paints `--bt-surface-code`, which is NOT that
    colour (236 / 0), and its surface is therefore destroyed by the same ramp —
-   measured all the way to 255, i.e. complete erasure, with its 1px `#A2A2A2`
-   bottom border going 3.66:1 -> 1.06:1. A mask composites the whole subtree at
-   one alpha; it cannot fade ink and spare a background.
+   measured all the way to 255, i.e. complete erasure, with its 1px hairline
+   bottom border going 3.66:1 -> 1.06:1 against the pane. A mask composites the
+   whole subtree at one alpha; it cannot fade ink and spare a background.
 
    That also refutes vd9-r2's isolated "mechanism" — "the mask is anchored to
    the pane BORDER rather than the content box, so it spends its first 9px

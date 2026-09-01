@@ -73,10 +73,23 @@ export const BACKBONES = {
   //
   // Left as it was, the item made the view UNREVIEWABLE against the shipped
   // page: the L5 reviewer derived the removed requirement from it and filed the
-  // same P1 in two consecutive rounds, at two themes —
-  // ledger@2026-08-29.2:debugger/wide/dark/L5/1 and
-  // ledger@2026-08-29.2:debugger/wide/light/L5/1. Both are expectation defects,
-  // not page defects. The item is not weakened: the bar must still carry the
+  // same P1 in two consecutive rounds, at two themes. Cited by REPORT PATH,
+  // because the ledger ids those two findings had (`debugger/wide/dark/L5/1`,
+  // `debugger/wide/light/L5/1`) have since been reused by rounds vd8-r2,
+  // vd9-r1 and vd9-r2 and now name entirely different findings:
+  //
+  //   * reviews/rounds/vd5-round4/debugger__wide__dark__L5.md — "No link back
+  //     to the transaction detail page. The only navigational affordance is
+  //     '← aztec', which is styled as a link and labelled with the chain",
+  //     P1, rating capped at 4.
+  //   * reviews/rounds/vd5-round5/debugger__wide__light__L5.md — the next
+  //     round, the other theme: "The MUST SHOW 'link back to the transaction
+  //     detail page' is absent. The bar's only link is `← aztec`, which
+  //     targets the chain overview (client/src/pages/debug.nim:172, href =
+  //     chainUrl(s.chain))", P1, rating 4.
+  //
+  // Both are expectation defects, not page defects. The item is not weakened:
+  // the bar must still carry the
   // identity, must still carry a way OUT of the debugger register, and must
   // still not be the explorer header. Only the TARGET of that way out moved,
   // and the item now states §7.0's reason inline so it is not re-derived.

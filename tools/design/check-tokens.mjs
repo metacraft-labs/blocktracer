@@ -988,9 +988,11 @@ async function run(opts) {
   // ledger at all and nothing said so.
   //
   // The fix is a citation form that names the revision it was written against
-  // and an id that must exist in it:
+  // and an id that must exist in it — a SPECIMEN OF THE FORM, not evidence for
+  // any claim made here, so it is re-stamped whenever `ledgerRevision` moves
+  // and nothing about this comment's meaning turns on which id it shows:
   //
-  //     ledger@2026-08-28.3:tx-detail/wide/light/L1/8
+  //     ledger@2026-08-31.14:tx-detail/wide/light/L1/8
   //
   // A ledger round that replaces its predecessor bumps `ledgerRevision`, so
   // every stale citation goes red in one run rather than rotting silently.
