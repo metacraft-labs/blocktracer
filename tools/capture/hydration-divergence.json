@@ -72,6 +72,11 @@
       "capturedFrom": "plain",
       "shipsBundle": true
     },
+    "debugger--copy-affordance": {
+      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=2314d080a1f1&a=call:0.0.2",
+      "capturedFrom": "hydrated",
+      "shipsBundle": true
+    },
     "debugger--divergent": {
       "route": "/demo/tx/0x0baa77f7e6d5f3ff249ee0cd48f017c6d8224a96/debug?t=128",
       "capturedFrom": "plain",

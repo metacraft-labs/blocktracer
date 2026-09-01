@@ -116,7 +116,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 <!-- BEGIN GENERATED: expectations — do not edit by hand -->
 <!-- regenerate with: node tools/capture/render-brief.mjs -->
 
-*83 named views, 83 blocks — generated from `tools/capture/expectations.mjs`. 49 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
+*84 named views, 84 blocks — generated from `tools/capture/expectations.mjs`. 50 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
 
 #### Explorer register — entry and navigation
 
@@ -2050,6 +2050,45 @@ transaction. Inherited items are presence requirements exactly like the rest.
 - 'it rejected the container's format' is the actionable half for whoever can fix this, and is the half a visitor can do nothing with. Judge whether the sentence serves both readers or neither.
 - Whether 'loaded but would not open' reads as a fault in the product or as a fault in the trace. It is the former, and a reader who concludes the latter has been misled by the copy.
 - Both themes, and the banner against the identity bar above it. Note whether the failure banner and the divergence banner are separable in dark.
+
+### View: `debugger--copy-affordance`
+
+> §13's one-click copy button, on the build that actually has one. The hydration bundle upgrades every full value and every truncated identifier into a `role="button"` copy control; the stylesheet those pages inline has no rule for the class it adds. This is the first view whose subject exists only on the build a visitor loads, and the reader it is graded for is the one the page has already told that this is a button.
+
+| | |
+| --- | --- |
+| **Register** | debugger — apply rubric B (§6) |
+| **Spec** | Page-Descriptions §13 (copyable with one click), §7.1; client/hydrate/hydrate.nim upgradeCopyAffordances; debugger/session_view.nim Copyable |
+| **Captured at** | wide · laptop × light · dark |
+| **Capture status** | `ready` |
+| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes. |
+| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads and never answers (`tools/capture/lib/engine-stubs.mjs`); it stands in for the ordinary pre-engine window of a real load, and — past the 45 s deadline — a misconfigured or missing `replayEngineBase` whose path serves something that is not the engine. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine. |
+
+**Must show** — absent ⇒ P1, rating ≤ 4:
+
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, §7.0, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a way OUT of the debugger register that lands on the CHAIN, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header. The exit targets the chain and NOT the transaction's own URL, because under Page-Descriptions §7.0 that URL IS this session — for a `ready` or `divergent` trace the two routes serve byte-identical bodies, so a link to the transaction would be a link to the page the visitor is already on. A missing exit is a P1; an exit that targets the chain is CORRECT and is not a finding.
+  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
+  - Every pane region below the identity bar is a pane: no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar. The full-width bands this register admits are the ABNORMAL-STATE ones — a divergent or truncated trace, an unavailable replay engine, a link-landing notice — and they are not panes and must not be judged as ones. THERE IS NO PROVENANCE BAND HERE any more, deliberately: provenance moved into the transaction pane as a row (see the next item), because a band interrupts and "this data is real" is not an interruption. A provenance band reappearing above the identity bar is now itself the finding.
+  - THE PROVENANCE MARKER, which in this register is the FIRST ROW of the transaction pane — labelled `Data`, carrying a toned badge naming what this data is, and the producer's own sentences beneath it. `debugLayout` drops the nav and the footer, so the pane is the only place a reader can learn whose data they are looking at — and this is the register where they are most likely to forget, because a trace recorded from a real node and a Noir program published under a synthetic hash step identically here. §7.1 puts that pane on the page in EVERY state, so the row is on every debug page including the ones where no session opens. Grade it as CONTENT, not decoration: missing, mislabelled, or a tone that contradicts the label is a P1. It used to be a full-width band above the identity bar and was moved on 2026-08-31 because the band spent ~190px of a 1080px viewport — roughly 17% — and both adversarial reviewers of the previous round independently named that cost the page's single weakest element. Judging whether the row is now TOO quiet for a claim this important is exactly the fair question to raise.
+- A FOCUSED copy control. The capture focuses the truncated identifier's control (`[data-copy].copybtn`) and fails rather than shoots if that element is absent, so something on this page is holding keyboard focus. Find it first — everything else in this block is about what it looks like.
+- The truncated identifier itself, still readable. Whatever the upgrade does, it must not cost the value its legibility: `.dbgid`/`.mdhash` render `0x0858d644…22e67fb2`, and a treatment that obscures the very string the control copies would be worse than no treatment.
+- The panes and the provenance row as every other debugger view shows them. The bundle does not rewrite them before the engine answers, so a difference HERE — in the Code, Call Trace, Values or Transaction panes — would be a finding about hydration and is worth filing as one.
+- AN ENGINE THAT IS LOADING, AND THIS IS CORRECT HERE. The identity bar reads `Engine loading — 18 MB` with the phase rail live on `FETCHING`, where the plain-build debugger views show inert controls and no rail. That is not a defect and not a regression: it is what hydration does on this route, and this is the only arm of the corpus that can photograph it. The engine is a silent stand-in that will never answer, and the frozen clock means the 45 s deadline never fires — so `FETCHING` is where this page correctly stays. Grade the STATE's honesty if you wish; do not file its existence.
+
+**Must not show** — present ⇒ P1, rating ≤ 4:
+
+- A copy control that has moved, resized or reflowed anything around it. The upgrade adds attributes and a class to an element the server already rendered; if the page relayouts when script runs, that is a visible layout shift on every debug page a visitor opens, and it is a P1.
+- A confirmation, tick, toast or error state. Nothing has been clicked in this capture. `.copied` and `.copyfailed` are applied only on a clipboard result, and either of them appearing in this still would mean the capture photographed an interaction it did not perform.
+- An engine-FAILURE banner, or a §6.0a landing notice. Distinct from the loading state above: this view opens an exact-hit link with a silent engine precisely so the notice has nothing to say and the deadline never trips, and either one arriving would put a second subject in the frame.
+
+**Watch for** — judged after the presence check, normally P2/P3:
+
+- THE CENTRAL QUESTION, and answer it in as many words as it takes: does the focused element read as a button? The page has given it `role="button"` and `tabindex="0"`, so a screen reader announces a button and the tab order stops here. Say what a sighted keyboard user actually sees at that stop, and whether the two accounts of this element agree.
+- Compare it with the controls this register already draws — the stepping chips in the identity bar, `.dcbtn`, the `Supply sources` pill. Those are the vocabulary a reader has been taught on this surface. Is the focused element in that vocabulary, adjacent to it, or outside it entirely?
+- The pointer reader, who gets no focus ring at all. `.copyable` values carry `cursor:copy` and a hover surface from the pre-hydration affordance; the truncated identifiers carry neither. Judge whether a visitor with a mouse has any way to discover that this value is now one click from the clipboard.
+- Whether the page would be BETTER if the upgrade drew nothing and claimed nothing. §13 wants the button; this view is where the cost of promising one and not drawing it can finally be seen rather than argued about. A reviewer who concludes the promise is worth keeping should say what it should look like.
+- Both themes. A focus ring is a UA default and is one of the few things on this surface the design system does not choose, so it is worth saying whether it survives the dark register at all.
 
 ### View: `debugger--testnet`
 

@@ -1355,6 +1355,84 @@ export const VIEWS = [
     route: engineFailureRoute,
     setup: requireEngineFailure({ advanceClock: true, needle: "would not open" }),
   },
+  {
+    id: "debugger--copy-affordance",
+    description:
+      "§13's one-click copy button, as the deployed build actually renders it — the first view whose subject is a thing that exists ONLY on the build a visitor loads",
+    // WHY THIS VIEW EXISTS, and it is not the usual reason.
+    //
+    // The other eight hydrated views photograph a SENTENCE that no static page
+    // can carry. This one photographs an ABSENCE that no static page can carry,
+    // which is the harder thing to have noticed and the reason it went
+    // unnoticed: `upgradeCopyAffordances` turns 37 `.copyable` values and 2
+    // `[data-copy]` identifiers on this page into `role="button" tabindex="0"`
+    // controls with `class="… copybtn"`, and the stylesheet those pages inline
+    // has no rule for `.copybtn`, `.copied` or `.copyfailed`. So the button
+    // §13 promises is announced to assistive technology and to the tab order,
+    // and drawn to nobody. That is Q23, and
+    // `check-hydration-divergence.mjs` H2 is the check that found it.
+    //
+    // A check can only say the rule is missing. It cannot say what a reader
+    // sees, which is the question this campaign exists to answer and the one
+    // no image could be asked until now. So the capture FOCUSES a truncated
+    // identifier's control — `.dbgid`/`.mdhash` carry colour and size only, so
+    // this is the population with no inherited affordance at all — and the
+    // image is then a fair, gradeable photograph of what a keyboard user
+    // reaches: an element the page calls a button, wearing a UA focus ring and
+    // nothing else.
+    //
+    // Focus and not hover, deliberately. A hover treatment would be a pointer
+    // state the harness has to synthesise and hold; focus is a document state
+    // the page owns, it is stable under `settlePage`, and it is the state in
+    // which the missing affordance is least deniable — the browser has already
+    // told the visitor this thing is interactive.
+    //
+    // `engine: silent` because no engine is needed or wanted: this runs before
+    // any worker, wasm or DAP traffic, and the frozen clock keeps the deadline
+    // from firing, so the engine's own state contributes nothing to the frame.
+    covers: ["debugger.copy-affordance"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    fullPage: false,
+    hydrated: true,
+    engine: "silent",
+    // The exact-hit §6.0a link the engine views use, for the same reason: one
+    // subject per image, and a landing notice would be a second one.
+    route: engineFailureRoute,
+    setup: async (page) => {
+      await requireHydrated(page);
+      // The truncated population, which is the one with nothing of its own to
+      // fall back on. Asserted rather than assumed: if the upgrade ever stops
+      // reaching `[data-copy]`, this view must fail loudly rather than
+      // photograph an ordinary page under the name of this defect.
+      const focused = await page.evaluate(() => {
+        const el = document.querySelector(".dbg [data-copy].copybtn");
+        if (!el) return null;
+        el.focus();
+        return {
+          cls: el.className,
+          role: el.getAttribute("role"),
+          tabindex: el.getAttribute("tabindex"),
+          isActive: document.activeElement === el,
+        };
+      });
+      if (!focused) {
+        throw new Error(
+          "no `[data-copy].copybtn` on the page — either the hydration bundle " +
+            "stopped upgrading truncated identifiers, or this capture is of a " +
+            "build that never ran it. Either way the image would not be of this " +
+            "view's subject",
+        );
+      }
+      if (!focused.isActive || focused.role !== "button" || focused.tabindex !== "0") {
+        throw new Error(
+          "the control did not reach the state this view photographs " +
+            `(role=${focused.role}, tabindex=${focused.tabindex}, focused=${focused.isActive})`,
+        );
+      }
+    },
+  },
 
   // ─────────────────── Degraded states on the transaction page ────────────
   ...[

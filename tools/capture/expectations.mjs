@@ -1735,6 +1735,33 @@ export const EXPECTATIONS = [
     ],
   },
 
+  {
+    id: "debugger--copy-affordance",
+    summary:
+      "§13's one-click copy button, on the build that actually has one. The hydration bundle upgrades every full value and every truncated identifier into a `role=\"button\"` copy control; the stylesheet those pages inline has no rule for the class it adds. This is the first view whose subject exists only on the build a visitor loads, and the reader it is graded for is the one the page has already told that this is a button.",
+    spec: "Page-Descriptions §13 (copyable with one click), §7.1; client/hydrate/hydrate.nim upgradeCopyAffordances; debugger/session_view.nim Copyable",
+    register: "debugger",
+    inherits: ["debugger-shell"],
+    mustShow: [
+      "A FOCUSED copy control. The capture focuses the truncated identifier's control (`[data-copy].copybtn`) and fails rather than shoots if that element is absent, so something on this page is holding keyboard focus. Find it first — everything else in this block is about what it looks like.",
+      "The truncated identifier itself, still readable. Whatever the upgrade does, it must not cost the value its legibility: `.dbgid`/`.mdhash` render `0x0858d644…22e67fb2`, and a treatment that obscures the very string the control copies would be worse than no treatment.",
+      "The panes and the provenance row as every other debugger view shows them. The bundle does not rewrite them before the engine answers, so a difference HERE — in the Code, Call Trace, Values or Transaction panes — would be a finding about hydration and is worth filing as one.",
+      "AN ENGINE THAT IS LOADING, AND THIS IS CORRECT HERE. The identity bar reads `Engine loading — 18 MB` with the phase rail live on `FETCHING`, where the plain-build debugger views show inert controls and no rail. That is not a defect and not a regression: it is what hydration does on this route, and this is the only arm of the corpus that can photograph it. The engine is a silent stand-in that will never answer, and the frozen clock means the 45 s deadline never fires — so `FETCHING` is where this page correctly stays. Grade the STATE's honesty if you wish; do not file its existence.",
+    ],
+    mustNotShow: [
+      "A copy control that has moved, resized or reflowed anything around it. The upgrade adds attributes and a class to an element the server already rendered; if the page relayouts when script runs, that is a visible layout shift on every debug page a visitor opens, and it is a P1.",
+      "A confirmation, tick, toast or error state. Nothing has been clicked in this capture. `.copied` and `.copyfailed` are applied only on a clipboard result, and either of them appearing in this still would mean the capture photographed an interaction it did not perform.",
+      "An engine-FAILURE banner, or a §6.0a landing notice. Distinct from the loading state above: this view opens an exact-hit link with a silent engine precisely so the notice has nothing to say and the deadline never trips, and either one arriving would put a second subject in the frame.",
+    ],
+    watchFor: [
+      "THE CENTRAL QUESTION, and answer it in as many words as it takes: does the focused element read as a button? The page has given it `role=\"button\"` and `tabindex=\"0\"`, so a screen reader announces a button and the tab order stops here. Say what a sighted keyboard user actually sees at that stop, and whether the two accounts of this element agree.",
+      "Compare it with the controls this register already draws — the stepping chips in the identity bar, `.dcbtn`, the `Supply sources` pill. Those are the vocabulary a reader has been taught on this surface. Is the focused element in that vocabulary, adjacent to it, or outside it entirely?",
+      "The pointer reader, who gets no focus ring at all. `.copyable` values carry `cursor:copy` and a hover surface from the pre-hydration affordance; the truncated identifiers carry neither. Judge whether a visitor with a mouse has any way to discover that this value is now one click from the clipboard.",
+      "Whether the page would be BETTER if the upgrade drew nothing and claimed nothing. §13 wants the button; this view is where the cost of promising one and not drawing it can finally be seen rather than argued about. A reviewer who concludes the promise is worth keeping should say what it should look like.",
+      "Both themes. A focus ring is a UA default and is one of the few things on this surface the design system does not choose, so it is worth saying whether it survives the dark register at all.",
+    ],
+  },
+
   // ══════════ Degraded states on the transaction page (§14, §14.1, §14.1a) ══════════
 
   {

@@ -74,6 +74,15 @@ export const PAGES = [
   { id: "debugger.loop-rail", route: "/{chain}/tx/{hash}/debug", anchor: "§8 / Omniscience-Flow loop slider" },
   { id: "debugger.loading-phases", route: "/{chain}/tx/{hash}/debug", anchor: "§8 phased loading" },
   { id: "debugger.narrow", route: "/{chain}/tx/{hash}/debug", anchor: "§13 reduced narrow session" },
+  // §13's OTHER half, and the one no image has ever carried. The section says
+  // "every hash, address and identifier is copyable with one click", and —
+  // revised 2026-08-29 — that "a true one-click copy button arrives with
+  // hydration, because writing to the clipboard needs script and this route
+  // ships none". The pre-hydration affordance (`user-select:all`, hover, cursor)
+  // is captured incidentally by every debugger view. The BUTTON is not captured
+  // anywhere, because it exists only on a build the corpus does not photograph,
+  // and Q23 is what was found there when something finally looked.
+  { id: "debugger.copy-affordance", route: "/{chain}/tx/{hash}/debug", anchor: "§13 copyable with one click — the hydrated button" },
   // The `/debug` ADDRESS of a transaction that has no session. It is served —
   // `ssr.staticRoutes` emits `/debug` for every transaction, and
   // `pages/debug.noSession` renders the region the panes would have occupied —
