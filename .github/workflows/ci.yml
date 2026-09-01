@@ -78,6 +78,32 @@ on:
     branches: [dev, staging, live]
   pull_request:
 
+# ONE RUN PER BRANCH. Superseded runs are cancelled.
+#
+# Six of the eight jobs below need the self-hosted `eph-linux-x64` pool, which
+# runs a handful of jobs at a time, and a full run takes 10-15 minutes. Work
+# lands on `dev` by direct push from several agents at once — measured on
+# 2026-09-01, five pushes inside twelve minutes. Without this block every one of
+# those pushes started a complete run and none of them stopped, so the queue
+# grew faster than the pool drained and runs for long-superseded commits sat in
+# front of the newest one. Observed directly: five CI runs queued at once, the
+# newest of them unable to start any job for sixteen minutes.
+#
+# WHAT THIS TRADES. Intermediate commits no longer get their own verdict — the
+# gate is the branch TIP rather than every commit on the way to it. That is a
+# real loss and it is recorded as one. It is chosen because the alternative is
+# not "every commit is gated": it is "no commit is gated in useful time", which
+# is the state this was written in. A backlog that never drains reports nothing
+# about any commit, and a suite nobody can get a verdict from is the same
+# absence of signal that let the `main` trigger rot for 178 commits — arrived at
+# from the other direction.
+#
+# `github.ref` and not `github.sha`: the point is to collapse pushes to the SAME
+# branch. Two branches still run concurrently.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # Does every suite this repository has actually run, on every branch it ships
   # from? Nothing measured that until 2026-09-01, and the answer was no on both
