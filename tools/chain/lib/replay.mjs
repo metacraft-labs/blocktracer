@@ -335,11 +335,30 @@ export function decideOutcome(r, ctPath, containerOnDisk, containerBytes) {
       mismatched: facts.verdict.mismatched,
       mismatches: facts.mismatches ?? [],
     },
-    // The recording's own account of its fidelity. `declaredRung: 3` is the ceiling a
-    // chain contract can reach: `ContractClassPublic` carries no debug_symbols, no
-    // file_map and no source text, so there is nothing to position a program counter
-    // against. `stepsPositioned` proves that rather than asserting it.
+    // THE RECORDING'S OWN ACCOUNT OF ITS FIDELITY, COPIED THROUGH UNTOUCHED.
+    //
+    // THIS COMMENT USED TO SAY "`declaredRung: 3` is the ceiling a chain contract can
+    // reach", and that sentence was wrong in one word. `ContractClassPublic` really does
+    // carry no debug_symbols, no file_map and no source text — so rung 3 is the ceiling
+    // reachable FROM THE NODE — but upstream's `artifactHash` exists precisely so a client
+    // can verify an artifact fetched from somewhere else, and the runtime's
+    // `replay/src/artifact_resolution.ts` does that: it proves a candidate artifact against
+    // the class's `artifactHash`, byte-compares its public bytecode against the class's
+    // `packedBytecode`, and recomputes the class id from both. A contract whose artifact is
+    // proved that way records at rung 1 with real Noir positions.
+    //
+    // So `declaredRung`, `sourceLevel` and `contractRungs` are the runtime's measurements
+    // and nothing here decides them. `stepsPositioned` remains what keeps the claim honest
+    // in both directions: a page must not render source over a container whose steps are
+    // unpositioned, and must not withhold it from one whose steps are.
     recording: facts.recording,
+    // THE RESOLUTION ITSELF, INCLUDING EVERY REJECTION. "we did not look" and "we looked
+    // and proved nothing" are different sentences for a transaction page to say, and a
+    // snapshot that recorded only the successes could not tell them apart. `ingest.nim`
+    // also builds this transaction's code edges from here, which is why UNRESOLVED entries
+    // are kept: a code edge is a fact about what the transaction executed, not about
+    // whether source was found for it.
+    artifacts: facts.artifacts ?? [],
     // The roots deliberately do not agree, and the divergence travels with the recording:
     // replay hydrates only the leaves the execution touched, so the trees it rebuilds are
     // sparse and their roots cannot equal the block's. Dropping this in transit would turn
@@ -350,13 +369,34 @@ export function decideOutcome(r, ctPath, containerOnDisk, containerBytes) {
   };
 }
 
+/** How many bundles a driver-written source file actually carries.
+ *
+ *  Read back rather than assumed. `ingest.nim` refuses a row that claims source level with
+ *  no bundle to open, and that refusal is only worth having if this side never names a file
+ *  it did not measure — an absent file, an empty `bundles` array and an unparseable file are
+ *  all "nothing to name", and none of them may become a path in a committed snapshot. */
+async function sourceBundleCount(path) {
+  if (!path || !existsSync(path)) return 0;
+  try {
+    const parsed = JSON.parse(await readFile(path, 'utf8'));
+    return Array.isArray(parsed.bundles) ? parsed.bundles.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
 /** Replay one settled transaction and decide its outcome.
  *
  *  `ctRelative` is what the row will carry (e.g. `ct/0xabc….ct`); `ctPath` is where the
  *  driver is told to write. The two are separate because the snapshot is committed and
- *  must not carry an absolute path from whoever ran the capture. */
+ *  must not carry an absolute path from whoever ran the capture. `sourcesPath` /
+ *  `sourcesRelative` are the same split for the source bundle the runtime resolved
+ *  off-chain, and it is asked for on EVERY replay: whether a transaction reaches source
+ *  level depends on whether every contract it executed had a provable artifact, which is
+ *  not knowable before the replay has run. */
 export async function replayTransaction({
-  nodeBin, runtime, url, txHash, ctPath, ctRelative, avm, ctWriter,
+  nodeBin, runtime, url, txHash, ctPath, ctRelative, sourcesPath, sourcesRelative,
+  avm, ctWriter,
 }) {
   const r = await run(nodeBin, [
     '--experimental-wasm-exnref',
@@ -366,12 +406,20 @@ export async function replayTransaction({
     '--module', resolve(avm),
     '--ct', ctPath,
     '--ct-writer', resolve(ctWriter),
+    ...(sourcesPath ? ['--sources', sourcesPath] : []),
     '--json',
   ], runtime);
 
   const onDisk = existsSync(ctPath);
   const bytes = onDisk ? (await readFile(ctPath)).length : 0;
   const decided = decideOutcome(r, ctRelative ?? ctPath, onDisk, bytes);
-  if (decided.replayed) decided.container = ctRelative ?? ctPath;
+  if (decided.replayed) {
+    decided.container = ctRelative ?? ctPath;
+    // Absent rather than empty when there is nothing: an absent key reads as "this capture
+    // resolved no source", where `""` would read as "there is a file and it is nowhere".
+    if (await sourceBundleCount(sourcesPath) > 0) {
+      decided.sourceBundles = sourcesRelative ?? sourcesPath;
+    }
+  }
   return decided;
 }

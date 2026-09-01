@@ -36,16 +36,61 @@
 ##                    be exactly the confident-but-wrong answer this product may
 ##                    not ship.
 ##
-## RUNG 3 IS PUBLISHED AS RUNG 3. The recording is instruction-level: the AVM's
-## `ContractClassPublic` carries no `debug_symbols`, no `file_map` and no source
-## text, so a step is a program counter and nothing positions it against a line.
-## Two published consequences, and neither is cosmetic: the manifest's
-## `execution.sourceLevel` is FALSE, and no source bundle is written for any real
-## contract. Together those put the debugger's source pane on `srcUnverified` —
-## "Stepping continues at instruction level" — instead of letting it render as if
-## it had source positions it does not have. The capture measured this rather than
-## assuming it (`recording.stepsPositioned` is 0 for every transaction), and the
-## measurement is republished in the tree.
+## THE RUNG IS PUBLISHED AS THE RUNG THE CAPTURE MEASURED, PER TRANSACTION.
+##
+## THIS PARAGRAPH USED TO READ "RUNG 3 IS PUBLISHED AS RUNG 3" AND TO EXPLAIN IT
+## AS A PROPERTY OF THE CHAIN, AND THAT WAS A DOCUMENTATION DEFECT WITH A
+## CONSEQUENCE. The half that was true: the AVM's `ContractClassPublic` carries no
+## `debug_symbols`, no `file_map` and no source text, so *from the node* a step is
+## a program counter and nothing positions it against a line. The half that was
+## missing is the qualifier `from the node`. Upstream's own doc comment on
+## `artifactHash` says the field exists so a client can "verify that an OFFCHAIN
+## FETCHED ARTIFACT matches a registered class" — the chain holds a COMMITMENT to
+## the artifact, not the artifact — and `aztec-avm-runtime`'s
+## `replay/src/artifact_resolution.ts` now does that fetch and that verification.
+## So rung 3 is the ceiling for a contract whose artifact CANNOT BE PROVED
+## off-chain, and it was never the ceiling for a chain contract as such. Read
+## `replay/src/recording.ts`'s header, which states the scoped version and always
+## did; the unqualified version was this file's own and it is corrected here.
+##
+## WHAT IS PUBLISHED NOW, and it is a measurement per transaction rather than a
+## constant: the manifest's `execution.sourceLevel` is TRUE exactly when the
+## capture reports `recording.sourceLevel` — which the runtime sets only when
+## EVERY contract that transaction executed reached rung 1, i.e. every one of its
+## executed steps resolved to a real `(path, line, column)` through an artifact
+## proved against the class's `artifactHash`, its `packedBytecode` and its class
+## id. When it is true a source bundle is written, keyed by contract class id,
+## whose `sources` keys are the exact paths the container interned. When it is
+## false — which it still is for every third-party contract in these captures,
+## because none has a published or explorer-verified artifact — no bundle is
+## written and the debugger's source pane stays on `srcUnverified`, "Stepping
+## continues at instruction level".
+##
+## NEITHER DIRECTION IS ASSUMED. `recording.stepsPositioned` and the per-contract
+## `recording.contractRungs` come out of the capture and are republished in the
+## tree, so a page that showed source would be showing it over a container that
+## measured itself as carrying it.
+##
+## AND THE CLAIM IS NOT UNIFORMLY STRONG, SO THE TREE SAYS HOW STRONG IT IS.
+## `artifactHash` is the chain's commitment to the ARTIFACT; it does not commit
+## to that artifact's `debug_symbols` or its `file_map`. What the chain proves is
+## therefore that the bytecode which ran is the bytecode in the artifact — the
+## source TEXT beside it is attested by whoever distributed the artifact. The
+## runtime reports which: `corroborated` when two independent distributors served
+## the same debug symbols and file map, `single-distributor` when one did. That
+## word is republished per contract under `native.replay.artifacts` and per
+## bundle under the bundle's own `debug`, because a source-level claim resting on
+## one party's unverified text is a different claim from one two parties agree
+## on, and the difference has to be visible in the published tree rather than
+## only inside the container.
+##
+## REFUSE RATHER THAN DEGRADE. If a capture says `sourceLevel: true` and carries
+## no bundle for the transaction, this module raises. The alternative — publish
+## the manifest with an empty `sourceBundles` — hands the debugger a source pane
+## pointed at a file it cannot fetch, and the alternative in the other direction
+## — quietly write `sourceLevel: false` — hides a capability the recording
+## actually had. Both are answers about source that nobody measured, so neither
+## is published.
 
 import std/[json, os, algorithm, strutils, tables]
 import ../contract/[model, ids, version]
@@ -122,6 +167,15 @@ const
   traceSchema = "ctfs/v4"
   profileName = "default"
   tsv = "1"
+  # THE LANGUAGE A PROVED AZTEC ARTIFACT'S POSITIONS ARE WRITTEN IN. The same
+  # constant the demo generator publishes (`traceLanguage`), and it is spelled
+  # here rather than imported because the two producers must be able to disagree
+  # about it: this one is the language of a contract compiled by `nargo` and
+  # fetched off-chain, and that is a fact about Aztec rather than about the
+  # fixture. It is published ONLY on a manifest whose `sourceLevel` is true —
+  # naming a language over a container with no positions in it would be a claim
+  # about source that the recording does not carry.
+  bundleLanguage = "noir"
 
 proc writeJson(cfg: IngestConfig, rel: string, node: JsonNode) =
   let p = cfg.outDir / rel
@@ -149,6 +203,77 @@ proc orNull(n: JsonNode): JsonNode =
 proc shortHash(s: string): string =
   ## A short, stable label for a hash-like string — used in prose, never as an id.
   if s.len <= 12: s else: s[0 .. 9] & "…"
+
+proc writeSourceBundle(cfg: IngestConfig, chain, codeHash, provider: string,
+                       files: seq[tuple[path, content: string]],
+                       attestation: JsonNode): string =
+  ## Publish one content-addressed source bundle plus its `current.json` pointer
+  ## (Source-Resolution.md §5) and return its `sourceBundleId`.
+  ##
+  ## THE SAME OBJECT SHAPE AS `demo/generator.nim`'s `writeSourceBundle`, and it
+  ## is DUPLICATED rather than imported, deliberately. The demo generator is the
+  ## synthetic producer; importing it here would put a fixture-shaped module on
+  ## the real chain's path and give this module an opinion about `nargo`
+  ## versions and vendored tracer commits that it has not measured. The two
+  ## producers emit the same CONTRACT, which is the thing that has to agree, and
+  ## the validator checks that agreement over both trees.
+  ##
+  ## WHAT MAKES THE TRACE READABLE. The CTFS container carries no source text
+  ## (Trace-Artifacts.md §2.5), so without a bundle whose `sources` keys match
+  ## the paths the container interned, every step resolves to a position in a
+  ## file the viewer cannot display. The keys here are the driver's, byte for
+  ## byte — absolute upstream CI build paths — and nothing in this module
+  ## rewrites them.
+  ##
+  ## THE ONE ORDERING DECISION. `files` is sorted by path before the object is
+  ## built, because the bundle is content-addressed by its own pretty-printed
+  ## bytes and JSON object order is insertion order. A bundle whose key order
+  ## followed whatever the driver happened to emit would give a different id on a
+  ## rerun of the same capture, which the determinism check diffs.
+  var srcs = newJObject()
+  var ordered = files
+  ordered.sort(proc (x, y: auto): int = cmp(x.path, y.path))
+  for f in ordered:
+    srcs[f.path] = %*{"content": f.content}
+  # NO `compiler` BLOCK, AND THAT IS THE HONEST SHAPE. The demo generator fills
+  # one because it vendored a container it compiled itself and knows the nargo
+  # version and tracer commit that produced it. This producer knows neither: the
+  # artifact was fetched from a distributor and proved against the chain's
+  # `artifactHash`, which commits to the artifact and not to the toolchain that
+  # built it. An invented `{"name": "nargo", "version": ""}` would be a field a
+  # reader could take for a measurement, so what is published instead is the
+  # attestation that WAS measured, under `debug`.
+  let bundle = %*{
+    "schema": ContractVersion,
+    "codeHash": codeHash,
+    "chain": chain,
+    # `full`: the bundle carries the whole file set the artifact's `file_map`
+    # named, which is what makes every position in the recording resolvable.
+    "match": "full",
+    # WHO SERVED IT, IN ITS OWN WORDS — e.g.
+    # `npm:@aztec/protocol-contracts@5.3.0-nightly.20260819 FeeJuice`. This is a
+    # provenance string, not a verification claim: see `corroboration` in
+    # `debug`, and the paragraph about it in this module's header.
+    "provider": provider,
+    "language": bundleLanguage,
+    "sources": srcs,
+    "debug": attestation}
+  # `writeJson` emits exactly `pretty & "\n"`, so hashing that string content-
+  # addresses the bytes actually published.
+  let bundleId = contentHashSha1(bundle.pretty & "\n")
+  # The filename must be the id with ONLY its algorithm tag stripped. A consumer
+  # reaching the bundle through a manifest's `sourceBundles` has no pointer to
+  # read, so it reconstructs this path from the id alone and may not assume any
+  # further shortening (blocktracer_client/paths.nim `shortBundleHash`).
+  let short = bundleId[bundleId.find(':') + 1 .. ^1]
+  let dir = "src" / chain / codeHash
+  let rel = dir / short & ".json"
+  cfg.writeJson(rel, bundle)
+  # Only `current.json` ever moves; bundle objects are immutable (§5).
+  cfg.writeJson(dir / "current.json",
+    %*{"chain": chain, "codeHash": codeHash, "sourceBundleId": bundleId,
+       "bundle": rel})
+  bundleId
 
 proc publishedProvenanceKind*(outDir, slug: string): string =
   ## What has already been published under `slug` in this tree, or "" for nothing.
@@ -504,7 +629,57 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     costs.add Cost(name: "transactionFee", used: t{"transactionFee"}.getStr,
                    limit: "", price: "", unit: "mana", token: "FeeJuice",
                    refundable: false)
+    # -- the code edges, from the artifact resolution ------------------------
+    # ONE EDGE PER CONTRACT THE TRANSACTION EXECUTED, RESOLVED OR NOT.
+    #
+    # A code edge is a fact about the transaction — this address ran this
+    # contract class, bound at this block — and it is true whether or not anyone
+    # managed to fetch source for that class. Filtering to the resolved ones
+    # would make `/tx` pages quietly narrower for exactly the contracts nobody
+    # has published an artifact for, and it would break the consumer's own
+    # lookup: `blocktracer_client/sources.nim`'s `codeHashes` walks these edges
+    # to decide which bundles to ask for, so an unresolved contract has to be
+    # ASKED about and answered "no bundle published for this code hash" rather
+    # than never appearing.
+    #
+    # This is also why the edges do not depend on `sourceLevel`: they are
+    # published for a rung-3 transaction too, and they were simply missing
+    # before — the seq was declared and left empty.
     var codeEdges: seq[CodeEdge]
+    if t{"artifacts"} != nil and t["artifacts"].kind == JArray:
+      for a in t["artifacts"]:
+        let addr0 = a{"address"}.getStr
+        let cls = a{"contractClassId"}.getStr
+        if addr0.len == 0 and cls.len == 0: continue
+        codeEdges.add CodeEdge(address: addr0, codeHash: cls, boundAt: blockHash)
+    # A PER-CONTRACT SUMMARY OF THE RESOLUTION, for republication under
+    # `native.replay`. Five fields out of the capture's much larger entries: the
+    # rejected candidates and the file lists belong in the capture and in the
+    # container's `ct.source-provenance`, not on every transaction page. What is
+    # kept is what a reader needs to judge the claim — who it is, which class it
+    # ran, whether an artifact was proved for it, where that artifact came from,
+    # and how many independent parties agreed on its source text.
+    var artifactSummary = newJArray()
+    if t{"artifacts"} != nil and t["artifacts"].kind == JArray:
+      for a in t["artifacts"]:
+        artifactSummary.add %*{
+          "address": orNull(a{"address"}),
+          "contractClassId": orNull(a{"contractClassId"}),
+          "resolved": a{"resolved"}.getBool,
+          "origin": orNull(a{"origin"}),
+          "corroboration": orNull(a{"corroboration"})}
+
+    # THE MEASUREMENT, AND IT DEFAULTS TO FALSE.
+    #
+    # `getBool` on an absent key answers `false`, and that is the direction the
+    # default has to fall: an older snapshot — every capture committed before the
+    # runtime learned to resolve artifacts off-chain — carries no
+    # `recording.sourceLevel` at all, and must not become source-level by the
+    # accident of a missing key. The refusal below only fires on a snapshot that
+    # said `true` out loud.
+    let measuredSourceLevel =
+      replayed and t{"recording"}{"sourceLevel"}.getBool
+
     var executions: seq[Execution]
     let execInputId = demoExecutionInputId(chain, txHash, "public")
     executions.add Execution(selector: "public", executionInputId: execInputId)
@@ -535,7 +710,26 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         "roots": orNull(t{"roots"}),
         "declaredRung": orNull(t["recording"]{"declaredRung"}),
         "stepsPositioned": orNull(t["recording"]{"stepsPositioned"}),
-        "stepsUnpositioned": orNull(t["recording"]{"stepsUnpositioned"})}
+        "stepsUnpositioned": orNull(t["recording"]{"stepsUnpositioned"}),
+        # THE SOURCE-LEVEL MEASUREMENT AND WHAT IT RESTS ON, IN THE TREE.
+        #
+        # `sourceLevel` is the runtime's own AND over every contract the
+        # transaction executed, and `contractRungs` is the per-contract detail
+        # it was computed from — so a reader can see WHICH contract held a
+        # transaction at rung 3, rather than only that one did.
+        #
+        # `artifacts` carries `corroboration`, and that is the field this block
+        # exists for. `artifactHash` commits to the artifact but NOT to its
+        # `debug_symbols` or its `file_map`, so the source TEXT is attested by
+        # whoever served it. `corroborated` means two independent distributors
+        # served the same debug symbols and file map; `single-distributor` means
+        # one did, and the source a visitor is reading rests on that one party's
+        # unverified word. That difference has to be legible in the published
+        # tree and not only inside the container, because the tree is what a
+        # page, a check or a reader can look at.
+        "sourceLevel": %measuredSourceLevel,
+        "contractRungs": orNull(t["recording"]{"contractRungs"}),
+        "artifacts": artifactSummary}
 
     let facts = TransactionFacts(
       chain: chain,
@@ -593,25 +787,122 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           "the snapshot's container for " & txHash & " is empty; refusing to " &
           "publish a manifest naming a zero-byte trace")
       cfg.writeBytes(dir / "trace.ct", ctBytes)
+
+      # ---- the source bundles, when the recording measured itself as source
+      # level ---------------------------------------------------------------
+      #
+      # THE TWO STATES ARE PUBLISHED DIFFERENTLY AND THERE IS NO THIRD.
+      #
+      #   * `recording.sourceLevel` FALSE — every step in this container is a
+      #     bare program counter, or at least one contract's was. `sourceBundles`
+      #     stays empty, nothing is written under `/src`, and the debugger's
+      #     source pane stays on `srcUnverified`, "Stepping continues at
+      #     instruction level". That is still the answer for every contract with
+      #     no published or provable artifact, which is most of them.
+      #   * `recording.sourceLevel` TRUE — every contract this transaction
+      #     executed reached rung 1 through an artifact proved against its
+      #     class's `artifactHash`, its `packedBytecode` and its class id, and
+      #     the capture carries the source text those positions point into. One
+      #     bundle per contract class is published and named in the manifest.
+      #
+      # REFUSE RATHER THAN DEGRADE. A manifest claiming source level with no
+      # bundle beside it is not a smaller version of the truth — it points the
+      # debugger's source pane at a file it cannot fetch, which is the
+      # confident-but-wrong answer this product may not ship. Silently
+      # downgrading it to `sourceLevel: false` would be just as bad in the other
+      # direction: the recording DID position its steps, and a tree that quietly
+      # said otherwise would hide a working capability behind a missing file.
+      # So both halves of the disagreement raise, in the same style as the
+      # zero-byte-container refusal above.
+      var bundles = newJObject()
+      if measuredSourceLevel:
+        # The row names the file; the conventional path is the fallback, so a
+        # capture written before the row carried the key still resolves.
+        var srcRel = t{"sourceBundles"}.getStr
+        if srcRel.len == 0: srcRel = "sources" / (txHash & ".json")
+        let srcPath = cfg.snapshotDir / srcRel
+        if not fileExists(srcPath):
+          raise newException(ValueError,
+            "the capture measured " & txHash & " as source level and this " &
+            "snapshot carries no source bundle for it (looked for " & srcRel &
+            "); refusing to publish a manifest that claims source level with " &
+            "no bundle to open, which would put the debugger's source pane on " &
+            "a file it cannot fetch")
+        let srcDoc = parseJson(readFile(srcPath))
+        let bundleList = srcDoc{"bundles"}
+        if bundleList == nil or bundleList.kind != JArray or bundleList.len == 0:
+          raise newException(ValueError,
+            "the capture measured " & txHash & " as source level and its " &
+            "source bundle file " & srcRel & " carries no bundle; refusing to " &
+            "publish a manifest that claims source level with no bundle to " &
+            "open, which would put the debugger's source pane on a file it " &
+            "cannot fetch")
+        for b in bundleList:
+          let codeHash = b{"codeHash"}.getStr
+          if codeHash.len == 0:
+            raise newException(ValueError,
+              "a source bundle for " & txHash & " in " & srcRel & " names no " &
+              "codeHash; a bundle is keyed by contract class id and one " &
+              "without a key cannot be reached from a manifest")
+          # THE KEYS ARE THE DRIVER'S, BYTE FOR BYTE. They are the absolute
+          # upstream CI build paths the .ct container interned, and the whole
+          # value of the bundle is that they match what the container asks for.
+          # Prettifying them would be a cosmetic change that breaks the only
+          # thing the file is for.
+          var files: seq[tuple[path, content: string]]
+          let fs = b{"files"}
+          if fs != nil and fs.kind == JObject:
+            for p, c in fs: files.add (path: p, content: c.getStr)
+          if files.len == 0:
+            raise newException(ValueError,
+              "the source bundle for code hash " & codeHash & " of " & txHash &
+              " in " & srcRel & " carries no files; refusing to publish an " &
+              "empty bundle a manifest would then recommend")
+          # WHAT THE CHAIN PROVED AND WHAT IT DID NOT, published beside the
+          # text. `artifactHash` is the chain's commitment to the artifact and
+          # does NOT cover `debug_symbols` or `file_map`, so `corroboration`
+          # names how many independent distributors served the same symbols and
+          # map — `corroborated` for two, `single-distributor` for one. A reader
+          # who wants to know how much of the source below is attested by the
+          # chain and how much by a package registry has it here.
+          var agreeing = newJArray()
+          if b{"agreeingDistributors"} != nil and
+             b["agreeingDistributors"].kind == JArray:
+            agreeing = b["agreeingDistributors"]
+          let attestation = %*{
+            "artifactHash": orNull(b{"artifactHash"}),
+            "debugDigest": orNull(b{"debugDigest"}),
+            "shape": orNull(b{"shape"}),
+            "corroboration": orNull(b{"corroboration"}),
+            "agreeingDistributors": agreeing}
+          bundles[codeHash] = %cfg.writeSourceBundle(
+            chain, codeHash, b{"origin"}.getStr, files, attestation)
+
       let manifest = TraceManifest(
         schema: ContractVersion, traceArtifactId: tid,
         executionInputId: execInputId, chain: chain, tx: txHash,
         recorder: rRef, profile: pRef,
-        # NO SOURCE BUNDLES, and that is the honest answer rather than a gap.
-        # Nothing on chain carries this contract's source, so there is no bundle
-        # to name and the debugger must not be handed one.
-        sourceBundles: newJObject(),
+        # EMPTY IS THE HONEST ANSWER FOR A RUNG-3 RECORDING, and it is empty by
+        # construction rather than by decision: `bundles` is only ever filled on
+        # the branch above, which cannot be taken unless the capture measured
+        # `sourceLevel` true AND a bundle file with contents was found for it.
+        sourceBundles: bundles,
         container: ContainerRef(file: "trace.ct", bytes: ctBytes.len,
                                 blockSize: 4096, hash: contentHashSha1(ctBytes)),
         execution: ExecutionSummary(
           steps: t["recording"]["steps"].getInt,
           frames: t["recording"]{"callsOpened"}.getInt,
           truncated: false,
-          # RUNG 3. Every step in this container is unpositioned; there is no
-          # file map to position it with. `false` here is what keeps the source
-          # pane on the fidelity ladder's instruction-level floor.
-          sourceLevel: false,
-          languages: @[]),
+          # THE MEASUREMENT, NOT A CONSTANT. This used to be a literal `false`
+          # with a comment calling rung 3 the ceiling for a chain contract; that
+          # was true only of what is reachable FROM THE NODE (see the module
+          # header). What is published now is what the capture measured: true
+          # exactly when every contract the transaction executed reached rung 1,
+          # and the source pane is held on the instruction-level floor in every
+          # other case.
+          sourceLevel: measuredSourceLevel,
+          # The language is named only when there are positions to attach it to.
+          languages: (if measuredSourceLevel: @[bundleLanguage] else: @[])),
         validation: ValidationSummary(
           status: (if reproduced: vsMatch else: vsDivergent),
           strength: matched),

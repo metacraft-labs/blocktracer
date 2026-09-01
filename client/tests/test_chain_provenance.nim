@@ -38,6 +38,10 @@ import ../src/components/provenance
 import ../src/components/debugger as dbgc
 import blocktracer/demo/generator
 import blocktracer/chain/ingest
+# Suite 12 asserts the published bundles against the SHIPPING validator rather
+# than against a restatement of its rules here — the same reasoning that makes
+# this suite build its trees with the real producers.
+import blocktracer/validator
 
 let
   clientRoot = currentSourcePath().parentDir.parentDir
@@ -1846,3 +1850,401 @@ suite "11 — a frozen capture states what was captured, in the past tense":
 
   test "assertion count":
     expectCount(16)
+
+# ── 12 — source level is a MEASUREMENT, and a claim with no bundle is refused ─
+#
+# WHAT CHANGED UNDER THIS SUITE. `ingest.nim` used to publish
+# `execution.sourceLevel: false` and an empty `sourceBundles` for every replayed
+# transaction, unconditionally, and its comment called rung 3 "the ceiling a
+# chain contract can reach". The first half was right about the data it had; the
+# second was wrong about WHY. `ContractClassPublic` carries no debug_symbols, no
+# file_map and no source text — so rung 3 is the ceiling reachable FROM THE NODE
+# — but upstream's `artifactHash` exists so a client can prove an artifact
+# fetched from somewhere ELSE, and the replay runtime now does exactly that. A
+# contract whose artifact is proved records at rung 1 with real Noir positions.
+#
+# So `sourceLevel` became a per-transaction measurement, and a measurement needs
+# three arms rather than one:
+#
+#   * the CONTROL — a capture that measured `false`. Nothing under `/src`, an
+#     empty `sourceBundles`, the source pane held on the instruction-level floor.
+#     Its snapshot deliberately DOES carry a valid sources file and one RESOLVED
+#     artifact, because "no bundle was written" has to be a consequence of the
+#     measurement and not of there being nothing to write.
+#   * the SUBJECT — a capture that measured `true`, with the bundle published,
+#     named by code hash, and its `sources` keyed by the exact paths the .ct
+#     container interned. Those keys are absolute upstream CI build paths and are
+#     asserted BYTE-EQUAL, because a prettier path is a bundle the viewer cannot
+#     use and nothing else in the tree would notice.
+#   * the REFUSAL — `true` with no bundle. This is the arm the product rule
+#     exists for: a manifest claiming source level with nothing to open points the
+#     debugger's source pane at a file it cannot fetch, which is the
+#     confident-but-wrong answer this repository may not ship. It raises, and the
+#     raised message is asserted rather than merely the fact of raising.
+#
+# The refusal has a NEGATIVE CONTROL beside it (`false` with no sources file must
+# NOT raise), so what is being graded is the CLAIM and not the missing file.
+suite "12 — a source-level capture publishes source; a rung-3 one publishes none":
+  asserted = 0
+
+  const
+    SrcChain = "srclevel"
+    SrcTx = "0x" & repeat('a', 64)
+    SrcAddress = "0x" & repeat('b', 64)
+    SrcCodeHash = "0x" & repeat('c', 64)
+    UnresolvedAddress = "0x" & repeat('d', 64)
+    UnresolvedCodeHash = "0x" & repeat('e', 64)
+    SrcOrigin = "npm:@aztec/protocol-contracts@5.3.0-nightly.20260819 FeeJuice"
+    # THE EXACT PATHS AN UPSTREAM CI BUILD INTERNS. Absolute, and belonging to a
+    # machine nobody here has ever had an account on. That is the point: the .ct
+    # container asks for these strings, so the bundle has to answer to these
+    # strings, and any rewriting on the way through is a silent break.
+    SrcFileA = "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/" &
+               "contracts/protocol/fee_juice_contract/src/main.nr"
+    SrcFileB = "/home/aztec-dev/aztec-packages/noir-projects/aztec-nr/aztec/" &
+               "src/context/private_context.nr"
+    SrcTextA = "use dep::aztec::macros::aztec;\n\n#[aztec]\n" &
+               "pub contract FeeJuice {\n    // the text the positions point into\n}\n"
+    SrcTextB = "pub struct PrivateContext {\n    pub inputs: PrivateContextInputs,\n}\n"
+
+  let srcWork = getTempDir() / ("bt-srclevel-" & $getCurrentProcessId())
+  removeDir(srcWork); createDir(srcWork)
+
+  # A REAL container, copied from the committed capture. `ingestSnapshot` refuses
+  # a zero-byte one, so a synthetic snapshot has to carry real bytes; borrowing
+  # them keeps this suite about source resolution rather than about CTFS.
+  var realCt = ""
+  for t in snap["transactions"]:
+    if t["outcome"].getStr == "replayed":
+      realCt = readFile(snapshotDir / t["container"].getStr)
+      break
+
+  proc sourcesDoc(withBundle: bool): JsonNode =
+    ## What `replay_settled_transaction.mjs --sources <path>` writes.
+    var bundles = newJArray()
+    if withBundle:
+      var fs = newJObject()
+      fs[SrcFileA] = %SrcTextA
+      fs[SrcFileB] = %SrcTextB
+      var agreeing = newJArray()
+      agreeing.add %"npm"
+      bundles.add %*{
+        "address": SrcAddress, "codeHash": SrcCodeHash,
+        "artifactHash": "0x" & repeat('7', 64),
+        "origin": SrcOrigin, "shape": "snake_case",
+        "corroboration": "single-distributor",
+        "agreeingDistributors": agreeing,
+        "debugDigest": "sha256:" & repeat('9', 64),
+        "files": fs}
+    %*{"txHash": SrcTx, "sourceLevel": withBundle, "bundles": bundles}
+
+  proc srcSnapshot(name: string, sourceLevel: bool, sources: JsonNode): string =
+    ## One synthetic capture. `sources` is nil for "the driver wrote no bundle
+    ## file at all", which is the state the refusal arm is about.
+    let dest = srcWork / name
+    removeDir(dest)
+    createDir(dest / "ct")
+    writeFile(dest / "ct" / (SrcTx & ".ct"), realCt)
+    # BOTH KINDS OF ARTIFACT ENTRY IN THE RUNG-3 ARM. A code edge is a fact about
+    # what the transaction executed, not about whether source was found for it,
+    # and `blocktracer_client/sources.nim`'s `codeHashes` walks the edges to
+    # decide what to ask for — so an unresolved contract has to be asked about
+    # and answered "nothing published", never omitted.
+    var artifacts = newJArray()
+    artifacts.add %*{
+      "address": SrcAddress, "contractClassId": SrcCodeHash, "resolved": true,
+      "origin": SrcOrigin, "shape": "snake_case",
+      "corroboration": "single-distributor",
+      "artifactHash": "0x" & repeat('7', 64), "sourceFiles": 2,
+      "reason": "", "rejected": newJArray()}
+    var rungs = newJArray()
+    rungs.add %*{"address": SrcAddress, "rung": 1,
+                 "reason": "artifact proved against the class commitment",
+                 "steps": 30, "positioned": 30, "resolved": true}
+    if not sourceLevel:
+      artifacts.add %*{
+        "address": UnresolvedAddress, "contractClassId": UnresolvedCodeHash,
+        "resolved": false, "candidatesConsidered": 4,
+        "reason": "no distributor served an artifact whose class id matched",
+        "rejected": newJArray()}
+      rungs.add %*{"address": UnresolvedAddress, "rung": 3,
+                   "reason": "no provable artifact", "steps": 12,
+                   "positioned": 0, "firstUnpositionedPc": 0, "resolved": false}
+    var row = %*{
+      "txHash": SrcTx, "blockNumber": 100, "txIndexInBlock": 0,
+      "revertCode": 0, "transactionFee": "0x1",
+      "bodyRetained": true, "effectVisible": true, "firstInBlock": true,
+      "outcome": "replayed",
+      "container": "ct/" & SrcTx & ".ct",
+      "containerBytes": realCt.len,
+      "effects": {"reproduced": true, "matched": 3, "mismatched": 0},
+      "recording": {
+        "bytes": realCt.len, "steps": 42, "callsOpened": 2,
+        "declaredRung": (if sourceLevel: 1 else: 3),
+        "stepsPositioned": (if sourceLevel: 42 else: 30),
+        "stepsUnpositioned": (if sourceLevel: 0 else: 12),
+        "sourceLevel": sourceLevel,
+        "contractRungs": rungs},
+      "artifacts": artifacts}
+    if sources != nil:
+      createDir(dest / "sources")
+      writeFile(dest / "sources" / (SrcTx & ".json"), sources.pretty & "\n")
+      row["sourceBundles"] = %("sources/" & SrcTx & ".json")
+    writeFile(dest / "snapshot.json", $(%*{
+      "format": "blocktracer/chain-snapshot@1",
+      "provenance": {
+        "kind": "live-capture", "chain": SrcChain, "label": "Real chain data",
+        "endpoint": "https://node.example", "capturedAt": "2026-09-01T09:00:00.000Z",
+        "nodeVersion": "5.3.0", "l1ChainId": 1, "runtimeCommit": "abc123def456"},
+      "window": {"tip": 110, "finalized": 90, "replayableFrom": 91,
+                 "replayableTo": 110, "blocks": 20},
+      "blocks": [{"number": 100, "hash": "0x" & align("100", 40, '0'),
+                  "timestamp": 1100, "totalManaUsed": "0x2710",
+                  "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
+                  "archiveRoot": "0x" & repeat('2', 40),
+                  "parentArchiveRoot": "0x" & repeat('3', 40),
+                  "transactions": [SrcTx]}],
+      "transactions": [row]}))
+    dest
+
+  proc treeOf(snapDir: string): string =
+    let tree = snapDir / "tree"
+    removeDir(tree); createDir(tree)
+    discard ingestSnapshot(IngestConfig(outDir: tree, snapshotDir: snapDir))
+    tree
+
+  proc theManifest(tree: string): JsonNode =
+    for p in walkDirRec(tree / "t"):
+      if p.extractFilename == "manifest.json": return parseJson(readFile(p))
+    nil
+
+  proc theFacts(tree: string): JsonNode =
+    for p in walkDirRec(tree / "d" / SrcChain / "tx"):
+      if p.endsWith(".json"): return parseJson(readFile(p))
+    nil
+
+  proc fileCount(dir: string): int =
+    if not dirExists(dir): return 0
+    for p in walkDirRec(dir): inc result
+
+  # ── the control arm ────────────────────────────────────────────────────────
+  let ctlTree = treeOf(srcSnapshot("rung3", sourceLevel = false,
+                                   sources = sourcesDoc(withBundle = true)))
+  let ctlManifest = theManifest(ctlTree)
+
+  test "CONTROL: a capture that measured rung 3 publishes no source at all":
+    # The positive control first — trap 4's rule. Every assertion below is about
+    # something being absent, and an absent manifest satisfies all of them.
+    ck ctlManifest != nil
+    ck ctlManifest["container"]["bytes"].getInt > 0
+    ck ctlManifest["execution"]["sourceLevel"].getBool == false
+    ck ctlManifest["execution"]["languages"].len == 0
+    ck ctlManifest["sourceBundles"].len == 0
+    # NOT "no bundle for this code hash" — no `/src` subtree at all. The snapshot
+    # handed the ingest a perfectly good bundle file and one RESOLVED artifact;
+    # what stopped it being published is the measurement and nothing else.
+    ck fileCount(ctlTree / "src") == 0
+
+  test "CONTROL: the code edges are published for resolved AND unresolved alike":
+    # `codeEdges` was an empty seq before this change, for every transaction. The
+    # consumer walks it to decide which bundles to ask for, so a contract missing
+    # from it is a contract the source pane can never even report on.
+    let facts = theFacts(ctlTree)
+    ck facts != nil
+    var hashes: seq[string]
+    for e in facts["codeEdges"]: hashes.add e["codeHash"].getStr
+    hashes.sort()
+    var want = @[SrcCodeHash, UnresolvedCodeHash]
+    want.sort()
+    # The COUNT, not "at least one" — §4b: the membership is knowable and is two.
+    ck facts["codeEdges"].len == 2
+    ck hashes == want
+    var bound: seq[string]
+    for e in facts["codeEdges"]: bound.add e["boundAt"].getStr
+    ck bound == @["0x" & align("100", 40, '0'), "0x" & align("100", 40, '0')]
+
+  # ── the subject arm ────────────────────────────────────────────────────────
+  let subjTree = treeOf(srcSnapshot("rung1", sourceLevel = true,
+                                    sources = sourcesDoc(withBundle = true)))
+  let subjManifest = theManifest(subjTree)
+
+  test "SUBJECT: the manifest claims source level and names exactly one bundle":
+    ck subjManifest != nil
+    ck subjManifest["execution"]["sourceLevel"].getBool == true
+    ck subjManifest["execution"]["languages"].len == 1
+    ck subjManifest["execution"]["languages"][0].getStr == "noir"
+    ck subjManifest["sourceBundles"].len == 1
+    ck subjManifest["sourceBundles"].hasKey(SrcCodeHash)
+
+  test "SUBJECT: the bundle is published where its id says it is":
+    let id = subjManifest["sourceBundles"][SrcCodeHash].getStr
+    ck id.len > 0
+    ck id.startsWith("sha1:")
+    # The consumer reconstructs this path from the id alone — it has no pointer
+    # to read — so the derivation is asserted here rather than the file merely
+    # being found somewhere under /src.
+    let short = id[id.find(':') + 1 .. ^1]
+    let dir = subjTree / "src" / SrcChain / SrcCodeHash
+    ck fileExists(dir / (short & ".json"))
+    ck fileExists(dir / "current.json")
+    let pointer = parseJson(readFile(dir / "current.json"))
+    ck pointer["sourceBundleId"].getStr == id
+    ck pointer["bundle"].getStr == "src" / SrcChain / SrcCodeHash / (short & ".json")
+
+  test "SUBJECT: the bundle's source keys are BYTE-EQUAL to the interned paths":
+    # The one assertion nothing else in this tree can make. Every path here is an
+    # absolute build path from a machine upstream owns; a producer that tidied
+    # them into `src/main.nr` would publish a bundle that validates, renders, and
+    # answers no question the container ever asks.
+    let id = subjManifest["sourceBundles"][SrcCodeHash].getStr
+    let short = id[id.find(':') + 1 .. ^1]
+    let bundle = parseJson(readFile(
+      subjTree / "src" / SrcChain / SrcCodeHash / (short & ".json")))
+    var keys: seq[string]
+    for k, _ in bundle["sources"]: keys.add k
+    keys.sort()
+    var want = @[SrcFileA, SrcFileB]
+    want.sort()
+    ck bundle["sources"].len == 2
+    ck keys == want
+    ck bundle["sources"][SrcFileA]["content"].getStr == SrcTextA
+    ck bundle["sources"][SrcFileB]["content"].getStr == SrcTextB
+    ck bundle["codeHash"].getStr == SrcCodeHash
+    ck bundle["chain"].getStr == SrcChain
+    ck bundle["match"].getStr == "full"
+    ck bundle["provider"].getStr == SrcOrigin
+    ck bundle["language"].getStr == "noir"
+    # The attestation travels with the text: `artifactHash` commits to the
+    # artifact and NOT to its debug symbols or file map, so who vouched for the
+    # source has to be readable beside the source.
+    ck bundle["debug"]["corroboration"].getStr == "single-distributor"
+
+  test "SUBJECT: the measurement is republished in the transaction's native block":
+    let facts = theFacts(subjTree)
+    ck facts != nil
+    let replay = facts["native"]["replay"]
+    ck replay["sourceLevel"].getBool == true
+    ck replay["contractRungs"].len == 1
+    ck replay["contractRungs"][0]["rung"].getInt == 1
+    ck replay["artifacts"].len == 1
+    ck replay["artifacts"][0]["contractClassId"].getStr == SrcCodeHash
+    ck replay["artifacts"][0]["resolved"].getBool == true
+    ck replay["artifacts"][0]["origin"].getStr == SrcOrigin
+    # The field this block exists for. A source-level claim resting on one
+    # distributor's unverified text must be legible in the published tree, not
+    # only inside the container.
+    ck replay["artifacts"][0]["corroboration"].getStr == "single-distributor"
+    # And the control's block says the other thing, through the same code path.
+    let ctlReplay = theFacts(ctlTree)["native"]["replay"]
+    ck ctlReplay["sourceLevel"].getBool == false
+    ck ctlReplay["artifacts"].len == 2
+
+  test "SUBJECT: the validator has no complaint about the bundles it published":
+    # Ranged over the whole tree and then narrowed to this subject: the synthetic
+    # chain here is not a complete site, so an unrelated conformance error is not
+    # this suite's business — a `sourceBundles` error is.
+    var sbErrors = 0
+    for e in validateTree(subjTree):
+      if "sourceBundle" in e or "source bundle" in e: inc sbErrors
+    ck sbErrors == 0
+    # THE POSITIVE TWIN, and it is the reason the line above is worth writing.
+    # Delete the published bundle object and the same check must redden — without
+    # this, a validator that had stopped looking at `sourceBundles` altogether
+    # would satisfy the assertion above forever (trap 4a).
+    let brokenTree = srcWork / "broken"
+    removeDir(brokenTree)
+    copyDir(subjTree, brokenTree)
+    let id = subjManifest["sourceBundles"][SrcCodeHash].getStr
+    let short = id[id.find(':') + 1 .. ^1]
+    removeFile(brokenTree / "src" / SrcChain / SrcCodeHash / (short & ".json"))
+    var brokenErrors = 0
+    for e in validateTree(brokenTree):
+      if "missing bundle" in e or "sourceBundles" in e: inc brokenErrors
+    ck brokenErrors > 0
+
+  # ── the refusal arm ────────────────────────────────────────────────────────
+  test "REFUSAL: source level with NO bundle file raises, and says which tx":
+    let d = srcSnapshot("claim-no-file", sourceLevel = true, sources = nil)
+    var raised = false
+    var msg = ""
+    try:
+      discard treeOf(d)
+    except ValueError as e:
+      raised = true
+      msg = e.msg
+    ck raised
+    checkpoint("refusal message: " & msg)
+    ck SrcTx in msg
+    ck "measured " & SrcTx & " as source level" in msg
+    ck "sources/" & SrcTx & ".json" in msg
+    ck "refusing to publish a manifest that claims source level" in msg
+    ck "put the debugger's source pane on a file it cannot fetch" in msg
+
+  test "REFUSAL: source level with an EMPTY bundle list raises too":
+    # The second half of the same rule. A file that exists and holds nothing is
+    # the state a driver reaches when every artifact was rejected, and it must
+    # not be mistaken for a bundle.
+    let d = srcSnapshot("claim-empty-file", sourceLevel = true,
+                        sources = sourcesDoc(withBundle = false))
+    var raised = false
+    var msg = ""
+    try:
+      discard treeOf(d)
+    except ValueError as e:
+      raised = true
+      msg = e.msg
+    ck raised
+    checkpoint("refusal message: " & msg)
+    ck "carries no bundle" in msg
+    ck SrcTx in msg
+
+  test "NEGATIVE CONTROL: rung 3 with no bundle file is not an error at all":
+    # What the two refusals are ABOUT. Without this arm they would be satisfied
+    # by an ingest that raised on every capture with no sources file, which is
+    # every capture committed before the runtime learned to resolve artifacts.
+    let d = srcSnapshot("no-claim-no-file", sourceLevel = false, sources = nil)
+    let tree = treeOf(d)                       # must not raise
+    let m = theManifest(tree)
+    ck m != nil
+    ck m["execution"]["sourceLevel"].getBool == false
+    ck m["sourceBundles"].len == 0
+    ck fileCount(tree / "src") == 0
+
+  test "an older snapshot with NO sourceLevel key at all stays rung 3":
+    # The default has to fall to false. Every capture committed before the
+    # runtime could resolve artifacts carries no `recording.sourceLevel`, and
+    # `getBool` on an absent key answering `true` would turn all of them
+    # source-level by accident — with no bundle anywhere to back it.
+    let d = srcSnapshot("legacy", sourceLevel = false, sources = nil)
+    var sj = parseJson(readFile(d / "snapshot.json"))
+    sj["transactions"][0]["recording"].delete("sourceLevel")
+    writeFile(d / "snapshot.json", $sj)
+    ck sj["transactions"][0]["recording"]{"sourceLevel"}.isNil
+    let m = theManifest(treeOf(d))
+    ck m["execution"]["sourceLevel"].getBool == false
+    ck m["sourceBundles"].len == 0
+
+  test "the committed captures are unchanged by all of this":
+    # The frozen fixtures under client/fixtures/chain/ are rung 3 and carry no
+    # sources file. They must ingest exactly as before — this whole change is a
+    # new branch, not a new requirement on the old data.
+    # ONE assertion over the whole set, plus its size — not one per member. The
+    # number of recorded transactions in a frozen capture is data, and folding it
+    # into this suite's assertion count would make the count a fingerprint of the
+    # fixture rather than of the code path (§4b).
+    var replayedManifests = 0
+    var allRung3 = true
+    for t in snap["transactions"]:
+      if t["outcome"].getStr notin ["replayed", "divergent"]: continue
+      inc replayedManifests
+      if t{"recording"}{"sourceLevel"}.getBool: allRung3 = false
+    ck allRung3
+    ck replayedManifests == ing.withTrace
+    ck replayedManifests > 0
+    ck traceView(root, chainInfo(root, RealChain), replayedTx).sourceLevel == false
+    ck fileCount(workDir / "src" / RealChain) == 0
+
+  test "assertion count":
+    # Written from a run, and deliberately independent of how many transactions
+    # the frozen captures happen to hold.
+    expectCount(66)   # 6+4+6+6+10+11+2+6+3+4+3+5

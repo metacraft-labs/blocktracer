@@ -219,6 +219,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
   await mkdir(join(snapDir, 'ct'), { recursive: true });
+  await mkdir(join(snapDir, 'sources'), { recursive: true });
   const snap = await loadSnapshot();
 
   const nodeInfo = await rpc('node_getNodeInfo');
@@ -331,9 +332,15 @@ async function main() {
 
       const capturedAt = new Date().toISOString();
       const ctRel = `ct/${c.txHash}.ct`;
+      // The source bundle sits beside the container in the snapshot and is asked for on
+      // every replay. `replayTransaction` names it in the row only when the driver actually
+      // wrote bundles into it — see `sourceBundleCount` there.
+      const srcRel = `sources/${c.txHash}.json`;
       const decided = await replayTransaction({
         nodeBin, runtime, url, txHash: c.txHash,
-        ctPath: join(snapDir, ctRel), ctRelative: ctRel, avm, ctWriter,
+        ctPath: join(snapDir, ctRel), ctRelative: ctRel,
+        sourcesPath: join(snapDir, srcRel), sourcesRelative: srcRel,
+        avm, ctWriter,
       });
 
       const row = {

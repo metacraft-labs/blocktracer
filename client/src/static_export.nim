@@ -169,14 +169,35 @@ proc exportSite() =
   # also the only SOURCE-LEVEL recording this tree can publish, and the home page's
   # exhibit needs one.
   #
-  # Every real chain here is rung 3. An Aztec `ContractClassPublic` carries bytecode and
-  # no `debug_symbols`, no `file_map` and no source text, so `ingest.nim` publishes
-  # `execution.sourceLevel: false` and writes no source bundle — correctly, and it will
-  # go on doing so for every Aztec transaction this site ever records. A tree of real
-  # chains alone therefore contains nothing that can show a line of source, a function
-  # name or a named local, and the home page's `canHeadline` rule found nothing to
-  # feature. It featured a rung-3 recording instead, which is how three sentences about
-  # what cannot be shown ended up under "the deepest view into every transaction".
+  # Every real chain in TODAY'S FROZEN CAPTURES is rung 3, and the sentence that used to
+  # sit here said something stronger and wrong: that `ingest.nim` "will go on doing so for
+  # every Aztec transaction this site ever records". It will not, and the correction
+  # matters because this file is where the consequence is spent.
+  #
+  # WHAT IS TRUE: an Aztec `ContractClassPublic` carries bytecode and no `debug_symbols`,
+  # no `file_map` and no source text, so a NODE can never position a step against a line.
+  # WHAT WAS MISSING: upstream's own doc comment says `artifactHash` exists so a client can
+  # "verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class" — the chain holds
+  # a commitment, not the artifact — and `aztec-avm-runtime` now performs that fetch and
+  # that verification. A contract whose artifact is proved against its class's
+  # `artifactHash`, its `packedBytecode` and its class id records at RUNG 1 with real Noir
+  # positions, and `ingest.nim` publishes `execution.sourceLevel: true` with a source
+  # bundle for it.
+  #
+  # WHY THE CONCLUSION BELOW SURVIVES THE CORRECTION UNCHANGED. It is a fact about the
+  # captures this site actually carries, and that fact is measured: of the six frozen
+  # testnet containers exactly one executes a class anybody publishes (FeeJuice at
+  # `0x…03`), and neither mainnet container does — their third-party classes have no
+  # artifact on npm and none verified on any explorer. So a tree of today's real chains
+  # still contains nothing that can show a line of source, and the home page's
+  # `canHeadline` rule still finds nothing to feature. It featured a rung-3 recording
+  # instead, which is how three sentences about what cannot be shown ended up under
+  # "the deepest view into every transaction".
+  #
+  # THE DAY A SOURCE-LEVEL CAPTURE IS FROZEN INTO THIS TREE, THIS BLOCK IS WRONG AGAIN —
+  # `canHeadline` will have a real chain to feature and the fixture's role as the site's
+  # only source-level exhibit ends. That is a change to make deliberately, with the
+  # capture, rather than something to discover.
   #
   # So both halves are kept rather than traded: the real chains are the site's SUBJECT and
   # lead the chain strip (`home.stripOrder`, keyed off published provenance), and the

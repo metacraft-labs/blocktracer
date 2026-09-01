@@ -19,6 +19,16 @@
 //
 //   snapshot.json        the capture metadata, the block window, and one row per transaction
 //   ct/<txHash>.ct       one CodeTracer container per REPLAYED transaction, verbatim
+//   sources/<txHash>.json  the source text behind a SOURCE-LEVEL recording, when there is one
+//
+// THE SOURCE BUNDLE IS A SEPARATE FILE FROM THE CONTAINER BECAUSE IT COMES FROM SOMEWHERE ELSE.
+// The container is what the runtime recorded; the bundle is what the runtime FETCHED off-chain and
+// proved against the contract class's `artifactHash`. `ct.source-provenance` inside the container
+// says which artifact positioned each step, and this file carries the text those positions point
+// into — keyed by the EXACT absolute paths the container interned (upstream CI build paths such as
+// `/home/aztec-dev/aztec-packages/noir-projects/.../src/main.nr`). Those keys are never rewritten:
+// a bundle whose keys do not match the interned paths is a bundle the viewer cannot use, and a
+// prettier path would be a cosmetic change that silently breaks the only thing the file is for.
 //
 // The snapshot records BOTH populations, and that is the point of it:
 //   * transactions that were inside the replayable window at capture and were re-executed, each
@@ -171,6 +181,7 @@ console.error(`capture-chain: ${candidates.length} replay candidate(s) of ${rows
 
 await rm(outDir, { recursive: true, force: true });
 await mkdir(join(outDir, 'ct'), { recursive: true });
+await mkdir(join(outDir, 'sources'), { recursive: true });
 
 function run(cmd, args, cwd) {
   return new Promise((res) => {
@@ -186,6 +197,13 @@ function run(cmd, args, cwd) {
 const replays = new Map();
 for (const c of candidates) {
   const ctPath = join(outDir, 'ct', `${c.txHash}.ct`);
+  // ASKED FOR ON EVERY REPLAY, NOT ONLY THE ONES EXPECTED TO PRODUCE ONE. Whether a
+  // transaction reaches source level is decided by whether every contract it executed had a
+  // provable off-chain artifact, and that is not knowable before the replay runs. The driver
+  // writes this file when it has bundles and leaves it absent when it has none, so its
+  // presence is a MEASUREMENT rather than a flag this tool set in advance.
+  const srcRel = `sources/${c.txHash}.json`;
+  const srcPath = join(outDir, srcRel);
   console.error(`capture-chain: replaying ${c.txHash} (block ${c.blockNumber})`);
   const r = await run(nodeBin, [
     '--experimental-wasm-exnref',
@@ -195,6 +213,7 @@ for (const c of candidates) {
     '--module', resolve(avm),
     '--ct', ctPath,
     '--ct-writer', resolve(ctWriter),
+    '--sources', srcPath,
     '--json',
   ], runtime);
   // A NON-ZERO EXIT IS NOT THE SAME QUESTION AS "DID IT REPLAY".
@@ -228,6 +247,24 @@ for (const c of candidates) {
     continue;
   }
   const bytes = (await readFile(ctPath)).length;
+  // THE BUNDLE FILE IS NAMED IN THE ROW ONLY WHEN IT EXISTS AND HAS SOMETHING IN IT.
+  //
+  // `ingest.nim` REFUSES a snapshot whose row claims source level and whose bundle file is
+  // missing or empty, because a manifest that claims source level with nothing to open puts
+  // the debugger's source pane on a file it cannot fetch. That refusal is only useful if this
+  // side never names a file it did not measure — so the path is read back and counted here
+  // rather than written from the argument that was passed to the driver.
+  let sourceBundleCount = 0;
+  if (existsSync(srcPath)) {
+    try {
+      const parsed = JSON.parse(await readFile(srcPath, 'utf8'));
+      sourceBundleCount = Array.isArray(parsed.bundles) ? parsed.bundles.length : 0;
+    } catch {
+      // Unparseable is not "absent": say so rather than silently publishing a row with no
+      // bundle beside a recording that measured itself as source level.
+      console.error(`capture-chain:   source bundle at ${srcRel} did not parse; not naming it`);
+    }
+  }
   const total = facts.verdict.matched + facts.verdict.mismatched;
   // REPRODUCED OR NOT, THE RECORDING IS REAL AND IT STEPS. The distinction the explorer needs is
   // not "did this work" but "may this be used as evidence of what the chain did", and those are
@@ -235,12 +272,18 @@ for (const c of candidates) {
   // with the block, which is a thing worth showing and a thing that must never be shown silently.
   const kind = facts.verdict.reproduced ? 'replayed' : 'divergent';
   console.error(`capture-chain:   ${kind} — ${facts.verdict.matched}/${total} effects, `
-    + `${facts.recording.steps} steps, rung ${facts.recording.declaredRung}, container ${bytes} bytes`);
+    + `${facts.recording.steps} steps, rung ${facts.recording.declaredRung}, container ${bytes} bytes`
+    + (facts.recording.sourceLevel
+        ? `, SOURCE LEVEL (${sourceBundleCount} bundle(s))`
+        : ''));
   replays.set(c.txHash, {
     replayed: true,
     kind,
     container: `ct/${c.txHash}.ct`,
     containerBytes: bytes,
+    // Absent rather than empty when there is nothing: an absent key reads as "this capture
+    // resolved no source", where `""` would read as "there is a file and it is nowhere".
+    ...(sourceBundleCount > 0 ? { sourceBundles: srcRel } : {}),
     l2BlockNumber: facts.l2BlockNumber,
     txIndexInBlock: facts.txIndexInBlock,
     preStateReadAt: facts.preStateReadAt,
@@ -258,12 +301,29 @@ for (const c of candidates) {
       mismatched: facts.verdict.mismatched,
       mismatches: facts.mismatches ?? [],
     },
-    // THE RECORDING'S OWN ACCOUNT OF ITS FIDELITY. `declaredRung: 3` is the ceiling a chain
-    // contract can reach: `ContractClassPublic` carries no debug_symbols, no file_map and no source
-    // text, so there is nothing to position a program counter against. `stepsPositioned` is the
-    // measurement that proves it rather than asserting it — every step is unpositioned, and a page
-    // that rendered this as source-level would be inventing the positions.
+    // THE RECORDING'S OWN ACCOUNT OF ITS FIDELITY, AND `declaredRung` IS A MEASUREMENT PER
+    // TRANSACTION RATHER THAN A CONSTANT.
+    //
+    // THIS COMMENT USED TO SAY "`declaredRung: 3` is the ceiling a chain contract can reach", and
+    // that sentence was wrong in one word. `ContractClassPublic` really does carry no
+    // debug_symbols, no file_map and no source text — so rung 3 is the ceiling reachable FROM THE
+    // NODE — but upstream's `artifactHash` exists precisely so a client can verify an artifact
+    // fetched from somewhere else, and the runtime's `replay/src/artifact_resolution.ts` does that:
+    // it proves a candidate artifact against the class's `artifactHash`, byte-compares its public
+    // bytecode against the class's `packedBytecode`, and recomputes the class id from both. A
+    // contract whose artifact is proved that way records at rung 1 with real Noir positions; a
+    // contract whose artifact cannot be proved records at rung 3 exactly as before, and says which
+    // in `ct.source-provenance`.
+    //
+    // So `recording.declaredRung`, `recording.sourceLevel` and `recording.contractRungs` are copied
+    // through UNTOUCHED and nothing here decides them. `stepsPositioned` remains the measurement
+    // that keeps the claim honest in both directions: a page must not render source over a
+    // container whose steps are unpositioned, and must not withhold it from one whose steps are.
     recording: facts.recording,
+    // L5: THE RESOLUTION ITSELF, INCLUDING EVERY REJECTION. "we did not look" and "we looked and
+    // proved nothing" are different sentences for a transaction page to say, and a snapshot that
+    // recorded only successes could not tell them apart.
+    artifacts: facts.artifacts ?? [],
     // THE ROOTS DELIBERATELY DO NOT AGREE, and the divergence travels with the recording. Replay
     // hydrates only the leaves the execution touched, so the trees it rebuilds are sparse and their
     // roots cannot equal the block's. Dropping this in transit would turn a known, explained
