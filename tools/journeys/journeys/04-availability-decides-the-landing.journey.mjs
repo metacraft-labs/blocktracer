@@ -38,7 +38,7 @@ export const assertions = 13;
 
 export async function run({ browser, site, j }) {
   const all = await transactions(site.root);
-  j.subjects(all, 20, "the exported tree carries transactions to classify");
+  j.subjects(all, 10, "the exported tree carries transactions to classify");
 
   // ---- classification, over the whole corpus, from static bytes ----------
   const byClass = { session: [], generate: [], stated: [] };

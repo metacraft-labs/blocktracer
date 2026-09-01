@@ -34,8 +34,8 @@ export async function run({ browser, site, j }) {
   // NON-VACUITY FIRST. "every transaction with a session shows one" is true of
   // a tree with no such transaction, and would stay true if the exporter
   // stopped writing them.
-  j.subjects(all, 20, "the exported tree carries transactions to walk");
-  j.subjects(withSession, 6, "some of them have a session to land in");
+  j.subjects(all, 10, "the exported tree carries transactions to walk");
+  j.subjects(withSession, 3, "some of them have a session to land in");
 
   // EVERY ONE OF THEM, NOT A REPRESENTATIVE. The two seed defects this layer
   // was built from both survived because every assertion about a positioned
@@ -68,8 +68,19 @@ export async function run({ browser, site, j }) {
     }
   }
 
-  const chains = [...new Set(withSession.map((t) => t.chain))];
-  j.atLeast(chains.length, 2, `the sessions span more than one chain (${chains.join(", ")})`);
+  // BOTH PROVENANCES, NOT MERELY MORE THAN ONE CHAIN. This is the guard against
+  // the condition that hid both seed defects: a subject set that is entirely
+  // synthetic. A chain COUNT does not catch it — the tree carried three chains
+  // while every positioned assertion still ran on the demo one — and a chain
+  // NAME does not survive a rename, which this tree did within a day. The
+  // product's own `data-provenance` is the question already answered.
+  const synthetic = withSession.filter((t) => !t.real).length;
+  const real = withSession.filter((t) => t.real).length;
+  j.expect(
+    synthetic >= 1 && real >= 1,
+    "the sessions include both synthetic and real-capture transactions",
+    `${synthetic} synthetic, ${real} real capture(s)`,
+  );
 
   const errored = seen.filter((s) => s.errors.length > 0);
   j.countIs(

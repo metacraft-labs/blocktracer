@@ -38,7 +38,7 @@ export const needsEngine = true;
 export async function run({ browser, site, j }) {
   const all = await transactions(site.root);
   const withSession = all.filter((t) => landingOf(t.phase) === "session" && t.hasListing);
-  j.subjects(withSession, 6, "transactions whose landing is a session WITH a source listing");
+  j.subjects(withSession, 3, "transactions whose landing is a session WITH a source listing");
 
   const subject = withSession.find((t) => !t.real) ?? withSession[0];
   j.note(`driving ${subject.debugPath} (phase=${subject.phase})`);

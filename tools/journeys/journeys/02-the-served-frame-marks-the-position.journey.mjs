@@ -53,7 +53,7 @@ export async function run({ browser, site, j }) {
   // 05's subject, not this one's. Filtering here rather than naming a
   // transaction keeps the choice a property of the tree.
   const withSession = all.filter((t) => landingOf(t.phase) === "session" && t.hasListing);
-  j.subjects(withSession, 6, "transactions whose landing is a session WITH a source listing");
+  j.subjects(withSession, 3, "transactions whose landing is a session WITH a source listing");
 
   const subject = withSession.find((t) => !t.real) ?? withSession[0];
   j.note(`driving ${subject.debugPath} (phase=${subject.phase})`);

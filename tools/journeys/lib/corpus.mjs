@@ -17,18 +17,30 @@
 // THE DEMO CHAIN AND THE REAL CHAINS ARE SEPARATED, DELIBERATELY
 // -------------------------------------------------------------
 // The two seed defects this suite was built from both survived because every
-// assertion about a positioned session ran on the demo path. `aztec` is the
-// synthetic demo chain, produced by `client/src/debugger/demo_session.nim`;
-// `aztec-testnet` and `aztec-mainnet` are frozen captures of a real chain under
-// `client/fixtures/chain/`. A journey that means "a chain transaction" must be
-// able to say so, so `realChains` is a fact about the tree rather than a
-// judgement made at each call site.
+// assertion about a positioned session ran on the demo path. A journey that
+// means "a chain transaction" must be able to say so.
+//
+// IT IS READ FROM `data-provenance`, NOT FROM THE CHAIN'S NAME. An earlier
+// version of this file held `DEMO_CHAIN = "aztec"` and it was wrong within a
+// day: the demo chain was renamed to `demo` and a real capture took the name
+// `aztec`. That constant would have classified a real chain as synthetic and the
+// entire demo corpus as real — silently, because every journey would still have
+// found subjects and still have passed. It is the same defect
+// `check-coverage.mjs` records one directory over ("A list cannot notice a chain
+// nobody added it to"), arriving through a constant instead of a list.
+//
+// `components/provenance.nim` publishes `data-provenance` on every page for a
+// reason its own header gives: "a synthetic hash looks exactly like a real one.
+// The debugger opens on both", and a visitor must "still be able to tell real
+// from synthetic on the page they are on". That is this file's question, already
+// answered by the product — so it is read rather than re-derived, and a renamed
+// chain now moves nothing.
 
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-/** The synthetic chain the demo data plane generates. Everything else is real. */
-export const DEMO_CHAIN = "aztec";
+/** The `data-provenance` value the demo generator publishes. */
+export const SYNTHETIC_PROVENANCE = "synthetic";
 
 async function subdirs(p) {
   return readdir(p, { withFileTypes: true })
@@ -59,7 +71,14 @@ export async function transactions(root) {
         txPath: `/${chain}/tx/${hash}`,
         debugPath: `/${chain}/tx/${hash}/debug`,
         phase: m ? m[1] : null,
-        real: chain !== DEMO_CHAIN,
+
+        // Real vs synthetic, from the product's own published marker. A page
+        // with no marker at all is treated as REAL, deliberately: the failure
+        // that matters is a real capture being mistaken for a fixture, and the
+        // safe default is the one that keeps real data inside the "chain
+        // transaction" subject sets rather than quietly excusing it from them.
+        provenance: (/data-provenance="([A-Za-z-]*)"/.exec(html) ?? [])[1] ?? null,
+        real: !/data-provenance="synthetic"/.test(html),
 
         // Whether the chain published SOURCE for this contract, which is a
         // different question from whether a session exists.

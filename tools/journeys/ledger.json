@@ -27,11 +27,19 @@
       "reason": "A step advances the URL and moves nothing on the screen. `?t=` goes 1 -> 5 and the recovery anchor goes main.nr:12 -> main.nr:13, so the click reaches the engine and the engine steps; `data-step` stays pinned at its landing value and no line is ever marked. This is Verification-Harness-Traps.md §2 in the product rather than in a harness: every success is real and the artefact never changed.",
       "evidence": "dev @ bd39317: CONTROL green (query advanced), data-step 128 -> 128, marked 0 -> 0 across two step-forward clicks.",
       "closed_by": "unowned as of 2026-09-01. Shares a cause with `position-survives-hydration` — both are the bundle's re-render — and should be closed with it."
-    },
+    }
+  },
+
+  "_closed": {
+    "_comment": [
+      "Not machine-read. Kept because the both-directions rule paid for itself here and the",
+      "record is worth more than the two lines it costs."
+    ],
     "a-positioned-session-says-where-it-is": {
-      "reason": "Six frozen real-chain sessions publish a position (step 128 of 235/345/1315) and never say where it is. They correctly state that the chain publishes no source for the contract and that stepping is at instruction level — that half is right and journey 01 asserts it — but the other half of the sentence is missing: there is no line to mark and no statement of the step, so a visitor on a chain transaction is told only what is absent. This is the user-reported defect 'no current-line indicator on chain transactions', in the form the spec actually requires.",
-      "evidence": "dev @ bd39317: 6 of 12 positioned sessions carry marked=0 and no visible position statement; the other 6 (the demo chain) mark a line and pass the same rule.",
-      "closed_by": "`fix/current-line-marker` (98ccd72 + a490ee3, worktree .agent-wt/bt-curline), which adds `renderPositionHead` — 'The session is stopped at step N of M' — to the pane that has no line to mark, and a control arm proving the statement is absent where there is no position. This journey should go green when that lands, and this entry must be deleted in the same change."
+      "was": "Six frozen real-chain sessions published a position (step 128 of 235/345/1315) and never said where it was. They correctly stated that the chain publishes no source and that stepping is at instruction level; they never stated the step. The 108 `.srcline` assertions all ran on the demo chain, so this branch had no assertions at all.",
+      "closed_by": "98ccd72 + a490ee3 (`fix/current-line-marker`), landed on dev between this branch's first commit and its rebase. `renderPositionHead` now draws 'The session is stopped at step N of M' on the pane that has no line to mark.",
+      "how_this_entry_died": "The ledger FAILED THE RUN demanding its own deletion: the journey went green, and a ledgered journey that goes green is a failure. Nobody had to remember. That is the whole argument for the rule failing in both directions, and it was demonstrated on the first rebase after the ledger was written.",
+      "now": "7 of 7 positioned sessions with no line to mark state their step; 13 of 13 positioned sessions say where they are."
     }
   }
 }

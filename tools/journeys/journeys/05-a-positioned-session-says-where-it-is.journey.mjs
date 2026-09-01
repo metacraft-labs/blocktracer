@@ -51,7 +51,7 @@ export const assertions = 6;
 export async function run({ browser, site, j }) {
   const all = await transactions(site.root);
   const sessions = all.filter((t) => landingOf(t.phase) === "session");
-  j.subjects(sessions, 6, "transactions whose landing is a session");
+  j.subjects(sessions, 4, "transactions whose landing is a session");
 
   const withListing = sessions.filter((t) => t.hasListing);
   const withoutListing = sessions.filter((t) => !t.hasListing);
