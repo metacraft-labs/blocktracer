@@ -1373,3 +1373,95 @@ Recommendation: **(d) then (a)**. The presence question is upstream of the fix
 and the campaign cannot keep splitting 3-3 on it; and (a) is worth doing whatever
 the answer, because a raw dump above the faithfulness claim is wrong at any
 height. NOT (c).
+
+## Q23. P1-shaped — the copy button the deployed build promises and cannot draw
+Found by `check-hydration-divergence.mjs` H2, the assertion this campaign could
+not make until VD.11 closed the instrument gap, and it is the first defect found
+on the build a visitor actually loads.
+
+`hydrate.hydrate()` runs `upgradeCopyAffordances(root)` **first and
+unconditionally** — before the worker, before the wasm, before any engine work —
+so this reaches every visitor on every debugger-shell route whatever the engine
+does. It rewrites two populations, exactly as §7.1 stages them:
+
+  * `.copyable` — values rendered IN FULL. **37** of them on the demo debug page,
+    4 on `debugger--testnet`;
+  * `[data-copy]` — values rendered TRUNCATED, whose full string is in the
+    attribute. **2** on each.
+
+Each gets `role="button"`, `tabindex="0"`, a `title` of `Copy <value>`, and
+`class="… copybtn"`. `bindCopy` then adds `.copied` or `.copyfailed` on the
+result of the clipboard write.
+
+**The shipped stylesheet has a rule for none of the three.** Measured, not
+argued: zero occurrences of `.copybtn`, `.copied` or `.copyfailed` as selectors
+in the 192 KB sheet `layout.nim` inlines into every page. (`copied` appears twice
+as the English word inside comments; H2 strips comments before deciding, which is
+why it did not call that styled.)
+
+### Three consequences, and they are not equally bad
+  1. **The truncated identifiers gain a control with no affordance at all.**
+     `.dbgid` and `.mdhash` carry colour and size only — no cursor, no hover, no
+     border. `.copybtn` adds nothing. So on the deployed build a visitor's
+     pointer crosses a `role="button"` element and gets no signal whatever, and
+     a keyboard user tabs onto something announced as a button and sees only the
+     UA focus ring. §13's promise is "a true one-click copy button arrives with
+     hydration"; what arrives is the announcement of one.
+  2. **For the 37 `.copyable` values the upgrade is invisible.** They keep
+     `.copyable`'s `cursor:copy` and hover surface, which is the PRE-hydration
+     affordance, so nothing distinguishes "select-all" from "one-click copy".
+     Less bad — the visitor is not misled about what it does, only about how
+     much better it now is.
+  3. **THE RESULT IS NOT SHOWN, over a comment asserting that it is.** This is
+     the sharp one. `bindCopy`'s own comment reads: "The result is SHOWN, both
+     ways. `writeText` rejects in a non-secure context and when the document is
+     not focused, and a copy control that silently failed would be the
+     affordance-that-lies defect wearing a tick." Both classes it adds to show
+     that result are undrawn, so a failed clipboard write is **silent** — the
+     precise defect the comment anticipates, in the code that anticipates it.
+     `panedismiss`, the inert `.ctsort` span and two affordances on this same
+     surface were REMOVED for being controls that cannot succeed; this one
+     cannot report that it did not.
+
+Consequence 3 is not a taste call. Consequences 1 and 2 are: what a copy button
+should look like in this register is a design decision.
+
+### Why the fix is blocked on the instrument and not on the taste
+**No capture in the corpus can photograph any of it.** All 16 diverging views are
+captured from the plain tree, which ships no bundle, so a treatment landed for
+`.copybtn` today would be a visual change to 16 views and the transaction page
+that no reviewer could see and no round could grade. That is the same
+build-boundary blindness this entry was found by, and shipping into it would be
+taking the lesson and walking back through the door.
+
+### Options
+  (a) **make it photographable first** — a `hydrated: true` view whose subject is
+      the copy affordance, on the existing hydrated arm (`engine: silent`, which
+      needs no engine since `upgradeCopyAffordances` runs before any). Costs one
+      view, one expectation block and one inventory entry; buys the ability to
+      grade every option below the way everything else here is graded;
+  (b) draw all three: an affordance on `.copybtn`, a transient confirmation on
+      `.copied`, an error tone on `.copyfailed`. Correct and complete, and a
+      design decision on a surface no reviewer has seen, which is (a)'s point;
+  (c) draw `.copied`/`.copyfailed` only. Closes consequence 3 — the silent
+      failure — and leaves discoverability alone. Smallest change that removes a
+      lie rather than an infelicity;
+  (d) narrow the upgrade instead: stop adding `role`/`tabindex` where nothing is
+      drawn, so the page stops announcing a control it does not present. Honest,
+      and it gives up a real capability to do it, which is the wrong trade —
+      §13 wants the button, not the silence;
+  (e) allowlist the three classes in `UNSTYLED_BY_DESIGN` and take H2 green.
+      **Explicitly rejected**, and named in that map's comment as the one thing
+      it must not be used for. It would be resolving a finding by weakening the
+      assertion that produced it, which is this campaign's standing prohibition,
+      and it would re-hide the only defect the new instrument has found.
+
+Recommendation: **(a), then (c), then (b)**. (c) is landable ahead of (a) if
+budget is short, because a control that cannot report its own failure is a defect
+at any treatment and the fix does not depend on what the button looks like. NOT
+(d), NOT (e).
+
+Until this is answered, `just capture-hydration-divergence` reports FAILED. That
+is correct: the check names a real defect, and a red check that is right is not
+the wolf-crying Q21 objects to — Q21's complaint is a check that fires when
+nothing is wrong.
