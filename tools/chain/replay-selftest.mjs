@@ -306,13 +306,130 @@ async function main() {
        refusalDetail(realStderr, 'AvmToolchainRegression').startsWith('AvmToolchainRegression:'));
   }
 
+  // ── CASE 8 — A REFUSAL NAME IS A SHAPE, NOT A MEMBERSHIP ───────────────────────────
+  //
+  // Both halves of this case are driven by the same recorded artefact: the stderr of a
+  // REAL mainnet replay, captured on 2026-09-01 from tx 0x2a1cd76f at block 68048 while
+  // its body was still served. Nothing here is invented.
+  //
+  // The defects it pins cost two mainnet transactions. 0x09a4747d (block 67798) and
+  // 0x2dd44ab6 (block 67802) were caught inside the window with their bodies retained,
+  // ran 5.7s and 6.6s — deep into public execution — and were filed as
+  // `refusal: "unknown"` with a `detail` that was three lines of Node preamble. Both have
+  // since pruned. What refused them cannot now be recovered, which is the whole cost.
+  console.error('\ncase 8 — the refusal name is recognised by shape, and the detail '
+    + 'outlives the preamble');
+  {
+    // Names the SUFFIX ALLOWLIST dropped. Every one is a class the replay runtime really
+    // defines; none ends in Error/Unavailable/NotFound/Unsupported/Regression/Exceeded.
+    const dropped = [
+      'AvmTrap', 'AvmRevertReason', 'AvmInstancePoisoned', 'HydrationDidNotConverge',
+      'RecordingPassDiverged', 'TxSimAppLogicRevert', 'TxSimTeardownRevert',
+      'TxSimRevertibleInsertionsRevert', 'WasiProcExit', 'ModuleRefusedReplay',
+      'NodeUnreachable', 'ProtocolVersionMismatch',
+    ];
+    const named = (n) => refusalName(`${n}: it went wrong in a way this class describes\n`);
+    const classified = dropped.filter((n) => named(n) === n);
+    // The SIZE is asserted, not "at least one": the set is knowable, and an "at least one"
+    // control has already been satisfied by one member of three in this harness before.
+    ck(`control: all ${dropped.length} names the old allowlist dropped are classified now`,
+       classified.length === dropped.length && dropped.length === 12);
+
+    // MUTATION: the pre-fix rule, applied to the same twelve. It must classify NONE of
+    // them — that is what makes the control above a measurement rather than a tautology.
+    const OLD_NAME_RULE =
+      /^\s*([A-Z][A-Za-z]+(?:Error|Unavailable|NotFound|Unsupported|Regression|Exceeded)):?.*$/m;
+    const oldNamed = dropped.filter((n) => {
+      const m = `${n}: it went wrong in a way this class describes\n`.match(OLD_NAME_RULE);
+      return m && m[1] === n;
+    });
+    bite('mutation: the old suffix allowlist classified none of those twelve',
+         oldNamed.length === 0);
+
+    // A six-suffix name still has to work: the fix widened the rule and must not have
+    // moved it. `AvmToolchainRegression` is the name the preflight exists for.
+    ck('control: a name the old rule DID accept is still accepted',
+       refusalName('  AvmToolchainRegression: imports no memory\n')
+         === 'AvmToolchainRegression');
+
+    // The recorded mainnet stderr, verbatim.
+    const MAINNET_TYPEERROR_STDERR = [
+      '(node:87500) ExperimentalWarning: WASI is an experimental feature and might change at any time',
+      '(Use `node --trace-warnings ...` to show where the warning was created)',
+      'replay: 0x2a1cd76f262f23a4bb7609f7cb1b5b4b967256c73da9c7bae6dc386003ba2d6e via https://aztec.drpc.org',
+      'file:///Users/z/aztec-avm-runtime/replay/node_modules/@aztec/stdlib/dest/avm/avm.js:558',
+      '            noteHashes: tx.data.forPublic.nonRevertibleAccumulatedData.noteHashes.filter((x)=>!x.isZero()),',
+      '                                          ^',
+      '',
+      "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')",
+      '    at AvmTxHint.fromTx (file:///Users/z/aztec-avm-runtime/replay/node_modules/@aztec/stdlib/dest/avm/avm.js:558:43)',
+      '    at encodeWith (file:///Users/z/aztec-avm-runtime/replay/src/replay_inputs.ts:116:15)',
+      '',
+      'Node.js v24.19.0',
+      '',
+    ].join('\n');
+
+    const n8 = refusalName(MAINNET_TYPEERROR_STDERR);
+    ck('control: the recorded mainnet refusal is named', n8 === 'TypeError');
+    ck('control: the detail is the message the runtime printed',
+       refusalDetail(MAINNET_TYPEERROR_STDERR, n8)
+         .includes("Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')"));
+
+    // ── THE FALLBACK PATH, which is the one that actually lost the two transactions ──
+    //
+    // `refusalDetail` only falls back when the name is `unknown`, so a fixture whose name
+    // IS classified never exercises it — the case above runs the anchored path and would
+    // stay green with the old noise rule. The loss happened on the other path, so it has
+    // to be driven with a refusal that is genuinely unnamed. The driver's own early-exit
+    // diagnoses are lowercase and therefore unnamed by construction, which is exactly the
+    // shape: a real message, no class, three lines of preamble in front of it.
+    const UNNAMED_STDERR = [
+      '(node:87500) ExperimentalWarning: WASI is an experimental feature and might change at any time',
+      '(Use `node --trace-warnings ...` to show where the warning was created)',
+      'replay: 0x2a1cd76f262f23a4bb7609f7cb1b5b4b967256c73da9c7bae6dc386003ba2d6e via https://aztec.drpc.org',
+      'replay: no first-in-block transaction with a retained body above the finalized tip',
+      '',
+    ].join('\n');
+
+    ck('control: a genuinely unnamed refusal is still reported as `unknown`',
+       refusalName(UNNAMED_STDERR) === 'unknown');
+    const dFall = refusalDetail(UNNAMED_STDERR, 'unknown');
+    ck('control: the fallback reaches the diagnosis PAST the three-line preamble',
+       dFall.includes('no first-in-block transaction with a retained body'));
+    ck('control: and carries none of the preamble it had to step over',
+       !dFall.includes('ExperimentalWarning') && !dFall.includes('trace-warnings')
+         && !dFall.includes('via https://'));
+
+    // MUTATION: the pre-fix NOISE rule over the same stderr. It must reproduce exactly the
+    // useless shape the two lost transactions recorded — all preamble, no diagnosis —
+    // which is what proves the three controls above are measuring the repair.
+    const oldIsNoise = (l) =>
+      l.trim().length === 0 || /^Node\.js v\d/.test(l.trim())
+      || /^\s*at\s/.test(l) || /^[{}\s]*$/.test(l);
+    const oldPicked = [];
+    for (const l of UNNAMED_STDERR.split('\n').map((l) => l.trimEnd())) {
+      if (oldPicked.length >= 3) break;
+      if (!oldIsNoise(l)) oldPicked.push(l.trim());
+    }
+    const oldDetail = oldPicked.join(' ').slice(0, 400);
+    bite('mutation: the old noise rule spends its whole budget on preamble and drops the diagnosis',
+         oldDetail.includes('ExperimentalWarning')
+           && !oldDetail.includes('no first-in-block transaction'));
+
+    // A warning is not a refusal, and a source echo shaped like a message is not a name.
+    ck('control: a bare Node warning line is not taken as a refusal name',
+       refusalName('(node:1) ExperimentalWarning: WASI is experimental\n') === 'unknown');
+    ck('twin: a source echo `Foo: bar,` is skipped and the real message below it wins',
+       refusalName('    Foo: bar,\nAvmTrap: the trap fired\n') === 'AvmTrap');
+  }
+
   await rm(dir, { recursive: true, force: true });
   ck('the temp container was cleaned up', !existsSync(ctPath));
 
-  // 51: 7 cases (7+1, 6+2, 5+1+2, 3+1, 3+1, 2, 7+1) = 42, plus 3 outcome-set, 5 invariant,
-  // 1 cleanup. Declared rather than derived, so adding a case without updating this
-  // number is a failure — which is the whole point of counting.
-  expectCount(51);
+  // 62: 8 cases (7+1, 6+2, 5+1+2, 3+1, 3+1, 2, 7+1, 8+2) = 53, plus 3 outcome-set,
+  // 5 invariant, 1 cleanup. Declared rather than derived, so adding a case without
+  // updating this number is a failure — which is the whole point of counting.
+  expectCount(62);
   if (failed) {
     console.error(`\nFAIL — ${failed} problem(s)`);
     return 1;
