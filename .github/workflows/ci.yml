@@ -678,7 +678,20 @@ jobs:
           rm -rf .journey-site && mkdir -p .journey-site
           cp -R result/. .journey-site/
           chmod -R u+w .journey-site
-          ./client/hydrate/fetch-engine.sh .journey-site/replay-engine
+          # INTO THE CACHE, and let the runner stage from there.
+          #
+          # The engine used to be fetched straight into `.journey-site/`, and the
+          # selftest step below then reported NEVER RAN for its two hydration
+          # arms: those arms rebuild into `client/dist`, which had no engine, so
+          # their journeys SKIPPED and emitted no assertions to match against.
+          # The harness was right to call that "never ran" rather than a kill —
+          # an arm whose journey did not execute has demonstrated nothing — but
+          # the arms were measuring the wrong tree.
+          #
+          # `lib/engine.mjs` copies the cache into whichever `--dist` it is given,
+          # so one fetch now serves both the selftest's `client/dist` and the
+          # verdict's `.journey-site`. It is fetched once because it is 18 MB.
+          ./client/hydrate/fetch-engine.sh client/.replay-engine-cache
 
       # THE WORKING TREE IS NOT THE NIX BUILD, and the selftest below uses the
       # working tree.
