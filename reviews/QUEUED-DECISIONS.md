@@ -1465,3 +1465,65 @@ Until this is answered, `just capture-hydration-divergence` reports FAILED. That
 is correct: the check names a real defect, and a red check that is right is not
 the wolf-crying Q21 objects to — Q21's complaint is a check that fires when
 nothing is wrong.
+
+## Q21 — TAKEN. Option (a), after the proxy fired a third time on the same five
+vd11-r1 re-reviewed `debugger--testnet` alone, revision 2026-09-01.6 -> .7, and
+the same five tx-detail citations went red for the third consecutive round, all
+SAFE-RESTAMP for the third consecutive round. Three data points, same sites, same
+verdict, none of them anything to do with what changed. The entry recommended (a)
+when it had one; it now has three, and paying the treadmill a fourth time to
+avoid deciding would itself be the decision.
+
+B4 no longer asserts revision CURRENCY. It asks the property currency stood in
+for — is the finding at this id the same finding it was at the cited revision? —
+by calling what `citation-evidence.mjs` already computed. The shared half is
+`tools/design/lib/citation-meaning.mjs`; both consumers read it and there is no
+second copy to drift, which is the same fix as `lib/provenance.mjs` two commits
+earlier and for the same reason.
+
+**This is strictly stronger, and that is the only basis on which it was allowed.**
+The standing rule is never to resolve a finding by weakening the assertion that
+produced it, so the change was measured against that rather than argued past it:
+
+  * RECALL is unchanged. A meaning change alters the finding text at that id, so
+    `MEANING-CHANGED` catches every case currency caught for the right reason.
+  * PRECISION improves. A citation that resolves to a byte-identical finding is
+    no longer reported, because nothing is wrong with it.
+  * Two cases the old check could not tell apart from ordinary staleness now
+    fail on their own terms: an id that has left the ledger, and a revision not
+    in this repository's history. A third — an id that was never in the cited
+    revision — is separated from the second, because "the revision is missing"
+    and "the id was not in it" want different fixes and one sentence covering
+    both is the mistake `markUnavailable` already paid for.
+
+So the set B4 rejects is a strict subset of what it rejected before, minus
+exactly the members that were never defects.
+
+**The self-test case that asserted the old behaviour was replaced, not deleted.**
+It said a citation of a superseded revision must turn B4 red — an expectation
+that is now wrong, and was wrong on its own terms. In its place are two cases
+that drive the new contract in both directions: a superseded revision whose
+finding is UNCHANGED must be ACCEPTED, and one whose finding CHANGED MEANING must
+be REJECTED. A check proved only by rejecting would pass by rejecting everything,
+which is what this file's base-case discipline exists for. Until now nothing in
+138 cases drove B4's actual purpose.
+
+Both plants are DERIVED from real history at run time rather than pasted in.
+Pasting is what made these anchors a treadmill in the first place — every ingest
+moved the revision and the self-test failed with "the anchor text is no longer in
+styles.nim" on rounds that had changed nothing about citations. A derived anchor
+cannot go stale, and when no qualifying pair exists the case FAILS saying so
+rather than passing on an empty search. vd11-r1 supplied 37 MEANING-CHANGED pairs
+by replacing six reviews, which is how routine their creation is.
+
+**The CI shape was the real constraint.** Resolving a past revision needs git
+history, and this repository's workflows use `actions/checkout@v4` at its default
+depth of 1. A check concluding "not in history" from a shallow clone would fail
+every citation in CI for a reason about the checkout. So absence of history is
+detected and named, and a citation that cannot be verified falls back to the
+currency proxy — today's behaviour exactly, reported as the fallback it is.
+CI keeps the check it had; a full checkout gets the better one; nothing infers a
+verdict from evidence it did not have.
+
+Not re-stamped: the nine SAFE-RESTAMP sites keep their revisions, because under
+the new rule there is nothing to fix about them. That is the point.

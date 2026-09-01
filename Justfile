@@ -297,12 +297,18 @@ design-bindings:
 
 # What each STALE `ledger@<revision>:<id>` citation points at, then and now.
 #
-# B4 says whether a citation resolves; it cannot say whether the finding at that
-# id still MEANS what the comment citing it says. That is the difference between
-# a revision bump you may fix by re-stamping and one you may not: a round that
-# REPLACES reviews on a triple leaves the ids intact and the meanings different,
-# so a bulk re-stamp would make every one of them resolve to a finding it was
-# never written about — and B4 would pass over all of them.
+# B4 NOW CALLS THIS (Q21). It used to assert revision CURRENCY as a proxy for
+# "this citation still means what the comment says", which never missed a
+# meaning change and fired on every citation at every ingest regardless of what
+# the round touched — three consecutive rounds turned the same five tx-detail
+# sites red while re-reviewing debugger triples, all SAFE-RESTAMP every time.
+# `tools/design/lib/citation-meaning.mjs` is the shared half; B4 fails only on
+# MEANING-CHANGED, on an id that has left the ledger, and on a revision not in
+# history.
+#
+# This command stays, and is still the thing to run when B4 is red: it prints
+# the two texts side by side so the reader can see WHAT changed rather than
+# being told THAT something did.
 #
 # Prints the finding as it stood at the cited revision beside the finding at
 # that id now, and classifies each site SAFE-RESTAMP or MEANING-CHANGED.

@@ -32,13 +32,24 @@
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFileSync } from "node:child_process";
+import {
+  classifyCitation,
+  indexFindings,
+  ledgerHistoryAvailable,
+  makeLedgerAtRevision,
+} from "./lib/citation-meaning.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const LEDGER = join(ROOT, "reviews", "ledger.json");
 
 // The same pattern B4 uses, so this reads exactly the set B4 rejects.
 const CITE = /ledger@([0-9][\w.-]*):([a-z0-9-]+\/[a-z0-9-]+\/[a-z0-9-]+\/(?:L\d+|ADV)\/\d+)/gi;
+
+// The history walk and the verdicts used to live HERE, and B4 had a different
+// mechanism for the same question. B4 now decides on this one (Q21), so both
+// read from `lib/citation-meaning.mjs` and there is no second copy to drift.
+// What stays here is the PRESENTATION — printing both texts so a reader can see
+// what changed rather than being told that something did.
 
 const walk = (dir, out = []) => {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -50,41 +61,8 @@ const walk = (dir, out = []) => {
   return out;
 };
 
-/** The ledger as it stood at a revision, found by walking git history. */
-const ledgerAtRevision = (() => {
-  const cache = new Map();
-  return (rev) => {
-    if (cache.has(rev)) return cache.get(rev);
-    let found = null;
-    try {
-      const shas = execFileSync(
-        "git", ["-C", ROOT, "log", "--format=%H", "--", "reviews/ledger.json"],
-        { encoding: "utf8", maxBuffer: 1 << 28 },
-      ).trim().split("\n").filter(Boolean);
-      for (const sha of shas) {
-        try {
-          const blob = execFileSync(
-            "git", ["-C", ROOT, "show", `${sha}:reviews/ledger.json`],
-            { encoding: "utf8", maxBuffer: 1 << 28 },
-          );
-          const L = JSON.parse(blob);
-          if (L.ledgerRevision === rev) { found = L; break; }
-        } catch { /* a commit where the file did not parse or exist */ }
-      }
-    } catch { /* not a git tree */ }
-    cache.set(rev, found);
-    return found;
-  };
-})();
-
-const indexFindings = (L) => {
-  const m = new Map();
-  if (!L) return m;
-  for (const r of L.reviews ?? []) {
-    for (const f of r.findings ?? []) m.set(f.id, { ...f, reviewer: r.reviewer });
-  }
-  return m;
-};
+const ledgerAtRevision = makeLedgerAtRevision(ROOT);
+const history = ledgerHistoryAvailable(ROOT);
 
 const args = process.argv.slice(2);
 const asJson = args.includes("--json");
@@ -106,17 +84,15 @@ for (const file of sources) {
   for (const m of text.matchAll(CITE)) {
     if (m[1] === revision) continue;           // resolves; not our subject
     const line = text.slice(0, m.index).split("\n").length;
-    const wasLedger = ledgerAtRevision(m[1]);
-    const was = indexFindings(wasLedger).get(m[2]);
-    const now = current.get(m[2]);
-    const same = was && now && was.finding === now.finding;
+    const c = classifyCitation({
+      citedRevision: m[1], id: m[2], currentRevision: revision, current,
+      at: ledgerAtRevision, history,
+    });
     rows.push({
       file: relative(ROOT, file), line, citedRevision: m[1], id: m[2],
-      verdict: !was ? "cited-revision-not-in-history"
-        : !now ? "id-gone-from-current-ledger"
-        : same ? "SAFE-RESTAMP" : "MEANING-CHANGED",
-      was: was ? { severity: was.severity, finding: was.finding } : null,
-      now: now ? { severity: now.severity, finding: now.finding } : null,
+      verdict: c.verdict,
+      was: c.was ? { severity: c.was.severity, finding: c.was.finding } : null,
+      now: c.now ? { severity: c.now.severity, finding: c.now.finding } : null,
     });
   }
 }

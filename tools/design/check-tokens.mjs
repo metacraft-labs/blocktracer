@@ -131,6 +131,12 @@ import { existsSync } from "node:fs";
 import { readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  classifyCitation,
+  indexFindings,
+  ledgerHistoryAvailable,
+  makeLedgerAtRevision,
+} from "./lib/citation-meaning.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolvePath(HERE, "..", "..");
@@ -1030,34 +1036,111 @@ async function run(opts) {
       WEB_TOKENS,
       ...(existsSync(DIVERGENCE_DOC) ? [DIVERGENCE_DOC] : []),
     ];
+    // ── B4 NO LONGER ASSERTS REVISION CURRENCY (Q21) ──────────────────────
+    //
+    // It used to fail any citation whose revision was not the current one. That
+    // is a PROXY for "this citation still means what the comment says", and the
+    // proxy fired on every citation at every ingest regardless of what the round
+    // touched — three consecutive rounds turned the same five tx-detail sites
+    // red while re-reviewing debugger triples, and `design-citations` classified
+    // all of them SAFE-RESTAMP all three times.
+    //
+    // B4 now asks the real question, by calling what `citation-evidence.mjs`
+    // already computed: is the finding at that id the same finding it was at the
+    // cited revision? MEANING-CHANGED fails. SAFE-RESTAMP does not, because
+    // there is nothing wrong with it.
+    //
+    // Strictly stronger, which is the only basis on which this may be done at
+    // all: recall is unchanged (a meaning change alters the text), precision
+    // improves, and the two cases the old check could not distinguish from
+    // ordinary staleness — an id that has left the ledger, and a revision that
+    // never existed — now fail on their own terms. See lib/citation-meaning.mjs
+    // for the argument in full, and for why a shallow CI checkout falls back to
+    // the old proxy rather than inventing a verdict.
     const ledgerPath = join(REPO_ROOT, "reviews", "ledger.json");
-    let ids = null;
+    let current = null;
     let revision = null;
     if (existsSync(ledgerPath)) {
       const L = JSON.parse(await readFile(ledgerPath, "utf8"));
       revision = L.ledgerRevision ?? null;
-      ids = new Set((L.reviews ?? []).flatMap((r) => (r.findings ?? []).map((f) => f.id)));
+      current = indexFindings(L);
     }
+    const history = current ? ledgerHistoryAvailable(REPO_ROOT) : { ok: false, reason: "no ledger" };
+    const at = makeLedgerAtRevision(REPO_ROOT);
     const bad = [];
     let cites = 0;
+    let restamped = 0;
+    let fellBack = 0;
     for (const file of sources) {
       const rel = relative(REPO_ROOT, file);
       const text = await readFile(file, "utf8");
       const lineOf = (i) => text.slice(0, i).split("\n").length;
       for (const m of text.matchAll(CITE)) {
         cites++;
-        if (!ids) { bad.push({ file: rel, line: lineOf(m.index), text: `${m[0]} — reviews/ledger.json does not exist` }); continue; }
-        if (m[1] !== revision) bad.push({ file: rel, line: lineOf(m.index), text: `${m[0]} — cites revision ${m[1]}, the ledger is at ${revision}` });
-        else if (!ids.has(m[2])) bad.push({ file: rel, line: lineOf(m.index), text: `${m[0]} — no finding with that id in the ${revision} ledger` });
+        const where = { file: rel, line: lineOf(m.index) };
+        if (!current) {
+          bad.push({ ...where, text: `${m[0]} — reviews/ledger.json does not exist` });
+          continue;
+        }
+        const c = classifyCitation({
+          citedRevision: m[1], id: m[2], currentRevision: revision, current, at, history,
+        });
+        switch (c.verdict) {
+          case "current":
+            break;
+          case "SAFE-RESTAMP":
+            // Resolves, and still means what it meant. The revision string is
+            // out of date and nothing turns on it.
+            restamped++;
+            break;
+          case "MEANING-CHANGED":
+            bad.push({ ...where, text:
+              `${m[0]} — the finding at that id CHANGED MEANING since the cited revision. ` +
+              `Then: ${JSON.stringify(String(c.was.finding).slice(0, 110))}. ` +
+              `Now: ${JSON.stringify(String(c.now.finding).slice(0, 110))}. ` +
+              `Re-read the comment against the current finding; do NOT simply re-stamp the revision` });
+            break;
+          case "id-gone-from-current-ledger":
+            bad.push({ ...where, text: `${m[0]} — no finding with that id in the ${revision} ledger` });
+            break;
+          case "id-not-in-cited-revision":
+            bad.push({ ...where, text:
+              `${m[0]} — revision ${m[1]} exists, and has no finding with that id. ` +
+              `This citation has never resolved` });
+            break;
+          case "cited-revision-not-in-history":
+            bad.push({ ...where, text:
+              `${m[0]} — revision ${m[1]} is not in this repository's history of reviews/ledger.json, ` +
+              `so what the citation pointed at cannot be established` });
+            break;
+          case "unverifiable-no-history":
+            // The CI case. No history, so the meaning cannot be compared and
+            // currency is the only signal left — which is what B4 used to do
+            // for every citation. Reported as the fallback it is.
+            fellBack++;
+            if (m[1] !== revision) {
+              bad.push({ ...where, text:
+                `${m[0]} — cites revision ${m[1]}, the ledger is at ${revision}, and the meaning ` +
+                `could not be compared (${c.reason}). Run \`just design-citations\` in a full ` +
+                `checkout to see whether this is a safe re-stamp or a changed finding` });
+            }
+            break;
+        }
       }
       for (const m of text.matchAll(PATH_CITE)) {
         cites++;
         if (!existsSync(join(REPO_ROOT, m[1]))) bad.push({ file: rel, line: lineOf(m.index), text: `${m[1]} — cited as evidence, does not exist` });
       }
     }
-    add("B4", "every review-finding citation resolves", bad.length === 0,
+    const note = [
+      `${cites} citation(s) across ${sources.length} source(s)`,
+      `ledger revision ${revision}`,
+      restamped ? `${restamped} cite an earlier revision and still resolve to the SAME finding (safe)` : null,
+      fellBack ? `${fellBack} judged on revision currency alone — ${history.reason}` : null,
+    ].filter(Boolean).join("; ");
+    add("B4", "every review-finding citation still means what it says", bad.length === 0,
       bad.length ? `${bad.length} citation(s) that do not resolve — a comment that reads as evidence and is not:\n${fmt(bad)}`
-        : `${cites} citation(s) across ${sources.length} source(s), every one resolving against ledger revision ${revision}`);
+        : note);
   }
 
   // ── C: the token model's own invariants ─────────────────────────────────
@@ -1292,9 +1375,18 @@ Design-System.md §4.1 — the divergence rule
   B1  Every bkLiteral names a row in docs/DESIGN-DIVERGENCES-WEB.md.
   B2  Every row corresponds to at least one literal.
   B3  The generated implemented-binding table matches web.tokens.json.
-  B4  Every review-finding citation resolves. A ledger round that replaces its
-      predecessor reuses the ids, so 'ledger@<revision>:<id>' must name the
-      CURRENT revision and an id that exists in it.
+  B4  Every review-finding citation still MEANS what it says. A ledger round
+      that replaces its predecessor reuses the ids, so 'ledger@<revision>:<id>'
+      keeps parsing while pointing at a different finding — a comment that reads
+      as evidence and is not.
+      Decided by comparing the finding at that id AT THE CITED REVISION against
+      the finding there now. A changed finding fails; an id that has left the
+      ledger fails; a revision not in this repository's history fails. A citation
+      of a superseded revision whose finding is unchanged PASSES: it needs
+      re-stamping at most, and failing it once per ingest regardless of subject
+      is what taught bulk re-stamping (QUEUED-DECISIONS Q21).
+      Needs git history. Where there is none — a shallow CI checkout — it falls
+      back to revision currency and says that it did.
 
 The token model's own invariants
   C1  theme.light and theme.dark carry identical key sets.

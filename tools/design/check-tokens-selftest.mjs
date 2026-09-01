@@ -91,12 +91,17 @@
 // `content = "Menu"`. All three are asserted below rather than described.
 
 import { readFile, writeFile, mkdtemp, rm, mkdir, utimes, stat, rename } from "node:fs/promises";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
+import { spawnSync, execFileSync } from "node:child_process";
+import {
+  indexFindings,
+  ledgerHistoryAvailable,
+  makeLedgerAtRevision,
+} from "./lib/citation-meaning.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolvePath(HERE, "..", "..");
@@ -343,6 +348,61 @@ const HOME = join(REPO_ROOT, "client", "src", "pages", "home.nim");
 const LAYOUT = join(REPO_ROOT, "client", "src", "components", "layout.nim");
 const WEB_TOKENS = join(REPO_ROOT, "client", "src", "design_system", "web.tokens.json");
 
+// ── B4's two anchors, DERIVED rather than written down ─────────────────────
+//
+// B4 no longer asserts revision currency; it asserts that the finding at a
+// cited id still says what it said (Q21, tools/design/lib/citation-meaning.mjs).
+// So proving that B4 decides needs two plants, and they are opposites:
+//
+//   * a citation of a superseded revision whose finding is UNCHANGED, which B4
+//     must ACCEPT — the case that used to be the whole test and was the whole
+//     over-firing problem;
+//   * a citation of a superseded revision whose finding CHANGED MEANING, which
+//     B4 must REJECT — the property the old proxy could only approximate.
+//
+// Both are computed from real history at run time instead of being pasted in.
+// The pasted form is what made these anchors a maintenance treadmill in the
+// first place: every ingest moved the revision, both anchors went stale, and
+// the self-test failed with "the anchor text is no longer in styles.nim" on a
+// round that had changed nothing about citations. Q21 recorded that cost three
+// rounds running. A derived anchor cannot go stale, and when no qualifying pair
+// exists it says so and fails rather than passing on an empty search.
+const B4_ANCHORS = (() => {
+  const at = makeLedgerAtRevision(REPO_ROOT);
+  const history = ledgerHistoryAvailable(REPO_ROOT);
+  const ledger = JSON.parse(readFileSync(join(REPO_ROOT, "reviews", "ledger.json"), "utf8"));
+  const current = indexFindings(ledger);
+  const out = { safe: null, changed: null, reason: null };
+  if (!history.ok) { out.reason = history.reason; return out; }
+  // Walk the ledger's own history newest-first and take the first revision that
+  // offers each kind. Newest-first so the plants stay close to the present and
+  // a reader diagnosing a failure is not sent five milestones back.
+  for (const sha of history.commits) {
+    let past;
+    try {
+      past = JSON.parse(execFileSync(
+        "git", ["-C", REPO_ROOT, "show", `${sha}:reviews/ledger.json`],
+        { encoding: "utf8", maxBuffer: 1 << 28 }));
+    } catch { continue; }
+    if (!past.ledgerRevision || past.ledgerRevision === ledger.ledgerRevision) continue;
+    for (const [id, f] of indexFindings(past)) {
+      const now = current.get(id);
+      if (!now) continue;
+      const cite = `ledger@${past.ledgerRevision}:${id}`;
+      if (now.finding === f.finding) out.safe ??= { cite, id, revision: past.ledgerRevision };
+      else out.changed ??= { cite, id, revision: past.ledgerRevision };
+    }
+    if (out.safe && out.changed) break;
+  }
+  if (!out.safe || !out.changed) {
+    out.reason =
+      `history has ${out.safe ? "" : "no SAFE-RESTAMP pair"}` +
+      `${!out.safe && !out.changed ? " and " : ""}` +
+      `${out.changed ? "" : "no MEANING-CHANGED pair"} to plant`;
+  }
+  return out;
+})();
+
 const PLANTS = [
   {
     rule: "A1", name: "a raw hex colour in the stylesheet", file: STYLES,
@@ -531,29 +591,48 @@ const PLANTS = [
     // stale revision and nothing else — a plant whose id had also gone would
     // turn B4 red for the wrong reason and prove nothing about revisions.
     //
-    // NOTE the anchors above and below track `styles.nim`'s CURRENT revision,
-    // and must be moved with it. A `from:` that no longer appears in the file
-    // makes this case fail rather than silently pass, which is the behaviour
-    // wanted — vd10-r1's bump was caught exactly this way, as vd9-r2's and
-    // VD.5's were before it.
+    // Q21 IS WHY THIS CASE WAS REPLACED RATHER THAN REPAIRED, and the
+    // replacement is the pair below.
     //
-    // THE MAINTENANCE COST IS ITSELF A FINDING, recorded in
-    // `reviews/QUEUED-DECISIONS.md` Q21. vd10-r1 re-reviewed only the FIVE
-    // debugger triples; `tx-detail/wide/light` was untouched and its findings
-    // are byte-identical. The global `ledgerRevision` still moved, so these
-    // anchors and five live citations in `styles.nim` and `tx.nim` all went
-    // stale over a round that changed nothing they refer to —
-    // `design-citations` classified all nine SAFE-RESTAMP, the first time this
-    // campaign has seen that verdict. B4 fires on revision CURRENCY, which is
-    // a proxy for the property it actually wants (does this citation still
-    // mean what the comment says), and the proxy over-fires once per round per
-    // citation regardless of subject. That is how a check teaches people to
-    // bulk re-stamp, which is the exact move `citation-evidence.mjs` exists to
-    // warn against.
-    rule: "B4", name: "a citation of a SUPERSEDED ledger revision", file: STYLES,
+    // What stood here asserted that a citation of a SUPERSEDED revision must
+    // make B4 red. That expectation is now wrong, and it was wrong on its own
+    // terms: it made B4 fire on every citation at every ingest whatever the
+    // round touched. Three consecutive rounds turned the same five tx-detail
+    // sites red while re-reviewing debugger triples, and `design-citations`
+    // classified all of them SAFE-RESTAMP all three times. The remedy the check
+    // taught was bulk re-stamping — the move `citation-evidence.mjs` exists to
+    // warn against, and the one that would have been catastrophic when all 70
+    // sites were MEANING-CHANGED.
+    //
+    // The assertion is not weakened, it is aimed at the property the proxy
+    // stood in for, and it is proved in BOTH directions below: the safe case
+    // must be accepted and the changed case must be rejected. A check that only
+    // rejected would pass by rejecting everything, which is what the base-case
+    // discipline in this file exists for.
+    rule: "B4", name: "a superseded revision whose finding is UNCHANGED is ACCEPTED",
+    file: STYLES,
     from: "ledger@2026-09-01.6:tx-detail/wide/light/L1/6",
-    to: "ledger@2026-09-01.5:tx-detail/wide/light/L1/6",
-    names: "2026-09-01.5",
+    to: B4_ANCHORS.safe?.cite ?? "ledger@NO-SAFE-PAIR-DERIVED",
+    names: "",
+    expectClean: true,
+    skipReason: B4_ANCHORS.safe ? null : B4_ANCHORS.reason,
+  },
+  {
+    // The property the old proxy could only approximate: the ledger was
+    // replaced, the ids were reused, and the citation kept parsing while
+    // pointing at a different finding. THIS is what B4 is for, and until now
+    // nothing in this file drove it.
+    //
+    // The pair is derived from real history (see B4_ANCHORS), so it cannot go
+    // stale — and vd11-r1 is exactly the kind of round that creates them: it
+    // replaced six `debugger--testnet` reviews, leaving 37 ids whose text at
+    // 2026-09-01.6 differs from their text now.
+    rule: "B4", name: "a superseded revision whose finding CHANGED MEANING is REJECTED",
+    file: STYLES,
+    from: "ledger@2026-09-01.6:tx-detail/wide/light/L1/6",
+    to: B4_ANCHORS.changed?.cite ?? "ledger@NO-CHANGED-PAIR-DERIVED",
+    names: "CHANGED MEANING",
+    skipReason: B4_ANCHORS.changed ? null : B4_ANCHORS.reason,
   },
 
   // ── The evasions tried against the FIX OF THE FIX, and closed ────────────
@@ -684,6 +763,15 @@ for (const p of PLANTS) {
   const beforeTimes = await stat(p.file);
   let restored = false;
   try {
+    // A case whose plant could not be DERIVED is reported as a failure, not
+    // skipped quietly. `B4_ANCHORS` needs git history to find a safe pair and a
+    // meaning-changed pair; a checkout without it (a shallow CI clone) cannot
+    // drive these two, and "could not test" must never read as "tested".
+    if (p.skipReason) {
+      ok(`${p.rule} — ${p.name}`, false,
+        `the plant could not be derived: ${p.skipReason} — this case asserted nothing`);
+      continue;
+    }
     if (!original.includes(p.from)) {
       ok(`${p.rule} — ${p.name}`, false, `the anchor text is no longer in ${p.file}: ${JSON.stringify(p.from)} — this test cannot pass by not finding its subject`);
       continue;
