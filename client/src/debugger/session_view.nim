@@ -675,14 +675,56 @@ func costValue*(f: CallFrame): int =
     if c in {'0'..'9'}: result = result * 10 + (ord(c) - ord('0'))
     elif c notin {',', '_', ' '}: return -1
 
-func formatCost*(n: int): string =
-  ## `1315` → `1,315`, matching the spelling the producers already emit so the
-  ## aggregate column and the per-frame column read as one vocabulary.
-  if n < 0: return "—"
+func groupDigits*(n: int): string =
+  ## `1315` → `1,315`. THE grouping, for every read-only quantity this product
+  ## renders, and the reason it is no longer called `formatCost`.
+  ##
+  ## ## The rule, which existed and was never written down
+  ##
+  ## Six reviewers across three triples filed digit grouping in round vd9-r2,
+  ## every one of them on rubric B7 ("comparable formatting across
+  ## magnitudes"), and the sharpest formulations were "two conventions, with no
+  ## rule a reader can infer" and "pick one convention for every count and cost
+  ## on the page". They were right that no rule could be inferred. They were
+  ## wrong that there was none: the code has followed one consistently, and the
+  ## defect is that it was followed by accident in one pane and nowhere else.
+  ##
+  ## **A figure the reader will COPY is rendered exactly as it was published.
+  ## A figure the reader only READS is grouped.**
+  ##
+  ## `.copyable` is `user-select:all`, so the rendered text IS the copied text:
+  ## a separator inserted into a copyable figure silently corrupts an on-chain
+  ## quantity on its way to a terminal. That is why the Values pane's `10000`
+  ## and the metadata grid's fee are ungrouped and MUST stay ungrouped — three
+  ## reviewers filed the Values pane as part of the inconsistency and the
+  ## correct answer to them is that those digits are a traced program's own
+  ## data, sit inside array literals already comma-separated
+  ## (`[100, 2000, 200, …]`, which grouping would render genuinely ambiguous),
+  ## and are copyable. `ctcost` carries no `.copyable` and is grouped.
+  ##
+  ## ## What was actually broken
+  ##
+  ## The identity bar rendered the trace length `1315` while the Call Trace
+  ## rendered the SAME NUMBER as `1,315` about 300px away, and the home page
+  ## echoed the bare spelling a third time. Two lenses filed exactly that pair.
+  ## Neither readout is copyable, so both were on the wrong side of the rule
+  ## above; they now call this.
+  ##
+  ## The 19-digit fee is NOT fixed here and must not be fixed by grouping it —
+  ## see `reviews/QUEUED-DECISIONS.md` Q16. Two reviewers named the remedy the
+  ## rule permits ("lead with an abbreviated magnitude and keep the exact figure
+  ## secondary", "carry a scaled form beside the exact one"), and that is a new
+  ## element in a facts grid no reviewer has seen, i.e. a taste call.
   let digits = $n
   for i, c in digits:
     if i > 0 and (digits.len - i) mod 3 == 0: result.add ','
     result.add c
+
+func formatCost*(n: int): string =
+  ## One Call Trace cost cell. The grouping is `groupDigits`; what belongs to
+  ## COST and not to grouping is the em dash: a frame the producer did not meter
+  ## has no number, and `-1` is the absence rather than a quantity.
+  if n < 0: "—" else: groupDigits(n)
 
 func selfCost*(frames: seq[CallFrame]; i: int): int =
   ## Frame `i`'s cost with its DIRECT callees' cost removed, or `-1` when the

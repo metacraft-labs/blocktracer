@@ -82,8 +82,11 @@ proc liveDemo(demo: DebugSessionView;
           if provenanceLabel.len > 0:
             span(class = "badge " & provenanceTone(provenanceKind)):
               text provenanceLabel
+          # The home page's third spelling of the trace length. Grouped for the
+          # reason `groupDigits` gives: prose is read, never copied.
           text "A real session, stopped mid-execution at step " &
-               $demo.controls.step & " of " & $demo.controls.totalSteps & "."
+               groupDigits(demo.controls.step) & " of " &
+               groupDigits(demo.controls.totalSteps) & "."
         a(class = "btn primary", href = txUrl(demo.chain, demo.txHash) & "/debug"):
           text "Open the full session"
 

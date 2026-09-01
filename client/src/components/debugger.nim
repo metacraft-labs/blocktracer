@@ -1038,7 +1038,13 @@ proc renderControls*(p: DebugControlsPane): string =
         span(class = "dcphase"): text p.statusText
         if p.totalSteps > 0:
           span(class = "dcsteps num"):
-            text $p.step & " / " & $p.totalSteps
+            # GROUPED, because this is the same quantity the Call Trace pane
+            # prints ~300px to the left as `1,315` and it was printing it as
+            # `1315`. Two lenses filed the pair in vd9-r2 — "the same quantity
+            # is printed two ways on one screen" — and one more filed the
+            # readout on its own. `dcsteps` carries no `.copyable`, so the rule
+            # on `groupDigits` puts it on the grouped side.
+            text groupDigits(p.step) & " / " & groupDigits(p.totalSteps)
 
 # ── the metadata pane (§7.1) ───────────────────────────────────────────────
 
