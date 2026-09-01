@@ -1,0 +1,61 @@
+Expected elements: present
+
+All must-show items located; nothing forbidden. (a) LANDED here: line 32's numeral and arm glyph are both rgb(103,232,249), against rgb(5,179,208) on the executed dots of lines 34/40. (b) INERT again — "COST · MANA" sets on one line, ink x1158-1236, value starting x1309, so 73px of slack; and "mana" is one word, so the no-break fix has no internal space to act on at all. (c) reproduced; (d) unchanged.
+
+Truncation, my lens. Code is 14px mono, advance 8.44px, text origin x96, clipped at the border x686 = 70 columns. The mask is exactly --bt-space-2xl (48px), opening at x638, so columns 64-69 fall from 15.5:1 to 1.1:1 (peak stem luminance 243 to 38 on bg 27): the legible measure is 64. Six lines (26, 40, 41, 42, 48, 49) drive ink into it, each cut mid-token.
+
+Correcting a figure rather than repeating it: the sibling's "128 columns, 58 gone" is 16% high. 70 visible is right; 128 is not. The widest line rendered in this window is line 40 at 120 characters, and the fixture's longest line anywhere is 123. 50 columns are absent, not 58. The finding stands at full strength. Credit where due: line 32's ink ends x633, five pixels clear of the ramp.
+
+Fixes: scale the ramp to what it hides, or name the hidden column count the way the y173-200 note names the hidden lines; and make the grouping rule legible in the type.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L1/1",
+      "severity": "P2",
+      "location": "Code pane right edge, x638-686, across lines 26/40/41/42/48/49 (y211-880)",
+      "finding": "The horizontal truncation signal neither announces itself nor scales with what it hides. Measured: the code face is 14px mono (--bt-type-code-size:14px confirmed in client/dist), advance 8.44px (line 40's 'fn' at x96, 'calculate' at x121, and column 66 at x678 - 8.44 flat across 66 cells), text origin x96, hard clip at the pane border x686, so the pane shows 70 columns. The mask is exactly --bt-space-2xl = 48px and opens at x638, so columns 64-69 render from 15.5:1 down to 1.1:1 (peak glyph luminance 243 at x632, 187 at x648, 117 at x665, 38 at x683, on a 27 ground): the legible measure is 64 columns, not 70. The widest line in the window is line 40 at 120 characters, so 50 columns - 42% of the line - are gone with no ellipsis, no scrollbar and no count. Six of the 26 lines carry ink into the ramp and every one is cut mid-token: line 26 stops inside the second argument of calculate_remaining_shield_pct(, line 48 inside 'remaining_shi'. The pane spends a full two-line sentence at y173-200 quantifying its VERTICAL truncation ('Showing from line 26 - ...') and says nothing about the horizontal cut, which removes more. The same 48px ramp is used at 1920 where the pane is ~913px and only ~26 columns are missing: a fixed-width ramp cannot express a quantity that doubles between two captured viewports. Widen the ramp in proportion, or name the hidden column count. CORRECTING THE ROUND'S OWN NUMBER: reviews/rounds/vd10-r1/debugger__laptop__light__L1.json recorded '70 of the 128 columns ... 58 columns go'. The 70 is right and the method (x96 to x686 at 8.4px) is right; the 128 is not supportable. The widest line RENDERED in this window is line 40 of client/fixtures/demo-session/src/shield.nr at 120 characters, and the longest line anywhere in that file is 123. The correct figure is 50 columns absent, not 58 - the earlier number was 16% high. The defect is unchanged in severity.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/2",
+      "severity": "P2",
+      "location": "identity bar position readout x849-942 y25-36, against Transaction pane COST row value x1309-1426 y757-770 and Values pane column right-aligned to x1023",
+      "finding": "Fifth lens, and I reach the same verdict in dark at 1440: the grouping rule cannot be inferred from the type. '128 / 1,315' in the bar and '88000 / 200000' in the Transaction pane are the same A-slash-B grammar, in the same face at the same size (digit advance 8.5px and 8.4px - both 14px mono), on one 1440px screen, set under opposite rules, with nothing in the setting to say which is a readout and which is a payload. The stated rationale - ungrouped because copyable - does not survive the ACIR opcode column, whose 1,315 and 1,208 (right-aligned to x1134) are exactly as copyable as the Values pane's 10000 and 2000 and are grouped. Nor is space the constraint: the Values column is exemplary otherwise, every figure right-aligned to x1023 on a 7.33px tabular digit, and its widest figure '10000' occupies 37px (x987-1023) in a column whose next element does not begin until x1109, so a separator costs under 4px. Do not revert the bar. Either group everywhere and give the copy targets an affordance, or mark the copyable class in the type - a distinct value ink, a weight step, or a copy control - so the rule is read rather than deduced.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/3",
+      "severity": "P3",
+      "location": "Transaction pane, FEE PAYER value y615-668 and TARGET value y687-740, value track x1259-1426",
+      "finding": "Both address rows end in a two-character orphan line. The value track is 167px (x1259-1426), which at the 8.44px mono advance is 19.8 characters, so it sets 20 per line and a 42-character address breaks 20/20/2: FEE PAYER spends a full 21px line on '32' (ink x1411-1426, y657-668) and TARGET on '4c' (x1410-1426, y730-740). That is two lines of a pane that is simultaneously fading its own last sentence off the bottom edge at y880-894. One more character of track, or a middle ellipsis with the full value on copy, removes both orphans and the two rows they cost.",
+      "criterion": "A5"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/4",
+      "severity": "P3",
+      "location": "whole page: Call Trace rows y280-300, identity bar x202-261, Code pane x638-686, Transaction pane y657-668 and y880-894",
+      "finding": "Three different truncation vocabularies are in use on one screen and only one of them tells the reader something is missing. (i) Mid-string ellipsis: the call trace elides both halves of one row at y288 ('calculate_remaining_shie...' and 'zk_shields · src/shi...' - two elisions on a single 20px row), and the identity bar hash sets as '0xb63616...6359'. (ii) Silent gradient: the Code pane's right edge and the Transaction pane's bottom edge, where the prose is cut mid-sentence. (iii) Hard character-boundary wrap: the two addresses in finding 3. The ellipsis is the only one legible as an elision; the gradient reads as a design edge and the wrap reads as complete. Choosing one signal for 'there is more here' - even keeping the fade but pairing it with a count - would make the page's own truncation self-describing.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L1/5",
+      "severity": "P3",
+      "location": "Call Trace column header row, y107-118: 'FRAME' x700-741 against 'ACIR opcodes' x1044-1134",
+      "finding": "One header row carries two faces and four treatments. 'FRAME' is the 12px sans label - uppercase, 0.06em tracking, weight 500, 9px cap band y107-115, ~8.4px per character. 'ACIR opcodes' inherits .ctcost's mono, and its .ctunit half then drops the uppercase, the tracking and the weight: 'opcodes' measures 7.14px per character untracked (x1085-1134) with a descender to y117, i.e. genuinely lowercase beside a capitalised sibling. The de-emphasis of the unit is deliberate and defensible; setting a column HEADING in the identifier face is the part worth revisiting, because the design system's own type.label note says labels are 'SANS, not mono - the VD.1 round found mono used as a decorative label style, which stops it marking this is a copyable identifier'. The head cell and the data cells share the .ctcost class, so the header inherits a face that exists to mark copyable data.",
+      "criterion": "A4"
+    }
+  ]
+}
+```

@@ -1,0 +1,70 @@
+Expected elements: present
+
+All backbone items are present: identity bar with a chain-targeting exit (`← demo`, x20-80 y22-40), bidirectional stepping, scrubber, readout, phase rail; Code positioned at line 32; Call Trace/Event Log as one tab strip with Call Trace open; Values as a separate pane below; provenance as the transaction pane's `Data` row. No band above the bar, no spinner, no empty pane, no light chrome. The register reads as the desktop app.
+
+The register damage is in the ink and the copy, not the layout. The amber `Partial` badge (x206-258 y20-42; x1160-1216 y100-122) sits 100px above a reason that says both halves succeeded — P1, and it caps my rating. Below it, a wire enum is dressed in the exact voice of the pane's authored provenance prose (both rgb(162,162,162), same face and size).
+
+Three blue-family hues live in the identity bar alone — link indigo #818cf8, position cyan #67e8f9, accent #60a5fa — and #60a5fa is shared, pixel-identical, between the transient `FETCHING` phase and the permanent `Synthetic demo data` claim. The position cyan has also been lent to the gutter's affirmative arm mark, which appears once per frame, on the current line, with no key.
+
+Fixes: relabel the outcome badge to name the split shape, and rewrite the status reason as English. Then take #60a5fa back from the provenance badge.
+
+Withdrawn on measurement: the cost label's no-break spaces are inert here — `.mddl dd .muted` protects `mana (FeeJuice)`, but the row wraps before it.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L5/1",
+      "severity": "P1",
+      "location": "identity bar `Partial` badge x206-258 y20-42, repeated in the transaction pane x1160-1216 y100-122, against `Status reason: private-part-succeeded-public-part-succeeded` at x1156-1420 y188-210",
+      "finding": "The badge is painted in the warn/amber family (fill rgb(234,88,12), text rgb(251,146,60)) and labelled with the English word every explorer uses for 'something did not fully work', while the reason printed 90px beneath it states that both the private and the public part succeeded. One of the two is false and nothing on the page tells the reader which. This is an honesty failure under brief section 9, not a copy infelicity: a successful split commit is presented as a degraded outcome. In register terms it is also the loudest tone on the surface spent on a non-event, which is why the amber pulls the eye before the current position does.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/2",
+      "severity": "P2",
+      "location": "transaction pane, status reason line x1156-1420 y188-210, against the provenance prose x1156-1424 y252-450",
+      "finding": "The raw protocol enum `private-part-succeeded-public-part-succeeded` is set in the same face, the same size and the same ink (sampled rgb(162,162,162) in both) as the pane's carefully edited provenance sentences 44px below it. The product's copy voice is authored English -- 'None of them exists on any network', 'the execution trace is real' -- and putting a wire value in that exact voice tells the reader it was written for them. The two registers of text need to look different: either give the enum the monospace identifier treatment the pane already has for hashes, or render it as the sentence it means.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/3",
+      "severity": "P2",
+      "location": "`Synthetic demo data` badge, transaction pane x1276-1424 y218-242, against the active phase-rail item `FETCHING` at x963-1040 y22-40",
+      "finding": "Both are drawn in rgb(96,165,250) -- sampled identical, not merely similar. One ink carries a transient engine state that will be gone in a second and a permanent claim about what the whole page is. The collision is worse because the identity bar already holds two other blue-family hues doing two other jobs: link indigo rgb(129,140,248) on `demo` and `101:0`, and position cyan rgb(103,232,249) on the scrubber fill x672-690 y25-38. Four blue roles across one bar and one pane is not a palette a reader can learn. Every other badge on this page -- `No timestamp published`, `Not observable`, `Yes`, `Safe` -- is neutral rgb(145,145,145); the provenance badge should either join them or take a hue nothing else on the surface uses.",
+      "criterion": "A7"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/4",
+      "severity": "P2",
+      "location": "code pane gutter, line 32 glyph at x74-84 y379-387; compare line 29 glyph x74-84 y310-316 and the line number `32` at x38-60 y373-393",
+      "finding": "The affirmative arm mark on the current line is painted in the position ink rgb(103,232,249) -- the same ink as the current line number, the scrubber fill and the active iteration pill `3` at x447-481 y98-130. It is the ONLY mark of its kind in the frame and it is on the current line, so a first-time reader learns it as 'you are here' when it means 'this arm ran in the displayed pass'. The documented current-position glyph does not arbitrate, because it is suppressed on exactly the lines that carry a claim (`.srcline.rnnow .mg{display:none}`, client/src/components/debugger_css.nim:693) and so is painted on no view in the corpus. There is no key anywhere on the page for the two circle glyphs. A CodeTracer desktop user arrives with a gutter vocabulary and has to relearn it from a two-sample frame with no legend.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/5",
+      "severity": "P2",
+      "location": "identity-bar readout `128 / 1,315` x866-946 y22-40 against the transaction pane's `COST . MANA` figure `88000 / 200000` x1330-1424 y755-772; and the ACIR opcodes column `1,315` x1090-1136 y132-150 against the Values figure `10000` x985-1030 y596-614",
+      "finding": "The same numeric primitive -- a current/total pair on a slash -- is set under opposite grouping rules roughly 730px apart on one screen, so the reader is asked to read `1,315` and `200000` as members of the same family while the separator says they are not. The stated rule, that Values and cost figures stay ungrouped because they are copyable, does not survive the page: the ACIR opcode counts are equally copyable and ARE grouped. Grouping is a brand-level primitive here -- most of this product's surface is numbers -- and it currently changes meaning per pane rather than per data type.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L5/6",
+      "severity": "P3",
+      "location": "code pane right edge, the gradient over lines 41-43 and 48-49 at approximately x648-684, and the bottom edge at y880-896",
+      "finding": "The soft gradient veil is an explorer-register device -- it is how a marketing surface suggests more content without admitting an edge. The tool register's reference, the desktop app, hard-clips and scrolls. Here the fade eats real code (`after each`, `initial_shield as u`) with no affordance saying the line continues, which makes a deliberate density decision read as an aesthetic one. Unchanged this round and a queued fix was measured and refuted, so this is recorded as the register argument nobody has made rather than a re-file of the geometry.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

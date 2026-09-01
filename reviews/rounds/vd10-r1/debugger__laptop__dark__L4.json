@@ -1,0 +1,75 @@
+Expected elements: present
+
+Dense and recognisably the desktop tool. The density problem here is not too much information — it is a middle column with nothing to do next to a pane that is starved.
+
+I re-measured the sibling disagreement; it resolves for surplus, not tightness. Nav column x691–1144 (454px). The tabbed region y63–561 is 499px tall and ink stops at the "By call order. / Self cost" footer (y312–321), leaving 239px empty — 51.5% of the 464px body, close to the 229px on record. Horizontally, Values rows carry a 222px mean label→value dead band (139px at shield_regen_percentage, 309px at `i`) plus a uniform 86px value→type gap: 308px of 436px usable row width, 71%. Surplus in both dimensions. The "tight at 1440" reading is a truncation artifact — depth-4 labels stop at x1061 while the nearest numeric ink is x1121 and the widest number starts x1099, so 38–60px sits dead beyond the ellipsis.
+
+Next door the transaction pane's value column is 168px and breaks 42-char addresses 20/20/2, orphaning "32" (y656–670) and "4c" (y724–738). Columns are 683/454/287 against 913/608/383 — 1.337/1.339/1.335 on a 1.333x ratio: percentage-only, no min-width.
+
+(a) landed; I withdraw the separation complaint here — line 32's arm is 4px cyan against line 29's 2px #919191. (b) inert: "88000 / 200000" already fits; only the unit wraps. (c) confirmed. (d) unchanged, still eating a clause at 2.87:1.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L4/1",
+      "severity": "P2",
+      "location": "navigation column x691-1144, versus transaction pane value column x1259-1426",
+      "finding": "The middle column has surplus in BOTH dimensions while the transaction pane is width-starved. Vertically: the tabbed region y63-561 is 499px tall, ink ends at the footer y321, leaving 239px empty (51.5% of the 464px body below the tab strip). Horizontally: the nine scalar Values rows carry a mean 222px label-to-value dead band (min 139px at shield_regen_percentage y648-663, max 309px at `i` y841-855) plus a uniform 86px value-to-type gap on every row, so 308px of the 436px usable row width is empty. Meanwhile the transaction pane's value column is only 168px wide and hard-breaks the 42-character FEE PAYER and TARGET addresses 20/20/2, orphaning '32' at y656-670 and '4c' at y724-738. This resolves the campaign's open disagreement in favour of surplus: the correct fix is not re-weighting the row split inside the middle column, it is giving the middle column's width to the transaction pane.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/2",
+      "severity": "P2",
+      "location": "three-column split, pane borders at x4/x686, x691/x1144, x1149/x1435",
+      "finding": "Column widths are 683/454/287 at 1440 against 913/608/383 at 1920 - ratios 1.337/1.339/1.335 on a 1.333x viewport ratio. There is no reflow rule at all, only a percentage split, so no pane gives width up first and the transaction pane falls to 287px where its content demonstrably no longer fits (finding 1). A min-width on the transaction pane, funded from the middle column, is the missing rule.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/3",
+      "severity": "P2",
+      "location": "Call Trace rows 4 and 7, ellipsis at x1061 (y206-221, y282-297)",
+      "finding": "The depth-4 frame labels truncate to 'calculate_remaining_shie...' and 'src/shi...' at x1061, but the nearest numeric ink in those rows starts at x1121 and the widest opcode value ('1,315', row 'main') starts at x1099. So 38-60px of every row is dead to the right of the ellipsis and the truncation is premature by roughly five characters. A sibling read this as the nav column being horizontally tight at 1440; it is not - it is a truncation budget that reserves more for the numeric column than the numeric column uses.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/4",
+      "severity": "P2",
+      "location": "identity bar readout x877-940; Call Trace opcode column x1099-1135; Values value column x987-1023; transaction pane COST row x1309-1426",
+      "finding": "Two thousands-grouping rules are visible in one viewport at the same magnitudes. Grouped: the position readout '128 / 1,315' and the opcode counts '1,315' and '1,208'. Ungrouped: Values '10000', '9000', '2000', '1000', and the cost '88000 / 200000'. A reader cannot infer which figures group, so the grouping stops carrying magnitude and becomes noise. Apply one rule to every figure four digits and over.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/5",
+      "severity": "P2",
+      "location": "transaction pane, EXECUTIONS prose, y865-895 at the pane's bottom edge",
+      "finding": "The bottom fade truncates the sentence mid-clause at '...only proofs, nullifiers and commitments are', and the partially visible line below peaks at #636363 on #1B1B1B - 2.87:1, under the 4.5 floor - with no scrollbar, no expand control and no indication of how much remains. The fade is unchanged this round and still costs content, not decoration. Either give the pane the width to finish the sentence (see finding 1) or make the overflow explicitly reachable.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/6",
+      "severity": "P3",
+      "location": "Code pane header stack, y64-208",
+      "finding": "144px of the 836px Code pane - about 5.6 code rows at the 25.8px row pitch - is spent on chrome before line 26 appears: the CODE title, the LOOP/iteration chip strip, the file tab row, and a 42px prose note 'Showing from line 26 - the session's position is below...' that restates the line number already printed in the gutter. Dropping the note recovers 1.6 rows in the register that most rewards them.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/dark/L4/7",
+      "severity": "P3",
+      "location": "Code pane right edge x682 against the border at x686; bottom edge y890-899",
+      "finding": "Source lines 26, 42, 48 and 49 run to x673-682 and are cut mid-identifier at the pane border, and line 52 renders as a half-height sliver at y890-899. The right-edge fade signals the cut but there is no horizontal scrollbar and no wrap, so at this viewport four of the twenty-six visible lines end in an unreadable token.",
+      "criterion": "B2"
+    }
+  ]
+}
+```

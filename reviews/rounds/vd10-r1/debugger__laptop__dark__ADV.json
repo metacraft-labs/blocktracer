@@ -1,0 +1,27 @@
+Expected elements: present
+
+WITHDRAWAL: my earlier finding on this capture (`debugger/laptop/dark/ADV/1`, P1 — `128 / 1,315` arithmetically impossible) is wrong. I withdraw it; it is gone from `findings` below. I inferred the denominator counted ACIR opcodes because it equals `main`'s cost in the Call Trace. It does not. `demo_session.nim:129-130` sets `FixtureStep = 128` and `FixtureTotalSteps = 1315`, "the recorded trace's step count"; `generator.nim:133` has `traceSteps = 1315  ## ct-print: steps`. Frames carry step and cost as separate fields, and the current frame begins at step 112, so 128 sits correctly inside it. I summed opcodes and compared them against steps. The readout is right.
+
+The mistake exposes the finding I file instead, and it is the fourth refuted fix this round. Two unrelated quantities print as the character-identical string `1,315` ~700px apart: the Call Trace `main` cost (y≈137), headed `ACIR opcodes`, and the identity-bar denominator (y≈32), which carries no unit at all. Change (c) caused this. `debugger.nim:1041` justifies the grouping as "the same quantity the Call Trace pane prints ~300px to the left" — it is not the same quantity, and before the change the bar read `1315` against the trace's `1,315`, so the two at least looked unlike. The ambiguity is demonstrated: two vd9-r2 lenses conflated these, the conflation shipped as a fix, and I then repeated it with pixel tools. Label the readout's unit.
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/ADV/2",
+      "severity": "P2",
+      "location": "identity bar, position readout denominator `1,315` at x≈895-943, y≈24-40, against the Call Trace `main` row's `1,315` at x≈1090-1140, y≈128-146 under the `ACIR opcodes` column header at y≈112",
+      "finding": "Two different quantities render as the identical string `1,315` on one screen with nothing to tell them apart. The Call Trace figure is `main`'s ACIR opcode cost — the column is headed `ACIR opcodes` and the fixture sets `costUnit: \"opcodes\"`. The identity-bar figure is `FixtureTotalSteps`, the recording's step count, and it is printed bare: no unit, no label, only `128 / 1,315`. They are equal here by coincidence of this one recording (`ct-print` reports 1315 steps for a container whose `main` also costs 1315 opcodes); on any other trace they diverge. This round's digit-grouping change created the collision rather than fixing one. Before it the bar read `1315` and the Call Trace read `1,315`, which at least looked unlike; `debugger.nim:1041` now grounds the change in the claim that this is \"the same quantity the Call Trace pane prints ~300px to the left\", which is false, and the two strings are now character-identical. The ambiguity is measured, not hypothetical: two vd9-r2 lenses filed these as one quantity printed two ways, that misdiagnosis was implemented, and I reached the same false conclusion from the rendered page and filed a P1 on it. Three reviewers misread the same pair. Fix by giving the readout its unit — `step 128 / 1,315` or a `steps` suffix — so the grouping change can stand without the two counters reading as one.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

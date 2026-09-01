@@ -1,0 +1,68 @@
+Expected elements: present
+
+All must-show items render: identity bar with chain exit ("demo", x24-75), both stepping directions (x379-417), scrubber (x673-832), Data provenance row with its toned badge (y488-503), Call Trace/Event Log as one tabbed region with Call Trace open, Values as a pane below it. Nothing forbidden is present.
+
+Prior figures reproduce exactly in dark. The shell is a pure percentage split on BOTH axes: columns 683/454/287 at 1440 and 913/608/383 at 1920 = 47.7/31.7/20.0% at each, and the nav column divides 59.7/39.9% at each. Call Trace is 48.9% empty (240px of 491) at laptop, 58.1% at wide; Values 13.1% (43px) against 33.1%. That confirms the campaign's ~8%-vs-~30% Values figure and still rules out reallocation inside the middle column — but extra viewport never reaches Code, the only pane clipped on both axes.
+
+Call Trace is horizontally tight, not too wide: frames 4 and 7 truncate at x1061, crossing the left edge of their own header "ACIR opcodes" (x1045) by 16px.
+
+I escalate the horizontal mask and withdraw the vertical one. `.srcfrom` (y165-210) is a child of masked `.src` with no max-width, so its last word ("in", x665-684) peaks at luminance 30 while the band's own background fades 40 to 27. Vertical: 24px ramp against 22.7px line pitch = 1.06 rows, contrast-bounded per debugger_css.nim:350-361 — preference, not defect.
+
+(b) inert: "COST · MANA" (y757) never wraps here. (c) 1,315 grouped; 10000/2000/88000 not.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L2/1",
+      "severity": "P2",
+      "location": "Code pane, the \"Showing from line 26\" notice band, y165-210, right edge x638-686",
+      "finding": "The 48px right-to-transparent mask on `.src` is a code-scroll signal, but `.srcfrom` is a child of `.src` and carries no max-width, so a wrapped prose band is drawn inside the ramp. Line 1's final word \"in\" (x665-684) peaks at luminance 30 while the band's own sunken background fades from 40 to 27 across x668-686 -- the word AND the band's right boundary both dissolve, and the ramp asserts a line continues horizontally when in fact it wrapped to \"this window.\" on the next line. This reproduces the laptop/light escalation in dark, where the residual ink (30) is actually darker than the band background (40). Cap `.srcfrom` at the pane width minus --bt-space-2xl, or exempt it from the mask.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/2",
+      "severity": "P2",
+      "location": "Call Trace region, frame rows 4 and 7 (y208-220, y284-296) against the column header \"ACIR opcodes\" (x1045-1134, y107-117)",
+      "finding": "The label column and its own numeric column disagree about where the boundary is. The elided paths \"zk_shields.src/shi…\" end at x1061, which is 16px PAST the left edge of the header \"ACIR opcodes\" at x1045; the data below that header is right-aligned and only occupies x1099-1135. So two rules place the same column edge in two places, and the truncation point is computed against neither. Confirms the light sibling's reading that this region has the wrong aspect rather than too much width: it truncates labels horizontally while 240px of its height sits empty.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/3",
+      "severity": "P2",
+      "location": "whole shell -- column borders at x4/686, x691/1144, x1149/1435; nav-column borders at y68/561 and y566/895",
+      "finding": "Both axes are fixed percentage splits with no reflow rule, measured identically in dark at both captured sizes. Columns 683/454/287 (of 1432) at 1440x900 and 913/608/383 (of 1912) at 1920x1080 are 47.7/31.7/20.0% in both cases; the nav column splits 494/330 and 602/402 = 59.7/39.9% in both cases. The consequence is measurable: Call Trace interior is 48.9% empty below \"By call order.\" at laptop (240px of 491) and 58.1% at wide (348px of 599), Values 13.1% (43px of 327) and 33.1% (132px of 399) -- while the Code pane is clipped on BOTH axes at both sizes (bottom row at y874-895, right edge from x638). Every additional pixel of viewport is handed to the panes that already have slack.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/4",
+      "severity": "P3",
+      "location": "Transaction pane, FEE PAYER row (y613-667) and TARGET row (y685-739)",
+      "finding": "The right-aligned hex hard-wraps into three lines whose last is a two-glyph orphan -- \"32\" at x1411-1426 (16px) and \"4c\" at x1410-1426 (17px) against 167-168px lines above. The row label sits on line 1 only, so at 287px of column each address reads as three unlabelled fragments with a ragged tail.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/dark/L2/5",
+      "severity": "P3",
+      "location": "identity bar, between the last stepping pair (ends x646) and the scrubber (x673-832)",
+      "finding": "Proximity inversion. Inside the stepping cluster the four pairs sit 19-21px apart internally and 35-36px apart from each other, but the last pair is only 27px from the scrubber -- less than the separation between control pairs. Spacing therefore groups the scrubber with the buttons more tightly than it groups the buttons with one another. Raising that gap to the 36px used between pairs would let the bar read as identity | controls | scrubber+readout | phase rail rather than one run."
+    },
+    {
+      "id": "debugger/laptop/dark/L2/6",
+      "severity": "P3",
+      "location": "Transaction pane, last body line y874-884, against the pane bottom border at y895",
+      "finding": "The pane's closing sentence is cut mid-clause (\"...only proofs, nullifiers and commitments are\") and its final line falls inside the 24px `.panebody` bottom ramp, so the only overflow affordance is a fade that simultaneously softens the pane's own bottom boundary. Unlike Call Trace and Values -- whose 240px and 43px of trailing slack put the ramp over empty space -- this is one of only two places at this viewport where the vertical mask is load-bearing."
+    }
+  ]
+}
+```

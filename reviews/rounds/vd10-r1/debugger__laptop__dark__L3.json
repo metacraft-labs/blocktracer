@@ -1,0 +1,61 @@
+Expected elements: present
+
+Presence check clean: identity bar with the chain exit "← demo" (x18-76), truncated hash, both stepping directions (x370-650), scrubber, `128 / 1,315` readout, phase rail; Code positioned at line 32; Call Trace/Event Log as one tab strip with Call Trace open and seven frames; Values as its own pane; the `Data` row with its `Synthetic demo data` badge and the producer's prose. Nothing forbidden.
+
+**The trade does not reproduce in dark — it is a win on both sides.** The old executable ink #06B6D4 on the current-line band #334155 is 4.26:1 exactly, reproducing the recorded ceiling; the new position ink #67E8F9 is 7.14:1 peak, median flank pixel 3.91:1, 24 of 54 glyph pixels at or above 4.5:1. Figure-figure moved the *opposite* way from light: the affirmative ink's relative luminance is 0.6744 against the not-taken ⊘'s #919191 at 0.2831 — **2.17:1, up from 1.30:1**. Light collapsed because #164E63 (0.0652) collides with #484848 (0.0648); dark's cyan-300 sits far above the neutral. Shape is unchanged: IoU 0.889 at zero shift, 4 differing pixels of a 36-px union, best-shift search finds nothing better — identical to the wide-dark re-measurement.
+
+The pane fade reproduces exactly (finding 1). No coverage dot falls inside any gradient here: all twelve read 6.86:1. Cyan still carries eight meanings, and #67E8F9 alone now carries six.
+
+Fixes: exempt the last full line from the pane mask; give the current mark a non-ring silhouette.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "dark",
+  "image": "screenshots/debugger__laptop__dark.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger/laptop/dark/L3/1",
+      "severity": "P1",
+      "location": "Transaction pane, EXECUTIONS note, last two lines (x1157-1435, y874-885 and y888-894); pane border at y895",
+      "finding": "Reproduces in dark with the same magnitude as the prior 2.19-2.22:1 records. The pane-body fade drives the producer's own honesty prose below the contrast floor BEFORE it leaves the box. The line 'only proofs, nullifiers and commitments are' occupies y874-885; the pane border is at y895, so the line has nine clear pixels beneath it and is not clipped. Peak (stem) contrast against the pane surface #1B1B1B ramps monotonically down: #7B7B7B 4.07:1 at y875, #717171 3.53:1 at y877, #686868 3.09:1 at y879, #636363 2.87:1 at y880, #5D5D5D 2.62:1 at y881, #595959 2.46:1 at y882, #4F4F4F 2.10:1 at y884. Weighting every ink pixel gives 2.22:1 over 923 px, against 5.47:1 (#919191) for the identical prose two lines up at y856-865 and against the 4.5:1 floor for 13px text. A further line at y888-894 is masked to #2C2C2C-#555555, 1.23-2.31:1, present but effectively invisible; the fade also makes a truncated sentence look like a finished one. The defect is confined to this pane: the Code pane fades only the genuinely clipped line 52 (number at x46-62, y887-894, 1.66:1 down to 1.08:1) while line 51 at y862-876 is unmasked at 6.91-10.29:1, and the Values pane fades nothing (last row 'i / 2 / u32' at y843-851, 10.62-15.52:1). Exempt the last fully-contained line from the mask.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/2",
+      "severity": "P2",
+      "location": "Code pane header, 'Iteration 3 of 8' chip strip, x367-677 y99-129; current chip 3 at x445-482",
+      "finding": "No numeral in this strip meets the 4.5:1 floor for 11px text, and the position-ink change made the CURRENT chip the least legible of the three filled ones. Chip 3's numeral is now #67E8F9 on the #727272 chip fill: 3.32:1, below chips 1-2 whose #DDDDDD numerals reach 3.54:1 on the same fill. Chips 4-8 (not yet reached) sit on the #202020 strip at 2.22-3.39:1. Chip fill #727272 against the strip #202020 is 3.39:1, so the chips themselves have an edge, but nothing inside them is readable at size. The tone assignment is also inverted: chips 1-3 (visited and current) carry the heavy light-grey fill while chips 4-8 (unreachable) are dark and open. Either take the current numeral to #F3F3F3 (4.34:1 on the same fill) and mark 'current' another way, or darken the fill so cyan-300 can carry it.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/3",
+      "severity": "P2",
+      "location": "Whole page: cyan #67E8F9 / #06B6D4 / #22D3EE across the identity bar (x672-687 y25-38), Code gutter and rules (x5-8, x47-61, x75-83), Code body tokens, Call Trace (x692-693 y251-275), chip strip (x445-482)",
+      "finding": "Cyan carries EIGHT distinct meanings in this theme, confirming the previous count, and this round concentrated rather than relieved it. The eight: (1) scrubber elapsed fill #22D3EE x673-685; (2) current-line left rule x5-6 #67E8F9 abutting x7-8 #06B6D4; (3) the current line NUMBER '32', x47-61 #67E8F9; (4) the current-line gutter arm glyph x75-83, moved into #67E8F9 this round; (5) the per-line executable/coverage dot, #06B6D4 at x78-79 on twelve rows; (6) the selected-frame rule in Call Trace, x692-693 #67E8F9; (7) the current iteration chip numeral, x445-482 #67E8F9; (8) syntax type tokens 'Field' and 'u32' in the Code body, e.g. x240-262 and x459-481 y424-433, x215-253 y493-502, x501-540 y562-571, all exactly #67E8F9. The change did not add a ninth meaning, but it moved role 4 out of #06B6D4 into #67E8F9, so ONE hex now carries six of the eight (was five) - including a syntax token that has nothing to do with position. Links (#818CF8), phase state (#60A5FA), provenance (#2563EB), warning (#EA580C) and changed-value (#FCD34D) are all separated; position ought to be too. Reserve #67E8F9 for position and demote the type token to a different editor hue.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/4",
+      "severity": "P3",
+      "location": "Code pane gutter x75-83: current-position mark at line 32 (y379-387, on the #334155 band) versus the not-executed slashed circle at line 29 (y309-317, on #1B1B1B)",
+      "finding": "MEASURED WITHDRAWAL of my counterpart's dark-theme expectation, plus a residual. The light-theme regression does not occur here: colour-normalised alpha-coverage masks over a 12x11 box centred on both glyphs give ink luminance 0.6744 (#67E8F9) versus 0.2831 (#919191), a ratio of 2.17:1 - UP from 1.30:1 when the mark was drawn in the executable ink #06B6D4 (0.3825). Desaturate the page and the affirmative mark is still visibly the brighter of the two, which was not true before the change. What HAS not moved is silhouette: IoU is 0.889 at threshold 0.5 with 4 differing pixels of a 36-pixel union (ink mass 32.77 vs 30.96 alpha-px), and a best-shift search over +/-2px finds no better alignment - identical to this round's wide-dark re-measurement of 0.889, so the earlier 0.750 record was a different box or threshold, not a change in the render. Both marks are the same 8px ring differing only in their interior (a diagonal slash versus a vertical bar). 2.17:1 is still under the 3:1 non-text floor, so a greyscale reader has a weak lightness cue plus four pixels of shape. Position itself is not at risk - the band, the #67E8F9 left rule at x5-8 and the cyan line number all carry it - which is why this is P3 and not P2. Give the current mark a genuinely different silhouette (a filled triangle or caret) and the pair separates without relying on either hue or lightness.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/dark/L3/5",
+      "severity": "P3",
+      "location": "All pane boundaries: vertical gutters at x686-691 and x1144-1149, the header rule at y64-69, the Call Trace/Values split at y561-566, and the outer border at y895",
+      "finding": "Surface levels are almost flat and the boundary rests on a hairline that is itself under the 3:1 non-text floor. Pane surface #1B1B1B against the page #000000 is 1.22:1; the pane header band #282828 against the pane surface is 1.17:1; the border #565656 is 2.35:1 against the pane surface and 2.86:1 against the black gutter. This is milder than the same defect in the light theme because the gutter is a 6px composite - 1px #565656, 4px #000000, 1px #565656 - so two sub-3:1 steps in opposite directions add up to a visible edge, which is why it is P3 here and not the P2 it is at light. Taking the border to about #6E6E6E would clear 3:1 against the pane without touching the density.",
+      "criterion": "B4"
+    }
+  ]
+}
+```
