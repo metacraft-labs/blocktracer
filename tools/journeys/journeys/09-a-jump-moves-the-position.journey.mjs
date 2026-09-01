@@ -84,7 +84,7 @@ export const id = "a-jump-moves-the-position";
 export const claim =
   "A visitor who clicks a row in the navigation regions sees the position move there.";
 export const spec = "Debugger-Integration.md §3, §4.2 — BlockTracer";
-export const assertions = 29;
+export const assertions = 34;
 export const needsEngine = true;
 
 /**
@@ -179,6 +179,53 @@ const readNavigable = (page) =>
   });
 
 /**
+ * "The position moved" as a RELATION, never a line number alone.
+ *
+ * THE DEMO ARM CAUGHT THIS THE DAY THE LIVE CALL TRACE LANDED. With the pane
+ * fed by the engine rather than by the export, the first row naming a step the
+ * session is not on is `iterate_asteroids` at step 9 — and jumping there moves
+ * the mark from `main.nr:1` to `shield.nr:1`. The line number is 1 both times.
+ * A journey comparing numbers would have called a working jump broken, which is
+ * the expensive direction: a gate that cries wolf gets switched off.
+ *
+ * `probe.mjs` states this rule for its own reading of the marked line ("read as
+ * a RELATION — its own number and its own text"); this is the same rule applied
+ * to the comparison.
+ */
+const positionMoved = (before, after) =>
+  after.markedNumber !== null &&
+  (after.markedNumber !== before.markedNumber || after.markedDoc !== before.markedDoc);
+
+const positionOf = (f) => `${f.markedDoc ?? "?"}:${f.markedNumber ?? "?"}`;
+
+/**
+ * How many navigation rows the EXPORT ships for this page, read out of the
+ * served markup rather than out of a rendered DOM.
+ *
+ * THE CONTROL THAT WOULD HAVE CAUGHT THE DEFECT THIS JOURNEY WAS BLIND TO. The
+ * live Call Trace and Event Log were never populated on any capture: the engine
+ * answered `ct/updated-calltrace` and nothing wrote the reply into the store.
+ * The demo chain hid it completely, because the static export ships fixture
+ * rows for it — `ctrow` sat at 12 before a step and 12 after, and 12 was the
+ * export's number. Every assertion in this file was satisfied by those rows.
+ *
+ * Fetched, then parsed with `DOMParser` and counted THROUGH THE SAME SELECTOR
+ * the hydrated side uses. `DOMParser` runs no scripts, so this is still what the
+ * export wrote rather than what hydration made of it — and counting both sides
+ * the same way is the part that has to be right. The first draft split the raw
+ * text on `class="ctrow`, which also matches the `ctrows` CONTAINER, so it
+ * reported 22 where the DOM reported 20 and the control passed on a two-row
+ * measurement artefact while the live path was fully disabled. Mutation arm O
+ * caught exactly that, which is what arms are for.
+ */
+const servedNavRows = (page, url) =>
+  page.evaluate(async (u) => {
+    const text = await (await fetch(u, { cache: "no-store" })).text();
+    const doc = new DOMParser().parseFromString(text, "text/html");
+    return doc.querySelectorAll(".ctrow,.evrow").length;
+  }, url);
+
+/**
  * Click, then wait for ANY of the three things a jump could move.
  *
  * A predicate and never a sleep — journey 03's reason applies unchanged: a jump
@@ -244,6 +291,19 @@ export async function run({ browser, site, j }) {
     // are the only record (probe.mjs's header, Traps §3).
     j.countIs(live.pageErrors.length, 0, "no uncaught page errors while the session came up");
 
+    // THE LIVE PATH RAN, AND THE EXPORT IS NOT ANSWERING FOR IT. See
+    // `servedNavRows`. This is the assertion that would have failed for the
+    // whole life of the two panes and did not exist to.
+    const servedRows = await servedNavRows(page, site.origin + subject.debugPath);
+    const hydratedRows = await page.evaluate(
+      () => document.querySelectorAll(".ctrow,.evrow").length,
+    );
+    j.expect(
+      hydratedRows > 0 && hydratedRows !== servedRows,
+      "CONTROL: the navigation rows are the engine's, not the export's",
+      `served ${servedRows} row(s), hydrated ${hydratedRows}`,
+    );
+
     // ── the call trace ───────────────────────────────────────────────────
     const ct = await readRows(page, ".ctrow");
     j.atLeast(ct.shown, 1, "the call trace has rows on screen to click");
@@ -288,9 +348,9 @@ export async function run({ browser, site, j }) {
       `marked line ${ctAfter.markedNumber} in ${ctAfter.markedDoc}`,
     );
     j.expect(
-      ctAfter.markedNumber !== null && ctAfter.markedNumber !== ctBefore.markedNumber,
-      "the marked line moved",
-      `marked line ${ctBefore.markedNumber} -> ${ctAfter.markedNumber}`,
+      positionMoved(ctBefore, ctAfter),
+      "the marked position moved to the row's step",
+      `${positionOf(ctBefore)} -> ${positionOf(ctAfter)}`,
     );
 
     // ── the event log ────────────────────────────────────────────────────
@@ -351,9 +411,9 @@ export async function run({ browser, site, j }) {
       "after the event-log jump, exactly one line carries the position mark",
     );
     j.expect(
-      evAfter.markedShown && evAfter.markedNumber !== evBefore.markedNumber,
-      "the marked line moved, and is on screen",
-      `marked line ${evBefore.markedNumber} -> ${evAfter.markedNumber}, on screen=${evAfter.markedShown}`,
+      evAfter.markedShown && positionMoved(evBefore, evAfter),
+      "the event-log jump moved the mark, and it is on screen",
+      `${positionOf(evBefore)} -> ${positionOf(evAfter)}, on screen=${evAfter.markedShown}`,
     );
   } finally {
     await page.close();
@@ -398,73 +458,73 @@ async function realArm(browser, site, j, subject) {
     );
     j.countIs(live.pageErrors.length, 0, "REAL: no uncaught page errors while the session came up");
 
-    const before = live.facts;
+    const before = await readFacts(page);
     j.countIs(before.marked, 1, "REAL: exactly one line carries the position mark");
     j.expect(
       before.markedShown,
       "REAL: the marked line is on screen, not merely in the DOM",
-      `marked line ${before.markedNumber} in ${before.markedDoc}`,
+      `marked ${positionOf(before)}`,
     );
 
-    // THE VISITOR'S OWN SENTENCE: "it's not following properly". Driven through
-    // the toolbar because on a real capture there is no row to drive it
-    // through — which is itself the finding, asserted below.
-    await page.click('[data-action="step-forward"]');
-    const deadline = Date.now() + 15000;
-    let after = before;
-    while (Date.now() < deadline) {
-      after = await readFacts(page);
-      if (
-        after.urlQuery !== before.urlQuery ||
-        after.step !== before.step ||
-        after.markedNumber !== before.markedNumber
-      )
-        break;
-      await page.waitForTimeout(200);
-    }
-
+    // THE CONTROL, AND ON THIS ARM IT IS THE STRONGEST FORM OF IT. A rung-3
+    // export ships NO navigation rows at all — the SSR constructor has no
+    // instruction-level arm for these two panes — so every row on screen here
+    // came from the engine and nothing else could have put it there.
+    const servedRows = await servedNavRows(page, site.origin + subject.debugPath);
+    const hydratedRows = await page.evaluate(
+      () => document.querySelectorAll(".ctrow,.evrow").length,
+    );
     j.expect(
-      after.urlQuery !== before.urlQuery || after.step !== before.step,
-      "REAL: CONTROL — the step reached the engine",
+      hydratedRows > 0 && hydratedRows !== servedRows,
+      "REAL: CONTROL — the navigation rows are the engine's, not the export's",
+      `served ${servedRows} row(s), hydrated ${hydratedRows}`,
+    );
+
+    // ROWS ARE REQUIRED, NOT EXCUSED. This assertion was written the day
+    // before as "either jump where the row says, or state why there are no
+    // rows", which was honest while the belief was that a rung-3 recording
+    // carries no frames. It does carry them — the engine answers with
+    // `<toplevel>` and `enqueued-call-0`, both named, both tick-bearing — so
+    // the excusing arm was excusing a defect, and it is gone.
+    const nav = await readRows(page, ".ctrow,.evrow");
+    j.atLeast(nav.shown, 1, "REAL: the navigation regions have rows on screen to click");
+    j.countIs(
+      nav.shownNamingAStep,
+      nav.shown,
+      "REAL: every navigation row on screen names a step to jump to",
+    );
+
+    const target = await pickTarget(page, ".ctrow,.evrow");
+    j.expect(
+      target !== null,
+      "REAL: CONTROL — some row on screen names a step the session is not already on",
+      target ? `row "${target.label}" names step ${target.step}` : "none found",
+    );
+
+    const after = target ? await jump(page, target.index, ".ctrow,.evrow", before) : before;
+    j.expect(
+      after.urlQuery !== before.urlQuery,
+      "REAL: CONTROL — the click reached the engine (the time coordinate advanced)",
       `${before.urlQuery} -> ${after.urlQuery}`,
     );
-    j.expect(
-      after.step !== before.step,
-      "REAL: the step this session reports advanced",
-      `data-step ${before.step} -> ${after.step} (of ${after.totalSteps})`,
-    );
-    j.countIs(after.marked, 1, "REAL: after the move, exactly one line still carries the mark");
-    j.expect(
-      after.markedNumber !== null && after.markedNumber !== before.markedNumber,
-      "REAL: the position mark FOLLOWED the session",
-      `marked line ${before.markedNumber} -> ${after.markedNumber}`,
-    );
 
-    // THE JUMP SURFACE. Either the regions offer rows that name a step and the
-    // jump lands where the row said, or they render nothing and SAY WHY. The
-    // silent third state — rows a click cannot use, or an empty box with no
-    // sentence — is the visitor's complaint, and it is the only one that fails.
-    const nav = await readNavigable(page);
-    const health = await readPaneHealth(page);
-    const navigable = nav.shown > 0 && nav.namingAStep === nav.shown;
-    let verdict;
-    let detail;
-    if (nav.shown === 0) {
-      verdict = health.mute === 0;
-      detail = `no navigation row on this recording; ${health.panes} pane(s) all state their content or their absence (mute: ${health.muteTitles.join(", ") || "none"})`;
-    } else if (navigable) {
-      const target = await pickTarget(page, ".ctrow,.evrow");
-      const jumped = target ? await jump(page, target.index, ".ctrow,.evrow", after) : after;
-      verdict = target !== null && jumped.step === target.step && jumped.marked === 1;
-      detail = `${nav.shown} row(s) on screen; jumped to the step row named ${target?.step}, session reports ${jumped.step}`;
-    } else {
-      verdict = false;
-      detail = `${nav.shown} row(s) on screen but only ${nav.namingAStep} name a step — a click on the rest does nothing`;
-    }
+    // THE VERDICT, and it is the visitor's own sentence: the mark follows the
+    // jump they performed.
     j.expect(
-      verdict,
-      "REAL: the navigation regions either jump where the row says, or state why they have no rows",
-      detail,
+      target !== null && after.step === target.step,
+      "REAL: the session's reported step is the step the row named",
+      `data-step ${before.step} -> ${after.step}, the row named ${target?.step}`,
+    );
+    j.countIs(after.marked, 1, "REAL: after the jump, exactly one line carries the mark");
+    j.expect(
+      after.markedShown,
+      "REAL: the marked line is on screen after the jump",
+      `marked ${positionOf(after)}`,
+    );
+    j.expect(
+      positionMoved(before, after),
+      "REAL: the mark moved to where the row pointed",
+      `${positionOf(before)} -> ${positionOf(after)}`,
     );
   } finally {
     await page.close();

@@ -234,6 +234,61 @@ const ARMS = [
     assertion: "the session's reported step is the step the event-log row named",
   },
   {
+    id: "M/the-calltrace-reply-is-discarded-again",
+    why:
+      "Drop the `ct/updated-calltrace` payload on the floor, which is exactly what" +
+      " the pinned store does with it: `requestCalltraceSection`'s `onComplete` takes" +
+      " no response argument and only sets `loadingState` idle, and" +
+      " `updateCalltraceSection` had no caller in this repository outside" +
+      " `tests/tdebugpanes.nim`. That is the defect this module was written for, and" +
+      " it was INVISIBLE for the life of both panes because the static export ships" +
+      " fixture rows for the demo chain — `ctrow` read 12 before a step and 12 after," +
+      " on a session whose engine had just answered. The arm restores the defect on" +
+      " the one surface the fixture cannot cover: a rung-3 capture, whose export" +
+      " ships no navigation rows at all, so every row on screen came from the engine" +
+      " or from nowhere.",
+    file: join(CLIENT, "hydrate", "live_navigation.nim"),
+    find: `  feed.store.updateCalltraceSection(`,
+    replace: `  if false: feed.store.updateCalltraceSection(`,
+    journey: "a-jump-moves-the-position",
+    assertion: "REAL: the navigation regions have rows on screen to click",
+  },
+  {
+    id: "N/the-position-is-compared-by-number-alone",
+    why:
+      "Compare the marked LINE NUMBER instead of the marked position. The demo" +
+      " session's first row naming a step it is not on is `iterate_asteroids` at step" +
+      " 9, and jumping there moves the mark from `main.nr:1` to `shield.nr:1` — the" +
+      " number is 1 both times and the FILE is not. This arm proves the comparison is" +
+      " a relation rather than an integer: with it in place a working jump reads as a" +
+      " mark that never moved, which is the direction that gets a gate switched off." +
+      " It went in the day the live call trace landed, because that is the day the" +
+      " demo arm's target stopped being a row in the same file.",
+    file: join(REPO, "tools", "journeys", "journeys",
+               "09-a-jump-moves-the-position.journey.mjs"),
+    find: `  (after.markedNumber !== before.markedNumber || after.markedDoc !== before.markedDoc);`,
+    replace: `  after.markedNumber !== before.markedNumber;`,
+    journey: "a-jump-moves-the-position",
+    assertion: "the marked position moved to the row's step",
+  },
+  {
+    id: "O/the-export-answers-for-the-live-path",
+    why:
+      "Ignore BOTH navigation events, so the panes fall back to whatever the static" +
+      " export drew. On the demo chain that is 12 call-trace rows and 8 event rows —" +
+      " a full, plausible, clickable pane that no engine reply touched. This is the" +
+      " precise state the product shipped in, and the reason it survived every" +
+      " assertion in this file: the fixture was standing in for a dead live path and" +
+      " nothing compared the two. The arm's target is the control that now does — a" +
+      " hydrated row count equal to the served one is the signature, and it is the" +
+      " thing a reader would never notice by looking at the pane.",
+    file: join(CLIENT, "hydrate", "live_navigation.nim"),
+    find: `  if feed == nil or event == nil or event.kind != JObject: return`,
+    replace: `  if true: return`,
+    journey: "a-jump-moves-the-position",
+    assertion: "CONTROL: the navigation rows are the engine's, not the export's",
+  },
+  {
     id: "I/the-list-goes-silent-about-source",
     why:
       "Gate the source badge out of the shared transactions table. Every row still" +
