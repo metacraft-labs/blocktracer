@@ -1308,6 +1308,15 @@ Recommendation: **(a)**, with (c) as the standing convention regardless. (b) is
 the most correct and the most invasive; it should not be done to fix a reporting
 nuisance.
 
+**IT HAPPENED TWICE IN ONE SESSION.** vd10-r2 re-reviewed `debugger--testnet`
+alone — one triple, six reviews, on a subject none of these citations mention —
+and the revision moved 2026-09-01.5 -> .6, turning the SAME five citations red
+again, plus the same two self-test anchors. `design-citations` again classified
+all ten SAFE-RESTAMP, zero MEANING-CHANGED. So the observed rate is one
+full re-stamp cycle per ingest, and an ingest happens whenever any triple is
+re-reviewed. Two data points, same five sites, same verdict, same remedy, and
+neither had anything to do with what changed.
+
 Not taken here because it changes what a green B4 means, and that deserves to be
 a decision rather than a side effect of the round that noticed it.
 

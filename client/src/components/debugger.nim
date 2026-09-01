@@ -514,12 +514,28 @@ proc renderSource*(p: EditorPane): string =
           # have. An inert control that states what it waits for says that; a
           # deleted one says the limitation has no route out at all, which
           # would be the page claiming something worse than the truth.
+          # THE REASON NAMES NO MECHANISM, and the first version of it was
+          # FALSE. It said "this route ships no client script, so there is
+          # nowhere to upload them". That is true of the `just export` build the
+          # capture harness photographs — `client/dist` contains zero `.js` —
+          # and FALSE of the build a visitor reaches: `flake.nix` builds the
+          # deployable site with `-d:hydrationBundle=/assets/hydrate.js` and
+          # serves it on this exact route. vd10-r2's adversarial reviewer caught
+          # it in the same report that confirmed the control itself was fixed.
+          #
+          # So a commit made to stop a control claiming something it could not
+          # support shipped a sentence that misattributed its own cause on the
+          # only build that matters. The lesson is narrower than "check your
+          # facts": an explanation that names a BUILD-DEPENDENT mechanism is a
+          # claim about an artefact, and the artefact the campaign photographs
+          # is not the artefact the visitor loads. What is true on every build is
+          # that the product has no route to accept sources yet, so that is all
+          # this says.
           button(class = "btn ghost sm disabled",
                  `aria-disabled` = "true",
-                 title = "Supplying sources is not available yet — this " &
-                         "route ships no client script, so there is nowhere " &
-                         "to upload them. Stepping continues at instruction " &
-                         "level in the meantime."):
+                 title = "BlockTracer cannot accept supplied sources yet. " &
+                         "Stepping continues at instruction level in the " &
+                         "meantime."):
             text "Supply sources"
   let doc = activeDocument(p)
 

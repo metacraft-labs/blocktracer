@@ -1,0 +1,29 @@
+Expected elements: present
+
+Presence, restated with evidence rather than pixels. The inlined stylesheet sets `.panebody{overflow:auto}`, and the Transaction pane's `pre.raw` carries `"instructionsExecuted": 345, "effectsMatched": 23, "effectsMismatched": 0`. Below a scroll fold is not absent; the three MISSING filings graded the viewport, not the page. (`345` also shows as `128 / 345` in the identity bar, but that is a step position against a step total — a different count — so I do not offer it as the telemetry being visible.) The rendering — bare keys in a raw dump under the fold — is L1–L5's P2, not mine.
+
+My change, graded. The control no longer lies about being actionable: `.disabled` + `aria-disabled="true"` is the same three-channel device the eight stepping buttons use, and in the still the pill reads inert. That P1 is fixed. Deletion loses, plainly — this view's block REQUIRES a `Supply sources` affordance, so removing it is a presence P1, and the tx-detail precedent does not transfer because that view's own block forbids "a disabled control of any kind" while this one mandates one.
+
+Weakest is now the explanation. `components/debugger.nim:519` hard-codes "this route ships no client script" into a `title`: invisible in a still, on touch, and to anyone not hovering, in a pane with ~760px of unused space where the page already speaks in visible sentences. It is also unconditional, while `flake.nix:165` builds the deployable site with `-d:hydrationBundle=/assets/hydrate.js`. On the build users get, the button's only explanation names a cause that is false.
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/ADV/1",
+      "severity": "P2",
+      "location": "Code pane, `Supply sources` button at x13-119, y287-309 — its `title` attribute, and the ~760px of empty pane below it (y309-1075)",
+      "finding": "The vd10-r1 P1 is genuinely fixed: the button now carries `.disabled`, `aria-disabled=\"true\"` and a reason, matching the device the eight stepping controls already use, and it reads as inert in the still. Deleting it would have been the wrong fix and I say so plainly — this view's block mandates a `Supply sources` affordance, and the tx-detail `supply an ABI` precedent does not transfer because that view's block forbids a disabled control of any kind while this one requires the route out. What is weak is where the explanation went. The reason lives only in a `title`, so it is unreachable in a still, on touch, and to any reader not hovering — in a pane whose lower 760px is empty and directly under two visible `.panenote` sentences, one of which already duplicates half the tooltip's text. The page proved it can say this out loud and then whispered the other half. Worse, the string in `components/debugger.nim:519` is unconditional: it asserts \"this route ships no client script\", which is true of the `just export` build captured here but false of the deployable site, which `flake.nix:165` compiles with `-d:hydrationBundle=/assets/hydrate.js` and which serves that bundle on this exact route. On the build a user reaches, the only explanation the control offers misattributes its own cause. Promote the sentence to a visible `.panenote` beneath the button, and gate its cause clause on `hydrationBundle` so it cannot outlive the build it describes. I rate the visible surface correct and the hidden information wrong on a build not captured here, which is why this is P2 and not P1.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

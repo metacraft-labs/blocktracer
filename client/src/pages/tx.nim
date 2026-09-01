@@ -243,11 +243,11 @@ proc txPage*(chain: string, v: TxView, info: ChainInfo): string =
           #
           # The separation itself is closed — the line sits inside the trace
           # card now — and what is still open against it is the card's own
-          # interior: ledger@2026-09-01.5:tx-detail/wide/light/L2/7 measures
+          # interior: ledger@2026-09-01.6:tx-detail/wide/light/L2/7 measures
           # the hairline directly above this sentence at ~26px clear above and
           # ~13px below, so the divider reads as attached to the sentence
           # rather than as a separator between two zones of one card; and
-          # ledger@2026-09-01.5:tx-detail/wide/light/L5/7 finds this sentence,
+          # ledger@2026-09-01.6:tx-detail/wide/light/L5/7 finds this sentence,
           # the Internal-calls note and the State-changes note saying one fact
           # three ways on a single scroll.
           #

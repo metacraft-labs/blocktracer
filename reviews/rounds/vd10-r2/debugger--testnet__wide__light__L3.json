@@ -1,0 +1,68 @@
+Expected elements: present
+
+I withdraw last round's P1. `effectsMismatched": 0` and `instructionsExecuted": 345` are in the served bytes, inside `.panebody`, which is `overflow:auto` under a bottom mask (debugger_css.nim:362). The transaction pane's own bottom border sits at y1075 with shell #ececeb below it, so the pane is a scroll box that ends on screen — not a viewport clip. L1, L2 and ADV had the mechanism right; zero visible telemetry lines is a hierarchy fault, not an absence.
+
+The change graded. `Supply sources` (x13-119/y287-309) is now #dddddd fill, #c8c8c8 border, #565656 label — 5.40:1 on its own fill, above the 4.5:1 floor. Against a live control it is unmistakable: the Download ghost button (x1870-1895/y18-46) is #ffffff/#a2a2a2/#101010, glyph 19.03:1, border 2.55:1. Three channels move, and it is now byte-identical to the Share button at x1836-1861, the same `.btn.disabled`. Its 1.67:1 border is under 3:1, but 1.4.11 exempts inactive components. The fix landed.
+
+What it exposed: two disabled fills on one page. The eight stepping controls, all `aria-disabled`, are `.dcbtn.off` = #ffffff — same border, same fg, opposite fill direction. And #dddddd is `--bt-surface-sunken`: the pane-header bands and the LIVE `.dcbtn` background.
+
+Re-confirmed: the floor is 1.67:1 on the `{` fragment at x1558-1561/y1067-1073, dark 2.28:1; four green chips byte-identical at #dcfce7/#16a34a/#166534.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L3/1",
+      "severity": "P2",
+      "location": "Code pane, Supply sources button x13-119/y287-309, against the four stepping-control groups x468-534, x542-602, x616-682, x696-760 (y16-46)",
+      "finding": "One state, two fills, moving in opposite directions. Supply sources now carries .btn.disabled: fill #dddddd, border #c8c8c8, label #565656 (5.40:1 on its own fill, 1.36:1 fill-vs-pane). The eight stepping controls are equally inert (aria-disabled=true) and carry .dcbtn.off: fill #ffffff, border #c8c8c8, glyph #565656 — identical border and foreground, a fill 1.36:1 lighter. .btn says disabled by darkening from #ffffff; .dcbtn says it by lightening from --bt-surface-sunken. Worse, --bt-action-disabled-bg and --bt-surface-sunken both resolve to #dddddd here (measured on the CODE and TRANSACTION header bands, y72-92), so the fill that now marks Supply sources inert is the same value that fills a LIVE .dcbtn and both pane-header bands — 1.00:1 against them. The button's own treatment is right and matches the Share icon at x1836-1861; the toolbar is what should move to it.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/2",
+      "severity": "P2",
+      "location": "transaction pane, RAW (CHAIN-NATIVE) well, x1548-1906, y1051-1074",
+      "finding": "Unchanged from last round. The well's entire visible extent lies inside the panebody mask, so the code-surface token never renders at strength anywhere on this page: down x1543 the fill ramps #ececeb (y1051) to #ffffff (y1074), surface-to-pane contrast falling 1.18:1 to 1.00:1 over 24 rows, ending one row above the pane border at y1075 (#a2a2a2). The well holds exactly one piece of ink, a 4x7px fragment at x1558-1561/y1067-1073 — the top-left of the `{` of line 0 — peaking #c4c4c4 on #fafafa = 1.67:1 at y1068. The campaign-low 1.16:1 reproduces only at y1072 on that glyph's antialiased tail (#ececec on #fdfdfd). Dark's same glyph peaks #505050 on #141414 = 2.28:1, a 1.37x theme gap, not 5x. A mask composites the whole subtree at one alpha, as the source comment concedes; painting the surface on an element outside the masked subtree is the fix.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/3",
+      "severity": "P2",
+      "location": "identity bar Succeeded chip x258-352/y20-44; transaction pane Succeeded chip x1538-1640/y100-122; Real Aztec testnet data badge x1730-1912/y177-200; Trace ready chip x1592-1692/y808-832",
+      "finding": "One green token, three unrelated meanings, re-measured and byte-identical across all four: #dcfce7 fill, #166534 text (6.49:1), #16a34a rule (3.00:1 on the fill). They mean the transaction's execution outcome, the provenance of the data, and the availability of a trace. In this register the provenance badge is the only provenance marker there is — no nav, no footer, no band — and colour gives a reader nothing to separate it from a routine status chip 78px above it or a trace-state chip 700px below. Give provenance its own tone, or drop the chip form for it.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/4",
+      "severity": "P2",
+      "location": "identity bar, stepping-control groups x468-534, x542-602, x616-682, x696-760 (y16-46), against the trace scrubber x775-1035/y25-38",
+      "finding": "Unchanged. All four stepping groups are outlined in #c8c8c8 on #ffffff = 1.67:1, fainter than the pane borders (#a2a2a2, 2.55:1). Twelve pixels right, the scrubber's unplayed track is #919191 = 3.15:1 — the part of the trace not yet reached is painted nearly twice as hard as the controls that move through it. The glyphs are fine (#565656, 7.34:1); only the chrome disappears. These controls are inactive, so 1.4.11 does not bind them, but the inert track outranking them is a hierarchy inversion regardless. Raise the outline, or drop the track to match.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/5",
+      "severity": "P2",
+      "location": "transaction pane, SELECTOR value x1896-1905/y871-872 and RAW value x1896-1905/y896-897, against the AGE value x1730-1908/y648-668",
+      "finding": "Unchanged. The same meaning — this field has no value — gets two treatments at two contrast levels. SELECTOR and RAW each render a 10x1px dash, #8a8a8a on #ffffff = 3.45:1 with a #b0b0b0 second row; that is the lowest full-strength text ratio in the image and it is below 4.5:1. Two rows above, AGE renders the same absence as a full chip, `No timestamp published`, #565656 on #f3f3f3 = 6.61:1. Pick one.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/6",
+      "severity": "P3",
+      "location": "transaction pane: prose block x1538-1910/y210-575 and the full hash y132-168 (#484848), against the section labels DATA y185, BLOCK y595, FINALITY y719, COST · TRANSACTION FEE y751 (#565656)",
+      "finding": "Unchanged. Two nominally distinct emphasis levels sit 14/255 apart and read as one: body prose and mono values #484848 (9.15:1), section labels #565656 (7.34:1), measuring 1.25:1 against each other. The ladder's other rungs are well spaced (#242424 = 15.52:1, #101010 = 19.03:1), so the collapse is confined to the label/body pair — the pair this pane repeats fourteen times. Case and letterspacing do all the separating; either let colour help or collapse the two tokens into one.",
+      "criterion": "B3"
+    }
+  ]
+}
+```

@@ -1,0 +1,86 @@
+Expected elements: present
+
+I withdraw last round's MISSING on the replay telemetry, on evidence. `.panebody` is `overflow:auto` (debugger_css.nim:362) and the transaction pane's own bottom border closes at y1075 with 4px of page beneath it — a bounded scroll region, nothing clipped. L1/L2/ADV had the cause right. The reading stands: the fade ramps 236→255 over y1051–1074 and the only ink under it is a partial glyph at y1068–1071 (luminance 196 on a 250 field), so the page ends on a heading over an empty faded box — an empty RAW section, not a scrolled one. Second round at zero legible telemetry. P2, not P1: the information is intact, the presentation buries it.
+
+`Supply sources` (x13–119, y287–309) now paints #DDDDDD/#565656, matching the inert Share and download (x1832–1910). But the eight equally inert stepping chips (x472–758) paint flat #FFFFFF with a #C8C8C8 hairline, and debugger_css.nim:1274 defines inertness as a surface losing its body. This one gains one, is the only filled control in a 913px pane, and wears the transaction pane's status-pill tone. From the still: no, a reader cannot tell.
+
+Keeping it beats deleting it — sources exist in the world, so unlike tx-detail's absent bytes this gap is closable. But the argument is hover-only, and "this route ships no client script" is the one sentence here spoken in the renderer's voice, not the chain's; its last clause repeats the note at y240 verbatim.
+
+y283, y414, y501, y771 and the three near-empty panes are unchanged.
+
+Rating: 5/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 5,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L5/1",
+      "severity": "P2",
+      "location": "transaction pane, RAW (CHAIN-NATIVE) heading y1033-1044 and the pre.raw block beginning y1051, x1536-1910",
+      "finding": "PRESENCE SPLIT, SETTLED AGAINST MY OWN LAST ROUND. I filed the replay telemetry MISSING; I withdraw that and file this P2 instead. Two measurements decide it: `.panebody` carries `overflow:auto` (client/src/components/debugger_css.nim:362), and the pane's own bottom border paints at y1075 (luminance 162) with page background at 236 from y1076 to y1079 — the pane closes INSIDE the viewport, so its body is a scroll region and nothing is clipped by the shell. The telemetry is in the served document and reachable. What survives is a presentation failure at this exact spot: the fade that exists to distinguish a scroll region from a clip ramps 236 to 255 across y1051-1074, and the pre.raw block starts at y1051, so the ramp falls on a block with no ink above it. The only mark beneath it is a partial glyph at y1068-1071, minimum luminance 196 against a ~250 field, roughly 1.3:1. A reader therefore sees a section heading over an empty faded box, which reads as an empty RAW section rather than a scrolled one — the fade signals continuation only when it has text to fade. Second consecutive round with zero legible telemetry pixels, which was L2's own stated trigger for revisiting the classification. P2 and not P1 under the brief's own test: the information is intact, the presentation buries it.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/2",
+      "severity": "P2",
+      "location": "Code pane `Supply sources` at x13-119, y287-309, against the stepping chips at x472-758, y18-46",
+      "finding": "TWO DISABLED VOCABULARIES IN ONE VIEWPORT, AND THEY MOVE IN OPPOSITE DIRECTIONS. `Supply sources` now paints `.btn.disabled`: a #DDDDDD filled pill with #565656 text, which matches the inert Share and download buttons at x1832-1910 (#DDDDDD fill measured). The eight stepping controls are inert for the same reason on the same page and paint `.dcbtn.off`: flat #FFFFFF, the bar's own colour, with a #C8C8C8 hairline and #565656 glyphs. debugger_css.nim:1274's own comment states the principle — what marks a control inert is 'its SURFACE losing its body', flattening into the bar behind it. `.btn.disabled` marks inert by GAINING a body. The fix is not at fault for choosing the larger family, but the page now shows three controls saying 'inert' by filling and eight saying it by emptying. This is §9's named P2: this page's disabled state differs from the rest of the page's.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/3",
+      "severity": "P2",
+      "location": "Code pane, `Supply sources` (x13-119, y287-309) within the 913px pane x12-917",
+      "finding": "CAN A READER TELL IT IS INERT WITHOUT HOVERING? No. The title is invisible in a still, so the disabled styling is the only channel, and it is not reading as disabled here. There is no enabled control anywhere in the Code pane to contrast against, so the grey has no local referent. The #DDDDDD fill makes it the ONLY filled control in a 913px pane of white surface — more prominent than it was as a ghost button, not less. And the shape and tone land in the transaction pane's status-pill family: `No timestamp published` at #F3F3F3 (y657), `Yes` at #E8E8E8 (y689), `Pending` (y721), all with the same #565656 foreground. A reader calibrating on either of the two nearest reference sets — the flat inert stepping chips, or the filled status pills that are values rather than controls — is calibrated wrong. The fix is a channel that survives a screenshot: the flat `.dcbtn.off` treatment, or the reason set as visible text in the panenote rather than in a tooltip.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/4",
+      "severity": "P2",
+      "location": "Code pane, the `Supply sources` title string (not rendered in this capture); panenote at x22-290, y240",
+      "finding": "THE SENTENCE, JUDGED. 'this route ships no client script, so there is nowhere to upload them' is the only sentence on this page spoken in the renderer's voice. Every other explanation here names the CHAIN as the source of the limit and is the reason the page is honest without being apologetic: 'an Aztec contract class carries bytecode, and no debug symbols' (y129), 'without a file map they carry no function names' (y122), 'naming a local needs debug symbols, which an Aztec contract class does not publish' (y723). 'This route' and 'client script' are facts about BlockTracer's own delivery pipeline, in the pipeline's vocabulary, and a debugger user cannot act on either. Say what is true in the subject's terms — that the product does not yet accept uploaded sources — and the register holds. Separately, the closing clause 'Stepping continues at instruction level in the meantime' is a verbatim restatement of the panenote rendered 47px above the button at y240, so half the tooltip's payload is copy the reader has already read without hovering.",
+      "criterion": "A9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/5",
+      "severity": "P3",
+      "location": "Code pane, `Supply sources` (x13-119, y287-309)",
+      "finding": "THE KEEP-VERSUS-DELETE DECISION, JUDGED: keeping is right here, and the tx-detail precedent is genuinely distinguishable, but not on the axis the commit names. The tx-detail `supply an ABI` control was rightly refused because no raw bytes exist for an ABI to decode — the action could not succeed even in a product that accepted ABIs, which is the 'retry that cannot succeed' §1 forbids. Here the sources exist in the world; the developer holds them, and only the product's own capability is missing. That is a closable gap, and an inert control naming it says something true that deleting it would deny. Both rounds are right. The residual objection is not the decision but its delivery: the entire justification lives in a `title`, so on the shipped surface the change reads as one button turning grey, and the reader who most needs the reason — the one who does not hover — gets none of it. Promote the reason to the panenote and the control can stay inert without carrying the explanation alone."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/6",
+      "severity": "P2",
+      "location": "transaction pane, Data row provenance paragraph, line 4 (x1541-1900, y283)",
+      "finding": "UNCHANGED from vd10-r1. `THIS CHAIN IS PUBLISHED AS A CURATED WINDOW.` is set in full capitals in the middle of otherwise sentence-case prose — the same defect family as the shouted `WERE` found elsewhere in the product. It reads as a legal disclaimer bolted into the one paragraph asking to be believed, and shouting a caveat undercuts the affirmative `Real Aztec testnet data` badge 95px above it."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/7",
+      "severity": "P2",
+      "location": "transaction pane, provenance paragraph (x1600-1745, y414)",
+      "finding": "UNCHANGED from vd10-r1. `32 transaction(s)` leaves a pluralisation placeholder in the page's provenance copy. The same paragraph pluralises correctly by hand two lines up ('All 6 of them were re-executed') and two lines down ('25 had already been pruned'), so the artifact is visibly inconsistent with its own neighbours and marks the sentence as machine-assembled at exactly the point the reader is deciding whether to trust it."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/8",
+      "severity": "P2",
+      "location": "transaction pane, provenance paragraph (x1541-1735, y501) and COST · TRANSACTION FEE unit line (x1810-1910, y771)",
+      "finding": "UNCHANGED from vd10-r1, filed together as one machine-vocabulary defect with two sites. `1 carried another outcome (not-attempted).` surfaces a raw enum value, hyphen and all, in running prose whose neighbouring sentences say 'pruned' and 're-executed' in English; it also explains nothing, handing the reader an identifier in place of the outcome. `mana (FeeJuice)` compresses a gas unit and an asset name into one unit string, with the asset in its camel-cased machine spelling rather than the two words the chain writes ('Fee Juice'). This is the only surface in the set that publishes a real transactionFee, so it is the only place the unit vocabulary can be judged.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/9",
+      "severity": "P2",
+      "location": "Code pane (x12-917, y92-1075), Call Trace (x922-1525, y92-672), Values (x922-1525, y675-1075)",
+      "finding": "UNCHANGED from vd10-r1. Across roughly 1.4M px the three session panes carry two, one and two lines of prose at their top edges and one grey button — no gutter, no ruler, no instruction column, no frame rows, no glyphs of any kind. The copy at y150-194 asserts 'every step is a program counter' and 'Stepping is complete', but no program counter is rendered anywhere; the only positional evidence on the page is `128 / 345` in the identity bar, 900px away in a different region. In the light theme a desktop CodeTracer user is given nothing that identifies this as the same tool, so an honest degradation still reads as a failed render. AFFIRMATIVELY RE-CONFIRMED alongside it: the source-less copy is honest and non-apologetic — each pane states the limit as a fact about Aztec contract classes and blames no recorder — so the defect is compositional, not tonal, and the fix adds information rather than removing it: give the Code pane the instruction column its own sentence promises.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

@@ -1,0 +1,66 @@
+Expected elements: present
+
+I withdraw my vd10-r1 P1 on measurement. The telemetry is not clipped: `.panebody` is declared `overflow:auto` in the served inline stylesheet, and the bottom mask ramp I measure at y1051-1074 is 24px, exactly `--bt-space-lg` — the designed overflow treatment, not a cut. `"effectsMismatched": 0` is line 11 of the 43-line RAW block, at y~1319 unscrolled: ~285px down a pane whose scroll height is 1436px against 980px visible, so 456px (31.8%) sits below the fold. Reachable, therefore present.
+
+It remains a density failure, which is my lens. All the still shows of that block is 24px of grey dissolving to white plus one 4x7px glyph fragment at x1558-1561, y1067-1073; nothing else in a 376px column says more exists. Meanwhile Code holds 913x1009px — 44.4% of the viewport — at 1.52% ink, Call Trace 0.84%, Values 1.80%, while Transaction at 18.71% ink is both the narrowest and the only pane that overflows.
+
+Everything I measured last round reproduces: provenance paragraph y204-581 = 377px, 38.5% of the 980px pane body; EXECUTIONS y783-883 carrying only `public` / `Trace ready`; tabbed region 90.8% row-empty against 91.0%, within one row; fee row 46px, nineteen ungrouped digits.
+
+The one change reads well. `Supply sources` (x13-119, y287-309) now sets #565656 on #dddddd, 5.41:1, matching Share and the stepping controls rather than outranking them. Its +1,627 ink px is the round's entire measurable delta.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L4/1",
+      "severity": "P2",
+      "location": "Transaction pane body (x1536-1911, y95-1074) and its RAW (CHAIN-NATIVE) block, header y1033-1044, well from y1051 to the pane border at y1075",
+      "finding": "PRESENCE VERDICT, and I withdraw my vd10-r1 P1. The replay telemetry is present and reachable, not clipped. Served CSS: `.panebody{flex:1 1 0;min-height:0;overflow:auto;mask-image:linear-gradient(to bottom,currentColor calc(100% - var(--bt-space-lg)),transparent)}`. `--bt-space-lg` is 24px and the ramp I measure runs y1051-1074 inclusive - 24px, to the pixel - so the fade IS the declared overflow treatment and the pane is a genuine scroll region. Arithmetic on the scroll: `pre.raw` is `max-height:480px` at 14px/1.65 = 23.1px per line, box top y1049, first line box y1065 (the `{` glyph renders y1067-1073, confirming it). `\"effectsMismatched\": 0` is line index 11, top y~1319, so ~285px of pane scrolling brings it above the fade. Body scrollHeight ~1436px against clientHeight 980px: 456px, 31.8%, below the fold. So this is not a presence failure and the rating cap does not apply. It is still a density failure at P2, and that is my lens: what the still renders of the page's only faithfulness evidence is 24px of #ececeb dissolving to #ffffff plus a single 4x7px glyph fragment at x1558-1561, y1067-1073. In a 376px column with no visible scrollbar, that is the entire signal that 456px of content exists. The overflow treatment is correct in mechanism and near-invisible in effect on this page, because the ramp erases the code well's own surface (236 -> 255) at the same alpha it erases the ink."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/2",
+      "severity": "P2",
+      "location": "the three-column split - Code x4-916 (913px), Call Trace/Values x920-1528 (609px), Transaction x1532-1915 (383px), all y67-1075",
+      "finding": "Re-measured, and it holds unchanged. Code is the largest allocation on the page at 913x1009 = 921,217px, 44.4% of the 2,073,600px viewport, and carries 1.52% ink (13,533px in an 892,780px body; 90.2% of its rows are empty). Call Trace body 0.84% ink, 95.3% rows empty; Values body 1.80% ink, 93.0% rows empty. Those three regions hold ~61% of the viewport at a combined ~1.5% ink. The Transaction pane, at 18.71% ink and 39.4% rows empty, is the only populated region on the page, is the narrowest at 376px interior, and is the only one whose content overflows its box. The split is percentage-only with no min-width and no content-aware rule, so it starves the one pane with content while three sit blank - B4's failing description. Since finding 1 downgrades the consequence from lost content to hidden content, this drops from the cause of a P1 to a standing P2, but the measurement is identical.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/3",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row - provenance paragraph bounded by rules at y204 and y581",
+      "finding": "377px of continuous prose, 38.5% of the pane's 980px body, nineteen wrapped lines in the page's narrowest column (376px interior, ~11 words per line). Row rules re-measured this round at y204, 581, 611, 641, 673, 705, 737, 783, 883, 909 - byte-for-byte the same geometry as vd10-r1, confirming nothing but the button moved. This is the single largest block of content on the page and it sits above every chain fact and above the telemetry, so it is what pushes 456px of the pane below the fold. Reading it as density: eleven label/value rows average 32px each and total ~330px, less than the one paragraph above them. The provenance claim deserves a row; it does not obviously deserve more vertical space than every fact it vouches for combined.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/4",
+      "severity": "P2",
+      "location": "Transaction pane, COST · TRANSACTION FEE row, value at x1747-1906 y745-758 (row rules y737 and y783)",
+      "finding": "Standing finding, re-confirmed identical. The fee is nineteen ungrouped digits, `1755555891986239551`, in a 159px run at ~8.4px per digit; a reader cannot separate 1.76e18 from 1.76e17 without counting glyphs, and nothing on the page is grouped so no local convention calibrates it. The row is 46px against siblings of 30/30/32/32/32px. The §4 prediction that the fee arrives as raw 32-byte hex and wraps across several lines breaking the label/value grid stays REFUTED: label one line, value one line right-aligned to x1906, unit `mana (FeeJuice)` a second value line at y766-777, grid intact.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/5",
+      "severity": "P3",
+      "location": "Code pane, `Supply sources` button, x13-119 y287-309 (107x23px)",
+      "finding": "The round's one change, judged on my lens and it improves the page. The control now paints #dddddd fill with #565656 label - 5.41:1, comfortably over the floor at this size, x-height band y296-301 - which is the same fill and ink as the Share control at x1836-1860 and quieter than the stepping buttons (white fill, #c8c8c8 border, #565656 glyphs). It no longer reads as the liveliest control on a page where it is the only one that cannot act. The box is unchanged at 107x23; the +1,627 ink px this adds to the Code body (1.35% -> 1.52%) is the entire measurable pixel delta between vd10-r1 and vd10-r2, which independently confirms nothing else moved. Remaining nit: the reason is in a `title`, so it is hover-only and invisible in this still, while the stepping controls state their reason in visible text."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/6",
+      "severity": "P3",
+      "location": "middle column - Call Trace body x925-1524 y96-668 (573px) against Values body x925-1524 y702-1071 (370px)",
+      "finding": "Re-measured and reproduced: tabbed region x925-1524 y68-668 is 90.8% row-empty against the 91.0% I reported last round, a difference of about one scan row and therefore no movement. My BOTH verdict stands: the numerator is content-shaped and I do not withdraw it - a source-less trace publishes no frames, names or locals, and any rows drawn there would be the invented-source P1 - but the allocation is layout-shaped. The clearest evidence remains the internal split: Call Trace carries 2,890 ink px over 27 inked rows and Values 3,999 over 26, one sentence each, yet they are allotted heights differing by 1.55x. A split that consulted content would equalise or collapse them.",
+      "criterion": "B1"
+    }
+  ]
+}
+```

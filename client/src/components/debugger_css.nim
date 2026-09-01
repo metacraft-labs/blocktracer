@@ -1276,6 +1276,39 @@ a.ctrow,a.evrow{cursor:pointer}
   cursor:not-allowed}
 .dcbtn.off:hover{background:var(--bt-surface-raised);
   border-color:var(--bt-border-subtle)}
+/* THE SAME RULE FOR THE REGISTER'S OTHER INERT CONTROLS, because a fix of mine
+   broke it and three lenses of vd10-r2 measured the break independently.
+
+   `Supply sources` was given `.btn.disabled` to stop it rendering in the live
+   style — the right change, and the explorer's `.btn.disabled` expresses
+   disabled by FILLING (`--bt-action-disabled-bg`, the sunken surface). This
+   register expresses it the opposite way, and the comment above says why: an
+   inert control LOSES its body, takes the surface behind it, and drops its
+   glyph to the muted rung. So the page ended up saying "inert" two ways at
+   once — eight stepping controls and the phase rail by emptying, and
+   `Supply sources`, Share and the container link by filling.
+
+   L1 named the consequence exactly: the filled pill became "the only filled,
+   body-having object in the 909x1003 Code pane", i.e. the inert control was the
+   heaviest mass in its pane while the live ones were plain — **which is
+   verbatim the round-5 defect the comment above records as fixed**, "the light
+   theme expressed 'disabled' by adding weight". Four round-5 reviewers and an
+   adversarial P1 established that; one of my commits undid it in one corner.
+
+   L3 read the same split and proposed unifying the OTHER way — move the toolbar
+   onto the filled treatment. That is declined on the round-5 evidence: filling
+   is the thing those four reviewers measured as wrong, and the eight controls
+   were changed away from it deliberately.
+
+   `background:transparent` and not a surface token, because the register's rule
+   is "takes the bar's own surface" and these three controls sit on two
+   different surfaces — the Code pane and the identity bar. Transparent is the
+   only value that is correct on both without this rule having to know which is
+   which. Border and foreground match `.dcbtn.off` exactly. */
+.btn.disabled{background:transparent;
+  color:var(--bt-text-subtle);border-color:var(--bt-border-subtle)}
+.btn.disabled:hover{background:transparent;
+  border-color:var(--bt-border-subtle)}
 .dcglyph{font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line)}
 /* A TRACK, not forty tick marks. `gap:0` is the whole difference: at one
    hairline between ticks the control read as ~40 low-contrast dashes with no

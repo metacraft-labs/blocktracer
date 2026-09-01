@@ -1,0 +1,84 @@
+Expected elements: present
+
+Presence, my own verdict: the replay telemetry is PRESENT. `.panebody` is `overflow:auto`, and the Transaction pane paints a bottom fade — measured x1750, #ECECEC to #FFFFFF across y1051-1074 — a treatment that exists only because content overflows. It is a scroll region; `effectsMismatched: 0` is below the fold, not clipped.
+
+That fade spends 24px on 19 luminance levels (0.8/px), so nothing says "more below"; and the telemetry, this page's strongest claim, is ranked last, under DECODED INPUT, SELECTOR, RAW, a paragraph and the JSON block whose first glyph is half-drawn at y1070. No type level, lowest position.
+
+`Supply sources` (x13-119, y287-309) does not read as inert. Its label ink is right (#565656, the muted rung; body prose #484848), but `.btn.disabled` gives it a #DDDDDD body on a #FFFFFF pane — the only filled object in the 909x1003 Code pane, its heaviest mass. Every other inert control here is body-less: the eight stepping controls (x474-536) and the OPENING/POSITIONING segments (x1400-1560) measure white fill, #C8C8C8 hairline, #565656 glyph. The fix inverted the pattern it claimed to match.
+
+Re-tests: hash mid-byte break HOLDS (41 hex glyphs line 1, 23 line 2). ISO hyphen break HOLDS. Fee row HOLDS — label 154px on one line, 51px clear (not 55), row 46px vs 30-32px siblings, break value-side. WITHDRAWN: "nothing grouped" — every other figure is a block height or under 1000.
+
+Fixes: give the inert button the body-less treatment; lift the telemetry above RAW.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L1/1",
+      "severity": "P2",
+      "location": "Code pane, `Supply sources` button, x13-119 y287-309",
+      "finding": "The new disabled treatment uses a vocabulary that appears nowhere else on this page and is the inverse of the one it claims to match. Measured: #DDDDDD fill on a #FFFFFF pane, label #565656. The eight stepping controls (x474-536 y18-46) and the two out-of-phase rail segments OPENING/POSITIONING (x1400-1560) all render inert as body-less — #FFFFFF fill, #C8C8C8 hairline, #565656 glyph. Result: the one control in the Code pane that cannot be pressed is the only filled, body-having object in a 909x1003 pane, i.e. its heaviest mass, while the prose around it is unfilled text. The ink level alone says inert; the body overrides it, so in a still it reads as an ordinary pressable secondary button. Fix is to drop the fill, not to change the ink.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/2",
+      "severity": "P2",
+      "location": "Transaction pane, below y1010; overflow fade y1051-1074",
+      "finding": "The replay telemetry is ranked last in the pane, below DECODED INPUT, SELECTOR, RAW, a four-line explanatory paragraph and the RAW (CHAIN-NATIVE) JSON block, so at 1080px the evidence that the replay reproduced the chain's effects never surfaces. It carries no distinct type level to compensate. The pane is a genuine scroll region (`.panebody` overflow:auto) and the bottom mask is present, but measured at x1750 it ramps #ECECEC to #FFFFFF over 24px — a 19-level, 0.8-level-per-pixel wash that in the light theme is indistinguishable from an empty pane bottom, so the still gives no cue that reading should continue.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/3",
+      "severity": "P2",
+      "location": "Transaction pane, full hash, x1541-1907 y131 and y157",
+      "finding": "STILL HOLDS from last round. The 64-character hash wraps mid-byte: line 1 carries `0x` plus 41 hex glyphs (0858d644c60851824141160a69391e304430aabc0), line 2 carries 23 (6ef9ace18d8024b22e67fb2). An odd split breaks the byte pairing, which is the unit a reader compares hashes in. Advance measures 8.51px/glyph over 43 cells.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/4",
+      "severity": "P2",
+      "location": "Transaction pane, COST · TRANSACTION FEE row, rules at y737 and y783",
+      "finding": "STILL HOLDS, with one number corrected. The label sits on ONE line, x1542-1695 (154px), with 51px of clear space (not 55) before the value at x1747. The row is 46px against siblings measured at 30/30/32/32/32px. The break is entirely on the VALUE side: the 19-digit figure 1755555891986239551 occupies 160px of the ~165px available and pushes `mana (FeeJuice)` to a second line. The no-break-label fix is therefore NOT exercised by this row. The figure is ungrouped and unreadable as a magnitude. Tension rather than a clean fix: at this column width, 19 digits plus six separators measures ~178px and would wrap the number itself, so the answer is a narrower rendering of the quantity, not thousands separators.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/5",
+      "severity": "P3",
+      "location": "Transaction pane, DATA prose, first two lines x1541 y214 and y236",
+      "finding": "STILL HOLDS. The ISO 8601 capture moment breaks at its own internal hyphen — `2026-08-` ends line 1, `31T07:40:55.566Z` begins line 2 — splitting an atomic value by an ordinary word-break opportunity. `aztec-testnet.drpc.org` on the same line survives only because it happens to fit and is exposed to the same rule.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/6",
+      "severity": "P3",
+      "location": "Transaction pane header, x1541 y105 vs y131-157",
+      "finding": "The truncated hash `0x0858d644…22e67fb2` sits 26px directly above the full 64-character expansion of the same value. The truncation strategy is applied and then undone within one row group, spending a line on a value restated in full immediately below it.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/7",
+      "severity": "P3",
+      "location": "Code pane, explanatory paragraph, x21-597 y124-247",
+      "finding": "Body measure runs to ~85 characters (576px at 6.77px/glyph), above the comfortable ceiling for a four-line paragraph. A max-width is already applied — the text stops at x597 inside a pane that runs to x917 — so the cap exists and is set roughly 10ch too generous. The same body size in the Transaction pane sets at ~53 characters, so the page runs two body measures nearly 1.6:1 apart.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/8",
+      "severity": "P3",
+      "location": "whole page — WITHDRAWN finding from last round",
+      "finding": "WITHDRAWN on measurement. Last round I filed that no figure anywhere on the page is grouped. Re-measured: every other figure on the page is either a block height (63675, 63629-63678, 63642-63675, 63459-63678, 63628), which explorers correctly render ungrouped, or a count below 1000 (6, 34, 220, 32, 26, 25, 11, 50), plus `128 / 345` and `18 MB`. None of them wants grouping. The transaction fee is the only figure on the page that does, and it is already covered by finding 4. The general claim does not survive measurement and should be struck from the ledger.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

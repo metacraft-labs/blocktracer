@@ -516,8 +516,8 @@ const PLANTS = [
     // verified absent from the 2026-08-31.14 ledger; had it existed, this
     // case would pass while asserting nothing.
     rule: "B4", name: "a citation naming a finding id that does not exist", file: STYLES,
-    from: "ledger@2026-09-01.5:tx-detail/wide/light/L1/6",
-    to: "ledger@2026-09-01.5:tx-detail/wide/light/L1/99",
+    from: "ledger@2026-09-01.6:tx-detail/wide/light/L1/6",
+    to: "ledger@2026-09-01.6:tx-detail/wide/light/L1/99",
     names: "L1/99",
   },
   {
@@ -551,9 +551,9 @@ const PLANTS = [
     // bulk re-stamp, which is the exact move `citation-evidence.mjs` exists to
     // warn against.
     rule: "B4", name: "a citation of a SUPERSEDED ledger revision", file: STYLES,
-    from: "ledger@2026-09-01.5:tx-detail/wide/light/L1/6",
-    to: "ledger@2026-08-31.14:tx-detail/wide/light/L1/6",
-    names: "2026-08-31.14",
+    from: "ledger@2026-09-01.6:tx-detail/wide/light/L1/6",
+    to: "ledger@2026-09-01.5:tx-detail/wide/light/L1/6",
+    names: "2026-09-01.5",
   },
 
   // ── The evasions tried against the FIX OF THE FIX, and closed ────────────
