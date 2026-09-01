@@ -246,3 +246,92 @@ export async function txForProgram(root, transactionsList, program) {
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// TRANSACTION LISTS, AND THE SOURCE-PROVENANCE EVIDENCE UNDER THEM
+// ---------------------------------------------------------------------------
+//
+// A transaction list is not one page kind. `components/tables.txTable` is
+// rendered by the chain overview, the block detail, the transactions list, the
+// address history and anything else that grows a table later — Page-Descriptions
+// §6's "shared transactions table". So the pages are DISCOVERED by the marker
+// the shared component itself emits, for the reason `check-coverage.mjs` wrote
+// down one directory over: "A list cannot notice a chain nobody added it to."
+// A page kind that starts rendering the table is in this corpus on the next run,
+// and a page kind that stops rendering it drops out — neither needs an edit here.
+
+/** The class `txTable` puts on its `<table>`. Changing it here changes nothing:
+ *  the marker has to match the component, and a rename that missed this file
+ *  empties the corpus, which `subjects()` reports as a failure. */
+const TX_TABLE_MARKER = 'class="tbl txtbl"';
+
+async function walkHtml(dir, out = []) {
+  for (const e of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) await walkHtml(p, out);
+    else if (e.name.endsWith(".html")) out.push(p);
+  }
+  return out;
+}
+
+/**
+ * Every exported page that renders the shared transactions table, as
+ * `{ path, file }` where `path` is the URL a visitor would be at.
+ */
+export async function transactionListPages(root) {
+  const out = [];
+  for (const file of await walkHtml(root)) {
+    const html = await readFile(file, "utf8").catch(() => "");
+    if (!html.includes(TX_TABLE_MARKER)) continue;
+    const rel = file.slice(root.length).replace(/\\/g, "/");
+    out.push({ file, path: rel.replace(/\/index\.html$/, "") || "/" });
+  }
+  out.sort((a, b) => a.path.localeCompare(b.path));
+  return out;
+}
+
+/**
+ * `TransactionFacts` for one transaction, read from the published `/d/**` tree.
+ *
+ * This is the EVIDENCE the badge is judged against, and it is deliberately the
+ * data plane rather than another rendered page: a journey that compared one
+ * page's badge to another page's badge would be satisfied by two surfaces
+ * agreeing on the same wrong answer.
+ */
+export async function publishedFacts(root, chain, hash) {
+  const txRoot = join(root, "d", chain, "tx");
+  for (const shard of await subdirs(txRoot)) {
+    const raw = await readFile(join(txRoot, shard, `${hash}.json`), "utf8").catch(() => null);
+    if (raw !== null) return JSON.parse(raw);
+  }
+  return null;
+}
+
+/**
+ * The state the PUBLISHED TREE says a transaction is in, derived here from the
+ * data contract rather than read off the page.
+ *
+ * A SECOND, INDEPENDENT DERIVATION, ON PURPOSE. `reader.sourceCoverage` folds
+ * the same array in Nim; this fold is written from `ingest.nim`'s contract —
+ * one entry per contract the transaction executed, `resolved` per entry, `null`
+ * for a recording that carries no provenance record and `[]` for one that
+ * looked and found no contract code. Comparing the two is what makes the claim
+ * "the badge says what the recording carries" rather than "the badge says what
+ * the badge says".
+ *
+ * Returns null for a transaction with no replay record at all — for which the
+ * product renders no badge, because no artifact resolution was ever applied.
+ */
+export function sourceStateOf(facts) {
+  const replay = facts?.native?.replay;
+  if (!replay || typeof replay !== "object") return null;
+  const artifacts = replay.artifacts;
+  if (artifacts === null || artifacts === undefined || !Array.isArray(artifacts)) {
+    return "unchecked";
+  }
+  if (artifacts.length === 0) return "no-code";
+  const resolved = artifacts.filter((a) => a && a.resolved === true).length;
+  if (resolved === 0) return "none";
+  if (resolved === artifacts.length) return "all";
+  return "partial";
+}

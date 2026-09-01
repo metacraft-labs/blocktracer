@@ -233,6 +233,37 @@ const ARMS = [
     journey: "a-jump-moves-the-position",
     assertion: "the session's reported step is the step the event-log row named",
   },
+  {
+    id: "I/the-list-goes-silent-about-source",
+    why:
+      "Gate the source badge out of the shared transactions table. Every row still" +
+      " renders, the Debug action still resolves, the transaction page still states" +
+      " the fact, and the table is once again unable to tell a session that steps" +
+      " through Noir from one that steps through opcodes. This is `debugCell`'s own" +
+      " recorded defect in this feature's shape — the cell compiled, ran, and" +
+      " emitted nothing — and it is the reason the assertion compares the row to" +
+      " the PUBLISHED FACTS rather than to whatever the row happens to say.",
+    file: join(CLIENT, "src", "components", "tables.nim"),
+    find: `                  if sourcesStated(t.sources.state):`,
+    replace: `                  if false and sourcesStated(t.sources.state):`,
+    journey: "a-transaction-list-says-what-can-be-debugged",
+    assertion: "every row states the state its recording carries",
+  },
+  {
+    id: "J/the-page-drops-what-the-list-promised",
+    why:
+      "Stop producing the `Sources` metadata row, leaving the list badge alone. The" +
+      " list goes on offering the state and the surface a visitor ACTS on stops" +
+      " mentioning it — §7.1's 'rendered in two places … from one source, and the" +
+      " two cannot be allowed to diverge', diverging. Surgical on purpose: every" +
+      " list assertion must stay green or the arm would be proving something" +
+      " weaker than it claims.",
+    file: join(CLIENT, "src", "viewutil.nim"),
+    find: `  if sourcesStated(v.sources.state):`,
+    replace: `  if false and sourcesStated(v.sources.state):`,
+    journey: "a-transaction-list-says-what-can-be-debugged",
+    assertion: "the transaction's own page states what its list row did",
+  },
 ];
 
 const log = (s = "") => console.log(s);

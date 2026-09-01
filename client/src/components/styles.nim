@@ -423,6 +423,14 @@ pre.raw{max-height:var(--bt-layout-code-max-height);overflow:auto;background:var
 table.txtbl th.act,table.txtbl td.act{position:sticky;left:0;z-index:1;background:var(--bt-surface-raised)}
 table.txtbl th.act{background:var(--bt-surface-sunken)}
 table.txtbl tbody tr:hover td.act{background:var(--bt-surface-hover)}
+/* The source badge sits UNDER the Debug action, in the same cell: what a visitor
+   can do, then what they get when they do it. A rung quieter than the control
+   above it, so it cannot read as a second action. It lays itself out rather than
+   being wrapped — a wrapper would have changed every row in the tree, including
+   the ones that show no badge — and the `td` stays a table cell, because it is
+   `position:sticky` and a `display` change there takes the column with it. */
+table.txtbl td.act .srcbadge{display:flex;width:fit-content;gap:var(--bt-space-2xs);margin-top:var(--bt-space-2xs);font-size:var(--bt-type-caption-size)}
+table.txtbl td.act .srcbadge .mono{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback)}
 table.txtbl td .reason{display:inline-block;margin-left:var(--bt-space-xs);color:var(--bt-text-muted);font-size:var(--bt-type-caption-size)}
 /* Reverted rows are visually distinct — they are the population this product
    exists for — and the distinction is a tinted row plus a leading rule, so it

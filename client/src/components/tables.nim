@@ -99,6 +99,48 @@ proc outcomeBadge*(o: OutcomeOverall): string =
     span(class = "badge " & outcomeClass(o)):
       text outcomeLabel(o)
 
+proc sourcesBadge*(v: SourceCoverageView): string =
+  ## The qualifier on §6 column 1's action: whether the session it opens can
+  ## show source, and for how much of the transaction.
+  ##
+  ## ## Why it lives IN the Debug cell and is not a column of its own
+  ##
+  ## §6's table is ten numbered columns and none of them is this one, so a
+  ## column here would be an extension to a specified table — and it would have
+  ## to go last, after `Status`, which on a horizontally scrolling table is the
+  ## position §6 opens by warning about ("not an icon at the end of a row that
+  ## scrolls out of view"). Column 1 is the one column §6 guarantees is always
+  ## visible, and this badge is a statement ABOUT the control in it: "Debug" and
+  ## "Debug, but three of its four contracts step without source" are different
+  ## promises and the second must not be discoverable only by taking the first.
+  ##
+  ## It is a `span`, not a control. §6's "it is the only control in the table,
+  ## so nothing can outrank it" is preserved exactly: the action is still the
+  ## only thing in the table a visitor can click.
+  ##
+  ## ## `data-sources`, so a check finds it by attribute and not by copy
+  ##
+  ## The same reason `MetaRow.dataProvenance` gives for itself: "the label is
+  ## COPY … keying them on the string would make a copy edit silently delete the
+  ## guarantee". The journey and the breadth suite both read this attribute, so
+  ## the words above can be rewritten without any check going quiet.
+  let count = sourcesCount(v)
+  ui:
+    span(class = "badge srcbadge " & sourcesClass(v.state),
+         `data-sources` = $v.state, title = sourcesNote(v)):
+      text sourcesState(v.state)
+      if count.len > 0:
+        # Resolved-over-executed, inside the badge, because the ratio IS the
+        # state for a partial transaction and a badge that said only "partial"
+        # would leave a visitor to open the session to find out how partial.
+        #
+        # NO LITERAL SPACE BEFORE IT, and the gap is a token on the container
+        # instead. The badge is a flex box, and a flex box strips leading and
+        # trailing whitespace from every item it lays out — so `" " & count`
+        # rendered `Sources partial2/3`, which is how a ratio comes to read as
+        # part of the word before it.
+        span(class = "mono"): text count
+
 proc debugCell*(chain: string, row: TxRow): string =
   ## §6 column 1. An action where the trace licenses one, a stated reason where
   ## it does not — and never a control that cannot succeed.
@@ -161,7 +203,29 @@ proc txTable*(chain: string, rows: seq[TxRow], emptyNote: string): string =
                 of ooPartial: "partial"
                 of ooSucceeded: ""
               tr(class = rowClass):
-                td(class = "act", `data-label` = "Debug"): raw debugCell(chain, t)
+                td(class = "act", `data-label` = "Debug"):
+                  raw debugCell(chain, t)
+                  # The qualifier, under the action rather than beside it: the
+                  # action is what a visitor came for and the badge is what
+                  # they get when they take it, so the reading order is the
+                  # order of the decision.
+                  #
+                  # NO WRAPPER ELEMENT, and that is deliberate rather than
+                  # terse. A `<div>` around both would have changed the DOM of
+                  # every row in the tree including the ones this feature has
+                  # nothing to say about — 42 pages of the synthetic chain
+                  # render this table and none of them will ever show a badge,
+                  # and the visual campaign would have had to re-capture all of
+                  # them to prove that nothing moved. The badge lays itself out
+                  # (`.srcbadge`), so a row with no state to report emits
+                  # exactly the bytes it emitted before.
+                  #
+                  # `sourcesStated` and not
+                  # `if t.sources.state != scUnrecorded` — the condition
+                  # belongs to the state, not to this table, and the metadata
+                  # rows ask the identical question.
+                  if sourcesStated(t.sources.state):
+                    raw sourcesBadge(t.sources)
                 td(class = "hash", `data-label` = "Tx hash"):
                   a(href = txUrl(chain, t.hash)):
                     text truncHash(t.hash)

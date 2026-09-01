@@ -27,7 +27,7 @@
 ## `ingestSnapshot` — over the committed capture, so what is graded is the
 ## shipping path and not a lookalike.
 
-import std/[unittest, os, json, strutils, algorithm, options]
+import std/[unittest, os, json, strutils, algorithm, options, sequtils]
 
 import ../src/ssr
 import ../src/reader
@@ -35,6 +35,7 @@ import ../src/viewutil
 import ../src/debugger/demo_session
 import ../src/debugger/session_view
 import ../src/components/provenance
+import ../src/components/tables
 import ../src/components/debugger as dbgc
 import blocktracer/demo/generator
 import blocktracer/chain/ingest
@@ -2279,3 +2280,466 @@ suite "12 — a source-level capture publishes source; a rung-3 one publishes no
     # Written from a run, and deliberately independent of how many transactions
     # the frozen captures happen to hold.
     expectCount(66)   # 6+4+6+6+10+11+2+6+3+4+3+5
+
+# ───────────────────────────────────────────────────────────────────────────
+# SUITE 13 — WHAT A TRANSACTION LIST LETS A VISITOR TELL ABOUT SOURCE
+# ───────────────────────────────────────────────────────────────────────────
+#
+# Suite 12 grades what the PIPELINE publishes about source. This one grades what
+# a VISITOR can tell from it, which is a different claim and had nothing
+# asserting it: a transaction list showed a `Debug` button of identical weight
+# for a transaction that steps through Noir and one that steps through opcodes,
+# and the only way to find out which was to open it.
+#
+# ## THE STATES ARE A FOLD, NOT A TAXONOMY
+#
+# `ingest.nim` republishes the recording's own `ct.source-provenance` as
+# `native.replay.artifacts` — ONE ENTRY PER CONTRACT THE TRANSACTION EXECUTED,
+# resolved or not. `reader.sourceCoverage` folds that array and reads nothing
+# else. So every state below is a shape the published tree can distinguish, and
+# each arm here builds its shape by handing the REAL INGEST a capture and
+# reading the tree it wrote:
+#
+#   scAll        every executed contract resolved
+#   scPartial    some did — the case the whole feature exists for
+#   scNone       all checked, none resolved: today's majority
+#   scNoCode     checked; the transaction executed no contract code  (`[]`)
+#   scUnchecked  replayed, and the recording carries no record       (`null`)
+#   scUnrecorded no replay record at all — the synthetic chain
+#
+# `[]` and `null` are two objects and two states, and `ingest.nim` publishes
+# them apart. The recording writes its provenance record EVEN WHEN IT RESOLVED
+# NOTHING, precisely so that absence means "nobody looked" and not "looked and
+# found none"; an ingest that collapsed both to `[]` would have destroyed that
+# one layer below the runtime, and a badge derived from it would have had to
+# guess. `AN EMPTY RECORD AND A MISSING ONE` below is that assertion.
+#
+# ## THE WORD IS `AVAILABLE`, AND THE SUITE GRADES THAT IT STAYS THAT WAY
+#
+# `artifactHash` is the chain's commitment to the ARTIFACT and does not commit
+# to its `debug_symbols` or its `file_map`: an artifact with every source
+# location rewritten passes all three acceptance checks, and a published npm
+# decoy ships bytecode byte-identical to a deployed class under a different
+# artifact hash with different debug symbols. So no surface here may say
+# `verified` about a transaction — that word belongs to §9's contract source
+# browser, over a provider's match level — and `NO SURFACE CLAIMS VERIFICATION`
+# is a counted negative over every state.
+#
+# ## RENDERED, NOT DERIVED
+#
+# Every assertion about what a visitor sees is made against the output of the
+# SHIPPING renderers — `components/tables.txTable` and `viewutil.txMetadataRows`
+# — not against the enum that fed them. The defect this repository already has
+# on record is `debugCell` compiling, running and emitting an empty `<td>` for
+# every row in the product; a suite that asserted the enum would have been green
+# throughout.
+
+suite "13 — a transaction list says which transactions can be debugged fully":
+  asserted = 0
+
+  const
+    CovChain = "srccoverage"
+    CovTx = "0x" & repeat('1', 64)
+    AddrResolved = "0x" & repeat('2', 64)
+    ClassResolved = "0x" & repeat('3', 64)
+    AddrOther = "0x" & repeat('4', 64)
+    ClassOther = "0x" & repeat('5', 64)
+    OriginNpm = "npm:@aztec/protocol-contracts@5.3.0-nightly.20260819 FeeJuice"
+    OriginScan = "aztecscan:0x3f2a"
+    CovFile = "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/" &
+              "contracts/protocol/fee_juice_contract/src/main.nr"
+
+  let covWork = getTempDir() / ("bt-srccov-" & $getCurrentProcessId())
+  removeDir(covWork); createDir(covWork)
+
+  var covCt = ""
+  for t in snap["transactions"]:
+    if t["outcome"].getStr == "replayed":
+      covCt = readFile(snapshotDir / t["container"].getStr)
+      break
+  doAssert covCt.len > 0, "no real container to borrow bytes from"
+
+  proc artifact(address, class: string, resolved: bool,
+                origin = "", corroboration = ""): JsonNode =
+    result = %*{"address": address, "contractClassId": class,
+                "resolved": resolved}
+    if origin.len > 0: result["origin"] = %origin
+    if corroboration.len > 0: result["corroboration"] = %corroboration
+
+  proc covTree(name: string; artifacts: JsonNode; sourceLevel = false): string =
+    ## One capture through the REAL ingest. `artifacts = nil` writes no
+    ## `artifacts` key at all, which is what every capture taken before the
+    ## runtime could resolve artifacts off-chain looks like.
+    let dest = covWork / name
+    removeDir(dest); createDir(dest / "ct")
+    writeFile(dest / "ct" / (CovTx & ".ct"), covCt)
+    var row = %*{
+      "txHash": CovTx, "blockNumber": 100, "txIndexInBlock": 0,
+      "revertCode": 0, "transactionFee": "0x1",
+      "bodyRetained": true, "effectVisible": true, "firstInBlock": true,
+      "outcome": "replayed",
+      "container": "ct/" & CovTx & ".ct", "containerBytes": covCt.len,
+      "effects": {"reproduced": true, "matched": 3, "mismatched": 0},
+      "recording": {"bytes": covCt.len, "steps": 42, "callsOpened": 1,
+                    "declaredRung": (if sourceLevel: 1 else: 3),
+                    "stepsPositioned": (if sourceLevel: 42 else: 0),
+                    "stepsUnpositioned": (if sourceLevel: 0 else: 42),
+                    "sourceLevel": sourceLevel}}
+    if artifacts != nil: row["artifacts"] = artifacts
+    if sourceLevel:
+      # `ingest.nim` refuses `sourceLevel: true` with no bundle, and rightly:
+      # the arm below is about the badge, not about that refusal, so it hands
+      # the ingest a real bundle to publish.
+      var files = newJObject()
+      files[CovFile] = %"pub contract FeeJuice {}\n"
+      createDir(dest / "sources")
+      writeFile(dest / "sources" / (CovTx & ".json"), $(%*{
+        "txHash": CovTx, "sourceLevel": true,
+        "bundles": [{"address": AddrResolved, "codeHash": ClassResolved,
+                     "artifactHash": "0x" & repeat('7', 64),
+                     "origin": OriginNpm, "shape": "snake_case",
+                     "corroboration": "single-distributor",
+                     "files": files}]}))
+      row["sourceBundles"] = %("sources/" & CovTx & ".json")
+    writeFile(dest / "snapshot.json", $(%*{
+      "format": "blocktracer/chain-snapshot@1",
+      "provenance": {
+        "kind": "live-capture", "chain": CovChain, "label": "Real chain data",
+        "endpoint": "https://node.example",
+        "capturedAt": "2026-09-01T09:00:00.000Z",
+        "nodeVersion": "5.3.0", "l1ChainId": 1, "runtimeCommit": "abc123def456"},
+      "window": {"tip": 110, "finalized": 90, "replayableFrom": 91,
+                 "replayableTo": 110, "blocks": 20},
+      "blocks": [{"number": 100, "hash": "0x" & align("100", 40, '0'),
+                  "timestamp": 1100, "totalManaUsed": "0x2710",
+                  "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
+                  "archiveRoot": "0x" & repeat('2', 40),
+                  "parentArchiveRoot": "0x" & repeat('3', 40),
+                  "transactions": [CovTx]}],
+      "transactions": [row]}))
+    let tree = dest / "tree"
+    removeDir(tree); createDir(tree)
+    discard ingestSnapshot(IngestConfig(outDir: tree, snapshotDir: dest))
+    tree
+
+  proc publishedNative(tree: string): JsonNode =
+    ## `TransactionFacts.native` exactly as the ingest wrote it to disk. The
+    ## fold under test reads this object and nothing else, so this — and not an
+    ## in-memory hand-off — is what the arms below hand it.
+    for p in walkDirRec(tree / "d" / CovChain / "tx"):
+      if p.endsWith(".json"): return parseJson(readFile(p)){"native"}
+    nil
+
+  proc coverageOf(name: string; artifacts: JsonNode;
+                  sourceLevel = false): SourceCoverageView =
+    sourceCoverage(publishedNative(covTree(name, artifacts, sourceLevel)))
+
+  # A row and a view carrying nothing but the coverage under test, so what the
+  # renderers are graded on is that field. Everything else is held constant
+  # across every arm.
+  proc rowWith(cov: SourceCoverageView): TxRow =
+    TxRow(hash: CovTx, height: 100, index: 0,
+          blockHash: "0x" & align("100", 40, '0'),
+          outcome: ooSucceeded, availability: taReady, sources: cov)
+
+  proc tableFor(cov: SourceCoverageView): string =
+    txTable(CovChain, @[rowWith(cov)], "no transactions")
+
+  proc actCell(html: string): string =
+    ## The first column's cell — §6's "Debug, first column, always visible".
+    ## The badge has to be IN it; a badge that rendered at the far right of a
+    ## horizontally scrolling table would satisfy a whole-document `contains`
+    ## and would be the thing §6 opens by ruling out.
+    let a = html.find("<td class=\"act\"")
+    if a < 0: return ""
+    let b = html.find("</td>", a)
+    if b < 0: return ""
+    html[a ..< b]
+
+  # ── the six states, each folded from a tree the real ingest wrote ─────────
+  let
+    covAll = coverageOf("all", %[artifact(AddrResolved, ClassResolved, true,
+                                          OriginNpm, "single-distributor")],
+                        sourceLevel = true)
+    covPartial = coverageOf("partial", %[
+      artifact(AddrResolved, ClassResolved, true, OriginNpm,
+               "single-distributor"),
+      artifact(AddrOther, ClassOther, false)])
+    covNone = coverageOf("none", %[
+      artifact(AddrResolved, ClassResolved, false),
+      artifact(AddrOther, ClassOther, false)])
+    covNoCode = coverageOf("nocode", newJArray())
+    covUnchecked = coverageOf("unchecked", nil)
+    covCorroborated = coverageOf("corroborated", %[
+      artifact(AddrResolved, ClassResolved, true, OriginNpm, "corroborated"),
+      artifact(AddrOther, ClassOther, true, OriginScan, "corroborated")],
+      sourceLevel = true)
+
+  test "the fold names each of the five measured states, from the real ingest":
+    # Counted, and every state named — a `case` that lost a branch would show up
+    # as a state answering with its neighbour rather than as a compile error,
+    # because the enum has an ordering and the fold's `elif` chain does not.
+    ck covAll.state == scAll
+    ck covPartial.state == scPartial
+    ck covNone.state == scNone
+    ck covNoCode.state == scNoCode
+    ck covUnchecked.state == scUnchecked
+    ck covCorroborated.state == scAll
+
+  test "AN EMPTY RECORD AND A MISSING ONE ARE TWO STATES, ON DISK":
+    # The distinction the recording goes to the trouble of carrying, asserted
+    # where it is easiest to destroy: `ingest.nim` used to publish `[]` for
+    # both. The two published objects are read back from the tree, not from the
+    # snapshot that went in.
+    let empty = publishedNative(covTree("nocode-disk", newJArray()))
+    let missing = publishedNative(covTree("unchecked-disk", nil))
+    ck empty["replay"]["artifacts"].kind == JArray
+    ck empty["replay"]["artifacts"].len == 0
+    ck missing["replay"]["artifacts"].kind == JNull
+    # And they must not fold to the same answer, which is the consequence.
+    ck sourceCoverage(empty).state != sourceCoverage(missing).state
+
+  test "the numerator and denominator are the transaction's, not the resolved set's":
+    # `contracts` counts EVERY contract the transaction executed. A fold that
+    # filtered to the resolved entries first would report 1/1 here and call a
+    # half-debuggable transaction complete — the confident-and-wrong answer.
+    ck covPartial.contracts == 2
+    ck covPartial.resolved == 1
+    ck sourcesCount(covPartial) == "1/2"
+    ck covNone.contracts == 2
+    ck covNone.resolved == 0
+    ck sourcesCount(covNone) == "0/2"
+    # Not "3/3" beside a badge that already means all of them.
+    ck sourcesCount(covAll) == ""
+
+  test "corroboration is ANDed over the resolved contracts, never averaged":
+    # One contract on a single distributor makes the whole transaction's source
+    # text rest on that party's word — a visitor stepping through it cannot tell
+    # which lines came from which artifact.
+    ck covCorroborated.corroboration == scCorroborated
+    ck covAll.corroboration == scSingleDistributor
+    ck covPartial.corroboration == scSingleDistributor
+    # Nothing resolved is not a weak claim; it is no claim.
+    ck covNone.corroboration == scNoClaim
+    ck covUnchecked.corroboration == scNoClaim
+    let mixed = coverageOf("mixed", %[
+      artifact(AddrResolved, ClassResolved, true, OriginNpm, "corroborated"),
+      artifact(AddrOther, ClassOther, true, OriginScan, "single-distributor")],
+      sourceLevel = true)
+    ck mixed.state == scAll
+    ck mixed.corroboration == scSingleDistributor
+
+  test "the distributors are named, deduplicated and ordered":
+    ck covCorroborated.origins == @[OriginScan, OriginNpm].sorted()
+    ck covAll.origins == @[OriginNpm]
+    ck covNone.origins.len == 0
+
+  test "RENDERED: every measured state reaches the first column of the table":
+    # Against the shipping `txTable`, and inside §6 column 1's cell. `debugCell`
+    # is on record for compiling, running and emitting an empty `<td class=act>`
+    # for every row in the product, so "the enum was right" is not the claim.
+    var states: seq[string]
+    for cov in [covAll, covPartial, covNone, covNoCode, covUnchecked]:
+      let cell = actCell(tableFor(cov))
+      ck cell.contains("data-sources=\"" & $cov.state & "\"")
+      ck cell.contains(sourcesState(cov.state))
+      states.add $cov.state
+    # The count, and that the five arms were five different states — §4b: the
+    # membership is knowable and it is five.
+    ck states.len == 5
+    ck states.deduplicate().len == 5
+
+  test "RENDERED: the badge qualifies the action and does not become one":
+    # §6: "it is the only control in the table, so nothing can outrank it."
+    let html = tableFor(covPartial)
+    let cell = actCell(html)
+    ck cell.contains("class=\"btn sm primary\"")
+    # The action first, the qualifier second — the order of the decision.
+    ck cell.find("btn sm primary") < cell.find("srcbadge")
+    # A span, not an anchor and not a button: one control in the cell, still.
+    ck occurrences(cell, "<a ") == 1
+    ck not cell.contains("<button")
+    ck cell.contains("<span class=\"badge srcbadge warn\"")
+    # And the ratio is in the badge, because "partial" alone leaves a visitor to
+    # open the session to find out how partial.
+    ck cell.contains("<span class=\"mono\">1/2</span>")
+
+  test "RENDERED: a transaction with no replay record states nothing at all":
+    # `scUnrecorded` is not a weaker badge — it is no badge. The badge reports
+    # the outcome of off-chain artifact resolution against an on-chain class
+    # commitment, and the synthetic chain has no class to resolve against, so a
+    # `Not checked` there would state a result for a procedure never applied.
+    let cell = actCell(tableFor(SourceCoverageView(state: scUnrecorded)))
+    ck cell.len > 0
+    ck cell.contains("class=\"btn sm primary\"")   # the row is otherwise whole
+    ck not cell.contains("data-sources")
+    ck not cell.contains("srcbadge")
+    ck not sourcesStated(scUnrecorded)
+    # …and the bytes are EXACTLY the bytes a row emitted before this feature
+    # existed: no wrapper element, so 107 pages of the synthetic chain did not
+    # move for a badge they never show.
+    ck cell == "<td class=\"act\" data-label=\"Debug\">" &
+               debugCell(CovChain, rowWith(SourceCoverageView(state: scUnrecorded)))
+
+  test "NO SURFACE CLAIMS VERIFICATION, in any state":
+    # `verified` would mean "this text is the text that was compiled", and
+    # nothing in the chain attests it: `artifactHash` does not commit to
+    # `debug_symbols` or `file_map`, an artifact with every source location
+    # rewritten passes all three acceptance checks, and a published npm decoy
+    # ships byte-identical bytecode under a different artifact hash with
+    # different symbols. §9's contract source browser owns that word.
+    # The subject is the PRODUCT'S OWN COPY. A distributor's name is quoted
+    # data and the note prints it verbatim, so an origin string containing the
+    # word would fail this for the wrong reason — that is not a claim the
+    # product is making, it is a name the product is repeating.
+    var checkedStates = 0
+    for cov in [covAll, covPartial, covNone, covNoCode, covUnchecked,
+                covCorroborated]:
+      inc checkedStates
+      var words = sourcesState(cov.state) & " " & sourcesNote(cov) & " " &
+                  tableFor(cov)
+      for origin in cov.origins: words = words.replace(origin, "")
+      ck not words.toLowerAscii.contains("verified")
+      ck not words.toLowerAscii.contains("verification")
+    ck checkedStates == 6
+    # The positive control for the negative claim: the strong state DOES make a
+    # claim, and it is the one the chain can actually back.
+    ck sourcesState(scAll) == "Sources available"
+    ck sourcesNote(covAll).contains("the bytecode that ran is the bytecode in the artifact")
+
+  test "the single-distributor caveat is stated wherever it is true":
+    # The residual weakness lives on its own axis and is not rounded away: on
+    # one distributor the source text is that party's unverified word.
+    ck sourcesNote(covAll).contains("one distributor's word")
+    ck sourcesNote(covPartial).contains("one distributor's word")
+    ck sourcesNote(covCorroborated).contains("corroborated")
+    ck not sourcesNote(covCorroborated).contains("one distributor's word")
+    # A partial transaction says what happens in the contracts that did not
+    # resolve, because that is where a visitor's expectation breaks.
+    ck sourcesNote(covPartial).contains("instruction level")
+
+  test "the two no-answer states share a label and are told apart in the note":
+    # `availabilityNote`'s rule, applied: a badge may not name a cause it cannot
+    # tell, and the cause is stated where there is room for a sentence.
+    ck sourcesState(scUnchecked) == sourcesState(scUnrecorded)
+    ck sourcesState(scUnchecked) == "Not checked"
+    ck sourcesNote(covUnchecked).contains("Nobody looked")
+    ck sourcesNote(SourceCoverageView(state: scUnrecorded)) !=
+       sourcesNote(covUnchecked)
+    # And neither reads as a finding about what is published.
+    ck not sourcesNote(covUnchecked).contains("none has an artifact")
+
+  test "the majority state does not read as a fault":
+    # `scNone` is every real transaction this site publishes today. A row that
+    # read as broken for the common case would teach a visitor to ignore the
+    # badge, and then it is not there for the uncommon one.
+    ck sourcesState(scNone) == "Instruction level"
+    ck sourcesClass(scNone) == "muted"
+    ck sourcesClass(scNone) != outcomeClass(ooReverted)
+    ck sourcesNote(covNone).contains("stepping is complete and only the text is missing")
+    ck sourcesClass(scAll) == "ok"
+    ck sourcesClass(scPartial) == "warn"
+
+  test "§7.1: the page and the debugger's pane render the fact from ONE source":
+    # A `Sources` block written into `pages/tx.nim` would have been a second
+    # producer and the pane would have gone on lacking it. So the row is added
+    # in `txMetadataRows` and nowhere else, and both surfaces are asserted.
+    let info = chainInfo(root, RealChain)
+    var v = TxView(chain: CovChain, hash: CovTx, height: 100, index: 0,
+                   outcome: ooSucceeded, finality: "finalized", canonical: true,
+                   sources: covPartial)
+    let rows = txMetadataRows(CovChain, v, info)
+    var found = 0
+    for r in rows:
+      if r.label == "Sources":
+        inc found
+        ck r.value == "Sources partial"
+        ck r.badge == "warn"
+        ck r.note == sourcesNote(covPartial)
+    ck found == 1
+    # The debugger's metadata pane is built from the same `txMetadataRows` call
+    # and rendered by the shipping renderer, so it carries the row too — that
+    # is §7.1's "rendered in two places … from one source" as an assertion
+    # rather than as a comment.
+    let pane = dbgc.renderMetadata(metadataPane(CovChain, v, info))
+    ck pane.contains("Sources partial")
+    ck pane.contains(sourcesNote(covPartial))
+    # …and a transaction with no replay record contributes no row to either.
+    v.sources = SourceCoverageView(state: scUnrecorded)
+    var absent = 0
+    for r in txMetadataRows(CovChain, v, info):
+      if r.label == "Sources": inc absent
+    ck absent == 0
+
+  test "the wiring: txRow and txView carry the fold, over the shipping reader":
+    # Everything above grades the fold and the renderers. This grades that a row
+    # the PRODUCT builds actually carries it — the seam where a field is
+    # declared, rendered and never assigned.
+    let realInfo = chainInfo(root, RealChain)
+    let realRow = txRow(root, realInfo, replayedTx)
+    # The frozen captures were taken before the runtime could resolve artifacts.
+    ck realRow.sources.state == scUnchecked
+    ck txView(root, realInfo, replayedTx).sources.state == scUnchecked
+    let demoInfo = chainInfo(root, DemoChain)
+    let demoPage = txsFrom(root, demoInfo, -1)
+    ck demoPage.rows.len > 0
+    let demoTx = demoPage.rows[0].hash
+    ck demoPage.rows[0].sources.state == scUnrecorded
+    ck txRow(root, demoInfo, demoTx).sources.state == scUnrecorded
+
+  # ── mutation arms ────────────────────────────────────────────────────────
+  #
+  # Each one perturbs exactly the input its named assertion above rests on, and
+  # asserts that the answer MOVES. A suite whose arms all agree with the code
+  # is a suite that would agree with the code after it broke.
+
+  test "MUTATION BITE: an unresolved contract dropped from the array reads as complete":
+    # The defect the denominator exists to catch. Filter the partial capture's
+    # array to its resolved entries — exactly what a well-meaning "only publish
+    # what we found" change does — and a 1-of-2 transaction claims all of them.
+    let mutated = coverageOf("mut-drop-unresolved",
+                             %[artifact(AddrResolved, ClassResolved, true,
+                                        OriginNpm, "single-distributor")])
+    ck mutated.state == scAll
+    ck mutated.state != covPartial.state
+    ck sourcesState(mutated.state) == "Sources available"
+
+  test "MUTATION BITE: a missing record collapsed to an empty one loses a state":
+    # `ingest.nim` before this change. Fold the two published objects the OLD
+    # way — everything absent becomes `[]` — and `unchecked` disappears into
+    # `no code`, so "nobody looked" is published as "nothing to look at".
+    let collapsed = newJObject()
+    collapsed["replay"] = %*{"artifacts": newJArray()}
+    ck sourceCoverage(collapsed).state == scNoCode
+    ck sourceCoverage(collapsed).state != covUnchecked.state
+    ck sourcesNote(sourceCoverage(collapsed)) != sourcesNote(covUnchecked)
+
+  test "MUTATION BITE: one distributor upgraded to corroborated overstates the claim":
+    let mutated = coverageOf("mut-corroborate", %[
+      artifact(AddrResolved, ClassResolved, true, OriginNpm, "corroborated")],
+      sourceLevel = true)
+    ck mutated.corroboration == scCorroborated
+    ck mutated.corroboration != covAll.corroboration
+    ck not sourcesNote(mutated).contains("one distributor's word")
+    ck sourcesNote(mutated) != sourcesNote(covAll)
+
+  test "MUTATION BITE: the badge gated OUT of the cell leaves the row silent":
+    # `debugCell`'s recorded defect, in this feature's shape: the cell renders,
+    # the row renders, the table renders, and the qualifier is simply absent.
+    let silent = actCell(txTable(CovChain,
+                                 @[rowWith(SourceCoverageView(state: scUnrecorded))],
+                                 "none"))
+    let stated = actCell(tableFor(covPartial))
+    ck not silent.contains("data-sources")
+    ck stated.contains("data-sources")
+    ck silent != stated
+
+  test "MUTATION BITE: `scNone` given the danger treatment collides with a revert":
+    # Two unrelated things in one colour is how a status vocabulary stops
+    # meaning anything, and `bad` is already what a reverted execution wears.
+    ck outcomeClass(ooReverted) == "bad"
+    ck sourcesClass(scNone) != "bad"
+    ck sourcesClass(scPartial) != outcomeClass(ooReverted)
+
+  test "assertion count":
+    expectCount(110)

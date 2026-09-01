@@ -104,6 +104,80 @@ type
     bytes*: int
     validationStatus*: string  ## "" when the overlay carries no validation
 
+  SourceCoverage* = enum
+    ## WHETHER A TRANSACTION CAN BE DEBUGGED AGAINST SOURCE, and every value
+    ## here is a state the published tree can DISTINGUISH rather than a grade
+    ## somebody picked.
+    ##
+    ## ## Where the states come from
+    ##
+    ## `ingest.nim` republishes, per transaction, the recording's own
+    ## `ct.source-provenance` as `native.replay.artifacts` — **one entry per
+    ## contract the transaction executed, resolved or not** — each carrying
+    ## `resolved`, the `origin` that served the artifact, and a `corroboration`
+    ## word. The runtime accepts an artifact only when `computeArtifactHash`
+    ## equals the class's `artifactHash`, its `public_dispatch` is byte-equal to
+    ## `packedBytecode`, and the class id recomputes; the rung is then measured
+    ## per contract over the executed stream and never rounded up.
+    ##
+    ## So the states below are a fold over that array and nothing else. A
+    ## transaction that executed three contracts and resolved one is a real and
+    ## common shape — it is the reason the strong state is called *available*
+    ## and not *verified* (see `viewutil.sourcesState`).
+    ##
+    ## ## The two "no answer" states are two answers, not one
+    ##
+    ## A recording written by the current runtime carries the provenance record
+    ## **even when it resolved nothing**, so absence is informative:
+    ##
+    ##   * `scUnrecorded` — this transaction has no chain-replay record at all.
+    ##     No artifact resolution was attempted, because there was nothing to
+    ##     attempt it against. Every transaction of the SYNTHETIC demo chain is
+    ##     here, and so is every real transaction the pipeline could not replay.
+    ##   * `scUnchecked` — replayed, and the recording carries no provenance
+    ##     record. That is a capture taken before the runtime could resolve
+    ##     artifacts off-chain. Somebody replayed it; nobody looked for source.
+    ##
+    ## They are collapsed to ONE label in the product (`Not checked`) and kept
+    ## apart here, which is the same shape `availabilityNote` uses for `absent`:
+    ## a badge may not name a cause it cannot tell, and the cause is stated in
+    ## the row's note where there is room for a sentence.
+    scUnrecorded = "unrecorded"
+    scUnchecked = "unchecked"
+    scNoCode = "no-code"
+      ## Checked, and this transaction executed no contract code — an empty
+      ## record, which is NOT the same object as a missing one. `ingest.nim`
+      ## publishes `null` for the second and `[]` for the first precisely so
+      ## this line can exist.
+    scNone = "none"          ## every executed contract checked, none resolved
+    scPartial = "partial"    ## some executed contracts resolved, some did not
+    scAll = "all"            ## every executed contract resolved
+
+  SourceCorroboration* = enum
+    ## HOW STRONG THE SOURCE CLAIM IS, over the contracts that resolved.
+    ##
+    ## `artifactHash` is the chain's commitment to the ARTIFACT and it does not
+    ## commit to that artifact's `debug_symbols` or its `file_map`. What the
+    ## chain proves is that the bytecode which ran is the bytecode in the
+    ## artifact; the source TEXT beside it is attested by whoever distributed
+    ## it. So this axis is orthogonal to `SourceCoverage` and has to travel with
+    ## it: "every contract resolved, on one distributor's unverified word" and
+    ## "every contract resolved, two independent distributors agreeing" are
+    ## different claims and the page may not spell them the same way.
+    scNoClaim = "no-claim"                ## nothing resolved; there is no claim
+    scSingleDistributor = "single-distributor"
+    scCorroborated = "corroborated"
+
+  SourceCoverageView* = object
+    ## The fold, with the numbers it was folded from — because "2 of 3" is the
+    ## thing a visitor with a partially-resolvable transaction actually needs,
+    ## and a state alone cannot say it.
+    state*: SourceCoverage
+    contracts*: int          ## executed contracts the recording accounted for
+    resolved*: int           ## how many of them resolved an artifact
+    corroboration*: SourceCorroboration
+    origins*: seq[string]    ## the distinct distributors named, sorted
+
   TxRow* = object
     ## One row of the shared transactions table (block detail, tx list).
     hash*: string
@@ -129,6 +203,18 @@ type
       ## VECTOR, never a scalar"). Flattening it to one number here is how a
       ## multi-dimensional chain's fee silently becomes an EVM-shaped one.
     availability*: TraceAvailability   ## the row's headline trace state
+    sources*: SourceCoverageView
+      ## §6 column 1's qualifier: whether the Debug action beside it opens a
+      ## session that can show source, and for how much of the transaction.
+      ##
+      ## It rides on the ROW rather than being fetched by the table for the same
+      ## reason `outcomeReason` does — the list and the transaction page must not
+      ## be able to disagree — and it is derived from `TransactionFacts.native`,
+      ## which `txView` has already read. That is what keeps it free: the
+      ## manifest, which also carries a per-transaction `execution.sourceLevel`,
+      ## is a SECOND object per row, and reading it here would turn a page of 25
+      ## rows into 25 extra requests and break `test_explorer_breadth`'s
+      ## constant-per-page cost. The facts object is the one already in hand.
 
   TxView* = object
     ## Everything the transaction-detail view renders.
@@ -162,6 +248,12 @@ type
     canonical*: bool
     finality*: string
     native*: JsonNode
+    sources*: SourceCoverageView
+      ## The same fold as `TxRow.sources`, over the same `native`, produced by
+      ## the same proc. §7.1's rule — the metadata is "rendered in two places …
+      ## from one source, and the two cannot be allowed to diverge" — applies to
+      ## this fact as much as to the rest, and the transaction page, the
+      ## debugger's metadata pane and every list row now read one derivation.
 
 func newDataRoot*(dir: string): DataRoot =
   DataRoot(dir: dir, store: localTree(dir))
@@ -311,6 +403,65 @@ proc blocksFrom*(r: DataRoot, info: ChainInfo, fromHeight: int,
 
 # ── transactions ─────────────────────────────────────────────────────────
 
+proc sourceCoverage*(native: JsonNode): SourceCoverageView =
+  ## Fold `native.replay.artifacts` — the recording's `ct.source-provenance`, as
+  ## `ingest.nim` republishes it — into the one state a page may claim.
+  ##
+  ## ## Every branch here is a distinction the TREE makes
+  ##
+  ## Nothing is inferred from a chain's name, a slug, a language tag or the
+  ## presence of a source bundle. The published array is the evidence and the
+  ## fold is total over it, so a transaction that gains a resolved contract on
+  ## the next capture moves state on its own.
+  ##
+  ## ## Why the strong state is not rounded up
+  ##
+  ## `resolved == contracts` is required for `scAll`, and `contracts` counts
+  ## EVERY contract the transaction executed — `ingest.nim`'s code edges and
+  ## this array are published for unresolved contracts too, deliberately, "so
+  ## an unresolved contract has to be ASKED about and answered". A fold that
+  ## filtered to the resolved entries first would find every transaction
+  ## complete, which is the confident-and-wrong answer this product may not
+  ## ship.
+  ##
+  ## ## Corroboration is ANDed, never averaged
+  ##
+  ## One contract served by a single distributor makes the whole transaction's
+  ## source claim rest on that one party's unverified word, because a visitor
+  ## stepping through it cannot tell which lines came from which artifact. So a
+  ## single `single-distributor` — or a resolved entry with no corroboration
+  ## word at all — pulls the transaction down to `scSingleDistributor`.
+  result.corroboration = scNoClaim
+  if native.isNil or native.kind != JObject: return
+  let replay = native{"replay"}
+  if replay.isNil or replay.kind != JObject: return
+  # From here on the transaction HAS a replay record, so "nobody looked" and
+  # "looked and found nothing" are separable.
+  let artifacts = replay{"artifacts"}
+  if artifacts.isNil or artifacts.kind != JArray:
+    result.state = scUnchecked
+    return
+  result.state = scNoCode
+  result.contracts = artifacts.len
+  if artifacts.len == 0: return
+  var everyResolvedIsCorroborated = true
+  for a in artifacts:
+    if not a{"resolved"}.getBool: continue
+    inc result.resolved
+    let origin = a{"origin"}.getStr
+    if origin.len > 0 and origin notin result.origins:
+      result.origins.add origin
+    if a{"corroboration"}.getStr != $scCorroborated:
+      everyResolvedIsCorroborated = false
+  sort(result.origins)
+  result.state =
+    if result.resolved == 0: scNone
+    elif result.resolved == result.contracts: scAll
+    else: scPartial
+  if result.resolved > 0:
+    result.corroboration =
+      if everyResolvedIsCorroborated: scCorroborated else: scSingleDistributor
+
 proc txView*(r: DataRoot, info: ChainInfo, hash: string): TxView =
   ## The transaction-detail projection. The SDK assembles the three data-plane
   ## layers; this maps them onto the fields the page shows.
@@ -332,6 +483,7 @@ proc txView*(r: DataRoot, info: ChainInfo, hash: string): TxView =
   result.payloadSelector = v.facts.payloadSelector
   result.payloadTarget = v.facts.payloadTarget
   result.native = v.facts.native
+  result.sources = sourceCoverage(v.facts.native)
   result.canonical = v.canonical
   result.finality = v.finality
   for e in v.execTraces:
@@ -349,7 +501,7 @@ proc txRow*(r: DataRoot, info: ChainInfo, hash: string): TxRow =
     hash: hash, height: v.height, index: v.index, blockHash: v.blockHash,
     outcome: v.outcome, outcomeReason: v.outcomeReason, cost: v.cost,
     methodSel: v.payloadSelector, toTarget: v.payloadTarget,
-    availability: v.headline)
+    availability: v.headline, sources: v.sources)
   for role in v.roles:
     if role.role in ["feePayer", "signer", "initiator", "sender"]:
       result.fromAddr = role.address

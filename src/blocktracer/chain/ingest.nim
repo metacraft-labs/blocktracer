@@ -659,8 +659,20 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     # kept is what a reader needs to judge the claim — who it is, which class it
     # ran, whether an artifact was proved for it, where that artifact came from,
     # and how many independent parties agreed on its source text.
-    var artifactSummary = newJArray()
+    #
+    # AND THE ABSENT RECORD IS NULL, NOT THE EMPTY LIST. `ct.source-provenance`
+    # is written into every recording the current runtime produces, resolved or
+    # not, precisely so that its ABSENCE is never ambiguous — a snapshot with no
+    # `artifacts` key is one taken before the runtime could resolve artifacts at
+    # all, which is a different fact from a snapshot that looked and found the
+    # transaction executed no contract code. This block used to publish `[]` for
+    # both and so destroyed, one layer down, exactly the distinction the
+    # recording had gone to the trouble of carrying: a consumer could no longer
+    # tell "nobody looked" from "looked, nothing to look at", and a badge derived
+    # from it would have had to guess. `null` for the first, `[]` for the second.
+    var artifactSummary = newJNull()
     if t{"artifacts"} != nil and t["artifacts"].kind == JArray:
+      artifactSummary = newJArray()
       for a in t["artifacts"]:
         artifactSummary.add %*{
           "address": orNull(a{"address"}),

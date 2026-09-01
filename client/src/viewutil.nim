@@ -414,6 +414,163 @@ proc availabilityNote*(a: TraceAvailability): string =
   of taUnsupported:
     "No recorder exists for this VM yet, so no trace can be produced."
 
+# ── source coverage: available, and deliberately not verified ──────────────
+#
+# ## THE WORD IS `AVAILABLE`, AND THAT IS A DECISION WITH TWO REASONS
+#
+# **One: a transaction is not one contract.** It executes several, and the
+# recording resolves them one at a time — `sourceCoverage` folds a per-contract
+# array precisely because a transaction that resolved two of its three contracts
+# is a normal shape and not an edge case. A per-transaction word that admitted no
+# partiality would have to round, and the only safe rounding is down, which would
+# hide every partially-debuggable transaction behind the same word as a
+# completely opaque one.
+#
+# **Two, and it survives even for a single-contract transaction:
+# `artifactHash` does not commit to source text.** What the three acceptance
+# checks prove is that the BYTECODE which ran is the bytecode in the artifact —
+# `computeArtifactHash` equals the class's `artifactHash`, `public_dispatch` is
+# byte-equal to `packedBytecode`, the class id recomputes. `debug_symbols` and
+# `file_map` are inside the artifact but outside the commitment, so an artifact
+# with every source location rewritten passes all three; that was demonstrated
+# rather than reasoned about. A published decoy makes the same point from the
+# other side: an npm release ships bytecode byte-identical to a deployed class
+# under a DIFFERENT artifact hash with DIFFERENT debug symbols, which a
+# bytecode-only check accepts and which then produces real-looking line numbers
+# out of a different compilation.
+#
+# So the honest sentence is "source was distributed for this code and it proves
+# out against the chain's commitment to the artifact", which is `available`. The
+# sentence `verified` would claim is "this text is the text that was compiled",
+# which nothing in the chain attests. `Source-Resolution.md` §4 and
+# Page-Descriptions §9 already reserve *verification* for exactly the surface
+# that can make that claim — the contract source browser, over a provider's
+# match level — so borrowing the word for a transaction row would also have made
+# two surfaces say one word about two different guarantees.
+#
+# `corroboration` is where the residual strength lives, and it is a SEPARATE
+# axis rather than a stronger label, because it is a fact about how many
+# independent parties served the same symbols and not about the chain.
+
+proc sourcesState*(s: SourceCoverage): string =
+  ## The badge's words. Names a STATE, like `availabilityState` beside it —
+  ## never an enum spelling and never a verdict the tree cannot support.
+  case s
+  of scAll: "Sources available"
+  of scPartial: "Sources partial"
+  of scNone:
+    # NOT "No sources". The recording steps perfectly; what it lacks is text,
+    # and this is the majority state in every capture the site carries today.
+    # A row that reads as broken for the common case teaches a visitor to
+    # ignore the column, and then it is not there for the uncommon one. This is
+    # also the source pane's own existing sentence — "Stepping continues at
+    # instruction level" — so the two surfaces name the state the same way.
+    "Instruction level"
+  of scNoCode: "No contract code"
+  of scUnchecked, scUnrecorded:
+    # ONE LABEL FOR TWO STATES, and the same rule `availabilityNote` states for
+    # `absent`: a badge may not name a cause it cannot tell apart. Both mean no
+    # artifact resolution result exists for this transaction; `sourcesNote`
+    # says which, where there is room for a sentence.
+    "Not checked"
+
+proc sourcesClass*(s: SourceCoverage): string =
+  ## The status family, so colour never carries the meaning alone (rubric A7) —
+  ## the words above already do, and this only ranks them.
+  ##
+  ## `scNone` is MUTED and not `bad`. It is the state of every real transaction
+  ## this site publishes today, it is a fact about what anybody has published
+  ## for those contracts rather than a fault in the transaction, and `bad` is
+  ## the treatment `outcomeClass` gives a reverted execution. Two unrelated
+  ## things in one colour is how a status vocabulary stops meaning anything.
+  case s
+  of scAll: "ok"
+  of scPartial: "warn"
+  of scNone, scNoCode, scUnchecked, scUnrecorded: "muted"
+
+func sourcesStated*(s: SourceCoverage): bool =
+  ## Whether a transaction list renders this state at all.
+  ##
+  ## `scUnrecorded` is the one that does not, and the reason is that the badge
+  ## reports the OUTCOME OF A PROCEDURE — off-chain artifact resolution against
+  ## an on-chain class commitment. Where no such procedure ran, and could not
+  ## have, there is no outcome to report: the synthetic demo chain has no chain
+  ## class to resolve against, and a transaction with no replay record has no
+  ## executed stream to measure over. Rendering "Not checked" there would state
+  ## a result for a procedure that was never applicable, on a chain the strip,
+  ## the banner and the page's own `data-provenance` already label `synthetic`.
+  ##
+  ## It is a func and not an `if` at each call site for the usual reason: three
+  ## surfaces ask this question and a restatable condition is a condition that
+  ## can come to differ.
+  s != scUnrecorded
+
+func sourcesCount*(v: SourceCoverageView): string =
+  ## `"2/3"` — resolved over executed — or `""` where the ratio would say
+  ## nothing. A partial transaction is the case the user named as the hard one,
+  ## and "some of them" is not actionable while "2 of 3" is.
+  ##
+  ## Deliberately empty for `scAll`: "Sources available" already means all of
+  ## them, and `3/3` beside it is the same fact twice.
+  if v.state in {scPartial, scNone} and v.contracts > 0:
+    $v.resolved & "/" & $v.contracts
+  else:
+    ""
+
+proc sourcesNote*(v: SourceCoverageView): string =
+  ## The sentence under the badge on the two surfaces that have room for one —
+  ## the transaction page's overview grid and the debugger's metadata pane.
+  ##
+  ## This is where the strength of the claim is spelled out rather than implied,
+  ## and where the two "no answer" states stop sharing a label.
+  case v.state
+  of scAll, scPartial:
+    var s =
+      (if v.state == scAll: "Every one of the "
+       else: $v.resolved & " of the ") & $v.contracts &
+      " contract" & (if v.contracts == 1: "" else: "s") &
+      " this transaction executed resolved an artifact that proves out against " &
+      "the chain's commitment: the bytecode that ran is the bytecode in the " &
+      "artifact. "
+    if v.origins.len > 0:
+      s.add "Distributed by " & v.origins.join(", ") & ". "
+    s.add(
+      case v.corroboration
+      of scCorroborated:
+        "Two independent distributors served the same debug symbols and file " &
+        "map, so the source text is corroborated."
+      of scSingleDistributor:
+        # THE CAVEAT IS NOT OPTIONAL AND IT IS NOT A FOOTNOTE. `artifactHash`
+        # does not cover `debug_symbols` or `file_map`, so on one distributor
+        # the text a visitor reads is that party's unverified word — and a
+        # published decoy exists that a bytecode-only check accepts.
+        "The chain does not commit to an artifact's debug symbols or file map, " &
+        "so the source text itself rests on that one distributor's word."
+      of scNoClaim: "")
+    if v.state == scPartial:
+      s.add " Steps inside the contracts that did not resolve continue at " &
+            "instruction level."
+    s
+  of scNone:
+    "All " & $v.contracts & " contract" &
+    (if v.contracts == 1: "" else: "s") &
+    " this transaction executed were checked and none has an artifact anybody " &
+    "publishes, so stepping is complete and only the text is missing."
+  of scNoCode:
+    "This transaction executed no contract code, so there is no source to resolve."
+  of scUnchecked:
+    "This transaction was replayed before the runtime could resolve artifacts " &
+    "off-chain, so its recording carries no source-provenance record. Nobody " &
+    "looked; this is not a finding that nothing is published."
+  of scUnrecorded:
+    "No chain replay produced this transaction, so no artifact was resolved " &
+    "against a class commitment and there is no source claim to make."
+
+proc sourcesRow*(v: SourceCoverageView): MetaRow =
+  ## §7.2's overview fact, produced ONCE for both surfaces that render it.
+  MetaRow(label: "Sources", value: sourcesState(v.state),
+          badge: sourcesClass(v.state), note: sourcesNote(v))
+
 # ── the transaction's facts, produced ONCE ─────────────────────────────────
 #
 # Page-Descriptions §7.1 puts the transaction's metadata inside the debugging
@@ -561,6 +718,21 @@ proc txMetadataRows*(chain: string, v: TxView, info: ChainInfo): seq[MetaRow] =
                      badge: (if v.canonical: "muted" else: "bad"))
   result.add MetaRow(label: "Finality", value: sentenceCase(v.finality),
                      badge: finalityClass(v.finality))
+  # SOURCES, beside the other two status facts and ABOVE the family-specific
+  # rows, because it is a fact about this transaction on every chain and the
+  # rows under it are whatever the adapter happened to report.
+  #
+  # It is added HERE and nowhere else, which is what gets it onto both surfaces
+  # §7.1 names — the page's overview grid and the debugger's metadata pane —
+  # "from one source, and the two cannot be allowed to diverge". A `Sources`
+  # block written into `pages/tx.nim` would have been a second producer of the
+  # same fact and the pane would have gone on lacking it.
+  #
+  # The gate is `sourcesStated`, the same one the transactions table uses: a
+  # transaction with no replay record had no artifact resolution applied to it,
+  # so there is no result to report and no row.
+  if sourcesStated(v.sources.state):
+    result.add sourcesRow(v.sources)
   for role in v.roles:
     result.add MetaRow(label: roleLabel(role.role), value: role.address,
                        identifier: true)
