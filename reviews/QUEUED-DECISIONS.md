@@ -1123,3 +1123,69 @@ Recommendation: **(d) then (c)**, in separate commits, each photographed. They
 are independent and they answer different findings. NOT (a). And the CSS
 comment's claim that reverting to `lg` answered finding (1) is corrected in this
 round, because it does not.
+
+## Q19. P1 — the outcome badge contradicts the reason printed beneath it
+`debugger/wide/light` ADV, vd10-r1, and it is the round's best finding. The
+amber `Partial` badge (identity bar x202-261 y20-42, and again in the transaction
+pane at x1542-1601 y99-121) sits directly above `Status reason:
+private-part-succeeded-public-part-succeeded` at y150-188. The badge asserts a
+warn-toned partial outcome; the reason says both halves succeeded. One of the two
+is false and the reader cannot tell which.
+
+Q3 already held that reason STRING as a copy problem. This is a different and
+sharper claim about the same pixels: not an infelicity, a contradiction.
+
+### The mechanism, traced to the source
+`ooPartial` does NOT mean "partially succeeded". The contract's own comment is
+`ooPartial = "partial"  ## atomicity is not universal` — it names the SHAPE of
+the commit, a transaction that committed as several independently-committing
+units (NEAR receipts, TON branches, the Aztec private/public split). The demo
+generator says so explicitly at `generator.nim:374`: "txB's `ooPartial` is the
+Aztec split with BOTH halves succeeded", and its `parts` carry
+`{"unit":"private","outcome":"succeeded"}` and
+`{"unit":"public","outcome":"succeeded"}`.
+
+So the model is right and the RENDERING is wrong. `outcomeClass` maps
+`ooPartial -> "warn"` unconditionally, and `outcomeLabel` maps it to the English
+word "Partial", which every explorer uses to mean "something did not fully
+work". A split commit in which nothing failed is painted as a warning.
+
+### Why it is not a one-line fix, which is the useful part
+The tone cannot be computed from the enum, because the enum genuinely covers
+both cases — a split where every part succeeded, and a split where one did not.
+The information that separates them is `Outcome.parts`, and **the client's view
+model drops it**: `contract/model.nim` has `outcome*: Outcome` (with `parts`),
+while `client/src/reader.nim` flattens it to `outcome*: OutcomeOverall` in both
+`TxView` and `TxRow`. `reason` survives the flattening; `parts` does not.
+
+So every client surface that paints this badge — `pages/tx.nim:189`,
+`components/tables.nim:97`, `debugger/demo_session.nim:341` feeding
+`pages/debug.nim:170` — is computing a tone from a value that cannot carry the
+answer. Deriving it from `reason` instead would mean parsing an opaque
+chain-specific string, which is worse than the defect.
+
+### Options
+  (a) carry the parts. Add the one derived fact the badge needs to the view
+      model — e.g. `outcomeAllPartsSucceeded: bool` populated where `TxView` and
+      `TxRow` are built — and make `outcomeClass` consult it. Reading published
+      parts is not the "deriving a fact the tree does not publish" §7.2 forbids;
+      the parts ARE published. Touches three surfaces no reviewer has seen
+      changed, which is why it is not taken here at the end of a session;
+  (b) retone only: make `ooPartial` neutral rather than `warn` everywhere.
+      One line, and wrong on the chains where a part really did fail — it would
+      silence a genuine warning to fix a false one;
+  (c) relabel only: `Partial` -> a word naming the SHAPE ("Split", "Two-part",
+      "Multi-part"). Removes the "something went wrong" reading without touching
+      tone or view model, and is honest for both cases, since a split commit is
+      a split commit whether or not a part failed. Cheapest correct-in-all-cases
+      option, and it is a copy decision;
+  (d) (a) and (c) together — the badge names the shape, the tone names whether
+      anything failed. This is the only combination in which the badge and the
+      reason cannot contradict each other.
+
+Recommendation: **(d)**, with (c) landable first and independently since it needs
+no view-model change. NOT (b).
+
+Note this also resolves the shape of Q3: once the badge stops claiming a
+warning, the raw reason string is a copy problem again rather than half of a
+contradiction, and Q3's options apply to it unchanged.
