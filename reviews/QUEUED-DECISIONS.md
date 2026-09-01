@@ -1310,3 +1310,57 @@ nuisance.
 
 Not taken here because it changes what a green B4 means, and that deserves to be
 a decision rather than a side effect of the round that noticed it.
+
+## Q22. The evidence that the session is faithful is below the fold
+vd10-r1's only live G1 failure, and three lenses reached it independently on
+`debugger--testnet/wide/light`: the replay telemetry — instructions executed,
+effects matched, `effectsMismatched: 0` — has **zero ink on screen**. The
+expectation block calls that figure "the evidence the session is faithful", and
+it is a must-show.
+
+**It is a regression with a measured cause.** In vd9-r1 the provenance paragraph
+was 216px; it is now **377px, 38.5% of the pane's 979px body** (L4), seventeen
+lines (L1), and it pushed BLOCK from y394 to y589. In vd9-r2
+`"instructionsExecuted": 345,` was still legible at y1042 and was filed only P2.
+Now the `RAW (CHAIN-NATIVE)` heading is the last thing on the page with zero JSON
+lines beneath it, and its panel's top edge is already inside the bottom fade.
+
+Three lenses filed `expectedElements: missing`; three filed `present`, judging
+the pane a scroll region rather than a clip — the distinction this session spent
+two diagnoses establishing, and both readings are defensible. **The disagreement
+is the finding: a must-show reachable only by scrolling is not shown.** That is a
+question about what the campaign's presence check MEANS, and it will recur on
+every scrollable pane.
+
+Two independent causes, and they want different fixes:
+
+  * **Ordering.** The pane runs Data -> Block -> Type -> Age -> Canonical ->
+    Finality -> Cost -> Executions -> Decoded Input -> Raw, so the proof of
+    faithfulness sits *after* a raw chain-native JSON dump. A dump is reference
+    material; `effectsMismatched: 0` is the claim the whole session rests on.
+    That is a priority inversion independent of any height.
+  * **Allocation.** L2 measured **70.9% of the page's ink inside the
+    20.1%-wide Transaction column**, which is the only pane that overflows,
+    while Code holds 314px of dead width at 1.00% ink density. The column split
+    is byte-identical between the source-bearing and source-less subjects
+    (913/608/383), so it never consults content. This is Q2, and this page is
+    where its cost stops being cosmetic.
+
+Options:
+  (a) move the replay telemetry above `Decoded Input` and `Raw`. Smallest change,
+      fixes the inversion, and does not depend on Q2. It reorders a facts grid
+      no reviewer has seen reordered;
+  (b) take Q2's column split so the pane holding 70.9% of the ink is not the
+      narrowest. Fixes the cause rather than the symptom, and is the queued
+      taste call that has now been re-scoped three times;
+  (c) shorten the provenance paragraph. **Not mine to take** — that copy belongs
+      to the chain re-scoping work in flight, and it is correct copy that got
+      long, not wrong copy;
+  (d) decide the presence question first: does a must-show inside a scroll
+      region count as shown? If yes, this is a P2 about ordering and not a G1
+      failure at all, and the expectation block should say so.
+
+Recommendation: **(d) then (a)**. The presence question is upstream of the fix
+and the campaign cannot keep splitting 3-3 on it; and (a) is worth doing whatever
+the answer, because a raw dump above the faithfulness claim is wrong at any
+height. NOT (c).
