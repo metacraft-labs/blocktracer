@@ -333,7 +333,8 @@ proc fixtureControls(positioned, live: bool; steps: int): DebugControlsPane =
 # The metadata pane — derived, never fixture
 # ---------------------------------------------------------------------------
 
-proc metadataPane*(chain: string; v: TxView; info: ChainInfo): MetadataPane =
+proc metadataPane*(chain: string; v: TxView; info: ChainInfo;
+                   ending = eeUnstated): MetadataPane =
   ## §7.1's pane, from `viewutil.txMetadataRows` — the same seq the explorer's
   ## overview grid renders. Nothing is assembled here that the page does not
   ## also see.
@@ -344,7 +345,7 @@ proc metadataPane*(chain: string; v: TxView; info: ChainInfo): MetadataPane =
     revertReason: v.outcomeReason,
     revertReasonLabel: outcomeReasonLabel(v.outcome),
     revertReasonTone: outcomeReasonTone(v.outcome),
-    rows: txMetadataRows(chain, v, info),
+    rows: txMetadataRows(chain, v, info, ending),
     executions: txExecutionRows(v),
     payload: txPayloadRows(v),
     payloadNote: payloadNote(v),
@@ -359,7 +360,8 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
                   containerPath = ""; containerBytes = 0;
                   contentHash = "";
                   totalSteps = FixtureTotalSteps;
-                  sourceLevel = true): DebugSessionView =
+                  sourceLevel = true;
+                  ending = eeUnstated): DebugSessionView =
   ## The pre-hydration frame for one transaction, with `trace.availability`
   ## deciding what it is — Page-Descriptions §7.0's table, applied to the
   ## explicit debug route:
@@ -395,7 +397,7 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
   result.engineBase = ReplayEngineBase
   result.engineCrossOrigin = replayEngineIsCrossOrigin()
   result.engineBytes = ReplayEngineWasmBytes
-  result.metadata = metadataPane(chain, v, info)
+  result.metadata = metadataPane(chain, v, info, ending)
 
   # The fixture session sits at step 128 of the recorded program. A tree whose
   # manifest still describes a stand-in container reports fewer steps than

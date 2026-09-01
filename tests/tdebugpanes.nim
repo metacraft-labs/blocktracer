@@ -211,13 +211,22 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       # Matched through the `ctname` class and not on the bare name — the
       # source pane now renders `calculate_damage` as a `tk-function` span too,
       # so an unqualified `>name</span>` would be satisfied by the wrong pane.
-      # The class is BUILT from `panes.Copyable` rather than spelled out: a
-      # frame name is a value a reader takes out of the session (§13), and a
-      # test that restated the attribute would fail the next time the set of
-      # copyable values changes, which is not what it is here to detect.
+      # The class is BUILT from the `Copyable` constant rather than spelled
+      # out: a frame name is a value a reader takes out of the session (§13),
+      # and a test that restated the attribute would fail the next time the set
+      # of copyable values changes, which is not what it is here to detect.
+      #
+      # Qualified `session_view.` and NOT `panes.`, which is what it said when
+      # it landed and is why this file stopped compiling that same day.
+      # `components/debugger` USES the constant but does not re-export it, and a
+      # qualified name in Nim resolves only against what a module defines or
+      # exports — so `panes.Copyable` is an undeclared identifier, and the whole
+      # suite went dark on a symbol that was right there. `viewutil` re-exports
+      # it for the explorer's pages; the renderers are the same constant's other
+      # reader, and here the definition is named directly.
       check s.calltrace.visibleLines.val.len == 3
       for line in s.calltrace.visibleLines.val:
-        check ("<span class=\"ctname " & panes.Copyable & "\">" &
+        check ("<span class=\"ctname " & session_view.Copyable & "\">" &
                line.name & "</span>") in html
         check ("ctrow d" & $line.depth) in html
 
@@ -284,8 +293,8 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       # by line 4 of the source in BOTH renders and the mutation bite would
       # have stopped biting — silently, and while still passing on the `in`
       # half of every pair.
-      let stval = "<span class=\"stval " & panes.Copyable & "\">"
-      let ctname = "<span class=\"ctname " & panes.Copyable & "\">"
+      let stval = "<span class=\"stval " & session_view.Copyable & "\">"
+      let ctname = "<span class=\"ctname " & session_view.Copyable & "\">"
       check (stval & "10000</span>") in before
       check (stval & "9000</span>") notin before
       check (stval & "9000</span>") in after

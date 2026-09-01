@@ -18,7 +18,7 @@
 
 import std/[algorithm, strutils]
 import blocktracer_client
-export TraceAvailability, OutcomeOverall, BlockDetail, Role, Cost
+export TraceAvailability, OutcomeOverall, ExecutionEnding, BlockDetail, Role, Cost
 # The read seam itself, so a consumer of THIS module can hand `newDataRoot` a
 # transport of its own — a recording wrapper, a synthetic tree, a store that
 # refuses everything off the published prefixes. Re-exported rather than
@@ -569,6 +569,10 @@ type
     truncated*: bool
     sourceLevel*: bool
     reconstructed*: bool
+    ending*: ExecutionEnding
+      ## How the RECORDING ended, which is not how the transaction ended — see
+      ## `contract/model.ExecutionEnding`. `eeUnstated` on every trace whose
+      ## manifest does not say, which is every real-chain one today.
     languages*: seq[string]
     validationStatus*: string
     sourceBundle*: JsonNode        ## the recommended bundle's raw node, or nil
@@ -636,6 +640,7 @@ proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
     result.frames = t.manifest.execution.frames
     result.truncated = t.manifest.execution.truncated
     result.sourceLevel = t.manifest.execution.sourceLevel
+    result.ending = t.manifest.execution.ending
     result.languages = t.manifest.execution.languages
 
   # The source bundle the manifest recommends, for the first code hash the

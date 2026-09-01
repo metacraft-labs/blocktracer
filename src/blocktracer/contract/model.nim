@@ -211,10 +211,48 @@ type
     blockSize*: int
     hash*: string
 
+  ExecutionEnding* = enum
+    ## HOW THE RECORDING ENDED — which is not how the TRANSACTION ended.
+    ##
+    ## `Outcome.overall` above is the chain's verdict on the transaction: it
+    ## committed, or it reverted, or it committed some parts. This is the
+    ## recording's verdict on the execution inside it, and the two are
+    ## genuinely independent. A public AVM call whose circuit stops on a
+    ## constraint that did not hold can still be a transaction the chain
+    ## records as `succeeded`; the demo tour publishes exactly that pair, and
+    ## before this field a visitor had no way to tell such a recording from one
+    ## that ran to the end. Every badge, every row and every sentence on both
+    ## pages was byte-identical.
+    ##
+    ## Three values and not a bool, because "we do not know" is the common case
+    ## and must not read as "it completed".
+    eeUnstated = "unstated"
+      ## Nothing established where this recording stops. The DEFAULT, which is
+      ## why it is first: a producer that says nothing says this, and a manifest
+      ## written before the field existed decodes to it. Omitted from the JSON
+      ## rather than written, so "unstated" and "absent" cannot become two
+      ## different states a reader has to reconcile.
+      ##
+      ## Every real-chain recording is this today. `chain/ingest.nim` has the
+      ## receipt's `revertCode` and deliberately does NOT use it here: that is
+      ## the chain's verdict, and spending it on this field would reintroduce
+      ## the conflation the field exists to end — as a value that looks
+      ## authoritative.
+    eeCompleted = "completed"
+      ## The execution ran to the program's end.
+    eeFailedConstraint = "failedConstraint"
+      ## The execution stopped on a constraint that did not hold, and the
+      ## recording ends there. There is no step after it.
+
   ExecutionSummary* = object
     steps*, frames*: int
     truncated*, sourceLevel*: bool
     languages*: seq[string]
+    ending*: ExecutionEnding
+      ## `truncated` is its nearest neighbour and answers a different question.
+      ## A truncated recording is one whose ending is MISSING — the recorder hit
+      ## the profile budget — so it cannot also be stating what that ending was.
+      ## The two are orthogonal and both are published.
 
   TraceManifest* = object
     ## `/t/{t0t1}/{t2t3}/{traceArtifactId}/manifest.json`.
@@ -372,6 +410,14 @@ proc toJson*(x: TraceManifest): JsonNode =
                            "truncated": x.execution.truncated,
                            "sourceLevel": x.execution.sourceLevel,
                            "languages": x.execution.languages}
+  # Written only when it is a statement. `eeUnstated` is the absence of one, and
+  # writing it would turn "nobody established this" into a published claim that
+  # a reader has to distinguish from a missing key — two spellings of one fact,
+  # which is the drift `Outcome.reason`'s `empty => omitted` already avoids.
+  # Additive-only (docs/data-contract.md): a consumer that predates the field
+  # reads the manifests it always read.
+  if x.execution.ending != eeUnstated:
+    result["execution"]["ending"] = %($x.execution.ending)
   result["validation"] = %*{"status": $x.validation.status,
                             "oracle": x.validationOracle,
                             "strength": x.validation.strength,

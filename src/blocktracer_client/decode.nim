@@ -272,7 +272,20 @@ proc decodeTraceManifest*(n: JsonNode): TraceManifest =
   result.execution = ExecutionSummary(
     steps: optInt(e, "steps"), frames: optInt(e, "frames"),
     truncated: optBool(e, "truncated"), sourceLevel: optBool(e, "sourceLevel"),
-    languages: strSeq(e{"languages"}))
+    languages: strSeq(e{"languages"}),
+    # ABSENT IS `eeUnstated`, and a PRESENT spelling this consumer does not know
+    # is refused rather than folded into it. Those are two different facts: the
+    # first is a producer that made no claim about where the recording stops,
+    # the second is one that made a claim in a vocabulary this build cannot
+    # read — and quietly reporting the second as "nothing is known" is how a
+    # page comes to say a failed execution ran to the end. Same rule as every
+    # other enum here (`enumOf` fails), and the same rule §2.3a applies to an
+    # unreadable availability.
+    ending:
+      if e.hasKey("ending"):
+        enumOf[ExecutionEnding](reqStr(e, "ending", what & ".execution"),
+                                what & ".execution.ending")
+      else: eeUnstated)
   let v = req(n, "validation", what)
   result.validation = decodeValidationSummary(v)
   result.validationOracle = optStr(v, "oracle")

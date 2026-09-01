@@ -119,7 +119,12 @@ proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
     # not the chain's name. A container recorded at instruction level renders as
     # instruction level wherever it came from, and the client-side fixture
     # sources are offered only to a trace whose manifest claims source level.
-    sourceLevel = t.sourceLevel)
+    sourceLevel = t.sourceLevel,
+    # …and, from the same manifest, WHERE THE RECORDING STOPS. This is the only
+    # place both the transaction's facts and its trace manifest are in hand, so
+    # it is the only place the §7.1 row producer can be given the fact. See
+    # `viewutil.executionEndingRow` for why it is not the transaction's outcome.
+    ending = t.ending)
   if t.languages.len > 0:
     result.languages = t.languages
   result.reconstructed = t.reconstructed
