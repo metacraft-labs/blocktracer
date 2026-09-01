@@ -43,6 +43,39 @@
 // "The step changed" would be satisfied by a jump that landed anywhere, which is
 // most of what a broken seek does. Nothing here names a step — the target is
 // discovered by reading the rows, per rule 4.
+//
+// AND IT IS DRIVEN OVER BOTH KINDS OF RECORDING
+// ---------------------------------------------
+// THE DEFECT THIS SECTION EXISTS FOR WAS IN THIS FILE. Until 2026-09-01 the
+// subject was chosen as
+//
+//     withSession.find((t) => !t.real) ?? withSession[0]
+//
+// which PREFERS a synthetic fixture. With 15 synthetic sessions in the corpus
+// the `??` arm could never be reached, so eighteen assertions and thirteen
+// killed mutation arms had proven the gesture exclusively on the demo chain —
+// while a visitor reported the mark not following their jumps on a REAL
+// `aztec-testnet` transaction. Machinery present, correct, and pointed at the
+// wrong subject: the same shape as `demo_session.nim`'s `FixtureLine = 32`,
+// which made 115 assertions tautological.
+//
+// Measured on production the day this was written, the two worlds differ
+// exactly where it matters: on all six real captures the call trace and event
+// log render NO rows at all — the recordings resolve no source positions, so
+// there is nothing to click — while the demo chain renders seven navigable
+// rows and the jump works. A synthetic-only subject could not see that.
+//
+// So the arms are SEPARATE and BOTH REQUIRED, and neither may fall back to the
+// other. The real arm asserts what a real capture must honour whether or not it
+// has rows: the mark exists, the mark FOLLOWS the session, and a region with no
+// rows SAYS SO rather than rendering an empty box. A silent empty region is the
+// visitor's "it does nothing when I click", and it is the one state that must
+// never read as healthy.
+//
+// EMPTY SETS. `j.atLeast(…, 1)` guards each subject list, because universal
+// quantification over nothing passes: "every real capture jumps correctly" is
+// vacuously true of a corpus with no real captures, and that is precisely how
+// the gap above stayed invisible for as long as it did.
 
 import { visit, readFacts } from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";
@@ -51,7 +84,7 @@ export const id = "a-jump-moves-the-position";
 export const claim =
   "A visitor who clicks a row in the navigation regions sees the position move there.";
 export const spec = "Debugger-Integration.md §3, §4.2 — BlockTracer";
-export const assertions = 18;
+export const assertions = 29;
 export const needsEngine = true;
 
 /**
@@ -102,6 +135,50 @@ const pickTarget = (page, selector) =>
   }, selector);
 
 /**
+ * Every pane in the session, and whether it says ANYTHING.
+ *
+ * A pane is MUTE when it renders no rows and states no reason — an empty box
+ * where the product's own §7.0 requires that "no state renders less than the
+ * truth". That is the state a visitor reads as "I clicked and nothing
+ * happened", and on a recording with no resolved source positions it is the
+ * difference between "this recording carries no frames, here is why" and a
+ * navigation region that silently does not work.
+ *
+ * Read by PROPERTY and never by pane name: a pane counts as speaking if it has
+ * rows of any kind or a non-empty note. A selector spelling `#pane-calltrace`
+ * would be a second place to rename, and would go quietly green if the pane it
+ * names ever stopped being rendered at all.
+ */
+const readPaneHealth = (page) =>
+  page.evaluate(() => {
+    const panes = [...document.querySelectorAll(".dbg .pane")];
+    const speaks = (p) =>
+      p.querySelectorAll(".ctrow,.evrow,.strow,.srcline").length > 0 ||
+      [...p.querySelectorAll(".panenote")].some((n) => (n.textContent ?? "").trim().length > 0);
+    return {
+      panes: panes.length,
+      mute: panes.filter((p) => !speaks(p)).length,
+      muteTitles: panes
+        .filter((p) => !speaks(p))
+        .map((p) => p.querySelector(".panetitle")?.textContent?.trim() || p.id || "(unnamed)"),
+    };
+  });
+
+/** The navigation rows on screen, across BOTH regions, and how many name a step. */
+const readNavigable = (page) =>
+  page.evaluate(() => {
+    const shown = (e) =>
+      !!e &&
+      typeof e.checkVisibility === "function" &&
+      e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+    const rows = [...document.querySelectorAll(".ctrow,.evrow")].filter(shown);
+    return {
+      shown: rows.length,
+      namingAStep: rows.filter((r) => (r.getAttribute("data-step") ?? "").length > 0).length,
+    };
+  });
+
+/**
  * Click, then wait for ANY of the three things a jump could move.
  *
  * A predicate and never a sleep — journey 03's reason applies unchanged: a jump
@@ -134,7 +211,22 @@ export async function run({ browser, site, j }) {
   const withSession = all.filter((t) => landingOf(t.phase) === "session" && t.hasListing);
   j.subjects(withSession, 3, "transactions whose landing is a session with rows in its Code pane");
 
-  const subject = withSession.find((t) => !t.real) ?? withSession[0];
+  // TWO SUBJECT LISTS, EACH ASSERTED NON-EMPTY, AND NO FALLBACK BETWEEN THEM.
+  // `find(…) ?? withSession[0]` is what hid this journey's synthetic-only reach
+  // for its whole life: the fallback made "no real capture was available" and
+  // "a real capture passed" the same green. Selecting by filter and asserting
+  // the size makes a corpus that has lost one kind of recording a RED, which is
+  // what it is — the journey can no longer judge the claim it makes.
+  const synthetic = withSession.filter((t) => !t.real);
+  const realCaptures = withSession.filter((t) => t.real);
+  j.atLeast(synthetic.length, 1, "SUBJECTS: synthetic sessions, so the demo arm has a subject");
+  j.atLeast(
+    realCaptures.length,
+    1,
+    "SUBJECTS: REAL-capture sessions, so the arm the visitor's report came from has a subject",
+  );
+
+  const subject = synthetic[0];
   j.note(`driving ${subject.debugPath}`);
 
   const live = await visit(browser, site.origin, subject.debugPath, {
@@ -262,6 +354,117 @@ export async function run({ browser, site, j }) {
       evAfter.markedShown && evAfter.markedNumber !== evBefore.markedNumber,
       "the marked line moved, and is on screen",
       `marked line ${evBefore.markedNumber} -> ${evAfter.markedNumber}, on screen=${evAfter.markedShown}`,
+    );
+  } finally {
+    await page.close();
+  }
+
+  // ── THE REAL CAPTURE ──────────────────────────────────────────────────
+  //
+  // The surface the visitor's report came from, and the one no assertion in
+  // this suite had ever driven. It is a SEPARATE subject and a separate page,
+  // so a real-capture regression reddens on its own rather than being masked
+  // by a demo session that still works.
+  await realArm(browser, site, j, realCaptures[0]);
+}
+
+/**
+ * What a REAL capture must honour, whether or not it has rows to jump from.
+ *
+ * The jump gesture is not assertable in the same shape here, and pretending
+ * otherwise would be the trap this file already fell into once. On every real
+ * capture in the corpus the navigation regions render no rows — the recordings
+ * resolve no source positions — so "every row jumps correctly" is a claim about
+ * an empty set, which passes and means nothing.
+ *
+ * What IS assertable, and is what the visitor actually reported, is three
+ * things: the mark exists, the mark FOLLOWS the session when it moves, and a
+ * region with nothing to show says why instead of rendering an empty box. The
+ * jump itself is asserted CONDITIONALLY and the branch taken is printed, so the
+ * day a real capture gains navigable rows this arm judges them instead of
+ * silently continuing to judge their absence.
+ */
+async function realArm(browser, site, j, subject) {
+  j.note(`driving REAL capture ${subject.debugPath}`);
+  const live = await visit(browser, site.origin, subject.debugPath, {
+    settle: (f) => f.phase === "ready" && f.controlsLive > 0,
+  });
+  const page = live.page;
+  try {
+    j.expect(
+      live.settled && !live.timedOut,
+      "REAL: the session reached `ready` with live controls",
+      `phase=${live.facts.phase} live=${live.facts.controlsLive}`,
+    );
+    j.countIs(live.pageErrors.length, 0, "REAL: no uncaught page errors while the session came up");
+
+    const before = live.facts;
+    j.countIs(before.marked, 1, "REAL: exactly one line carries the position mark");
+    j.expect(
+      before.markedShown,
+      "REAL: the marked line is on screen, not merely in the DOM",
+      `marked line ${before.markedNumber} in ${before.markedDoc}`,
+    );
+
+    // THE VISITOR'S OWN SENTENCE: "it's not following properly". Driven through
+    // the toolbar because on a real capture there is no row to drive it
+    // through — which is itself the finding, asserted below.
+    await page.click('[data-action="step-forward"]');
+    const deadline = Date.now() + 15000;
+    let after = before;
+    while (Date.now() < deadline) {
+      after = await readFacts(page);
+      if (
+        after.urlQuery !== before.urlQuery ||
+        after.step !== before.step ||
+        after.markedNumber !== before.markedNumber
+      )
+        break;
+      await page.waitForTimeout(200);
+    }
+
+    j.expect(
+      after.urlQuery !== before.urlQuery || after.step !== before.step,
+      "REAL: CONTROL — the step reached the engine",
+      `${before.urlQuery} -> ${after.urlQuery}`,
+    );
+    j.expect(
+      after.step !== before.step,
+      "REAL: the step this session reports advanced",
+      `data-step ${before.step} -> ${after.step} (of ${after.totalSteps})`,
+    );
+    j.countIs(after.marked, 1, "REAL: after the move, exactly one line still carries the mark");
+    j.expect(
+      after.markedNumber !== null && after.markedNumber !== before.markedNumber,
+      "REAL: the position mark FOLLOWED the session",
+      `marked line ${before.markedNumber} -> ${after.markedNumber}`,
+    );
+
+    // THE JUMP SURFACE. Either the regions offer rows that name a step and the
+    // jump lands where the row said, or they render nothing and SAY WHY. The
+    // silent third state — rows a click cannot use, or an empty box with no
+    // sentence — is the visitor's complaint, and it is the only one that fails.
+    const nav = await readNavigable(page);
+    const health = await readPaneHealth(page);
+    const navigable = nav.shown > 0 && nav.namingAStep === nav.shown;
+    let verdict;
+    let detail;
+    if (nav.shown === 0) {
+      verdict = health.mute === 0;
+      detail = `no navigation row on this recording; ${health.panes} pane(s) all state their content or their absence (mute: ${health.muteTitles.join(", ") || "none"})`;
+    } else if (navigable) {
+      const target = await pickTarget(page, ".ctrow,.evrow");
+      const jumped = target ? await jump(page, target.index, ".ctrow,.evrow", after) : after;
+      verdict = target !== null && jumped.step === target.step && jumped.marked === 1;
+      detail = `${nav.shown} row(s) on screen; jumped to the step row named ${target?.step}, session reports ${jumped.step}`;
+    } else {
+      verdict = false;
+      detail = `${nav.shown} row(s) on screen but only ${nav.namingAStep} name a step — a click on the rest does nothing`;
+    }
+    j.expect(
+      verdict,
+      "REAL: the navigation regions either jump where the row says, or state why they have no rows",
+      detail,
     );
   } finally {
     await page.close();
