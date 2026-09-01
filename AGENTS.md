@@ -34,6 +34,20 @@ The production **blocktracer.org** apex is served by a separate **Cloudflare R2
 delta-publisher** path (bucket bound to the `blocktracer.org` zone), documented
 in [`DEPLOY.md`](./DEPLOY.md) — not by the Pages projects above.
 
+**If a deploy is starved by the runner pool, it re-enqueues itself.**
+`eph-linux-x64` is shared across the org and deploys routinely queue behind it,
+which is silent: production keeps serving the previous commit and nothing goes
+red. `.github/workflows/deploy-requeue.yml` watches every finished `Deploy` run
+and re-runs the ones the *infrastructure* killed. It will **not** retry a
+`failure` (that is this repository's own content, and a retry would hide it),
+and it will **not** retry a `cancelled` run whose commit is no longer its
+branch's tip (that cancel was a `cancel-in-progress` supersede, and re-running
+it would publish the older commit over the newer one). The bound is GitHub's
+`run_attempt`; at 5 it opens an issue and goes red instead of retrying again.
+The policy is a pure function in `tools/ci/requeue-decide.mjs` with a 14-arm
+selftest in the `deploy-gates` CI job. Kill switch: set the
+`DEPLOY_REQUEUE_DISABLED` repository variable.
+
 ## 1a. `@blocktracer/client` — the Client SDK (M12a)
 
 The chain-aware read layer lives in **`src/blocktracer_client.nim`** (the

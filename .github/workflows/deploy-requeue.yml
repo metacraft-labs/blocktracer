@@ -1,0 +1,192 @@
+name: Deploy requeue
+
+# Re-enqueues a `Deploy` run that the SHARED RUNNER POOL killed, and only that.
+#
+# ── The problem this exists for ────────────────────────────────────────────
+#
+# `eph-linux-x64` is a small ephemeral pool shared across the org. Deploys here
+# queue behind it for tens of minutes and are routinely cancelled before they
+# reach a runner. The failure is silent in the worst way: production keeps
+# serving the previous commit, nothing is red, and the only signal is a person
+# noticing the site is stale and clicking "Re-run" until one lands. That
+# clicking is the thing being automated — not a change to what gets deployed,
+# or where, or on what runner.
+#
+# ── Why a workflow_run watchdog, and not a scheduled job or a local script ──
+#
+# One sentence: it is the only design that reacts to the exact event it cares
+# about, needs no machine of ours to stay awake, and cannot itself be blocked
+# by the starved pool it exists to work around.
+#
+# The last clause is the load-bearing one. This job runs on `ubuntu-latest` —
+# GitHub-hosted — because a watchdog for a starved pool that itself queues on
+# that pool would be starved precisely when it is needed. `ci.yml`'s
+# `deploy-gates` job makes the same call for the same reason ("a gate that
+# needs the Nix runner to prove it can fail is a gate that gets skipped when
+# the runner is busy"). This is NOT the prohibited move of changing the
+# deploy's runner: the deploy itself still builds and publishes on
+# `eph-linux-x64`, in the same environment, unchanged. Only the decision to
+# press the button again happens elsewhere.
+#
+# `workflow_run` fires on the default branch's copy of this file (`dev`), so
+# the policy is always the reviewed one on the mainline, never a version from
+# whatever commit was being deployed.
+#
+# ── What it will not do ────────────────────────────────────────────────────
+#
+# Every decision is made by `tools/ci/requeue-decide.mjs`, which is a pure
+# function with a 14-arm selftest wired into `ci.yml`. The two refusals that
+# matter, in short, and at length there:
+#
+#   * a `failure` conclusion is NEVER retried. That is the repository's own
+#     content failing to build; retrying burns the pool and hides the defect.
+#   * a `cancelled` run whose head_sha is no longer its branch's tip is NEVER
+#     retried. `deploy.yml` uses `cancel-in-progress`, so the ordinary cancel
+#     here is a supersede by a newer push, and re-running it would publish the
+#     older commit over the newer one.
+#
+# The bound is GitHub's own `run_attempt`: at MAX_ATTEMPTS the watchdog stops
+# and opens an issue instead of retrying, and the job itself goes red.
+#
+# Kill switch: set repository variable `DEPLOY_REQUEUE_DISABLED` to `true`.
+
+on:
+  workflow_run:
+    workflows: ["Deploy"]
+    types: [completed]
+
+permissions:
+  actions: write # to re-run the deploy
+  contents: read # to read the branch tip
+  issues: write # to escalate when the bound is exhausted
+
+# One watchdog at a time per deploy run, so two invocations cannot both
+# re-run the same run and burn two slots for one starvation.
+concurrency:
+  group: deploy-requeue-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  requeue:
+    # GitHub-hosted on purpose — see the header. The deploy it re-runs still
+    # runs on `eph-linux-x64`.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Read the current tip of the deployed branch
+        # The supersede guard's input. Read through the API rather than
+        # inferred from the event, because the event describes the world when
+        # the deploy STARTED and the guard is about the world now.
+        #
+        # Refs go through the environment, never inline `${{ }}`, so a crafted
+        # branch name cannot inject into the script (same rule as
+        # deploy-cloudflare-pages.yml's "Resolve deploy branch").
+        id: tip
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -uo pipefail
+          tip=""
+          case "$BRANCH" in
+            live|staging|dev)
+              tip="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" \
+                       --jq .object.sha 2>/dev/null || true)"
+              ;;
+            *)
+              # Not a publishing branch; the decider will skip on D4 anyway and
+              # an empty tip keeps us from spending an API call to prove it.
+              ;;
+          esac
+          echo "sha=$tip" >> "$GITHUB_OUTPUT"
+          echo "branch '$BRANCH' tip: ${tip:-<unread>}"
+
+      - name: Decide
+        id: decide
+        env:
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          BRANCH_TIP_SHA: ${{ steps.tip.outputs.sha }}
+          MAX_ATTEMPTS: "5"
+          DEPLOY_REQUEUE_DISABLED: ${{ vars.DEPLOY_REQUEUE_DISABLED }}
+        run: node tools/ci/requeue-decide.mjs
+
+      - name: Re-enqueue the deploy
+        if: steps.decide.outputs.action == 'requeue'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          REASON: ${{ steps.decide.outputs.reason }}
+        run: |
+          set -euo pipefail
+          echo "re-running $RUN_ID: $REASON"
+          gh run rerun "$RUN_ID" --repo "$REPO"
+
+      - name: Escalate — the bound is exhausted
+        if: steps.decide.outputs.action == 'escalate'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          ATTEMPTS: ${{ github.event.workflow_run.run_attempt }}
+          REASON: ${{ steps.decide.outputs.reason }}
+        run: |
+          set -uo pipefail
+          short="$(printf '%s' "$HEAD_SHA" | cut -c1-7)"
+          title="Deploy to '$BRANCH' starved out after $ATTEMPTS attempts ($short)"
+
+          # Written to a file rather than a shell variable: a heredoc nested
+          # inside `$( )` mis-parses on bash 3.2 the moment the prose contains
+          # an apostrophe, and `--body-file` is the version that survives being
+          # edited by someone who does not know that.
+          body_file="${RUNNER_TEMP:-/tmp}/requeue-issue.md"
+          cat > "$body_file" <<EOF
+          The deploy watchdog re-enqueued this run until its bound was reached and it is
+          still not landing. **It will not retry again** — a person is needed.
+
+          - branch: \`$BRANCH\`
+          - commit: \`$HEAD_SHA\`
+          - attempts: $ATTEMPTS
+          - last run: $RUN_URL
+          - decision: $REASON
+
+          This is an INFRASTRUCTURE escalation: the watchdog only ever retries
+          \`cancelled\` / \`startup_failure\`, and only while the run's commit is still the
+          tip of its branch. A genuine build failure is never retried and never reaches
+          this issue — if the deploy is red for a real reason, look at the run, not here.
+
+          Likely cause is saturation of the \`eph-linux-x64\` pool. Re-run the deploy once
+          the pool drains, or set the \`DEPLOY_REQUEUE_DISABLED\` repository variable to
+          stop the watchdog while investigating.
+          EOF
+
+          # One issue per (branch, commit) — a starved deploy that escalates
+          # twice should comment, not open a second issue.
+          existing="$(gh issue list --repo "$REPO" --state open --search "$title in:title" --json number --jq '.[0].number' 2>/dev/null || true)"
+          if [ -n "${existing:-}" ] && [ "${existing}" != "null" ]; then
+            gh issue comment "$existing" --repo "$REPO" --body-file "$body_file" || true
+          else
+            gh issue create --repo "$REPO" --title "$title" --body-file "$body_file" || true
+          fi
+          echo "::error::$title — $REASON"
+          exit 1
+
+      - name: Note a decision that took no action
+        if: steps.decide.outputs.action == 'skip'
+        env:
+          CODE: ${{ steps.decide.outputs.code }}
+          REASON: ${{ steps.decide.outputs.reason }}
+        run: |
+          echo "::notice::no action ($CODE): $REASON"

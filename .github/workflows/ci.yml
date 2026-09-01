@@ -164,6 +164,15 @@ jobs:
         # was written for ships with it nominally in place.
         run: node tools/deploy/check-freshness-selftest.mjs
 
+      - name: Does the deploy watchdog refuse the four worlds it must refuse?
+        # `deploy-requeue.yml` spends a scarce shared runner pool with no human
+        # in the loop, so the arms that matter are the REFUSALS: a genuine
+        # build failure, a supersede, an unreadable branch tip, and an
+        # exhausted bound. The last pinned assertion runs the decision to a
+        # fixed point and proves the retry loop terminates rather than arguing
+        # that it does.
+        run: node tools/ci/requeue-decide-selftest.mjs
+
   contract:
     runs-on: eph-linux-x64
     steps:
