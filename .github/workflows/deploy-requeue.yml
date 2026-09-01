@@ -76,7 +76,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # 22, matching flake.nix's `nodejs_22`. These GitHub-hosted jobs
+          # deliberately do NOT use the Nix shell (a gate that needs the busy
+          # Nix runner to prove it can fail is a gate that gets skipped), so the
+          # version is pinned twice and the two must not drift.
+          node-version: "22"
 
       - name: Read the current tip of the deployed branch
         # The supersede guard's input. Read through the API rather than

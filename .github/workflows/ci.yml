@@ -149,7 +149,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # 22, matching flake.nix's `nodejs_22`. These GitHub-hosted jobs
+          # deliberately do NOT use the Nix shell (a gate that needs the busy
+          # Nix runner to prove it can fail is a gate that gets skipped), so the
+          # version is pinned twice and the two must not drift.
+          node-version: "22"
 
       - name: Does the asset gate bite? (existence — every reference resolves)
         # Eleven arms, each a single mutation of a synthetic publish tree, each
@@ -292,7 +296,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # 22, matching flake.nix's `nodejs_22`. These GitHub-hosted jobs
+          # deliberately do NOT use the Nix shell (a gate that needs the busy
+          # Nix runner to prove it can fail is a gate that gets skipped), so the
+          # version is pinned twice and the two must not drift.
+          node-version: "22"
 
       # C3 resolves the rhythm roles to numbers out of the design system's DTCG
       # source, and reports NOT-RUN-IS-NOT-A-PASS when it cannot read it. On a
