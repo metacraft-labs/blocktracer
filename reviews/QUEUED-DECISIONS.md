@@ -819,3 +819,113 @@ that IS a copy defect rather than a taste call: the unit renders
 `mana (FeeJuice)` — a gas unit and an asset name in one value, and `FeeJuice` is
 the camel-cased machine spelling of an asset Aztec writes as `Fee Juice`. That
 is `roleLabel`-shaped work, not a numeric one.
+
+## Q13 — DIAGNOSED, and the entry's premise was wrong. The mask is not defeated
+The entry above says two reviewers found the Code pane hard-clipping mid-token
+and that "something is defeating" a mask which demonstrably works elsewhere, and
+it names two candidate mechanisms — (i) the mask is defeated, (ii) `.pane`'s
+`overflow:hidden` cuts before `.src` ever sees it. It says explicitly that the
+answer must be established before anything is fixed.
+
+**It was established, in the built page, and it is NEITHER of them.**
+
+Measured on `debugger/wide/dark` and `debugger/laptop/light`:
+
+  * `.src` really does overflow: 911 client / **1167 scroll** at wide, 681/1167
+    at laptop, `scrollLeft:0` — **30.4 characters hidden at wide, 57.7 at
+    laptop** at 8.43px/char.
+  * Nothing clips ahead of it. `.panebody`'s scrollWidth EQUALS its clientWidth,
+    so it never sees horizontal overflow; `.pane`'s inner edge (x=916.0) and
+    `.src`'s padding-box edge (x=916.28) coincide to sub-pixel. The cut belongs
+    unambiguously to `.src`'s own `overflow-x:auto`. **(ii) refuted.**
+  * The mask is working, and it is exact. On the graded PNG, L40's strip ramps
+    **11.7:1 → 7.2:1 → 5.2:1 → 2.7:1 → 1.6:1 → 1.0:1** over exactly 48px. A
+    probe overriding the stop to `calc(100% - 400px)` predicted ink 35.8 and
+    measured 36, which proves the gradient is sized to the border box (911) and
+    not to the scroll area (1167). Lines with no ink in the band are flat — no
+    ramp, because there is nothing to fade. **(i) refuted.**
+  * The nested-mask hypothesis is refuted too: disabling `.panebody`'s `to
+    bottom` mask leaves the strip values **byte-identical**.
+
+**The mechanism is (iii): the treatment is correct and under-scaled.** The ramp
+is `--bt-space-2xl` = 48px = **5.7 characters**, of which only the last ~2.6
+visibly ramp; the content it is signalling is 30 characters at wide and 58 at
+laptop. The signal covers 19% / 10% of what it signals. Both reviewers were
+right about what they saw — a line ending mid-identifier at the pane edge with
+no legible continuation cue — and wrong about the cause: there is no hard clip,
+there is a fade too short to read as one.
+
+Two consequences fall out of the ramp being a property of the CONTAINER rather
+than of each ROW, and both are measured:
+
+  * **False positive.** laptop L42 is COMPLETE, ends 9.3px inside the band, and
+    its last glyph is drawn at mask alpha **0.19** — erased on a line with
+    nothing hidden. L43's last glyph sits at 0.72.
+  * **False negative.** laptop L41 overflows by 1.9 characters and L49 by 2.9;
+    those fall in the near-transparent tail, so both read as complete when they
+    are not. That is exactly the crop a reviewer describes as "clipped
+    mid-token".
+
+This is the useful result and it is more general than this pane: **a
+container-edge overflow cue cannot be correct in a region whose rows have
+different lengths.** No ramp length fixes either consequence, so — as with Q11,
+and for the same structural reason — the next move is a different treatment and
+not a different number.
+
+Options, in order of how little they change:
+  (a) restore the SECOND affordance the fade is currently carrying alone.
+      `.src` has 256–486px of real scroll range and the only reason the frame
+      shows nothing is that the capture harness runs Chromium with
+      `--hide-scrollbars` (`tools/capture/lib/determinism.mjs`). An explicitly
+      styled always-present horizontal scrollbar is row-independent and
+      quantity-proportional. **But note what this exposes about the
+      instrument:** every horizontal-overflow finding in this campaign was made
+      against an image with the platform's primary overflow cue deliberately
+      removed for determinism. That is a fair thing for the harness to do and it
+      is not neutral, and it should be said out loud in the brief;
+  (b) make the cue PER ROW, which is the only option that fixes the false
+      positive and the false negative together. CSS cannot query a row's own
+      overflow, so this is a marker emitted by `components/debugger.nim` — a
+      code change, reviewed by nobody;
+  (c) lengthen the ramp. The numbers argue against it: at 8.43px/char you would
+      need ~100px to signal even a third of the hidden content, and Q11 already
+      recorded that lengthening the VERTICAL ramp drove in-box text to 2.19:1.
+      Same trade, on the flagship pane;
+  (d) leave it, now that it is understood.
+
+Recommendation: (a) first, because it is the honest one — the affordance exists
+and the instrument is hiding it — with the brief amended to say so. Then (b).
+NOT (c).
+
+## Q17. A comment claimed a behaviour the page does not have
+Found while diagnosing Q13, and separable from it. `.srcline`'s comment said
+`min-width:max-content` "makes the rows as wide as the widest line, so the
+current-line fill and the executed-line stripe extend across the whole scrolled
+width". `max-content` resolves PER ROW: `debugger/wide/dark` has four distinct
+`.srcline` widths and `debugger/laptop/light` thirteen. Driving the pane to
+`scrollLeft = scrollWidth` leaves the `.srcline.cur` fill's right edge at x=660.3
+against a visible edge at x=916 — the highlight stops 256px short, which is
+verbatim the "rendering fault once the pane is scrolled" the comment claimed to
+prevent.
+
+The comment is corrected in this round, because a comment that reads as evidence
+and is not is the exact defect check-tokens B4 exists to catch, and B4 cannot
+see this one — it only checks `ledger@` citations.
+
+The BEHAVIOUR is not fixed and is queued here. It needs the rows' containing
+block to be `max-content` sized, which `.src` cannot be without a wrapper
+element it does not have. It is also invisible in the whole corpus: every
+capture is taken at `scrollLeft:0`, where the fill covers the scrollport and
+nothing looks wrong. So it is a real defect that no reviewer can ever file,
+which is worth noting as a category — the campaign grades stills, and a defect
+that only appears after an interaction is outside what any number of review
+rounds can reach.
+
+Options: (a) add the wrapper and size it `width:max-content;min-width:100%`;
+(b) leave it, and accept that a scrolled Code pane shows a short highlight;
+(c) capture a scrolled variant of the Code pane so the class of defect becomes
+visible to the loop at all.
+
+Recommendation: (c) is the interesting one and is cheap — it would give the
+campaign its first post-interaction subject. (a) after it, so the fix is
+photographed rather than asserted.

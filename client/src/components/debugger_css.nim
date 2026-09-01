@@ -448,10 +448,31 @@ html[data-register="debugger"],
   mask-image:linear-gradient(to right,currentColor
     calc(100% - var(--bt-space-2xl)),transparent);
   -webkit-mask-clip:padding-box;mask-clip:padding-box}
-/* `min-width:max-content` makes the rows as wide as the widest line, so the
-   current-line fill and the executed-line stripe extend across the whole
-   scrolled width instead of stopping at the pane edge — a row highlight that
-   ends mid-line reads as a rendering fault once the pane is scrolled. */
+/* `min-width:max-content` stops a row being narrower than its own text, so a
+   long line is not wrapped or squeezed by the pane it scrolls inside.
+
+   IT DOES NOT DO WHAT THIS COMMENT USED TO SAY, and the correction is a
+   measurement rather than a re-reading. It claimed the declaration "makes the
+   rows as wide as the widest line, so the current-line fill and the
+   executed-line stripe extend across the whole scrolled width instead of
+   stopping at the pane edge". `max-content` is resolved PER ROW, so each row is
+   as wide as ITS OWN text: `debugger/wide/dark` has four distinct `.srcline`
+   widths (911.3, 939.2, 1141.5, 1166.9) and `debugger/laptop/light` has
+   thirteen. Driving the pane to `scrollLeft = scrollWidth` puts the
+   `.srcline.cur` fill's painted right edge at x=660.3 against a visible edge at
+   x=916 (wide) and at x=199.9 against x=686 (laptop) — the highlight stops
+   256px and 486px short, which is precisely the "rendering fault once the pane
+   is scrolled" the old comment said this prevented.
+
+   The behaviour is real but has never been photographed: every capture is taken
+   at `scrollLeft:0`, where the fill covers the scrollport and nothing looks
+   wrong. Making it true needs the ROWS' containing block to be `max-content`
+   sized, which `.src` cannot be without a wrapper element it does not have — a
+   markup change, not a declaration. Queued as Q17 rather than guessed at.
+
+   The declaration stays because the narrower claim above IS what it does and is
+   worth having. What is removed is a comment that read as evidence for a
+   behaviour the page does not have. */
 .srcline{display:flex;align-items:flex-start;gap:var(--bt-space-xs);
   padding:0 var(--bt-density-cell-x);white-space:pre;
   min-width:max-content;position:relative;
