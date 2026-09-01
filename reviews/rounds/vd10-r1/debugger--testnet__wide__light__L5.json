@@ -1,0 +1,87 @@
+Expected elements: MISSING — replay telemetry in the transaction pane
+
+A presence failure, so it is finding #1 and my rating is capped at 4. Nowhere in this image do instructions-executed, effects-matched or `effectsMismatched: 0` appear. The pane runs Data → Block → Type → Age → Canonical → Finality → Cost → Executions → Decoded Input → Raw, then clips mid-`RAW (CHAIN-NATIVE)` at y1075. That telemetry is the page's only evidence the replay reproduced the chain's effects — off-screen on the view whose argument is that this data was not manufactured.
+
+Otherwise the register holds and the source-less explanation is well written. Code (y129–194), Call Trace (y122) and Values (y723) each state the limit as a fact about Aztec contract classes, blame no recorder and apologise nowhere; `Supply sources` (66,298) makes it a route, not a wall. No gutter glyphs render at all — correct here.
+
+But the copy defects earlier rounds found elsewhere are on this page. The provenance paragraph shouts `THIS CHAIN IS PUBLISHED AS A CURATED WINDOW.` (y283) inside sentence-case prose, carries the placeholder `32 transaction(s)` (y414), and prints the raw enum `(not-attempted)` (y501). The cost unit reads `mana (FeeJuice)` (y771): a gas unit and an asset in one string, camel-cased where the chain writes "Fee Juice".
+
+Withdrawn on measurement: the fee no longer wraps as raw hex. It is one right-aligned decimal and the grid holds; 19 ungrouped digits remain unsizeable.
+
+Fixes: telemetry above the fold; de-shout and de-placeholder the provenance paragraph.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "missing",
+  "missing": [
+    "the replay telemetry in the transaction pane — instructions executed, effects matched, and effectsMismatched: 0"
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L5/1",
+      "severity": "P1",
+      "location": "transaction pane, x1530-1910, below the COST row (y740) to the viewport clip at y1075",
+      "finding": "The replay telemetry appears nowhere in the image. The pane's rows are Data, Block, Type, Age, Canonical, Finality, Cost, Executions (public / Trace ready), Decoded Input, Raw, and it is clipped mid-RAW (CHAIN-NATIVE) at y1075 — no instruction count, no effects matched, no effectsMismatched: 0. 'Trace ready' asserts readiness but quantifies nothing. If the telemetry exists it sits below the fold, displaced by the ~400px provenance paragraph above it; either way this view's faithfulness evidence is off-screen at the widest supported viewport, which on the only real-chain subject is the claim most in need of showing."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/2",
+      "severity": "P2",
+      "location": "transaction pane, Data row provenance paragraph, line 4 (x1541-1900, y283)",
+      "finding": "`THIS CHAIN IS PUBLISHED AS A CURATED WINDOW.` is set in full capitals in the middle of otherwise sentence-case prose. Same defect family as the shouted `WERE` found elsewhere in the product. It reads as a legal disclaimer bolted into the one paragraph that is asking to be believed, and shouting a caveat undercuts the affirmative `Real Aztec testnet data` badge 95px above it."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/3",
+      "severity": "P2",
+      "location": "transaction pane, provenance paragraph (x1600-1745, y414)",
+      "finding": "`32 transaction(s)` — the pluralisation placeholder is present here, in the page's provenance copy. The same paragraph pluralises correctly by hand two lines up ('All 6 of them were re-executed') and two lines down ('25 had already been pruned'), so the artifact is visibly inconsistent with its own neighbours and marks the sentence as machine-assembled at exactly the point the reader is deciding whether to trust it."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/4",
+      "severity": "P2",
+      "location": "transaction pane, provenance paragraph (x1541-1735, y501)",
+      "finding": "`1 carried another outcome (not-attempted).` surfaces a raw enum value, hyphen and all, in running prose. The surrounding sentences say 'pruned' and 're-executed' in English; this one hands the reader an identifier. It also explains nothing — 'another outcome' plus a machine token leaves the reader knowing only that a name exists."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/5",
+      "severity": "P2",
+      "location": "transaction pane, COST · TRANSACTION FEE unit line (x1810-1910, y771)",
+      "finding": "The unit reads `mana (FeeJuice)` — a gas unit and an asset name compressed into one string, with the asset in its camel-cased machine spelling rather than the two words the chain writes ('Fee Juice'). This is the one surface in the set that publishes a real transactionFee, so it is the only place the unit vocabulary can be judged, and what it shows is an internal identifier leaking into a user-facing unit.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/6",
+      "severity": "P2",
+      "location": "Code pane (12-917 x 92-1075), Call Trace (922-1525 x 92-672), Values (922-1525 x 675-1075)",
+      "finding": "Across roughly 1.4M px the three session panes carry two, one and two lines of prose at their top edges and nothing else — no gutter, no ruler, no instruction column, no frame rows, no glyphs of any kind. The copy at y150-194 asserts 'every step is a program counter' and 'Stepping is complete', but no program counter is rendered anywhere; the only positional evidence on the page is `128 / 345` in the identity bar, 900px away in a different region. In the light theme a desktop CodeTracer user is given nothing that identifies this as the same tool, so an honest degradation reads as a failed render. The fix adds information rather than removing it: give the Code pane the instruction column its own sentence promises.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/7",
+      "severity": "P3",
+      "location": "transaction pane, provenance paragraph, first sentence (x1541-1900, y228-262)",
+      "finding": "`Captured from aztec-testnet.drpc.org at 2026-08-31T07:40:55.566Z (node 5.2.0)` prints a raw ISO-8601 stamp to millisecond precision plus a parenthesised version string. Millisecond precision on a capture moment is machine detail no reader can use, and it sits nine rows above an AGE row that says no timestamp was published — a precision mismatch a reader has to reconcile unaided."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/8",
+      "severity": "P3",
+      "location": "transaction pane, AGE row value (x1729-1910, y657)",
+      "finding": "'No timestamp published' is set in the same pill primitive as the one-word status values around it — `Yes` (CANONICAL, y689), `Pending` (FINALITY, y721), `Trace ready` (y819), `Succeeded` (identity bar, y31). A four-word statement of absence wearing the status-badge shape overloads a primitive that everywhere else on this page carries a status value."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/9",
+      "severity": "P3",
+      "location": "identity bar phase rail (x1320-1580, y31) against transaction pane EXECUTIONS (x1596-1690, y819) and Code pane (x22-464, y194)",
+      "finding": "Three readiness statements sit in one viewport and two of them disagree with the third: 'Engine loading — 18 MB' with FETCHING active, versus 'Trace ready' and 'Stepping is complete'. Each is true of a different thing (wasm download, trace publication, trace completeness), but nothing on the page distinguishes them, so the page appears to announce a session that is simultaneously loading and finished. Quantifying the download at 18 MB is otherwise exactly right.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

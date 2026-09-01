@@ -1,0 +1,69 @@
+Expected elements: missing
+
+Finding #1 is a presence failure, so the rating is capped at 4: the replay telemetry — instructions executed, effects matched, `effectsMismatched: 0` — appears nowhere. The transaction pane runs Data, Block, Type, Age, Canonical, Finality, Cost, Executions, Decoded input, Selector, Raw, then clips mid-`RAW (CHAIN-NATIVE)` at y1075.
+
+On my lens the theme is designed, not inverted: the code well is recessed below its pane in both themes (#ececeb under #ffffff here, #0d0d0d under #1b1b1b in dark) rather than mirrored, and the ladder #101010/#242424/#484848/#565656 over #ffffff/#f3f3f3/#dddddd/#ececeb holds.
+
+**1.16:1 is withdrawn as a text ratio.** `"hydrationRounds": 6,` is not in this image. The `RAW (CHAIN-NATIVE)` well is visible only from y1051 to y1074 and holds exactly one piece of ink: a 4x7px fragment at x1558-1561, y1067-1073, the top-left of the `{` of line 0. Its peak against its own row is 1.67:1 (#c4c4c4 on #fafafa, y1068). 1.16:1 reproduces only at y1072, on that glyph's antialiased tail (#ececec on #fdfdfd). At x1800 — the earlier report's stated sampling column — y1051-1074 is a pure #ececeb-to-#ffffff ramp with no glyph at any row, so the "descender" figure compared two backgrounds. Dark's same glyph peaks at 2.28:1, not 6.17:1: a 1.37x theme gap, not 5x.
+
+Fixes: telemetry above the fold; move the code surface out of the masked subtree.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "missing",
+  "missing": [
+    "the replay telemetry in the transaction pane — instructions executed, effects matched, effectsMismatched: 0"
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L3/1",
+      "severity": "P1",
+      "location": "transaction pane, x1530-1910, from the COST row (y744) to the viewport clip at y1075",
+      "finding": "The replay telemetry is absent from the image. Rows present are Data, Block, Type, Age, Canonical, Finality, Cost, Executions (public / Trace ready), Decoded input, Selector, Raw, prose, and Raw (chain-native) clipped at y1075 — no instruction count, no effects matched, no effectsMismatched: 0. Independently confirmed for this capture; agrees with L5 this round. The Executions row asserts 'Trace ready' but quantifies nothing, so the evidence that this replay reproduced the chain's own effects is off-screen on the one subject whose argument is that the data was not manufactured."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/2",
+      "severity": "P2",
+      "location": "transaction pane, RAW (CHAIN-NATIVE) well, x1548-1906, y1051-1074",
+      "finding": "The well's entire visible extent lies inside the bottom fade, so the code surface token never renders at strength anywhere on this page. Measured down the column x1800: y1051 #ececeb, y1060 #f4f4f3, y1067 #f9f9f9, y1074 #ffffff — a monotonic 24-row ramp to full page white, ending 1px above the pane border at y1075 (#a2a2a2, 2.55:1 against white). Surface-to-pane contrast falls 1.18:1 to 1.00:1 over those 24 rows. The well holds exactly one piece of ink, a 4x7px fragment at x1558-1561/y1067-1073 (top-left of the `{` of line 0), peaking at 1.67:1 (#c4c4c4 on #fafafa, y1068). Net effect: a labelled well that reads as a grey smear with a ghost. Fix by painting --bt-surface-code on an element the mask does not cover, or by clipping the ramp to whole line boxes.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/3",
+      "severity": "P2",
+      "location": "identity bar Succeeded chip (x262-350, y22-42); transaction pane Succeeded chip (x1542-1636, y102-120), Real Aztec testnet data badge (x1735-1908, y180-198), Trace ready chip (x1594-1690, y810-830)",
+      "finding": "One green token carries three unrelated meanings. All four chips are byte-identical in colour: #dcfce7 fill, #166534 text (6.49:1), #16a34a rule (3.00:1 on the fill). They mean, respectively, the transaction's execution outcome, the provenance of the data, and the availability of a trace. In this register the provenance badge is the only provenance marker there is — no nav, no footer, no band — and colour gives the reader nothing to tell it apart from a routine status chip 78px above it and a trace-state chip 700px below. Give provenance its own tone, or drop the chip form for it entirely so the claim is not read as a status.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/4",
+      "severity": "P2",
+      "location": "identity bar, stepping-control groups at x468-534, x542-602, x616-682 and x696-760 (y16-46), against the trace scrubber at x775-1035, y25-38",
+      "finding": "Interactive boundaries are the faintest lines on the page while an inert one is among the strongest. All four stepping-control groups are outlined in #c8c8c8 on #ffffff = 1.67:1, below the 3:1 floor for UI component boundaries and fainter than the pane borders (#a2a2a2, 2.55:1) and the pane-header band (#dddddd, 1.36:1 but 16px tall). Twelve pixels to their right the scrubber's unplayed track is #919191 = 3.15:1 — the remainder of the trace is painted nearly twice as hard as the controls that move through it. Their glyphs are fine (#565656, 7.34:1); it is only the chrome that disappears. Raise the control outline to at least 3:1, or drop the track to match.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/5",
+      "severity": "P2",
+      "location": "transaction pane, SELECTOR value at x1896-1905/y871-872 and RAW value at x1896-1905/y896-897, against the AGE value at x1730-1908/y648-668",
+      "finding": "The same meaning — this field has no value — gets two treatments at two contrast levels. SELECTOR and RAW each render a 10x1px dash, #8a8a8a on #ffffff = 3.45:1 with a #b0b0b0 second row; that is the lowest full-strength text ratio anywhere in the image and it is below 4.5:1. Two rows above, AGE renders the same absence as a full chip, `No timestamp published`, #565656 on #f3f3f3 = 6.61:1. Pick one: either both absences are chips, or both are dashes at a legible weight.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/6",
+      "severity": "P3",
+      "location": "transaction pane: prose block x1538-1910/y210-575 and the full hash at y132-168 (#484848) against the section labels DATA y185, BLOCK y595, FINALITY y719, COST · TRANSACTION FEE y751 (#565656)",
+      "finding": "Two nominally distinct emphasis levels sit 14/255 apart and read as one. Body prose and mono values are #484848 (9.15:1); section labels are #565656 (7.34:1); the two measure 1.246:1 against each other. The ladder's other rungs are well spaced (#242424 = 15.52:1 for values, #101010 = 19.03:1 for identity), so the collapse is confined to the label/body pair — which happens to be the pair the transaction pane repeats fourteen times. Case and letterspacing currently do all the separating; either let colour help, or collapse the two tokens into one and stop implying a distinction the palette does not make.",
+      "criterion": "B3"
+    }
+  ]
+}
+```

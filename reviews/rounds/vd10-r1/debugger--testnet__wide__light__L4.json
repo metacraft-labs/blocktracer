@@ -1,0 +1,53 @@
+Expected elements: missing
+
+MISSING — the replay telemetry (instructions executed, effects matched, `effectsMismatched: 0`). That is finding #1, P1, and caps the rating at 4. It is a regression, not a standing gap: in vd9-r2 `"instructionsExecuted": 345` was legible at y1042 inside the RAW (CHAIN-NATIVE) dump. The provenance paragraph has since grown to 377px (y204–581, 38.5% of the pane's 979px body) and pushed the dump past the clip; ~25px of it survives above the border at y1075.
+
+Settling the standing emptiness question. The tabbed region is 91.0% empty (x925–1524, y68–668) — the historical figure reproduced to the tenth of a percent; Call Trace body 95.4%, Values 93.0%, Code 90.8%. vd9-r2 was right that this is CONTENT-shaped: a source-less trace has no rows and no split invents them, and I do not withdraw that. But the allocation around it is LAYOUT-shaped, and it is now load-bearing rather than cosmetic: Code takes 913×1009 = 44.4% of the viewport at 1.35% ink, while Transaction — 18.7%, 19.07% ink, the only populated pane — is the one that overflowed. Both verdicts hold; the layout half caused the P1.
+
+Fee row re-measured: 46px (y737–783) against 30/30/32/32/32 siblings; label single-line x1542–1695, value single-line x1747–1906. The §4 wrap prediction stays refuted, and change (b) is inert here too — identical 46px. Change (a) renders no gutter, correctly.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "missing",
+  "missing": [
+    "the replay telemetry in the transaction pane — instructions executed, effects matched, and effectsMismatched: 0"
+  ],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L4/1",
+      "severity": "P1",
+      "location": "Transaction pane, EXECUTIONS row (x1536-1911, y783-883) and the RAW (CHAIN-NATIVE) block whose header sits at y1038 and whose body is clipped by the pane border at y1075",
+      "finding": "The replay telemetry appears nowhere in the 1920x1080 image. EXECUTIONS carries only `public` + `Trace ready`; the rows below it are DECODED INPUT, SELECTOR (em dash), RAW (em dash) and a paragraph. The RAW (CHAIN-NATIVE) code block begins at y1046 and only ~25px of it clears the border at y1075, faded from y1051, so `effectsMismatched: 0` — which the expectation calls the evidence the session is faithful — is unreadable. This is a regression measured against vd9-r2, where `\"instructionsExecuted\": 345,` was legible at y1042 and the gap was only P2 (telemetry present but as JSON keys rather than label/value rows). The proximate cause is measurable: the DATA row's provenance paragraph now runs y204-581, 377px, 38.5% of the pane's 979px body, against 216px in vd9-r1, and that growth evicted the dump. Nineteen-line prose in the narrowest column pushed the one fact that proves the replay off the viewport."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/2",
+      "severity": "P2",
+      "location": "the three-column split — Code x4-916 (913px), Call Trace/Values x920-1528 (609px), Transaction x1532-1915 (384px), all y67-1075",
+      "finding": "Settling the campaign's longest-running measurement. Re-measured: tabbed region (x925-1524, y68-668) 91.0% empty by the vertical method — the historical figure reproduced exactly, not worsened; Call Trace body 95.4%, Values body 93.0%, Code body 90.8%. vd9-r2's reading that the emptiness is CONTENT-shaped is CONFIRMED and I do not withdraw it: a source-less trace has no frames, names or locals to list, and no split can invent rows. But that verdict covers the numerator only. The denominator is LAYOUT-shaped and this round it stopped being cosmetic. Code is the largest allocation on the page — 913x1009 = 921,217px, 44.4% of the viewport — and carries 1.35% ink (11,906px: two paragraphs ending y309 and a 107x23 button). Call Trace + Values add 612,045px at 0.85%/1.82% ink. Those three hold 1,266,375px, 61.1% of the viewport, at a combined 1.5% ink. The Transaction pane, the only populated region (19.07% ink, 39.2% row-empty), is the narrowest at 376px interior and is the one that overflowed and dropped the telemetry. A percentage-only split with no min-width and no content-aware rule is starving the one pane with content while three sit blank — B4's failing description verbatim.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/3",
+      "severity": "P2",
+      "location": "Transaction pane, COST · TRANSACTION FEE row, value at x1747-1906 y748-758 (row rules y737 and y783)",
+      "finding": "Standing finding re-confirmed on fresh measurement. The fee is nineteen ungrouped digits, `1755555891986239551`, in a 159px run at ~8.4px per digit. A reader cannot resolve 1.76e18 from 1.76e17 without counting glyphs, and the page offers no local convention to calibrate against: nothing here is thousands-grouped — `block 63675` in the identity bar, and 63629-63678, 63642-63675, 63459-63678 in the provenance prose, are all ungrouped too. Thousands grouping reached the identity bar readout and the opcode column this round but not the one number on this page that needs it, which is what makes the rule un-inferable. Separately and in the page's favour: the §4 Watch-for prediction that the fee 'arrives as a 32-byte hex quantity and is rendered raw, wrapping across several lines and breaking the label/value grid' is REFUTED again. The row is 46px against siblings of 30/30/32/32/32px (1.44-1.53x); the label occupies one line at x1542-1695, the value one line at x1747-1906 with 52px clear between them, and the unit `mana (FeeJuice)` a second line at x1812-1906. Change (b), the no-break spaces in the cost label, is therefore INERT on the one surface where it was observable: the row is 46px, identical to the previous round, because the label already fit.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/4",
+      "severity": "P3",
+      "location": "the middle column's internal split — Call Trace body x925-1524 y97-664 (568px) against Values body x925-1524 y702-1071 (370px), divider at y668-673",
+      "finding": "The two panes carry indistinguishable content volumes — Call Trace 2,909 ink px spanning y117-151 (35px), Values 4,035 ink px spanning y718-751 (34px), one sentence each — yet are allotted heights differing by 1.54x. A split responsive to this trace would give them the same height or collapse both; the 568/370 ratio is the synthetic fixture's proportion applied unchanged to a subject whose two panes have converged. This is the cleanest available evidence that the emptiness measurement above is not purely content-shaped. Corroborating a sibling's dead-band figure in the same column: the mean right dead band over inked rows is 317px of the 600px interior in Call Trace (min 25, max 592), which falls inside the reported 222-376px range, but only 179px in Values (min 20, max 364), so that range holds for the upper pane and overstates the lower one.",
+      "criterion": "B1"
+    }
+  ]
+}
+```

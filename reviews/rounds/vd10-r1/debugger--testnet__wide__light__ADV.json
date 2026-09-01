@@ -1,0 +1,29 @@
+Expected elements: present
+
+All must-show items are on screen and nothing forbidden is. No invented source, no fixture leak, no failure banner; three panes explain the source-less trace in their own words; the DATA row carries `Real Aztec testnet data` over a census whose arithmetic checks out (63629-63678 = 50; 63642-63675 = 34; 63459-63678 = 220; 6+26 = 32; 25+1 = 26). The prose here is the corpus's best.
+
+The weakest element is `Supply sources` (Code pane, x14-119, y287-309) — the page's only route out of its central limitation, and it cannot act. Served, it is `<button class="btn ghost sm">Supply sources</button>`: no handler, href, form or `data-action`, in a document with zero `addEventListener` and one `<script>`, `type="application/json"`. It is also the only control that conceals this. All eight stepping buttons carry `aria-disabled="true"` and a written reason ("Step forward — inert until the replay engine loads"); Share carries its own. `Supply sources` renders bold, full-contrast and crisply bordered — livelier than the greyed controls above it — while being the one control that does nothing. A route out that cannot succeed, on the page whose argument is that the limitation is repairable.
+
+Noted, not filed: "Engine loading — 18 MB / FETCHING" is byte-identical on `debugger__wide__light`, so it is the shell defect my counterparts already filed; `effectsMismatched: 0` is in the served bytes but renders nowhere on this capture, below the faded RAW block; and `32 transaction(s)` leaves a plural placeholder in the provenance prose.
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/ADV/1",
+      "severity": "P1",
+      "location": "Code pane, `Supply sources` button at x14-119, y287-309",
+      "finding": "The one affordance this view exists to offer cannot succeed, and it is the only control on the page that does not admit it. The Code pane states the limitation honestly and then puts `Supply sources` under it as the route out — the section-4 block's own words, 'so the missing text reads as something a user could supply rather than a wall'. In the served page that route is `<button class=\"btn ghost sm\">Supply sources</button>`: no handler, no href, no form, no `data-action`, no `aria-disabled`, no title. The document carries exactly one `<script>` and it is `type=\"application/json\"` (`id=\"bt-session-source\"`), and zero `addEventListener`, so nothing can bind it. Every sibling control is honest about the same incapacity: all eight stepping buttons are `class=\"dcbtn off\" aria-disabled=\"true\"` with a bespoke reason in title and aria-label ('Step forward — inert until the replay engine loads'), and Share is `class=\"btn disabled sm icon\" aria-disabled=\"true\"` ('a share link needs a position to anchor to'). The exit, the trace download and the pane tabs are real anchors and work. `Supply sources` alone is drawn in the live style — full-contrast label, crisp border, visibly more available than the greyed controls 250px above it — while being the only control that does nothing. Per §9 that is an honesty failure rather than polish: a control offered that cannot succeed. It is the weakest element here specifically because this is the page arguing that the missing source is the chain's fact and not a wall; the sentence keeps that promise and the button breaks it. Fix: either bind it, or give it the same `aria-disabled` treatment and written reason the other nine controls already have.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

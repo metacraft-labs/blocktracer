@@ -1,0 +1,96 @@
+Expected elements: present
+
+Every must-show renders: `← aztec-testnet` exit, `0x0858d6…7fb2`, `Succeeded`, `block 63675`, both stepping directions, `128 / 345`, phase rail; the `DATA` / `Real Aztec testnet data` row as the pane's first row with endpoint, moment and window; instruction-level explanations in Code, Call Trace and Values; `Supply sources`. No band above the bar, no invented source, no fixture content.
+
+**(b), the headline — it did not land here either.** `COST · TRANSACTION FEE` sets on ONE line, x1542–1695 (154px), 55px clear of the value column. Row rules bound it at y737/y783 = **46px**, against 30px (BLOCK, TYPE) and 32px (AGE, CANONICAL, FINALITY) — 1.44–1.53×. All 14–16 extra pixels are the second VALUE line `mana (FeeJuice)`; the label never wraps, so the no-break spaces are never exercised at wide/light. The surface billed as the only observable one does not observe it.
+
+**(a)** Code pane renders no gutter, no numbers, no glyphs — unobservable, correctly. **(c)** Zero grouped figures exist: `128 / 345`, `63675`, `63629–63678` are all under the threshold and the fee is exempt. Un-inferable, confirmed. **(d)** Fade ramps 236→255 over y1051–1074 (24px), unchanged — and the RAW panel now starts at y1051, wholly inside it, so no telemetry ink survives (last round `instructionsExecuted: 345` was legible).
+
+Fee re-judged: 19 ungrouped digits, stands. Withdrawn: the predicted raw-hex wrap and grid break — the value right-aligns to x1905 like every sibling.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L1/1",
+      "severity": "P2",
+      "location": "Transaction pane, COST · TRANSACTION FEE row, value line 1 at y748-757, x1750-1905",
+      "finding": "Re-judged and it stands: the fee is `1755555891986239551`, 19 digits in one unbroken monospace run at 8.2px advance, no grouping, no separator, no abbreviation. It is the largest number on the page by fourteen orders of magnitude and its magnitude cannot be read without counting glyphs. B7 asks for comparable formatting across magnitudes and an ungrouped 19-digit run is comparable with nothing - least of all with `63675` two rows away. Two parts of the earlier claim are WITHDRAWN on measurement: the value is a formatted decimal with a `mana (FeeJuice)` unit, not raw 32-byte hex, and it does not break the label/value grid - it right-aligns to x1905, the same edge as BLOCK (x1906) and TYPE (x1905). Note also that the no-break-space change is inert on this row: the label occupies one line (x1542-1695) with 55px of clearance, so there is no wrap for the separator rule to govern. Group the digits, or lead with an abbreviated magnitude and keep the exact figure secondary.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/2",
+      "severity": "P2",
+      "location": "Transaction pane, full transaction hash, line 1 y132-141 (x1542-1903) and line 2 y153-162 (x1542-1734)",
+      "finding": "The 64-character hash wraps MID-BYTE. Measured monospace advance is 8.42px; line 1 spans 362px = 43 glyphs (`0x` plus 41 hex characters) and line 2 spans 193px = 23 hex characters, 41+23=64. Forty-one is odd, so the break falls between the two nibbles of one byte: the line ends `...430aabc0` and the next begins `6ef9...`, splitting the byte `06`. The brief names truncation mid-byte as the failing example of numeric and code treatment, and a wrap is the same cut. A reader copying either half by eye gets a value that is not a byte string. Break the wrap on a byte boundary (even glyph counts), or set the hash to wrap in fixed groups.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/3",
+      "severity": "P2",
+      "location": "Transaction pane label column x1542, from the `TRANSACTION` header y76-84 down to `RAW (CHAIN-NATIVE)` y1033-1044",
+      "finding": "Unfixed from the previous round and now worse for the extra rows. Three structural levels share one typographic level. Pane title `TRANSACTION` (cap band y76-84, darkest luminance 72); section headings `EXECUTIONS` (y791), `DECODED INPUT` (y842), `RAW (CHAIN-NATIVE)` (y1033); and field labels `DATA` (y180), `BLOCK` (y589), `TYPE`, `AGE`, `CANONICAL`, `FINALITY`, `COST · TRANSACTION FEE` (y745), `SELECTOR` (y866), `RAW` (y891) all measure exactly a 9px cap height in letterspaced uppercase, and every heading and every label sits at darkest luminance 86 - identical. Only the pane title's 72 separates it, and headings are separated from labels by nothing at all. Eleven rows read as one flat list and the reader cannot tell which label opens a section and which names a value without reading the words. Give section headings a level of their own: heavier weight, a rule above, or step the field labels down.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/4",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) heading y1033-1044 and the code panel below it, y1051-1074",
+      "finding": "The replay telemetry the expectation block calls the evidence that this session is faithful has no typographic level of its own and has now left the screen entirely. Every other chain fact earns a labelled row in the field grid; `instructionsExecuted`, `effectsMatched` and `effectsMismatched` are bare keys inside a raw JSON dump. Measured: the panel body begins at y1051 and carries no ink at all above the viewport edge - darkest pixel across y1051-1074 is luminance 236 rising to 255, which is the fade, not text. Last round `\"instructionsExecuted\": 345` was legible at y1040; the provenance paragraph that grew to seventeen lines pushed BLOCK from y394 to y589 and took the whole telemetry block with it. The page's strongest claim is now zero pixels of the page. Promote instructions executed and effects matched/mismatched to labelled rows in the field grid above `EXECUTIONS`.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/5",
+      "severity": "P2",
+      "location": "Transaction pane, provenance paragraph, lines 1-2 at y214-247 (`Captured from aztec-testnet.drpc.org at 2026-08-` / `31T07:40:55.566Z (node 5.2.0).`)",
+      "finding": "The capture moment - a must-show content item - is broken across two lines at the hyphen inside the ISO-8601 date. Line 1 ends `2026-08-` and line 2 opens `31T07:40:55.566Z`, so the date reads as two fragments and the trailing hyphen reads as a soft hyphen rather than a date separator. This is the same class of defect as a mid-byte hash break: an atomic identifier split at an internal punctuation mark that happens to offer a wrap opportunity. It is exactly what the no-break treatment applied to the cost label should have been spent on, and it was not - the fix reached a label that never wraps and missed the value on the same page that does. Wrap the timestamp in a no-break span, or set it in the monospace value face on its own line.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/6",
+      "severity": "P2",
+      "location": "Transaction pane, provenance paragraph y214-573, all-caps sentence at y301-313",
+      "finding": "Seventeen consecutive lines of body prose at one size, one weight and one 21-22px leading, with no paragraph break and no lead-in emphasis, and the single emphasis device deployed in the whole run is a 44-character all-caps sentence set inline: `THIS CHAIN IS PUBLISHED AS A CURATED WINDOW.` It measures the same 13px cap band as its neighbours, so caps is carrying the emphasis alone - the brief's named failure mode of distinguishing a level by one property. All-caps also strips word-shape from the one sentence in the paragraph the reader is meant to catch while scanning, which inverts the intent. The paragraph is the page's only provenance surface and it is 360px of undifferentiated grey. Break it into two or three paragraphs and set that sentence in sentence case at a heavier weight.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/7",
+      "severity": "P2",
+      "location": "identity bar, `Engine loading — 18 MB` at x1052-1207 and `128 / 345` at x1221-1296, both on the y31 baseline",
+      "finding": "The page's only current-position readout is still typographically annexed by the engine loader. Measured: both are set at a 13px cap band, both have a 2px stem at y31, and their glyph densities over their bounding boxes are 0.172 and 0.182 - the same face at the same size and the same weight. The only separation is ink, luminance 72 for the loader against 16 for the readout, which is a colour step and not a typographic one, and there is no label, no divider and no size or weight break. The phrase therefore still parses as `Engine loading — 18 MB, 128 / 345`, i.e. 128 of 345 units of loading, rather than instruction 128 of 345, while the stepping controls the readout belongs to sit ~470px away at x475-755. On a page whose entire claim is that stepping works this is the one number a reader must not misparse. Step it up in size or weight, or move it into the stepping group.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/8",
+      "severity": "P3",
+      "location": "identity bar x143-250, Transaction pane truncated hash x1740-1802 (y106-115) and full hash y132-162",
+      "finding": "One hash, three settings, two truncation rules, inside 130px of vertical space in the pane and 700px down the page. The identity bar shows `0x0858d6…7fb2` (6+4 hex, 108px); the Transaction pane header shows `0x0858d644…22e67fb2` (8+8 hex, 63px measured on the tail alone); and the untruncated 64-character value is set immediately beneath the latter. A truncation printed directly above the full string it abbreviates buys nothing, and two head/tail lengths for one value on one screen means the product has no single truncation rule. Pick one head/tail length system-wide and drop the pane's truncated copy.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/9",
+      "severity": "P3",
+      "location": "Transaction pane, SELECTOR row no-payload mark at x1897-1905 y871-872, and RAW row at x1897-1905 y896-897",
+      "finding": "The no-payload dash renders as a 9x2px bar at luminance 138, right-aligned to the value column edge. It is lighter than the values it stands in for (BLOCK's value measures 126, the fee 36) and only two pixels tall, so at reading distance it reads as a fragment of a row rule rather than as a glyph carrying the meaning `no payload held`. The convention is right and is a clear improvement on a bare `0x`; the rendering needs to be set in the value column's monospace face at value ink so it reads as a character.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/10",
+      "severity": "P3",
+      "location": "Code pane explanation y124-201, widest line x21-597; Call Trace explanation y117-151, x931-1498",
+      "finding": "Body prose runs to a ~80-character measure (576px at ~7.2px per character in the Code pane, 567px in the Call Trace), above the comfortable 45-75 range, and it applies to the explanatory sentences that carry this view's whole argument for why there is no source. The 21-22px leading on a 13px cap band is generous enough that it stays readable, so this is a refinement rather than a defect - and note that the Transaction pane's own prose sits at ~50 characters, so the product has two body measures on one screen. Constrain the pane explanations to ~65 characters.",
+      "criterion": "B2"
+    }
+  ]
+}
+```

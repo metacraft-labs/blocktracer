@@ -1,0 +1,89 @@
+Expected elements: present
+
+Identity bar (y0-62): `← aztec-testnet`, real hash, `Succeeded`, `block 63675`, four stepping pairs (x472-758), scrubber, `128 / 345`, phase rail; no band above it. `DATA` + `Real Aztec testnet data` is the Transaction pane's first row (y177-199). Code, Call Trace and Values each state the missing-symbols limitation; `Supply sources` at x13-119. No invented source, no gutter, no fixture content, no page scroll — the shell is exactly 1920x1080.
+
+Withdrawn: the 91%-empty Call Trace. The figure reproduces — body 606x573 (x922-1527, y96-668), content 569x35, 5.7% of the area used, 517px (90.2% of body height) empty below the last line. It is content-shaped and I withdraw it as a defect: the prose already spans 569 of the 606px measure, so nothing is under-set, and the only thing that would fill that region is frame rows this trace does not publish. Drawing them is the invented-source P1.
+
+Layout-shaped is the allocation. Columns are 913/608/383 (47.9/31.9/20.1%), identical to the source-bearing synthetic capture, so the split never consults content. Here 70.9% of the page's ink sits in the 20.1% column (density 10.18% against 1.00% and 1.12%), and it is the only pane that overflows: `RAW (CHAIN-NATIVE)` (y1033-1044) is the last thing on screen with zero JSON lines beneath it, so the replay telemetry is now entirely off-fold — worse than the previous capture.
+
+Fix: move ~200px from Code, which holds 314px of dead width, to Transaction.
+
+Rating: 5/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 5,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L2/1",
+      "severity": "P2",
+      "location": "three-column split: Code x4-916, Call Trace/Values x921-1528, Transaction x1533-1915 (bodies x5-915, x922-1527, x1534-1914; 4px outer margin and 4px gutters)",
+      "finding": "The split is content-blind and inverted against this subject. Measured border-to-border the columns are 913/608/383px = 47.9/31.9/20.1% of 1904px, the same geometry the source-bearing synthetic capture uses at this viewport, so the allocation is a fixed percentage that never asks which panes have content. The middle column's own 602/402 vertical split (Call Trace y68-669, Values y674-1075) is unmotivated the same way: 35px and 34px of content, 200px apart in allocation. The consequence is measurable: 70.9% of the page's ink (37,976 of 53,528 dark pixels below the pane headers) sits in the 20.1%-wide Transaction column, whose ink density is 10.18% against 1.00% for Code and 1.12% for the middle column — and that narrowest column is the only one that overflows. The width is available without narrowing any set measure: the Code pane's prose is capped at x21-597 (577px) inside 911px, leaving 314px of dead width nothing in that pane can grow into, whereas the middle column's prose already spans 569 of its 606px (93.9%), so taking width from the middle would force a reflow. Move roughly 200px from Code to Transaction, or let the split respond to which panes carry rows.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/2",
+      "severity": "P2",
+      "location": "Transaction pane bottom: RAW (CHAIN-NATIVE) heading y1033-1044 (x1542-1669), code panel top edge y1051, pane body edge y1075",
+      "finding": "The fold now falls immediately after a section heading and the replay telemetry is entirely off-screen. The panel below the heading shows its top edge at y1051 already inside the bottom fade (luminance 236 at y1051 ramping to 249 by y1067, white by y1068) and not one line of JSON is legible — the last thing on the page is a heading over an empty faded box. `effectsMatched` and `effectsMismatched`, which the expectation names as the evidence the replay is faithful, are below the cut, and so is `instructionsExecuted`, which the previous capture rendered on screen at roughly y1060. Visible telemetry lines have gone from two to zero. The cause is allocation, not content alone: the DATA provenance paragraph now runs y214-573, 360px = 36.8% of the pane's 979px body, inside the narrowest column, pushing eight label rows and the whole payload down. Filed P2 on the established grounds that the fade signals continuation honestly and the object is reachable by scroll; a further round still showing zero telemetry lines is the point at which that classification should be revisited. Finding 1's width supplies the fix.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/3",
+      "severity": "P2",
+      "location": "all four pane bodies, gap between the header rule and the first content pixel: Code rule y95 first ink y124; Call Trace rule y95 first ink y117; Values rule y700 first ink y718; Transaction rule y95 first ink y99",
+      "finding": "Four panes, four different body top insets: 28px, 21px, 17px and 3px. Call Trace and Values render the same explanation component in the same column and still differ by 4px. The Transaction pane's 3px reads as the Succeeded pill colliding with its own header while the Code pane's 28px reads as a dropped first row. With the left two thirds otherwise empty these four top edges are the page's only horizontal landmarks, so the mismatch is legible as a stepped set rather than one grid, and none of the four values is a step the rest of the shell repeats. Unchanged since the previous round.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/4",
+      "severity": "P2",
+      "location": "Code pane x5-915: CODE header label x13, body paragraphs x21-22, Supply sources button box x13-119 (y287-309)",
+      "finding": "Three stacked elements, two left edges. The header label and the button box both sit at x13, the pane's 8px inset, which is the inset every other pane uses for body content as well (Call Trace x931, Values x930, Transaction x1542). The two paragraphs between them start at x21-22, 8px further right. So the pane's only interactive element — the route out of the limitation the prose describes — visibly hangs left of the sentence it answers, and the explanation component has three different insets across the shell: 16px in Code, 9px in Call Trace, 8px in Values and Transaction. Set one content edge per pane and align the button to the prose.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/5",
+      "severity": "P2",
+      "location": "Transaction pane row separators: full-bleed rules at y204, 581, 611, 641, 673, 705, 737, 783 (x1534-1914) versus inset rules at y883 and y909 (x1542-1906)",
+      "finding": "The pane runs two divider systems and two rhythms and then abandons both. The main rows use rules that bleed to the pane border, ignoring the 8px content padding their own labels obey; the DECODED INPUT sub-rows SELECTOR and RAW use rules inset to exactly that padding. Row pitch follows the same break: 30/30/32/32/32px down the main grid (y581 to y737) against 26px for the SELECTOR-to-RAW pair. The EXECUTIONS heading (y791) and the DECODED INPUT heading (y842) get no rule at all, so the grid visibly stops two thirds of the way down the only pane that has one. Pick one inset and one pitch.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/6",
+      "severity": "P3",
+      "location": "Transaction pane, COST · TRANSACTION FEE row, y737-783: label x1542-1695, value x1747-1906, unit on a second line x1812-1906",
+      "finding": "The no-break spaces hold the label on one line (154px, no wrap), so that change is observable here — but the row still breaks the label/value grid, because the break is on the value side and the change does not reach it. `1755555891986239551` occupies 160px, exactly the width of the value column, and displaces `mana (FeeJuice)` onto a second line, making the row 46px against 30-32px for BLOCK, TYPE, AGE, CANONICAL and FINALITY above it. Roughly 55-70px more pane width collapses it back onto the grid, which finding 1 supplies. Separately, on the thousands rule: the 19-digit figure is ungrouped, and grouping it would add six separators (~25px) to a value that already exactly fills its column, so excluding cost figures at this column width is the right call and is not a finding.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/7",
+      "severity": "P3",
+      "location": "identity bar, phase rail active FETCHING segment, left cap x1322-1325, y20-42",
+      "finding": "The container's left cap is a rounded 1px grey arc at x1322 spanning y20-42, but the active fill carries a 2px saturated blue edge (37,99,235) at x1323-1324 that runs only y26-37 with square ends inside that arc, with the pale fill (219,234,254) starting at x1325. At 100% the blue stub plus the grey arc outside it read as an opening parenthesis before the word FETCHING — a layout artifact that scans as a character in the page's primary state indicator. Clip the active fill to the rail's radius or give the first segment the rail's own left radius. Unchanged since vd8.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/8",
+      "severity": "P3",
+      "location": "identity bar, stepping-control cluster: groups at x472-529, x546-598, x615-678, x695-758",
+      "finding": "The four control groups are 58, 53, 64 and 64px wide because each button is sized to its glyph rather than to a fixed control size, while the gaps between groups are a consistent 17px. Because the gaps are regular and the groups are not, the irregularity reads as the buttons themselves being uneven rather than as deliberate grouping. Set one min-width for the icon buttons so the cluster has a single horizontal rhythm. Unchanged since vd8.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/9",
+      "severity": "P3",
+      "location": "Call Trace pane body x922-1527, y96-668 — withdrawal of the previously reported 91%-empty finding",
+      "finding": "Re-measured to settle it. The body is 606x573px; its content box is 569x35px at x931-1499, y117-151. That is 5.7% of the area used, 517px (90.2% of the body height) empty below the last line, 94.3% empty by area — the earlier 91% figure reproduces. It is nevertheless CONTENT-shaped, not layout-shaped, and I withdraw it as a layout defect. Two measurements settle it: the explanation already spans 569 of the 606px measure available (93.9%), so the text is not under-set and no re-setting of it fills more of the pane; and the only thing that could fill the region is frame rows, which a source-less trace does not publish — drawing them would be the invented-source failure the expectation calls the most serious this page could contain. There is no layout change that fills this honestly, so the emptiness here is the correct rendering of a trace that carries no source. The genuine layout defect is not the emptiness but the allocation that ignores it, which is finding 1. Recorded as a P3 solely so the withdrawal is on the ledger.",
+      "criterion": "B4"
+    }
+  ]
+}
+```
