@@ -553,7 +553,32 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
   # route has: a transaction whose trace has not been recorded yet, and any
   # recording whose instruction stream the tree does not publish. It renders the
   # reason and the supply-sources action, exactly as before.
-  let listing = p.availability == srcUnverified and p.documents.len > 0
+  #
+  # AND SO IS `srcUnverified` WITH DOCUMENTS THAT ARE NOT A LISTING. The test
+  # used to be `documents.len > 0`, which is not a test for "these rows are an
+  # instruction listing" — it is a test for "there are rows". Handed a pane at
+  # `srcUnverified` whose documents were SOURCE, this function drew a
+  # `.src.instr` grid, under a FILE TAB STRIP, over syntax-highlighted program
+  # text, beneath a paragraph saying no source is published for the code that
+  # ran. Four channels, each contradicting the next, on the one screen whose
+  # whole job is to say what fidelity a reader is getting. The
+  # `tests/tdebugpanes.nim` case that asserts "nothing pretending to be code"
+  # had not compiled since the day it landed, so nothing said so.
+  #
+  # `session_view.ListingPath` is what makes the disagreement unreachable.
+  # `instruction_listing.listingDocument` is the only producer of listing rows
+  # and files every one of them under that path; `session_project`'s live branch
+  # decodes the island by the same name. So the pane's own documents answer what
+  # they are, and the answer is the one the producers already gave — rather than
+  # a count, which any pane can satisfy.
+  #
+  # What the other branch then means is what `srcUnverified` has always meant:
+  # the recording steps, and there is no text this page is entitled to show.
+  # Unverified source is not a weaker kind of source. Rendering it would be the
+  # pane vouching for bytes nothing verified, which is the exact claim this
+  # availability exists to withhold.
+  let listing = p.availability == srcUnverified and p.documents.len > 0 and
+                activeDocument(p).path == ListingPath
   if p.documents.len == 0 or
      (p.availability != srcSourceLevel and not listing):
     # The head FIRST, and outside `.srcnone`. A reader asking "where is this

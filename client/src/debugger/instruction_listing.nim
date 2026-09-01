@@ -57,24 +57,19 @@ import std/[json, strutils, unicode]
 import ./avm_opcodes
 import ./session_view
 
-const
-  ListingPath* = "avm"
-    ## The document path the listing is filed under, and therefore the prefix of
-    ## every row's anchor (`session_view.lineAnchor`).
-    ##
-    ## SHORT AND SYNTHETIC, deliberately. The recorder interns the executed
-    ## object as `/aztec/<txHash>.avm`, and using that would put a 66-character
-    ## hash inside every one of a few hundred row ids for no gain — the listing
-    ## is one object, so there is nothing for a per-file id to disambiguate. The
-    ## interned path is carried on the listing and stated in the caption, which
-    ## is where a reader can act on it.
-    ##
-    ## The extension matters: `source_highlight.profileForDocument` decides by
-    ## extension and answers `avm` with NO profile, so a listing is rendered as
-    ## the plain text it is rather than coloured by whichever lexer was
-    ## available. That is the same refusal `source_document.nim`'s header states,
-    ## reached without a special case.
+# `ListingPath` MOVED DOWN into `session_view`, and is re-exported here so no
+# call site moved — the same route `truncHash` and `Copyable` took, for the same
+# reason.
+#
+# It is the identity of a listing DOCUMENT, and the pane type lives one module
+# down. `components/debugger.renderSource` has to decide whether the rows in
+# front of it are a listing or source, and it could not name this constant
+# without importing this producer. A renderer importing a producer to ask what
+# it is looking at is the wrong direction; the answer belongs on the vocabulary
+# both of them already share. Its own reasoning went with it, unchanged.
+export session_view.ListingPath
 
+const
   ListingLanguage* = "avm"
 
 # THE ROWS ARE NUMBERED IN THE SESSION'S OWN COORDINATE, and there is only one.

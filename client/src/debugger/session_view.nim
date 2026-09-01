@@ -577,6 +577,35 @@ type
       ## producer, and it refuses to produce one at all below source-level
       ## fidelity — see its header.
 
+const ListingPath* = "avm"
+  ## The document path an INSTRUCTION LISTING is filed under, and therefore the
+  ## prefix of every one of its rows' anchors (`lineAnchor`).
+  ##
+  ## IT IS THE ANSWER TO "what kind of rows are these". An `EditorPane` at
+  ## `srcUnverified` carrying documents is a listing when — and only when — its
+  ## documents are THIS document: `instruction_listing.listingDocument` is the
+  ## one producer of them and files every one here, and `session_project`'s live
+  ## branch decodes the island by this same name. `components/debugger
+  ## .renderSource` reads it for exactly that reason, and the alternative it
+  ## replaced (`documents.len > 0`) could not tell a listing from a pane that
+  ## had been handed source it is not entitled to show.
+  ##
+  ## Declared HERE rather than in `instruction_listing`, which re-exports it, so
+  ## the renderer can ask what it is looking at without importing a producer.
+  ##
+  ## SHORT AND SYNTHETIC, deliberately. The recorder interns the executed
+  ## object as `/aztec/<txHash>.avm`, and using that would put a 66-character
+  ## hash inside every one of a few hundred row ids for no gain — the listing
+  ## is one object, so there is nothing for a per-file id to disambiguate. The
+  ## interned path is carried on the listing and stated in the caption, which
+  ## is where a reader can act on it.
+  ##
+  ## The extension matters: `source_highlight.profileForDocument` decides by
+  ## extension and answers `avm` with NO profile, so a listing is rendered as
+  ## the plain text it is rather than coloured by whichever lexer was
+  ## available. That is the same refusal `source_document.nim`'s header states,
+  ## reached without a special case.
+
 func pathSlug*(path: string): string =
   ## Path characters that are not safe in an HTML id, folded to `-`.
   result = newStringOfCap(path.len)
