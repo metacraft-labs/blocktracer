@@ -40,7 +40,7 @@
 ## disk. It deliberately does not re-derive the prose: a test that computed the
 ## expected value the same way the fixture did would agree with itself.
 
-import std/[unittest, os, json, strutils, algorithm, sets]
+import std/[unittest, os, json, strutils, algorithm, sequtils, sets]
 
 import ../src/ssr
 import ../src/reader
@@ -287,6 +287,111 @@ suite "3 — a tour entry opens, on its own program":
       if slug == DemoChainSlug: continue
       let page = renderedBody(renderChain(root, slug))
       check not page.contains("What this debugger can show")
+
+suite "3a — how the recording ENDED, which is not how the transaction ended":
+
+  ## The tour is the only corpus in this repository that publishes both, and
+  ## before `ExecutionEnding` it published them identically. `constraints` stops
+  ## at `assert(margin > 0, …)` — 170 against a floor of a million — and its page
+  ## carried the same six badges and the same provenance sentence as `values`,
+  ## which runs to the end. The only difference between the two documents was a
+  ## step count, and a visitor cannot read an outcome out of `71` versus `34`.
+  ##
+  ## The counts below are asserted, not assumed. Every `for` in this block
+  ## quantifies over a set that the corpus could empty by accident — a tour with
+  ## no failing program would make "a failure is tellable" true of nothing —
+  ## which is the vacuous pass `tools/journeys/README.md` §3 names.
+
+  let failing = programs.filterIt("failure" in it.capabilities)
+  let completing = programs.filterIt("failure" notin it.capabilities)
+
+  test "NON-VACUITY: the corpus publishes both kinds, and every program is one":
+    check failing.len == 1
+    check completing.len == 8
+    check failing.len + completing.len == programs.len
+    # Neither side may be empty, stated separately from the exact counts above
+    # so that a corpus which legitimately grows still fails on the right line.
+    check failing.len >= 1
+    check completing.len >= 1
+
+  test "the published manifest states the ending the corpus declares":
+    var stated = 0
+    for i, p in programs:
+      checkpoint p.id
+      let t = traceView(root, info, rows[i].tx)
+      let want = if "failure" in p.capabilities: eeFailedConstraint
+                 else: eeCompleted
+      check t.ending == want
+      inc stated
+    check stated == programs.len
+
+  test "an M5c transaction states NOTHING, and that is not 'completed'":
+    # The default has to be the absence of a claim. `eeCompleted` is a specific
+    # opinion, and a recording nobody established an ending for must not acquire
+    # it — which is the failure mode this whole field exists to end, in the
+    # other direction. The M5c fixture is the corpus that has no declaration.
+    var checkedTxs = 0
+    var tourHashes: seq[string]
+    for r in rows: tourHashes.add r.tx
+    for b in blocks(root, info):
+      for h in readBlockDetail(root, info, b.hash).transactions:
+        if h in tourHashes: continue
+        let t = traceView(root, info, h)
+        if t.steps == 0: continue          # nothing resolved; no manifest to read
+        checkpoint h
+        check t.ending == eeUnstated
+        inc checkedTxs
+    check checkedTxs >= 6
+
+  test "THE CLAIM: the two pages are tellable apart by what they SAY":
+    # Read the way a visitor reads it: the badge texts, in order, out of the
+    # rendered document. Not the field, not the JSON — the sentence on screen.
+    proc badgesOf(html: string): seq[string] =
+      var i = 0
+      while true:
+        let a = html.find("class=\"badge", i)
+        if a < 0: break
+        let gt = html.find('>', a)
+        let close = html.find("</span>", gt)
+        if gt < 0 or close < 0: break
+        result.add html[gt + 1 ..< close]
+        i = close + 1
+
+    let failIdx = programs.find(failing[0])
+    let okIdx = programs.find(completing[0])
+    check failIdx >= 0 and okIdx >= 0
+    let failBadges = badgesOf(renderDebug(root, DemoChainSlug, rows[failIdx].tx))
+    let okBadges = badgesOf(renderDebug(root, DemoChainSlug, rows[okIdx].tx))
+
+    # CONTROL first: both pages really do render badges, so the inequality
+    # below is a difference between two populated readings rather than between
+    # two empty ones.
+    check failBadges.len >= 6
+    check okBadges.len >= 6
+    check failBadges.len == okBadges.len
+
+    check failBadges != okBadges
+    check "Stopped on a failed constraint" in failBadges
+    check "Ran to completion" in okBadges
+    # …and the chain's own verdict is untouched and identical on both. The row
+    # added a fact; it did not restate an existing one, and a page that had
+    # started calling the TRANSACTION failed would be a different defect.
+    check "Succeeded" in failBadges
+    check "Succeeded" in okBadges
+
+  test "every tour page says which of the two its recording is":
+    var said = 0
+    for i, p in programs:
+      checkpoint p.id
+      let body = renderedBody(renderDebug(root, DemoChainSlug, rows[i].tx))
+      let want = if "failure" in p.capabilities: "Stopped on a failed constraint"
+                 else: "Ran to completion"
+      let other = if "failure" in p.capabilities: "Ran to completion"
+                  else: "Stopped on a failed constraint"
+      check body.contains(want)
+      check not body.contains(other)
+      inc said
+    check said == programs.len
 
 suite "4 — the tour stays unmistakably a demo":
 

@@ -689,7 +689,41 @@ proc txAgeRow*(): MetaRow =
   ## creating the one beside it is not a fix.
   MetaRow(label: "Age", value: "No timestamp published", badge: "muted")
 
-proc txMetadataRows*(chain: string, v: TxView, info: ChainInfo): seq[MetaRow] =
+func executionEndingRow*(ending: ExecutionEnding): MetaRow =
+  ## §7.2's overview row for HOW THE RECORDING ENDED — which is not how the
+  ## transaction ended, and that is the whole reason it exists.
+  ##
+  ## `Outcome` two rows up is the chain's verdict: this transaction committed.
+  ## A public AVM call whose circuit stops on a constraint that did not hold can
+  ## be exactly that, and the demo tour publishes the pair — `tour_constraints`,
+  ## which stops at `assert(margin > 0, …)`, and `tour_values`, which runs to the
+  ## end. Before this row the two pages were byte-identical: the same six badges,
+  ## the same provenance sentence, the same everything but a step count. A
+  ## visitor could not tell a failed execution from a completed one without
+  ## reading the Noir source in the pane and working it out.
+  ##
+  ## THE WHOLE STATEMENT IS THE VALUE, with no `note`, for the reason `txAgeRow`
+  ## gives at length: a `note` renders as a full-width paragraph, this row's
+  ## other host is a ~380px pane, and the one paragraph already there was
+  ## measured at 39% of the pane's height. Answering a review finding by
+  ## creating the one beside it is not a fix. Both values are badge-sized and
+  ## complete under their own label.
+  ##
+  ## `eeUnstated` HAS NO ROW, and the caller is the one that knows: a recording
+  ## whose ending nobody established must not acquire an opinion here, and
+  ## "completed" is the specific opinion it would acquire. Every real-chain
+  ## recording is unstated today.
+  case ending
+  of eeUnstated:
+    MetaRow(label: "Execution", value: "")   # never emitted; see the caller
+  of eeCompleted:
+    MetaRow(label: "Execution", value: "Ran to completion", badge: "muted")
+  of eeFailedConstraint:
+    MetaRow(label: "Execution", value: "Stopped on a failed constraint",
+            badge: "bad")
+
+proc txMetadataRows*(chain: string, v: TxView, info: ChainInfo;
+                     ending = eeUnstated): seq[MetaRow] =
   ## §7.2's overview facts, in spec order: WHERE THE DATA CAME FROM, then block
   ## position, the transaction's type, its age, canonical, finality, the roles
   ## the adapter reported, the payload target, and the cost rows.
@@ -718,6 +752,22 @@ proc txMetadataRows*(chain: string, v: TxView, info: ChainInfo): seq[MetaRow] =
                      badge: (if v.canonical: "muted" else: "bad"))
   result.add MetaRow(label: "Finality", value: sentenceCase(v.finality),
                      badge: finalityClass(v.finality))
+  # THE RECORDING'S ENDING, beside the transaction's own status facts and above
+  # `Sources`, because it qualifies the session the rest of this pane is about.
+  #
+  # It is a parameter and not a lookup for the same reason `info` is: this proc
+  # is the one source §7.1 requires and must not acquire a second reader. The
+  # fact lives on the trace MANIFEST, and a proc that fetched its own would put
+  # a manifest read behind every transaction-table row — which is exactly the
+  # constant-per-page cost `test_explorer_breadth` asserts.
+  #
+  # The default is `eeUnstated`, so a caller with no manifest in hand states
+  # nothing. That is not a divergence between §7.1's two surfaces: the only
+  # caller that passes one is the session branch, and the other branch is
+  # reached exactly when no artifact resolved (§7.0) — so both surfaces would
+  # compute the same value, and one of them can spell it.
+  if ending != eeUnstated:
+    result.add executionEndingRow(ending)
   # SOURCES, beside the other two status facts and ABOVE the family-specific
   # rows, because it is a fact about this transaction on every chain and the
   # rows under it are whatever the adapter happened to report.

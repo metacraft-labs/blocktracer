@@ -89,6 +89,21 @@ type
     language*: seq[string]
     containerPath*, sourcesDir*: string
     steps*, frames*: int
+    ending*: ExecutionEnding
+      ## How this program's recording ends, from its declared capabilities.
+      ##
+      ## `failure` is the capability whose whole content is "this recording
+      ## stops on a constraint that did not hold" — the manifest's own registry
+      ## defines it as "An execution that stops on a constraint", and the
+      ## program's expectations spell out which assertion and on what values.
+      ## Reading it here is the same act as reading `trace.steps`: the corpus
+      ## states what its recordings contain, and when a claim turned out wrong
+      ## the corpus was re-recorded rather than the claim weakened
+      ## (`fixtures/trace/tour/README.md`).
+      ##
+      ## Every tour program is one or the other and none is `eeUnstated`: they
+      ## are nine programs whose endings the corpus states, so declining to say
+      ## would be withholding a fact this producer has.
 
 const
   TourBlockHeight* = 90
@@ -135,6 +150,8 @@ proc readTour*(tourDir: string): seq[TourProgram] =
       frames: p["trace"]["calls"].getInt)
     for c in p["capabilities"]: prog.capabilities.add c.getStr
     for l in p["language"]: prog.language.add l.getStr
+    prog.ending =
+      if "failure" in prog.capabilities: eeFailedConstraint else: eeCompleted
     # A manifest entry naming a container that is not there would publish a
     # transaction whose debug route cannot open — the one outcome the tour is
     # not allowed to have. Refuse at generation time, where the fix is obvious.
@@ -313,6 +330,13 @@ type Recording = object
   ## recording would be the manifest lying about the bytes beside it.
   containerPath, sourcesDir: string
   steps, frames: int
+  ending: ExecutionEnding
+    ## How this recording ends. A property of the CONTAINER, which is why it
+    ## sits here beside the step count and not on the transaction: the same
+    ## reasoning that put `steps` here — a manifest stating an ending that
+    ## belonged to some other recording would be lying about the bytes beside
+    ## it. `eeUnstated` for the M5c fixture, which nothing has established an
+    ## ending for.
 
 proc fixtureRecording(cfg: DemoConfig): Recording =
   ## The M5c tree's recording: the `noir_space_ship` container, whose real
@@ -364,7 +388,8 @@ proc writeArtifact(cfg: DemoConfig, rec: Recording, txHash, execInputId: string,
                             hash: contentHashSha1(bytes)),
     execution: ExecutionSummary(steps: rec.steps, frames: rec.frames,
                                 truncated: truncated, sourceLevel: true,
-                                languages: @[traceLanguage]),
+                                languages: @[traceLanguage],
+                                ending: rec.ending),
     validation: ValidationSummary(status: vs, strength: strength),
     validationOracle: oracle,
     prestateStrategy: "self-contained-circuit")
@@ -868,7 +893,8 @@ proc generate*(cfg: DemoConfig): int =
   for prog in tour:
     tourRec[prog.id] = Recording(containerPath: prog.containerPath,
                                  sourcesDir: prog.sourcesDir,
-                                 steps: prog.steps, frames: prog.frames)
+                                 steps: prog.steps, frames: prog.frames,
+                                 ending: prog.ending)
     tourById[prog.id] = prog
 
   # The traced program's sources, published once per code hash as a content-

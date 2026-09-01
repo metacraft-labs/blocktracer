@@ -319,6 +319,25 @@ const ARMS = [
     journey: "a-transaction-list-says-what-can-be-debugged",
     assertion: "the transaction's own page states what its list row did",
   },
+  {
+    id: "P/the-recordings-ending-never-leaves-the-manifest",
+    why:
+      "Withhold the manifest's `ending` from the one place that has both the" +
+      " transaction's facts and its trace manifest in hand. `ExecutionSummary" +
+      ".ending` is still published, still decoded, still on the `TraceView` — it" +
+      " simply stops being passed to the row producer, so every debug page falls" +
+      " back to stating nothing about where its recording stops. That is the exact" +
+      " shape of the defect this journey was written for, and it is the shape a" +
+      " regression would take: the fact reaches the consumer and the consumer drops" +
+      " it on the floor one call short of the screen. Aimed at the wiring rather" +
+      " than at the two strings, because a value spelled twice in one function is" +
+      " a typo and a value that never arrives is the failure that shipped.",
+    file: join(CLIENT, "src", "ssr.nim"),
+    find: `    ending = t.ending)`,
+    replace: `    ending = eeUnstated)`,
+    journey: "a-failed-execution-is-tellable-from-a-completed-one",
+    assertion: "the two are tellable apart by what the page says about the execution",
+  },
 ];
 
 const log = (s = "") => console.log(s);
