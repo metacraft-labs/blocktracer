@@ -398,9 +398,40 @@ async function main() {
             `; the view name did not change, so nothing else reports this`);
         }
 
+        // ── THE MANIFEST IS NOT THE CORPUS, AND A TARGETED CAPTURE PROVES IT ─
+        //
+        // F walks `manifest.images`, and `capture.mjs` REPLACES the manifest on
+        // every run — including a targeted one. So after
+        //
+        //     just capture "--view debugger--copy-affordance"
+        //
+        // the manifest holds 4 entries, 304 PNGs are on disk, and F compared
+        // four of them and printed PASS. The count was in the output and the
+        // count was the only signal.
+        //
+        // That is this assertion's own defect, one layer down. F exists because
+        // "a corpus photographed before a chain was renamed stays green under
+        // A, C, D and E together while every image in it is of a chain at a URL
+        // the site no longer serves — the only signal was a person
+        // remembering." A targeted capture puts F itself in exactly that
+        // position: 300 images unexamined, nothing red, and a reader who has to
+        // remember what the number should have been.
+        //
+        // Not fixed by MERGING the targeted run into the previous manifest. The
+        // manifest's `fixture`, `determinism` and `environment` fields describe
+        // ONE run; a merged file would describe several while claiming to
+        // describe one, which is a worse lie than a short one. The honest move
+        // is the one the rest of this file already makes: say what was not
+        // covered, and refuse to call a partial comparison a pass.
+        const accountedFor = new Set(
+          (manifest.images ?? []).filter((i) => i && i.file).map((i) => i.file));
+        const unaccounted = present.filter((f) => !accountedFor.has(f));
+
         report.subjects = {
-          status: "checked",
+          status: unaccounted.length ? "partial" : "checked",
           compared: (manifest.images ?? []).filter((i) => i && i.ok === true).length,
+          onDisk: present.length,
+          unaccounted: unaccounted.length,
           drifted: drifted.length,
           unrecorded: unrecorded.length,
           detail: drifted,
@@ -447,6 +478,12 @@ async function main() {
       console.log(
         `corpus subjects:  ${report.subjects.compared} image(s) compared against the ` +
         `route their view resolves to now; ${report.subjects.drifted} drifted`);
+    } else if (report.subjects.status === "partial") {
+      console.log(
+        `corpus subjects:  PARTIAL — ${report.subjects.compared} of ` +
+        `${report.subjects.onDisk} image(s) compared; ${report.subjects.drifted} drifted. ` +
+        `${report.subjects.unaccounted} image(s) on disk are in no manifest entry, so ` +
+        `nothing is known about what they are photographs of`);
     } else {
       console.log(`corpus subjects:  NOT RUN — ${report.subjects.reason}`);
     }
@@ -472,6 +509,19 @@ async function main() {
         console.log(
           `PASS — every image is a photograph of the subject its view still ` +
           `resolves to (${report.subjects.compared} compared)`);
+      } else if (report.subjects.status === "partial") {
+        // NOT a PASS line, deliberately. `capture.mjs` replaces the manifest on
+        // every run, so a targeted capture leaves one that accounts for a
+        // handful of a corpus of hundreds — and F walking it would otherwise
+        // print PASS having examined those few. "Compared what it could" is not
+        // "every image", and this assertion's whole reason for existing is that
+        // nobody could see a stale corpus.
+        console.log(
+          `NO VERDICT — F compared ${report.subjects.compared} of ` +
+          `${report.subjects.onDisk} image(s) and found ${report.subjects.drifted} drifted, ` +
+          `but ${report.subjects.unaccounted} image(s) on disk are in no manifest entry. ` +
+          `The manifest is from a TARGETED capture and describes only that run. ` +
+          `Run \`just capture ""\` for a corpus-wide verdict`);
       }
     }
   }
