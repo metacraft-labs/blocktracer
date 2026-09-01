@@ -1,0 +1,84 @@
+Expected elements: present
+
+All must-shows present: identity bar with the chain exit "← demo", both stepping directions, scrubber, phase rail, the Call Trace/Event Log tab strip with Call Trace open, Values as its own pane, Code positioned at line 32, and the `Data` row with its `Synthetic demo data` badge. Nothing forbidden.
+
+(a) half landed. On my predecessor's own 12-pixel flank set the ring goes 1.60–2.71 (mean 2.16) → 1.85–3.77 (mean 2.77); per-row strongest flank 2.74–7.30 (mean 4.74); peak ring pixel 4.29→7.30:1. Composited across the 2px antialiased stroke the flanks are still 2.01–2.78:1, area-weighted 1.37:1 (was 1.39). I withdraw the contrast half. But #164E63 has relative luminance 0.0652 against the not-executed ⊘'s #484848 at 0.0648 — 1.00:1, down from 1.71:1 — and IoU rose 0.781→0.865 (5 differing pixels of a 37-px union). The pair is now hue-only. Finding 1.
+
+(b) landed: "COST · MANA" holds one line. (c) landed: 128 / 1,315, 1,315, 1,208 grouped; Values and 88000 / 200000 ungrouped. (d) unchanged, confirmed: transaction pane y874–885 ramps 4.54→2.05 (ink-weighted 3.17:1) nine pixels clear of the border at y895, plus a line at 1.10:1; Code fades only line 52 (y887–894), line 51 at 5.41–9.15:1; Values fades nothing.
+
+Withdrawn: the current-position band is no longer hue-only — a #164E63 left rule (Code x6–8, Call Trace x694–695) gives 9.11:1.
+
+Fixes: exempt the last full line from the mask; give ⊘ a different silhouette.
+
+Rating: 4/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 4,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L3/1",
+      "severity": "P1",
+      "location": "Transaction pane, EXECUTIONS note, last two lines (x1157-1432, y874-894); pane border y895",
+      "finding": "UNCHANGED and re-measured, exactly as the round description said it would be. The pane-body fade drives body prose below the contrast floor BEFORE that text leaves the box. The line 'only proofs, nullifiers and commitments are' occupies y874-885; the pane's inner content edge is y894 and its border y895, so the line has nine clear pixels beneath it and is not clipped. Darkest ink per row ramps monotonically at about +7 grey levels: #767676 4.54:1 at y875, #848484 3.74:1 at y877, #929292 3.11:1 at y879, #A0A0A0 2.61:1 at y881, #A7A7A7 2.41:1 at y882, #AEAEAE 2.22:1 at y883, #B5B5B5 2.05:1 at y884. Weighting each row by its ink-pixel count (13, 8, 116, 80, 60, 50, 55, 75, 2, 1) gives an x-height mean of 3.17:1 against the 4.5:1 floor for 13px prose — matching the 3.11:1 measured last round and bracketing the 2.19-2.22:1 the wide captures recorded, which is this line's BOTTOM rows, not its mean. A further line at y892-893 is masked to #F4F4F4, 1.10:1, present but invisible. The text being erased is the producer's own honesty prose, graded as content; the fade also makes a truncated sentence look like a finished one. The defect is confined to this pane: the Code pane fades only the genuinely clipped line 52 (y887-894, 1.64:1 down to 1.09:1) while line 51 is unmasked at 5.41-9.15:1, and the Values pane fades nothing (last row 'i / 2 / u32' at y843-851, 4.48-19.03:1). The cause is that only the Transaction pane's 13px prose has a line-height shorter than the roughly 22px gradient.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L3/2",
+      "severity": "P2",
+      "location": "Code pane gutter, x75-82: current-position mark at line 32 (y379-387, on the #A5F3FC band) versus the not-executed slashed circle at line 29 (y309-317, on white)",
+      "finding": "The change to position ink repaired the ring's contrast and simultaneously destroyed the only luminance separation this pair had. #164E63 has relative luminance 0.0652; the neutral not-executed glyph's #484848 has 0.0648. Contrast between the two marks' ink is 1.00:1, down from 1.71:1 when the mark was #0E7490 (relL 0.1460). Shape has not moved either: alpha-coverage masks normalised for colour give IoU 0.865 at threshold 0.5 — HIGHER than the 0.781 filed last round, not lower — with only 5 differing pixels across a 37-pixel union, and ink mass 31.32 versus 35.32 alpha-px (12.0% apart). Best-shift search over +/-2px finds no better alignment, so the two are the same 8px circle to within antialiasing. The pair is therefore now separable by HUE ALONE plus the row band; nothing survives desaturation. The band is a real cue (see the withdrawal note in the summary — a #164E63 left rule at x6-8 now carries it at 9.11:1), so this is not a P1, but the mark itself must not be indistinguishable from the not-executed mark. Give the current position a different silhouette — a filled triangle or arrow — rather than a ring that differs from the not-executed ring only by its interior.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/3",
+      "severity": "P2",
+      "location": "Transaction pane 'Data' row badge, x1272-1428 y221-241, versus the identity bar's active phase pill 'FETCHING', x963-1048 y21-41",
+      "finding": "One token pair carries two unrelated meanings on this page. The provenance badge 'Synthetic demo data' is #1E40AF text on a #DBEAFE fill with a #2563EB border. The active phase pill 'FETCHING' is #1E40AF text on a #DBEAFE fill. Identical fill, identical ink; the inactive phases OPENING and POSITIONING are #565656 on white with #C8C8C8 borders, so the blue is doing 'this one is live' in the rail. A reader who learns the blue in the identity bar as 'current phase' meets the same blue 200px lower meaning 'this data is not real'. Both are legible in isolation (7.15:1 text on fill; the fill itself is only 1.22:1 against the pane surface, so the badge shape rests on its border). The provenance claim is the most load-bearing content in this register and should not share a token with a transient engine state. Give the Data badge its own tone.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/4",
+      "severity": "P2",
+      "location": "Code pane header, 'Iteration 3 of 8' chip strip, x366-678 y99-128; chip 3 at x445-482",
+      "finding": "The position-ink change reached this control and made its worst pair worse. Chip 3, the CURRENT iteration, now renders its numeral in #164E63 on the chip's #919191 fill: 2.89:1, below the 4.5:1 floor for 11px text and below even the 3:1 non-text floor, and worse than chips 1-2 whose #242424 numerals reach 4.93:1 on the same fill. The current iteration is thus the least legible chip in the strip. Chips 4-8 (not yet reached) render #747474 on the #DDDDDD strip at 3.44:1, also under the floor. Structure is invisible: the open chips' #A2A2A2 hairlines are 1.88:1 on #DDDDDD and the filled chips are #919191 on #DDDDDD at 2.32:1, both under 3:1, so no chip has a perceivable edge. The tone assignment is also inverted for a light surface — chips 1-3 (visited and current) carry a heavy mid-grey FILL that reads as disabled everywhere else here, while chips 4-8 (unreachable) are open and white and read as available. Darken the chip fill and take the current numeral to white, or lighten the fill and keep the ink.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/5",
+      "severity": "P2",
+      "location": "all four pane boundaries (borders at y68 and y895; Call Trace/Values split at y561/y566) and the inter-pane gutters at x686-690 and x1145-1148",
+      "finding": "Reproduces unchanged. The light theme's surface levels are almost flat and the whole pane structure rests on one hairline. Page background #ECECEB against the pane surface #FFFFFF is 1.18:1; the pane header band #DDDDDD is 1.36:1; in-pane row rules #C8C8C8 are 1.67:1. The only element doing structural work is the #A2A2A2 pane border, 2.55:1 against the pane surface and 2.16:1 against the page — under the 3:1 floor for a boundary while carrying four panes on its own. Rubric B4's named failure case is 'panes distinguished only by a hairline', which is literally the case. Either drop the pane surface below the page background or take the border to about #8A8A8A.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L3/6",
+      "severity": "P2",
+      "location": "identity bar scrubber track (x688-832, y31) versus the iteration chips 1-3 fill (x366-482, y99-128)",
+      "finding": "Reproduces unchanged. #919191 carries two opposite meanings 80px apart vertically. In the scrubber it is the UNFILLED remainder of the track — 'not yet reached'. In the iteration strip it is the FILL of chips 1, 2 and 3 — 'already visited, and the current one'. Same value, opposite semantics, both expressing position within the same trace. Compounding it, the elapsed segment #155E75 is 2.31:1 against the #919191 track while the inert track is 3.15:1 against the white bar, so the meaningless part of the control has more contrast against its container than the meaningful part has against the inert part, and at 9.7% progress the eye reads the mid-grey as the fill. Lighten the track to about #C8C8C8.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/7",
+      "severity": "P3",
+      "location": "Code pane gutter, x75-82: current-position mark at line 32 (y379-387) versus the executed-line coverage dots (lines 27, 28, 31, 34, 37 — e.g. x78-79, y222-224)",
+      "finding": "PARTIALLY WITHDRAWN, and the wide-viewport refutation is settled as a method mismatch. My predecessor's claim was never that the whole mark resembles the coverage dot; it was that the mark's CENTRE is one. Measured now: the mark's centre blob (cols x78-79, rows y381-385 core) carries 4.78 alpha-px against the coverage dot's 3.67 — 26% apart, where last round it was 11% (2.9 vs 3.27). The sibling's 'IoU 0.138, 88% apart' is a WHOLE-GLYPH comparison; I reproduce it here at IoU 0.118 (4 intersecting of 34 union pixels), and it is arithmetically correct but answers a question nobody asked — a 32-pixel ring versus a 3-pixel dot cannot overlap. What HAS genuinely improved is the colour: the inks are now #164E63 (relL 0.0652) versus the coverage dot's #1A7B95 (relL 0.1656), 1.87:1 apart, against roughly 1.13:1 last round when both were cyan of nearly the same value. That is enough separation that the residual shape echo is a preference, not a defect. Downgraded from P2 to P3. The coverage dot remains weak on its own terms — core pixel 4.87:1 on white but the composited 2x3 lit box is 1.92:1 — which is the part still worth fixing.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L3/8",
+      "severity": "P3",
+      "location": "'Partial' badge (identity bar x200-265 y18-44, and Transaction pane x1157-1220 y100-124) versus changed values in the Values pane (9000 at y623-637, 2000 at y790-804)",
+      "finding": "Reproduces unchanged. Two warm tones, two unrelated meanings, close enough in hue to read as one role. #9A3412 on #FFEDD5 with an #EA580C border means trace completeness ('Partial'); #854D0E on white means 'this value changed at this step'. Both are legible in isolation (6.38:1 and 6.85:1) and the badge's border is 3.11:1 on its own fill, so nothing is unreadable — but a reader scanning the page will attach 'partial/incomplete' to the changed values. Move the changed-value role out of the warm family, or take the badge distinctly redder.",
+      "criterion": "B5"
+    }
+  ]
+}
+```

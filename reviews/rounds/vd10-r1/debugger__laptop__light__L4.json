@@ -1,0 +1,68 @@
+Expected elements: present
+
+All must-shows present; no must-not-show. Tabbed Call Trace/Event Log with Call Trace open (7 frames), Values as a pane below it (10 values), both stepping directions plus scrubber, readout and phase rail in a 63px bar that does not wrap at 1440, DATA/"Synthetic demo data" row with its producer sentences, line 32 unmistakable.
+
+Change status: (a) landed — line 32's arm and glyph are 22,78,99 / 14,116,144 against line 29's neutral 72,72,72. (b) INERT here too: "COST · MANA" occupies x1158-1235 on one line, 75px clear of its value; not observable at 1440 either. (c) landed — "128 / 1,315" grouped, Values and 88000/200000 not. (d) fades measured, see F4.
+
+Standing measurement re-measured. Call Trace 239px empty of a 490px interior (y70-559, below the footer ink ending y320) = **48.8%, exact reproduction**. Values 33px of 326px = **10.1%** (42px/12.9% from the last ink at y851 — that is where 13.1% came from); the recorded ~8% does not reproduce. Columns 683/454/287 against 913/608/383: 47.9/31.9/20.1% at both, so no pane loses width first. But I withdraw the interpretation: capacities are 17.6 frame rows vs 12.0 value rows at laptop and 22.0 vs 14.8 at wide — 1.47 against 1.49. The asymmetry is a fixture filling 7 of 17.6 frame slots and 10 of 12 value slots, not a starved pane.
+
+Fixes: restore the quantified engine status at 1440; narrow the ACIR header.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L4/1",
+      "severity": "P2",
+      "location": "identity bar, between the scrubber ending x832 and the position readout starting x849 (y10-54); compare the 1920 capture where the string sits at x950-1105",
+      "finding": "The quantified engine status 'Engine loading - 18 MB' is present at 1920 and DROPPED at 1440. This viewport keeps the 241px phase rail (x968-1209) and a 110x63px empty void (x1209-1319) before NOIR, so the bar had room for a ~155px string and shed the only element that says what is being fetched and how large it is. What survives is a rail highlighting FETCHING beside a session already positioned at step 128 of 1,315 with code, frames and values on screen - truthful as a phase name, but the reader at 1440 gets no magnitude. This is the wrong thing to drop: the phase rail repeats three words the reader cannot act on, while the status carried the only number. Reclaim it from the 110px void, or collapse the rail to its active phase at this width. Related density note in the same bar: every gap from x345 to x942 is exactly 17px (button pairs at 427-444, 496-513, 576-593, scrubber at 656-673, readout at 832-849), so ten objects read as one undifferentiated run rather than as grouped controls.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/laptop/light/L4/2",
+      "severity": "P2",
+      "location": "Call Trace, opcode column header 'ACIR opcodes' x1045-1134 (y100-123) against the frame rows at y201-224 and y277-300",
+      "finding": "The opcode column is sized by its 12-character header, not by its values, and the difference is exactly what two frame rows lose. The header inks x1045-1134 (89px); the widest value '1,315' inks x1100-1134 (35px). The 54px reserved on every row is why the depth-3 rows truncate BOTH their identifier and their path - 'calculate_remaining_shie...' ending x937 and 'zk_shields - src/shi...' ending x1061 - while at 1920 the same rows render the full 30-character 'calculate_remaining_shield_pct' at x986-1203. At 8.4px per mono character the 54px is ~6.4 characters, which is precisely the shortfall. Two of seven frames at 1440 therefore cannot be read to the end of their name in a region that is 48.8% empty below them. Abbreviate the header to 'ACIR' (x1045-1075, 31px) or 'OPS' and both rows un-truncate at this width with no other loss.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/laptop/light/L4/3",
+      "severity": "P2",
+      "location": "Code pane, right edge x686; line 26 (y212-235), and likewise lines 42, 48 and 49",
+      "finding": "The Code pane loses about 15 of the fixture's 81 longest-line characters at 1440 and does not say so. Line 26 inks from x130 to x679 and then ghosts 're' at x686 under a right-edge fade; at 8.4px/char the visible measure is ~66 columns against the 81 the line needs. Four of the 27 visible lines (26, 42, 48, 49) are cut this way; at 1920 the same pane is 913px and all four fit on one line uncut. There is no horizontal scrollbar and no character or column count, so the reader cannot tell whether two characters or forty are missing - and on line 26 what is lost is the second argument of the call, which is the information the line exists to carry. Either surface a horizontal scroll affordance, or soft-wrap continuation lines at this width; the pane has 239px of dead vertical space one column over but none of its own to spend.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/4",
+      "severity": "P2",
+      "location": "Transaction pane x1149-1435: FEE PAYER y606-676, TARGET y678-748, DATA prose y226-441, bottom fade y866-894",
+      "finding": "The right column is the only pane that loses whole content items at 1440. Its value column is 167px (x1259-1426, ~20 mono characters), so each 42-character hash renders on three lines with two orphaned characters on the third - '32' at y658-667, '4c' at y730-739 - costing 142px, 17% of the pane's 826px interior, to show 84 characters. Its prose measure is 34 characters (x1158-1426), so the three provenance sentences take 10 lines and 216px here against 7 lines at 1920. The compounded 150px pushes content off the bottom: the RAW (CHAIN-NATIVE) heading and block, visible at 1920 at y991-1074, are entirely below the fade at 1440, and the EXECUTIONS sentence is cut mid-clause at 'commitments are' (y874-884, ink 118,118,118, contrast 4.54:1) with the following line at 2.55:1. Nothing announces how much is below. Give the pane the ~40px that would take both hashes to two lines, and count what the fade hides.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L4/5",
+      "severity": "P3",
+      "location": "middle column x691-1144: tabbed region y69-560 (interior y70-559) and Values y567-894 (interior y568-893)",
+      "finding": "Re-measurement and a withdrawal, recorded so the campaign stops relitigating it. The figures reproduce: the tabbed region is 239px empty of 490px below the 'By call order.' footer whose ink ends y320 = 48.8%, exactly the standing number; Values is 33px empty of 326px = 10.1% (42px/12.9% measured from the last ink at y851, which is the 13.1% a sibling reported - the 30.6% wide figure was taken from the last row border, so the two were mixed conventions). The recorded '~8% at laptop' does not reproduce. Columns are 683/454/287 against 913/608/383, a 47.9/31.9/20.1% split identical at both viewports. But I withdraw the reading that Values is starved at laptop. The tabbed region holds 17.6 rows at 24.7px pitch (y125-559) and Values holds 12.0 at 25px (y593-893), a 1.47 capacity ratio; at 1920 it is 22.0 and 14.8, a ratio of 1.49. The split is already ratio-stable, and the slack asymmetry is an artifact of a fixture that fills 7 of 17.6 frame slots and 10 of 12 value slots. On this fixture moving height from the region to Values buys zero additional information - all 10 values already render - only headroom. The conclusion that no fixed reallocation is correct at both viewports stands; the reason on record for it does not.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L4/6",
+      "severity": "P3",
+      "location": "Code pane gutter x68-92: executable dot on lines 26/27/28/31/34 (e.g. x78-79 y222-223) against the arm glyph on line 29 (y303-325) and line 32 (y371-394)",
+      "finding": "Change (a) landed at this viewport: line 32's arm and glyph render in position ink (22,78,99 and 14,116,144) and its line number with them, while line 29's stay neutral 72,72,72. Reproduces the wide result. The residual, independently measured here: the executable-line dot is a 2x3px mark whose darkest pixel is 26,123,149 with immediate neighbours at 116,175,191 and 128,182,196 - four subthreshold pixels in total against roughly 60 for the arm glyph beside it. It is the gutter's highest-frequency mark, appearing on 5 of the 9 lines sampled between y212 and y440, and at 1x it is effectively absent. Give it a third of the arm's area. Also noting for the record that the 'Showing from line 26' notice wraps to two lines at 1440 (y165-209, 45px) against one at 1920 (y165-191, 27px), spending 18px - most of a code row - on the wrap.",
+      "criterion": "B2"
+    }
+  ]
+}
+```

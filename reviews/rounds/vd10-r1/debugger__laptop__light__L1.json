@@ -1,0 +1,91 @@
+Expected elements: present
+
+All must-show items located; nothing forbidden. Provenance is the Transaction pane's first grid row (DATA / Synthetic demo data / sentences, y215-441), and at 14px/9.15:1 it is not too quiet.
+
+(a) LANDED, measurable: line 32's arm glyph is #164e63, the ink of its own numeral, against #1a7b95 on the executed dots of lines 26/27/28/31. (b) INERT at 1440 too — "COST · MANA" sets on one line, x1158-1235, value column starting x1310: 75px of slack against a four-letter dimension. No captured width exercises it. (c) LANDED in the bar (128 / 1,315) and the ACIR column; not in Values or Cost. (d) unchanged; reproduced.
+
+Truncation, my lens, at this viewport: the code column starts x96 and clips at x686 — 70 of the 128 columns the widest line occupies. The ramp opens at x640, so columns 65-70 render between 3.7:1 and 1.5:1 and 58 columns go with no ellipsis, no scrollbar, no count. Six lines (26, 40, 41, 42, 48, 49) drive ink into the edge, each cut mid-token. Line 32 clears it by 3px with its chip intact — the right thing protected.
+
+Withdrawn on measurement: the DATA note is not the pane's largest type (cap 10px, identical to the mono values), and vd9-r2/6's ring-vs-dot confusion is not observable, the ring occurring only on the current line.
+
+Fixes: scale the fade to what it hides, or state the hidden column count; unify the four truncation rules.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L1/1",
+      "severity": "P2",
+      "location": "Code pane, right edge ramp x640-686, over lines 26 (y218-227), 40 (y562-571), 41 (y588-597), 42 (y611-620), 48 (y753-762), 49 (y797-806)",
+      "finding": "New at this viewport: the horizontal truncation signal does not scale with what it hides. The mono advance is 8.40px (measured across line 34: 'if' at x130, 'as' at x213, 'remaining_shield' at x289 - 8.37, 8.37, 8.42), the text column starts at x96 and clips at x686, so the pane shows 70 of the 128 columns its widest line occupies. The ramp opens at x640 and reaches the border at x685, so columns 65-70 render from 3.7:1 (lum 0.23 at x650) down to 1.5:1 (0.67 at x674): the legible measure is 66 columns and 58 are gone. Six of the 25 non-blank lines carry ink into the clip edge and every one is cut mid-token - line 26 ends inside the second argument of calculate_remaining_shield_pct, line 48 inside 'remaining_shi'. There is no ellipsis, no scrollbar and no count, and the 48px ramp is the same 48px at 1920 where only ~30 columns are hidden: a fixed-width fade cannot express an amount that nearly doubles between viewports. The pane spends a full two-line sentence explaining its VERTICAL truncation ('Showing from line 26 ...', y170-205) and says nothing about the horizontal cut, which removes 45% of the widest line. Widen the ramp in proportion, or name the hidden column count the way the vertical note names the hidden lines. Credit where due: line 32's ink ends at x633 and its 'damage: 0>2000' chip at x635, three pixels clear of the ramp, so the current position is the one row the fade never touches.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L1/2",
+      "severity": "P2",
+      "location": "Identity bar hash x85-193 y27-36; Transaction pane header y104-116; Call Trace frame rows 4 and 7, x755-937 and x947-1061; Code pane right edge x640-686; Transaction pane FEE PAYER y613-667 and TARGET y685-739",
+      "finding": "Carried from vd9-r2/3 and re-judged on merits: still below bar, and this viewport adds the fourth rule. One 1440x900 still now truncates the same class of value - long hex and long identifiers - four different ways. (1) Middle ellipsis with a real glyph: '0xb63616...6359' in the bar and '0xb636167a...66d46359' in the Transaction header. (2) Tail ellipsis: 'calculate_remaining_shie...' and 'src/shi...' in the call trace. (3) Fade with no glyph at all: the Code pane's right edge, which is the largest cut on the page and the only one that gives the reader no character to read as 'and more'. (4) Hard wrap plus right alignment: the 66-character FEE PAYER value breaks across y613-625, y637-646 and y658-667, leaving '32' alone on the third row, and TARGET leaves '4c' alone at y730-739. Rule 4 is the worst of the four because a right-aligned two-character row reads as a separate value in a pane whose every other row is label-left/value-right. Pick one rule per class: middle ellipsis for hashes (the header already does it), tail ellipsis for identifiers and paths, and for the code pane an explicit edge marker rather than a bare gradient.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L1/3",
+      "severity": "P2",
+      "location": "Code pane window note, final word of line 1, x654-676, y170-190",
+      "finding": "Unchanged from vd9-r1 and vd9-r2, re-measured: still below bar. The note 'Showing from line 26 - the session's position is below, and the lines above it are not in this window.' is rendered inside the listing's horizontally masked container, so its last word on line 1 runs under the right-edge ramp. Its darkest pixel measures #878787, 3.59:1 against the white pane, against #484848 / 9.15:1 for the same sentence at x20-400 - and 3.59:1 is the best pixel in the word, not the typical one. The note wraps rather than overflows ('this window.' starts line 2 at y190-205), so the mask buys nothing here and costs a word of running prose that is below the 4.5:1 floor. Exclude the note from the masked scroll region; it is chrome describing the listing, not a line of it.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L1/4",
+      "severity": "P2",
+      "location": "Identity bar readout x860-942 y26-35 and Call Trace ACIR opcodes column x1100-1135; against Transaction pane COST value x1310-1426 y757-770 and the Values numeric column right-aligned at x1022 (y597-612, y622-637, y789-804, y814-829)",
+      "finding": "New this round, and a consequence of a change that is otherwise right. Thousands grouping now reaches the bar ('128 / 1,315') and the ACIR opcodes column ('1,315', '1,208'), while the Values pane ('10000', '9000', '2000', '1000') and the fee figure ('88000 / 200000') stay ungrouped. The reader is given no way to see the rule. The sharpest instance: '128 / 1,315' in the bar and '88000 / 200000' in the Transaction pane are the same syntactic form - a value-in-total pair - set under opposite rules 730px apart on one screen. The stated rationale, that ungrouped figures are copyable, does not survive the ACIR opcode counts, which are as copyable as anything in Values and are grouped. Space is not the constraint either: both numeric columns are properly tabular (7.0px digit advance, right-aligned at x1022 and x1134) and the widest Values figure uses 35px of a 92px column, so a separator costs 3px. Do not revert the bar. Grade the rule by role - display figures grouped, copy targets ungrouped - and make the role legible, or group everywhere and give the copy targets an affordance.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L1/5",
+      "severity": "P2",
+      "location": "Transaction pane, DATA provenance note, x1159-1416, y256-441",
+      "finding": "Carried from vd9-r2/1 with its central claim WITHDRAWN on measurement, and the remainder restated. Withdrawn: I called this note 'the largest type in the pane'. It is not. Its cap height is 10px (the 'E' of 'Every', y256-265), identical to the digit height of the pane's mono values (the '0' of FEE PAYER, y616-625), so it sits at the pane's body size, not above it. The 'too quiet for the claim' question the brief invites is answered the same way: at 14px and 9.15:1 it is the most generously set text on the page, and it is not quiet. What survives is the measure. The column is 257px wide and the note averages 37 characters a line ('Every block, transaction, address and' = 37; 'hash on this chain is generated from a' = 38), well under the 45-character floor for running prose and the narrowest measure on the page - which is why it needs nine lines at a 21.6px pitch and 194px of a 285px-wide pane. That 194px is what pushes the EXECUTIONS sentence down to y855-884 and into the pane's bottom ramp. Setting the note at the pane's 12px recovers roughly 45px and about 43 characters of measure, and pulls the sentence clear: a fix that shows more, not less.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L1/6",
+      "severity": "P3",
+      "location": "Code pane gutter rail, x8: not-run bar y301-324, current-position bar y371-393",
+      "finding": "Half of vd9-r2/6 WITHDRAWN on measurement, half confirmed. Withdrawn: I claimed the taken ring read as a fatter executed dot. In this fixture the ring occurs only on the current line, and this round's change gives it position ink - line 32's glyph measures #164e63, the same value as its own numeral, against #1a7b95 on the executed dots of lines 26/27/28/31 - so it now sits on the #a5f3fc band in the same ink as the numeral and the confusion I described is not observable. The change landed and is an improvement: rail, numeral and glyph now speak with one voice on the current row. Confirmed and now more conspicuous because of it: the two rail bars in column x8 are the only rail marks on the page, they are 4px wide and 24px and 23px tall respectively, they sit 46px apart, and they differ in nothing but hue - #484848 for 'not executed' at line 29, #0e7490 for 'you are here' at line 32. With the gutter's other three signals unified, geometry is the last thing left saying these two are the same kind of mark. Give the position bar a different width or a cap so the distinction survives a greyscale glance.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L1/7",
+      "severity": "P3",
+      "location": "Transaction pane bottom ramp, y848-890, over the EXECUTIONS sentence at y855-865 and y874-884",
+      "finding": "Unchanged this round - the fades were not touched - and re-measured rather than re-asserted. The ramp is set in pixels while the pane bodies run three different line grids, so it lands where it lands. In the Code pane it happens to land on a line boundary: line 51 (y864-873) holds 9.15:1 and only the line-52 numeral is ghosted at 1.64:1, which reads correctly as 'more rows below'. In the Transaction pane it starts mid-paragraph: 'Aztec private functions execute client-side;' at y855-865 holds 7.34:1 while 'only proofs, nullifiers and commitments are' at y874-884 tops out at 4.54:1 and runs to white inside one line, so a single sentence carries three contrast levels and reads as going pale rather than continuing. The affordance is right and worth keeping. Snap the opaque stop of the ramp to the last whole line box of each body so it always begins at a row boundary, as it already accidentally does in Code. If the queued fix was refuted, the observation still stands and needs a different fix.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/laptop/light/L1/8",
+      "severity": "P3",
+      "location": "Code pane loop rail, y104-128, x13-357",
+      "finding": "Unchanged from vd9-r2/8 and now measured. Four type treatments share one 26px strip and the counter outranks the thing it counts. 'LOOP' sets at a 9px cap in #565656 (7.34:1); 'iterate_asteroids', the name of the loop, sets in mono at #242424 (15.52:1); the 'line 4' link sets underlined in #4f46e5 (6.29:1); and 'Iteration 3 of 8' sets at a 10px cap - the largest of the four - in #101010 (19.03:1), the darkest ink on the strip. So the loudest run in the rail is the position within the loop and the second loudest is its name, which inverts the reading order a reader needs. Two levels carry this: the loop's identity at one size, its position at the same size in a heavier weight.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/laptop/light/L1/9",
+      "severity": "P3",
+      "location": "Call Trace column head 'ACIR opcodes' x1045-1134 y107-115; Values type column right-aligned at x1134, y597-855",
+      "finding": "Unchanged from vd9-r2/7. Face mixing inside a single label and a single column. 'ACIR' is monospace and 'opcodes' beside it is the proportional UI sans, on one line of one column head. In the Values pane every identifier and every value is mono while the type cells - 'Field', 'u32', '[Field; 8]' - are sans, so the pane's rightmost column leaves the mono texture the brief names as the product's texture. A defensible rule exists (annotations in sans, data in mono) but a type name is data, and 'ACIR opcodes' obeys neither rule.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

@@ -1,0 +1,80 @@
+Expected elements: present
+
+All backbone items are on the frame: slim identity bar with `← demo` exiting to the chain (x20–77), truncated hash, both step directions (x370–655), scrubber, `128 / 1,315`, phase rail; Code with a positioned line 32; Call Trace and Event Log as one tab strip with Call Trace open; Values below it; the `DATA` provenance row heading the transaction pane. Dense, no marketing chrome, no band above the bar.
+
+Change verdicts. (a) LANDED — line 32's marker is `#164E63`, the exact ink of its rail bar and line number; the executable dots are `#1A7B95`. It is still unlearnable, for a reason the source names: `debugger.nim:570` defines `▶` as the current marker and suppresses it on any line carrying an arm claim, so `▶` appears on no line here and the only affirmative arm mark on the page is also the only mark on the current line, in that line's ink. No key. (b) DID NOT LAND observably — `COST · MANA` sits on one line at x1157–1222, so the no-break spaces are inert at 1440 as at 1920. (c) I make three lenses: the rule is un-inferable, and the counterexample is not the mana figure but the call trace's own grouped `1,315`. (d) fades unchanged, confirmed; I decline to re-file the refuted measurement.
+
+Fixes: print a status *sentence*, not the enum; stop spending phase-rail blue on the provenance badge.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L5/1",
+      "severity": "P2",
+      "location": "transaction pane, third row, x1157-1400 y176-208",
+      "finding": "CONFIRMED at this viewport: 'Status reason: private-part-succeeded-public-part-succeeded' is a raw kebab-case protocol enum set as prose. Measured, it is the same face, size and ink (#484848) as the carefully edited provenance sentences 45px below it at y250 — the product's voice and a wire identifier are typographically indistinguishable, two rows apart, in the one pane the brief calls content. This is the exact leak class the codebase already removed twice by hand (session_view.nim:105-113 records killing `onDemand` as a badge and `feePayer` as a role label) and it has come back on the flagship surface. It also contradicts the amber `Partial` badge 70px above it at x1160-1218 y100-123, which the adversarial lens filed and which holds here: caution tone over copy that says both parts succeeded.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/light/L5/2",
+      "severity": "P2",
+      "location": "transaction pane, DATA row badge x1272-1428 y218-240, against identity bar phase rail x965-1046 y22-40",
+      "finding": "The `Synthetic demo data` badge is #1E40AF — pixel-identical to the active phase-rail segment `FETCHING`. One ink carries a transient engine state in the bar and a permanent provenance claim in the pane, and they are the two facts a reader most needs to keep apart. Every other chip in that pane ('No timestamp published', 'Yes', 'Safe', 'Not observable') is neutral #565656, so the provenance badge is the pane's only coloured chip and it borrowed the bar's state ink; meanwhile links are a third blue (#4F46E5 on '← demo', 'line 4', 'Self cost', '101:0'), so the badge's blue pill also reads as clickable when it is not.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/light/L5/3",
+      "severity": "P2",
+      "location": "code gutter, line 32 marker x74-84 y376-388 and line 29 marker x74-84 y306-318",
+      "finding": "Change (a) landed and does not teach the vocabulary. `⊙` at line 32 is #164E63, identical to that line's rail bar (x5 y372) and its line number, so 'this arm ran in the displayed pass' and 'you are here' are painted in one ink on one row. The confound is structural, not incidental: debugger.nim:570 emits `▶` for a current line but the arm-claim branch replaces it, so the documented position glyph cannot render on any line that carries a claim — it is on no line of this frame. A reader sees exactly one affirmative circle, on the current line, in the current line's colour, with no key anywhere on the page, and will learn the wrong rule. I concur with the dark capture's P2 and add that the glyph the vocabulary rests on is unreachable by construction.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L5/4",
+      "severity": "P2",
+      "location": "code pane leftmost gutter column, x4-8 y302-322 (line 29)",
+      "finding": "The not-taken rail is a solid 4x20px #484848 bar in the outermost gutter column — the column a CodeTracer or any editor user reads as the breakpoint column, where a solid mark means an armed breakpoint. It is 70px above the teal bar at line 32 that means 'current', so the same column carries two unrelated meanings in two inks within one screenful. Desktop-app continuity is the register's whole claim here, and this is a borrowed column used for something the app uses it for otherwise.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/light/L5/5",
+      "severity": "P2",
+      "location": "identity bar readout x878-940 y24-38; call trace ACIR column x1090-1136 y131 and y157; transaction pane COST row x1310-1424 y758-772; Values pane x985-1025 y598-826",
+      "finding": "Third lens to judge the grouping rule un-inferable, and the decisive counterexample is one the earlier two did not name. It is not the mana figure: it is the call trace's ACIR column, which prints `1,315` and `1,208` grouped. That column is a machine count as copyable as mana, and its `1,315` is the same number as the identity bar's `1,315` 200px away. So the frame shows grouped-and-copyable, grouped-and-human, ungrouped-and-copyable (`88000 / 200000`) and ungrouped-and-copyable (`10000`, `9000`, `2000`) with nothing on the page separating them, and two instances of the identical `N / M` syntax formatted two different ways. Either group everything or mark the copyable figures as copyable.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L5/6",
+      "severity": "P3",
+      "location": "code pane notice band, x8-683 y172-200",
+      "finding": "'Showing from line 26 — the session's position is below, and the lines above it are not in this window.' is the right voice in the wrong face: monospace at ~11px in a grey band, while the identical voice in the transaction pane at y250 is set in the sans. §2 makes monospace the texture of hashes, amounts and code, not of the product speaking. The wording also under-reads: 'the position is below' invites a scroll, when the position is six rows down and washed cyan.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/laptop/light/L5/7",
+      "severity": "P3",
+      "location": "tab strip 'CALL TRACE' underline y92, file tab 'src/shield.nr' underline y158",
+      "finding": "Both active-tab underlines are #101010, while every other 'this one is current' on the frame — line 32, the selected call-trace row, loop pip 3 — is #164E63. The loop pip proves the position ink can carry a selected control, so the two tab strips are the only holdouts. Defensible as a different concept, hence P3, but it costs the page a single selection primitive.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/laptop/light/L5/8",
+      "severity": "P3",
+      "location": "transaction pane lower edge, y880-895; code pane lower edge, y885-900",
+      "finding": "Fades confirmed UNCHANGED, and I am explicitly not re-filing the refuted legibility measurement. My objection is a register one and is new: a soft fade to the surface is the 2026 marketing site's 'more below' device, while the desktop app clips at the pane edge and gives you a scrollbar. Here it lands mid-clause on product prose — 'only proofs, nullifiers and commitments are' dissolves at y890 — so the pane that carries this product's honesty copy ends like a teaser. Cheap fix: clip, and let the pane scroll.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

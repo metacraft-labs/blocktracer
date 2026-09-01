@@ -1,0 +1,114 @@
+Expected elements: present
+
+All must-shows render: the exit ("← demo", x24) targets the chain, Call Trace and Event Log share one strip (y69-94) with Call Trace open, Values is a pane below the region (y566-895) and not a tab, and the DATA row sits inside the Transaction pane with no band above the identity bar.
+
+Reproduction confirmed. Columns measure 683/454/287 (borders x4/686, x691/1144, x1149/1435; 4px gutters at x687-690 and x1145-1148), i.e. 1.337x/1.339x/1.335x the wide 913/608/383 against a viewport ratio of 1.333. The split is percentage-only: 47.7/31.7/20.0% at both sizes. The tabbed region is 240px empty (y321-560) of 492px inner = 48.8%; Values is 34px of 328px = 10.4%. Both standing numbers reproduce.
+
+The wide prescription ("narrow the nav column") does NOT transfer: at 1440 that column is horizontally tight — row 4's label ends x1061 against opcode ink at x1060, and frame names and paths are ellipsised. The region has the wrong aspect, not simply too much width.
+
+Change (b) is INERT here too — "COST · MANA" sets on one line, x1158-1235. (c) landed: "128 / 1,315" at x849-942. (a) is outside my lens.
+
+On (d) I concur with the refutation and raise nothing: the vertical ramps (Code 19px against a 23px line pitch; Transaction 29px) each ghost exactly one partial line, which is the "more below" signal. The horizontal mask is a separate defect — finding 3.
+
+Fixes: exclude the notice band from the content mask; let hash rows run full-pane-width.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/L2/1",
+      "severity": "P2",
+      "location": "navigation column x691-1144: tabbed region (box y68-561, inner y69-560) below the 'By call order.' footer whose last ink is y320; Values pane box y566-895, last rule y860",
+      "finding": "Re-measured; the standing numbers reproduce and the diagnosis changes. Tabbed region: 240px empty (y321-560) of 492px inner = 48.8%. Values: 34px empty (y861-894) of 328px = 10.4% - it holds roughly one spare row, so a ROW re-split inside the column recovers nothing. The column split is percentage-only: 683/454/287 here against 913/608/383 at 1920 is 1.337x/1.339x/1.335x per column against a 1.333x viewport ratio, i.e. 47.7/31.7/20.0% at both sizes with no reflow rule anywhere. But the wide round's fix - take ~100px off this column - does not transfer, because at 1440 the column is horizontally TIGHT: the deepest Call Trace row's label ends at x1061 while the opcode column's leftmost ink is x1060 (they touch), and both the frame name and the path are ellipsised on rows 4, 6 and 7 ('calculate_remaining_shie...', 'zk_shields · src/shi...'). So the region is 48.8% dead vertically AND clipping horizontally at the same viewport: it has the wrong aspect, and the fixed percentage is what produces both. Give the tabbed region a content-driven height (or a max-height near y400) and let Values take the remainder, rather than moving width.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/2",
+      "severity": "P2",
+      "location": "Code pane, listing area x13-685; the horizontal fade ramp runs x638-685 (background 221 -> 255 over 48px)",
+      "finding": "New at this viewport; the direct cost of the proportional split. Six of the 25 visible code lines run their last ink past x660, i.e. more than 22px into the 48px ramp, and are cut mid-token at the pane edge: line 26 (ink to x673), line 40 (x673), line 41 (x666), line 42 (x666), line 48 (x670), line 49 (x666). At 1920 the equivalent count was two (lines 40 and 53). The Code pane lost 230px of width going 1920 -> 1440 purely because it is a fixed 47.7% of the viewport, and it is the pane whose content actually overflows, while the pane that is 48.8% empty kept its 31.7%. Line 40 and line 48 are function signatures, so what is erased is the parameter list - the part of the line a reader steps in to check. Either soft-wrap continuation lines at the pane edge or stop scaling Code linearly with the viewport.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/laptop/light/L2/3",
+      "severity": "P2",
+      "location": "Code pane, 'Showing from line 26 ...' notice band y166-202, right portion x638-685",
+      "finding": "Escalated from P3 at 1920, because at 1440 the fade now eats real text. The notice band is inside the horizontally-faded scroll container: its 221 background ramps to 255 across x638-685 while the three header rows above it - CODE title (y69-93), the LOOP/iteration row (y96-132) and the file-tab row (y134-159) - hold a hard 221 all the way to x685. At 1920 the notice text stopped 108px clear of the ramp, so the fade was merely cosmetic. Here the first line's last ink is at x665, 27px inside the ramp, and its darkest pixel there measures 168 against a 240 background - the closing words of the sentence are not readable. The band never scrolls horizontally, so the mask communicates nothing about it. Exclude the notice from the content mask, as the three bands above it already are.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/4",
+      "severity": "P2",
+      "location": "Transaction pane, FEE PAYER row (rules y605-677) and TARGET row (y677-749); value column x1259-1426",
+      "finding": "Worsened from 1920, where each of these wrapped to two lines. At 1440 each wraps to THREE: FEE PAYER renders x1158-1425, then x1259-1425, then x1411-1425 - a 15px, two-character orphan ('32'); TARGET is identical ('4c'). Each row is 72px against the 30px of the plain rows (BLOCK y450-480, TYPE y480-510), so the two addresses cost 84px more than a single-line treatment in a pane that is already fading its own prose off the bottom edge at y874-885. The pane disproves its own constraint fifteen rows above: the transaction's own hash sets full-pane-width at y131-163, x1158-1418, i.e. 261px per line, while the label column plus gutter leaves the value column only 168px. Let hash-valued rows run full-pane-width with the label above the value, exactly as the DATA section already does.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/5",
+      "severity": "P2",
+      "location": "Code pane, the rows after line 26 (chip band y234-252), after line 48 (y769-787) and after line 49 (y813-831)",
+      "finding": "Holds, and there is one more break than at 1920. The listing runs a 23px line pitch (measured centre-to-centre across lines 27-47: 22.5-24.5px) and breaks wherever an overflow chip wraps below its line instead of sitting inline. Line 26's centre is y223 and line 27's is y266.5 - 43.5px. Line 48 (y758) to line 49 (y802) is 44.0px. Line 49 (y802) to line 50 (y844) is 42.0px. At 1920 only two rows broke; the narrower pane pushes a third chip below its line. Across those three breaks a screen row no longer corresponds to a source line, which is the one invariant a code listing has to keep. Clip the chip into the line box or right-align it inside its own row.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/laptop/light/L2/6",
+      "severity": "P2",
+      "location": "Call Trace list, guide column x706, rows y132-296",
+      "finding": "Holds unchanged at this viewport. Exactly one depth guide is drawn, at x706, and it appears at that same x on every non-root row regardless of depth. Measured label left edges: x702 (depth 0, 'main'), x724 (depth 1), x739 (depth 2), x755 (depth 3). Depth 2 and depth 3 therefore carry indentation alone beside a tick sitting in depth 1's channel - the guide means 'not root', not 'this deep'. The ladder is also not one step: 702 to 724 is 22px, then 15px and 16px, so the first indent is 6px off the scale the rest of the ladder uses. This matters more at 1440 than at 1920 because the same rows are now ellipsising their names, so indentation is carrying more of the structural load with less support. Draw one guide per ancestor level and make every step 16px.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/laptop/light/L2/7",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row: label and badge band y219-241, hairline at y246, provenance sentences y256-441; status-reason block ends y208",
+      "finding": "Holds, and proximity is more nearly ambiguous here than at 1920. The row's only hairline (y246) falls BELOW the DATA label instead of above it. The status-reason line ends at y208 and the DATA label band starts at y219 - an 11px gap with no rule crossed; the label band ends at y241 and the producer's sentences begin at y256 - a 15px gap that DOES cross a rule. Read against the pane's rule grid (y246, 450, 480, 510, ...), the identity block and the DATA label share one cell y96-245 and the five provenance sentences sit in an unlabelled cell y247-449. Since the open question is whether this row is too quiet for the claim it makes, having its label visually annexed by the block above it is the layout half of that problem, and an 11px-versus-15px split is not enough on its own to overrule the rule's placement. Move the hairline above the DATA label.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/8",
+      "severity": "P3",
+      "location": "identity bar, segmented control groups at x370-427, x444-496, x513-576, x593-656; scrubber x673-832; readout x849-942; phase rail x967-1211",
+      "finding": "Holds; the left half of the bar occupies pixel-identical x positions to the 1920 capture, so nothing about it is viewport-specific. The gaps between the four adjacent control groups are 16px, 16px and 16px; the gap from the last group to the scrubber is 16px, and from the scrubber to the position readout 16px again. Five peers on one rhythm: the space that separates two stepping-button groups equals the space that separates the whole control block from the scrubber. The bar already owns a 24px group separator and uses it correctly once here, between the readout (ends x942) and the phase rail (starts x967). Apply the 24px token around the control block so stepping reads as one object. Note also that the bar does not wrap at 1440 - the only compression is the scrubber, which loses 100px (160px here against 260px at 1920).",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/laptop/light/L2/9",
+      "severity": "P3",
+      "location": "pane header rules: Code pane rule at y94, Transaction pane rule at y94, Call Trace tab strip rule at y95",
+      "finding": "Holds, unchanged from 1920. The Code and Transaction header bands run y69-93 and rule off at y94; the tab strip runs y69-94 and rules off at y95, because the active tab's 2px underline occupies y93-94 and pushes the rule down one pixel. The result is a 1px step in what should be one continuous horizontal line across the full 1432px of the pane grid. Give the tab strip the same 25px band height and let the underline sit on the rule.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/10",
+      "severity": "P3",
+      "location": "Code pane header stack: CODE title (first ink x13), LOOP/iteration row (x13), file-tab row Nargo.toml/Prover.toml/src/main.nr/src/shield.nr (x21), notice band (x13)",
+      "finding": "Holds. Four stacked header rows in the same pane use two left edges. Three of them begin their first ink at x13, 9px from the pane border at x4 - the same 9px inset the navigation pane (x700 from x691) and the Transaction pane (x1158 from x1149) use. The file-tab row begins at x21, 17px from the border. Nothing in the row justifies the extra 8px, and it is the only row in the pane's header stack that does not line up with the three around it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/11",
+      "severity": "P3",
+      "location": "Transaction pane metadata rows: rules at y450, 480, 510, 542, 573, 605",
+      "finding": "Holds. Rows whose value is a pill are taller than rows whose value is plain text. Rule-to-rule: BLOCK 30px (y450-480) and TYPE 30px (y480-510) against AGE 32px (y510-542), CANONICAL 31px (y542-573) and FINALITY 32px (y573-605). Because the three pill rows are consecutive the drift accumulates to 5px by the FINALITY rule, so the label baselines in that stretch fall off the 30px pitch the rest of the column keeps. The pills' right edges are fine - box edge x1426, matching the plain values' x1425-1426 - so this is height only. Set a min-height on the row instead of letting the pill size it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/laptop/light/L2/12",
+      "severity": "P3",
+      "location": "identity bar (full-bleed, bottom border y63) against the pane grid below it (panes x4-1435)",
+      "finding": "New. The bar and the pane grid do not share a left or a right edge. The bar's first ink is the back arrow at x24 and its last is the download button's border at x1415-1416, a symmetric 24px inset from the viewport. The panes below start at x4 and their content starts at x13 (Code) / x1426 on the right (Transaction values). So the bar's content sits 11px inboard of the Code pane's content on the left and 10px inboard of the Transaction pane's content on the right - close enough to read as an attempt at alignment, far enough to read as a miss, and the two most prominent items on the page ('demo' and 'CODE') are the pair that stagger. Either inset the bar's content to the pane content edge (x13 / x1426) or move it far enough out to read as a deliberately different level.",
+      "criterion": "B4"
+    }
+  ]
+}
+```
