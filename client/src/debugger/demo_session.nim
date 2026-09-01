@@ -484,9 +484,18 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
                 "the artifact itself, so source has to be fetched off-chain " &
                 "and checked against that commitment — which has not happened " &
                 "for this contract. Stepping is complete either way.")
+      # NOT "no function names". They HAVE names — the engine answers this
+      # recording's call trace with `<toplevel>` and `enqueued-call-0` — and
+      # for as long as this sentence said otherwise, the one pane that promised
+      # data and delivered none was explaining the wrong absence. Six review
+      # rounds filed it (vd9-r1 L4/L5/ADV, vd9-r2 L5/ADV): "it explains why
+      # frames would be UNLABELLED, not why they are UNLISTED". They are listed
+      # now, by the live session; what is genuinely missing is a source
+      # position, and that is what this says.
       result.calltrace.note =
-        "Frames are recorded. Nothing resolved a position for this recording, " &
-        "so they carry no function names or source positions."
+        "Frames are recorded and carry the names this recording gives them. " &
+        "Nothing resolved a source position, so they carry no file or line. " &
+        "They are listed once the session is live."
       result.state.note =
         "This recording carries no variable names. Naming a local needs the " &
         "debug symbols from the contract's compiled artifact, and none " &
