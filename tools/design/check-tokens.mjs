@@ -998,7 +998,31 @@ async function run(opts) {
   // (reviews/break-round-debug-affordance.json), and the path must exist.
   {
     const CITE = /ledger@([0-9][\w.-]*):([a-z0-9-]+\/[a-z0-9-]+\/[a-z0-9-]+\/(?:L\d+|ADV)\/\d+)/gi;
-    const PATH_CITE = /(?<![\w/.-])(reviews\/[\w.-]+\.json)/g;
+    // THE FILE-PATH FORM HAS TO REACH THE FILES THE REPORTS ARE ACTUALLY IN.
+    //
+    // The block comment above names citation-by-file-path as the mechanism for
+    // "evidence that survives a superseded round", and it is the right one: a
+    // report file under `reviews/rounds/<round>/` is immutable, so unlike a
+    // `ledger@` id it does not change meaning when the next round replaces the
+    // reviews on its triple. But this pattern only reached `reviews/*.json` —
+    // one directory deep, `.json` only — and every report the campaign has ever
+    // written lives at `reviews/rounds/<round>/<view>__<size>__<theme>__<lens>`
+    // with a `.json` or (in the vd5 rounds) `.md` extension.
+    //
+    // The consequence was not hypothetical and was not small: FIVE places in
+    // the tree already cite a round report by path — viewutil.nim:194,
+    // debugger_css.nim:52, demo_session.nim:491, expectations.mjs:104,
+    // check-brief.mjs:129 — and B4 could check none of them. viewutil.nim's
+    // says out loud that it is "deliberately NOT cited in the
+    // `ledger@revision:id` form" because that form would rot, so the author
+    // reached for the stable one and it silently fell outside the checker.
+    // Unverified evidence citations sitting in the source is the exact defect
+    // B4 exists to catch, and B4 was blind to this whole class of them.
+    //
+    // This STRENGTHENS the check — every one of those five must now exist —
+    // and it gives the stale `ledger@` citations a target form that will not go
+    // red again at the next round.
+    const PATH_CITE = /(?<![\w/.-])(reviews\/[\w./-]+\.(?:json|md))/g;
     const sources = [
       ...files,
       WEB_TOKENS,
