@@ -1562,12 +1562,28 @@ suite "9 — the home page features a session that can actually be shown":
     let body = renderRoute(root, "/" & RealChain & "/tx/" & replayedTx &
                            "/debug").body
     ck "program counters" in body
-    ck "no function names or source positions" in body
+    # THE CALL TRACE'S SENTENCE MOVED, and the quote here did not move with it.
+    # `5a87240` replaced "…so they carry no function names or source positions"
+    # because the claim was false — the engine answers this recording's call
+    # trace with `<toplevel>` and `enqueued-call-0`, both named — and what is
+    # genuinely absent on a rung-3 recording is a source POSITION. That commit
+    # moved the copy and `tools/capture/expectations.mjs`, which quotes it
+    # verbatim, and left this suite quoting the retired sentence: the product
+    # was corrected and the assertion went red naming the correction.
+    #
+    # Re-quoted rather than loosened. The clause asserted is still the middle
+    # of the three — "no source position on a rung-3 recording, stated on the
+    # transaction's own page" — and it is quoted verbatim for the same reason
+    # `expectations.mjs` does: a substring match on "source position" would
+    # have gone on passing through the very edit that made the old sentence
+    # wrong, which is the whole failure this pair of assertions exists to catch.
+    ck "Nothing resolved a source position, so they carry no file or line." in body
     ck "carries no variable names" in body
     # …and NOT on the home page.
     let home = renderRoute(root, "/").body
     ck "carries no variable names" notin markup(home)
-    ck "no function names or source positions" notin markup(home)
+    ck "Nothing resolved a source position, so they carry no file or line." notin
+       markup(home)
 
   test "MUTATION BITE: every clause of the rule is load-bearing":
     # One removal per clause, each from the SAME qualifying session, each
