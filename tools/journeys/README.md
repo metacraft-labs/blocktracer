@@ -8,7 +8,7 @@ is on the screen.
 just journeys-engine      # once: fetch the 18 MB replay engine into the cache
 just journeys-build       # build the deployed shape, then run the journeys
 just journeys-deployed    # the same, over `nix build .#default` itself
-just journeys-selftest    # do the journeys bite? four mutations, four kills
+just journeys-selftest    # do the journeys bite? one mutation per named assertion
 ```
 
 Runs in CI as the **`journeys`** job in `.github/workflows/ci.yml`, on
@@ -111,6 +111,25 @@ difference is the assertion.
   serving the built tree. A journey against `blocktracer.org` would be a
   different claim about a different thing (DNS, CDN, cache rules) and is not
   made here.
+
+  **This exclusion has already cost a user-visible defect, so it is worth being
+  precise about what it leaves open.** A visitor reported that the position
+  marker was missing and did not follow the rows they clicked. Every journey on
+  `dev` was green, and `dev` was genuinely correct: the same tree, the same
+  engine and the same browser move the mark to the row's step. The site was
+  serving an `assets/hydrate.js` older than `dev` — 1,162,553 bytes against
+  `dev`'s 1,168,994 — that predated both fixes recorded in `ledger.json`'s
+  `_closed`, and on it the two defects those entries describe reproduced
+  verbatim: 0 lines marked after hydration, `data-step` pinned at 128, `?t=` and
+  the recovery anchor advancing on every click.
+
+  Isolating it is a two-line experiment, and it is how journey 09's red arm was
+  obtained: build the tree, replace `client/dist/assets/hydrate.js` with the one
+  the deployed origin serves, and re-run. Nothing else changes, so whatever
+  reddens is the bundle. **A green run here means the artefact `nix build`
+  produces is correct. It says nothing whatsoever about which artefact is
+  currently served**, and that gap is not the ledger's to hold — a ledger entry
+  describes a defect in this repository, and this one was not in it.
 - **Nothing judges the `codetracer` product.** Two of the four seed defects
   belong to it; see the landing report for why they could not be asserted on
   that repository's `dev`.

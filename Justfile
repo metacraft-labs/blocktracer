@@ -236,7 +236,7 @@ journeys-deployed:
 # Each mutation is restored byte-for-byte, and the assertion is proved green
 # again afterwards — otherwise a mutation that failed to apply scores a kill.
 
-# Do the journeys bite? Four mutations, each aimed at one named assertion.
+# Do the journeys bite? One mutation per arm, each aimed at one named assertion.
 journeys-selftest:
     node tools/journeys/selftest.mjs
 

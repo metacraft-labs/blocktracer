@@ -81,6 +81,18 @@ nimcache/
 # `just journeys-engine`, re-staged into `dist/` by `tools/journeys/lib/engine.mjs`.
 /client/.replay-engine-cache/
 
+# A SECOND engine cache, for the experiment tools/journeys/README.md describes
+# under "No deployed hostname is driven": fetch what the deployed origin is
+# actually serving, so a defect a visitor reports can be reproduced against the
+# bytes they ran rather than against the bytes this tree builds. The two are not
+# always the same engine — measured on 2026-09-01, blocktracer.org's wasm was
+# 18,284,951 bytes against the publishing origin's 18,285,036 — and telling a
+# stale deploy from a code defect needs both on disk at once.
+#
+#   ./client/hydrate/fetch-engine.sh client/.replay-engine-live \
+#       https://blocktracer.org/replay-engine
+/client/.replay-engine-live/
+
 # The journey selftest's per-arm report, read back to decide whether the arm
 # was killed. Regenerated on every run.
 /tools/journeys/.selftest-report.json

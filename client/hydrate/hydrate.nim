@@ -580,13 +580,33 @@ proc onDapEvent(h: Hydration; event: JsonNode) =
   let name = event{"event"}.getStr(event{"command"}.getStr(""))
   case name
   of "ct/complete-move":
-    # The engine states the whole position here: `body.location` is its own
-    # `Location`, which carries `rrTicks` alongside `path` and `line`. That is
-    # strictly better than asking for a stack frame afterwards — it is one
-    # message instead of a round trip (Debugger-Integration §7 gives a whole
-    # navigation 50 ms), and a DAP stack frame has no tick on it at all, so a
-    # session positioned from `stackTrace` reports `?t=0` for every step it
-    # ever takes. It did.
+    # The intent: the engine states the whole position here, so one message
+    # replaces a round trip (Debugger-Integration §7 gives a whole navigation
+    # 50 ms) and the tick arrives with it — a DAP stack frame has none, so a
+    # session positioned from `stackTrace` alone reported `?t=0` for every step
+    # it ever took. It did.
+    #
+    # DO NOT "FIX" THIS BY RENAMING THE KEY. Against the engine actually
+    # published at `/replay-engine/`, this branch NEVER FIRES, and that is
+    # load-bearing rather than a latent bug. Read off the wire on 2026-09-01,
+    # every `ct/complete-move` body carries `cLocation` — not `location` — and
+    # its every field is the zero value: `path: ""`, `line: 0`, `rrTicks: 0`.
+    # (The wasm's own struct table spells it `…statuscLocationmainresetFlow
+    # stopSignalframeInfoeventLogIndex…`; there is no `location` beside it.)
+    #
+    # So the lookup below misses, this returns, and the position arrives
+    # instead through `stopped` -> `requestPosition` -> `stackTrace`. Point the
+    # lookup at `cLocation` and `applyStop(0, "", 0)` runs on every move: the
+    # session is thrown to tick 0 and the mark is cleared, which is precisely
+    # the symptom a visitor reported this file being read for.
+    #
+    # The tick is NOT lost by taking the fallback, which is why nothing here
+    # needs changing: `ReplayDataStore` reads `cLocation` itself, so the store
+    # already holds the right `rrTicks` by the time `requestPosition` asks the
+    # frame for a path and a line. Journey `a-jump-moves-the-position` asserts
+    # the outcome end to end and is what would notice if that stopped being
+    # true. Restore this as the primary path when the engine publishes a
+    # populated position, and not before.
     let body = (if event.hasKey("body"): event["body"] else: event)
     let loc = body{"location"}
     if loc == nil or loc.kind != JObject: return
@@ -594,10 +614,10 @@ proc onDapEvent(h: Hydration; event: JsonNode) =
                 loc{"path"}.getStr(""), loc{"line"}.getInt(0))
   of "stopped":
     # DAP's own stop event carries a reason and a thread and no location, so
-    # the position has to be asked for. Kept as the fallback rather than the
-    # primary: an engine that emits `stopped` without a `ct/complete-move`
-    # still moves the panes, at the cost of the round trip and of holding the
-    # previous tick.
+    # the position has to be asked for. Written as the fallback and, against
+    # today's published engine, the path every move actually takes — see the
+    # branch above for why that is deliberate and what breaks if it is
+    # "corrected".
     h.requestPosition()
   else:
     discard

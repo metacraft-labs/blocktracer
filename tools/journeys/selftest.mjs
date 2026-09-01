@@ -150,6 +150,41 @@ const ARMS = [
     journey: "tx-page-is-the-session",
     assertion: "no page offers to open a debugger",
   },
+  {
+    id: "G/the-seek-lands-somewhere-else",
+    why:
+      "Seek one tick past the row the visitor clicked. This arm exists to prove the" +
+      " jump journey asserts the DESTINATION and not merely motion: with it in place" +
+      " both CONTROLS stay green (the click still reaches the engine and `?t=` still" +
+      " advances), the mark still moves, and the pane still shows a line — every" +
+      " symptom of a working jump — while the session is at a step nobody asked for." +
+      " A journey that had written `after.step !== before.step` would score this as a" +
+      " pass, which is why the assertion is an equality against the step the row" +
+      " names in its own markup.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `      try: h.gotoTicks(parseInt(step)) except CatchableError: discard)`,
+    replace: `      try: h.gotoTicks(parseInt(step) + 1) except CatchableError: discard)`,
+    journey: "a-jump-moves-the-position",
+    assertion: "the session's reported step is the step the call-trace row named",
+  },
+  {
+    id: "H/the-event-log-rows-are-not-bound",
+    why:
+      "Stop binding the event log's rows, leaving the call trace's binding alone." +
+      " The two navigation regions are separate `rowHandler` calls over separate" +
+      " pane bodies, so one can go dead while the other keeps working — and the" +
+      " event log is the region a visitor cannot even see until its tab is chosen," +
+      " which is how it came to be the region no assertion had ever reached. This is" +
+      " the README's `currentEntryRequest()` shape: the machinery present, the" +
+      " gesture wired to nothing, every component contract still green. The arm is" +
+      " surgical on purpose — the six call-trace assertions must stay green, or it" +
+      " would be proving something weaker than it claims.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `  rowHandler(h.ui.eventLog, ".evrow")`,
+    replace: `  discard h.ui.eventLog`,
+    journey: "a-jump-moves-the-position",
+    assertion: "the session's reported step is the step the event-log row named",
+  },
 ];
 
 const log = (s = "") => console.log(s);
