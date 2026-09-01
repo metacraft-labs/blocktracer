@@ -1,11 +1,45 @@
 name: ci
 
+# THE BRANCHES THIS REPOSITORY ACTUALLY SHIPS FROM.
+#
+# This read `branches: [main]` until 2026-09-01. `main` exists and was 178
+# commits behind `dev` — tip "VD.0: visual-design capture harness (pinned
+# container UNVALIDATED)" — and work lands on `dev` by direct push. So every job
+# below had not run on the mainline for 178 commits: the only trigger still
+# firing was `pull_request`, and a branch that nobody opens a PR from is a branch
+# with no CI at all.
+#
+# The list must equal `deploy.yml`'s, because those are the branches that reach
+# a visitor. `ci/test/ci-coverage.sh` asserts exactly that and fails on a branch
+# that is deployed and ungated — and on a trigger naming a branch that does not
+# exist, which is what made this invisible: dead trigger and working trigger read
+# identically in YAML.
 on:
   push:
-    branches: [main]
+    branches: [dev, staging, live]
   pull_request:
 
 jobs:
+  # Does every suite this repository has actually run, on every branch it ships
+  # from? Nothing measured that until 2026-09-01, and the answer was no on both
+  # counts. Cheapest job here and first, because a red anywhere below means
+  # nothing if the surface has holes in it.
+  ci-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Step 4 resolves the trigger's branch names against real refs. A
+          # shallow clone has none, and the check would SKIP — which this job
+          # reports as a skip, not a pass, but it is better to just have them.
+          fetch-depth: 0
+
+      - name: Every suite runs, on every branch we deploy
+        run: bash ci/test/ci-coverage.sh
+
+      - name: And the guard bites — four planted holes, four reports
+        run: bash ci/test/ci-coverage-test.sh
+
   contract:
     runs-on: ubuntu-latest
     steps:
@@ -449,6 +483,31 @@ jobs:
 
       - name: The static export still round-trips with the new route in it
         run: nix develop .#ci --command bash -c 'cd client && just test-export'
+
+      # THE FIVE SUITES THAT RAN NOWHERE.
+      #
+      # `cd client && just test` names seven suites; this job ran two of them and
+      # no other job ran any. The five below were green locally and dark in CI —
+      # including `test-entry-state`, which exists specifically to stop the
+      # `Nargo.toml` defect coming back, and `test-chain-provenance`, which is
+      # what keeps synthetic data from asserting itself over a real capture.
+      #
+      # They are run as `just test` rather than five named steps, deliberately:
+      # a named list here would be a third place to add a suite to, and the
+      # second one is what went wrong. `ci-coverage.sh` reads the same aggregate
+      # this runs, so a suite added to it is covered on the next run by both.
+      - name: Every suite in `just test`, including the five that ran nowhere
+        run: nix develop .#ci --command bash -c 'cd client && just test'
+
+      - name: The two vendored-layout gates no job named
+        # `flow-layout-vendor.sh` and its self-test guard the Omniscience layout
+        # arithmetic against upstream. `layout-model-vendor.sh` — the same
+        # pattern, one file over — was already in the `viewmodels` job; these two
+        # were written beside it and never wired up.
+        run: |
+          nix develop .#ci --command bash -c '
+            bash ci/test/flow-layout-vendor.sh &&
+            bash ci/test/flow-layout-vendor-test.sh'
 
   # ── Journey conformance ────────────────────────────────────────────────────
   # Spec claims, judged in a browser, over the artefact this repository DEPLOYS.
