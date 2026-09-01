@@ -878,6 +878,46 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           bundles[codeHash] = %cfg.writeSourceBundle(
             chain, codeHash, b{"origin"}.getStr, files, attestation)
 
+
+      # ---- the recording's own program counters -----------------------------
+      #
+      # THE FLOOR OF THE LADDER, PUBLISHED SO A PAGE CAN RENDER IT. Rung 3 means
+      # no step resolves to a source line; it does not mean a step has no
+      # coordinate. Every step in these containers carries a program counter, an
+      # opcode number and a gas reading, and until this object reached the tree
+      # the Code pane described that recording in prose and then rendered none of
+      # it.
+      #
+      # DERIVED OFFLINE AND COMMITTED, not read here. Opening a `.ct` needs the
+      # container reader, which is not a dependency of this repository and could
+      # not be one — the site build is hermetic. So
+      # `tools/chain/derive-instructions.mjs` writes `instructions/<tx>.json`
+      # beside the snapshot's `ct/`, exactly as `extract-flow.mjs` derives the
+      # omniscience fixture from a vendored container, and this copies whatever
+      # is there.
+      #
+      # ITS ABSENCE IS A VALID SNAPSHOT and is deliberately not an error: a
+      # capture taken before the derivation existed publishes a manifest, a
+      # container and no listing, and the pane falls back to the stated reason it
+      # has always shown. Refusing the build would make an old snapshot
+      # unpublishable to buy a pane a nicer degraded state.
+      let insFile = cfg.snapshotDir / "instructions" / txHash & ".json"
+      if fileExists(insFile):
+        let ins = parseJson(readFile(insFile))
+        # THE TWO COUNTS MUST AGREE. `execution.steps` is what the manifest
+        # publishes and what the toolbar counts to; the listing is rendered
+        # against it and its rows ARE those steps. A listing of a different
+        # length would put the position marker on the wrong row, and every
+        # surface involved would go on reporting success — so this is refused at
+        # publish time rather than rendered.
+        let declared = t["recording"]["steps"].getInt
+        let carried = ins{"steps"}.getInt(-1)
+        if carried != declared:
+          raise newException(ValueError,
+            "the instruction listing for " & txHash & " holds " & $carried &
+            " steps and the recording declares " & $declared &
+            "; refusing to publish a listing the position cannot be located in")
+        cfg.writeJson(dir / "instructions.json", ins)
       let manifest = TraceManifest(
         schema: ContractVersion, traceArtifactId: tid,
         executionInputId: execInputId, chain: chain, tx: txHash,

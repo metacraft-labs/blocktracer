@@ -50,13 +50,23 @@ func splitSourceLines*(text: string): seq[string] =
 
 proc newSourceDocument*(path, language, text: string;
                         executed: seq[int] = @[];
-                        currentLine: int = 0): SourceDocument =
+                        currentLine: int = 0;
+                        firstLine: int = 1): SourceDocument =
   ## One file, ready to render.
   ##
-  ## `executed` is the set of 1-based line numbers the trace visited, and
-  ## `currentLine` the line the session sits on. Both default to "nothing
-  ## known", which is exactly the pre-hydration frame: the file renders, and
-  ## nothing claims to be executing.
+  ## `executed` is the set of line numbers the trace visited, and `currentLine`
+  ## the line the session sits on. Both default to "nothing known", which is
+  ## exactly the pre-hydration frame: the file renders, and nothing claims to be
+  ## executing.
+  ##
+  ## `firstLine` is WHAT THE FIRST ROW IS CALLED, and it defaults to 1 because a
+  ## file's first line is line 1. It exists because an instruction listing's rows
+  ## are not lines: they are numbered in the session's own coordinate, which
+  ## starts at 0 (`instruction_listing.nim`). The source island publishes it
+  ## already — `encodeSourceIsland` has always written `firstLine` — and until
+  ## this parameter the decoder dropped it and renumbered every row from 1, which
+  ## would have moved every row of a rebuilt listing one place and put the
+  ## position mark on the wrong instruction after the first step.
   var hit = initTable[int, bool]()
   for n in executed: hit[n] = true
   result.path = path
@@ -66,16 +76,19 @@ proc newSourceDocument*(path, language, text: string;
   # the lexer has to carry state between them. `highlightLines` returns one
   # token seq per line — or NOTHING at all, when no profile covers `language`.
   let tokens = highlightLines(lines, profileForDocument(path, language))
-  var n = 0
-  for text in lines:
-    inc n
+  # The token seqs are indexed by POSITION in the file and the row numbers are
+  # not: `firstLine` may start them anywhere, including at 0. Indexing the
+  # tokens by the row NUMBER worked only while the two were the same thing, and
+  # would read `tokens[-1]` on the first row of a listing.
+  for i, text in lines:
+    let n = firstLine + i
     result.lines.add SourceLine(
       number: n,
       text: text,
       anchor: lineAnchor(path, n),
       executed: hit.getOrDefault(n, false),
       current: n == currentLine,
-      tokens: (if n <= tokens.len: tokens[n - 1] else: @[]))
+      tokens: (if i < tokens.len: tokens[i] else: @[]))
 
 proc annotate*(doc: var SourceDocument; line: int; ann: LineAnnotation) =
   ## Attach a value overlay to a line.
@@ -179,8 +192,22 @@ proc openAtCurrent*(pane: EditorPane; lead: int = SourceLeadIn): EditorPane =
   ## says so on the pane — Page-Descriptions §13's rule that a reduction is
   ## announced rather than silent applies to a reduction in a pane just as it
   ## does to one at a viewport.
+  ## ## It windows an INSTRUCTION LISTING for the same reason
+  ##
+  ## The gate used to be `availability != srcSourceLevel`, which was a
+  ## restatement of "this pane has documents" back when only a source-level pane
+  ## did. A `srcUnverified` pane now carries a listing — one row per recorded
+  ## step, a few hundred of them — and every word above applies to it unchanged:
+  ## the page has no JavaScript to scroll with, so a listing rendered from step 1
+  ## puts step 128 below the fold and the pane shows a wall of program counters
+  ## with the current one nowhere on screen. That is the exact failure four
+  ## reviewers reported against source, on a pane with more rows.
+  ##
+  ## `srcAbsent` is excluded because no execution ran, so anything it is holding
+  ## is not a window onto a position. Everything else is decided by whether there
+  ## are documents and a position, which is what the rule was always about.
   result = pane
-  if pane.availability != srcSourceLevel or pane.documents.len == 0: return
+  if pane.availability == srcAbsent or pane.documents.len == 0: return
   if pane.currentLine <= 0: return
   let idx = (if pane.activeIndex >= 0 and pane.activeIndex < pane.documents.len:
                pane.activeIndex else: 0)
@@ -217,7 +244,7 @@ proc windowAround*(pane: EditorPane; radius: int): EditorPane =
   ## the same id in the embed and in the full session, so a link out of one
   ## lands in the other.
   result = pane
-  if pane.availability != srcSourceLevel or pane.documents.len == 0: return
+  if pane.availability == srcAbsent or pane.documents.len == 0: return
   let doc = activeDocument(pane)
   if pane.currentLine <= 0: return
   var window = SourceDocument(path: doc.path, language: doc.language)

@@ -40,6 +40,7 @@ import std/[options, strutils]
 import codetracer_embed
 
 import ../src/debugger/deeplink_landing
+import ../src/debugger/instruction_listing
 import ../src/debugger/session_view
 import ../src/debugger/source_island
 export deeplink_landing
@@ -197,8 +198,44 @@ proc projectEditor*(vm: EditorVM; store: ReplayDataStore;
       result.availability = SourceAvailabilityView.srcSourceLevel
       result.currentLine = position.line
   of savUnverified:
-    result.availability = SourceAvailabilityView.srcUnverified
-    result.reason = "No source bundle is published for the code that ran."
+    # INSTRUCTION LEVEL, AND IT STEPS. This branch used to throw the served pane
+    # away and return a bare reason, which was right while there was nothing to
+    # keep: the pane had no rows. It has rows now — the recording's own program
+    # counters, one per step — and they are already in the island, because the
+    # island is a serialisation of whatever documents the export rendered and
+    # does not care what kind of document they are.
+    #
+    # So the listing survives the first step instead of vanishing on it. What
+    # moves is the MARK, and it moves the way it does at source level: the pane
+    # is re-decoded at the engine's position on every stop, so exactly one row is
+    # current and it is the row the session is standing on.
+    #
+    # THE POSITION IS THE TICK, NOT THE ENGINE'S FILE AND LINE. At this fidelity
+    # `location.line` is a program counter and `location.file` names a bytecode
+    # object, so joining on them would resolve a step against a coordinate the
+    # listing is not indexed by — and a program counter repeats the moment the
+    # execution loops, which is precisely when a reader most needs the mark to be
+    # on the right row. `rrTicks` is the session's own coordinate: it is what a
+    # share link anchors to and what `data-step` carries.
+    #
+    # The listing is numbered in that same coordinate — row `n` is tick `n`,
+    # from zero — so the join is the identity and there is nothing to convert.
+    # That is the reason for the numbering: any other and the position head,
+    # which states the tick, would name a different row from the one highlighted
+    # beside it on every hydrated page.
+    if island.len == 0:
+      result.availability = SourceAvailabilityView.srcUnverified
+      result.reason = "No source bundle is published for the code that ran."
+    else:
+      result = decodeSourceIsland(island, ListingPath,
+                                  int(store.debugger.val.rrTicks))
+      # The island's own availability is `unverified` already; restated for the
+      # same reason the branch above restates it, so a malformed island that
+      # decoded to `srcAbsent` cannot make a live instruction-level session
+      # claim that no contract code ran.
+      result.availability = SourceAvailabilityView.srcUnverified
+      if result.documents.len == 0:
+        result.reason = "No source bundle is published for the code that ran."
   else:
     result.availability = SourceAvailabilityView.srcAbsent
     result.reason = "This execution ran no contract code."

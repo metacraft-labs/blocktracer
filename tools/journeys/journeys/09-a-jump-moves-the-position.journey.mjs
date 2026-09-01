@@ -132,7 +132,7 @@ async function jump(page, index, selector, before) {
 export async function run({ browser, site, j }) {
   const all = await transactions(site.root);
   const withSession = all.filter((t) => landingOf(t.phase) === "session" && t.hasListing);
-  j.subjects(withSession, 3, "transactions whose landing is a session with a source listing");
+  j.subjects(withSession, 3, "transactions whose landing is a session with rows in its Code pane");
 
   const subject = withSession.find((t) => !t.real) ?? withSession[0];
   j.note(`driving ${subject.debugPath}`);

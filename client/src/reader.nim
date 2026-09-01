@@ -421,6 +421,16 @@ type
     validationStatus*: string
     sourceBundle*: JsonNode        ## the recommended bundle's raw node, or nil
     sourceBundleReason*: string    ## why there is none
+    instructions*: JsonNode
+      ## The recording's per-step program counters, or nil.
+      ##
+      ## The FLOOR of the fidelity ladder, carried beside the rung above it
+      ## rather than instead of it. Both are resolved on every trace view and
+      ## the pane decides: a transaction whose artifact resolved renders source,
+      ## one whose did not renders instructions, and `nil` here is the third
+      ## state — an instruction-level recording whose stream this tree does not
+      ## publish, which renders the stated reason and nothing else, as it always
+      ## did.
 
 proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
                 selector = ""): TraceView =
@@ -461,6 +471,14 @@ proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
     elif t.kind == trkOnDemand: tvPending
     else: tvNone
   if t.hasValidation: result.validationStatus = $t.validation.status
+
+  # ONLY FOR A TRACE THERE IS SOMETHING TO OPEN. An `absent` or `on-demand`
+  # resolution derives no artifact address, so asking would be a request built
+  # from an empty id — and §2.3a's rule that a terminal state fetches nothing
+  # is the reason `resolveExec` returns before deriving one.
+  if isReplayable(t) and t.instructionsPath.len > 0:
+    let ins = r.store.getJson(t.instructionsPath)
+    if ins.found and ins.error.len == 0: result.instructions = ins.node
   if t.hasManifest:
     result.steps = t.manifest.execution.steps
     result.frames = t.manifest.execution.frames

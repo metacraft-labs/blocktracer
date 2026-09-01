@@ -10,25 +10,25 @@
 // ------------------------------------------------------------------------
 // The defect and its journey are easy to state one notch too strongly, and the
 // first draft of journey 01 did: it demanded a source listing of every session
-// and reported six correct pages as broken. An Aztec contract class carries
-// bytecode and no debug symbols, so a real-chain recording is at instruction
-// level, and the pane says so in the producer's own words:
+// and reported six correct pages as broken. A recording no source resolved for
+// is at instruction level, which is a specified state and not a failure.
 //
-//   "The chain publishes no source for this contract ... The recording is
-//    therefore at instruction level: every step is a program counter, and there
-//    is nothing to position it against. Stepping is complete; only the text is
-//    missing."
-//
-// That is correct and complete. What is MISSING is the other half of the same
-// sentence: the session is stopped somewhere — it publishes `data-step` and
-// `data-total-steps` — and the page never says where. A visitor on a chain
-// transaction is told there is no text and is not told which step they are on.
+// What was MISSING is the other half of the same sentence: the session is
+// stopped somewhere — it publishes `data-step` and `data-total-steps` — and the
+// page never said where. A visitor on a chain transaction was told there was no
+// text and was not told which step they were on.
 //
 // So the claim is a DISJUNCTION over what the page shows, and it holds for both
 // kinds of session:
 //
 //   a session that reports a position must SHOW that position — by marking the
-//   line it is on, or, where there is no line, by stating the step.
+//   row it is on, or by stating the step.
+//
+// The disjunction is deliberately kept even though both disjuncts now hold on
+// every page: the pane states the step AND marks a row, because an
+// instruction-level recording now renders the program counters it carries
+// (journey 09). Collapsing this to "mark a row" would delete the assertion that
+// the sentence is still there for a reader who cannot see a highlight.
 //
 // WHY 108 `.srcline` ASSERTIONS DID NOT COVER THIS
 // -----------------------------------------------
@@ -53,17 +53,24 @@ export async function run({ browser, site, j }) {
   const sessions = all.filter((t) => landingOf(t.phase) === "session");
   j.subjects(sessions, 4, "transactions whose landing is a session");
 
-  const withListing = sessions.filter((t) => t.hasListing);
-  const withoutListing = sessions.filter((t) => !t.hasListing);
-  j.atLeast(withListing.length, 1, "some session HAS a line to mark");
+  // THE SPLIT IS SOURCE / NO SOURCE, and it used to be spelled `hasListing`
+  // because those were the same question: a recording no source resolved for
+  // rendered prose and no rows. They came apart when the Code pane started
+  // rendering the program counters such a recording carries, so a chain session
+  // now has a row to mark AND still has no source. The claim below is unchanged
+  // and both of its branches still have members; what changed is that the
+  // second branch is no longer the one with nothing on screen.
+  const withSource = sessions.filter((t) => t.hasSource);
+  const withoutSource = sessions.filter((t) => !t.hasSource);
+  j.atLeast(withSource.length, 1, "some session HAS source to mark a line in");
   j.atLeast(
-    withoutListing.length,
+    withoutSource.length,
     1,
-    "some session has NO line to mark — the branch the demo path never exercised",
+    "some session has NO source — the branch the demo path never exercised",
   );
   j.note(
-    `${sessions.length} sessions: ${withListing.length} with a listing, ` +
-      `${withoutListing.length} without`,
+    `${sessions.length} sessions: ${withSource.length} with source, ` +
+      `${withoutSource.length} at instruction level`,
   );
 
   const seen = [];
@@ -123,12 +130,12 @@ export async function run({ browser, site, j }) {
   // BOTH BRANCHES, SEPARATELY. Asserting only the total lets a corpus in which
   // every session has a listing satisfy the rule with the branch that hid the
   // defect. This is the assertion the seed defect is filed against.
-  const noListingPositioned = positioned.filter((s) => !s.t.hasListing);
-  const noListingSaysWhere = noListingPositioned.filter((s) => saysWhere.includes(s));
+  const noSourcePositioned = positioned.filter((s) => !s.t.hasSource);
+  const noSourceSaysWhere = noSourcePositioned.filter((s) => saysWhere.includes(s));
   j.countIs(
-    noListingSaysWhere.length,
-    noListingPositioned.length,
-    `every positioned session WITHOUT a line to mark still states its step` +
-      ` (${noListingSaysWhere.length} of ${noListingPositioned.length})`,
+    noSourceSaysWhere.length,
+    noSourcePositioned.length,
+    `every positioned session WITHOUT source still says where it is stopped` +
+      ` (${noSourceSaysWhere.length} of ${noSourcePositioned.length})`,
   );
 }

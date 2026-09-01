@@ -77,6 +77,25 @@ proc traceContainerPath*(traceArtifactId, containerFile: string): string =
   elif containerFile.len == 0: d & "/trace.ct"
   else: d & "/" & containerFile
 
+proc traceInstructionsPath*(traceArtifactId: string): string =
+  ## `instructions.json` beside the container — the recording's own per-step
+  ## program counters, when the capture derived them
+  ## (`tools/chain/derive-instructions.mjs`).
+  ##
+  ## A SIBLING OF THE CONTAINER AND NOT A FIELD OF THE MANIFEST. The manifest is
+  ## the artifact's identity and provenance and is read on every trace
+  ## resolution; a few hundred rows of instruction stream in it would be carried
+  ## by every consumer that only wanted to know whether a container exists. This
+  ## is fetched by the one surface that renders it.
+  ##
+  ## ABSENT IS A VALID TREE. A capture taken before the derivation existed, or
+  ## on a machine without the container reader, publishes none — and the pane
+  ## that would have rendered it has a correct page without one. So there is no
+  ## `hasInstructions` on the manifest to keep in step: the object is either
+  ## there or it is not, and asking is the whole protocol.
+  let d = traceArtifactDir(traceArtifactId)
+  if d.len == 0: "" else: d & "/instructions.json"
+
 proc sourceBundlePointerPath*(chain, codeHash: string): string =
   ## `/src/{chain}/{codeHash}/current.json` — the ◆ pointer that moves when a
   ## better interpretation lands (Source-Resolution.md §5).

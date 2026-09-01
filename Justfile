@@ -10,6 +10,31 @@ test:
     ci/test/client-sdk-boundary.sh
     ci/test/client-sdk-boundary-test.sh
 
+# ── the chain captures' instruction streams ────────────────────────────────
+#
+# Derive `instructions/<tx>.json` beside a committed capture's containers: the
+# per-step program counter, opcode number and gas reading the recording carries.
+# `ingest.nim` publishes whatever is there and the Code pane renders it as an
+# instruction listing, which is the honest floor for a recording no source
+# resolved for.
+#
+# DELIBERATELY NOT PART OF ANY BUILD, and not part of `just test`. Reading a
+# `.ct` needs `ct-print` from a `codetracer-trace-format-nim` checkout, which is
+# not a dependency of this repository and cannot be one — the site build is
+# hermetic. Same standing as `fixtures/trace/tour/record.sh` and
+# `client/fixtures/demo-session/extract-flow.mjs`: run by hand, output
+# committed, and a snapshot with none is a valid tree that renders the state it
+# always did.
+#
+#     CT_PRINT=../codetracer-trace-format-nim/ct-print just chain-instructions
+chain-instructions:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for d in client/fixtures/chain/*/; do
+      [ -f "$d/snapshot.json" ] || continue
+      node tools/chain/derive-instructions.mjs "$d"
+    done
+
 # ── @blocktracer/client — the Client SDK (M12a) ─────────────────────────────
 # The chain-aware layer above the CodeTracer Embed SDK. See
 # codetracer-specs/BlockTracer/Client-SDK.md.

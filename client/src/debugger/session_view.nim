@@ -552,6 +552,19 @@ type
   EditorPane* = object
     availability*: SourceAvailabilityView
     reason*: string           ## why, when `availability != srcSourceLevel`
+    listingCaption*: string
+      ## What the rows ARE, for a pane whose documents are an instruction
+      ## listing rather than source (`instruction_listing.listingCaption`).
+      ##
+      ## On the pane and not on the document, for the reason `flow` is: it is a
+      ## statement about this RECORDING — how many steps it holds, which columns
+      ## it could fill, which bytecode object its counters index — and a document
+      ## is a bag of rows that would carry the same caption wherever it was
+      ## rendered from.
+      ##
+      ## Empty on every source-level pane, and empty is how `renderSource` knows
+      ## not to draw a caption strip at all. A pane at source level has a tab
+      ## strip naming its files instead, which answers the same question.
     documents*: seq[SourceDocument]
     activeIndex*: int         ## which document the pane shows
     currentLine*: int         ## 0 when the session is not positioned

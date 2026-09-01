@@ -88,6 +88,12 @@ proc encodeSourceIsland*(p: EditorPane): string =
   let payload = %*{
     "availability": $p.availability,
     "reason": p.reason,
+    # Carried, because an instruction listing without it is a grid of hex whose
+    # columns nobody named. It is a derived string and could be recomputed — but
+    # only by re-deriving the listing, and the listing is exactly what the island
+    # exists to avoid re-deriving. Two bytes-per-page against a pane that
+    # silently loses its own caption on the first step is not a trade.
+    "listingCaption": p.listingCaption,
     "activeIndex": p.activeIndex,
     "documents": docs,
   }
@@ -198,6 +204,7 @@ proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
   if payload.kind != JObject: return EditorPane()
   result.availability = availabilityFromWire(payload{"availability"}.getStr(""))
   result.reason = payload{"reason"}.getStr("")
+  result.listingCaption = payload{"listingCaption"}.getStr("")
   result.activeIndex = 0
   result.currentLine = currentLine
   let docs = payload{"documents"}
@@ -222,7 +229,14 @@ proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
     result.documents.add newSourceDocument(
       path, d{"language"}.getStr(""), d{"text"}.getStr(""),
       executed = executed,
-      currentLine = (if index == positionIndex: currentLine else: 0))
+      currentLine = (if index == positionIndex: currentLine else: 0),
+      # THE ROW NUMBERS THE ISLAND PUBLISHED, not a fresh 1..N. This field has
+      # always been written and was always dropped, which was harmless while
+      # every island held whole source files numbered from 1. An instruction
+      # listing's rows are numbered in the session's coordinate and start at 0,
+      # so renumbering them would shift every row by one and mark the wrong
+      # instruction on every stop.
+      firstLine = d{"firstLine"}.getInt(1))
     inc index
   if matched:
     result.activeIndex = positionIndex
@@ -248,3 +262,28 @@ proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
     # which is what an unpositioned pane already means everywhere else.
     result.activeIndex = payload{"activeIndex"}.getInt(0)
     result.currentLine = 0
+
+proc islandAvailability*(raw: string): SourceAvailabilityView =
+  ## What FIDELITY the served island declares, without decoding the documents.
+  ##
+  ## THE ISLAND'S PRESENCE IS NOT THE ANSWER, and it was read as one. Hydration
+  ## used to open its session with `sourceIsPublished = island.len > 0`, which
+  ## was exact while only a source-level pane had documents to serialise. It
+  ## stopped being exact the moment an instruction-level pane got rows of its
+  ## own: a chain session now inlines a listing of program counters, and the
+  ## presence test would have told the store `savVerified` about it — so the
+  ## live pane would have joined the engine's position by FILE AND LINE against
+  ## a document whose rows are step ordinals, and presented the result as source.
+  ##
+  ## The island carries the answer explicitly, so it is read explicitly. A
+  ## payload that will not parse is `srcAbsent`, the same safe direction
+  ## `availabilityFromWire` takes for a value it does not recognise: the
+  ## alternative is presenting whatever arrived as verified source.
+  if raw.len == 0: return srcAbsent
+  var payload: JsonNode
+  try:
+    payload = parseJson(raw)
+  except CatchableError:
+    return srcAbsent
+  if payload.kind != JObject: return srcAbsent
+  availabilityFromWire(payload{"availability"}.getStr(""))

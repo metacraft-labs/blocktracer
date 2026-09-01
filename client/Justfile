@@ -56,7 +56,7 @@ preview-live: export-hydrated replay-engine
 
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
-test: test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-capability-tour
+test: test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-capability-tour test-instruction-listing
 
 # The static-export round-trip test: compile + run the real exporter into a
 # temp dir, then assert the three view types render for the demo entities and
@@ -107,6 +107,19 @@ test-chain-provenance:
 # shows two programs at once. Builds the tree with the real `generate`.
 test-capability-tour:
     nim c -r --mm:orc --hints:off tests/test_capability_tour.nim
+
+# tests/test_instruction_listing.nim — the Code pane's honest floor. A real
+# chain recording is rung 3, and the pane used to answer that with prose and
+# nothing else: it described a stream of program counters and rendered none of
+# them. This grades the listing over the COMMITTED captures through the real
+# producers — that the mnemonics are earned per recording by reproducing that
+# recording's own program counters, that exactly one row is marked and it is the
+# step the toolbar counts, that no branch glyph or lexer reaches a listing, that
+# the corrected prose sits beside the rows, that a source-level session is
+# untouched, and that the island a hydrated session re-renders from carries the
+# whole listing rather than the served window.
+test-instruction-listing:
+    nim c -r --mm:orc --hints:off tests/test_instruction_listing.nim
 
 # The hydration bundle's <script> is EMITTED when one is declared. Compiled
 # WITH -d:hydrationBundle on purpose: every other suite compiles without it and

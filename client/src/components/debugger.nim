@@ -442,13 +442,12 @@ proc renderPositionHead(pos: DebugControlsPane): string =
   ##
   ## `renderSource` below has two outputs and until now only one of them could
   ## say where the session is standing. A source-level pane says it with
-  ## `.srcline.cur`; an instruction-level pane — `srcUnverified`, which is EVERY
-  ## real chain transaction this site publishes, because an Aztec
-  ## `ContractClassPublic` carries no `debug_symbols`, no `file_map` and no
-  ## source text — returned `.srcnone`, two paragraphs of prose, and no position
-  ## mark of any kind. The pane whose entire subject is "where is the execution
-  ## stopped" was silent about it on the only transactions the chain actually
-  ## has.
+  ## `.srcline.cur`; an instruction-level pane — `srcUnverified`, which is every
+  ## real chain transaction this site currently publishes, because nothing
+  ## resolves those contracts' compiled artifacts — returned `.srcnone`, two
+  ## paragraphs of prose, and no position mark of any kind. The pane whose entire
+  ## subject is "where is the execution stopped" was silent about it on the only
+  ## transactions the chain actually has.
   ##
   ## That is not a styling gap. It is the debugger's single most important
   ## affordance missing on a whole class of page, and it is missing on BOTH
@@ -464,6 +463,17 @@ proc renderPositionHead(pos: DebugControlsPane): string =
   ## The step is the coordinate the session genuinely has — it is what
   ## `data-step` carries, what the scrubber sits at, and what a share link
   ## anchors to.
+  ##
+  ## IT IS A CAPTION NOW, NOT THE ONLY ANSWER. The pane has rows again — the
+  ## recording's own program counters, one per recorded step
+  ## (`instruction_listing.nim`) — so `.srcline.cur` marks the position visually
+  ## and this states it in words. The head is kept for the reason the gutter
+  ## marks carry a redundant channel: a highlight is a paint, and a reader on a
+  ## printed page, a screen reader, or a pane scrolled away from the position
+  ## gets the sentence instead. It is also still the ONLY answer wherever there
+  ## are no rows at all, which is a state the route keeps — a transaction whose
+  ## trace has not been recorded, and any recording whose instruction stream the
+  ## tree does not publish.
   ##
   ## It reads `DebugControlsPane` rather than taking a step of its own, so there
   ## is ONE producer of the coordinate and two renderings of it. §7.1's "from one
@@ -521,7 +531,31 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
   ## slot itself is rendered when a line carries annotations and is empty in
   ## everything this milestone ships — the point is that adding one is a
   ## producer change, not a restructuring of this function.
-  if p.availability != srcSourceLevel or p.documents.len == 0:
+  # ## TWO KINDS OF ROW, ONE RENDERER
+  #
+  # A pane at `srcUnverified` that CARRIES DOCUMENTS is an instruction listing —
+  # the program counters the recording holds, one row per step — and it goes
+  # down the same path everything below draws. That is the point rather than a
+  # convenience: the current-position fill, the `▶` in its own `.p` cell, the
+  # `aria-current` on the row, the stable anchors and the windowing are the
+  # marks this pane owes a reader, and an instruction listing that re-drew them
+  # would be an imitation free to drift from the original. Going through this
+  # function is what makes "the position is marked the same way" a property of
+  # the code rather than a claim about it — including the `.p`/`.m` split a
+  # sibling landed so the branch glyph could not displace the position glyph.
+  #
+  # What differs is what the pane says ABOVE the rows: source gets a tab strip
+  # naming its files, a listing gets a caption naming its columns and the
+  # bytecode object its counters index, and the listing keeps the stated reason
+  # for having no source — beside the rows now, rather than instead of them.
+  #
+  # `srcUnverified` with NO documents is unchanged and is still a state this
+  # route has: a transaction whose trace has not been recorded yet, and any
+  # recording whose instruction stream the tree does not publish. It renders the
+  # reason and the supply-sources action, exactly as before.
+  let listing = p.availability == srcUnverified and p.documents.len > 0
+  if p.documents.len == 0 or
+     (p.availability != srcSourceLevel and not listing):
     # The head FIRST, and outside `.srcnone`. A reader asking "where is this
     # stopped" gets the answer before the explanation of why there is no text to
     # put it on, and `.srcnone`'s prose block is byte-identical to what it was.
@@ -606,6 +640,16 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
     ## one shared strip corrected by `:target ~` selectors — can only reach the
     ## first and last tab, which is why `renderStack` gets away with it for a
     ## two-pane stack and why it would silently mismark a four-file bundle.
+    ##
+    ## AN INSTRUCTION LISTING GETS A CAPTION INSTEAD, and not a one-tab strip.
+    ## A tab strip answers "which of these files am I looking at", and a listing
+    ## is one bytecode object, so the strip would be a control with one option
+    ## and nothing to say. The caption answers the question a listing actually
+    ## raises — what are these columns, and what are these counters offsets
+    ## into — which is the difference between a grid of hex and a disassembly.
+    if p.listingCaption.len > 0:
+      return ui:
+        p(class = "instrcap"): text p.listingCaption
     ui:
       nav(class = "srctabs"):
         for d in p.documents:
@@ -617,11 +661,20 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
     ## One document's lines, plus the notice when the pane opens part-way in.
     let first = (if d.lines.len > 0: d.lines[0].number else: 1)
     ui:
-      tdiv(class = "src"):
+      tdiv(class = "src" & (if listing: " instr" else: "")):
         if first > 1:
           tdiv(class = "srcfrom"):
-            text "Showing from line " & $first & " — the session's position is " &
-                 "below, and the lines above it are not in this window."
+            # The same reduction, named in the unit the rows are actually in.
+            # "Showing from line 122" over a listing whose rows are STEPS would
+            # be the window announcing itself in a coordinate the pane does not
+            # use — and `line` is the one word this pane has spent four
+            # paragraphs explaining it does not have.
+            if listing:
+              text "Showing from step " & $first & " — the session's position " &
+                   "is below, and the steps before it are not in this window."
+            else:
+              text "Showing from line " & $first & " — the session's position " &
+                   "is below, and the lines above it are not in this window."
         for ln in d.lines:
           tdiv(class = "srcline" &
                        (if ln.current: " cur" else: "") &
@@ -811,7 +864,44 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
   let wrap = ui:
     tdiv(class = "srcwrap"):
       raw panels
-  renderFlowRail(p.flow) & wrap
+  if not listing: return renderFlowRail(p.flow) & wrap
+
+  # ── the instruction listing's own chrome ──────────────────────────────────
+  #
+  # THE POSITION HEAD, THE REASON, THEN THE ROWS — in that order and all three,
+  # which is the whole shape of the fix.
+  #
+  # The head stays. It is the sentence form of the position and it is now the
+  # listing's caption rather than its only content: a reader who cannot see a
+  # highlighted row — a screen reader, a printed page, a pane scrolled away from
+  # the position — still gets "step 128 of 208" in words. Two channels for one
+  # fact is what this pane already does for every other mark it draws.
+  #
+  # The reason stays too, and this is the part that was wrong before rather than
+  # merely thin. It said the recording is at instruction level and then rendered
+  # nothing at instruction level, so the words were doing the listing's job.
+  # Beside the rows they do their own: they say why these are program counters
+  # rather than source, and they carry the one action that could change it.
+  #
+  # It is deliberately ABOVE the rows and not below them. The rows scroll — there
+  # are hundreds of them — and an explanation at the bottom of a scrollport is an
+  # explanation nobody reaches. `.srcnone`'s own block is unchanged, so the
+  # no-documents state and this one say the same thing in the same markup.
+  let why = ui:
+    tdiv(class = "srcnone"):
+      p(class = "panenote"):
+        text (if p.reason.len > 0: p.reason
+              else: "No source is published for the code this transaction ran.")
+      # The action, in the state it has always been in. See its long comment in
+      # the no-documents branch above: it is inert, it says so on three channels,
+      # and it is kept rather than deleted because supplying sources is a route
+      # this product intends and does not yet have.
+      button(class = "btn ghost sm disabled",
+             `aria-disabled` = "true",
+             title = "BlockTracer cannot accept supplied sources yet. " &
+                     "The instructions below are what this recording carries."):
+        text "Supply sources"
+  renderPositionHead(pos) & why & wrap
 
 const MaxIndentDepth* = 8
   ## The depth the indentation ladder in `debugger_css.nim` has rules for.

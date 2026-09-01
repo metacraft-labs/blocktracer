@@ -132,6 +132,41 @@ and `.copyfailed`, which is `reviews/QUEUED-DECISIONS.md` Q23.
 mechanism, check which build you mean.** An explanation naming a mechanism is a
 claim about an artefact.
 
+## 1b-i. The instruction listing — the Code pane's floor
+
+A chain recording is **rung 3**: no step resolves to a source line, because
+nothing resolved the contract's compiled artifact. That does not mean a step has
+no coordinate. Every step in these containers carries a **program counter**, an
+**opcode number** and a **gas reading**, and until `instruction_listing.nim` none
+of it reached a page — the pane described an instruction-level recording in prose
+and then rendered no instructions.
+
+| Path | Role |
+|------|------|
+| `tools/chain/derive-instructions.mjs` | lifts the per-step stream out of a `.ct` into `<snapshot>/instructions/<tx>.json`. Needs `ct-print` and is **run by hand**, exactly like `client/fixtures/demo-session/extract-flow.mjs` — the site build is hermetic and cannot open a container. `just chain-instructions` |
+| `src/blocktracer/chain/ingest.nim` | publishes whatever it finds as `instructions.json` beside `trace.ct`, refusing a listing whose step count disagrees with the manifest's |
+| `client/src/debugger/avm_opcodes.nim` | the opcode table, with each instruction's encoded LENGTH — and `explainsProgramCounters`, which is why a mnemonic may be shown at all |
+| `client/src/debugger/instruction_listing.nim` | the stream → `SourceLine` rows, so `renderSource` draws them and every mark it already knows how to draw composes by construction |
+
+**The names are earned per recording, never asserted.** A mnemonic is an
+interpretation of a number against a version of the instruction set. The table
+predicts something falsifiable instead: for two consecutive steps that did not
+branch, `pc[i+1] - pc[i]` must equal the first instruction's encoded length. All
+2026 non-branching transitions across the eight published containers match, with
+zero mismatches — and a recording the table cannot explain renders `opcode 39`
+rather than a guess, and says why.
+
+**A snapshot with no `instructions/` is a valid tree.** The pane falls back to
+the stated reason it has always shown. Same shape as `client/hydrate/build.sh`
+exit 3.
+
+**Do not write that the chain publishes no source.** `ContractClassPublic`
+carries `artifactHash` precisely so a client can verify an artifact fetched
+**off-chain**, and verified artifacts resolve — fidelity is a per-transaction
+answer, not a constant of the chain. The user-facing copy says what is true of
+*this recording*, and `test_chain_provenance` asserts the retired clause is
+absent from every transaction page.
+
 ## 1c. The demo chain's capability tour
 
 `/demo` is not a ledger anyone can look anything up in — it is generated from a
@@ -349,6 +384,7 @@ Exact `client/Justfile` targets (run from `client/`; verified):
 | Command | What it does |
 |---------|--------------|
 | `cd client && just test` | `test-export` + `test-viewmodels` + `test-debug-route` + `test-explorer-breadth` |
+| `cd client && just test-instruction-listing` | `tests/test_instruction_listing.nim` — the Code pane's honest floor, over the COMMITTED captures through the real producers. A recording no source resolved for renders the program counters it carries; the mnemonics are earned per recording (the opcode table must reproduce that recording's own program counters or the rows show numbers); exactly one row is marked and it is the step the toolbar counts; no branch glyph and no lexer reaches a listing; a source-level session is untouched; and the island a hydrated session re-renders from carries the whole listing rather than the served window |
 | `cd client && just test-explorer-breadth` | `tests/test_explorer_breadth.nim` — M9's three verifications (renders from published files only, pointer objects are not cached across navigations, address history pages with constant per-page cost) plus the two product rules over EVERY rendered page. Built `-d:release`: one case walks a synthetic address of 100,000 transactions from its first page to its last |
 | `cd client && just test-debug-route` | `tests/test_debug_route.nim` — M8a/M8b: the route, the arrangement against `LayoutNode`, the source renderer's stable line ids, §7.0's availability-decides-the-landing rule, and the stored crawl-surface baseline. No debugger on the Nim path |
 | `cd client && just export` | Compiles + runs `src/static_export.nim` → writes `dist/` |

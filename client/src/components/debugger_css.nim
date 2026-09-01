@@ -453,6 +453,36 @@ html[data-register="debugger"],
   transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
 .srctab:hover{color:var(--bt-text-default);background:var(--bt-surface-hover)}
 .srctab.on{color:var(--bt-text-strong);border-bottom-color:var(--bt-mark-view)}
+/* THE INSTRUCTION LISTING'S CAPTION — the strip a listing gets where source
+   gets its tab strip.
+
+   A tab strip answers "which of these files", and an instruction listing is one
+   bytecode object: the strip would be a control with a single option. What a
+   listing actually raises is "what are these columns, and what are these
+   numbers offsets into", and that is what this says.
+
+   It takes `.srctabs`'s own surface, border and label size rather than a set of
+   its own, because it occupies that position and a reader should not have to
+   learn that the strip above a listing is a different kind of thing from the
+   strip above a file. Not monospace: it is a sentence, and the rows below it
+   are the monospace part. It WRAPS — the caption names the recorded object,
+   which on a chain is a 66-character path, and a one-line clip would take the
+   half of it that identifies the object. */
+.instrcap{flex:0 0 auto;
+  padding:var(--bt-space-2xs) var(--bt-density-cell-x);
+  border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
+  background:var(--bt-surface-sunken);
+  color:var(--bt-text-muted);font-size:var(--bt-type-label-size);
+  line-height:var(--bt-type-body-sm-line);overflow-wrap:anywhere}
+/* A listing's rows are not source, and the one place that has to show is the
+   column a reader scans: the gutter holds a STEP ordinal here, not a line
+   number, and the marker cell holds the same `·` on every row because every row
+   IS a recorded step. Nothing is re-coloured and no glyph is redefined — the
+   position mark, the `.p` cell it lives in and the `.m` cell beside it are the
+   source pane's, unchanged, which is the whole reason the listing goes through
+   that renderer. `tabular-nums` is the only addition: a column of ordinals that
+   changes width at 100 is a column that shifts under the eye. */
+.src.instr .n{font-variant-numeric:var(--bt-numeric-features)}
 /* The pane opens part-way into the file, and says so rather than leaving the
    reader to infer it from a first line number that is not 1. */
 .srcfrom{padding:var(--bt-space-2xs) var(--bt-density-cell-x);
@@ -1000,6 +1030,16 @@ a.frseg:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
    Every real chain transaction on this site lands on `srcUnverified`, and until
    this rule that pane drew two paragraphs and no position mark at all: the one
    surface whose entire question is "where is this stopped" answered it nowhere.
+
+   IT IS A CAPTION NOW RATHER THAN THE ONLY ANSWER, and it stays for that reason.
+   The pane HAS a row to mark — the recording's own program counters, one per
+   step — so `.srcline.cur` states the position visually and this states it in
+   words. Two channels for one fact is what every other mark on this pane already
+   does, and the words are the channel that survives a printed page, a screen
+   reader and a pane scrolled away from the position. It also still draws where
+   there is no listing at all, which is a state the route keeps: a transaction
+   whose trace has not been recorded, and any recording whose instruction stream
+   the tree does not publish.
    The head is the answer, and it is deliberately the SAME three channels the
    current source line uses — the position fill, the position rail down the left
    edge, and the `▶` in its own `.p` cell — so a reader who has seen one page's
@@ -1012,7 +1052,10 @@ a.frseg:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
 
    `border-left` on the element rather than an absolutely positioned child,
    which is what `.ntbar`/`.rnbar` need and this does not: nothing else claims
-   this edge, because a pane in this state has no branch marks to draw. */
+   this edge. The head is a BLOCK ABOVE the listing rather than a row inside it,
+   so it shares an edge with nothing — and the rows below it carry no branch
+   claim in any case, because an instruction listing makes none
+   (`instruction_listing.nim`, "What is NOT claimed"). */
 .srcpos{display:flex;align-items:baseline;gap:var(--bt-space-xs);
   padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
   background:var(--bt-mark-position-surface);

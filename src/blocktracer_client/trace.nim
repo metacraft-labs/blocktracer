@@ -76,6 +76,12 @@ type
     traceArtifactId*: string
     manifestPath*: string
     containerPath*: string
+    instructionsPath*: string
+      ## Where this recording's per-step program counters would be published.
+      ## Derived alongside `containerPath` and never probed here — a resolution
+      ## must not fetch an object nobody asked for, and the one surface that
+      ## renders a listing is the one that should pay for finding out whether
+      ## there is one.
     hasManifest*: bool
     manifest*: TraceManifest
     manifestError*: string
@@ -167,6 +173,7 @@ proc resolveExec*(store: ObjectStore, session: ChainSession,
     session.pin.profile.hash, session.pin.traceSchema)
   result.manifestPath = traceManifestPath(result.traceArtifactId)
   result.containerPath = traceContainerPath(result.traceArtifactId, "")
+  result.instructionsPath = traceInstructionsPath(result.traceArtifactId)
 
   if result.kind == trkOnDemand and not probeOnDemand:
     return

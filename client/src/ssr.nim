@@ -133,6 +133,12 @@ proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
   # interpretation the page should use", so a published bundle wins over the
   # client's fixture sources.
   withPublishedSources(result, t.sourceBundle)
+  # …and the floor, AFTER it and never over it. A pane that ended up with source
+  # keeps source; one that did not gets the program counters the recording
+  # carries instead of a paragraph describing them. The order is the coexistence
+  # rule made mechanical — see `withInstructionListing`, which refuses any pane
+  # that is not `srcUnverified` and any pane that already has documents.
+  withInstructionListing(result, t.instructions)
 
 proc demoSessionFor*(r: DataRoot): Option[DebugSessionView] =
   ## The home page's featured session: the first transaction in the tree whose

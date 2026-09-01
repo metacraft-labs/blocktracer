@@ -132,7 +132,7 @@ export async function run({ browser, site, j }) {
   // ---- half two: the capability itself ------------------------------------
   const all = await transactions(site.root);
   const sessions = all.filter((t) => landingOf(t.phase) === "session" && t.hasListing);
-  j.subjects(sessions, 3, "transactions whose landing is a session with source");
+  j.subjects(sessions, 3, "transactions whose landing is a session with rows in its Code pane");
 
   const subject = sessions.find((t) => !t.real) ?? sessions[0];
   j.note(`driving ${subject.debugPath}`);

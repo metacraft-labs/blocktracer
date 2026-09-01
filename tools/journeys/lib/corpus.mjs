@@ -80,20 +80,36 @@ export async function transactions(root) {
         provenance: (/data-provenance="([A-Za-z-]*)"/.exec(html) ?? [])[1] ?? null,
         real: !/data-provenance="synthetic"/.test(html),
 
-        // Whether the chain published SOURCE for this contract, which is a
-        // different question from whether a session exists.
+        // Whether the Code pane has ROWS at all — of either kind.
         //
-        // An Aztec contract class carries bytecode and no debug symbols, so a
-        // real-chain recording is at instruction level: "Stepping is complete;
-        // only the text is missing." That is a specified state, not a defect,
-        // and a journey that demanded a source listing of every session would
-        // report six correct pages as broken — which an earlier draft of
-        // journey 01 did. What the spec requires of these pages is that they
-        // SAY so, and journey 05 is where that is asserted.
+        // Several journeys use this to mean "there is something in the Code
+        // pane to drive", which is what they need and what it still says. Their
+        // subject labels used to read "with a source listing"; they now read
+        // "with rows in its Code pane", because a session with no source has
+        // rows too.
         //
-        // Read from the markup rather than from the chain's name, so a testnet
-        // capture that gains verified sources moves classes on its own.
+        // It USED to be the source/no-source split as well, because those were
+        // the same question: a recording no source resolved for rendered prose
+        // and nothing else. They are two questions now. A recording with no
+        // source renders an INSTRUCTION LISTING — one row per recorded step, at
+        // the program counter the VM was standing on — so `.srcline` is present
+        // on both kinds of page and the two facts have to be read separately.
         hasListing: /class="srcline/.test(html),
+
+        // …and whether those rows are SOURCE.
+        //
+        // Read from the markup and not from the chain's name, which is the
+        // property that matters most here: source resolution is becoming a
+        // per-transaction answer rather than a constant of the chain
+        // (`artifactHash` exists so a client can verify an artifact fetched
+        // off-chain, and verified artifacts resolve), so a capture whose
+        // contract gains a verified artifact moves classes on its own and every
+        // subject set below follows it without an edit.
+        hasSource: /class="srcline/.test(html) && !/class="src instr"/.test(html),
+
+        // The complement, named rather than inferred, because it is a SUBJECT
+        // SET in its own right: the pages the instruction listing exists for.
+        instructionLevel: /class="src instr"/.test(html),
       });
     }
   }

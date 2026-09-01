@@ -36,6 +36,7 @@ import ../viewutil
 import ./deeplink_landing
 import ./demo_flow
 import ./flow_view
+import ./instruction_listing
 import ./replay_engine
 import ./session_view
 import ./source_document
@@ -453,19 +454,43 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
       # complete, it steps, and what is missing is only the text to show it
       # against. `srcUnverified` is the state that says exactly that, and §14's
       # "supply sources" affordance hangs off it.
+      # WHAT THESE SENTENCES SAY, AND THE CLAIM THEY NO LONGER MAKE.
+      #
+      # They used to say "the chain publishes no source for this contract — an
+      # Aztec contract class carries bytecode, and no debug symbols, no file map
+      # and no source text". Every clause after the dash is true of the ON-CHAIN
+      # class object and none of it is true as a claim about AVAILABILITY, which
+      # is what a reader takes from it. `ContractClassPublic` carries
+      # `artifactHash`, and upstream's own doc comment says that field is
+      # "intended to be used by clients to verify that an offchain fetched
+      # artifact matches a registered class" — the chain holds a COMMITMENT to
+      # the artifact, which is a mechanism for obtaining source and not a
+      # statement that none exists. Verified artifacts demonstrably resolve for
+      # some contracts on these very chains.
+      #
+      # So the sentence is now about THIS RECORDING. What is true here is that
+      # nothing resolved, not that nothing could — which keeps the page honest
+      # in both directions: it does not promise source it has not got, and it
+      # does not tell a reader the chain can never have any.
+      #
+      # The three pane notes below were the same claim restated three times.
+      # They now say what each pane does not have and why, without deciding on
+      # the chain's behalf what it will never publish.
       result.editor = EditorPane(availability: srcUnverified,
-        reason: "The chain publishes no source for this contract — an Aztec " &
-                "contract class carries bytecode, and no debug symbols, no " &
-                "file map and no source text. The recording is therefore at " &
-                "instruction level: every step is a program counter, and " &
-                "there is nothing to position it against. Stepping is " &
-                "complete; only the text is missing.")
+        reason: "No source resolved for the code this transaction ran, so " &
+                "this recording is at instruction level: every step is a " &
+                "program counter into the contract's bytecode. Aztec publishes " &
+                "a commitment to a contract's compiled artifact rather than " &
+                "the artifact itself, so source has to be fetched off-chain " &
+                "and checked against that commitment — which has not happened " &
+                "for this contract. Stepping is complete either way.")
       result.calltrace.note =
-        "Frames are recorded, and without a file map they carry no function " &
-        "names or source positions."
+        "Frames are recorded. Nothing resolved a position for this recording, " &
+        "so they carry no function names or source positions."
       result.state.note =
-        "This recording carries no variable names: naming a local needs debug " &
-        "symbols, which an Aztec contract class does not publish."
+        "This recording carries no variable names. Naming a local needs the " &
+        "debug symbols from the contract's compiled artifact, and none " &
+        "resolved for this contract."
       result.eventLog.note =
         "Calls and storage writes are recorded against program counters " &
         "rather than source lines."
@@ -657,3 +682,79 @@ proc withPublishedSources*(session: var DebugSessionView; bundle: JsonNode) =
             "Reading it needs the replay engine, which this page has not " &
             "started.")
   session.editor = pane
+
+proc withInstructionListing*(session: var DebugSessionView; node: JsonNode) =
+  ## Give an instruction-level pane the instructions.
+  ##
+  ## THE FLOOR OF THE LADDER, MADE VISIBLE. A pane at `srcUnverified` had a
+  ## stated reason and nothing else — it described a recording of program
+  ## counters and then rendered none of them, on every real chain transaction
+  ## this site publishes. The tree carries them (`ingest.nim` publishes
+  ## `instructions.json` beside the container when the capture derived one), so
+  ## this is where they become rows.
+  ##
+  ## ## Three refusals, and each is a state this route really has
+  ##
+  ## A pane that is NOT `srcUnverified` is left alone. That is the coexistence
+  ## rule: source resolution is becoming a per-transaction answer rather than a
+  ## constant of the chain, and a transaction whose artifact resolves takes the
+  ## source path untouched. This runs after `withPublishedSources` for exactly
+  ## that reason — whatever won there keeps the pane.
+  ##
+  ## A pane that already HAS documents is left alone for the same reason, one
+  ## step finer: a bundle that resolved to text is text, and replacing it with a
+  ## listing would be the floor overwriting a rung above it.
+  ##
+  ## A payload that decodes to nothing is left alone, and the page a reader gets
+  ## is the one this route has always served. A snapshot captured before the
+  ## derivation existed, or one taken on a machine with no `ct-print`, publishes
+  ## no listing — and "the reason, with no rows" is a correct page, so there is
+  ## nothing here worth failing a build over.
+  if not session.hasFrame: return
+  if session.editor.availability != srcUnverified: return
+  if session.editor.documents.len > 0: return
+  let listing = decodeInstructionListing(node)
+  if not listing.hasListing: return
+
+  # THE POSITION IS THE SESSION'S OWN COORDINATE, read off the controls rather
+  # than recomputed. `fixtureControls` derived it through `entryStepWithin`, the
+  # toolbar renders it, `.srcpos` states it and a share link anchors to it; a
+  # listing that marked a row from a second derivation would be a second producer
+  # of the one coordinate this page has, and the two would disagree the first
+  # time either changed. Row `n` is tick `n`.
+  #
+  # AND THE LISTING IS WHERE IT IS RESOLVED, because the listing is the only
+  # place that knows how long the recording is. `entryStepWithin` lands a trace
+  # shorter than the fixture's step on `steps` itself — "the trace's own last
+  # step" — and under the session's own zero-based numbering that is one PAST the
+  # end: a recording of 108 steps has ticks 0..107. That off-by-one predates this
+  # listing and was invisible while nothing rendered a row to compare it against.
+  #
+  # It is corrected here rather than in the landing rule, and the session's own
+  # coordinate is corrected with it — both the toolbar's step and the URL's time
+  # coordinate, which `test_chain_provenance` requires to be one derivation and
+  # not two. A page may not report a position outside its own recording; that is
+  # an invariant this repository already asserts, and this is the first producer
+  # in a position to enforce it.
+  var step = (if session.controls.positioned: session.controls.step else: -1)
+  if step >= listing.stepCount:
+    step = listing.stepCount - 1
+    session.controls.step = step
+    session.timeCoordinate = step
+  # An unpositioned session marks no row, which is what a coordinate outside the
+  # listing means everywhere else in this pane. The listing still renders: "here
+  # is the whole recording, and this page does not yet know where in it you are"
+  # is a true frame, and it is strictly more than the paragraph it replaces.
+  session.editor.documents = @[listingDocument(listing, step)]
+  session.editor.activeIndex = 0
+  session.editor.currentLine = step
+  session.editor.listingCaption = listingCaption(listing)
+  # A recording whose program counters this repository's opcode table could not
+  # reproduce renders numbers, and SAYS SO rather than leaving a reader to
+  # wonder why one page names instructions and another does not. The listing is
+  # unaffected — losing the names is not losing the counters.
+  if not listing.named:
+    session.editor.reason.add(
+      " The opcode numbers below are shown unnamed: this site's instruction " &
+      "table did not reproduce this recording's own program counters, so " &
+      "naming them would be a guess.")

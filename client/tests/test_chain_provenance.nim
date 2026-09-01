@@ -176,16 +176,35 @@ suite "1 — a rung-3 recording never renders as source":
 
   test "the page states the ceiling instead of leaving a blank pane":
     check "instruction level" in body
-    check "no debug symbols" in body
+    # WHAT THE CEILING SENTENCE MAY SAY. It used to be asserted through
+    # "no debug symbols", quoting a clause that read as a claim about
+    # AVAILABILITY — "an Aztec contract class carries bytecode, and no debug
+    # symbols, no file map and no source text". Every word is true of the
+    # on-chain class OBJECT and the reading a visitor takes from it is false:
+    # `ContractClassPublic` carries `artifactHash` precisely so a client can
+    # verify an artifact fetched off-chain, and verified artifacts resolve. The
+    # page now states what is true of THIS recording, so that is what is
+    # asserted, and the retired clause is asserted ABSENT.
+    check "No source resolved for the code this transaction ran" in body
+    check "checked against that commitment" in body
+    check "no debug symbols, no file map and no source text" notin body
 
-  test "and it still says WHERE the session is stopped, with no line to mark":
-    # The defect this arm was added for. "A rung-3 recording never renders as
-    # source" was enforced, correctly — and the consequence was that the Code
-    # pane on EVERY real transaction this site publishes drew two paragraphs of
-    # prose and no position mark of any kind. The one surface whose whole
-    # question is "where is this execution stopped" answered it nowhere, on the
-    # only transactions the chain actually has. A reader could see 208 steps in
-    # the toolbar and nothing in the pane.
+  test "and it says WHERE the session is stopped, in words AND on a row":
+    # The defect this arm was added for, and the second half of the same defect.
+    #
+    # "A rung-3 recording never renders as source" was enforced, correctly — and
+    # the consequence was that the Code pane on EVERY real transaction this site
+    # publishes drew two paragraphs of prose and no position mark of any kind.
+    # The one surface whose whole question is "where is this execution stopped"
+    # answered it nowhere, on the only transactions the chain actually has. A
+    # reader could see 208 steps in the toolbar and nothing in the pane.
+    #
+    # The head answered that in WORDS. It could not do more, because there was
+    # no row to mark — and there was no row because the pane rendered no
+    # instructions, which is the rest of the same defect. The rows are there now
+    # (`instruction_listing.nim`, graded in `test_instruction_listing`), so both
+    # channels are asserted here: the sentence a reader gets without seeing a
+    # highlight, and the marked row it is a caption for.
     #
     # Asserted on the REAL capture's rendered page, not on a constructed pane:
     # this is the artefact a visitor loads.
@@ -203,13 +222,25 @@ suite "1 — a rung-3 recording never renders as source":
     check ("<span class=\"num\">" & $s.controls.step & "</span> of " &
            "<span class=\"num\">" & $replayedSteps & "</span>") in debugBody
     # It is the pane's head and not a second toolbar: it sits inside the Code
-    # pane, above the sentence that explains why there is no text under it, and
-    # the instruction-level prose is untouched.
-    check debugBody.find("srcpos") < debugBody.find("srcnone")
-    check "Stepping continues at instruction level." in debugBody
-    # And no line is claimed. A rung-3 recording has no source position, so the
-    # head must not have produced a listing by the back door.
-    check "class=\"srcline" notin debugBody
+    # pane, above the sentence explaining why the rows are not source, which in
+    # turn sits above the rows. Matched on the class ATTRIBUTE, because the page
+    # inlines the stylesheet and declares `.srcline{` above `.srcpos{` in it.
+    check debugBody.find("class=\"srcpos\"") <
+          debugBody.find("class=\"srcnone\"")
+    check debugBody.find("class=\"srcnone\"") <
+          debugBody.find("class=\"srcline")
+    # AND THE ROW. Exactly one, at the step the head just stated — the same
+    # coordinate, not a second derivation of it.
+    check occurrences(debugBody, "<div class=\"srcline cur hit\"") == 1
+    check occurrences(debugBody, "id=\"L-avm-" & $s.controls.step &
+                      "\" data-line=\"" & $s.controls.step &
+                      "\" aria-current=\"true\"") == 1
+    # …and it is still NOT SOURCE. The rows are the recording's own program
+    # counters, filed under the synthetic `avm` document, with no file tab strip
+    # and nothing lexed — a listing must never arrive wearing source's clothes.
+    check "class=\"src instr\"" in debugBody
+    check "class=\"srctabs\"" notin debugBody
+    check "class=\"tk-keyword\"" notin debugBody
 
   test "CONTROL: a page with NO position draws no head, on the same route":
     # Without this the arm above is satisfied by a head emitted unconditionally,

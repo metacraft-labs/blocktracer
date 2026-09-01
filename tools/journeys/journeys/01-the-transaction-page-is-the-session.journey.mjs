@@ -109,15 +109,22 @@ export async function run({ browser, site, j }) {
   // "it is the debugger's FIRST FRAME" — and §14.1a: "The page never degrades.
   // Every one of these states shows the complete transaction."
   //
-  // NOT "every session shows source". An Aztec contract class carries bytecode
-  // and no debug symbols, so a real-chain recording is at instruction level and
-  // has no text to show — a specified state, and one an earlier draft of this
+  // NOT "every session shows source". A recording no source resolved for is at
+  // instruction level — a specified state, and one an earlier draft of this
   // journey reported as six broken pages. What §14.1a requires is that a
   // session either shows its source or SAYS why it has none, and that the two
   // classes account for all of them.
-  const showsSource = seen.filter((s) => s.facts.srclinesShown >= 1);
+  //
+  // THE CLASSES ARE NO LONGER "HAS ROWS" VS "HAS PROSE", and that distinction is
+  // what this pair used to be spelled with. A session with no source now renders
+  // the program counters the recording carries, so it has rows AND states the
+  // absence — `srclinesShown === 0` picked out nothing at all and the second
+  // branch went empty. The rule is unchanged; what it is read from is the
+  // corpus's `hasSource`, taken off the markup, so a contract whose artifact
+  // resolves moves between these classes on its own.
+  const showsSource = seen.filter((s) => s.t.hasSource && s.facts.srclinesShown >= 1);
   const statesAbsence = seen.filter(
-    (s) => s.facts.srclinesShown === 0 && (s.facts.reasonText ?? "").trim().length > 0,
+    (s) => !s.t.hasSource && (s.facts.reasonText ?? "").trim().length > 0,
   );
   j.countIs(
     showsSource.length + statesAbsence.length,

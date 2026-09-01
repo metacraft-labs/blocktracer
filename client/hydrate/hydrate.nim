@@ -942,7 +942,14 @@ proc hydrate() =
   h.backend.onControl(proc(message: JsonNode) = h.onControl(message))
   h.backend.onEvent(proc(event: JsonNode) = h.onDapEvent(event))
   h.service = h.backend.toBackendService()
-  h.session = openLiveSession(h.service, sourceIsPublished = ui.island.len > 0)
+  # THE ISLAND'S OWN DECLARATION, not its presence. See `islandAvailability`:
+  # a chain session inlines an INSTRUCTION LISTING, so "there is an island"
+  # stopped meaning "source was published" and a presence test would have told
+  # the store this session is source-level — which joins the engine's position
+  # by file and line against rows that are step ordinals.
+  h.session = openLiveSession(
+    h.service,
+    sourceIsPublished = islandAvailability(ui.island) == srcSourceLevel)
 
   # §8 forbids an indeterminate wait, and a phase rail stuck on `opening` is
   # one — it is a spinner with a name. Not every engine failure arrives as a
