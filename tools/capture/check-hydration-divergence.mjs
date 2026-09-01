@@ -277,23 +277,9 @@ export function readMap() {
   return JSON.parse(readFileSync(MAP_PATH, "utf8"));
 }
 
-/** The sentence the brief renders for a view captured from the plain tree
- *  whose route ships the bundle. It is written HERE, beside the measurement
- *  that decides it applies, so the claim and its evidence cannot drift. */
-export const DIVERGENCE_NOTE =
-  "the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. " +
-  "The deployed site (`flake.nix` `packages.default`) exports this same route with " +
-  "`-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — " +
-  "so **this image is not the page a visitor loads**. Before any engine work, the bundle " +
-  "upgrades every `.copyable` and `[data-copy]` value into a `role=\"button\"` copy control " +
-  "and rewrites its `title`; what the live session then paints is larger still and is not " +
-  "measured, because the replay engine is not vendored here. " +
-  "**A finding about behaviour that exists on only one of these builds must say which.**";
-
-export const NO_DIVERGENCE_NOTE =
-  "the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, " +
-  "which emits no hydration `<script>`, so the deployed build serves these same bytes and " +
-  "the image is the page a visitor loads.";
+// The SENTENCES this measurement produces live in `lib/provenance.mjs`, with
+// the hydrated arm's, because both renderers need both sets and a second copy
+// of either is how they would drift. This module decides WHICH one applies.
 
 // ── Run ────────────────────────────────────────────────────────────────────
 

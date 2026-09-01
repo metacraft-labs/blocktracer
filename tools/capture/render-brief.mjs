@@ -16,12 +16,8 @@ import { fileURLToPath } from "node:url";
 
 import { VIEWS, VIEWS_BY_ID, sizesFor, themesFor } from "./views.mjs";
 import { EXPECTATIONS, resolveExpectation } from "./expectations.mjs";
-import { engineScenario, WORKER_PATH } from "./lib/engine-stubs.mjs";
-import {
-  readMap as readDivergenceMap,
-  DIVERGENCE_NOTE,
-  NO_DIVERGENCE_NOTE,
-} from "./check-hydration-divergence.mjs";
+import { provenanceRows } from "./lib/provenance.mjs";
+import { readMap as readDivergenceMap } from "./check-hydration-divergence.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolvePath(HERE, "..", "..");
@@ -57,49 +53,16 @@ function renderBlock(view) {
     `| **Captured at** | ${axes} |`,
     `| **Capture status** | ${state} |`,
   );
-  // The provenance rows, for the views whose sentences exist only under
-  // hydration. They are in the BRIEF and not only in a source comment because
-  // the brief is what a reviewer reads, and both facts change how the image may
-  // be graded: an absence is only meaningful if the script ran, and a page
-  // whose engine was supplied by the harness must never be graded as though a
-  // real engine produced what is on it.
-  if (view.hydrated) {
-    const scenario = engineScenario(view.engine);
-    out.push(
-      `| **Captured from** | the HYDRATED build (\`client/dist-hydrated\`, exported with \`-d:hydrationBundle\`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes |`,
-    );
-    out.push(
-      `| **Replay engine** | STAND-IN. The capture server answers \`${WORKER_PATH}\` with ${scenario.label} (\`tools/capture/lib/engine-stubs.mjs\`); it stands in for ${scenario.impersonates}. Nothing in the image is drawn by it — the banner is \`components/debugger.renderEngineFailure\` over a string from \`client/hydrate/hydrate.nim\`. Grade the sentence and the treatment; do not grade the engine |`,
-    );
-  } else if (view.status === "ready") {
-    // THE OTHER ARM, which said nothing until VD.11 and should have.
-    //
-    // The row above has always told a reviewer of the eight hydrated views what
-    // build they were looking at. The 41 views captured from the plain tree had
-    // no such row, so the honest default reading — "this photograph is the
-    // product" — went unchallenged, and it is WRONG for 16 of them: every
-    // `debugger*` view and `tx-detail--session` photograph a route that carries
-    // the hydration bundle on the deployed build.
-    //
-    // Two findings in the review record are that gap, not reviewer error: a
-    // shipped reason string that misattributed its own cause to "this route
-    // ships no client script", and a P1 nearly filed on an engine state that
-    // only the capture build has. Neither reviewer could have known.
-    //
-    // Measured, never asserted: `shipsBundle` comes from
-    // `check-hydration-divergence.mjs` reading both built trees, and its H1
-    // fails when the committed map and the trees disagree. With no map — a
-    // checkout that has never built — the row says so rather than guessing,
-    // because a confident wrong answer here is the whole defect.
-    const entry = readDivergenceMap()?.views?.[view.id];
-    const note = !entry
-      ? "UNMEASURED. `tools/capture/hydration-divergence.json` is missing, so which build this " +
-        "route serves is not known here — run `just capture-hydration-divergence-write` " +
-        "over a built pair of trees before grading anything build-dependent."
-      : entry.shipsBundle
-        ? DIVERGENCE_NOTE
-        : NO_DIVERGENCE_NOTE;
-    out.push(`| **Captured from** | ${note} |`);
+  // WHICH BUILD THIS IMAGE IS OF. The sentences are in `lib/provenance.mjs`
+  // because `review-prompt.mjs` needs the same ones and every prompt tells its
+  // reviewer to SKIP this section — so a row that exists only here is a row no
+  // reviewer reads. See that module's header for how long that was true.
+  //
+  // Measured, never asserted: `shipsBundle` comes from
+  // `check-hydration-divergence.mjs` reading both built trees, and its H1 fails
+  // when the committed map and the trees disagree.
+  for (const { label, text } of provenanceRows(view, readDivergenceMap()?.views)) {
+    out.push(`| **${label}** | ${text} |`);
   }
   out.push("");
 

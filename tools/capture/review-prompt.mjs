@@ -20,6 +20,8 @@ import { fileURLToPath } from "node:url";
 
 import { VIEWS_BY_ID, SIZES, THEMES, imageName, sizesFor, themesFor } from "./views.mjs";
 import { resolveExpectation } from "./expectations.mjs";
+import { provenanceLines } from "./lib/provenance.mjs";
+import { readMap as readDivergenceMap } from "./check-hydration-divergence.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolvePath(HERE, "..", "..");
@@ -73,6 +75,20 @@ export function expectationText(viewId) {
   out.push(`View: \`${viewId}\` — ${e.summary}`);
   out.push(`Register: ${e.register}  (apply rubric ${e.register === "debugger" ? "B, brief §6" : "A, brief §5"})`);
   out.push(`Spec: ${e.spec}`);
+  // WHICH BUILD THIS IMAGE IS OF, in the prompt and not only in the brief.
+  //
+  // Every prompt below opens with "Skip section 4", and section 4 is where the
+  // brief's provenance rows live — so until VD.11 the two sentences written to
+  // stop an image being misgraded were in the one section their reader was told
+  // not to read. `lib/provenance.mjs` holds both, and this is the channel that
+  // actually reaches a reviewer.
+  const view = VIEWS_BY_ID.get(viewId);
+  if (view) {
+    for (const line of provenanceLines(view, readDivergenceMap()?.views)) {
+      out.push("");
+      out.push(line);
+    }
+  }
   out.push("");
   out.push("MUST SHOW — any item absent, unrecognisable or a placeholder is a P1 and caps the rating at 4:");
   for (const b of e.inherited ?? []) {

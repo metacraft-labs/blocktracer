@@ -130,7 +130,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §2 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -168,7 +168,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §3 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -206,7 +206,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §4 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -276,7 +276,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §5.1, Static-Site-Architecture §2.2 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -349,7 +349,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §5.2 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -386,7 +386,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §5.2 (Navigation: disabled at genesis and head) |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -425,7 +425,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §6 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -467,7 +467,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §6, §13 |
 | **Captured at** | tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -507,7 +507,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §7.0, §7.2 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -552,7 +552,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §7.2, VD.4 verify_transaction_page_holds_at_extreme_content |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -703,7 +703,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §7.2.8 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -734,7 +734,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §9 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -774,7 +774,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §10, Design-System §7 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -814,7 +814,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §14 (No verified source), §10 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -852,7 +852,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §11, Search-And-Routing §1–§8 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -992,7 +992,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §12, §13 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1030,7 +1030,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §1 route map, §2 Trust strip |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1068,7 +1068,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §14 (Object not found) |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1108,7 +1108,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §2 (Live demo), Design-System §2 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1137,7 +1137,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §7.0, §7.1 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work, the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is not measured, because the replay engine is not vendored here. **A finding about behaviour that exists on only one of these builds must say which.** |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1199,7 +1199,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §8, Debugger-Integration §3 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work, the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is not measured, because the replay engine is not vendored here. **A finding about behaviour that exists on only one of these builds must say which.** |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1243,7 +1243,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §7.1 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work, the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is not measured, because the replay engine is not vendored here. **A finding about behaviour that exists on only one of these builds must say which.** |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1279,7 +1279,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §8, Debugger-Integration §4.1, VD.5 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work, the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is not measured, because the replay engine is not vendored here. **A finding about behaviour that exists on only one of these builds must say which.** |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1317,7 +1317,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §8, Debugger-Integration §4.2, VD.5 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work, the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is not measured, because the replay engine is not vendored here. **A finding about behaviour that exists on only one of these builds must say which.** |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1358,7 +1358,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §8, VD.5 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work, the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is not measured, because the replay engine is not vendored here. **A finding about behaviour that exists on only one of these builds must say which.** |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1397,7 +1397,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §8, §14 (No verified source), VD.5 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work, the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is not measured, because the replay engine is not vendored here. **A finding about behaviour that exists on only one of these builds must say which.** |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1446,7 +1446,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §8, GUI/Debugging-Features/Omniscience-Flow.md |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work, the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is not measured, because the replay engine is not vendored here. **A finding about behaviour that exists on only one of these builds must say which.** |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1505,7 +1505,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §8, §14.2, Omniscience-Flow.md (Loop Slider Control) |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work, the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is not measured, because the replay engine is not vendored here. **A finding about behaviour that exists on only one of these builds must say which.** |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1543,7 +1543,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §8, Trace-Processing §3.2 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work, the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is not measured, because the replay engine is not vendored here. **A finding about behaviour that exists on only one of these builds must say which.** |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1581,7 +1581,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §13 |
 | **Captured at** | tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work, the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is not measured, because the replay engine is not vendored here. **A finding about behaviour that exists on only one of these builds must say which.** |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1618,7 +1618,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §14 (Trace truncated) |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work, the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is not measured, because the replay engine is not vendored here. **A finding about behaviour that exists on only one of these builds must say which.** |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1656,7 +1656,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §14 (Divergence detected), §8 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work, the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is not measured, because the replay engine is not vendored here. **A finding about behaviour that exists on only one of these builds must say which.** |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1691,7 +1691,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §7.0, §8; Debugger-Integration §3 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work, the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is not measured, because the replay engine is not vendored here. **A finding about behaviour that exists on only one of these builds must say which.** |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1728,7 +1728,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §7.0 (row 3), §14, §14.1a |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work, the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is not measured, because the replay engine is not vendored here. **A finding about behaviour that exists on only one of these builds must say which.** |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1763,8 +1763,8 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Debugger-Integration §6.0a (step 2), §6.0, §6.3 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes |
-| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads and never answers (`tools/capture/lib/engine-stubs.mjs`); it stands in for the ordinary pre-engine window of a real load, and — past the 45 s deadline — a misconfigured or missing `replayEngineBase` whose path serves something that is not the engine. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine |
+| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes. |
+| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads and never answers (`tools/capture/lib/engine-stubs.mjs`); it stands in for the ordinary pre-engine window of a real load, and — past the 45 s deadline — a misconfigured or missing `replayEngineBase` whose path serves something that is not the engine. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1799,8 +1799,8 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Debugger-Integration §6.0a (step 3), §6.0 (the content witness) |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes |
-| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads and never answers (`tools/capture/lib/engine-stubs.mjs`); it stands in for the ordinary pre-engine window of a real load, and — past the 45 s deadline — a misconfigured or missing `replayEngineBase` whose path serves something that is not the engine. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine |
+| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes. |
+| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads and never answers (`tools/capture/lib/engine-stubs.mjs`); it stands in for the ordinary pre-engine window of a real load, and — past the 45 s deadline — a misconfigured or missing `replayEngineBase` whose path serves something that is not the engine. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1835,8 +1835,8 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Debugger-Integration §6.0a (step 4) |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes |
-| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads and never answers (`tools/capture/lib/engine-stubs.mjs`); it stands in for the ordinary pre-engine window of a real load, and — past the 45 s deadline — a misconfigured or missing `replayEngineBase` whose path serves something that is not the engine. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine |
+| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes. |
+| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads and never answers (`tools/capture/lib/engine-stubs.mjs`); it stands in for the ordinary pre-engine window of a real load, and — past the 45 s deadline — a misconfigured or missing `replayEngineBase` whose path serves something that is not the engine. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1871,8 +1871,8 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Debugger-Integration §6.0a (step 5), §6.0 (the witness table) |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes |
-| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads and never answers (`tools/capture/lib/engine-stubs.mjs`); it stands in for the ordinary pre-engine window of a real load, and — past the 45 s deadline — a misconfigured or missing `replayEngineBase` whose path serves something that is not the engine. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine |
+| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes. |
+| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads and never answers (`tools/capture/lib/engine-stubs.mjs`); it stands in for the ordinary pre-engine window of a real load, and — past the 45 s deadline — a misconfigured or missing `replayEngineBase` whose path serves something that is not the engine. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1908,8 +1908,8 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Debugger-Integration §6.0a (step 1), Page-Descriptions §7.0 (row 3), §14 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes |
-| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads and never answers (`tools/capture/lib/engine-stubs.mjs`); it stands in for the ordinary pre-engine window of a real load, and — past the 45 s deadline — a misconfigured or missing `replayEngineBase` whose path serves something that is not the engine. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine |
+| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes. |
+| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads and never answers (`tools/capture/lib/engine-stubs.mjs`); it stands in for the ordinary pre-engine window of a real load, and — past the 45 s deadline — a misconfigured or missing `replayEngineBase` whose path serves something that is not the engine. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1945,8 +1945,8 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §8, §14 (terminal state with a reason), §14.2 (the ladder), CodeTracer-Embed-SDK §5.1 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes |
-| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with nothing served at the engine's path (`tools/capture/lib/engine-stubs.mjs`); it stands in for a deploy that never copied the engine to its own origin — the state every build of this repository is in until `just replay-engine` runs. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine |
+| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes. |
+| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with nothing served at the engine's path (`tools/capture/lib/engine-stubs.mjs`); it stands in for a deploy that never copied the engine to its own origin — the state every build of this repository is in until `just replay-engine` runs. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -1984,8 +1984,8 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §8 (phased, honest loading), §14, Debugger-Integration §7 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes |
-| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads and never answers (`tools/capture/lib/engine-stubs.mjs`); it stands in for the ordinary pre-engine window of a real load, and — past the 45 s deadline — a misconfigured or missing `replayEngineBase` whose path serves something that is not the engine. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine |
+| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes. |
+| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads and never answers (`tools/capture/lib/engine-stubs.mjs`); it stands in for the ordinary pre-engine window of a real load, and — past the 45 s deadline — a misconfigured or missing `replayEngineBase` whose path serves something that is not the engine. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -2022,8 +2022,8 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §8, §14, Debugger-Integration §7, dap_dialect §6 |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes |
-| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads, reports itself, and refuses the container (`tools/capture/lib/engine-stubs.mjs`); it stands in for a published engine whose container-format reader does not accept this trace — it logs the refusal to the worker console and posts nothing, so the session sits in `positioning` until the deadline. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine |
+| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes. |
+| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads, reports itself, and refuses the container (`tools/capture/lib/engine-stubs.mjs`); it stands in for a published engine whose container-format reader does not accept this trace — it logs the refusal to the worker console and posts nothing, so the session sits in `positioning` until the deadline. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -2061,7 +2061,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §8, §7.1, Debugger-Integration §3; components/provenance.nim |
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work, the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is not measured, because the replay engine is not vendored here. **A finding about behaviour that exists on only one of these builds must say which.** |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -2103,7 +2103,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §7.0 (row 3), §14.1a |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -2145,7 +2145,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §7.0 (row 3), §14 (Recorder unavailable for the VM), §14.1a |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -3099,7 +3099,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §9, rule 2 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -3135,7 +3135,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §9, Static-Site-Architecture §2.2 |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -3172,7 +3172,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §4, §2; components/provenance.nim |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -3206,7 +3206,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Spec** | Page-Descriptions §4, §14; components/provenance.nim |
 | **Captured at** | wide · laptop · tablet · mobile × light · dark |
 | **Capture status** | `ready` |
-| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image is the page a visitor loads. |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
