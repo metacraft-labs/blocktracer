@@ -66,7 +66,7 @@
     "round reports FAILED on exactly those two conditions and on nothing else.",
     "That is the honest ceiling of an agent-run round, and it is where VD.2 stops."
   ],
-  "ledgerRevision": "2026-09-01.8",
+  "ledgerRevision": "2026-09-01.9",
   "gateScope": [
     {
       "view": "tx-detail",
@@ -3101,11 +3101,6 @@
       "evidence": "The four emphasis levels were not the problem — the ROLE ASSIGNMENT was: --bt-text-muted (#484848) carried breadcrumb, eyebrow, grid labels, every explanatory panel and the footer at once. client/src/components/styles.nim spreads them: chrome (breadcrumb, eyebrow, footer) drops to --bt-text-subtle, labels stay --bt-text-muted, and explanatory PROSE — which is content, not chrome — rises to --bt-text-default. Three levels now do three jobs. Widening the ladder further is not available in pure greys: on the sunken surface (#f3f3f3) only neutral.450 and darker clear 4.5:1, which is why the rungs are close; VD.10 owns the palette audit."
     },
     {
-      "findingId": "tx-detail/wide/light/L3/8",
-      "status": "fixed",
-      "evidence": "client/src/components/styles.nim: the section rules move from --bt-border-subtle (#c8c8c8, 1.86:1 on white) to --bt-border-default (#a2a2a2, 2.60:1). It is an improvement, not conformance: WCAG 1.4.11's 3:1 floor applies to UI components and meaningful graphics, and a decorative section rule is neither — the section boundary is also carried by a 100px gap and a heading. A 3:1 rule grid would read as a spreadsheet in a marketing-grade register. Recorded here rather than exempted; VD.10 re-runs the audit over the final palette."
-    },
-    {
       "findingId": "tx-detail/wide/light/L4/3",
       "status": "fixed",
       "evidence": "Same change as tx-detail/wide/light/L2/5, which L4 reached independently from the density lens: `.sec-title.sibling` at --bt-rhythm-group for the three trace-derived sections. Two reviewers with different lenses measured the same defect, which is the signal the five-lens design exists to produce."
@@ -3149,21 +3144,6 @@
       "findingId": "tx-detail/wide/light/L4/5",
       "status": "accepted",
       "reason": "P3, and correct: the fixture's calldata is empty, so this capture cannot exercise the section's density case. That is a CONTENT gap, not a design one — it is exactly what M16 (Realistic Content Corpus) exists to supply, and the campaign's own introduction says a reviewer looking at thin content reports on the emptiness. Recorded so the gap is visible when the corpus lands."
-    },
-    {
-      "findingId": "tx-detail/wide/light/L3/9",
-      "status": "accepted",
-      "reason": "P3, criterion A8, outside the foundations scope. The observation is accurate and the cause is recorded rather than hidden: every colour in the page resolves to a codetracer-design-system brand primitive, and the web lineage deliberately introduces no new hue (docs/DESIGN-DIVERGENCES-WEB.md §2 settles the accent towards the brand precisely to avoid a third value across three lineages). Giving the light theme an identity beyond the brand ramp is a reference-parity question against the 2026 Webflow direction, which is G4 and VD.11's."
-    },
-    {
-      "findingId": "tx-detail/wide/light/L5/10",
-      "status": "accepted",
-      "reason": "P3, criterion A9, outside the foundations scope. The observation is right — 'a moment' is the page's one unquantified quantity, and brief §9 calls an unquantified quantity an honesty failure. It is not fixable at foundations level because the honest number depends on the recorder job's real timing, which the pipeline does not yet report to the page. VD.6 owns the degraded-state copy and should quantify it or drop the claim."
-    },
-    {
-      "findingId": "tx-detail/wide/light/L5/11",
-      "status": "accepted",
-      "reason": "P3, criterion A8, outside the foundations scope. `blocktracer-demo-gen` is not an internal identifier — it is a shipped CLI in this repository, named in the Justfile and the README, and the footer's point is provenance: this page was rendered from a named, reproducible generator rather than from a chain. That is the opposite of the M5/M9 leak VD.1 removed, which named milestones and internal architecture. Whether provenance belongs in the footer at all is a copy question for VD.6."
     },
     {
       "findingId": "tx-detail/wide/light/L5/6",
