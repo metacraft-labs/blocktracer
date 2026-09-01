@@ -344,8 +344,20 @@ jobs:
         # byte-identical to the one `nix build` produced from this commit, so a
         # stale bundle fails the deploy instead of being reported in a log
         # nobody reads.
-        run: nix develop .#ci --command node tools/deploy/check-freshness.mjs verify \
-          --manifest .deploy/freshness.json --dir site
+        #
+        # A BLOCK SCALAR (`run: |`), not a plain one. A plain multi-line YAML
+        # scalar FOLDS its newline into a space, so a trailing `\` written for
+        # line continuation survives into the command as a literal backslash
+        # followed by a space — bash reads `\ ` as an escaped space and glues it
+        # onto the next word. That is how this step shipped `verify` followed by
+        # the argument " --manifest" (leading space) and died with
+        # `unknown argument:  --manifest` on the very first run that reached it.
+        # The two sibling steps that invoke this same tool already use `run: |`;
+        # this one is now consistent with them.
+        run: |
+          set -euo pipefail
+          nix develop .#ci --command node tools/deploy/check-freshness.mjs verify \
+            --manifest .deploy/freshness.json --dir site
 
       - name: Deploy to Cloudflare Pages
         id: deploy
