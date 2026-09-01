@@ -483,7 +483,18 @@ jobs:
         # including the negative control that plants a stale image. In the
         # pinned environment its canary section is a tier-1 verdict rather than
         # the advisory one a developer sees.
-        run: nix run .#capture-env -- node tools/capture/selftest.mjs
+        #
+        # `.#capture`, for the same reason as the regeneration step above:
+        # selftest.mjs REGENERATES into a throwaway directory, so it runs the
+        # static exporter and `hydrate/build.sh`. Under `.#capture-env` it
+        # reported `static exporter did not run (spawnSync nim ENOENT)`, fell
+        # back to capturing whatever was already in client/dist, and then failed
+        # on the hydration-only views with `hydrate/build.sh exit 3` — no Nim,
+        # and no CODETRACER_SRC for the bundle. Its own message named the fix:
+        # "the repository's own devShell sets it".
+        run: |
+          nix develop .#capture --command \
+            vd0-capture-env node tools/capture/selftest.mjs
 
       - name: Keep the verdict and the manifest
         if: always()

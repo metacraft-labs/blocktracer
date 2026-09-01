@@ -657,16 +657,34 @@ suite "M5b — malformed trees fail conformance":
 
   # --- the M5c real-trace edges, each verified to bite -----------------------
 
-  proc firstOverlayWithTrace(dir: string): string =
+  # SORTED, and it requires the field the caller is about to mutate.
+  #
+  # This used to return the first `walkDirRec` hit whose overlay had a `trace`,
+  # and `walkDirRec` yields in FILESYSTEM order — which differs between hosts.
+  # Of the 17 overlays the demo tree publishes with a `trace`, four carry no
+  # `bytes` at all (an on-demand trace advertises no container size), so the
+  # selector had a 4-in-17 chance of handing back an overlay the test then
+  # indexed with ["bytes"]. It drew a good one on GitHub-hosted ubuntu for as
+  # long as anyone had looked, and drew a bad one the first time this job ran
+  # on the self-hosted runner: `Unhandled exception: key not found: bytes`.
+  #
+  # The test was never about "whichever overlay comes first"; it is about an
+  # overlay that ADVERTISES A SIZE. So the predicate now says so, and the sort
+  # makes the choice the same on every host.
+  proc firstOverlayAdvertisingBytes(dir: string): seq[string] =
     for p in walkDirRec(dir / "d" / DemoChain / "ts"):
-      if parseFile(p){"trace"} != nil: return p
-    ""
+      let n = parseFile(p)
+      if n{"trace"} != nil and n{"trace"}{"bytes"} != nil: result.add p
+    sort(result)
 
   test "an overlay advertising the wrong container size fails":
     # The client sizes its fetch from this before it has the object.
     let d = freshDemo("neg-overlay-bytes")
-    let op = firstOverlayWithTrace(d)
-    check op.len > 0
+    let candidates = firstOverlayAdvertisingBytes(d)
+    # The positive control on the scan: an empty candidate list would make the
+    # mutation below a no-op and the assertion after it vacuous.
+    check candidates.len > 0
+    let op = candidates[0]
     var n = parseFile(op)
     n["trace"]["bytes"] = %(n["trace"]["bytes"].getInt div 2)
     writeFile(op, n.pretty & "\n")
