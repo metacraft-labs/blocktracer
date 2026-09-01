@@ -1,0 +1,82 @@
+Expected elements: present
+
+All must-shows are on the image: the identity bar (chain exit "← demo" at x=24, hash, Partial badge, both stepping directions x=370–656, scrubber x=673–932, readout "128 / 1,315", phase rail x=1238–1471), a Code pane with the current position banded at y=352–374, one tab strip pairing CALL TRACE (open) with EVENT LOG, seven frames, a separate Values pane below it with ten rows, and the DATA provenance row at y=197–219 inside the transaction pane. Nothing forbidden is present.
+
+Geometry is disciplined where it counts: every pane gap and page margin is exactly 4px, every pane title sits at 8px padding (x=13 / 930 / 1542), the call-trace opcode column right-aligns at x=1519 and the Values columns at x=1407 and x=1518.
+
+Three things break it. The identity bar is full-bleed with 24px side padding while panes run 4+8=12px, so nothing in it aligns with anything below. Its layout gaps run 8/16/24/25/327px, with 16px doing double duty between sibling buttons and between whole objects. And the width budget is backwards: the nav column is 47% empty pane while the Code pane fades away three lines and the 383px transaction pane wraps both hashes mid-string.
+
+I withdraw the previous round's "hard clip, no fade" on the Code pane. Measured on line 40, ink holds full strength to x=861 then ramps 216→6 over 51px. The fade is real and works. The finding is that ~6 character-cells of gradient is the only signal for ~30 hidden characters.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L2/1",
+      "severity": "P2",
+      "location": "identity bar, y=0-63, full width",
+      "finding": "The identity bar is the only surface off the page grid. It is full-bleed (x=0..1919, no side margin) with 24px internal padding, so its content runs x=24..1895; every pane below is inset 4px and padded 8px, so pane content runs x=13..1907. The bar's content edges therefore sit 11-12px inside the panes' on both sides. Worse, none of its six cluster edges coincides with either column boundary (Code/nav at x=916/921, nav/transaction at x=1528/1533) - the nearest is the scrubber's right end at x=932, 11px past the nav column's left border. Every other gap on the page is a consistent 4px (page margins x=0-3 and x=1916-1919, inter-pane x=917-920 and x=1529-1532, bar-to-pane y=64-67, Call Trace-to-Values y=670-673), which makes the bar the single outlier from an otherwise clean scale.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/2",
+      "severity": "P2",
+      "location": "identity bar, clusters between x=24 and x=1895",
+      "finding": "Proximity does not encode grouping, so the bar reads as a strip of unrelated objects (the Watch-for asks this directly). Measured cluster gaps: 8/8/9/8/9px inside the identity cluster (x=24..345); 24px identity-to-controls (345->370); then 16px between each of the four stepping-control groups (427->444, 496->513, 576->593); then the SAME 16px between the whole control cluster and the scrubber (656->673) and between the scrubber and the status text (932->949); 25px from the position readout to the phase rail (1212->1238); and 327px from the phase rail to the two right-hand actions (1471->1799). A 16px gap therefore separates two sibling buttons and two entirely different objects, and there is no rule or divider anywhere in the bar to carry the distinction instead.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/3",
+      "severity": "P2",
+      "location": "navigation column x=921-1528: Call Trace region y=68-669 and Values pane y=674-1075",
+      "finding": "The measurement the Watch-for says has not been made. Call Trace region is 602px tall (y=68..669): tab strip y=68..96, column header y=100..129, seven frame rows y=130..302 at 25px pitch, footer 'By call order.' ending y=321. Empty below the last content: y=322..668 = 347px, 58% of the region. Values pane is 402px tall (y=674..1075): header to y=701, ten rows y=705..952. Empty below: y=953..1074 = 122px, 30%. Together 469px of empty pane in a 1007px column - 47%. The proportion is backwards on both axes at once: this column holds 469px of nothing while the Code pane beside it fades three lines out of view horizontally and the 383px transaction pane wraps both 40-hex addresses. On these numbers the height belongs to Values (whose ten rows are the denser content) and the width belongs to the transaction pane.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/4",
+      "severity": "P2",
+      "location": "transaction pane x=1533-1915, key/value rows y=197-660",
+      "finding": "The right-aligned value column produces a 249px spread in label-to-value distance with no leader rule to carry the association. Measured gaps from label right edge to value left edge: FEE PAYER 1604->1638 = 34px; TARGET 1588->1638 = 50px; COST-MANA 1620->1691 = 71px; AGE 1564->1732 = 168px; DATA 1571->1753 = 182px; TYPE 1571->1773 = 202px; BLOCK 1581->1864 = 283px. 'BLOCK' is bound to '101:0' across 283px of empty pane while FEE PAYER's hash nearly abuts its label. The same treatment also flattens the provenance row: the 'Synthetic demo data' badge (x=1753..1906) sits 182px from its DATA label in exactly the geometry the AGE and CANONICAL badges use, so layout gives the provenance claim no more standing than a metadata value.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/5",
+      "severity": "P2",
+      "location": "Code pane right edge x=862-916, worst on lines 40 (y=541-558), 53 (y=864-882) and 61 (y=1054-1063)",
+      "finding": "Re-judged and partly WITHDRAWN. The previous round's 'hard clip mid-identifier at x=916 with no fade' is refuted by measurement: on line 40 the code ink holds full strength (216 above a 27 background) to x=861, then ramps 216 -> 189 -> 160 -> 124 -> 60 -> 20 -> 6 across x=862..913, reaching the floor 4px before the pane border at x=916. That is a real, working 51px fade. What remains is a proportion failure, and it is mine: the character cell is ~8.5px, so the ramp is ~6 character-cells of signal for roughly 30 characters hidden on that line. Three of the 36 visible lines (40, 53, 61) carry ink into the fade floor. There is no horizontal scrollbar (rows y=1065..1074 are flat background at lum 27), no per-line ellipsis, and no gutter marker, so nothing on the page expresses how much is hidden - and the pane that is starved sits beside a column that is 47% empty.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L2/6",
+      "severity": "P3",
+      "location": "Code pane gutter, between lines 26/27 (y=199-244) and lines 48/49 (y=730-774)",
+      "finding": "The overflow chips break the listing's row grid. Line-number ink tops give a constant 23px pitch across the pane (405, 428, 451, 475, 497, 520, 543 ...), except 26->27 = 45px and 48->49 = 44px, where the '+3' chip (x=844..867, y=216..234) and the '+2' chip (x=844..867, y=747..765) each take a whole inserted 22px row. Two full rows of vertical space are spent on chips 24px wide in a 911px pane, and the gutter loses the constant pitch a reader scrubs it by. The '+3' also sits 6px below line 26's ink and 10px above line 27's, so proximity attributes it to its owner by only a 1.7:1 margin.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/dark/L2/7",
+      "severity": "P3",
+      "location": "Code pane, current-line band y=352-374",
+      "finding": "Edge alignment only - not judging the colour. The current-line band has a crisp 4px left rule at x=5..8 but no right terminus: the pane's right-edge fade attenuates the highlight fill from lum 67 (its full value against a 27 base) at x<=861 down to 28 at x=915, so the band dissolves over its last 53px rather than meeting the pane border at x=916. Every other row-level band on the page (call-trace current frame y=253..275, Values rows) terminates on a hard edge, so this one row is the exception.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L2/8",
+      "severity": "P3",
+      "location": "identity bar, predicted behaviour at 1440 (arithmetic from this 1920 capture)",
+      "finding": "The Watch-for asks where the bar wraps at laptop width. From this capture's own geometry the bar's non-flexible content is x=24..1471 (identity, controls, status, readout, phase rail = 1447px) plus the two right-hand actions x=1799..1895 (96px) plus 24px of padding each side and one separating gap - about 1607px. At a 1440 viewport that is ~167px over, and the 260px scrubber (x=673..932) is the only flexible element, so it would compress to roughly 93px before anything else gives. Flagged as a prediction, not an observation on this image.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

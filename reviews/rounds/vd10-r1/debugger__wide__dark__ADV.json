@@ -1,0 +1,29 @@
+Expected elements: present
+
+Presence check passes — identity bar (hash, `← demo` chain exit, both stepping directions, scrubber, `128 / 1,315`, phase rail), Code positioned at line 32, Call Trace and Event Log as one tabbed region with Call Trace open, Values a pane below it, DATA row with toned badge and prose. Nothing forbidden.
+
+The weakest element is the amber `Partial` badge — transaction pane x1542-1601 y99-121, repeated in the identity bar at x202-261 y20-42 — read against the line directly beneath it, `Status reason: private-part-succeeded-public-part-succeeded`, y153-184. The badge is painted in the warn family (#fb923c ink, #ea580c border); the sentence whose only job is to explain it says both halves succeeded. One is false and the page gives no way to decide which. This outranks every spacing and contrast defect here: it is the transaction's headline state, it renders twice, and the error is in the tone channel, where an explorer reader takes amber `Partial` to mean something did not work. Nothing on this fixture did. P1 — a state presented as a different state.
+
+I measured this round's changes. (a) is sound: on the #334155 current row the old cyan #06b6d4 gives 4.22:1, the new #67e8f9 7.15:1, and ⊙/⊘ still separate by shape. (c) regresses slightly — COST · MANA's `88000 / 200000` is the same ratio form as `128 / 1,315` yet ungrouped, while equally copyable opcode counts `1,315`/`1,208` are grouped — but a formatting split is not the weakest thing here.
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/ADV/1",
+      "severity": "P1",
+      "location": "Transaction pane, amber `Partial` badge at x1542-1601 y99-121 sitting directly above `Status reason: private-part-succeeded-public-part-succeeded` at y153-184; the same badge repeats in the identity bar at x202-261 y20-42",
+      "finding": "The outcome badge contradicts the reason printed beneath it. `Partial` is drawn in the warn family (#fb923c ink on #202020, #ea580c border) and the only sentence on the page whose job is to explain it states that both the private and the public part succeeded. One of the two is false and nothing on screen lets the reader decide which. It is the page's headline state, it is rendered twice, and the failure is in the tone channel rather than in wording: every explorer this product will be compared against uses amber `Partial` to mean something did not fully work, and on this transaction nothing failed. Note that the correct fix is not a tone recolour — `ooPartial` names the SHAPE of the commit (an Aztec private/public split), and a split can contain a failed part, so the tone must come from `Outcome.parts`, which `reader.nim` currently flattens away before any view sees it. Until that survives the flattening, every surface painting this badge is computing severity from a value that cannot carry the answer. I re-file it on the dark triple because it is unchanged here and because it outranks every aesthetic defect I measured on this image, including the two formatting changes this round shipped.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

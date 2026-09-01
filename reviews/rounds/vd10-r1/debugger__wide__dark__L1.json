@@ -1,0 +1,82 @@
+Expected elements: present
+
+Every must-show is present; nothing forbidden appears. Typographically this is a strong dense surface: two mono sizes used deliberately (8.41px advance ≈14px in Code, 7.45px ≈12.5px in Call Trace and Values), numeric columns cleanly right-aligned (opcodes to x=1519, values to x=1407), and frame name vs path separated 15.52:1 / 5.47:1.
+
+Round changes: (a) LANDED — current-line arm glyph at line 32 measures #67e8f9 on #334155 = 7.14:1 (claim 7.16); the non-current glyph on line 29 is 5.47:1. (b) UNVERIFIABLE HERE — "COST · MANA" occupies x1542-1611 of a 380px label column, so it has no reason to break at 1920; only a narrow capture can confirm it. (c) PARTLY — bar "128 / 1,315" matches Call Trace grouping, and the Values-pane exemption is correct (they are program Field values); but "88000 / 200000" at y=638 is the same N/M construct as the bar, is a resource count not a copyable datum, and is ungrouped. (d) The Code pane's bottom fade dims a complete line — line 61's dominant ink is 3.33:1 where the identical token on line 58 is 10.21:1.
+
+I withdraw the "provenance row is too quiet" concern: its paragraph is the pane's largest and brightest prose (6.78px/char, 21.8px pitch, 6.75:1).
+
+Top fixes: give section headings a level distinct from row labels; stop the fade before the last full code line.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L1/1",
+      "severity": "P2",
+      "location": "Transaction pane, label column x=1542: DATA y=200, BLOCK y=371, TYPE y=401, SELECTOR y=824 vs EXECUTIONS y=658, DECODED INPUT y=800, RAW (CHAIN-NATIVE) y=990",
+      "finding": "Row labels and section headings are rendered identically — 9px caps, #919191, 5.47:1, same tracking. EXECUTIONS, DECODED INPUT and RAW (CHAIN-NATIVE) own full-width content beneath them; DATA, BLOCK, TYPE and SELECTOR label a value to their right. Two structural levels collapsed onto one, so the pane's outline is unreadable without reading it.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/dark/L1/2",
+      "severity": "P2",
+      "location": "Code pane, line 61 at y=1051-1066",
+      "finding": "The bottom fade dims a fully laid-out line, not a clipped one: glyphs are complete (ascenders and descenders present) and the pane ground is a uniform #1b1b1b through y=1074, yet the line's dominant ink is #876745 = 3.33:1 and its brightest token only 5.46:1. The identical string-literal token on line 58 measures #fdba74 = 10.21:1. A 14px regular-weight mono line at 3.33:1 is below the floor, and in a debugger a dimmed source line reads as a semantic state (non-executable) rather than as a scroll edge.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L1/3",
+      "severity": "P2",
+      "location": "Code pane, window notice at y=168-191 spanning x=13-909",
+      "finding": "\"Showing from line 26 — the session's position is below...\" is set in the code face at the code size (8.41px advance, ~107-character measure) at 5.78:1, 8px above line 26, which uses the same face, size and comparable tone. Interface chrome is typographically indistinguishable from content. Every other pane sets its UI prose in the proportional face — \"By call order.\" at y=309 measures 5.4px/char — so the code pane is also the odd one out. The 107-char measure is well past the 45-90 range for a sentence.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/dark/L1/4",
+      "severity": "P2",
+      "location": "Transaction pane, prose blocks at y=234-354, y=710-757 and y=877-974",
+      "finding": "Three paragraphs doing the same job — a producer's sentence explaining what the reader is looking at — sit at two sizes and two emphases. Provenance (y=234) averages 6.78px/char on a 21.8px pitch at 6.75:1; the decoded-input note (y=877) averages 6.53px/char on 21.3px at 6.75:1; the executions note (y=710) averages 5.74px/char on a 19px pitch at 5.47:1, roughly 15% smaller. The extra level is assigned by accident, not by importance, and it lands on an honesty statement about untraceable private execution.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/dark/L1/5",
+      "severity": "P2",
+      "location": "Transaction pane, COST · MANA value at y=638, x=1620-1906, against the identity-bar readout at y=25-37, x=1119-1212",
+      "finding": "\"88000 / 200000\" and \"128 / 1,315\" are the same N-slash-M mono construct 600px apart in one theme, formatted by opposite rules. This round's rationale (grouping omitted where a value is copyable) holds for the Values pane, whose entries are program Field values and which I am not reporting — but a mana allowance is a resource count, not a copyable datum, and nothing on the surface lets a reader infer which rule is in force. B7 asks for comparable formatting across magnitudes.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L1/6",
+      "severity": "P3",
+      "location": "Call Trace, header row at y=107-118",
+      "finding": "One header row carries three emphases: FRAME #a2a2a2 (5.78:1), ACIR #dddddd (10.85:1), opcodes #919191 (4.68:1). The brightest word in the strip is a unit qualifier, and it out-ranks both the left column's own name and every frame path below it (5.47:1), so the eye lands on ACIR first.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/dark/L1/7",
+      "severity": "P3",
+      "location": "Transaction pane, hash chip at y=105-116 (x=1614-1773) above the full hash at y=131-142 (x=1542-1894)",
+      "finding": "\"0xb636167a…66d46359\" sits 15px above the same value in full, at the same face and size, differing only in tone — and the abbreviation is the emphasised one (#f3f3f3, 15.52:1) while the complete value is demoted (#a2a2a2, 6.75:1). The truncation carries no information the line beneath it does not, and the hierarchy points at the lesser of the two.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger/wide/dark/L1/8",
+      "severity": "P3",
+      "location": "Transaction pane, FEE PAYER y=526-560 and TARGET y=577-611",
+      "finding": "A 42-character address is hard-wrapped across two right-aligned mono lines (line 1 x=1638-1906, line 2 x=1823-1906), so continuing one atomic value costs a 185px leftward jump and the pair reads as two values. With the middle-ellipsis chip at y=105 and the full-print row at y=131, the pane now shows three truncation strategies for the same data type.",
+      "criterion": "B7"
+    }
+  ]
+}
+```

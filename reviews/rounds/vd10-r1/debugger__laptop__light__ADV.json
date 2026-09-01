@@ -1,0 +1,33 @@
+Expected elements: present
+
+Presence check passes: identity bar with truncated hash, `← demo` chain exit, both stepping directions, scrubber, `128 / 1,315`, phase rail; Code with line 32 marked; Call Trace / Event Log as one tab strip with Call Trace open (7 frames); Values as its own pane below; transaction pane carrying the `DATA — Synthetic demo data` row and the producer's sentences. Nothing forbidden present.
+
+Weakest element: the phase rail, identity bar, x≈965–1213, y≈20–42. `FETCHING` is filled and blue-lettered; `OPENING` and `POSITIONING` are inert, and nothing marks a phase complete. The only reading available is "the engine is still fetching" — on a session that is demonstrably finished: all eight stepping glyphs render enabled (x≈370–650), the scrubber is filled, the readout reads 128 / 1,315, and Code, Values and seven frames are populated. A state presented as a different state is §9's honesty failure, not polish. P1, B8. The rail came back at 1440 without the status text that gave it meaning; the chips restored the shape of the honest loading state, not its honesty.
+
+The wide P1 holds here unchanged: amber `Partial` (1187,110) sits three lines above `Status reason: private-part-succeeded-public-part-succeeded` (1157–1400, 180–205).
+
+Change (c) is refuted on this screen: 1,315 and ACIR 1,208 are grouped, 10000 (Values) and 88000 / 200000 (COST · MANA) are not — no visible rule separates them.
+
+Rating: n/a.
+
+```json
+{
+  "view": "debugger",
+  "size": "laptop",
+  "theme": "light",
+  "image": "screenshots/debugger__laptop__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/laptop/light/ADV/1",
+      "severity": "P1",
+      "location": "identity bar, phase rail chips at x≈965-1213, y≈20-42 (FETCHING / OPENING / POSITIONING)",
+      "finding": "On a fully loaded, positioned session the rail lights FETCHING and leaves OPENING and POSITIONING inert, with no completion marking, so it asserts the engine is still fetching the trace. Every other signal in the same bar contradicts it: all eight stepping glyphs are enabled (x≈370-650), the scrubber is filled, the readout reads 128 / 1,315, and Code (line 32 current), Values and seven call frames are fully populated. The reader is shown a loading phase and a replayed trace simultaneously and cannot tell which is true. The rail was restored at this viewport without the accompanying status text that previously carried its meaning, so the chips reinstated the form of the honest loading state without its content.",
+      "criterion": "B8"
+    }
+  ]
+}
+```

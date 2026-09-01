@@ -1,0 +1,98 @@
+Expected elements: present
+
+Presence check passes: identity bar (exit to chain, truncated hash, both stepping directions, scrubber, "128 / 1,315", phase rail), Code with a positioned current line, Call Trace/Event Log as one tab strip with Call Trace open, Values as a pane below, DATA provenance row with a toned badge. Dark surface, no explorer chrome.
+
+(a) LANDED. The current-line gutter glyph is now #67e8f9 on the band #334155 = 7.14:1 (claim 7.16); the old #06b6d4 reproduces at 4.26:1. I cannot reproduce the 68-vs-72 luminance pairing: L* is 85.7 (position), 68.2 (executable), 60.2 (the line-29 grey). The mark no longer separates by hue alone and I withdraw that framing. What survives is shape: with colour normalised away, the line-29 and line-32 glyphs share 32 of 34 lit cells, IoU 0.889 (0.79-0.90 over a 0.3-0.7 sweep), greyscale cosine 0.936 - four pixels apart. Demoted to P3.
+
+(d) UNCHANGED. Line 61 (y1051-1066), last line, fully inside: 9.17 -> 5.47 (x-height) -> 3.38 -> 2.20:1; its coverage dot 2.43:1 against 6.86:1 on line 60. Light gives 1.59:1 and 2.60:1. I withdraw the 5x claim: mean ink contrast falls 2.90x in dark and 2.82x in light - one alpha ramp, no gap. Dark is milder by ~1.4x per row, not "much".
+
+New and worst: all eight loop-iteration chips (x366-905, y99-129) label below 4.5:1, the ACTIVE one worst at 3.32:1. Cyan now carries eight meanings.
+
+(b) and (c) read correct; both are L1's.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L3/1",
+      "severity": "P2",
+      "location": "Code pane, loop-iteration chip strip, x366-905 y99-129: chips 1-2 at x366-431 and x434-499, ACTIVE chip 3 at x502-567, chips 4-8 at x571-905",
+      "finding": "Every label in the iteration strip is below the 4.5:1 text floor, and the ACTIVE chip - the one that says which of the eight iterations the session is in - is the worst of the eight. Measured: visited chips 1-2 carry #dddddd numerals on a #727272 fill = 3.54:1; active chip 3 carries a #67e8f9 numeral on the same #727272 fill = 3.32:1; unvisited chips 4-8 carry #727272 numerals on a #202020 fill = 3.39:1. The active state is signalled by the numeral turning cyan plus a 2px #67e8f9 rule at y120-121 and a 2px #f3f3f3 rule at y124-125, so the moment the chip becomes the current one its label LOSES contrast (4.34:1 for #f3f3f3 on that fill would already fail; cyan takes it to 3.32:1). The strip also uses one value in two opposite roles twelve pixels apart: #727272 is the FILL of a visited chip and the INK of an unvisited one. The visited fill is simultaneously the brightest surface in the whole theme (3.58:1 above the pane, above the pane border #565656 at 2.35:1), so the iterations already behind the reader shout louder than the one in front. Give the strip a dark fill with a light label in all three states and carry visited/active on the rule, not on the surface.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L3/2",
+      "severity": "P2",
+      "location": "Code pane bottom fade: line 61 at y1051-1066 (x100-900) and its coverage dot at x78-79 y1058-1060; compare line 60 at y1031-1043 and its dot at x78-79 y1035-1037",
+      "finding": "Re-measured independently and unchanged. The mask is a 24px linear alpha ramp over the pane CONTENT only (the pane surface stays #1b1b1b to the border at y1075); measured alpha at y1065 is 0.315 in dark and 0.329 in light, i.e. one ramp shared by both themes. Line 61 is the last rendered line, its box ends nine pixels clear of the border and there is no ink at all between y1067 and y1074, so the fade is dimming a complete final line for nothing. Row-peak contrast ramps 9.17:1 (y1052) to 5.47:1 at the x-height (y1058) to 3.38:1 at the baseline (y1063) to 2.20:1 at the descender (y1066); 56% of line 61's ink pixels are under 3:1 against 27% for line 60, and the ink mean falls from 8.46:1 to 2.92:1. The line-61 coverage dot measures 2.43:1 on its upper row and 3.62:1 at peak against 6.86:1 for the identical dot on line 60 - the fade halves a state marker that has no redundant encoding. The previously recorded 2.19-2.22:1 and 2.43-2.60:1 both reproduce exactly (dark 2.20 and 2.43; light 2.19 and 2.60). WITHDRAWN on measurement: the claimed 5x light/dark gap in what the mask costs does not exist - the mask costs 2.90x in dark and 2.82x in light, a 1.03x difference. Dark is genuinely milder than light, but by about 1.4x per row, not by a lot: light's x-height row is 3.90:1 and fails, dark's 5.47:1 passes. Stop the mask at the last full line box and exempt gutter marker glyphs.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/dark/L3/3",
+      "severity": "P2",
+      "location": "page-wide: scrubber fill x673-696 y28-36; iteration chip 3 numeral x532-537 and rule y120-121; Code current-line arm x5-6 and x7-8 y352-374; current line number x47-64 y353-374; current-position glyph x75-82 y360-368; coverage dots x78-79 on 18 executable lines; Call Trace selected-frame rail x922-923 y251-276; type tokens (Field, u32) throughout the Code pane",
+      "finding": "Clustering every saturated cyan pixel on the page returns EIGHT unrelated meanings in three tints, one more than the six previously counted. #22d3ee is replay progress (scrubber elapsed, 9.53:1). #06b6d4 is both trace coverage (gutter dots) and the inner half of the current-line arm. #67e8f9 carries six things by itself: the active iteration numeral and its rule, the current-line arm's outer half, the current line number, the current-position gutter glyph, the Call Trace selected-frame rail, and - by far the largest cyan area on the page, roughly a thousand pixels across thirty-odd tokens - the source syntax colour for type names. So the tint boundaries do not follow the meaning boundaries, and the single most frequent use of the position colour is a syntax colour that has nothing to do with position. Links are a separate indigo (#818cf8, 5.77:1) and are not part of the problem. Type tokens are the one to move: they are the only cyan role that is not a state.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/4",
+      "severity": "P2",
+      "location": "Transaction pane neutral badges: AGE 'No timestamp published' (y430-448), CANONICAL 'Yes' (y462-480), FINALITY 'Safe' (y494-512), EXECUTIONS 'Not observable' (x1600-1720 y678-698)",
+      "finding": "Unchanged: the neutral badge tone still does not exist in dark. All four use fill #202020 on pane #1b1b1b (1.06:1) and border #3a3a3a (1.51:1), so neither the fill nor the outline resolves and they read as loose text with a stray outline. Every toned sibling does resolve: 'Trace ready' green #16a34a 4.94:1 twelve pixels away in the same group, 'Partial' orange #ea580c 4.58:1, 'Synthetic demo data' blue #2563eb 3.15:1. The neutral variant is 2.1x to 3.3x weaker than the weakest toned one. This is the clearest place the dark theme reads as inherited by inversion rather than designed: a near-white fill with a light-grey border separates from white; its numeric inverse does not separate from #1b1b1b. The neutral badge needs its own fill (around #2e2e2e) and border (around #565656) rather than an inverted light-theme pair.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L3/5",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) code block, x1543-1906, bottom edge y1060-1075",
+      "finding": "Unchanged: masking the pane body fades the nested RAW block's own surface and erases its bottom boundary. The block is separated from the pane by a tone step only - #000000 against #1b1b1b, 1.22:1, no border - and the ramp lifts the block interior to #1a1a1a by y1074, i.e. 1.01:1 against the pane. Sampled down x1700 the block surface climbs #0a0a0a (y1059), #101010 (y1065), #161616 (y1070), #1a1a1a (y1074): the bottom edge and both bottom corners are simply gone. A 46px horizontal ramp does the same to the right edge (x1900 sits at #171717 for the block's whole height). Dark is the worse theme here because the un-faded separation is already only 1.22:1, leaving no margin to spend. Exclude nested surfaces from the pane mask, or give the block a border that survives it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L3/6",
+      "severity": "P3",
+      "location": "Code pane gutter, not-executed glyph on line 29 at x74-83 y290-300 versus current-position glyph on line 32 at x74-83 y359-369",
+      "finding": "PARTIAL WITHDRAWAL on measurement. The colour change landed and I verify it independently: the current-position glyph is now #67e8f9 on the current-line band #334155 = 7.14:1, against the 4.26:1 that #06b6d4 on the same band still measures - the claimed 4.26 -> 7.16 is right to within rounding. I could NOT reproduce the sibling's 'two inks close in luminance, roughly 68 vs 72': measured CIE L* is 85.7 for the position ink, 68.2 for the executable ink and 60.2 for the line-29 grey #919191, and the position ink against the line-29 grey is 2.17:1, so the two marks now differ in lightness as well as hue. The 'separable by hue alone' characterisation from the previous round is therefore withdrawn. What is NOT fixed is the shape. Normalising each patch to an alpha map against its own background and binarising, the two glyphs share 32 of 34 lit cells - IoU 0.889 at threshold 0.5, 0.900/0.892/0.812/0.793 across a 0.3-0.7 sweep, 106 of 110 cells identical, greyscale-normalised cosine 0.936. They are a ring with a diagonal stroke and a ring with a vertical stroke, four pixels apart at 8px. Demoted from P2 to P3 because the current line now carries four redundant cues (band, 4px arm, cyan line number, cyan glyph) that line 29 does not; the residual risk is the not-executed marker, which should not be a ring at all.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/7",
+      "severity": "P3",
+      "location": "Code pane, current-line arm, x5-6 (#67e8f9) and x7-8 (#06b6d4), y352-374",
+      "finding": "The current-line arm is drawn as a two-tone 4px rail whose two halves are 1.67:1 apart (#67e8f9 Y=0.674 against #06b6d4 Y=0.383). That is below the 3:1 non-text floor, so at 1x the subdivision is carried by chroma alone and the arm reads as one cyan bar with a soft edge; the only thing the inner band achieves is spending the second cyan tint on nothing. Either drop to a single 4px #67e8f9 arm or make the inner band a real step (e.g. #0e7490, which would put the pair around 3.2:1).",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/dark/L3/8",
+      "severity": "P3",
+      "location": "identity bar scrubber unplayed track x700-932 y28-36, against the visited iteration chip fill x366-499 y99-129",
+      "finding": "One surface value carries two opposite meanings 70 pixels apart. #727272 (3.58:1 above the pane, the brightest surface in the theme - brighter than the pane border #565656 at 2.35:1 and every content surface) is the scrubber's NOT-YET-REACHED track and simultaneously the ALREADY-VISITED iteration chip's fill. In a dark theme the not-yet-reached region should be the recessive element; here it and its semantic opposite share a tone, and the 23px cyan elapsed fill has to out-shout 232px of it. A track around #3a3a3a would let the fill carry the reading and free #727272 to mean one thing.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L3/9",
+      "severity": "P3",
+      "location": "identity bar, all eight stepping-control icons x374-652 y20-44; phase rail OPENING/POSITIONING x1316-1476 y22-42",
+      "finding": "Unchanged: there is no disabled level in the dark neutral ramp. Every control icon measures #919191 / 5.47:1 against #1b1b1b and every button face is identical, while the status reads 'Engine loading - 18 MB' and the rail shows FETCHING active (#60a5fa, 6.41:1 on its #202020 chip) with OPENING and POSITIONING pending in the same #919191 as the enabled controls and as every other muted label on the page. The expectation block leans partly on 'the buttons' disabled state' to carry the loading state, but the ramp stops at #919191, so any disabled step would have to fall below 4.5:1. Define a disabled level (around #6d6d6d, 3.6:1 - acceptable for a non-text glyph) and a distinct pending level for the rail.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/dark/L3/10",
+      "severity": "P3",
+      "location": "Code pane inline value chips: 'damage: 0->2000' x490-600, 'mass=200' x612-672 and 'shield_pct=90' on current line 32 (y353-374), versus 'damage=0' x324-392 (y238-258) and 'result=90' (y768-790)",
+      "finding": "Unchanged: the inline chip inverts its surface relationship on the one line the reader is looking at. The fill is #282828 everywhere, which sits one level ABOVE the pane #1b1b1b (1.17:1 lighter) on ordinary lines but one level BELOW the current-line band #334155 (1.42:1 darker) on line 32, so the same component reads as raised on thirty-five lines and recessed on the current one. Its label flips too - #919191 on ordinary lines, #f3f3f3 on the current one - so the chip changes both of its colour relationships at once. Tint the chip relative to its own row instead of using a fixed fill.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

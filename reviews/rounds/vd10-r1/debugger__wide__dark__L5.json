@@ -1,0 +1,62 @@
+Expected elements: present
+
+All must-shows are on the frame: identity bar with chain exit "← demo" (24-88,31), truncated hash, Partial badge, both stepping directions (384-648,31), scrubber, "128 / 1,315", phase rail; Code pane with the position at line 32; Call Trace/Event Log as one tab strip, Call Trace open; Values as a pane below it; the DATA provenance row with badge and the producer's sentences (1541-1908, 197-345). No forbidden item.
+
+Change (a) landed: line 32's arm glyph and rail take position cyan #67e8f9 against the executable #06b6d4 dot on lines 26/28/31. Change (b) is not observable here — "COST · MANA" (1541-1620,633) sits on one line at this width. (d) confirmed unchanged.
+
+I tested the sibling's accent headline; it holds in dark but I do not file it. `--bt-accent-default` #818cf8 appears in exactly four clusters — (24-75,26-35), (182-212,109-120), (1468-1519,309-320), (1865-1906,374-386) — 638 px, 0.03% of the frame, all four hyperlinks. That is one hue with one meaning, correct discipline for a tool register; the desktop app carries no brand splash either. Withdrawn as a defect.
+
+Findings: P2 — an unnamed four-state gutter vocabulary; the thousands-grouping split, where I concur with the sibling; a raw protocol enum printed as prose. P3 — the DATA badge drawn as a metadata chip; the pane fade erasing the RAW block's surface.
+
+Highest-priority fixes: name the gutter marks on the page, and pick one grouping rule.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "dark",
+  "image": "screenshots/debugger__wide__dark.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/dark/L5/1",
+      "severity": "P2",
+      "location": "Code pane gutter, x≈7 (rail) and x≈79 (glyph): line 26/28/31 at y=225/272/341, line 29 at y=295, line 32 at y=364",
+      "finding": "Change (a) landed — line 32's arm glyph and rail now take position cyan #67e8f9 against the #06b6d4 executable dot — but it makes the vocabulary less learnable, not more. The gutter runs four states: cyan `·` (26/28/31), grey `⊘` plus grey rail (29), cyan `⊙` plus cyan rail on the position band (32), and nothing at all (30/33). `▶` is never painted, so `⊙` is the only glyph on the current line and it is the only `⊙` on the frame — and it is painted in position ink. A reader has no counter-example and will read it as \"you are here\" when it means \"this arm ran in the displayed pass\". Nothing on the page names any of the four: no key in the Code pane header (12-900,81), none in the \"Showing from line 26\" note (12-762,178), none anywhere. A daily CodeTracer user reads `⊘`/`⊙` from the desktop app's flow-not-taken pair; this register's actual visitor arrives from the explorer with no account and no install, and meets it cold.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/dark/L5/2",
+      "severity": "P2",
+      "location": "identity bar readout (1128-1216,31) and Transaction pane COST · MANA value (1690-1793,636); also Call Trace ACIR column (1481-1520, y=137/162) against Values pane (1370-1409,713)",
+      "finding": "I formed my own view and reach the sibling's: the grouped/ungrouped rule is not inferable from the page. The frame carries its own counterexample — the identity bar prints \"128 / 1,315\" and the Cost row prints \"88000 / 200000\", two readouts with identical `N / M` slash syntax in the same register, 600px apart, formatted two ways. Copyability does not separate them: the Call Trace opcode counts \"1,315\"/\"1,208\" are exactly as selectable as \"10000\" in Values, so a reader cannot derive \"grouped means don't copy me\" from anything visible. Numeric formatting is a primitive shared with the explorer register, and here it is inconsistent inside one register on one screen.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/dark/L5/3",
+      "severity": "P2",
+      "location": "Transaction pane, third row: \"Status reason: private-part-succeeded-public-part-succeeded\" at (1541-1908, 160-181), wrapping to two lines directly beneath the full hash",
+      "finding": "A raw hyphenated protocol enum is rendered as user-facing prose at the top of the flagship pane. Three rows below it the same pane writes \"Every block, transaction, address and hash on this chain is generated from a fixed seed…\" and \"Aztec private functions execute client-side; only proofs, nullifiers and commitments are published…\" — edited English in the producer's voice. Tone of copy is a design property in this product, and this line is the one place on the frame where the machine's own identifier is passed through unedited. It also reads as a failure at a glance (\"reason\" plus a long hyphenated string) when both halves in fact succeeded."
+    },
+    {
+      "id": "debugger/wide/dark/L5/4",
+      "severity": "P3",
+      "location": "Transaction pane: DATA badge \"Synthetic demo data\" (1752-1908, 197-218) against the metadata chips \"Yes\" (1872-1902, 463-479) and \"Safe\" (1866-1904, 495-511) in the same column",
+      "finding": "Answering the question the brief invites: the row is not too quiet in AREA — it spends 140px on three sentences, more than any other row in the pane. Its badge is the quiet part. It takes the same outlined-chip primitive, height, radius and label size as CANONICAL/Yes and FINALITY/Safe, differing only in hue (#60a5fa fill on a #2563eb outline versus grey), and its label \"DATA\" is the same 10px uppercase grey as BLOCK, TYPE, AGE. Structurally the strongest honesty claim on the page is drawn as the sixth field in a nine-field metadata list. I hold this at P3 because the content is present, correct and legible; only the primitive is borrowed.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/dark/L5/5",
+      "severity": "P3",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) block, bottom edge — sampled at x=1700: #000000 at y=1048 ramping through #020202 (1052), #0b0b0b (1060), #181818 (1072)",
+      "finding": "Judged as found, and unchanged. The `.panebody` mask composites the whole subtree, so it erases the RAW block's own #000000 code surface rather than only its ink: the black card dissolves into the #1b1b1b pane over the last 24px instead of ending, and its bottom hairline goes with it. The code-block surface is a primitive shared with the explorer register's raw transaction view, where it has a defined boundary; here it does not, so a reader cannot tell whether the block ends or the frame is cut. The contrast half of this belongs to L3 and I am not re-filing it; the register-consistency half is that one shared primitive loses its shape when it crosses into this pane.",
+      "criterion": "B4"
+    }
+  ]
+}
+```
