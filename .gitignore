@@ -72,3 +72,20 @@ nimcache/
 /client/dist-hydrated/
 /client/.hydrated-build/
 /client/nimcache-hydrated/
+
+# The journey layer's engine cache. The same 18 MB as `/client/dist/replay-engine`
+# and NOT the same directory, deliberately: `src/static_export.nim` removes
+# `dist/` and writes it again, so an engine staged inside it is destroyed by the
+# next export — which is how a mutation harness that rebuilds between arms comes
+# to run every session journey against no engine at all. Fetched by
+# `just journeys-engine`, re-staged into `dist/` by `tools/journeys/lib/engine.mjs`.
+/client/.replay-engine-cache/
+
+# The journey selftest's per-arm report, read back to decide whether the arm
+# was killed. Regenerated on every run.
+/tools/journeys/.selftest-report.json
+
+# `just journeys-deployed` stages `nix build .#default`'s output here, because
+# the store path is read-only and the engine has to be copied in beside it.
+/.journey-site/
+/journey-report.json

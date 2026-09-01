@@ -1,0 +1,37 @@
+{
+  "_comment": [
+    "Journeys known to be RED on this branch, with the reason and the work that closes each.",
+    "",
+    "THIS FILE FAILS IN BOTH DIRECTIONS. An entry does not silence a journey — the journey",
+    "still runs, still prints every failed assertion, and is still counted. What the entry does",
+    "is stop the exit code from blocking every other branch on a defect that is already known",
+    "and already stated. And a ledgered journey that goes GREEN fails the run, so an entry",
+    "cannot outlive its defect: whoever lands the fix is told, by name, to delete the line.",
+    "",
+    "An entry is only legitimate with a `closed_by` that names real work and an `evidence` line",
+    "that says what was measured. A ledger entry written to make a suite green is the defect",
+    "this whole layer exists to catch, wearing the suite's own uniform.",
+    "",
+    "All three entries below were found BY this layer, on dev, at the commit that introduces",
+    "it. None of them is visible to any existing gate: two are defects of the hydration bundle,",
+    "which every Nim suite in the tree is blind to because they drive `renderToString`, and the",
+    "third is on the six real-chain sessions that the 108 `.srcline` assertions never covered."
+  ],
+  "known_red": {
+    "position-survives-hydration": {
+      "reason": "The HYDRATED arm marks nothing. The served frame is correct — 42 lines on screen, one marked, in the file the position is in — and after hydration the same page shows the same file with 0 lines marked, while the session still publishes step=128 of 1315. So the position survives the server and is lost by the bundle a visitor loads. The SERVED half of this journey is green and is the control: it is what proves the red half is a statement about the hydration path and not about the assertion.",
+      "evidence": "dev @ bd39317, client/dist built by `just export-hydrated` + fetch-engine: SERVED marked=1 (src/shield.nr:32), HYDRATED marked=0, docsShown=1 (src/shield.nr), step=128/1315.",
+      "closed_by": "unowned as of 2026-09-01. The nearest work is `fix/current-line-marker` (98ccd72, a490ee3, 79c4f48), which adds the mark to both of `renderSource`'s outputs and checks the bundle for it — but it was written against the SSR path and the static export, and this journey measures the bundle after it has re-rendered the pane. Needs `client/hydrate/hydrate.nim`'s re-render to carry the position through, or a statement of why it cannot."
+    },
+    "stepping-moves-the-position": {
+      "reason": "A step advances the URL and moves nothing on the screen. `?t=` goes 1 -> 5 and the recovery anchor goes main.nr:12 -> main.nr:13, so the click reaches the engine and the engine steps; `data-step` stays pinned at its landing value and no line is ever marked. This is Verification-Harness-Traps.md §2 in the product rather than in a harness: every success is real and the artefact never changed.",
+      "evidence": "dev @ bd39317: CONTROL green (query advanced), data-step 128 -> 128, marked 0 -> 0 across two step-forward clicks.",
+      "closed_by": "unowned as of 2026-09-01. Shares a cause with `position-survives-hydration` — both are the bundle's re-render — and should be closed with it."
+    },
+    "a-positioned-session-says-where-it-is": {
+      "reason": "Six frozen real-chain sessions publish a position (step 128 of 235/345/1315) and never say where it is. They correctly state that the chain publishes no source for the contract and that stepping is at instruction level — that half is right and journey 01 asserts it — but the other half of the sentence is missing: there is no line to mark and no statement of the step, so a visitor on a chain transaction is told only what is absent. This is the user-reported defect 'no current-line indicator on chain transactions', in the form the spec actually requires.",
+      "evidence": "dev @ bd39317: 6 of 12 positioned sessions carry marked=0 and no visible position statement; the other 6 (the demo chain) mark a line and pass the same rule.",
+      "closed_by": "`fix/current-line-marker` (98ccd72 + a490ee3, worktree .agent-wt/bt-curline), which adds `renderPositionHead` — 'The session is stopped at step N of M' — to the pane that has no line to mark, and a control arm proving the statement is absent where there is no position. This journey should go green when that lands, and this entry must be deleted in the same change."
+    }
+  }
+}

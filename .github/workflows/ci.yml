@@ -449,3 +449,84 @@ jobs:
 
       - name: The static export still round-trips with the new route in it
         run: nix develop .#ci --command bash -c 'cd client && just test-export'
+
+  # ── Journey conformance ────────────────────────────────────────────────────
+  # Spec claims, judged in a browser, over the artefact this repository DEPLOYS.
+  #
+  # WHY THIS JOB EXISTS. Every other job here asserts one component's contract:
+  # the route classifies, the renderer emits the class, the exporter round-trips,
+  # the tokens resolve. Four user-visible defects passed all of them, because no
+  # check anywhere stated an end-to-end claim — and the two the debug route lost
+  # were invisible to `test-debug-route`'s 115 cases specifically because those
+  # cases drive `renderToString`, and what a visitor loads is that markup plus
+  # `client/hydrate/hydrate.js` re-rendering every pane on top of it.
+  #
+  # WHY IT BUILDS WITH NIX RATHER THAN WITH `just export-hydrated`. `nix build
+  # .#default` is what `deploy-cloudflare-pages.yml` uploads. Running the local
+  # exporter here would test a build no visitor is served, and this repository
+  # has already been bitten by driving the wrong one of the two.
+  #
+  # WHY IT IS ITS OWN JOB. `visual-design-canary` owns the pinned browser for
+  # PIXELS and asserts byte-identity between two runs; this asserts BEHAVIOUR and
+  # must be free to click things, which would invalidate that job's determinism
+  # claim. Sharing the runner would couple a screenshot baseline to a step
+  # sequence.
+  journeys:
+    runs-on: eph-linux-x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Nix
+        uses: metacraft-labs/nixos-modules/.github/setup-nix@main
+        with:
+          trusted-public-keys: ${{ vars.TRUSTED_PUBLIC_KEYS }}
+          substituters: ${{ vars.SUBSTITUTERS }}
+          nix-github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: What the pinned browser environment fixes
+        run: nix run .#capture-env -- --print-pin
+
+      - name: Install the pinned Playwright npm package
+        # ONE pin for the whole repository. `tools/journeys` resolves playwright
+        # out of `tools/capture/node_modules` rather than declaring a second
+        # dependency, because a skewed pair works and silently behaves
+        # differently — which is why lib/pinned-env.mjs refuses a skew.
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: nix develop .#capture --command npm --prefix tools/capture ci --no-audit --no-fund
+
+      - name: Build the site the deploy uploads
+        # `.#default` and not the local exporter: hydrate/build.sh --require runs
+        # first, so a tree that cannot produce the bundle fails HERE rather than
+        # serving the pre-hydration page and passing.
+        run: nix build .#default
+
+      - name: Stage it, and copy the replay engine to its own origin
+        # §5.1: `new Worker(scriptURL)` requires a same-origin script, so the
+        # engine is COPIED rather than linked — the same step, from the same
+        # script, that deploy-cloudflare-pages.yml runs.
+        run: |
+          rm -rf .journey-site && mkdir -p .journey-site
+          cp -R result/. .journey-site/
+          chmod -R u+w .journey-site
+          ./client/hydrate/fetch-engine.sh .journey-site/replay-engine
+
+      - name: Do the journeys bite?
+        # BEFORE the verdict, never after. Four mutations in real product source,
+        # each aimed at one named assertion. A suite whose assertions cannot fail
+        # would otherwise report a clean sweep over anything at all — and this
+        # step runs the local exporter, so it also proves that build still works.
+        run: nix run .#capture-env -- node tools/journeys/selftest.mjs
+
+      - name: The journeys, over the deployed artefact
+        run: |
+          nix run .#capture-env -- node tools/journeys/run.mjs \
+            --dist .journey-site --json journey-report.json
+
+      - name: Evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: journey-report
+          path: journey-report.json
+          if-no-files-found: warn

@@ -316,6 +316,49 @@ Exact `client/Justfile` targets (run from `client/`; verified):
 | `cd client && just preview` | Runs `export`, then serves `dist/` at **http://localhost:8080** |
 | `cd client && just clean` | Removes `dist/ nimcache` + built test/export binaries |
 
+### Journey conformance — the layer that judges what a visitor sees
+
+Everything above asserts one component's contract over rendered *markup*. The
+**journey layer** (`tools/journeys/`, run from the repository root) asserts spec
+sentences — *"a visitor who opens X sees Y"* — by loading the artefact CI
+deploys in a real browser. It exists because four user-visible defects passed
+every gate in this repository, and none of those gates ever stated an
+end-to-end claim.
+
+| Command | What it does |
+|---------|--------------|
+| `just journeys-engine` | once: fetch the replay engine into `client/.replay-engine-cache` (NOT into `dist/`, which the exporter removes) |
+| `just journeys-build` | `export-hydrated`, then run every journey |
+| `just journeys-deployed` | the same over `nix build .#default` — byte-for-byte what the deploy uploads |
+| `just journeys-selftest` | four mutations in real product source, each aimed at one named assertion |
+
+CI: the **`journeys`** job in `.github/workflows/ci.yml`.
+
+Three rules a new journey must obey — the full list is
+[`tools/journeys/README.md`](./tools/journeys/README.md):
+
+- **Never name a fixture.** No journey may name a file, a line, a step, a chain
+  or a transaction. Subjects are selected by a property read off the exported
+  tree; expectations are relations between two things the page reports. The
+  `Nargo.toml` defect survived 115 cases because the fixture supplied the
+  position they asserted back.
+- **Assert what is RENDERED.** The source pane holds every file at once and
+  hides all but one with CSS, so `.srcline` counts lines that *exist*. Go
+  through `checkVisibility`, as `lib/probe.mjs` does.
+- **Declare the assertion count.** A journey exports `assertions`, and the
+  runner fails on a mismatch in either direction — an early return reports
+  fewer passes, not a failure, unless the count is checked.
+
+**`just export` vs `just export-hydrated` is not a detail.** The two disagree
+about the debug route: the served frame marks the execution position and the
+hydration bundle currently does not. `packages.default` ships the bundle, so the
+journeys refuse a non-hydrated tree with exit 2 rather than judging a product no
+visitor is served.
+
+`ledger.json` records the journeys currently RED, with evidence and an owner.
+It fails in **both** directions — a ledgered journey that goes green fails the
+run, so an entry cannot outlive its defect.
+
 `just preview` is a plain static server (rebuild + refresh — **no hot reload**).
 isonim's framework dev server offers websocket live-reload (see
 [dev-server.md](../isonim-docs/site/content/dev-server.md)) but this repo's

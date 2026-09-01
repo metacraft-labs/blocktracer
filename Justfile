@@ -159,6 +159,55 @@ capture-selftest-pinned:
 capture-gate:
     node tools/capture/require-deterministic.mjs
 
+# ── Journey conformance (spec claims, judged in a browser) ──────────────────
+# Each journey is a sentence from the spec — "a visitor who opens X sees Y" —
+# asserted by loading the artefact CI deploys in a real browser. See
+# tools/journeys/README.md for what is and is not claimed.
+#
+# These are NOT `just test`: that recipe is the Nim suites over rendered markup,
+# which run in seconds and need no browser. These need a built site, a browser
+# and — for the two stepping journeys — the 18 MB replay engine.
+
+# NOT into client/dist: the exporter removes that directory and writes it again,
+# so an engine staged inside it is destroyed by the next export.
+
+# Fetch the replay engine into client/.replay-engine-cache, once (18 MB).
+journeys-engine:
+    ./client/hydrate/fetch-engine.sh client/.replay-engine-cache
+
+# Run the journeys over an already-built site (client/dist).
+journeys *ARGS:
+    node tools/journeys/run.mjs {{ARGS}}
+
+# `export-hydrated`, not `export`: the two disagree about the debug route, and
+# the deployed one is the one that ships the hydration bundle.
+
+# Build the deployed shape, then run every journey over it.
+journeys-build: journeys-engine
+    cd client && just export-hydrated
+    node tools/journeys/run.mjs
+
+# Slower than `journeys-build` and the stronger claim: it removes every question
+# about which flags the local build used. This is what CI runs.
+
+# The journeys over `nix build .#default` — byte-for-byte what the deploy uploads.
+journeys-deployed:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    nix build .#default
+    rm -rf .journey-site && mkdir -p .journey-site
+    cp -R result/. .journey-site/
+    chmod -R u+w .journey-site
+    ./client/hydrate/fetch-engine.sh .journey-site/replay-engine
+    node tools/journeys/run.mjs --dist .journey-site
+
+# Each mutation is restored byte-for-byte, and the assertion is proved green
+# again afterwards — otherwise a mutation that failed to apply scores a kill.
+
+# Do the journeys bite? Four mutations, each aimed at one named assertion.
+journeys-selftest:
+    node tools/journeys/selftest.mjs
+
 # All four VD.0 verifications, end to end.
 capture-selftest:
     node tools/capture/selftest.mjs
