@@ -186,9 +186,38 @@ export function landingOf(phase) {
 import { readFile as _readFile } from "node:fs/promises";
 
 /**
- * The capability tour's manifest — `fixtures/trace/tour/manifest.json`, schema
- * `blocktracer/demo-tour/v1`. Eight programs, each addressable by `id` and by
- * `capabilities[]`.
+ * The schemas of `fixtures/trace/tour/manifest.json` this layer has actually
+ * READ, as opposed to the ones it would be guessing at.
+ *
+ * v2 landed with the corpus enumeration (`the corpus, enumerated from the
+ * language rather than from what anyone remembered`) and this set did not move
+ * with it, so `tourManifest` threw on its own fixture. The cost was not a loud
+ * failure, it was a QUIET one: journey 08 threw on its first line, `run.mjs`
+ * recorded the single assertion "the journey threw", and its ledger entry —
+ * keyed on the journey id and not on the reason — went on absorbing the exit
+ * code. The journey stayed red, the ledger stayed satisfied, and the diagnosis
+ * on file described a defect nobody was measuring any more. A ledger entry can
+ * only speak for the failure it was written about; a journey that changes its
+ * failure underneath one is invisible.
+ *
+ * v2 IS READ, and this is what was checked before adding it: the four things
+ * this layer takes out of the manifest — `programs[]`, and each program's
+ * `package`, `capabilities[]` and `trace.steps` — carry the same meaning and
+ * the same shape they had in v1. What v2 added is a ninth program (`limits`),
+ * two new top-level keys (`sets`, `toolchainPrograms`), and whitespace. Note
+ * `toolchainPrograms` in particular: it is a SEPARATE key, so the programs this
+ * layer enumerates are still exactly the recordable ones a visitor can open,
+ * and a selection by capability cannot pick up a program that was never
+ * published.
+ */
+const KNOWN_TOUR_SCHEMAS = new Set([
+  "blocktracer/demo-tour/v1",
+  "blocktracer/demo-tour/v2",
+]);
+
+/**
+ * The capability tour's manifest — `fixtures/trace/tour/manifest.json`. Nine
+ * programs, each addressable by `id` and by `capabilities[]`.
  *
  * READING IT IS NOT BORROWING THE ANSWER. Its `expectations` are written FROM
  * THE SOURCE — "`triangular(6)` sums 0..5, so `acc` takes 0, 0, 1, 3, 6, 10, 15"
@@ -212,9 +241,12 @@ export async function tourManifest(repoRoot) {
   } catch (err) {
     throw new Error(`${path} exists and is not valid JSON: ${err.message}`);
   }
-  if (parsed.schema && parsed.schema !== "blocktracer/demo-tour/v1") {
+  if (parsed.schema && !KNOWN_TOUR_SCHEMAS.has(parsed.schema)) {
     // A schema this code has not read is not a manifest it may guess at.
-    throw new Error(`${path} declares schema '${parsed.schema}', which this layer does not know`);
+    throw new Error(
+      `${path} declares schema '${parsed.schema}', which this layer does not know ` +
+        `(it has read: ${[...KNOWN_TOUR_SCHEMAS].join(", ")})`,
+    );
   }
   return parsed;
 }
