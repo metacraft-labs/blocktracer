@@ -132,6 +132,45 @@ and `.copyfailed`, which is `reviews/QUEUED-DECISIONS.md` Q23.
 mechanism, check which build you mean.** An explanation naming a mechanism is a
 claim about an artefact.
 
+## 1c. The demo chain's capability tour
+
+`/demo` is not a ledger anyone can look anything up in — it is generated from a
+fixed seed and badged **Synthetic demo data** on every page. What it is FOR is
+answering "what can this debugger show me?", and until 2026-09-01 it answered
+badly: one recording (`noir_space_ship` / `zk_shields`) stood behind all ten of
+its transactions, so opening any of them opened the same program.
+
+The corpus is **`fixtures/trace/tour/`** — eight small Noir programs, each with
+its own `.ct` container recorded by `nargo trace`, and a `manifest.json` saying
+what each demonstrates and what its recording must contain. Read its
+[README](./fixtures/trace/tour/README.md) before touching it.
+
+| | |
+|---|---|
+| Publish | `generate` reads `DemoConfig.tourDir` and emits one transaction per program in **block 90**, each with its OWN container bytes and its OWN source bundle |
+| Index | `d/{chain}/g/{gen}/tour.json`, read by `reader.tour` and rendered by `pages/chain.nim` above both tables. A chain with no `tour.json` renders no tour — real chains never have one |
+| Re-record | `fixtures/trace/tour/record.sh` — **deliberately, not on every build**. `nargo trace` is not byte-deterministic |
+| Check | `cd client && just test-capability-tour` |
+
+Three rules that are load-bearing rather than stylistic:
+
+- **Block 90, below the M5c tree's 100–102.** `tools/capture/lib/entities.mjs`
+  walks newest block first and pins every debugger view by what the trace IS.
+  Eight new `ready` transactions above 102 would take `readyTx` from the
+  transaction the review corpus is recorded against. The tour ADDS subjects; it
+  moves none. Same argument that put txF–txJ at the end of block 100.
+- **The tour's fee payers and contracts are keyed `500 + i`**, disjoint from
+  everything else, so no existing address history gains a segment and
+  `pagedAddress` / `contractWithSource` keep their subjects.
+- **`demo_session.nim`'s replay describes ONE program.** Its position, call
+  frames, values and event stream are `zk_shields`, and `withPublishedSources`
+  now checks whether the bundle that won is that program's — a tour page would
+  otherwise render `triangular` in the Code pane and `iterate_asteroids` in the
+  Call Trace beside it. Where it is not, the three replay panes say the detail
+  needs the engine and the controls report no position. **This is the tour's
+  known gap on the static route**: the source is the program's own, the replay
+  is nobody's until hydration runs.
+
 ## 2. isonim architecture
 
 **isonim** is a cross-platform reactive UI framework for Nim (signals / effects /

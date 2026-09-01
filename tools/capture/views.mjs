@@ -431,7 +431,7 @@ export const VIEWS = [
     // through `primaryChain`, which is the demo chain, so it is where the
     // neutral-tone banner is graded. Its `--testnet` and `--mainnet` siblings
     // below carry the affirmative-tone half.
-    covers: ["chain-overview", "provenance.synthetic"],
+    covers: ["chain-overview", "chain.capability-tour", "provenance.synthetic"],
     register: "explorer",
     status: "ready",
     route: (ix) => `/${ix.primaryChain}`,

@@ -217,6 +217,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - THE PROVENANCE MARKER, on a chain-scoped page: a badge naming what this data IS — `Synthetic demo data` in the neutral tone, or `Real Aztec <network> data` in the affirmative tone. It is the only thing on the page that tells a reader whether the hashes in front of them exist on any network, so it is graded as CONTENT and not as decoration: missing, naming the wrong chain, carrying a tone that contradicts its label, or unreadable against its surface in either theme is a P1. WHICH FORM IT TAKES DEPENDS ON THE PAGE, and all three are correct — revised 2026-08-31, when a band on every page was replaced by a band only where something is abnormal: (a) a full-width `.notice` BAND with the producer's sentences, on a page whose data is SYNTHETIC and which has no facts grid of its own — a block, an address, a list, a chain overview; (b) a compact `.provchip` badge above the breadcrumb, on those same pages when the data is REAL; (c) a `Data` ROW at the top of the transaction facts grid, on any page that has one, carrying the badge and the producer's sentences. Exactly ONE of the three is present on any page — two markers is a finding, and so is none. Do not report the absence of a BAND on a real-chain page as missing provenance: that is the change, and the chip or the row is where to look.
   - On a SITE-LEVEL page — `/about`, `/settings`, `/search`, `/chains`, 404 — the provenance marker is correctly ABSENT in ALL THREE of its forms, because those pages show no chain's data and the component returns nothing rather than inventing a claim on a producer's behalf. Its absence there is not a finding, and reporting it as one is the error this item exists to prevent in the other direction.
 - A head/finalized/blocks/transactions/coverage stat row, each figure labelled — the registry and pointer facts a visitor needs before reading either list.
+- THE CAPABILITY TOUR, above both tables: a heading (`What this debugger can show`), a sentence saying each entry is a small Noir program recorded into its own container, and one row per program carrying its title as a link into that program's debugging session, a one-sentence summary, its capability tags and its step/call counts. Added 2026-09-01, and the ORDERING is the claim being graded: it sits between the stat row and `Latest blocks`, because a visitor arriving on a synthetic chain is not here to read a ledger of hashes that exist nowhere — the band above this line says so — and filing the reason for the page under two tables of furniture is the defect. This region is present ONLY on the demo chain; see `chain-overview--testnet` and `--mainnet`, whose anti-requirements name its absence.
 - Latest blocks — the newest ~10 with per-block transaction counts and a finality badge per row.
 - Latest transactions — the shared transactions table, with the Debug affordance as the FIRST column of every row (rule 1).
 - A chain-notes section naming the recorder pinned for this chain, the trace schema, the coverage mode in words, and the generation every read on the page was pinned to.
@@ -232,6 +233,8 @@ transaction. Inherited items are presence requirements exactly like the rest.
 - Two lists of different lengths one above the other — check the section rhythm separates them more than the row rhythm separates their rows.
 - The stat row is the densest text on an otherwise spacious page and is the most likely place for the explorer rubric's whitespace discipline to break down.
 - The chain-notes grid repeats facts from the stat row in a different presentation; check that reads as detail rather than as duplication.
+- The tour is the third list on a page that already had two, and its rows are prose where theirs are data. Check the section rhythm and the row rhythm keep it legible as a DIFFERENT kind of region rather than as a table that lost its columns.
+- The capability tags are repeated across entries by design — several programs demonstrate stepping. Check that reads as a facet a visitor could filter by, not as a row that failed to say anything specific.
 
 ### View: `chain-overview--stale`
 
@@ -3228,7 +3231,8 @@ transaction. Inherited items are presence requirements exactly like the rest.
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
 - Any suggestion that this chain is a demo, a sample or a preview. The neutral `Synthetic demo data` treatment appearing here would be the product telling a reader that real chain data is fake, which is a P1 in its own right even though it is the safer of the two directions.
-- A layout that differs from `chain-overview` in any way not caused by the DATA. A second chain is data; a page that reshaped itself for it is a finding.
+- A layout that differs from `chain-overview` in any way not caused by the DATA. A second chain is data; a page that reshaped itself for it is a finding. NOTE, so the two are not confused: the capability tour that `chain-overview` carries is ABSENT here, and that is data — the demo generation publishes a `tour.json` and this one does not — rather than a layout difference.
+- THE CAPABILITY TOUR. `What this debugger can show` is the demo chain's section and only the demo chain's: it lists programs written to demonstrate something, and a captured chain has none. Its heading appearing here would be the page offering a tour of transactions nobody wrote. Added as an anti-requirement 2026-09-01, when the region landed on `chain-overview`.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
@@ -3264,6 +3268,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 - An error, an empty state, or any treatment that reads as a failed load. This page is a successful render of a chain that genuinely has no traces, and the risk it carries is being mistaken for a broken one.
 - A Debug affordance on any row, or a disabled control standing in for one.
 - A staleness or degradation notice about the PIPELINE. Nothing is behind here; the data is current and the traces are absent by the node's design.
+- THE CAPABILITY TOUR. `What this debugger can show` is the demo chain's section and only the demo chain's: it lists programs written to demonstrate something, and a captured chain has none. Its heading appearing here would be the page offering a tour of transactions nobody wrote. Added as an anti-requirement 2026-09-01, when the region landed on `chain-overview`.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 

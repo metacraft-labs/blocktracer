@@ -19,6 +19,7 @@ proc main() =
     seed = "blocktracer-demo-0"
     fixture = "fixtures/trace/noir_space_ship/zk_shields.ct"
     sources = "fixtures/trace/noir_space_ship/sources"
+    tourDir = "fixtures/trace/tour"
   proc needValue(opt, val: string) =
     if val.len == 0:
       stderr.writeLine "--" & opt & " needs a value; use --" & opt & ":VALUE"
@@ -37,9 +38,12 @@ proc main() =
       of "seed", "s": needValue("seed", val); seed = val
       of "trace-fixture", "f": needValue("trace-fixture", val); fixture = val
       of "trace-sources": needValue("trace-sources", val); sources = val
+      of "tour-dir": needValue("tour-dir", val); tourDir = val
+      of "no-tour": tourDir = ""
       of "help", "h":
         echo "blocktracer-demo-gen [--out DIR] [--seed SEED] " &
-             "[--trace-fixture PATH] [--trace-sources DIR]"
+             "[--trace-fixture PATH] [--trace-sources DIR] " &
+             "[--tour-dir DIR | --no-tour]"
         return
       else: discard
     else: discard
@@ -53,11 +57,23 @@ proc main() =
     stderr.writeLine "trace sources not found: " & sources
     quit 2
 
+  if tourDir.len > 0 and not fileExists(tourDir / "manifest.json"):
+    stderr.writeLine "tour manifest not found: " & (tourDir / "manifest.json") &
+                     " (pass --no-tour to generate the tree without it)"
+    quit 2
+
   let cfg = DemoConfig(outDir: outDir, seed: seed, traceFixturePath: fixture,
-                       traceSourcesDir: sources)
+                       traceSourcesDir: sources, tourDir: tourDir)
   let n = generate(cfg)
   echo "Wrote demo tree to " & outDir & " (" & $n & " transactions)."
-  echo "Traces: real `noir_space_ship` CTFS containers from " & fixture
-  echo "        (nargo trace, Noir tracer fork @ 906af2f42d; 1315 steps, 80 calls)."
+  echo "Traces: real CTFS containers recorded by `nargo trace` (Noir tracer fork" &
+       " @ 906af2f42d)."
+  echo "        M5c tree: " & fixture & " (1315 steps, 80 calls), one container" &
+       " behind six executions."
+  if tourDir.len > 0:
+    echo "        capability tour: " & $readTour(tourDir).len & " programs from " &
+         tourDir & ", each with its OWN container and sources."
+  else:
+    echo "        capability tour: not published (--no-tour)."
 
 main()

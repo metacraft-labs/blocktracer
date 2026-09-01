@@ -273,6 +273,7 @@ export const EXPECTATIONS = [
     inherits: ["site-chrome"],
     mustShow: [
       "A head/finalized/blocks/transactions/coverage stat row, each figure labelled — the registry and pointer facts a visitor needs before reading either list.",
+      "THE CAPABILITY TOUR, above both tables: a heading (`What this debugger can show`), a sentence saying each entry is a small Noir program recorded into its own container, and one row per program carrying its title as a link into that program's debugging session, a one-sentence summary, its capability tags and its step/call counts. Added 2026-09-01, and the ORDERING is the claim being graded: it sits between the stat row and `Latest blocks`, because a visitor arriving on a synthetic chain is not here to read a ledger of hashes that exist nowhere — the band above this line says so — and filing the reason for the page under two tables of furniture is the defect. This region is present ONLY on the demo chain; see `chain-overview--testnet` and `--mainnet`, whose anti-requirements name its absence.",
       "Latest blocks — the newest ~10 with per-block transaction counts and a finality badge per row.",
       "Latest transactions — the shared transactions table, with the Debug affordance as the FIRST column of every row (rule 1).",
       "A chain-notes section naming the recorder pinned for this chain, the trace schema, the coverage mode in words, and the generation every read on the page was pinned to.",
@@ -286,6 +287,8 @@ export const EXPECTATIONS = [
       "Two lists of different lengths one above the other — check the section rhythm separates them more than the row rhythm separates their rows.",
       "The stat row is the densest text on an otherwise spacious page and is the most likely place for the explorer rubric's whitespace discipline to break down.",
       "The chain-notes grid repeats facts from the stat row in a different presentation; check that reads as detail rather than as duplication.",
+      "The tour is the third list on a page that already had two, and its rows are prose where theirs are data. Check the section rhythm and the row rhythm keep it legible as a DIFFERENT kind of region rather than as a table that lost its columns.",
+      "The capability tags are repeated across entries by design — several programs demonstrate stepping. Check that reads as a facet a visitor could filter by, not as a row that failed to say anything specific.",
     ],
   },
 
@@ -2285,7 +2288,8 @@ export const EXPECTATIONS = [
     ],
     mustNotShow: [
       "Any suggestion that this chain is a demo, a sample or a preview. The neutral `Synthetic demo data` treatment appearing here would be the product telling a reader that real chain data is fake, which is a P1 in its own right even though it is the safer of the two directions.",
-      "A layout that differs from `chain-overview` in any way not caused by the DATA. A second chain is data; a page that reshaped itself for it is a finding.",
+      "A layout that differs from `chain-overview` in any way not caused by the DATA. A second chain is data; a page that reshaped itself for it is a finding. NOTE, so the two are not confused: the capability tour that `chain-overview` carries is ABSENT here, and that is data — the demo generation publishes a `tour.json` and this one does not — rather than a layout difference.",
+      "THE CAPABILITY TOUR. `What this debugger can show` is the demo chain's section and only the demo chain's: it lists programs written to demonstrate something, and a captured chain has none. Its heading appearing here would be the page offering a tour of transactions nobody wrote. Added as an anti-requirement 2026-09-01, when the region landed on `chain-overview`.",
     ],
     watchFor: [
       "Put this beside `chain-overview` at the same size and theme. The two now differ in FORM, not only in tone: this page carries a compact chip and the synthetic one carries a full band. That asymmetry is deliberate — a band means \"something here is not normal\" — and it is the thing to judge. Is the synthetic page's band loud enough to be read as a warning, and is this page's chip quiet without being missable? If the affirmative and neutral treatments are hard to tell apart at a glance, say so; colour alone must not be what separates them.",
@@ -2308,6 +2312,7 @@ export const EXPECTATIONS = [
       "An error, an empty state, or any treatment that reads as a failed load. This page is a successful render of a chain that genuinely has no traces, and the risk it carries is being mistaken for a broken one.",
       "A Debug affordance on any row, or a disabled control standing in for one.",
       "A staleness or degradation notice about the PIPELINE. Nothing is behind here; the data is current and the traces are absent by the node's design.",
+      "THE CAPABILITY TOUR. `What this debugger can show` is the demo chain's section and only the demo chain's: it lists programs written to demonstrate something, and a captured chain has none. Its heading appearing here would be the page offering a tour of transactions nobody wrote. Added as an anti-requirement 2026-09-01, when the region landed on `chain-overview`.",
     ],
     watchFor: [
       "This is the page most likely to be read as a bug while being exactly correct. Say plainly whether, on first look, you took it for a broken page — that judgement is the finding, more than any single element.",

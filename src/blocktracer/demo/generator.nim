@@ -58,6 +58,15 @@ type
                               ## now belongs to the real mainnet capture, and a
                               ## fixture must be able to be told where to stand.
     generation*: string       ## generation label; "" => "1" (the M5c default).
+    tourDir*: string          ## `fixtures/trace/tour` — the capability tour's corpus.
+                              ## "" => no tour block, which is what every consumer
+                              ## that only wants the M5c tree should get. When set,
+                              ## every program in `tourDir/manifest.json` is published
+                              ## as one transaction carrying ITS OWN container bytes
+                              ## and ITS OWN source bundle. That is the whole point:
+                              ## before the tour, one recording stood behind every
+                              ## transaction on this chain, so "open a transaction"
+                              ## and "open the fixture" were the same act.
     extraBlocks*: seq[int]     ## heights appended after 102, each carrying one new
                                ## public transaction. Empty => the byte-identical
                                ## M5c generation-1 tree. This is what lets the M8
@@ -68,9 +77,76 @@ type
                                ## (so key-existence skips it) and the pointer
                                ## flipping to the sealed generation 2.
 
+type
+  TourProgram* = object
+    ## One entry of `fixtures/trace/tour/manifest.json`.
+    ##
+    ## The corpus is read at generation time rather than compiled in, for the same
+    ## reason the container is: it is data about a recording, and a copy of it in
+    ## Nim would be a second place for the numbers to be wrong.
+    id*, package*, title*, summary*: string
+    capabilities*: seq[string]
+    language*: seq[string]
+    containerPath*, sourcesDir*: string
+    steps*, frames*: int
+
+const
+  TourBlockHeight* = 90
+    ## The tour's block sits BELOW the M5c tree's 100–102, and the reason is the
+    ## capture harness rather than the chain.
+    ##
+    ## `tools/capture/lib/entities.mjs` walks transactions newest block first and
+    ## every debugger view pins its subject by what the trace IS — "the first
+    ## transaction whose trace is ready", "…divergent", "…on-demand". Eight new
+    ## ready transactions ABOVE 102 would become `readyTx` and silently re-point
+    ## the flagship `debugger` view and five pane views onto a different session,
+    ## superseding every review recorded against them.
+    ##
+    ## Below the walk they add subjects without moving one. It is the same
+    ## argument that put txF–txJ at the END of block 100, applied to a whole
+    ## block; `client/tests/test_explorer_breadth.nim` is where it is checked.
+    ##
+    ## Block 89 is never published, so this block's parent is unindexed — the
+    ## same `parentIndexed = false` case block 100 already exercises, now with a
+    ## second instance rather than a unique one.
+
 proc synthHash(seed, kind: string, n: int): string =
   ## Deterministic 32-byte (0x + 40 hex) synthetic hash.
   "0x" & toLowerAscii($secureHash(seed & "|" & kind & "|" & $n))[0 .. 39]
+
+proc readTour*(tourDir: string): seq[TourProgram] =
+  ## The capability tour's corpus, in manifest order.
+  ##
+  ## Order is the manifest's, not the filesystem's: it is the order a visitor
+  ## reads the tour in, and a directory listing would make it alphabetical and
+  ## therefore meaningless.
+  if tourDir.len == 0: return
+  let manifestPath = tourDir / "manifest.json"
+  if not fileExists(manifestPath):
+    raise newException(IOError, "tour manifest not found: " & manifestPath)
+  let m = parseJson(readFile(manifestPath))
+  for p in m["programs"]:
+    var prog = TourProgram(
+      id: p["id"].getStr, package: p["package"].getStr,
+      title: p["title"].getStr, summary: p["summary"].getStr,
+      containerPath: tourDir / p["container"].getStr,
+      sourcesDir: tourDir / p["sources"].getStr,
+      steps: p["trace"]["steps"].getInt,
+      frames: p["trace"]["calls"].getInt)
+    for c in p["capabilities"]: prog.capabilities.add c.getStr
+    for l in p["language"]: prog.language.add l.getStr
+    # A manifest entry naming a container that is not there would publish a
+    # transaction whose debug route cannot open — the one outcome the tour is
+    # not allowed to have. Refuse at generation time, where the fix is obvious.
+    if not fileExists(prog.containerPath):
+      raise newException(IOError,
+        "tour program '" & prog.id & "' names a container that is not there: " &
+        prog.containerPath & " — re-record with fixtures/trace/tour/record.sh")
+    if not dirExists(prog.sourcesDir):
+      raise newException(IOError,
+        "tour program '" & prog.id & "' names a sources dir that is not there: " &
+        prog.sourcesDir)
+    result.add prog
 
 proc synthAddr(seed, kind: string, n: int): string =
   ## Deterministic 20-byte (0x + 40 hex) synthetic address.
@@ -227,7 +303,26 @@ proc writeSourceBundle(cfg: DemoConfig, codeHash: string,
        "bundle": rel})
   bundleId
 
-proc writeArtifact(cfg: DemoConfig, txHash, execInputId: string,
+type Recording = object
+  ## Which container a transaction's artifacts carry, and what it contains.
+  ##
+  ## It exists because the answer stopped being "the one fixture". Before the
+  ## capability tour every published execution on this chain carried the SAME
+  ## 147,456 bytes, so the container was a property of the generator; now it is a
+  ## property of the transaction, and a step count that described some other
+  ## recording would be the manifest lying about the bytes beside it.
+  containerPath, sourcesDir: string
+  steps, frames: int
+
+proc fixtureRecording(cfg: DemoConfig): Recording =
+  ## The M5c tree's recording: the `noir_space_ship` container, whose real
+  ## `ct-print --summary` counts are the constants above. `tcontract` asserts the
+  ## manifests still agree with the vendored container, so re-recording it
+  ## without updating them fails the suite rather than publishing a lie.
+  Recording(containerPath: cfg.traceFixturePath, sourcesDir: cfg.traceSourcesDir,
+            steps: traceSteps, frames: traceFrames)
+
+proc writeArtifact(cfg: DemoConfig, rec: Recording, txHash, execInputId: string,
                    vs: ValidationStatus, strength: int, oracle: string,
                    codeHash, sourceBundleId: string, truncated = false) =
   ## Emit `/t/{shard}/{shard}/{tid}/` — manifest.json + trace.ct — for one
@@ -248,9 +343,9 @@ proc writeArtifact(cfg: DemoConfig, txHash, execInputId: string,
   let tid = deriveTraceArtifactId(execInputId, r.id, r.build, p.hash, traceSchema)
   let sh = traceShards(tid)
   let dir = "t" / sh.a / sh.b / tid
-  # The real `noir_space_ship` container, copied verbatim. Copying rather than
+  # THIS transaction's container, copied verbatim. Copying rather than
   # regenerating is what keeps the tree byte-identical (see the module header).
-  let bytes = readFile(cfg.traceFixturePath)
+  let bytes = readFile(rec.containerPath)
   createDir(cfg.outDir / dir)
   writeFile(cfg.outDir / dir / "trace.ct", bytes)
   var bundles = newJObject()
@@ -267,7 +362,7 @@ proc writeArtifact(cfg: DemoConfig, txHash, execInputId: string,
     sourceBundles: bundles,
     container: ContainerRef(file: "trace.ct", bytes: bytes.len, blockSize: 4096,
                             hash: contentHashSha1(bytes)),
-    execution: ExecutionSummary(steps: traceSteps, frames: traceFrames,
+    execution: ExecutionSummary(steps: rec.steps, frames: rec.frames,
                                 truncated: truncated, sourceLevel: true,
                                 languages: @[traceLanguage]),
     validation: ValidationSummary(status: vs, strength: strength),
@@ -279,6 +374,10 @@ type DemoTx = object
   hash: string
   height: int
   index: int
+  tourProgram: string        ## the tour program this transaction publishes, or ""
+                             ## for the M5c tree's own transactions. It selects the
+                             ## container and the sources; it is not a display
+                             ## string and never reaches a page.
   facts: TransactionFacts
   txstate: JsonNode
   overlay: TraceSelection
@@ -302,15 +401,27 @@ proc contractCodeHash(seed: string, contractIdx: int): string =
   synthHash(seed, "code", contractIdx)
 
 proc mkPublicFacts(seed, txHash, blockHash: string, height, index: int;
-                   contractIdx: int): TransactionFacts =
+                   contractIdx: int; feePayerIdx = -1): TransactionFacts =
+  ## `feePayerIdx` defaults to the transaction's INDEX IN ITS BLOCK, which is
+  ## what the M5c tree has always used and is why its four fee payers are
+  ## `feepayer 0..3`.
+  ##
+  ## The capability tour passes its own, and has to. Its eight transactions sit
+  ## at indices 0..7 of block 90, so the default would have put four of them on
+  ## the M5c tree's existing fee payers — silently extending four published
+  ## address histories with a second segment. `tools/capture/lib/entities.mjs`
+  ## selects `pagedAddress` as "the address whose history spans more than one
+  ## block-range segment", and that is currently ONE address; four more would
+  ## re-point the view. An addition may not move a subject.
   let contractAddr = synthAddr(seed, "contract", contractIdx)
+  let payerIdx = if feePayerIdx >= 0: feePayerIdx else: index
   TransactionFacts(
     chain: chain,
     id: TxId(kind: tikHash, hash: txHash),
     order: TxOrder(kind: tokBlockIndex, obBlock: blockHash, obHeight: height,
                    obIndex: index),
     outcome: Outcome(overall: ooSucceeded, parts: @[]),
-    roles: @[Role(role: "feePayer", address: synthAddr(seed, "feepayer", index))],
+    roles: @[Role(role: "feePayer", address: synthAddr(seed, "feepayer", payerIdx))],
     cost: @[Cost(name: "mana", used: "42000", limit: "100000", price: "1",
                  unit: "mana", token: "FeeJuice", refundable: false)],
     payloadRaw: "0x", payloadSelector: "0x1a2b3c4d", payloadTarget: contractAddr,
@@ -691,6 +802,42 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
         execInputId: demoExecutionInputId(chain, h, "public"),
         vs: vsMatch, strength: 2, oracle: "avm-receipt-compare", reconstructed: false, truncated: false)])
 
+  # --- Block 90: the capability tour ----------------------------------------
+  #
+  # One transaction per program in `fixtures/trace/tour`, each carrying that
+  # program's OWN container and that program's OWN sources. This is the whole
+  # change: until now every published execution on this chain carried the same
+  # 147,456 bytes, so opening any transaction opened the same recording, and the
+  # chain could not answer "what can this debugger show me?" with anything but
+  # one answer repeated ten times.
+  #
+  # Every one of them is `taReady` / `vsMatch`: they are recordings of programs
+  # that ran, and there is nothing degraded about any of them. The degraded
+  # states have their own subjects in block 100 and keep them.
+  #
+  # The contract index is `500 + i`, disjoint from the M5c tree's 0..6 and from
+  # the `extraBlocks` range, so each program gets its own address and its own
+  # code hash — which is what makes its source bundle its own rather than one
+  # bundle shared by eight programs claiming to be eight different ones.
+  let tour = readTour(cfg.tourDir)
+  for i, prog in tour:
+    let n = 500 + i
+    let h = synthHash(seed, "tx", n)
+    let bh = synthHash(seed, "block", TourBlockHeight)
+    var facts = mkPublicFacts(seed, h, bh, TourBlockHeight, i, n,
+                              feePayerIdx = n)
+    let ctBytes = int(getFileSize(prog.containerPath))
+    var ov = TraceSelection(chain: chain, tx: h, hasSingle: true,
+      singleTrace: ExecTrace(availability: taReady, bytes: ctBytes, hasValidation: true,
+        validation: ValidationSummary(status: vsMatch, strength: 2)))
+    result.add DemoTx(hash: h, height: TourBlockHeight, index: i,
+      tourProgram: prog.id, facts: facts,
+      txstate: txstateJson(true, "finalized"), overlay: ov,
+      artifacts: @[(selector: "public",
+        execInputId: demoExecutionInputId(chain, h, "public"),
+        vs: vsMatch, strength: 2, oracle: "avm-receipt-compare",
+        reconstructed: false, truncated: false)])
+
 proc generate*(cfg: DemoConfig): int =
   ## Emit the full demo tree. Returns the number of top-level objects written
   ## (for the CLI's summary line).
@@ -704,11 +851,25 @@ proc generate*(cfg: DemoConfig): int =
   # than an in-place rewrite (Publishing-And-Caching §4: version in the path).
   let gen = if cfg.generation.len > 0: cfg.generation else: "1"
   let hashIdxVersion = gen
-  let heightList = @[100, 101, 102] & cfg.extraBlocks
+  let tour = readTour(cfg.tourDir)
+  # The tour's block comes FIRST in height order and therefore LAST in every
+  # newest-first walk. See `TourBlockHeight`.
+  let heightList = (if tour.len > 0: @[TourBlockHeight] else: @[]) &
+                   @[100, 101, 102] & cfg.extraBlocks
   createDir cfg.outDir
   cfg.writeRegistry()
 
   let txs = build(cfg)
+
+  # Each tour program's recording, by program id. `build` put the id on the
+  # transaction; this is where it becomes bytes.
+  var tourRec = initTable[string, Recording]()
+  var tourById = initTable[string, TourProgram]()
+  for prog in tour:
+    tourRec[prog.id] = Recording(containerPath: prog.containerPath,
+                                 sourcesDir: prog.sourcesDir,
+                                 steps: prog.steps, frames: prog.frames)
+    tourById[prog.id] = prog
 
   # The traced program's sources, published once per code hash as a content-
   # addressed bundle (Source-Resolution.md §5). Read once: the bundle body is a
@@ -758,11 +919,18 @@ proc generate*(cfg: DemoConfig): int =
       # executions reference it (Trace-Artifacts.md §2.5).
       let codeHash = if t.facts.codeEdges.len > 0: t.facts.codeEdges[0].codeHash
                      else: ""
+      # A tour transaction publishes ITS program's recording and ITS program's
+      # sources. Everything else publishes the M5c fixture, byte for byte as
+      # before — which is why the ten existing transactions are unchanged.
+      let rec = if t.tourProgram.len > 0: tourRec[t.tourProgram]
+                else: cfg.fixtureRecording
+      let files = if t.tourProgram.len > 0: readSourceFiles(rec.sourcesDir)
+                  else: srcFiles
       var bundleId = ""
-      if codeHash.len > 0 and srcFiles.len > 0:
-        bundleId = cfg.writeSourceBundle(codeHash, srcFiles)
+      if codeHash.len > 0 and files.len > 0:
+        bundleId = cfg.writeSourceBundle(codeHash, files)
       for a in t.artifacts:
-        cfg.writeArtifact(t.hash, a.execInputId, a.vs, a.strength, a.oracle,
+        cfg.writeArtifact(rec, t.hash, a.execInputId, a.vs, a.strength, a.oracle,
                           codeHash, bundleId, a.truncated)
     cfg.writeText(chain / "tx" / t.hash / "index.html",
                   renderTxPage(chain, t.hash, factsJson, st, ovJson))
@@ -876,6 +1044,40 @@ proc generate*(cfg: DemoConfig): int =
         "these values can be looked up anywhere else. The execution trace is " &
         "real — it is a recorded Noir program — but it is not the execution of " &
         "the transaction it is published under."}})
+
+  # ---- The capability tour's index ----------------------------------------
+  #
+  # Published as data, in the generation, for the same reason everything else on
+  # this page is: the chain overview renders it, and a client that reconstructed
+  # it from a compiled-in copy of `manifest.json` would be a second place for the
+  # transaction hashes to be wrong — and would go on rendering a tour after the
+  # tour stopped being published.
+  #
+  # It is written only when there IS a tour. A generation with no tour has no
+  # `tour.json`, and the chain page renders no tour section; an empty array
+  # would be a claim that the tour is empty, which is a different fact.
+  if tour.len > 0:
+    var entries = newJArray()
+    for t in txs:
+      if t.tourProgram.len == 0: continue
+      let prog = tourById[t.tourProgram]
+      entries.add %*{
+        "id": prog.id,
+        "title": prog.title,
+        "summary": prog.summary,
+        "capabilities": prog.capabilities,
+        "language": prog.language,
+        "tx": t.hash,
+        "steps": prog.steps,
+        "calls": prog.frames}
+    cfg.writeJson("d" / chain / "g" / gen / "tour.json", %*{
+      "chain": chain, "generation": gen,
+      "note":
+        "Each entry is one small Noir program, recorded by `nargo trace` into " &
+        "its own container. The transaction it is published under is synthetic, " &
+        "like every other transaction on this chain; the program, its source and " &
+        "its recording are real.",
+      "programs": entries})
 
   # ---- /idx/** search indices (Search-And-Routing §5, §6) ------------------
   # (1) The global hash index: shard the (chain, kind) claims by a leading hex slice

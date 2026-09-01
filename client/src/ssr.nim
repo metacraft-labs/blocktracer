@@ -278,7 +278,8 @@ proc renderChain*(r: DataRoot, chain: string): string =
   pageLayout(
     chain & " — BlockTracer",
     "Chain overview for " & chain & ": latest blocks and transactions, each with the debugger as its primary action.",
-    chainPg.chainPage(chain, info, bs, page.rows, d, chainNotice(r, info)),
+    chainPg.chainPage(chain, info, bs, page.rows, d, chainNotice(r, info),
+                      tour = tour(r, info)),
     robots = $routeClass("/" & chain),
     canonical = SiteDomain & "/" & chain,
     provenance = provenanceMarker(info))

@@ -56,7 +56,7 @@ preview-live: export-hydrated replay-engine
 
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
-test: test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance
+test: test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-capability-tour
 
 # The static-export round-trip test: compile + run the real exporter into a
 # temp dir, then assert the three view types render for the demo entities and
@@ -101,6 +101,13 @@ test-entry-state:
 test-chain-provenance:
     nim c -r --mm:orc --hints:off tests/test_chain_provenance.nim
 
+# tests/test_capability_tour.nim — that every entry of the demo chain's tour is a
+# real recording of ITS OWN program: distinct containers, per-transaction source
+# bundles, published counts that match the bytes beside them, and no page that
+# shows two programs at once. Builds the tree with the real `generate`.
+test-capability-tour:
+    nim c -r --mm:orc --hints:off tests/test_capability_tour.nim
+
 # The hydration bundle's <script> is EMITTED when one is declared. Compiled
 # WITH -d:hydrationBundle on purpose: every other suite compiles without it and
 # asserts the empty case, so nothing else in the tree ever checks that a
@@ -133,4 +140,4 @@ dev *ARGS:
 clean:
     rm -rf dist nimcache
     find . -name nimcache -type d -exec rm -rf {} +
-    rm -f src/static_export tests/test_static_export tests/test_chain_viewmodels tests/test_debug_route tests/test_explorer_breadth tests/test_entry_state tests/test_chain_provenance
+    rm -f src/static_export tests/test_static_export tests/test_chain_viewmodels tests/test_debug_route tests/test_explorer_breadth tests/test_entry_state tests/test_chain_provenance tests/test_capability_tour

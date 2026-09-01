@@ -66,6 +66,20 @@ type
       ## `provenanceKind` means the generation published none, which for this
       ## repository's demo tree is the synthetic case.
 
+  TourRow* = object
+    ## One entry of a chain's capability tour: a small program written to be
+    ## read, published with its own recording so that opening it opens THAT
+    ## program rather than a fixture standing in for all of them.
+    id*: string
+      ## Stable across regenerations and across seeds — it names the program,
+      ## not its position. It is what a test selects a fixture by and what a
+      ## link fragment is built from; the transaction hash is neither.
+    title*, summary*: string
+    capabilities*: seq[string]
+    language*: seq[string]
+    tx*: string
+    steps*, calls*: int
+
   BlockRow* = object
     ## One row of the block-list / latest-blocks table.
     hash*: string
@@ -536,6 +550,40 @@ proc labels*(r: DataRoot, chain: string): seq[LabelRow] =
 proc labelFor*(rows: seq[LabelRow], id: string): LabelRow =
   for l in rows:
     if l.id == id: return l
+
+# ── the capability tour ────────────────────────────────────────────────────
+
+proc tour*(r: DataRoot, info: ChainInfo): seq[TourRow] =
+  ## The chain's capability tour, in the order the generation published it.
+  ##
+  ## Read from the pinned generation and not from a compiled-in copy of
+  ## `fixtures/trace/tour/manifest.json`, for the reason every other read on a
+  ## rendered page is: a tour whose transaction hashes came from somewhere other
+  ## than the tree would go on rendering links after the tree stopped publishing
+  ## them, and each dead link would be a session that does not open.
+  ##
+  ## A chain with no `tour.json` has no tour — an empty result, not an error.
+  ## Every chain but the demo one is in that case and always will be: a tour is
+  ## a claim about programs someone wrote to be read, and a captured chain has
+  ## none.
+  let res = r.store.getJson(
+    "d/" & info.slug & "/g/" & info.generation & "/tour.json")
+  if not res.found or res.error.len > 0 or res.node.isNil or
+     res.node.kind != JObject or not res.node.hasKey("programs"):
+    return
+  for p in res.node["programs"]:
+    var row = TourRow(
+      id: p{"id"}.getStr, title: p{"title"}.getStr,
+      summary: p{"summary"}.getStr, tx: p{"tx"}.getStr,
+      steps: p{"steps"}.getInt, calls: p{"calls"}.getInt)
+    if p.hasKey("capabilities") and p["capabilities"].kind == JArray:
+      for c in p["capabilities"]: row.capabilities.add c.getStr
+    if p.hasKey("language") and p["language"].kind == JArray:
+      for l in p["language"]: row.language.add l.getStr
+    # A row without a transaction is a row whose link goes nowhere. Drop it
+    # rather than render a control that cannot be used.
+    if row.id.len > 0 and row.tx.len > 0:
+      result.add row
 
 # ── address history: block-range segments, never ordinal pages (§2.2) ──────
 

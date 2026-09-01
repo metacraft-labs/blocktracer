@@ -1,0 +1,183 @@
+{
+  "schema": "blocktracer/demo-tour/v1",
+  "corpus": "noir-capability-tour",
+  "note": "Eight small Noir programs, each recorded by `nargo trace` into the container beside its sources. The corpus has three consumers and one reason to stay correct: it is what BlockTracer's `demo` chain publishes, it is a fixture the shared CodeTracer ViewModels can be driven from, and it is what desktop CodeTracer can open. Regenerate with `fixtures/trace/tour/record.sh`.",
+  "recorder": {
+    "tool": "nargo trace",
+    "nargo": "1.0.0-beta.26",
+    "noirc": "1.0.0-beta.26+906af2f42d6b874cf0f5dde193accb1e39e1bcd3",
+    "tracerCommit": "906af2f42d6b874cf0f5dde193accb1e39e1bcd3",
+    "container": "ctfs/v4",
+    "workdir": "/tmp/blocktracer-tour-rec/{id}/pkg",
+    "language": "noir"
+  },
+  "caveats": [
+    "`nargo trace` is not byte-deterministic: `meta.dat` carries a UUIDv7 recording id minted at close, and the embedded workdir string. Everything else — every step, call and value — is identical between runs. The containers are therefore VENDORED, never regenerated at build time, because the demo tree must be byte-identical for a given seed and CI generates it twice and diffs.",
+    "The pinned recorder predates noir@6939457ff7 (`embed the compiled source text in the .ct container`), so every container here reports `source_views: []`. Source text reaches a reader through the `sources/` tree beside each container, which the demo generator publishes as a source bundle. Re-recording with a newer tracer would embed the sources and change the pin; do that deliberately.",
+    "`nargo trace` compiles with `force_brillig`, so every program is executed unconstrained regardless of how it is written. That is a property of the recorder, not of the programs.",
+    "Three things the tracer cannot record and which therefore appear in no program here: `enum` values (the value marshaller reaches an unimplemented case and aborts the recording), user-defined `#[oracle(...)]` calls (`nargo trace` exposes no resolver, and an oracle body is never instrumented), and `Field` values above 2^63 (a recorded `Field` is truncated to `i64`, so every program keeps its field values small)."
+  ],
+  "capabilities": [
+    { "id": "stepping", "title": "Stepping, forward and backward" },
+    { "id": "values", "title": "Recorded values" },
+    { "id": "loop-rail", "title": "The loop rail and per-iteration navigation" },
+    { "id": "branch-marking", "title": "Taken and not-taken branch arms" },
+    { "id": "call-trace", "title": "The call trace" },
+    { "id": "event-log", "title": "The event log" },
+    { "id": "failure", "title": "An execution that stops on a constraint" }
+  ],
+  "programs": [
+    {
+      "id": "values",
+      "package": "tour_values",
+      "title": "Types and values",
+      "capabilities": ["values", "stepping"],
+      "summary": "Every value kind the language has, brought into scope one line at a time. The subject is the Values pane: a reader stepping through should be able to name the type of every row they see.",
+      "language": ["Field", "u8", "u16", "u32", "u64", "i8", "i32", "bool", "str<N>", "arrays", "vectors", "tuples", "structs", "nested structs", "casts"],
+      "container": "values/tour_values.ct",
+      "sources": "values/sources",
+      "inputs": { "seed": "5", "scale": "1000" },
+      "trace": { "steps": 34, "calls": 1, "ioEvents": 0, "paths": 1, "functions": 1, "types": 22, "varnames": 24, "bytes": 139264 },
+      "expectations": [
+        "`weights[0] + weights[2]` is 3 + 4, so `from_array` is 7 — and the program asserts it, so a recording in which it is not 7 did not finish.",
+        "`flag` is `small > 100` with `small = 200`, so it is true; `from_tuple` is the same value read back out of a tuple.",
+        "`body.position` is a struct nested inside a struct, so the Values pane must render a compound whose field is itself compound.",
+        "`trail` is a vector of length 3 built by two `push_back` calls on a one-element vector, so its recorded length changes while the binding does not.",
+        "`negative` is `-42` and `signed_wide` is `-100_000`. The recorder writes signed integers as their two's-complement unsigned value, so these read 214 and 4294867296 — a fidelity gap in value rendering, demonstrated here rather than described."
+      ]
+    },
+    {
+      "id": "loops",
+      "package": "tour_loops",
+      "title": "Loops and iteration",
+      "capabilities": ["loop-rail", "stepping", "values"],
+      "summary": "Three loop shapes, chosen so the loop rail has iterations worth moving between and values that differ from one iteration to the next. A loop whose variables never change is a rail with nothing on it.",
+      "language": ["for", "while", "break", "continue", "nested loops", "modules", "compound assignment"],
+      "container": "loops/tour_loops.ct",
+      "sources": "loops/sources",
+      "inputs": { "rows": "3", "cols": "4" },
+      "trace": { "steps": 863, "calls": 9, "ioEvents": 0, "paths": 2, "functions": 6, "types": 4, "varnames": 19, "bytes": 139264 },
+      "expectations": [
+        "`triangular(6)` sums 0..5, so `acc` takes the sequence 0, 0, 1, 3, 6, 10, 15 across the loop's rungs and returns 15.",
+        "`grid_sum(3, 4)` has an outer rail of 3 rungs, each containing an inner rail of 4; `row_total` resets at the top of every outer iteration and the total is 0+1+...+11 = 66.",
+        "`collatz_steps(27)` runs 111 iterations. The count is not readable off the source — which is the point of recording it.",
+        "`first_gap(30)` skips every even candidate via `continue` and ends via `break` on the first odd composite, 9.",
+        "`sieve::is_prime` is in a second file, so stepping into it crosses a document boundary."
+      ]
+    },
+    {
+      "id": "branches",
+      "package": "tour_branches",
+      "title": "Branches and conditions",
+      "capabilities": ["branch-marking", "stepping"],
+      "summary": "Every `if` here is written so that both arms are reachable and the inputs decide, and each classifier is called more than once with values landing in different arms — so the same source line is marked taken on one visit and not-taken on another.",
+      "language": ["if/else if/else", "nested conditionals", "boolean operators", "structs", "signed integers"],
+      "container": "branches/tour_branches.ct",
+      "sources": "branches/sources",
+      "inputs": { "low": "-77", "high": "88" },
+      "trace": { "steps": 54, "calls": 8, "ioEvents": 0, "paths": 1, "functions": 4, "types": 7, "varnames": 15, "bytes": 139264 },
+      "expectations": [
+        "`classify` has three arms and is reached once, from `describe`'s middle arm, with `value = 12` — so it returns 1 and its other two arms are evaluated-and-not-taken on that visit.",
+        "`describe` is called three times: sensor 1 with -77 (known and extreme, so 9), sensor 2 with 12 (known, not extreme, so `classify` runs), sensor 7 (unknown, so 255). All three of its arms run across the recording, and each runs on exactly one visit.",
+        "`clamp` is called three times with `(lo, hi) = (-10, 10)`: -77 takes the low arm, 3 takes neither, 88 takes the high arm. The middle call reaches the outer `else` and then does NOT take the inner `if` — an arm that was evaluated and declined, which is a different fact from an arm that was never reached.",
+        "The three clamp results are asserted, so a recording that reaches the end had them right."
+      ]
+    },
+    {
+      "id": "calls",
+      "package": "tour_calls",
+      "title": "Calls and recursion",
+      "capabilities": ["call-trace", "stepping"],
+      "summary": "A call tree worth looking at rather than a flat list: direct recursion several frames deep, two functions calling each other, tree recursion that branches, and a helper reached from two different parents.",
+      "language": ["recursion", "mutual recursion", "tree recursion", "modules", "arrays", "bitwise operators"],
+      "container": "calls/tour_calls.ct",
+      "sources": "calls/sources",
+      "inputs": { "n": "4", "seed": "9" },
+      "trace": { "steps": 657, "calls": 49, "ioEvents": 0, "paths": 2, "functions": 9, "types": 7, "varnames": 17, "bytes": 139264 },
+      "expectations": [
+        "`factorial(5)` puts six frames of one function on the stack, each with a different `n`, and returns 120 — which the program asserts.",
+        "`is_even(4)` alternates `is_even`/`is_odd` down to zero, so the trace shows two names interleaving over five frames.",
+        "`fib(6)` branches rather than descending, and returns 8 — asserted.",
+        "`arith::mix` has two distinct parents in the tree: `checksum`, which calls it four times, and `main`, which calls it once directly. A call trace aggregated by function must show five frames of it; one ordered by call must show them under two parents.",
+        "`arith::rotate` is the deepest frame and the only one in that module with a loop, so a step-out from it returns into a loop iteration."
+      ]
+    },
+    {
+      "id": "generics",
+      "package": "tour_generics",
+      "title": "Generics and traits",
+      "capabilities": ["call-trace", "stepping", "values"],
+      "summary": "Source written once and executed several times over different types. A generic function has one body and many instantiations; a trait method has one name and many bodies. Both make \"which code is running\" a real question, and the call trace is where it is answered.",
+      "language": ["type generics", "numeric generics", "trait bounds", "traits", "trait impls", "default trait methods", "modules"],
+      "container": "generics/tour_generics.ct",
+      "sources": "generics/sources",
+      "inputs": { "side": "6", "radius": "3" },
+      "trace": { "steps": 99, "calls": 8, "ioEvents": 0, "paths": 3, "functions": 4, "types": 11, "varnames": 16, "bytes": 139264 },
+      "expectations": [
+        "`largest` has one body and three instantiations in this recording — `u32`, `u64` and `i32` — so the call trace names the same function three times over three types.",
+        "`sum_all` is a numeric generic instantiated at N=3 and N=5, so the same source line is a loop of three rungs on one visit and five on another. `sum_all([1,2,3])` is 6, which the program asserts.",
+        "`Circle` does not override `Shape::perimeter` and `Rect` does, so the same call spelling in `describe` reaches the default body on one visit and the impl's own on the other.",
+        "`Circle { radius: 3 }` has area 3*3*3 = 27 and perimeter 27*2 = 54 by the default method; `Rect { w: 6, h: 7 }` has area 42 and perimeter 26.",
+        "`Field` deliberately has no `Ord` impl, which is why `largest` is never instantiated at `Field` — a language fact the source states in a comment rather than leaving to a compiler error."
+      ]
+    },
+    {
+      "id": "events",
+      "package": "tour_events",
+      "title": "Program output and the event log",
+      "capabilities": ["event-log", "loop-rail", "stepping"],
+      "summary": "The stream of things the execution SAID, as distinct from the values it held. In this language that stream is `print`, `println` and format strings, and it is the only pane whose content a program author writes directly.",
+      "language": ["println", "print", "format strings", "structs", "for"],
+      "container": "events/tour_events.ct",
+      "sources": "events/sources",
+      "inputs": { "threshold": "300", "orders": "4" },
+      "trace": { "steps": 124, "calls": 6, "ioEvents": 14, "paths": 2, "functions": 3, "types": 4, "varnames": 12, "bytes": 143360 },
+      "expectations": [
+        "The first entry is the bare string `=== invoice ===` and the last is `=== end ===`, so the log has a readable beginning and end rather than being a repeated sentence.",
+        "The loop runs 4 times and writes two entries per iteration — one from `line_total`, one frame deeper, and one from `main` — so log entries and loop rungs line up.",
+        "Line i has qty i+2 and unit price 10+i, so the four line totals are 2*10=20, 3*11=33, 4*12=48 and 5*13=65, and the subtotal is 166.",
+        "166 is below the threshold of 300, so `apply_discount` takes its `else` arm and the log says `no discount: 166 is below 300`.",
+        "`print(\"subtotal: \")` without a newline and the `println` after it are two separate events that a reader sees as one sentence — the log's entries are writes, not lines.",
+        "A format string interpolates bindings and not field accesses, so every value printed here is bound to a local first. Those locals exist only to be printed, and are what the log's text is built from."
+      ]
+    },
+    {
+      "id": "constraints",
+      "package": "tour_constraints",
+      "title": "Constraints, and an execution that fails one",
+      "capabilities": ["failure", "event-log", "call-trace", "stepping"],
+      "summary": "What a recording looks like when the program does NOT finish. This is the case a zero-knowledge debugger exists for: a constraint did not hold, and the question is which one, on which values, reached from where. The recording ends at the failing assertion.",
+      "language": ["assert", "assert with message", "structs", "tuple return", "modules", "println"],
+      "container": "constraints/tour_constraints.ct",
+      "sources": "constraints/sources",
+      "inputs": { "opening": "120", "transfer_amount": "30" },
+      "trace": { "steps": 71, "calls": 4, "ioEvents": 4, "paths": 3, "functions": 3, "types": 6, "varnames": 27, "bytes": 143360 },
+      "expectations": [
+        "Four assertions in `transfer` are evaluated and hold, twice each, before any assertion fails — so one recording contains both `checked and passed` and `checked and stopped`.",
+        "Alice opens at 120 and Bob at 50. After transferring 30 to Bob they are 90 and 80; after Bob transfers 10 back they are 100 and 70. The total is 170 throughout, which is what the conservation assertion checks.",
+        "`solvency_margin(alice, bob, 1_000_000)` compares 170 against a floor of a million, so it returns 0.",
+        "The recording therefore STOPS at `assert(margin > 0, ...)`. The last entry in its event log is the message `accounts must clear the reserve floor`, and there is no step after it.",
+        "The failure is unsatisfiable by construction, not by accident — a reader stepping into `solvency_margin` can see the two balances and the floor side by side and work out why the next line stops."
+      ]
+    },
+    {
+      "id": "mutation",
+      "package": "tour_mutation",
+      "title": "Mutation over time",
+      "capabilities": ["values", "stepping", "branch-marking"],
+      "summary": "A value that CHANGES. Everything else in this tour shows values computed and bound once; this one shows the same binding holding a different value at a different time, which is the case a time-travelling debugger answers and a printout of the final state does not. The forms the recorder captures come first; the one it does not is last, alone and labelled.",
+      "language": ["let mut", "reassignment", "compound assignment", "methods returning Self", "impl blocks", "unconstrained fn", "&mut", "dereference assignment", "modules"],
+      "container": "mutation/tour_mutation.ct",
+      "sources": "mutation/sources",
+      "inputs": { "start": "5", "step": "7" },
+      "trace": { "steps": 91, "calls": 7, "ioEvents": 0, "paths": 2, "functions": 5, "types": 7, "varnames": 10, "bytes": 139264 },
+      "expectations": [
+        "`ramp(5, 7)` rebinds `level` three times, so the recording holds its whole history — 5, 12, 24, 23 — and stepping backward walks it in reverse. The result 23 is asserted.",
+        "`accumulate([1,2,3,4,5])` adds each value and subtracts one per iteration, so `total` is recorded at 0, 1, 2, 3, 4, 6, 7, 10, 11 across the loop and returns 10 — asserted. Compound assignment inside a loop is a statement kind this tracer has previously failed to instrument, leaving the variable frozen while the circuit computed the right answer; the full sequence being present is the check.",
+        "`run_counter(5)` records six successive `Counter` structs — {5,0}, {6,1}, {7,2}, {8,3}, {0,3}, {1,4} — so the Values pane shows one binding whose nested field moves. The fifth is `reset_if_above(7)` taking its reset arm because 8 > 7, which is also what the branch marking should say.",
+        "KNOWN RECORDER GAP, demonstrated deliberately: `bump` writes through a `&mut u32` three times and the assertion `slot == start + 3 * step` holds, so the circuit did the work — but the recording shows `slot` frozen at 5 in the caller and, inside `bump`, a reference whose dereferenced value is absent (`kind: None`). A reader who sees `slot` not moving is looking at the tracer, not at the program. This is why the counter above returns `Self` instead of taking `&mut self`.",
+        "The recording contains no error event: every assertion in this program holds, including the one about the writes the recording does not show."
+      ]
+    }
+  ]
+}

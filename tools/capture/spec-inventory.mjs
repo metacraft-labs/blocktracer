@@ -29,6 +29,12 @@ export const PAGES = [
   { id: "home.live-demo", route: "/", anchor: "§2 Live demo" },
   { id: "chains-index", route: "/chains", anchor: "§3" },
   { id: "chain-overview", route: "/{chain}", anchor: "§4" },
+  // The demo chain's capability tour. A surface of its own rather than a
+  // bullet of `chain-overview`, because it is the only region on the site
+  // whose subject is the PRODUCT rather than a chain, and because it exists
+  // on exactly one chain — an inventory entry is how that asymmetry stays
+  // stated instead of being noticed as a diff.
+  { id: "chain.capability-tour", route: "/{chain}", anchor: "§4 — the demo chain's tour of what the debugger can show" },
   { id: "blocks-list", route: "/{chain}/blocks", anchor: "§5.1" },
   { id: "blocks-list.row-expanded", route: "/{chain}/blocks", anchor: "§5.1 row expansion" },
   { id: "block-detail", route: "/{chain}/block/{id}", anchor: "§5.2" },

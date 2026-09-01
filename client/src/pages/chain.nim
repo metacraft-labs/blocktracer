@@ -23,7 +23,8 @@ import ../components/degraded
 proc chainPage*(chain: string, info: ChainInfo,
                 blocks: seq[BlockRow], txs: seq[TxRow],
                 degradation: ChainDegradation,
-                note: DegradationNotice): string =
+                note: DegradationNotice,
+                tour: seq[TourRow] = @[]): string =
   ui:
     section(class = "sec"):
       tdiv(class = "inner"):
@@ -53,6 +54,57 @@ proc chainPage*(chain: string, info: ChainInfo,
             tdiv(class = "v mono"): text info.coverageMode
 
         raw degraded.notice(degradation, note)
+
+        # ── The capability tour ────────────────────────────────────────
+        #
+        # ABOVE the block and transaction lists, and that ordering is the
+        # argument. A visitor who arrives on this chain cold is not here to read
+        # a ledger of synthetic hashes — there is nothing to look up, and the
+        # band above this line says so. They are here to find out what the
+        # debugger can show them, and the answer is a list of programs written
+        # to be read. Putting it under two tables would file the reason for the
+        # page below the furniture.
+        #
+        # It renders only where the generation PUBLISHED one. A captured chain
+        # has no tour and never will: a tour is a claim about programs someone
+        # wrote to demonstrate something, and a chain of real transactions has
+        # none. So this block is absent from `/aztec` and `/aztec-testnet`
+        # entirely, rather than present and empty.
+        if tour.len > 0:
+          h2(class = "sec-title next"): text "What this debugger can show"
+          p(class = "muted measure"):
+            text "Each entry is one small Noir program, recorded by "
+            span(class = "mono"): text "nargo trace"
+            text " into its own container. Open one to step through it — the "
+            text "source, the function names and the values are the program's "
+            text "own. The transaction it is published under is synthetic, like "
+            text "every other transaction on this chain."
+          # THE PROGRAM'S ID IS THE LABEL AND ITS TITLE IS THE ACTION, in that
+          # order and not the other way round.
+          #
+          # `.dl dt` is the label column — uppercase, muted, on a sunken
+          # surface. Putting the title there rendered the tour's eight primary
+          # actions as eight field names: "TYPES AND VALUES" read as a table
+          # header a visitor scans past, and the one control on the page they
+          # were meant to press was the one thing styled not to be pressed.
+          #
+          # So the label is the program's stable id — which is genuinely a key,
+          # is what a test selects a fixture by, and is short enough for the
+          # column — and the linked title leads the value, where `.dl dd a`
+          # gives it the link treatment every other action on the site has.
+          dl(class = "dl group"):
+            for t in tour:
+              dt(id = "tour-" & t.id): text t.id
+              dd(class = "measure"):
+                a(href = debugUrl(chain, t.tx)): text t.title
+                tdiv: text t.summary
+                tdiv(class = "muted stack"):
+                  for c in t.capabilities:
+                    span(class = "badge muted"): text c
+                  span(class = "mono"):
+                    text " " & $t.steps & " steps · " & $t.calls &
+                         (if t.calls == 1: " call" else: " calls") & " · "
+                  a(href = txUrl(chain, t.tx)): text "transaction\u00A0→"
 
         h2(class = "sec-title next"): text "Latest blocks"
         raw blocksTable(chain, info, blocks,

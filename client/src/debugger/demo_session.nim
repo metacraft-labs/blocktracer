@@ -589,9 +589,71 @@ proc withPublishedSources*(session: var DebugSessionView; bundle: JsonNode) =
     # whatever it has, but it may NOT keep a line number that belongs to a file
     # it is not showing: that is the coordinate that empties the window.
     pane.currentLine = 0
-  # The overlay is re-derived against the NEW documents. `newSourceDocument`
-  # built them with no annotations, so a bundle that won without this line would
-  # win by silently deleting the values — the same class of loss `markExecuted`
-  # above exists to prevent for the gutter, and just as invisible.
-  withDemoFlow(pane)
+  # ── Whose replay is this? ────────────────────────────────────────────────
+  #
+  # THE BUNDLE DECIDES, AND IT DECIDES MORE THAN THE TEXT.
+  #
+  # Everything about the replay in this module — the position, the call frames,
+  # the variable values, the event stream, the values overlay — describes ONE
+  # recorded program, `zk_shields`. That was harmless while one container stood
+  # behind every published execution on this chain. It stopped being harmless
+  # when the capability tour gave each of its programs its own recording: the
+  # Code pane would show `triangular` and `collatz` while the Call Trace beside
+  # it named `iterate_asteroids` and `calculate_damage`, and the Values pane
+  # showed `remaining_shield`. Two programs on one screen, presented as one
+  # session — a confident answer that is wrong, which is the single thing this
+  # route may not produce.
+  #
+  # The test is the bundle's own contents and not the chain, the slug or the
+  # transaction hash: the fixture describes a program whose source includes
+  # `src/shield.nr`, so a bundle without that file is a bundle for a program
+  # this module's replay does not describe. A tour program's bundle has none;
+  # the six M5c executions all publish the fixture's own sources, so every one
+  # of them keeps exactly the panes it had.
+  #
+  # What is served instead is not an error state. The transaction is real, the
+  # recording is real and published, and the session opens — what the STATIC
+  # frame cannot do is state a position inside it without a replay engine. So
+  # the panes say that, and the live session fills them in.
+  let describesThisProgram = documentIndex(pane, FixtureFile) >= 0
+  if describesThisProgram:
+    # The overlay is re-derived against the NEW documents. `newSourceDocument`
+    # built them with no annotations, so a bundle that won without this line
+    # would win by silently deleting the values — the same class of loss
+    # `markExecuted` above exists to prevent for the gutter, and just as
+    # invisible.
+    withDemoFlow(pane)
+  else:
+    # No gutter marks either: `markExecuted` above applied the FIXTURE's
+    # executed-line set, which on a different program marks lines that were
+    # never reached. An unmarked gutter says nothing; a wrongly marked one says
+    # something false.
+    for d in pane.documents.mitems:
+      for l in d.lines.mitems:
+        l.executed = false
+    pane.currentLine = 0
+    # And the rail, which `fixtureEditor` already attached before this bundle
+    # won. It is the fixture's loop, named after the fixture's function, with a
+    # `line 4` link into a file this pane is no longer showing — the most
+    # visible of the two-programs-on-one-screen symptoms, and the one a reader
+    # would take for a fact about the program in front of them.
+    pane.flow = FlowRail()
+    # `positioned` is "the panes carry a step". They do not: the step this
+    # module knows is the fixture's, and it is a coordinate inside a different
+    # recording. `fixtureControls` already renders the unpositioned case — "No
+    # position yet" — so this is a state the route has and not a new one.
+    session.controls.positioned = false
+    session.controls.step = 0
+    session.controls.statusText = "No position yet"
+    session.calltrace = CallTracePane(
+      costLabel: "ACIR", costUnit: "opcodes", frames: @[],
+      note: "The call structure is in the published recording. Reading it " &
+            "needs the replay engine, which this page has not started.")
+    session.state = StatePane(values: @[],
+      note: "The recorded values are in the published recording. Reading " &
+            "them needs the replay engine, which this page has not started.")
+    session.eventLog = EventLogPane(rows: @[],
+      note: "The recorded event stream is in the published recording. " &
+            "Reading it needs the replay engine, which this page has not " &
+            "started.")
   session.editor = pane

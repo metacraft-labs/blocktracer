@@ -1,0 +1,6 @@
+[package]
+name = "tour_values"
+type = "bin"
+authors = ["BlockTracer capability tour"]
+
+[dependencies]

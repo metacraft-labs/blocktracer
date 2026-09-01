@@ -204,11 +204,23 @@ proc exportSite() =
     # The guard, at the composition root — the one place both producers meet. It refuses
     # rather than trusting the slugs not to have collided, which is what the rule it
     # replaced did in the other direction.
+    # The capability tour's corpus: eight small Noir programs, each with its own
+    # recording. It is what makes this chain worth visiting rather than a
+    # fixture with a URL — before it, the same container stood behind every
+    # transaction here, so "open a transaction" and "open the fixture" were one
+    # act. Required, not optional: a demo chain that silently lost its tour
+    # would look exactly like one that never had it.
+    let tourDir = repoRoot() / "fixtures" / "trace" / "tour"
+    if not fileExists(tourDir / "manifest.json"):
+      stderr.writeLine "capability tour manifest not found: " &
+                       (tourDir / "manifest.json")
+      quit 2
     assertSlugAvailable(OutputDir, DemoChainSlug, "synthetic")
     let n = generate(DemoConfig(outDir: OutputDir, seed: DefaultSeed,
                                 chain: DemoChainSlug,
                                 traceFixturePath: fixture,
-                                traceSourcesDir: sources))
+                                traceSourcesDir: sources,
+                                tourDir: tourDir))
     echo "  + synthetic demo chain: /" & DemoChainSlug & " (" & $n & " transactions) " &
       "— published, badged `synthetic`; build -d:noDemoChain to leave it out"
   else:
