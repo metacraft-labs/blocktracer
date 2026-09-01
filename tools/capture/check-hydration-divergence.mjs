@@ -374,10 +374,16 @@ function main(argv) {
             `stylesheet at ${sheet.from.slice(REPO_ROOT.length + 1)}`,
         );
       }
-      if (computed > ternary.length / 2) {
+      // Always reported when there are any. A class name this scan cannot read
+      // is a class the stylesheet cannot be checked against, so the number of
+      // them is the honest measure of how much H2 does NOT cover — and a silent
+      // zero-coverage scan that prints a tick is the failure this whole file is
+      // about.
+      if (computed) {
         out.push(
-          `  ! ${computed} computed classList.add call(s) in the bundle; ` +
-            `${ternary.length} name(s) recovered from the source's ternaries`,
+          `  · ${computed} computed classList.add call(s) in the bundle; ` +
+            `${ternary.length} name(s) recovered from the source's ternaries ` +
+            `(${ternary.map((c) => "." + c).join(", ") || "none"})`,
         );
       }
     }

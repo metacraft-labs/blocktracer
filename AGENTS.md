@@ -100,6 +100,38 @@ deploy either copies them to its own origin (`just replay-engine`) or points
 `-d:replayEngineBase` at an origin that already serves them. With neither,
 hydration reports that it could not start and the served page stands.
 
+### The artefact you photograph is not the artefact the visitor loads
+
+`cd client && just export` writes `client/dist` and it contains **zero
+JavaScript**. `flake.nix`'s `packages.default` — which is what
+`.github/workflows/deploy-cloudflare-pages.yml` builds and uploads — runs the
+same exporter with `-d:hydrationBundle=/assets/hydrate.js`. `debugLayout` emits
+that `<script>`; `pageLayout` does not. So **every `debugger*` route and every
+transaction serving a session diverge between the two builds**, and the
+explorer's other routes do not.
+
+This has already produced two defects in the review record, and neither was
+carelessness. A `Supply sources` reason string shipped saying "this route ships
+no client script" — true of `client/dist`, false of the deployed site. A
+reviewer nearly filed a P1 on an engine-loading state that only the capture
+build shows. Both authors were reasoning correctly about the artefact in front
+of them, and it was the wrong artefact.
+
+    just capture-hydration-divergence        # which views diverge, and what the
+                                             # bundle adds that nothing draws
+
+H1 decides the per-view answer from the two built trees and writes
+`tools/capture/hydration-divergence.json`; `render-brief.mjs` and
+`review-prompt.mjs` render it into every view's block through
+`tools/capture/lib/provenance.mjs`, so a reviewer is told which build is in
+front of them. H2 asserts that every class the shipped bundle adds has a rule in
+the stylesheet those pages inline — it currently FAILS on `.copybtn`, `.copied`
+and `.copyfailed`, which is `reviews/QUEUED-DECISIONS.md` Q23.
+
+**Before writing a sentence, a comment or a finding that names a build-dependent
+mechanism, check which build you mean.** An explanation naming a mechanism is a
+claim about an artefact.
+
 ## 2. isonim architecture
 
 **isonim** is a cross-platform reactive UI framework for Nim (signals / effects /
