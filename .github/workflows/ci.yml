@@ -14,6 +14,37 @@ name: ci
 # that is deployed and ungated — and on a trigger naming a branch that does not
 # exist, which is what made this invisible: dead trigger and working trigger read
 # identically in YAML.
+# THE THREE NIM JOBS — why `Install Nim` failed in all of them at once.
+#
+# `contract`, `client-sdk` and `viewmodels` all failed their `Install Nim` step
+# on the first mainline run, and it was ONE cause, not three. The action's
+# `install_nim.sh` resolves an `x`-ranged version by asking the GitHub API for
+# nim-lang/Nim's tags, and it sends the header unconditionally:
+#
+#     curl -H "Authorization: Bearer ${repo_token}" .../git/refs/tags | jq -r '.[].ref'
+#
+# `repo-token` has NO default in the action, and none of the three jobs passed
+# one — so the header went out as a literal `Authorization: Bearer ` and GitHub
+# answered `401 Bad credentials`, a 112-byte JSON OBJECT. Three things then went
+# wrong in sequence, and only the last one was visible:
+#
+#   1. `jq -r '.[].ref'` iterated the error object's values and died with
+#      `Cannot index string with string "ref"`.
+#   2. It died INSIDE A PIPELINE, so `set -eu` never saw it: the pipeline's
+#      status is `sed`'s, and `sed` succeeded on empty input. The resolved
+#      version became the empty string and the script carried on.
+#   3. The empty version built a download URL that 404s, curl saved the error
+#      page, and `tar` reported `This does not look like a tar archive`.
+#
+# So the log named a corrupt tarball for what was an unauthenticated API call.
+# The README's "It works without setting this parameter" is WRONG for any
+# `2.n.x` version: an ABSENT Authorization header would have worked at the
+# unauthenticated rate limit, but an EMPTY one is refused outright. Every
+# `2.n.x` example in that same README passes `repo-token`.
+#
+# Why it took 178 commits to see: these three jobs are the only ones that
+# install Nim from the network rather than from the flake, and no run of them
+# reached a runner in that time.
 on:
   push:
     branches: [dev, staging, live]
@@ -49,6 +80,11 @@ jobs:
         uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: "2.2.x"
+          # NOT optional, despite what the action's README says. See the
+          # "THE THREE NIM JOBS" note at the top of this file: an absent
+          # token makes the action send `Authorization: Bearer ` and get a
+          # 401, which it then treats as a tag list.
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Conformance test suite
         run: nimble test -y
@@ -137,6 +173,11 @@ jobs:
         uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: "2.2.x"
+          # NOT optional, despite what the action's README says. See the
+          # "THE THREE NIM JOBS" note at the top of this file: an absent
+          # token makes the action send `Authorization: Bearer ` and get a
+          # 401, which it then treats as a tag list.
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Client SDK — consumer-side conformance suite
         # No Embed SDK on the Nim path, deliberately: the chain half compiling
@@ -165,12 +206,68 @@ jobs:
   # without waiting on a toolchain.
   visual-design:
     runs-on: ubuntu-latest
+    # Job-level, not step-level: `check-tokens-selftest.mjs` drives the REAL
+    # checker, so it needs the same design system the checker does. Setting it
+    # on one step and not the other would leave the self-test grading a C3 that
+    # could not run.
+    env:
+      DESIGN_SYSTEM_SRC: ${{ github.workspace }}/.design-system
     steps:
       - uses: actions/checkout@v4
+        with:
+          # B4 compares each `ledger@<rev>:` citation against the ledger AS IT
+          # STOOD at the revision cited, which it reads out of git history. A
+          # shallow clone has none, so B4 fell back to bare revision-currency
+          # and failed all five citations that name an earlier round — over a
+          # tree where all five are SAFE-RESTAMP (`just design-citations`
+          # prints the two texts side by side and classifies them).
+          #
+          # This is NOT relaxing B4. The fallback is the check refusing to
+          # answer a question it cannot see the evidence for, and it says so in
+          # the failure text; the fix is to give it the evidence. With history
+          # present B4 compares meanings and a citation whose finding really
+          # DID change still fails.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+
+      # C3 resolves the rhythm roles to numbers out of the design system's DTCG
+      # source, and reports NOT-RUN-IS-NOT-A-PASS when it cannot read it. On a
+      # developer's machine it finds a `../codetracer-design-system` sibling; in
+      # `nix develop` it comes from the flake input. This job is bare
+      # ubuntu-latest + setup-node, which has neither — so C3 had never once
+      # executed, and failed closed the first time it reached a runner.
+      #
+      # The revision is READ OUT OF flake.nix rather than written here, so the
+      # design system stays pinned in exactly one place. A second literal would
+      # be a second pin to drift.
+      - name: Resolve the design-system pin from flake.nix
+        id: ds
+        run: |
+          set -euo pipefail
+          rev="$(sed -n 's|.*github:metacraft-labs/codetracer-design-system/\([0-9a-f]\{40\}\)".*|\1|p' flake.nix)"
+          # An empty match here would check out the DEFAULT BRANCH and turn a
+          # pinned input into a moving one, silently. Fail instead.
+          if [ -z "$rev" ]; then
+            echo "::error::could not read the codetracer-design-system rev from flake.nix" >&2
+            exit 1
+          fi
+          if [ "$(printf '%s\n' "$rev" | wc -l)" -ne 1 ]; then
+            echo "::error::flake.nix names more than one codetracer-design-system rev" >&2
+            exit 1
+          fi
+          echo "rev=$rev" >> "$GITHUB_OUTPUT"
+          echo "design system pinned at $rev"
+
+      - name: Check out the pinned design system
+        uses: actions/checkout@v4
+        with:
+          repository: metacraft-labs/codetracer-design-system
+          ref: ${{ steps.ds.outputs.rev }}
+          path: .design-system
+          filter: blob:none
 
       - name: Every named view has an expected-elements block
         # verify_brief_has_expectation_block_per_view. Also fails when the
@@ -327,7 +424,15 @@ jobs:
         # fields contradict each other. If the pinned environment ever stops
         # being in effect here, this goes red instead of the canary quietly
         # becoming a host measurement.
-        run: node tools/capture/require-deterministic.mjs
+        #
+        # `nix run .#capture-env -- node`, NOT bare `node`: the eph-* runners
+        # carry no node at all, which is why the step above installs npm from
+        # the flake. Written bare, this step died with `node: command not
+        # found` (rc 127) — the job's own non-vacuity guard, unable to run.
+        # Both scripts here are pure readers of files the steps before them
+        # wrote, so running them inside the pinned environment changes nothing
+        # about what they decide; it only gives them an interpreter.
+        run: nix run .#capture-env -- node tools/capture/require-deterministic.mjs
 
       - name: Full regeneration, and the named view list is covered
         # verify_capture_covers_named_view_list + verify_full_regen_removes_stale_images.
@@ -337,7 +442,7 @@ jobs:
         # named view.
         run: |
           nix run .#capture-env -- node tools/capture/capture.mjs --no-build
-          node tools/capture/check-coverage.mjs
+          nix run .#capture-env -- node tools/capture/check-coverage.mjs
 
       - name: The ingest tool refuses what a hand would write
         # `just review-ingest-selftest`. It belongs in THIS job and not beside
@@ -418,6 +523,11 @@ jobs:
         uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: "2.2.x"
+          # NOT optional, despite what the action's README says. See the
+          # "THE THREE NIM JOBS" note at the top of this file: an absent
+          # token makes the action send `Authorization: Bearer ` and get a
+          # 401, which it then treats as a tag list.
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Tier 1 — every §14 chain row, established from a mock chain
         # No Embed SDK on the path: BlockTracer's own ViewModels are chain-aware
@@ -569,6 +679,28 @@ jobs:
           cp -R result/. .journey-site/
           chmod -R u+w .journey-site
           ./client/hydrate/fetch-engine.sh .journey-site/replay-engine
+
+      # THE WORKING TREE IS NOT THE NIX BUILD, and the selftest below uses the
+      # working tree.
+      #
+      # `nix build .#default` above runs `hydrate/build.sh` INSIDE the
+      # derivation, so the bundle it produces lives in the store and lands in
+      # `result/`. Nothing puts one at `client/hydrate/hydrate.js`. The selftest
+      # rebuilds the exporter locally with `-d:hydrationBundle=/assets/hydrate.js`
+      # (it must — that define is what makes a debug page carry the script tag
+      # the journeys assert on), and `installHydrationBundle` then refuses to
+      # emit a page naming a bundle that was never produced.
+      #
+      # On the first real-runner execution of this job that is exactly what
+      # happened, and the harness reported it correctly rather than scoring six
+      # kills over a tree that does not build:
+      #
+      #     the unmutated tree does not build; nothing below would mean anything
+      #
+      # That is the control arm doing its job. Build the bundle in the tree the
+      # selftest actually compiles against.
+      - name: Build the hydration bundle in the working tree
+        run: nix develop .#capture --command bash -c 'cd client && just hydrate'
 
       - name: Do the journeys bite?
         # BEFORE the verdict, never after. Six mutations in real product source,
