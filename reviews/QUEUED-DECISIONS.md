@@ -1189,3 +1189,66 @@ no view-model change. NOT (b).
 Note this also resolves the shape of Q3: once the badge stops claiming a
 warning, the raw reason string is a copy problem again rather than half of a
 contradiction, and Q3's options apply to it unchanged.
+
+## Q20. The position readout has no unit, and grouping made that cost more
+`debugger/laptop/dark` ADV, vd10-r1, filed P2/B7 after withdrawing its own P1 on
+the same pixels. It is the fourth refuted fix of this session and the second of
+mine.
+
+The identity bar prints `128 / 1,315`. The Call Trace prints `1,315` under an
+ACIR opcodes header about 700px away. **These are two different quantities that
+are equal by coincidence in this one recording**: `FixtureTotalSteps = 1315` is
+the trace's STEP count from `ct-print --summary`, and 1,315 is `main`'s opcode
+cost. `fixtureCallTrace` builds each frame as
+`frame(name; depth, step: int; cost: string)` — step and cost are separate
+fields — and `main` begins at step 1.
+
+The record of who has been misled by this pair is now three deep:
+  * two vd9-r2 lenses filed it as "the same quantity printed two ways on one
+    screen";
+  * I believed them and shipped `1eb3d31`, whose comment asserted they were the
+    same quantity. That justification was false and is corrected in this round;
+  * a vd10-r1 adversarial reviewer read the pair as one quantity, inferred the
+    readout counts opcodes, summed the three preceding frames' costs
+    (63+11+96 = 170), and filed a P1 that `128` was arithmetically impossible.
+    It withdrew that P1 on the source evidence and numbered its replacement
+    `ADV/2` so the withdrawal stays legible.
+
+**Grouping made it worse and should still not be reverted.** Before the change
+the bar read `1315` against the trace's `1,315`, so they at least looked unlike;
+now they are character-identical. But that difference only ever signalled the
+right thing by accident, and the grouping is independently correct — `totalSteps`
+is an integer in the view model, not one of the chain-native strings the data
+contract forbids the view from reformatting (see the standing resolution on
+`tx-detail/wide/light/L1/6`, which is where that rule is actually recorded, and
+which is a better foundation for `groupDigits` than the copyability argument its
+commit gave).
+
+The real defect is that **the denominator carries no unit at all**, so nothing
+on screen distinguishes a step count from an opcode count.
+
+Options:
+  (a) give the readout its unit — `step 128 / 1,315`, or a `steps` suffix, or a
+      `STEP` micro-label. Addresses the actual ambiguity and lets the grouping
+      stand. Costs width in the identity bar, which Q6 already measures as
+      over-full at 1440, where it loses the words that made the loading state
+      honest. So this trades against a live finding rather than against nothing;
+  (b) unit on the Call Trace side instead — the header already says
+      `ACIR opcodes`, so arguably the bar is the unlabelled one and (a) is the
+      right side to fix;
+  (c) de-collide the values: the fixture could position at a step that is not
+      also a plausible opcode total. That fixes the photograph and not the
+      product, and the coincidence is a property of the real recording, so this
+      is cosmetic and probably wrong;
+  (d) leave it, now that the source comments no longer assert the false version.
+
+Recommendation: **(a)**, tested at 1440 in the same round as any Q6 work, since
+the two compete for the same pixels. NOT (c).
+
+A note on process, because it is the useful part. This defect was invisible to
+every measurement lens for three rounds — nothing about it is a contrast ratio,
+a spacing rung or a wrap. It surfaced only when a reviewer tried to VERIFY the
+numbers against each other, and it was confirmed only by reading the fixture
+source rather than the image. A campaign that grades stills cannot see this
+class of defect; it took a reviewer reasoning about arithmetic, being wrong in a
+specific and checkable way, and having its error traced.

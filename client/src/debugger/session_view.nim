@@ -702,13 +702,34 @@ func groupDigits*(n: int): string =
   ## (`[100, 2000, 200, …]`, which grouping would render genuinely ambiguous),
   ## and are copyable. `ctcost` carries no `.copyable` and is grouped.
   ##
-  ## ## What was actually broken
+  ## ## What was actually broken, and what was NOT
   ##
-  ## The identity bar rendered the trace length `1315` while the Call Trace
-  ## rendered the SAME NUMBER as `1,315` about 300px away, and the home page
-  ## echoed the bare spelling a third time. Two lenses filed exactly that pair.
+  ## The identity bar and the home page rendered the trace's step count
+  ## ungrouped while every other read-only count on the page was grouped.
   ## Neither readout is copyable, so both were on the wrong side of the rule
-  ## above; they now call this.
+  ## above; they now call this, and that part stands.
+  ##
+  ## **The reason originally given here was false and is withdrawn.** It said
+  ## the identity bar printed "the SAME NUMBER" the Call Trace printed as
+  ## `1,315`. It does not. `FixtureTotalSteps` is the recorded trace's STEP
+  ## count from `ct-print --summary`; the Call Trace's `main` row is 1,315 ACIR
+  ## OPCODES. `fixtureCallTrace` builds frames as
+  ## `frame(name; depth, step: int; cost: string)` with step and cost as
+  ## separate fields, and `main` begins at step 1. The two are equal only by
+  ## coincidence in this one recording.
+  ##
+  ## Two vd9-r2 lenses conflated them, I believed the conflation, and the change
+  ## made the collision WORSE — the two numbers are now character-identical
+  ## about 700px apart where they used to look unlike. A vd10-r1 adversarial
+  ## reviewer then read them as one quantity and derived an arithmetic
+  ## impossibility from it. Three readers misled by the same pair, one of them
+  ## in code.
+  ##
+  ## The grouping is kept because it is right on its own terms — `totalSteps` is
+  ## an integer in the view model, not one of the chain-native strings the data
+  ## contract forbids the view from reformatting — and because the old
+  ## difference only ever signalled anything by accident. The missing piece is
+  ## the readout's UNIT; see `reviews/QUEUED-DECISIONS.md` Q20.
   ##
   ## The 19-digit fee is NOT fixed here and must not be fixed by grouping it —
   ## see `reviews/QUEUED-DECISIONS.md` Q16. Two reviewers named the remedy the

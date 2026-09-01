@@ -1038,12 +1038,38 @@ proc renderControls*(p: DebugControlsPane): string =
         span(class = "dcphase"): text p.statusText
         if p.totalSteps > 0:
           span(class = "dcsteps num"):
-            # GROUPED, because this is the same quantity the Call Trace pane
-            # prints ~300px to the left as `1,315` and it was printing it as
-            # `1315`. Two lenses filed the pair in vd9-r2 — "the same quantity
-            # is printed two ways on one screen" — and one more filed the
-            # readout on its own. `dcsteps` carries no `.copyable`, so the rule
-            # on `groupDigits` puts it on the grouped side.
+            # GROUPED because `dcsteps` carries no `.copyable` and `totalSteps`
+            # is an integer in the view model, so the rule on `groupDigits` puts
+            # it on the grouped side. That is the whole justification.
+            #
+            # IT IS NOT "THE SAME QUANTITY THE CALL TRACE PRINTS", which is what
+            # this comment used to say, and the correction matters because the
+            # false version is why the change was made at all. Two vd9-r2 lenses
+            # filed the pair as "the same quantity printed two ways on one
+            # screen" and I believed them. They are two DIFFERENT quantities
+            # that are equal by coincidence in this one recording:
+            #
+            #   * `FixtureTotalSteps = 1315` in `debugger/demo_session.nim` is
+            #     the recorded trace's STEP count, from `ct-print --summary`
+            #     (`traceSteps = 1315` in `demo/generator.nim` says so);
+            #   * the Call Trace's `main` row is 1,315 ACIR OPCODES, under an
+            #     opcodes header, and `demo_session.fixtureCallTrace` builds
+            #     each frame as `frame(name; depth, step: int; cost: string)` —
+            #     step and cost are separate fields. `main` begins at step 1.
+            #
+            # So grouping this readout did not unify two spellings of one
+            # number; it made two unrelated numbers character-identical about
+            # 700px apart, where before they at least looked unlike. A vd10-r1
+            # adversarial reviewer then read the pair as one quantity and
+            # derived an arithmetic impossibility from it, which is three
+            # readers misled by the same collision, one of them me, in code.
+            #
+            # The grouping STAYS: it is correct on its own terms and reverting
+            # it would restore a difference that only ever signalled the right
+            # thing by accident. What is missing is the readout's UNIT, so the
+            # two counters stop reading as one — see QUEUED-DECISIONS.md Q20,
+            # queued rather than taken because the identity bar is already
+            # measured as over-full at 1440.
             text groupDigits(p.step) & " / " & groupDigits(p.totalSteps)
 
 # ── the metadata pane (§7.1) ───────────────────────────────────────────────
