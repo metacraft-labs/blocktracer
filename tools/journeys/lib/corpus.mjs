@@ -170,27 +170,63 @@ export function landingOf(phase) {
 import { readFile as _readFile } from "node:fs/promises";
 
 /**
- * What each demo transaction is FOR, from the corpus manifest if the tree
- * carries one. `{}` until it does — never a guess, and never "everything".
+ * The capability tour's manifest — `fixtures/trace/tour/manifest.json`, schema
+ * `blocktracer/demo-tour/v1`. Eight programs, each addressable by `id` and by
+ * `capabilities[]`.
+ *
+ * READING IT IS NOT BORROWING THE ANSWER. Its `expectations` are written FROM
+ * THE SOURCE — "`triangular(6)` sums 0..5, so `acc` takes 0, 0, 1, 3, 6, 10, 15"
+ * — and when a round of claims turned out wrong, the corpus was RE-RECORDED
+ * rather than the claim weakened. So the manifest is a second independent
+ * statement of what the program does, not a readback of what the recording
+ * happens to contain, and asserting the page against it crosses two sources
+ * rather than one. That is precisely the property whose absence let the
+ * `Nargo.toml` defect survive 115 tests.
+ *
+ * Throws on a manifest that exists and does not parse: a broken input is not an
+ * absent one, and behaving as though the corpus had none would hide it.
  */
-export async function capabilityManifest(root) {
-  for (const candidate of ["d/demo-capabilities.json", "registry/capabilities.json"]) {
-    const raw = await _readFile(join(root, candidate), "utf8").catch(() => null);
-    if (raw !== null) {
-      try {
-        return JSON.parse(raw);
-      } catch {
-        // A manifest that does not parse is a broken input, not an absent one.
-        // Saying so beats silently behaving as though the corpus had none.
-        throw new Error(`${candidate} is present but is not valid JSON`);
-      }
-    }
+export async function tourManifest(repoRoot) {
+  const path = join(repoRoot, "fixtures", "trace", "tour", "manifest.json");
+  const raw = await _readFile(path, "utf8").catch(() => null);
+  if (raw === null) return { programs: [] };
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`${path} exists and is not valid JSON: ${err.message}`);
   }
-  return {};
+  if (parsed.schema && parsed.schema !== "blocktracer/demo-tour/v1") {
+    // A schema this code has not read is not a manifest it may guess at.
+    throw new Error(`${path} declares schema '${parsed.schema}', which this layer does not know`);
+  }
+  return parsed;
 }
 
-/** The capabilities one transaction demonstrates. Empty until the manifest exists. */
-export function capabilitiesOf(manifest, tx) {
-  const entry = manifest?.[tx.hash] ?? manifest?.[`${tx.chain}/${tx.hash}`];
-  return entry?.demonstrates ?? [];
+/** The tour programs demonstrating a capability. Selection by PROPERTY, never by id. */
+export function programsWith(manifest, capability) {
+  return (manifest.programs ?? []).filter((p) => (p.capabilities ?? []).includes(capability));
+}
+
+/**
+ * Join a tour program to the transaction the exporter published it as.
+ *
+ * The join is on the program's `package`, which appears in the served page
+ * because the session renders the program's own `Nargo.toml`. It is a content
+ * join and not an id lookup because the exporter publishes no program id on the
+ * page — if it ever does, this should read that instead, and the change is one
+ * function.
+ *
+ * Returns null when the program is not published, which a journey must treat as
+ * a missing subject rather than as a pass.
+ */
+export async function txForProgram(root, transactionsList, program) {
+  for (const t of transactionsList) {
+    const html = await _readFile(
+      join(root, t.chain, "tx", t.hash, "debug", "index.html"),
+      "utf8",
+    ).catch(() => "");
+    if (html.includes(program.package)) return t;
+  }
+  return null;
 }

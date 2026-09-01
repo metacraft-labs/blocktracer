@@ -78,7 +78,7 @@ export async function enginePresent(root) {
  * Throws with `.exitCode = 2` for every "did not run" condition, so a missing
  * input can never be mistaken for a clean sweep.
  */
-export async function openSite(root) {
+export async function openSite(root, repoRoot) {
   if (!(await exists(join(root, "index.html")))) {
     const e = new Error(
       `no exported site at ${root}\n` +
@@ -120,6 +120,10 @@ export async function openSite(root) {
   const server = await serveDist(root);
   return {
     root,
+    // The repository, not the built site: the tour manifest is a fixture in
+    // the source tree, not an exported asset, and a journey that reads it needs
+    // to be told where the tree is rather than guessing from `dist`.
+    repoRoot,
     origin: server.origin,
     hydrated,
     engine,

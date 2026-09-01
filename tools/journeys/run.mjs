@@ -167,7 +167,7 @@ async function main() {
   // silently un-does the fetch — see lib/engine.mjs.
   const staged = await stageEngine(args.dist, args.engineCache);
 
-  const site = await openSite(args.dist);
+  const site = await openSite(args.dist, REPO);
   console.log(`  artefact:      ${site.root}`);
   console.log(`  build:         HYDRATED — the shape flake.nix packages.default deploys`);
   console.log(

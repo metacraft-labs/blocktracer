@@ -12,9 +12,20 @@
     "that says what was measured. A ledger entry written to make a suite green is the defect",
     "this whole layer exists to catch, wearing the suite's own uniform.",
     "",
-    "It is currently EMPTY, and that is the state to keep it in."
+    "Two entries, both product decisions rather than bugs with obvious fixes, both found by this layer."
   ],
-  "known_red": {},
+  "known_red": {
+    "a-value-can-be-traced-to-its-origin": {
+      "reason": "The product PROMISES, on the home page hero and in the meta description that reaches search results, that a visitor can 'trace any value to its origin'. No control in any session offers it. This is not an unbuilt feature: the Embed SDK's StateVM declares `originChainLookup*: proc(name: string): Option[OriginChain]` (state_vm.nim:166), has a unit suite for it (test_origin_chain_vm.nim) and a view that reads it (isonim_state_view.nim). BlockTracer constructs a StateVM and assigns that field NOWHERE, so it is nil for the life of every session; `projectState` models no origin at all and `renderState` has nothing to draw. Same shape as `currentEntryRequest()` having zero callers: the machinery is present and unwired.",
+      "evidence": "dev @ edbbd43, hydrated: the promise renders on / and in <meta name=description>; the Values pane shows 10 rows; the same scan finds 19 interactive controls; 0 of them offer an origin, by any of `origin|provenance|where did this come from|trace value` across text, data-action, aria-label and title.",
+      "closed_by": "UNOWNED, and it is a product decision rather than a bug with an obvious fix. Two legitimate resolutions and the journey is honest about both: wire `originChainLookup` and give the Values pane the affordance, OR remove the sentence from home.nim and ssr.nim. Removing the copy turns this journey green, because the claim is an implication and the antecedent is what the product says. What is not acceptable is shipping the sentence and not the surface, which is today's state."
+    },
+    "a-failed-execution-is-tellable-from-a-completed-one": {
+      "reason": "The tour's `constraints` program stops on an assertion that cannot hold — 170 against a floor of a million — and its recording ends there. The page presents it identically to a program that ran to completion: both carry the badges 'Succeeded | Synthetic demo data | No timestamp published | Yes | Finalized | Trace ready' and the same provenance sentence, and nothing anywhere says the execution did not finish. A visitor cannot tell the two apart without reading the Noir source in the pane.",
+      "evidence": "dev @ edbbd43: constraints (71 steps) and values (34 steps) both land in a session, both publish the step count the manifest declares, and their badge-plus-reason strings are byte-identical.",
+      "closed_by": "UNOWNED. The chain-level outcome ('Succeeded') is a fact about the transaction and is correct; what is missing is the EXECUTION's outcome, which the recording carries and the page does not render. Note the scope this journey deliberately leaves open: it does not assert the failure message or that the last event-log entry names it, because both need a session stepped to its end — the manifest's own note says a tour entry's replay is nobody's until hydration runs, and that is a second, larger journey."
+    }
+  },
 
   "_closed": {
     "_comment": [
