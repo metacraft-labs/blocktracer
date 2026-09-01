@@ -35,6 +35,7 @@ import ../src/viewutil
 import ../src/debugger/demo_session
 import ../src/debugger/session_view
 import ../src/components/provenance
+import ../src/components/debugger as dbgc
 import blocktracer/demo/generator
 import blocktracer/chain/ingest
 
@@ -215,7 +216,17 @@ suite "1 — a rung-3 recording never renders as source":
       renderRoute(root, "/" & RealChain & "/tx/" & prunedTx & "/debug").body)
     check pruned.len > 0
     check "srcpos" notin pruned
-    check not debugSessionFor(root, RealChain, prunedTx).controls.positioned
+    let prunedSession = debugSessionFor(root, RealChain, prunedTx)
+    check not prunedSession.controls.positioned
+    # …and the check above is not passing merely because a pruned transaction
+    # renders no panes at all (`hasFrame` is false, so §7.0's non-session row
+    # replaces them). Driven through the SAME renderer as the arm above, with
+    # the REPLAYED transaction's pane and the PRUNED one's controls, so the only
+    # thing that differs is whether there is a position.
+    check not prunedSession.hasFrame
+    let pane = debugSessionFor(root, RealChain, replayedTx).editor
+    check pane.availability == srcUnverified          # the pane really is one
+    check "srcpos" notin dbgc.renderSource(pane, prunedSession.controls)
 
   test "MUTATION BITE: a session told sourceLevel renders the fixture":
     # The control for the arm above. If `demoSession` ignored `sourceLevel`,
