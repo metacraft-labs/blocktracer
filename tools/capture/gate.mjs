@@ -394,12 +394,50 @@ function gateTarget(target, L, model, opts = {}) {
     }
   }
   const unverified = reviews.length - hashed.length;
+
+  // WHY THE IMAGE IS ABSENT IS NOT ONE QUESTION, AND G2 WAS ANSWERING IT AS IF
+  // IT WERE. "the capture reviewed is missing (… is gone)" describes a file
+  // that was deleted or never regenerated, and the remedy it implies is
+  // `just capture`. There is a second way for the file to be absent and it has
+  // the opposite remedy: the VIEW went `pending`, so the corpus deliberately no
+  // longer contains a photograph of this subject and no amount of re-capturing
+  // will produce one.
+  //
+  // That is not hypothetical either. `tx-detail--mainnet-zero-trace` was in
+  // gateScope with a complete six-lens ingested triple when the published set
+  // was re-scoped to the window where every transaction opens — so no real
+  // chain carries a trace-less transaction to photograph any more, views.mjs
+  // marks the view `pending` with exactly that reason, and check-coverage's
+  // assertion F went from 308 subjects to 300 without a single drift. Nothing
+  // is stale, nothing is missing, and the honest reading is that a triple under
+  // gate has stopped being photographable.
+  //
+  // This does NOT make G2 pass, and must not: six reviews of an image the
+  // corpus no longer publishes are still not six reviews of the image on disk,
+  // and certifying them because the absence is principled would be exactly the
+  // "weaken the assertion that produced the finding" move this campaign
+  // forbids. What changes is only the SENTENCE, because the thing needing a
+  // decision is the gateScope entry and not the reviewers — re-running them is
+  // impossible rather than merely undone, and a gate that sends its reader to
+  // `just capture` for a subject that cannot be captured is wasting the one
+  // reader it has.
+  const viewDef = VIEWS_BY_ID.get(view);
+  const unphotographable = unreadable.length > 0 && viewDef && viewDef.status !== "ready";
+
   push(
     "G2",
     absent.length === 0 && stale.length === 0 && unreadable.length === 0,
     [
       absent.length ? `missing reviewer(s): ${absent.join(", ")}` : `all ${ALL_LENSES.length} reviewers present`,
-      unreadable.length ? `the capture reviewed is missing: ${unreadable.join(", ")}` : "",
+      unphotographable
+        ? `the subject is NO LONGER PHOTOGRAPHABLE — view '${view}' is status ` +
+          `'${viewDef.status}', so the corpus publishes no image of it and re-capturing ` +
+          `cannot produce one. views.mjs gives the reason: ${viewDef.pendingReason || "(none stated)"}. ` +
+          `${unreadable.length} ingested review(s) of the withdrawn capture remain in the ledger and ` +
+          `still do not satisfy "the exact image". This is a gateScope decision, NOT a re-review: ` +
+          `either the subject is restored to the published set, or this triple leaves gateScope in ` +
+          `its own commit stating which reviews it retires and why.`
+        : unreadable.length ? `the capture reviewed is missing: ${unreadable.join(", ")}` : "",
       stale.length
         ? `${stale.length} review(s) are of a SUPERSEDED capture — the file moved after they were ` +
           `filed, so "the exact image" is no longer the image on disk: ${stale.join(", ")}. ` +
