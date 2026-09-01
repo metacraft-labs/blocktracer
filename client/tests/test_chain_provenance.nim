@@ -173,6 +173,50 @@ suite "1 — a rung-3 recording never renders as source":
     check "instruction level" in body
     check "no debug symbols" in body
 
+  test "and it still says WHERE the session is stopped, with no line to mark":
+    # The defect this arm was added for. "A rung-3 recording never renders as
+    # source" was enforced, correctly — and the consequence was that the Code
+    # pane on EVERY real transaction this site publishes drew two paragraphs of
+    # prose and no position mark of any kind. The one surface whose whole
+    # question is "where is this execution stopped" answered it nowhere, on the
+    # only transactions the chain actually has. A reader could see 208 steps in
+    # the toolbar and nothing in the pane.
+    #
+    # Asserted on the REAL capture's rendered page, not on a constructed pane:
+    # this is the artefact a visitor loads.
+    let debugBody = markup(realDebugBody())
+    check occurrences(debugBody, "<div class=\"srcpos\" aria-current=\"true\">") == 1
+    check occurrences(debugBody,
+                      "<span class=\"p\" aria-hidden=\"true\">▶</span>") == 1
+    check "The session is stopped at step " in debugBody
+    # The COORDINATE is this recording's own, cross-checked against the
+    # snapshot's step count rather than against the page that printed it.
+    let s = debugSessionFor(root, RealChain, replayedTx)
+    check s.controls.positioned
+    check s.controls.step > 0
+    check s.controls.totalSteps == replayedSteps
+    check ("<span class=\"num\">" & $s.controls.step & "</span> of " &
+           "<span class=\"num\">" & $replayedSteps & "</span>") in debugBody
+    # It is the pane's head and not a second toolbar: it sits inside the Code
+    # pane, above the sentence that explains why there is no text under it, and
+    # the instruction-level prose is untouched.
+    check debugBody.find("srcpos") < debugBody.find("srcnone")
+    check "Stepping continues at instruction level." in debugBody
+    # And no line is claimed. A rung-3 recording has no source position, so the
+    # head must not have produced a listing by the back door.
+    check "class=\"srcline" notin debugBody
+
+  test "CONTROL: a page with NO position draws no head, on the same route":
+    # Without this the arm above is satisfied by a head emitted unconditionally,
+    # which would put "the session is stopped at step 0 of 0" on every pruned
+    # transaction — a coordinate the page does not have, stated in the voice of
+    # one it does.
+    let pruned = markup(
+      renderRoute(root, "/" & RealChain & "/tx/" & prunedTx & "/debug").body)
+    check pruned.len > 0
+    check "srcpos" notin pruned
+    check not debugSessionFor(root, RealChain, prunedTx).controls.positioned
+
   test "MUTATION BITE: a session told sourceLevel renders the fixture":
     # The control for the arm above. If `demoSession` ignored `sourceLevel`,
     # every check above would still pass on a page that HAD borrowed the

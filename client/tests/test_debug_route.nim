@@ -2648,6 +2648,263 @@ suite "Omniscience — the branch that was taken, and the ones that were not":
     check ".srcline.ntnow .t{opacity:var(--bt-opacity-not-run)}" in css
     check ".srcline .mn{display:none;color:var(--bt-mark-not-taken)}" in css
 
+suite "the current line is marked, and a branch claim cannot take the mark":
+  ## THE DEFECT: on the flagship view the position glyph was not drawn at all.
+  ##
+  ## `.m` was one gutter cell answering two independent questions — "what does
+  ## the recording say about this line" (`·`, `⊙`, `⊘`) and "is the session
+  ## standing here" (`▶`) — and the stylesheet resolves that collision by
+  ## hiding the second: `.srcline.ntnow .mg{display:none}` and
+  ## `.srcline.rnnow .mg{display:none}`. The line a session is stopped at is
+  ## STRUCTURALLY also the arm that ran in the displayed pass, so the row whose
+  ## glyph matters most is the row that hid it. `debugger_css.nim` had already
+  ## measured the consequence and filed it as Q18 — "`▶` is never painted
+  ## anywhere in the corpus" — without connecting it to the cause.
+  ##
+  ## The fix is a channel and not a colour. `672dfc4` had already spent the
+  ## colour channel (the current line's `⊙`/`⊘` take the position ink, to lift
+  ## them off the position band), which left the row with a BRANCH glyph wearing
+  ## POSITION ink and no position glyph — two facts collapsed onto one mark.
+  ##
+  ## Every test below asserts on the RENDERED page, through the shipping
+  ## renderer, and counts what it finds. The demo fixture's `shield.nr:32` is
+  ## the overlap case on purpose: it is where the session stands AND the arm the
+  ## displayed pass took AND the arm two earlier passes declined.
+
+  let html = debugHtml(readyTx)
+  let onDemandHtml = debugHtml(onDemandTx)
+
+  test "the subject exists: one positioned line, in a listing of many":
+    # Nothing below is worth checking over a page with no listing or no
+    # position, and both have been true of this route for a whole class of
+    # transaction. The counts are asserted, not sampled.
+    check occurrences(html, "class=\"srcline") == 108
+    check occurrences(html, "class=\"srcline cur") == 1
+    check "id=\"L-src-shield-nr-32\"" in html
+
+  test "the position has a gutter cell of its own, on EVERY row":
+    # One `.p` per rendered line and not one per page. A cell that appeared
+    # only where the session stands would shift that row's code text right by
+    # its own width relative to every other row, so the current line would be
+    # the one line that does not align — a worse artefact than no marker.
+    check occurrences(html, "<span class=\"p\">") == 108
+    # …and exactly one of them is inked. The other 107 hold a space.
+    check occurrences(html, "<span class=\"p\">▶</span>") == 1
+    check occurrences(html, "<span class=\"p\"> </span>") == 107
+
+  test "the OVERLAP row states both facts, in the order the renderer emits":
+    # The whole composition question, as one exact string. `shield.nr:32` is
+    # dimmed-in-two-passes, ran-in-this-one, and current — and the row carries
+    # the not-taken rail, the ran rail, the POSITION glyph in its own cell, the
+    # number, and the branch triple, none of which displaces another.
+    #
+    # Exact and not an `in`-substring on each piece: the defect being fixed was
+    # precisely that two of these shared one cell, and a per-piece check passes
+    # against a row that emits them in the wrong container.
+    check ("<div class=\"srcline cur hit nt-i0 nt-i1 rn-i2 rnnow\" " &
+           "id=\"L-src-shield-nr-32\" data-line=\"32\" aria-current=\"true\">" &
+           "<span class=\"ntbar\"></span><span class=\"rnbar\"></span>" &
+           "<span class=\"p\">▶</span><span class=\"n\">32</span>" &
+           "<span class=\"m\"><span class=\"mg\">·</span>" &
+           "<span class=\"mn\">⊘</span><span class=\"mt\">⊙</span></span>") in html
+
+  test "the branch glyphs are untouched, in count and in spelling":
+    # The fix may not be "drop the branch mark". Both facts are real, and the
+    # three claimed lines (29, 32, 44) still carry every channel they carried.
+    check occurrences(html, "<span class=\"mn\">⊘</span>") == 3
+    check occurrences(html, "<span class=\"mt\">⊙</span>") == 3
+    check occurrences(html, "<span class=\"ntbar\">") == 3
+    check occurrences(html, "<span class=\"rnbar\">") == 3
+    # `.mg` sheds `▶` and keeps `·`: the cell now answers ONE question, so a
+    # steppable line the session is standing on says both things at once
+    # instead of choosing. All three claimed lines are executed.
+    check occurrences(html, "<span class=\"mg\">·</span>") == 3
+    check "<span class=\"mg\">▶</span>" notin html
+
+  test "NO branch rule can reach the position cell, in the whole stylesheet":
+    # The structural half of the fix, asserted structurally. Every rule that
+    # hides a gutter glyph selects `.mg`, `.mn` or `.mt` — all of them INSIDE
+    # `.m` — so none of them can name `.p`. This is what makes the channel
+    # uncontendable rather than merely currently-uncontended: a seventeenth
+    # rung of the `:target` ladder, or a fourth branch state, cannot silently
+    # take the position mark the way `.rnnow` took `.mg`.
+    let css = debugRouteCss
+    check ".srcline .p{" in css
+    check ".srcline.cur .n,.srcline.cur .m,.srcline.cur .p{" &
+          "color:var(--bt-mark-position)}" in css
+    # The suppression rules that caused the defect are still there — they are
+    # correct for `.mg` — and they still name only cells inside `.m`.
+    check ".srcline.ntnow .mg{display:none}" in css
+    check ".srcline.rnnow .mg{display:none}" in css
+    var hidesPosition = 0
+    for line in css.splitLines:
+      if ".p{display:none" in line or " .p," in line or " .p{display" in line:
+        inc hidesPosition
+    check hidesPosition == 0
+
+  test "the position reaches the ACCESSIBILITY tree, which it did not before":
+    # Every other channel — the fill, the rail, the ink, the glyph — is a
+    # paint. A reader who gets the DOM and not the pixels had no way at all to
+    # tell the current line from any other row, on a view whose entire subject
+    # is which line that is.
+    #
+    # Counted in BOTH directions. `aria-current="false"` is ARIA's spelling of
+    # "does not represent the current item", and asserting the 107 is what
+    # distinguishes "one row is marked current" from "the renderer stopped
+    # emitting the attribute and one row happens to match".
+    check occurrences(html, "aria-current=\"true\"") == 1
+    check occurrences(html, "aria-current=\"false\"") == 107
+    check ("id=\"L-src-shield-nr-32\" data-line=\"32\" " &
+           "aria-current=\"true\"") in html
+
+  test "CONTROL: a page with no listing carries none of these marks":
+    # Without this, every count above would be satisfied by a renderer that
+    # emitted the position markup unconditionally. The on-demand transaction
+    # has no session and no source, and it draws no `.p`, no `aria-current` on
+    # a row, and no `▶` in a gutter.
+    check "class=\"srcline" notin onDemandHtml
+    check "<span class=\"p\">" notin onDemandHtml
+    check "aria-current=\"false\"" notin onDemandHtml
+
+  test "MUTATION BITE: the position moves when the SESSION does, not by luck":
+    # The counts above hold for a renderer that marked line 32 because it is
+    # line 32. Move the position and every one of them has to follow it — the
+    # glyph, the class and the ARIA state together, and off the old line.
+    var moved = EditorPane(
+      availability: srcSourceLevel, activeIndex: 0,
+      documents: @[newSourceDocument(
+        "src/shield.nr", "noir",
+        readFile(clientRoot / "fixtures" / "demo-session" / "src" / "shield.nr"))])
+    focus(moved, "src/shield.nr", 29)
+    let movedHtml = dbgc.renderSource(moved)
+    check occurrences(movedHtml, "<span class=\"p\">▶</span>") == 1
+    check occurrences(movedHtml, "aria-current=\"true\"") == 1
+    check "id=\"L-src-shield-nr-29\" data-line=\"29\" aria-current=\"true\"" in
+          movedHtml
+    check "id=\"L-src-shield-nr-32\" data-line=\"32\" aria-current=\"false\"" in
+          movedHtml
+
+  test "MUTATION BITE: the branch claim is what USED to erase the position":
+    # The defect, reproduced through the model rather than asserted from
+    # memory. `rnnow` on the current line is exactly the state that hides
+    # `.mg`; the row still draws `▶`, because `▶` is no longer in `.mg`.
+    #
+    # The twin is the point: the SAME pane without the claim renders the same
+    # position glyph, so this arm is not passing because the claim was dropped.
+    let shieldSource = readFile(
+      clientRoot / "fixtures" / "demo-session" / "src" / "shield.nr")
+    proc paneAt(line: int; claimCurrent: bool): EditorPane =
+      result = EditorPane(
+        availability: srcSourceLevel, activeIndex: 0,
+        documents: @[newSourceDocument("src/shield.nr", "noir", shieldSource)])
+      focus(result, "src/shield.nr", line)
+      if claimCurrent:
+        for i in 0 ..< result.documents[0].lines.len:
+          if result.documents[0].lines[i].number == line:
+            result.documents[0].lines[i].ran = @[-1]
+    let claimed = dbgc.renderSource(paneAt(32, true))
+    let bare = dbgc.renderSource(paneAt(32, false))
+    # The claim really is on the current row — otherwise this proves nothing.
+    check "class=\"srcline cur rn-any rnnow\"" in claimed
+    check "rn-any" notin bare
+    # …and the position glyph survives it, exactly once, in both renders.
+    check occurrences(claimed, "<span class=\"p\">▶</span>") == 1
+    check occurrences(bare, "<span class=\"p\">▶</span>") == 1
+    # The branch glyph is there too, in the cell it has always been in. Two
+    # marks, two facts, one row.
+    check "<span class=\"mt\">⊙</span>" in claimed
+    check "<span class=\"mt\">" notin bare
+
+suite "the pane with no line to mark still says where the session is":
+  ## `renderSource`'s OTHER output. A source-level pane says where the session
+  ## is with `.srcline.cur`; an instruction-level pane — `srcUnverified`, which
+  ## is every real chain transaction this site publishes — returned `.srcnone`,
+  ## two paragraphs of prose, and no position mark of any kind. The pane whose
+  ## whole question is "where is this stopped" answered it nowhere.
+  ##
+  ## `test_chain_provenance` asserts the same head on the REAL capture's page.
+  ## This suite drives the renderer directly, so the branches a demo tree does
+  ## not happen to contain are still covered.
+
+  proc unverifiedPane(): EditorPane =
+    EditorPane(availability: srcUnverified,
+               reason: "No source bundle is published for the code that ran.")
+
+  proc positioned(step, total: int): DebugControlsPane =
+    DebugControlsPane(step: step, totalSteps: total, positioned: step > 0)
+
+  test "the head is drawn, and it states the coordinate the session HAS":
+    # The step, and only the step. No line number is claimed, because
+    # `recording.stepsPositioned` is 0 for every real transaction — a line here
+    # would be invented.
+    let html = dbgc.renderSource(unverifiedPane(), positioned(128, 208))
+    check occurrences(html, "<div class=\"srcpos\" aria-current=\"true\">") == 1
+    check occurrences(html, "<span class=\"p\" aria-hidden=\"true\">▶</span>") == 1
+    check "The session is stopped at step " in html
+    check "<span class=\"num\">128</span>" in html
+    check "<span class=\"num\">208</span>" in html
+    # The head is ABOVE the explanation, not merged into it: the answer first,
+    # then why there is no text to put it on.
+    check html.find("srcpos") < html.find("srcnone")
+    # …and `.srcnone` itself is untouched.
+    check "class=\"panenote\"" in html
+    check "Stepping continues at instruction level." in html
+
+  test "it reads the same channels as the current source line, not new ones":
+    # A reader who has learned one page's position mark must recognise this
+    # one. Same fill token, same rail token, same glyph — and no new token, in
+    # particular nothing from the danger family, which on this product means a
+    # REVERTED execution.
+    let css = debugRouteCss
+    check ".srcpos{" in css
+    check "background:var(--bt-mark-position-surface)" in css
+    check "border-left:var(--bt-stroke-thick) solid var(--bt-mark-position)" in css
+    check ".srcpos .p{" in css
+    let rule = css[css.find(".srcpos{") ..< css.find(".srcnone{")]
+    check "--bt-status-bad" notin rule
+    check "--bt-status-danger" notin rule
+    check "#" notin rule            # no raw colour, on the rule itself
+
+  test "CONTROL: an UNPOSITIONED pane draws no head at all":
+    # "Step 0 of 0" would be the confident-but-wrong answer this product may
+    # not ship, and it is what an unguarded head renders on the on-demand row.
+    # Three ways to be unpositioned, each one silent.
+    for pos in [DebugControlsPane(),
+                positioned(0, 208),
+                DebugControlsPane(step: 128, totalSteps: 0, positioned: true)]:
+      let html = dbgc.renderSource(unverifiedPane(), pos)
+      check "srcpos" notin html
+      check "class=\"srcnone\"" in html          # the pane still speaks
+    # And a caller that passes nothing gets the old markup exactly.
+    check "srcpos" notin dbgc.renderSource(unverifiedPane())
+
+  test "MUTATION BITE: the coordinate is the SESSION's, not a constant":
+    # The assertions above are satisfied by a head that hard-codes 128/208.
+    let a = dbgc.renderSource(unverifiedPane(), positioned(7, 41))
+    check "<span class=\"num\">7</span>" in a
+    check "<span class=\"num\">41</span>" in a
+    check "128" notin a
+    check "208" notin a
+
+  test "MUTATION BITE: a SOURCE-level pane draws the line, never the head":
+    # The two outputs are exclusive. A pane that can mark a line marks the
+    # line; adding the head there would be a second position mark on one page,
+    # disagreeing with the first the moment either moved.
+    var pane = EditorPane(
+      availability: srcSourceLevel, activeIndex: 0,
+      documents: @[newSourceDocument(
+        "src/shield.nr", "noir",
+        readFile(clientRoot / "fixtures" / "demo-session" / "src" / "shield.nr"))])
+    focus(pane, "src/shield.nr", 32)
+    let html = dbgc.renderSource(pane, positioned(128, 208))
+    check "srcpos" notin html
+    check occurrences(html, "aria-current=\"true\"") == 1
+    check occurrences(html, "<span class=\"p\">▶</span>") == 1
+    # The twin, through the same call: strip the documents and the SAME
+    # controls now produce the head. So "no head" above is about the pane's
+    # availability and not about the controls being ignored.
+    check "srcpos" in dbgc.renderSource(unverifiedPane(), positioned(128, 208))
+
 suite "M8b — availability decides the landing, not a preference":
 
   test "every transaction's phase follows its published availability":

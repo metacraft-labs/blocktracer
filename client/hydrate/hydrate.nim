@@ -269,7 +269,13 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch) =
   # to `srcUnverified` has no documents and IS the honest §14 row, so it counts
   # as something to say. What must never replace a served listing is a pane
   # that has resolved to nothing at all.
-  writePane(ui.editor, panes.renderSource(view.editor),
+  # `view.controls` is passed for the same reason `paneBody` passes it: an
+  # instruction-level pane has no line to mark, so its position head is drawn
+  # from the session's step. Omitting it here would have shipped the fix on the
+  # build the capture harness photographs and NOT on the build a visitor loads —
+  # this route defers `/assets/hydrate.js`, and this call re-renders the pane the
+  # static export drew. The two artefacts differ, and a fix has to land on both.
+  writePane(ui.editor, panes.renderSource(view.editor, view.controls),
             view.editor.documents.len > 0 or view.editor.reason.len > 0,
             latch.editor)
   writePane(ui.calltrace, panes.renderCallTrace(view.calltrace),

@@ -536,6 +536,30 @@ html[data-register="debugger"],
   padding:0 var(--bt-density-cell-x);white-space:pre;
   min-width:max-content;position:relative;
   border-left:var(--bt-stroke-thick) solid transparent}
+/* THE POSITION COLUMN. Leftmost, immediately inside the current-position rail,
+   which is where a debugger's marker gutter goes and where a reader's eye
+   already is when it follows that rail down the pane.
+
+   It is a SEPARATE flex item and that is the whole point of it. `.m` next to it
+   holds `.mg`/`.mn`/`.mt` — steppable, ran-in-this-pass, did-not-run — and
+   every branch rule in this sheet selects one of those three. None of them can
+   reach `.p`, so the position cannot be hidden by a branch claim the way `.mg`
+   is by `.srcline.ntnow .mg{display:none}` and `.srcline.rnnow .mg{...}`. That
+   suppression is why the measurement further down this file records "`▶` is
+   never painted anywhere in the corpus": the current line is structurally also
+   the arm that ran, so the row that most needs the glyph is exactly the row
+   that hid it.
+
+   Fixed width, on every row, so the code text starts at the same x on all of
+   them. `--bt-space-sm` and not `.m`'s `--bt-space-md`: `▶` is a solid
+   triangle roughly two thirds the advance of `⊙`, and the gutter should not
+   grow more than the mark needs.
+
+   NO COLOUR of its own. Non-current rows put a space here, so there is nothing
+   to ink, and the current row takes the position ink from the rule below with
+   `.n` and `.m` — one declaration for everything on the band, at the 7.14:1
+   (dark) / 7.30:1 (light) pair that rule already measures. */
+.srcline .p{flex:0 0 var(--bt-space-sm);text-align:center;user-select:none}
 .srcline .n{flex:0 0 var(--bt-space-2xl);text-align:right;
   color:var(--bt-text-subtle);font-variant-numeric:var(--bt-numeric-features);
   user-select:none}
@@ -575,7 +599,7 @@ html[data-register="debugger"],
    pairs, weakest 4.54:1 (dark comment) — because a token keeps its hue here. */
 .srcline.cur{background:var(--bt-mark-position-surface);
   border-left-color:var(--bt-mark-position)}
-.srcline.cur .n,.srcline.cur .m{color:var(--bt-mark-position)}
+.srcline.cur .n,.srcline.cur .m,.srcline.cur .p{color:var(--bt-mark-position)}
 .srcline.cur .t{color:var(--bt-text-strong)}
 /* The lexical palette (Design-System.md §7: "syntax highlighting comes from the
    product lineage's editor tokens in BOTH themes"). One rule per TokenKind that
@@ -970,6 +994,32 @@ a.frseg:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
 .frseg.showing .frdot{display:block}
 .frseg.here{color:var(--bt-mark-position)}
 .frmore{flex:0 0 100%;color:var(--bt-text-muted)}
+/* THE POSITION HEAD — the same affordance as `.srcline.cur`, for the pane that
+   has no line to hang it on.
+
+   Every real chain transaction on this site lands on `srcUnverified`, and until
+   this rule that pane drew two paragraphs and no position mark at all: the one
+   surface whose entire question is "where is this stopped" answered it nowhere.
+   The head is the answer, and it is deliberately the SAME three channels the
+   current source line uses — the position fill, the position rail down the left
+   edge, and the `▶` in its own `.p` cell — so a reader who has seen one page's
+   current line recognises this one without being taught a second vocabulary.
+
+   `--bt-mark-position-surface` and `--bt-mark-position` are the tokens
+   `.srcline.cur` already reads, so the pair is the measured one and no token is
+   added. Not red — red is a reverted execution on this product — and not a
+   sixth job for the accent.
+
+   `border-left` on the element rather than an absolutely positioned child,
+   which is what `.ntbar`/`.rnbar` need and this does not: nothing else claims
+   this edge, because a pane in this state has no branch marks to draw. */
+.srcpos{display:flex;align-items:baseline;gap:var(--bt-space-xs);
+  padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
+  background:var(--bt-mark-position-surface);
+  border-left:var(--bt-stroke-thick) solid var(--bt-mark-position);
+  color:var(--bt-mark-position);font-size:var(--bt-density-data-size)}
+.srcpos .p{flex:0 0 var(--bt-space-sm);text-align:center;user-select:none}
+.srcpos .num{font-variant-numeric:var(--bt-numeric-features)}
 .srcnone{padding:var(--bt-density-card-pad) var(--bt-density-cell-x)}
 .srcnone .btn{margin-top:var(--bt-rhythm-stack)}
 

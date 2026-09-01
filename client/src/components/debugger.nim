@@ -437,7 +437,59 @@ proc renderFlowRail*(rail: FlowRail): string =
                " passes; the rest need the live session."
   targets & bar
 
-proc renderSource*(p: EditorPane): string =
+proc renderPositionHead(pos: DebugControlsPane): string =
+  ## THE POSITION, FOR A PANE THAT HAS NO LINE TO PUT IT ON.
+  ##
+  ## `renderSource` below has two outputs and until now only one of them could
+  ## say where the session is standing. A source-level pane says it with
+  ## `.srcline.cur`; an instruction-level pane — `srcUnverified`, which is EVERY
+  ## real chain transaction this site publishes, because an Aztec
+  ## `ContractClassPublic` carries no `debug_symbols`, no `file_map` and no
+  ## source text — returned `.srcnone`, two paragraphs of prose, and no position
+  ## mark of any kind. The pane whose entire subject is "where is the execution
+  ## stopped" was silent about it on the only transactions the chain actually
+  ## has.
+  ##
+  ## That is not a styling gap. It is the debugger's single most important
+  ## affordance missing on a whole class of page, and it is missing on BOTH
+  ## builds: `client/dist` (what `just export` ships and the capture harness
+  ## photographs) and the `flake.nix` build that serves `/assets/hydrate.js`,
+  ## because hydration re-renders this pane through this same function and
+  ## `projectEditor` puts a chain session on `srcUnverified` exactly as the
+  ## static exporter does. One renderer, one defect, two artefacts.
+  ##
+  ## What it may honestly say is the STEP, and only the step. There is no line
+  ## number to claim and none is claimed: `recording.stepsPositioned` is 0 for
+  ## every transaction in the chain capture, so a line here would be invented.
+  ## The step is the coordinate the session genuinely has — it is what
+  ## `data-step` carries, what the scrubber sits at, and what a share link
+  ## anchors to.
+  ##
+  ## It reads `DebugControlsPane` rather than taking a step of its own, so there
+  ## is ONE producer of the coordinate and two renderings of it. §7.1's "from one
+  ## source" rule is about producers, not about how many places a fact may
+  ## appear — and the toolbar's `128 / 208` sits in the page chrome, forty rows
+  ## above the pane a reader is looking at when they ask "where am I".
+  ##
+  ## Nothing at all when the session is not positioned. `spAwaitingGeneration`,
+  ## `srcAbsent` ("this execution ran no contract code") and a pre-positioning
+  ## frame have no head to draw, and a head reading "step 0" would be the
+  ## confident-but-wrong answer this product may not ship.
+  if not pos.positioned or pos.step <= 0 or pos.totalSteps <= 0: return ""
+  ui:
+    tdiv(class = "srcpos", `aria-current` = "true"):
+      # `aria-hidden` on the glyph and the sentence beside it carrying the
+      # meaning, for the reason the gutter marks carry a redundant channel: a
+      # screen reader announcing "black right-pointing triangle" says nothing,
+      # and `aria-current` alone is not announced on a `div` by every reader.
+      span(class = "p", `aria-hidden` = "true"): text "▶"
+      span(class = "srcposlabel"):
+        text "The session is stopped at step "
+        span(class = "num"): text $pos.step
+        text " of "
+        span(class = "num"): text $pos.totalSteps
+
+proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
   ## The static source renderer.
   ##
   ## Per line: a gutter number, an execution marker, and the line's text inside
@@ -470,7 +522,13 @@ proc renderSource*(p: EditorPane): string =
   ## everything this milestone ships — the point is that adding one is a
   ## producer change, not a restructuring of this function.
   if p.availability != srcSourceLevel or p.documents.len == 0:
-    return ui:
+    # The head FIRST, and outside `.srcnone`. A reader asking "where is this
+    # stopped" gets the answer before the explanation of why there is no text to
+    # put it on, and `.srcnone`'s prose block is byte-identical to what it was.
+    # Concatenated rather than emitted from one `ui:` block with two roots, for
+    # the reason `renderAnnotations` gives: two roots are wrapped in an
+    # anonymous `div` that nothing asked for.
+    let none = ui:
       tdiv(class = "srcnone"):
         p(class = "panenote"):
           text (if p.reason.len > 0: p.reason
@@ -537,6 +595,7 @@ proc renderSource*(p: EditorPane): string =
                          "Stepping continues at instruction level in the " &
                          "meantime."):
             text "Supply sources"
+    return renderPositionHead(pos) & none
   let doc = activeDocument(p)
 
   proc tabStrip(activePath: string): string =
@@ -569,7 +628,23 @@ proc renderSource*(p: EditorPane): string =
                        (if ln.executed: " hit" else: "") &
                        notTakenClasses(ln.notTaken, p.flow.selected) &
                        ranClasses(ln.ran, p.flow.selected),
-               id = ln.anchor, `data-line` = $ln.number):
+               id = ln.anchor, `data-line` = $ln.number,
+               # THE POSITION ON THE ACCESSIBILITY TREE, which it was not on at
+               # all. Every visual channel this row carries for "you are here" —
+               # the fill, the rail, the position ink, the `▶` — is a paint, and
+               # a reader who gets the DOM and not the pixels had no way to tell
+               # the current line from any other. `aria-current` is the one
+               # attribute that means exactly this.
+               #
+               # Valued on EVERY row rather than emitted on one, because the DSL
+               # emits an attribute whose value is dynamic unconditionally, and
+               # `false` is the ARIA spelling of "does not represent the current
+               # item" — the same pattern `renderControls` uses for
+               # `aria-disabled`. It also makes the fact countable in both
+               # directions: a suite can assert one `true` AND that the rest are
+               # `false`, which an absent attribute cannot distinguish from a
+               # renderer that stopped emitting it.
+               `aria-current` = (if ln.current: "true" else: "false")):
             # The block rail. Emitted only on a line that carries a claim, and
             # shown only in the passes where it holds, so a run of untaken lines
             # draws one continuous edge — which is what makes the region read as
@@ -591,6 +666,44 @@ proc renderSource*(p: EditorPane): string =
             # are mutually exclusive by construction rather than by z-order.
             if ln.ran.len > 0:
               span(class = "rnbar")
+            # THE POSITION GETS A COLUMN OF ITS OWN, and this is the fix for a
+            # defect the stylesheet had already MEASURED and filed: "`▶` is
+            # never painted anywhere in the corpus" (Q18, recorded in
+            # `debugger_css.nim` beside `.srcline.cur .mt,.srcline.cur .mn`).
+            #
+            # The cause is structural rather than cosmetic. `.m` is ONE glyph
+            # cell asked to answer two independent questions — "what does the
+            # recording say about this line" (`·` steppable, `⊙` ran in this
+            # pass, `⊘` did not) and "is the session standing here" (`▶`) — and
+            # CSS resolves the collision by hiding one of them:
+            # `.srcline.ntnow .mg{display:none}` and
+            # `.srcline.rnnow .mg{display:none}`. The line the session is
+            # stopped at is, structurally, also the arm that ran in the
+            # displayed pass — the demo fixture's `shield.nr:32` is exactly
+            # that, and it is the flagship view — so `.mg` is hidden on the one
+            # row whose glyph matters most, on every page that has one. The
+            # position glyph was not merely losing a contrast fight; it was not
+            # drawn.
+            #
+            # Two cells, two questions, no contention. `.p` carries the
+            # position and NOTHING else, so no branch rule can reach it and no
+            # future one can: they select `.mg`, `.mn` and `.mt`, which are all
+            # inside `.m`. This is the "channel the branch mark does not contend
+            # for" the fix has to be, and it is a channel rather than a
+            # re-tinting — `672dfc4` already spent the colour channel, giving
+            # the current line's `⊙`/`⊘` the position ink to lift them off the
+            # band, which fixed a contrast floor and left the current line with
+            # a branch glyph WEARING position ink and no position glyph at all.
+            # That rule stays; it is about legibility on the band. This is about
+            # which fact is being stated.
+            #
+            # Emitted on EVERY row and not only the current one. A cell that
+            # appeared only where the session stands would shift that row's code
+            # text right by its own width relative to every other row, and a
+            # listing whose current line is the one line that does not align is
+            # a worse artefact than one with no marker. It is also why the width
+            # cannot be widened on `.cur` alone.
+            span(class = "p"): text (if ln.current: "▶" else: " ")
             span(class = "n"): text $ln.number
             # The gutter marker, and — on a line inside a branch that was
             # evaluated and not taken — the SECOND glyph that replaces it in the
@@ -623,15 +736,24 @@ proc renderSource*(p: EditorPane): string =
               # painted in the failure colour would say the wrong thing louder
               # than the right one. Not taking a branch, and taking one, are
               # both ordinary control flow.
+              #
+              # `▶` IS NO LONGER ONE OF THEM. It moved to `.p` above, and with
+              # it went the reason this cell ever had to choose: `·` and `▶`
+              # were competing for one slot, so a steppable line the session was
+              # standing on could say "you are here" or "you can stop here" and
+              # not both, and a line with a branch claim said neither. Now the
+              # current line states all three of its facts at once — it is
+              # steppable, it ran in this pass, and the session is on it — which
+              # is what was true all along.
               if ln.notTaken.len > 0 or ln.ran.len > 0:
                 span(class = "mg"):
-                  text (if ln.current: "▶" elif ln.executed: "·" else: " ")
+                  text (if ln.executed: "·" else: " ")
                 if ln.notTaken.len > 0:
                   span(class = "mn"): text "⊘"
                 if ln.ran.len > 0:
                   span(class = "mt"): text "⊙"
               else:
-                text (if ln.current: "▶" elif ln.executed: "·" else: " ")
+                text (if ln.executed: "·" else: " ")
             code(class = "t"):
               # No tokens means the language has no profile — render the line
               # as the ONE text node it was before highlighting existed. This
@@ -1263,7 +1385,10 @@ proc renderMetadata*(m: MetadataPane): string =
 proc paneBody(kind: PaneKind; s: DebugSessionView): string =
   ## Total over `PaneKind`: a pane CodeTracer adds is a compile error here.
   case kind
-  of paneEditor: renderSource(s.editor)
+  # `s.controls` and not just `s.editor`: the pane's position head reads the
+  # session's step, and there is exactly one producer of it. See
+  # `renderPositionHead`.
+  of paneEditor: renderSource(s.editor, s.controls)
   of paneCalltrace: renderCallTrace(s.calltrace)
   of paneState: renderState(s.state)
   of paneEventLog: renderEventLog(s.eventLog)
