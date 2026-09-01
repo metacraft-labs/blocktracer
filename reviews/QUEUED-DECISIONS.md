@@ -929,3 +929,83 @@ visible to the loop at all.
 Recommendation: (c) is the interesting one and is cheap — it would give the
 campaign its first post-interaction subject. (a) after it, so the fix is
 photographed rather than asserted.
+
+## Q1 — the `⊙` / `·` collision is REFUTED, and the contrast half is fixed
+Q1 ranked the `⊙`/`·` collision FIRST, on `debugger/laptop/light` L3's reading
+that `·` "IS `⊙`'s own centre — 2.9 against 3.27 alpha-px, 11% apart", so that
+"the affirmative mark is the neutral mark plus a sub-3:1 ring". The file already
+recorded that three L3 lenses disagreed and declined to resolve it. It is now
+measured in all four size/theme combinations of the built page, and the two
+laptop/dark and wide/dark lenses were right:
+
+  * `⊙` vs `·`: **IoU 0.138** (dark) / 0.154 (light), **88.4% apart**, 28.6
+    alpha-px against 3.3 — a 10x11 ring against a 2x2 dot. Identical in all four
+    combinations, so it is not conditional on the band either.
+  * Isolating `⊙`'s centre DISC and comparing only that against `·` — the most
+    charitable reading of the laptop/light lens — gives 7.3 vs 3.3 alpha-px
+    (54.7% apart) and 8.9 vs 3.1 (65.4%), not 11%.
+
+**The collision is not real.** The `⊙`/`⊘` pair, ranked second, reproduces:
+IoU 0.750 (dark) / 0.781 (light), 12.6-13.7% apart. That half stands.
+
+The CONTRAST half is fixed this round and was not the fix Q1 proposed. Every
+option this entry carried proposed changing the GLYPH — retint it, redraw it,
+drop it — and the later `(e)` proposed changing the BAND. The actual defect was
+neither: the current line's ink pair was already designed, already measured at
+7.14/7.30, already documented, and defeated by cascade order, because
+`.srcline .mt` has equal specificity to `.srcline.cur .m` and comes later. One
+selector restores it, at 7.21:1 light / 7.16:1 dark verified in the export.
+Option (e) — retinting `--bt-mark-position-surface` — is now positively ruled
+OUT rather than merely unnecessary: that token is read by `.ctrow.cur` and
+`.evrow.cur` as well, carries 14-16 measured foreground pairs per page, and in
+LIGHT there is no headroom at all — the lightest plausible band `#ecfeff` only
+reaches `⊙` 5.15:1, at which point the band is a 1.06:1 step off white and stops
+reading as a band.
+
+WHAT REMAINS QUEUED is only recommendation (b): the pair is still not separable
+without hue at IoU 0.750/0.781, and Q1's own text says the choice of replacement
+silhouette is the taste call. Cyan's role count is also untouched and is the
+wider token-overload finding.
+
+## Q18. `▶` is never painted anywhere in the corpus, and nobody has filed it
+Found while measuring Q1, in every view the harness captures.
+
+`components/debugger.nim` documents a vocabulary of `⊘` / `⊙` / `·` with "the
+ordinary marker underneath" — `▶` for the current line. The gutter enumeration
+finds **zero** `▶` on `debugger`, `debugger--call-trace`, `debugger--event-log`,
+`debugger--divergent`, `debugger--truncated`, `debugger--metadata-pane`,
+`tx-detail--session`, or the home page's live demo.
+
+The mechanism is structural rather than accidental. The line the session is
+stopped at is also, on this fixture and plausibly on most, an arm that ran in
+the displayed pass, so it carries `cur hit nt-i0 nt-i1 rn-i2 rnnow`.
+`.srcline.rnnow .mg{display:none}` then hides the wrapper that would have drawn
+`▶`, and the mark cell is given over to `⊙`. So the four-glyph vocabulary is
+three glyphs in practice, and — before this round's fix — the cell identifying
+where you are was painted in *executable* ink rather than *position* ink, which
+made the lowest-contrast mark on the page the one saying "you are here". The
+ink half is fixed; the missing glyph is not.
+
+This is not obviously a defect, which is why it is queued rather than fixed. The
+current line is already marked by the band, the border-left and the line number,
+so nothing is unsignalled — the question is whether the gutter cell should show
+position AND the arm, and there is no room in one cell for two glyphs.
+
+Options:
+  (a) show both, by giving the mark cell room for two glyphs — costs gutter
+      width on the flagship pane, which Q2 says is the column already short of
+      it;
+  (b) prefer `▶` and drop the arm glyph on the current line — loses the
+      affirmative "this arm ran" signal on the one line a reader is looking at
+      hardest, which is the defect the arm glyphs were introduced to fix;
+  (c) prefer the arm glyph, as today, and DELETE `▶` from the source comment and
+      from the renderer, since it is dead code that documents a vocabulary the
+      page does not have;
+  (d) merge them — a single mark that carries both, e.g. the arm glyph in
+      position ink, which is what this round's fix already accidentally does.
+
+Recommendation: (d) is already shipped as a side effect and should be looked at
+by a round before anything else is decided. If reviewers read the cyan `⊙` on
+the band as "you are here AND this arm ran", the vocabulary is complete and (c)
+follows — delete the dead `▶` rather than restore it. That is a question for
+eyes, not for measurement, and this round's re-capture puts it in front of them.
