@@ -62,11 +62,43 @@ export function run(cmd, args, cwd) {
  *
  *  Exported because the selftest asserts against it directly: a refusal whose name is
  *  `unknown` when the runtime did name it is the failure mode this whole path exists to
- *  prevent, and it is only visible if the extraction is testable on its own. */
+ *  prevent, and it is only visible if the extraction is testable on its own.
+ *
+ *  WAS A SUFFIX ALLOWLIST, AND THE ALLOWLIST WAS THE BUG. The previous rule accepted a
+ *  name only if it ended in `Error`, `Unavailable`, `NotFound`, `Unsupported`,
+ *  `Regression` or `Exceeded` — six suffixes, each of which had been added when a
+ *  particular class was seen to fail. Measured against the 92 error classes the replay
+ *  runtime actually defines, that rule classified 43 and returned `unknown` for the other
+ *  FORTY-NINE, including `AvmTrap`, `HydrationDidNotConverge`, `RecordingPassDiverged`,
+ *  `TxSimAppLogicRevert`, `TxSimTeardownRevert` and `WasiProcExit` — every one of them a
+ *  plausible verdict on a live public transaction. Two mainnet catches on 2026-08-31
+ *  (0x09a4747d at 67798, 0x2dd44ab6 at 67802) were filed as `refusal: "unknown"` by it,
+ *  and both bodies have since pruned, so what refused them is now unknowable.
+ *
+ *  A list of the endings seen so far can only ever name the refusals that have already
+ *  cost something. The name is therefore recognised BY SHAPE instead: Node prints an
+ *  uncaught throw as `Name: message` on a line of its own, and an error class is a
+ *  PascalCase identifier. Anything shaped that way is a name, whatever it ends in, so a
+ *  class the runtime gains tomorrow is classified without this file being edited. */
+const NAMED_LINE = /^\s*([A-Z][A-Za-z0-9_]{2,}):\s+\S/;
+
+/** Node echoes the throwing SOURCE LINE above the message, and an object literal in it
+ *  (`  Foo: bar,`) is shaped like a message. Source echoes end in an opener or a comma,
+ *  or carry an arrow; messages do not. */
+const looksLikeSource = (l) => /=>|[,({]\s*$/.test(l);
+
 export function refusalName(stderr) {
-  const m = String(stderr ?? '').match(
-    /^\s*([A-Z][A-Za-z]+(?:Error|Unavailable|NotFound|Unsupported|Regression|Exceeded)):?.*$/m);
-  return m ? m[1] : 'unknown';
+  for (const raw of String(stderr ?? '').split('\n')) {
+    const line = raw.trimEnd();
+    if (looksLikeSource(line)) continue;
+    const m = line.match(NAMED_LINE);
+    if (!m) continue;
+    // `(node:123) ExperimentalWarning: ...` is excluded by the leading `(`, but a bare
+    // warning line would not be, and a warning is not a refusal.
+    if (/Warning$/.test(m[1])) continue;
+    return m[1];
+  }
+  return 'unknown';
 }
 
 /** The informative part of a refusal's stderr.
@@ -79,14 +111,41 @@ export function refusalName(stderr) {
  *
  *  The message is at the TOP of a thrown error's output, not the bottom. This anchors on
  *  the named line and keeps it plus what follows, and falls back to the leading
- *  non-empty lines rather than the trailing ones. */
+ *  non-empty lines rather than the trailing ones.
+ *
+ *  AND THE FALLBACK WAS STILL BLIND, for a reason the swing from `-3` to `+3` did not
+ *  touch. The fallback runs exactly when the name is `unknown` — the one case where the
+ *  detail is the only thing left that could explain the loss — and it takes the first
+ *  three non-noise lines. The replay driver opens EVERY run with exactly three lines that
+ *  are not noise by the old rule:
+ *
+ *      (node:42017) ExperimentalWarning: WASI is an experimental feature ...
+ *      (Use `node --trace-warnings ...` to show where the warning was created)
+ *      replay: 0x… via https://aztec.drpc.org
+ *
+ *  Three lines of preamble against a three-line budget, so the fallback could never reach
+ *  the error, whatever it was. That is not a near miss: it is the field being structurally
+ *  incapable of its job. Both mainnet transactions that recorded `refusal: "unknown"`
+ *  recorded precisely this preamble as their `detail`, and the string is identical for
+ *  both because it contains nothing about either.
+ *
+ *  So the preamble is noise, and so are the source-location echo, the caret and the
+ *  echoed `throw` line that Node prints above a message. The `replay:` filter is
+ *  deliberately narrow — it matches the driver's three known progress forms and not the
+ *  early-exit lines like `replay: no first-in-block transaction …`, which ARE diagnoses. */
 export function refusalDetail(stderr, name) {
   const lines = String(stderr ?? '').split('\n').map((l) => l.trimEnd());
   const isNoise = (l) =>
     l.trim().length === 0 ||
     /^Node\.js v\d/.test(l.trim()) ||
     /^\s*at\s/.test(l) ||
-    /^[{}\s]*$/.test(l);
+    /^[{}\s]*$/.test(l) ||
+    /^\s*\^+\s*$/.test(l) ||            // the caret under a source echo
+    /^\(node:\d+\)/.test(l) ||          // (node:42017) ExperimentalWarning: …
+    /^\(Use `node/.test(l) ||           // its continuation line
+    /^file:\/\//.test(l) ||             // the source-location echo above a message
+    /^\s*throw new /.test(l) ||         // the echoed throwing line
+    /^replay: (0x|round |tip )/.test(l); // the driver's own progress chatter
   // The MESSAGE line, not the first line that happens to contain the name. Node echoes the
   // throwing source line above the message — `    throw new AvmToolchainRegression(` — so a
   // plain `includes` anchors on the code that raised rather than on what it said. The
