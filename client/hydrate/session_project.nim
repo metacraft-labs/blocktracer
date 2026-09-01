@@ -50,8 +50,10 @@ import ../src/debugger/instruction_listing
 import ../src/debugger/session_view
 import ../src/debugger/source_island
 import ./live_locals
+import ./live_navigation
 export deeplink_landing
 export live_locals
+export live_navigation
 
 # ---------------------------------------------------------------------------
 # One store, one backend, five ViewModels
@@ -70,6 +72,13 @@ type
     state*: StateVM
     eventLog*: EventLogVM
     controls*: DebugControlsVM
+    navigation*: NavigationFeed
+      ## The `ct/updated-calltrace` and `ct/updated-events` payloads this
+      ## session's store and EventLogVM cannot read for themselves
+      ## (`live_navigation.nim`). Beside `locals` for the same reason and with
+      ## the same shape: the engine answers, the pinned consumer drops it, and
+      ## a pane that had never once shown a live row looked healthy because the
+      ## static export shipped fixture rows for the demo chain.
     locals*: LocalsFeed
       ## The `ct/load-locals` traffic this session's store cannot read for
       ## itself (`live_locals.nim`). Held beside the ViewModels rather than
@@ -92,6 +101,12 @@ type
       ## filed and fixed on.
 
 const
+  CalltraceViewportDepth* = 20
+    ## The nesting the first request asks for. `DEFAULT_VIEWPORT_DEPTH` in the
+    ## SDK, restated here for the same reason `CalltraceViewportRows` is: the
+    ## request this module re-issues has to ask for the same window the VM's own
+    ## effect asks for, or the two would disagree about what "the section" is.
+
   CalltraceViewportRows* = 64
     ## How many call-trace rows the session asks the engine for.
     ##
@@ -139,21 +154,35 @@ proc openLiveSession*(backend: BackendService; sourceIsPublished: bool):
   ##     the way back. Wrapping here rather than at the call site is what makes
   ##     it true of every session — the browser's and `tests/tdebugpanes.nim`'s
   ##     alike — instead of true of whichever caller remembered.
+  ##   * the navigation feed. The same arrangement for the Call Trace and the
+  ##     Event Log, whose payloads arrive as EVENTS rather than as responses —
+  ##     `live_navigation` registers one handler on the decorated backend and
+  ##     writes `updateCalltraceSection` / `appendLiveDebuggerStop`, which
+  ##     nothing in this repository called outside `tests/tdebugpanes.nim`.
   let feed = LocalsFeed()
-  let store = createReplayDataStore(withLiveLocals(backend, feed))
+  let nav = NavigationFeed()
+  let store = createReplayDataStore(
+    withLiveNavigation(withLiveLocals(backend, feed), nav))
   feed.store = store
+  nav.store = store
   store.setSessionMode(completedReplay)
   store.setSourceAvailability(
     if sourceIsPublished: savVerified else: savUnverified)
   result = LiveSession(
     store: store,
     locals: feed,
+    navigation: nav,
     editor: createEditorVM(store),
     calltrace: createCalltraceVM(store),
     state: createStateVM(store),
     eventLog: createEventLogVM(store),
     controls: createDebugControlsVM(store),
     flow: createFlowVM(store))
+  # AFTER the VMs exist: the feed writes event rows through the EventLogVM's own
+  # `appendLiveDebuggerStop`, so it needs the handle the line above creates. The
+  # handler registered inside `withLiveNavigation` reads this field when an
+  # event arrives, which is necessarily later than here.
+  nav.eventLog = result.eventLog
   result.calltrace.setViewportHeight(CalltraceViewportRows)
   result.eventLog.setPageSize(EventLogPageRows)
 
@@ -531,3 +560,33 @@ proc projectReplayPanes*(s: LiveSession; base: DebugSessionView;
     if s.controls.divergenceDetected.val: siDivergent
     elif s.controls.traceTruncated.val: siTruncated
     else: base.integrity
+
+proc requestNavigationSections*(s: LiveSession) =
+  ## Ask the engine for the call trace, now that there is an engine to ask.
+  ##
+  ## `CalltraceVM`'s auto-load effect fires the moment the VM is CONSTRUCTED,
+  ## which `goLive`'s own comment records is several hundred milliseconds before
+  ## `startWorker` — so `postJson` finds no worker, drops the message, and the
+  ## effect does not run again until something it reads changes. Clearing the
+  ## `RequestTracker` (which `goLive` does) unblocks the NEXT request; it does
+  ## not re-issue the one that was thrown away.
+  ##
+  ## For locals that costs nothing, because `StateVM`'s effect re-fires on every
+  ## move. For the call trace it is the difference between a pane that fills on
+  ## arrival and one that stays empty until the visitor happens to step — which
+  ## is what a visitor landing on a transaction saw: an empty Call Trace, and no
+  ## row to click.
+  ##
+  ## Issued through the store's own public request rather than by nudging a
+  ## signal to make the effect re-run: a re-entry that depended on which signal
+  ## the SDK's effect happens to read would break silently on any upstream
+  ## change, and this says what it means.
+  if s.store == nil: return
+  let dbg = s.store.debugger.val
+  s.store.requestCalltraceSection(
+    startIndex = 0,
+    height = CalltraceViewportRows,
+    depth = CalltraceViewportDepth,
+    rrTicks = dbg.rrTicks,
+    file = dbg.location.file,
+    line = dbg.location.line)

@@ -831,6 +831,21 @@ proc goLive(h: Hydration) =
   # the very buttons `fail` had just turned off.
   h.session.locals.onApplied = proc() =
     if not h.stopped: h.render()
+  # THE SAME CALLBACK FOR THE SAME REASON, two panes over. The Call Trace and
+  # the Event Log arrive as unsolicited events after their request is answered,
+  # so — exactly like locals — they cannot be written by `applyStop` and must
+  # re-render on arrival or wait for the next move to be seen. Without this the
+  # first section the engine sends would sit in the store, unrendered, until
+  # something else happened to repaint.
+  h.session.navigation.onApplied = proc() =
+    if not h.stopped: h.render()
+  # AND RE-ISSUE THE ONE REQUEST THE CLEAR ABOVE CANNOT REPLAY. See
+  # `requestNavigationSections`: the call trace's auto-load fired before the
+  # worker existed and its effect will not run again until something it reads
+  # changes, so without this the pane fills on the visitor's first STEP rather
+  # than on arrival. `ct/event-load` needs no equivalent — it is issued after
+  # the session is up and does arrive.
+  h.session.requestNavigationSections()
   # §8's deadline, for the pane rather than for the session. The engine is
   # documented to drop requests silently in some handshake orders
   # (`backend/dap_dialect.md` §1), and a request that is never answered leaves a
