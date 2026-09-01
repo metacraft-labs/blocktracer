@@ -125,6 +125,45 @@ jobs:
       - name: And the guard bites — four planted holes, four reports
         run: bash ci/test/ci-coverage-test.sh
 
+  # The two gates that stand between a build and production, and the proof that
+  # either of them can go red.
+  #
+  # WHY THIS JOB EXISTS AT ALL. `tools/deploy/check-assets-selftest.mjs` — 322
+  # lines, eleven arms, both production incidents reproduced as fixtures — was
+  # referenced by NOTHING in this repository and had never run in CI. The
+  # deploy gate's own proof-of-bite was dead code, so the only evidence that
+  # `check-assets.mjs` could fail was that someone had once watched it.
+  #
+  # `ci-coverage.sh` did not catch it because it enumerates `ci/test/*.sh` and
+  # `client/Justfile`'s aggregate, and a selftest under `tools/` is in neither
+  # list. That is a real gap in the coverage guard rather than in this job, and
+  # it is left to the guard's owner; this job closes the immediate hole.
+  #
+  # `ubuntu-latest` and plain node: both selftests are pure Node with no repo
+  # toolchain dependency, and a gate that needs the Nix runner to prove it can
+  # fail is a gate that gets skipped when the runner is busy.
+  deploy-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Does the asset gate bite? (existence — every reference resolves)
+        # Eleven arms, each a single mutation of a synthetic publish tree, each
+        # asserting that the check WRITTEN for it is the one that goes red.
+        run: node tools/deploy/check-assets-selftest.mjs
+
+      - name: Does the freshness gate bite? (provenance — the bytes are this commit's)
+        # Nineteen arms. Three of them require the gate to stay GREEN over a
+        # legitimately-changed world — a new upstream engine, a new capture, a
+        # few KB of engine drift — because a gate that reddens on a normal
+        # deploy is a gate that gets switched off, and then the staleness it
+        # was written for ships with it nominally in place.
+        run: node tools/deploy/check-freshness-selftest.mjs
+
   contract:
     runs-on: eph-linux-x64
     steps:

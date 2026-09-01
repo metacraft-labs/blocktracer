@@ -173,7 +173,8 @@ jobs:
           ENGINE_BASE: ${{ vars.REPLAY_ENGINE_BASE || 'https://web-codetracer.pages.dev' }}
         run: |
           set -euo pipefail
-          bash client/hydrate/fetch-engine.sh site/replay-engine "$ENGINE_BASE"
+          bash client/hydrate/fetch-engine.sh site/replay-engine "$ENGINE_BASE" \
+            .deploy/engine-fetch.json
 
       - name: Verify the published site can actually start an engine
         # The deploy that caused this whole investigation was green. A green
@@ -206,10 +207,25 @@ jobs:
             esac
           fi
           # The page quotes the engine's size to the visitor
-          # (`ReplayEngineWasmBytes` -> `approxMegabytes`). Report both rather
-          # than asserting: a few hundred KB of drift changes no rendered text,
-          # and failing here would make an unrelated engine bump break this
-          # repository's deploy. A large divergence is visible in the log.
+          # (`ReplayEngineWasmBytes` -> `approxMegabytes`). These two numbers
+          # are printed here and ASSERTED by check-freshness.mjs's F5 below,
+          # at the granularity the page actually renders.
+          #
+          # The original reasoning for not asserting here was right about the
+          # danger and wrong about the conclusion. A byte-exact assertion WOULD
+          # make an unrelated engine bump break this repository's deploy — but
+          # "report and continue" left a number the page SHOWS A VISITOR
+          # unverified for as long as it has existed, and on 2026-09-01 these
+          # two lines were read off a deploy log as evidence of a stale publish
+          # when in fact they were faithful. A report nobody can act on is not
+          # a weaker check than an assertion; it is a different thing that
+          # looks like one.
+          #
+          # F5 asserts `approxMegabytes(declared) == approxMegabytes(actual)`,
+          # so a few hundred KB of upstream drift passes exactly as this
+          # comment intended, and a drift large enough to make the page tell a
+          # visitor the wrong figure fails. The claim asserted is the one the
+          # product makes.
           actual="$(wc -c <site/replay-engine/pkg/db_backend_bg.wasm | tr -d ' ')"
           declared="$(grep -oE 'ReplayEngineWasmBytes\* = [0-9_]+' \
                       client/src/debugger/replay_engine.nim |
@@ -303,6 +319,34 @@ jobs:
         # cached store path has reached production here before.
         run: nix develop .#ci --command node tools/deploy/check-assets.mjs --dir site --require-traces
 
+      - name: Record what this commit built and this run fetched
+        # EXISTENCE IS NOT FRESHNESS, and every step above this one checks
+        # existence. `check-assets.mjs` proves each URL a page names resolves to
+        # non-empty bytes; a publish tree carrying LAST WEEK'S `hydrate.js`
+        # under the right name passes all of A1–A5, because the reference
+        # resolves, the file is not empty, and a page names it.
+        #
+        # This records the sha256 of every artefact from the two places that
+        # can testify to its provenance: `result/`, which is what THIS COMMIT
+        # builds, and `.deploy/engine-fetch.json`, which is what THIS RUN
+        # downloaded. `site/` is never its own witness — the whole point is to
+        # hold the staged tree to something it did not produce.
+        run: |
+          set -euo pipefail
+          nix develop .#ci --command node tools/deploy/check-freshness.mjs record \
+            --built result --staged site \
+            --engine-fetch .deploy/engine-fetch.json \
+            --out .deploy/freshness.json
+
+      - name: Verify the bytes about to be uploaded are the ones this commit builds
+        # The pre-upload half. F1 is the assertion the 2026-09-01 investigation
+        # wanted and could not make: the staged `assets/hydrate.js` must be
+        # byte-identical to the one `nix build` produced from this commit, so a
+        # stale bundle fails the deploy instead of being reported in a log
+        # nobody reads.
+        run: nix develop .#ci --command node tools/deploy/check-freshness.mjs verify \
+          --manifest .deploy/freshness.json --dir site
+
       - name: Deploy to Cloudflare Pages
         id: deploy
         # The self-hosted eph-* runners are Nix runners with no preinstalled
@@ -326,3 +370,40 @@ jobs:
           url="$(grep -oE 'https://[a-z0-9.-]+\.pages\.dev' wrangler-deploy.log | tail -1 || true)"
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "Deployed to: $url"
+
+      - name: Verify the ORIGIN serves the bytes this run published
+        # THE HALF NO GATE IN THIS REPOSITORY HAS EVER PERFORMED.
+        #
+        # Every check above — the engine step, the script step,
+        # `check-assets.mjs`, and even F1 — reads `site/`, the bytes this
+        # deploy INTENDS to upload. Nothing has ever read back what the origin
+        # ends up serving. `wrangler pages deploy` uploads by content hash and
+        # skips what it believes the project already holds, so "the upload
+        # succeeded" is a claim about the upload and not about the origin, and
+        # the difference between those two is precisely the question "can a
+        # deploy silently publish a stale artefact?" that nothing could answer.
+        #
+        # It fetches the manifest's critical set from the deployment URL
+        # wrangler just printed and compares sha256s. F6b asserts the set is
+        # not vacuous, because "all 0 of 0 artefacts match" is green and worth
+        # nothing.
+        #
+        # RETRIED, because Cloudflare's edge takes a few seconds to serve a new
+        # deployment and a propagation delay is not a stale artefact. Five
+        # attempts over ~40 s, and the failure after that is a real one — the
+        # last attempt's output is what lands in the log.
+        if: steps.deploy.outputs.url != ''
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          set -uo pipefail
+          for attempt in 1 2 3 4 5; do
+            echo "--- attempt ${attempt} against ${DEPLOY_URL}"
+            if nix develop .#ci --command node tools/deploy/check-freshness.mjs verify \
+                 --manifest .deploy/freshness.json --origin "$DEPLOY_URL"; then
+              exit 0
+            fi
+            [ "${attempt}" -lt 5 ] && sleep 10
+          done
+          echo "the origin is not serving what this run published" >&2
+          exit 1
