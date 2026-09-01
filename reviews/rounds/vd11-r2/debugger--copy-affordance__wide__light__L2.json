@@ -1,0 +1,56 @@
+Expected elements: present
+
+Backbone present, nothing forbidden. The focus holder is the identity bar's `0xb63616…6359`, wearing a 2px #3b82f6 outline at x81-197 / y17-45.
+
+HYDRATION MOVED NOTHING, and I can prove it rather than assert it. I decoded both PNGs and compared them pixel-for-pixel against `screenshots/debugger__wide__light.png` — the same transaction (`readyTx`, `0xb636167a05b9de55bde67756bdaed6e766d46359`) served from the plain tree. The two 1920x1080 frames differ in 568 pixels of 2,073,600. All 568 are exactly #3b82f6 and all sit inside x81-197 / y17-45, which is precisely the perimeter of a 117x29 box with a 2px stroke (117*29 - 113*25 = 568). `outline` does not participate in flow and nothing in this frame moved. The dark pair gives the identical result: 568px, same bbox, #60a5fa. The MUST-NOT-SHOW is clean.
+
+But the ring does not surround a control. Removing the 2px width and 2px offset leaves an element box of 109x21 at x85-193 / y21-41 — the glyph box, zero padding, no border, no background, no radius. This bar's control band is 27px (chips and divider, y18-44) and its badge is 23px (y20-42). The one element the page calls a button owns the shortest box in the bar and the tallest ring on it (findings 1, 2).
+
+Two claims in the expectation block are false against the build (findings 3, 4).
+
+Fixes: give `.copybtn` the bar's 27px control geometry; correct the block.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--copy-affordance",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--copy-affordance__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--copy-affordance/wide/light/L2/1",
+      "severity": "P2",
+      "location": "identity bar, the focused `[data-copy].copybtn` (`span.dbgid.identifier`) rendering `0xb63616…6359`. Element border-box x85-193 / y21-41 (109x21), derived by subtracting the 2px outline width and 2px outline-offset from the measured ring at x81-197 / y17-45. Glyph ink x86-193 / y27-36. Neighbours in the same row: `← demo` ink x24-75 / y26-35; `Partial` badge x202-261 / y20-42 (60x23); divider x345 / y18-44 (27 tall); first stepping-chip group x370-427 / y18-44 (27 tall).",
+      "finding": "The element the page declares `role=\"button\" tabindex=\"0\"` has no box model of its own. Its border-box is 109x21 and its ink is 108x10 — subtracting, the box is the text's own line box with zero horizontal padding on either side (ink starts 1px inside the left edge and ends exactly on the right edge) and no vertical padding beyond leading. There is no border, no background, no radius. The consequence is geometric, not chromatic, and it is measurable three ways in this one row. (a) HEIGHT: the bar runs a 27px control band — the divider and all four stepping-chip groups occupy y18-44 exactly, and the `Partial` badge is 23px at y20-42. The copy control is 21px. It is the shortest box in the bar and it is the only one of the five that is nominally a button. (b) TARGET: 109x21 means the pointer target is the glyph run and nothing more; a chip at y18-44 gives 6px more vertical hit area than the control that was added to make this bar's most-copied value clickable. (c) PERSISTENCE: everything above is drawn only while focus is here. Move focus and the element is bare monospace text at x85-193, geometrically indistinguishable from `block 101` at x272-335 two items to its right, which is not interactive, and from the un-upgraded `.mdhash` in the Transaction pane. Verified in the served markup: `client/dist/demo/tx/0xb636167a…/debug/index.html` contains `copybtn` 0 times (the bundle adds it at runtime) and the inlined stylesheet contains `.copybtn` 0 times, so there is no rule to give it a box. The two accounts of this element do not agree: the accessibility tree says button, the layout says string. In this bar's own vocabulary the fix is one rule — pad `.copybtn` to the 27px band with `--bt-radius-xs`, matching `.copyable`'s existing hover treatment (`background:var(--bt-surface-hover); box-shadow:0 0 0 var(--bt-stroke-hairline) var(--bt-border-default)`), which would also close the pointer gap since `.dbgid` carries neither the `cursor:copy` nor the hover surface `.copyable` has. Note in mitigation, and the block overstates this: hydration does rewrite `title` to `Copy 0xb636167a…`, so a pointer user who rests on the value for a second is told. That is a tooltip, not an affordance, and it is invisible until after the discovery it is meant to enable.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger--copy-affordance/wide/light/L2/2",
+      "severity": "P3",
+      "location": "identity bar, focus ring outer box x81-197 / y17-45 (117x29, square corners, 2px solid #3b82f6, from `:where(a,button,input,select,textarea,summary,[tabindex]):focus-visible{outline:var(--bt-focus-width) solid var(--bt-focus-ring);outline-offset:var(--bt-focus-offset)}` with width 2px / offset 2px). Clearances measured to it: `← demo` ink ends x75; `Partial` badge border begins x202.",
+      "finding": "Because `outline-offset:2px` is applied to an element with zero padding, sitting in a flex row whose identity cluster runs on 8-9px gaps, the ring spends 4px of each neighbouring gap and halves both. Unfocused, the element box clears `← demo` by 9px (75 to 85) and the `Partial` badge by 8px (193 to 202). Focused, the ring clears them by 5px (75 to 81) and 4px (197 to 202). Nothing overlaps and nothing moved, so this is presentation, not breakage — but at 4px the ring's right edge reads as bracketing the badge's left edge, and in the dark capture (identical geometry, #60a5fa) the two adjacent boxes are the most prominent pair in the bar. Two further mismatches in the same 29px: the ring is the tallest box in the bar, overhanging the 27px chip band (y18-44) by 1px top and bottom and the `Partial` badge (y20-42) by 3px each way; and its corners are square where every neighbour is rounded (the badge is a full pill, the chips carry the shell radius). The ring's dimensions are therefore an accident of the font's line box rather than a decision — its height is whatever `.dbgid`'s 21px line box plus 8px of ring happens to be, which is why it lands 2px off the band. Fixing finding 1 fixes this one too: give the control a padded 27px box with a radius and the ring becomes the bar's own focus treatment on the bar's own geometry, and the offset comes out of padding rather than out of the gap.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--copy-affordance/wide/light/L2/3",
+      "severity": "P2",
+      "location": "instrument, not page: `tools/capture/expectations.mjs`, `debugger--copy-affordance` mustShow[3] — \"AN ENGINE THAT IS LOADING… The identity bar reads `Engine loading — 18 MB` with the phase rail live on `FETCHING`, where the plain-build debugger views show inert controls and no rail… it is what hydration does on this route, and this is the only arm of the corpus that can photograph it.\"",
+      "finding": "False, and falsifiable from the corpus. `screenshots/debugger__wide__light.png` is the plain-tree capture of this same transaction and it shows the identical readout `Engine loading — 18 MB  128 / 1,315` and the identical live `FETCHING | OPENING | POSITIONING` rail — not similar, identical: my pixel diff of the two frames finds 568 differing pixels in the whole 1920x1080 image, every one of them inside the focus ring at x81-197 / y17-45, and zero in the readout (x950-1210) or the rail (x1240-1490). The source agrees: `client/dist/demo/tx/0xb636167a…/debug/index.html`, from the non-hydrated exporter, contains the literal strings `Engine loading — 18 MB` and `FETCHING`. The static export renders this state; hydration adds nothing to it on this route. This matters as instrumentation because the claim is the block's stated justification for the view living on the hydrated arm, and it invites every reviewer to credit hydration with a state the plain build already draws — the inverse of the error this campaign exists to catch. Rewrite the item to say what is actually true and is the more interesting fact: the hydrated frame and the plain frame of this route are byte-identical except for one 2px outline, so anything a reviewer attributes to hydration here other than that outline is unsupported by the image.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--copy-affordance/wide/light/L2/4",
+      "severity": "P2",
+      "location": "instrument, not page: `tools/capture/expectations.mjs`, `debugger--copy-affordance` mustShow[1] — \"`.dbgid`/`.mdhash` render `0x0858d644…22e67fb2`\" — and watchFor[4] — \"A focus ring is a UA default and is one of the few things on this surface the design system does not choose.\"",
+      "finding": "Two factual errors in the block, filed together because both would corrupt a literal reading. (a) The identifier does not render `0x0858d644…22e67fb2`. It renders `0xb63616…6359` — a different value AND a different truncation shape, 6+4 hex digits rather than 8+8. The served markup is `<span class=\"dbgid identifier\" title=\"0xb636167a…\" data-copy=\"0xb636167a05b9de55bde67756bdaed6e766d46359\">0xb63616…6359</span>`, and the Transaction pane's full hash on the same page confirms the transaction. A reviewer checking the named string against the frame finds it absent and files `expectedElements: MISSING` with a rating capped at 4, on a page where the required element is present and legible. This is a mustShow item, so the cost of the error is a false P1. (b) The ring is not a UA default and the design system does very much choose it: the inlined stylesheet carries one `:focus-visible` rule (`outline:var(--bt-focus-width) solid var(--bt-focus-ring); outline-offset:var(--bt-focus-offset)`) with `--bt-focus-width:2px`, `--bt-focus-offset:2px`, `--bt-focus-ring:#3b82f6` light and `#60a5fa` dark, reaching this element through the `[tabindex]` branch of the selector's `:where()` list; a comment in that same sheet names it \"`styles.nim`'s one `:focus-visible` treatment\". I sampled it: every one of the 568 ring pixels is exactly #3b82f6 with no antialiasing, and the dark capture is exactly #60a5fa at the identical bbox. So the watch-for's question answers itself — the ring survives dark by token swap, and the honest framing is sharper than the one written: the ring the visitor sees IS in the product's vocabulary, it is only the box underneath it that is missing.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

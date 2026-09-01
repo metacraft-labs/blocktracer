@@ -1,0 +1,68 @@
+Expected elements: present
+
+I found the focused control first: an outer box x81-197/y17-45, 2px stroke, square corners, interior fill byte-identical to the bar. And the expectation is wrong about it. This is not a UA ring — it is `styles.nim`'s one `:focus-visible` rule reaching the `[tabindex]` hydration added, painting `--bt-focus-ring`: **#3B82F6 = 3.68:1 on the #FFFFFF bar, #60A5FA = 6.77:1 on the #1B1B1B bar.** Both clear SC 1.4.11's 3:1 floor; dark is the stronger half. The design system does choose it, it theme-maps, and at the one moment it is drawn it is the loudest control chrome in the bar — 2.2x the `.dcbtn` outline in light (#C8C8C8, 1.67:1), 5.8x in dark (#282828, 1.17:1).
+
+Colour signal of interactivity: exactly zero. Diffing this frame against the plain-build `debugger` capture gives **568 differing pixels of 2,073,600 — 0.027% — bbox x81-197/y17-45, the same count in both themes.** Hydration's entire visual contribution to a page carrying 39 `role="button"` controls is one focus ring on one of them.
+
+The real colour defect is dark-only: #60A5FA is simultaneously the focus ring, the FETCHING phase ink (x1247-1303) and the `Synthetic demo data` provenance ink (x1752-1908), and sits 1.17:1 from the link indigo #818CF8.
+
+Highest-priority fixes: move the dark ring off `colors.information.400`; give `.copybtn` a resting border in the `.dcbtn` vocabulary.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--copy-affordance",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--copy-affordance__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--copy-affordance/wide/light/L3/1",
+      "severity": "P2",
+      "location": "dark theme, three sites: focus ring x81-197/y17-45; phase-rail FETCHING label ink x1247-1303/y27-34; transaction-pane DATA row, `Synthetic demo data` badge ink x1752-1908/y197-219 (badge fill #202020, border #2563EB)",
+      "finding": "In the dark register one value, #60A5FA, carries three unrelated roles inside one frame: KEYBOARD FOCUS IS HERE, THE ENGINE IS IN PHASE FETCHING, and THIS DATA IS SYNTHETIC. I counted them: #60A5FA occupies 621 px of the identity bar, 568 of which are the ring perimeter and 53 of which are the FETCHING glyphs; the same value reappears 92 px later as the provenance badge's ink. The light half does NOT collide — there the ring is #3B82F6 (hue 217) and both the phase ink and the badge ink are #1E40AF (hue 226), 3.06:1 apart — so this is not a shared design decision, it is a token-binding accident: `web.tokens.json` binds light `theme.light.focus.ring` to `colors.ui.border.focus` and dark `theme.dark.focus.ring` to `colors.information.400`, two different source families for what §2 calls a shared primitive. The consequence is specific and bad in exactly this register: provenance is the ONE claim the debug page has no nav and no footer to repeat, and in dark its colour is now also the colour of a transient loading phase and of wherever the caret happens to be. #60A5FA is additionally 1.17:1 from the dark link indigo #818CF8 (`← demo` x25-75, `Self cost` x1460-1520, `101:0` x1855-1910, hue 234 vs 213), so the ring is not separable from a hyperlink either. Bind the dark ring to the same family as the light one.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--copy-affordance/wide/light/L3/2",
+      "severity": "P2",
+      "location": "whole frame; the focused control at x81-197/y17-45 and the 38 unfocused ones, e.g. the pane's truncated hash x1614-1774/y104-118 and its full hash x1538-1905/y131-145",
+      "finding": "The copy affordance has no colour at rest, and I can put a number on it that argues better than an impression: differencing this capture against `screenshots/debugger__wide__light.png` — the same page from the build that ships no script — yields exactly 568 differing pixels out of 2,073,600 (0.027%), bounding box x81-197/y17-45, and differencing the dark pair yields the identical count at the identical box. 568 px is precisely the ring perimeter (117x29 outer minus 113x25 inner). So the hydration bundle's total contribution to this frame, in either theme, is one outline on one element; `views.mjs` says it upgraded 37 `.copyable` values and 2 `[data-copy]` identifiers, and colour distinguishes zero of the other 38 from static text. Inside the ring the fill is #FFFFFF light / #1B1B1B dark, byte-identical to the bar, and the hash ink is #101010 / #F3F3F3 — also byte-identical to the unhydrated capture. Focus changes the border channel and nothing else: no surface, no ink shift, no tone. I decline P1 deliberately: at the moment the page is asked to draw the control it draws it, and draws it to standard (finding 3), so this is a resting-state gap and not a broken control. The register already owns the fix — `.dcbtn` is a bordered chip and `.copyable:hover` already gains `--bt-surface-hover` plus a `--bt-border-default` ring. Give `.copybtn` the resting `--bt-border-subtle` outline the stepping chips wear, and `.copied`/`.copyfailed` the existing success/danger tones, and the promise costs one rule.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger--copy-affordance/wide/light/L3/3",
+      "severity": "P2",
+      "location": "identity bar y17-45: focus ring x81-197 against the eight `.dcbtn` outlines at x370-388, x398-417, x427-444, x469-496, x513-544, x576-593, x624-656 (y19-44)",
+      "finding": "The bar's control chrome is inverted in both directions, and the ring is the evidence. Every stepping control on this bar is outlined at #C8C8C8 on #FFFFFF = 1.67:1 in light and #282828 on #1B1B1B = 1.17:1 in dark. The focused copy control is outlined at 3.68:1 and 6.77:1. So the one control that carries NO chrome when unfocused carries 2.2x (light) and 5.8x (dark) the chrome of every permanently-visible control the moment it is focused. Two separate problems meet here. The ring is right and I am not asking for it to be quieted — 3.68:1 and 6.77:1 are the only numbers on this bar that clear a non-text floor. The `.dcbtn` outlines are the ones out of range: 1.17:1 in dark is not a border, it is a rounding error against the surface, and it is the weakest structural stroke anywhere in the dark frame (the pane borders measure #3A3A3A and the scrubber track #727272 at 3.58:1). These controls are inert here so SC 1.4.11 does not bind them, but a register whose passive scrubber track is painted 3.1x harder than its stepping controls has its hierarchy the wrong way up, and the ring makes the gap visible for the first time. Raise `--bt-border-subtle` in dark, or give the inert chips the `--bt-border-default` the panes use.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger--copy-affordance/wide/light/L3/4",
+      "severity": "P3",
+      "location": "light theme, identity bar and the first pane row: link indigo #4F46E5 (`← demo` x25-75/y22-42, `line 4` x182-212/y108-124), focus ring #3B82F6 (x81-197/y17-45), badge border #2563EB (x1752-1908/y197-219 and the phase tick x1239/y28-35), badge and phase ink #1E40AF, phase fill #DBEAFE (x1240-1313/y21-41), scrubber elapsed #155E75 (x673-695/y28-35)",
+      "finding": "Six cool values in the light frame's top 220px, spanning hue 194 to 243, and the focus ring adds a family the page did not previously have. Ring #3B82F6 is hue 217; the brand indigo it sits 6px away from is #4F46E5, hue 243 — 26 degrees and 1.71:1 apart, which is close enough to read as a failed attempt at the same blue rather than a different role. It is also 1.41:1 from the badge border #2563EB, the value the page already uses for `info`. §2 names one shared accent hue family across both registers and specifies the focus treatment as a shared primitive; a focus ring is exactly the object that should be reusing the family rather than introducing a fourth blue. Either bind the ring to the brand ramp so focus reads as the product's own colour, or bind it to `information` in BOTH themes and accept the consequence — but the current state, brand-adjacent in light and information-identical in dark, is the one combination that is wrong in each theme for a different reason.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--copy-affordance/wide/light/L3/5",
+      "severity": "P3",
+      "location": "transaction pane: FEE PAYER value x1660-1905/y522-565 against TYPE `private + public` x1770-1860/y398-418 and COST 88000 x1680-1740/y626-646; full hash x1538-1905/y131-145 against the status-reason prose x1538-1905/y155-190",
+      "finding": "Below the identity bar the copy controls are not merely undrawn, they are painted in ink already spoken for. FEE PAYER — a `.copyable`, therefore a `role=\"button\"` after hydration — measures #242424 light / #DDDDDD dark, byte-identical to TYPE `private + public` and to the COST figure, neither of which is a control. The full hash measures #484848 / #A2A2A2, byte-identical to the `Status reason:` prose paragraph directly beneath it, which is running text. So the pane's ink ladder currently encodes emphasis and nothing else, and a reader scanning for what is takeable has no colour cue at any rung — the strongest value on the page (#101010, the identity bar's truncated hash) and the weakest (#8A8A8A, the SELECTOR/RAW dashes) are equally likely to be buttons or not. This is the same rule gap as finding 2 seen from the pane rather than the bar, filed separately because the fix differs: the bar needs a border, the pane needs the ink itself to stop being the only channel. Whatever `.copybtn` gains, it must apply to the 37 pane values as well as to the 2 truncated identifiers, or the register will teach two different lessons about the same gesture.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--copy-affordance/wide/light/L3/6",
+      "severity": "P3",
+      "location": "the expectation block for this view, WATCH FOR item 5 and MUST SHOW item 5, against the measured ring at x81-197/y17-45",
+      "finding": "An instrument note, filed because an expectation that oversells its finding is itself a defect. The block asserts the ring is \"a UA default\" and \"one of the few things on this surface the design system does not choose\", and asks whether it \"survives the dark register at all\". Neither premise holds. `client/src/components/styles.nim:114` carries `:where(a,button,input,select,textarea,summary,[tabindex]):focus-visible{outline:var(--bt-focus-width) solid var(--bt-focus-ring);outline-offset:var(--bt-focus-offset)}` — the selector list contains `[tabindex]`, which is precisely the attribute `bindCopy` adds, so the design system's own rule catches the upgraded element and the ring measures as its tokens: 2px solid, ~2px offset, #3B82F6 at 3.68:1 in light and #60A5FA at 6.77:1 in dark. It does not merely survive dark; dark is its stronger half by 1.8x. Chrome's own default is a two-tone Highlight ring and is nowhere in this image. Separately, MUST SHOW item 5 names the truncated identifier as `0x0858d644…22e67fb2`; the image renders `0xb63616…6359`, which is the correct value for this route's transaction and matches the pane's own hash at y104-118, so the literal in the block is stale rather than the render being wrong. Both corrections point the same way: the real defect here is the ABSENCE of a resting treatment (findings 2 and 5), not a deficient focus ring, and the block should be rewritten to ask that question instead.",
+      "criterion": "B9"
+    }
+  ]
+}
+```

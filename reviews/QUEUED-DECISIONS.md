@@ -1527,3 +1527,86 @@ verdict from evidence it did not have.
 
 Not re-stamped: the nine SAFE-RESTAMP sites keep their revisions, because under
 the new rule there is nothing to fix about them. That is the point.
+
+## Q23 — MEASURED by vd11-r2, and the entry was wrong in two places
+Six lenses on `debugger--copy-affordance/wide/light`, the view added to make this
+photographable. All six report `present`, zero P1, ratings 6-7. G1 and G2 both
+pass on the new triple, taking them to 7/8.
+
+**THE MEASUREMENT, which four lenses produced independently and identically.**
+Differenced against a plain-build capture of the same route and transaction:
+
+    568 differing pixels of 2,073,600 — 0.027% — every one of them inside
+    x81-197 / y17-45, which is the perimeter of a 117x29 box with a 2px stroke.
+    The dark pair gives 568 px, same bbox. Zero differing pixels below y=62.
+
+So the entire visible contribution of upgrading **39 elements into
+`role="button"` controls** is one outline on one of them, and only while it holds
+focus. That is the finding stated as a number.
+
+**The layout-shift P1 is REFUTED with proof.** The block's sharpest must-not-show
+was a reflow; `outline` does not reflow and nothing moved. ADV checked it from a
+second direction — the `Partial` badge's border pixel is `#ea580c` at (233,20) in
+both builds. The upgrade is attribute-only.
+
+**Consequence 1 of this entry was overstated and is corrected.** It said the
+truncated identifiers "gain no visual affordance at all". At FOCUS they gain the
+design system's own ring: `styles.nim`'s
+`:where(…,[tabindex]):focus-visible` matches the attribute `bindCopy` adds, so
+`--bt-focus-ring` applies — #3b82f6 light (3.68:1), #60a5fa dark (6.77:1), and
+dark is the stronger half. The defect is the RESTING state, which is what a
+pointer reader gets and what the element is in at all other times: no cursor, no
+hover surface, no border, no radius, nothing. The two accounts still disagree —
+assistive technology hears `button, "Copy 0xb636167a…"`; a pointer user sees a
+value.
+
+**The severity is P2, not P1, and every lens said so on the same reasoning.** The
+drawn state is GENERIC rather than absent: a square-cornered ring in a bar where
+every chip, pill and badge is radius 3-7px. L1: "it reads as a focused text
+field", the geometry of a text selection rather than a control. The element is
+not undrawn; it is drawn with the product's focus token and no control
+vocabulary.
+
+**The population asymmetry runs the wrong way, which sharpens option (b).** The
+37 `.copyable` values keep `cursor:copy` and a hover surface; the 2 `[data-copy]`
+truncated ones — the pair for which the clipboard is the ONLY route to the full
+value, because select-all never worked on them — signal nothing. L4 measured both
+populations landing on consecutive lines in the transaction pane hero, truncated
+above full, indistinguishable.
+
+**A concrete fix arrived, from two lenses independently, and it is in the
+register's existing vocabulary.** One `.copybtn` rule reusing what `.copyable`
+already has — `cursor:copy`, the hover surface plus hairline, and
+`border-radius:var(--bt-radius-xs)` so the existing outline picks up the
+control's shape rather than a text selection's. Every property paints inside the
+border box, so the measured no-reflow guarantee survives. That is option (b)
+narrowed from "a design decision on an unreviewed surface" to four properties the
+surface already uses, and it is now reviewed.
+
+**`.copied` / `.copyfailed` are untouched by any of this.** They are applied on a
+clipboard result, no capture can hold that moment, and nothing draws them — so a
+failed write is still silent, still under a comment saying it is shown. Option
+(c) stands exactly as filed and is still the half that is not a taste call.
+
+Revised recommendation: **(c), then (b) as the two lenses specified it.** (a) is
+DONE. H2 stays red until (c) lands, and (e) remains refused.
+
+### Q24. The dark focus ring resolves through a different token family
+L3, vd11-r2, and it is a token-layer defect rather than a page one. `theme.light`
+binds `focus.ring` to `colors.ui.border.focus`; `theme.dark` binds it to
+`colors.information.400`. `web.tokens.json`'s own description for `focus` says it
+is "One focus treatment for BOTH registers … Colour is per-theme; geometry is
+not", and Design-System §2 calls the focus ring a shared primitive — so two
+source families is a divergence the file does not declare.
+
+It has a visible consequence in dark and none in light: `#60a5fa` is
+simultaneously the focus ring, the `FETCHING` phase ink (x1247-1303) and the
+`Synthetic demo data` provenance ink (x1752-1908), and sits 1.17:1 from the dark
+link indigo `#818CF8`. One hue doing three unrelated jobs on one bar.
+
+Options: (a) rebind dark's `focus.ring` to the dark `ui.border.focus` rung, so
+both themes resolve through the same family — small, and it moves a colour on
+every focusable element in the product, which is exactly the kind of change that
+wants a round; (b) leave the binding and move `information.400`'s other two uses;
+(c) declare the divergence in `DESIGN-DIVERGENCES-WEB.md` if it is deliberate.
+Not taken: it is one lens, on one theme, and (a) touches every surface.
