@@ -56,6 +56,15 @@ Two consequences:
 * **Testnet is easy, mainnet is the slow half.** At ~14 transactions a day,
   mainnet arrivals are hours apart and bursty. A long wait there is the expected
   behaviour, not a fault.
+
+  Measured directly during the 2026-09-01 mainnet capture: over **117 minutes
+  the follower saw 107 blocks and exactly one carried a transaction** (143
+  polls, 1 catch). That is the number that makes a live follower **mandatory
+  rather than optional** — combined with §1, a transaction appears about once
+  every 36 blocks and is replayable for roughly 26 of them, so anything not
+  watching continuously will miss most of the chain permanently. It is also why
+  the capture stopped at two mainnet blocks: a third would have been another
+  hour or two of waiting for a qualitatively identical single-transaction block.
 * **Poll rate is not the lever.** The window is tens of minutes and the poll
   interval is 60 s, so a poller cannot miss an arrival. What a follower needs is
   *runtime* — it has to outlive the drought. See the header of
@@ -77,6 +86,34 @@ be opened. `completeBlockCount` in `tools/chain/lib/replay.mjs` therefore ranges
 over **the block's own transaction list as the chain published it**, never over
 the transactions the capture chose to attempt — a definition that ranged over
 our own selection would be satisfied by selecting fewer.
+
+### What "13/13 effects" actually counts
+
+A row's `effects.matched / (matched + mismatched)` is **not** the number of
+entries in the block's published effect arrays, and reading it that way will
+produce a false alarm. The denominator is the comparison set
+`compareToPublishedEffects` builds:
+
+    revertCode                     1
+    transactionFee                 1
+    publicDataWrites.length        1
+    publicDataWrites[i].leafSlot   1 per write
+    publicDataWrites[i].value      1 per write
+    nullifiers.length              1
+    nullifiers[i]                  1 per nullifier
+
+So mainnet 68062 (2 writes, 5 nullifiers) is `1+1+1+4+1+5 = 13`, and 68231
+(2 writes, 12 nullifiers) is `1+1+1+4+1+12 = 20`. Both reproduced every
+comparison in their set.
+
+**`noteHashes`, `privateLogs`, `publicLogs` and `l2ToL1Msgs` are not compared,**
+and that is correct rather than a gap: they are outputs of the private half,
+which the AVM does not execute. Summing the raw effect arrays for 68231 gives 27
+and invites the conclusion that 7 effects went unchecked; they were never the
+AVM's to produce. What the verdict asserts is that the replay re-derived the
+public state transition — the same slots, the same values, the same fee, the
+same nullifiers — which is the evidence that every value it read on the way was
+the value the transaction read.
 
 ### The `firstInBlock` filter, and where it would bite
 

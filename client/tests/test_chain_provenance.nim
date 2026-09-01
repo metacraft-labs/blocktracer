@@ -1769,6 +1769,47 @@ suite "11 — a frozen capture states what was captured, in the past tense":
     ck allNamed
     ck "were taken WHOLE" in frozenBody
 
+  test "the window it dates is the one at the LAST CAPTURE, not the last poll":
+    # `snap["window"]` is rewritten on every backfill and a follower keeps polling long
+    # after its final catch — the mainnet capture outlived its last catch by 92 minutes and
+    # 76 blocks. The sentence says "when the last of them was taken", so it has to carry
+    # the window that transaction recorded for ITSELF, not the one at the final poll.
+    #
+    # Ranged over EVERY frozen chain, because the two capture tools differ here: the
+    # follower writes a per-transaction `capturedWindow` and the one-shot scan does not,
+    # and for a scan the snapshot-level window IS the moment. Both shapes are asserted, so
+    # neither is a hole.
+    var frozenChains = 0
+    for i, d in captureDirs:
+      let sj = parseJson(readFile(d / "snapshot.json"))
+      if not sj{"provenance"}{"frozen"}.getBool: continue
+      inc frozenChains
+      var newest = 0
+      for b in sj["provenance"]["completeBlocks"]:
+        if b.getInt > newest: newest = b.getInt
+      var wantFrom, wantTip = 0
+      for t in sj["transactions"]:
+        if t{"blockNumber"}.getInt == newest and t{"capturedWindow"} != nil:
+          wantFrom = t["capturedWindow"]["replayableFrom"].getInt
+          wantTip = t["capturedWindow"]["tip"].getInt
+      let fromCapture = wantFrom > 0
+      if not fromCapture:
+        wantFrom = sj["window"]["replayableFrom"].getInt
+        wantTip = sj["window"]["tip"].getInt
+      let body = renderRoute(root, "/" & ingests[i].chain).body
+      ck ("blocks " & $wantFrom & "\u2013" & $wantTip & " (") in body
+      # And where the two genuinely differ, the poll-time window must be ABSENT — which is
+      # what makes the assertion above a measurement rather than a coincidence.
+      let pollFrom = sj["window"]["replayableFrom"].getInt
+      let pollTip = sj["window"]["tip"].getInt
+      if fromCapture and (pollFrom != wantFrom or pollTip != wantTip):
+        ck ("blocks " & $pollFrom & "\u2013" & $pollTip & " (") notin body
+      else:
+        ck true
+    # Non-vacuity: at least one frozen chain must actually carry a per-capture window,
+    # or the interesting half of this test never ran.
+    ck frozenChains >= 2
+
   test "the ongoing-watch phrasing is GONE from a frozen chain":
     # The mutation arm's target. These are the two phrases that were true of a
     # running watch and are wrong once it has stopped.
@@ -1804,4 +1845,4 @@ suite "11 — a frozen capture states what was captured, in the past tense":
     ck "were taken WHOLE" notin mutBody
 
   test "assertion count":
-    expectCount(11)
+    expectCount(16)

@@ -819,6 +819,25 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         if i == completeNums.high: parts.add "and " & $n
         else: parts.add $n
       "blocks " & parts.join(", ")
+  # THE WINDOW THE FROZEN SENTENCE MEANS IS THE ONE AT THE LAST CAPTURE, NOT AT THE LAST
+  # POLL. `snap["window"]` is rewritten on every backfill, and a follower keeps polling and
+  # backfilling long after its final catch — mainnet's capture outlived its last catch by
+  # 92 minutes and 76 blocks. Reading the snapshot-level window here made the page say "the
+  # replay window was blocks 68287–68307 when the last of them was taken" about a block
+  # taken at 68231, inside a window of 68191–68231: a true window, attached to the wrong
+  # moment, in a sentence whose whole job is to date the capture. The per-transaction
+  # `capturedWindow` is the window that was open when THAT transaction was recorded.
+  var frozenFrom = replFrom
+  var frozenTip = tipAt
+  var frozenBlocks = win["blocks"].getInt
+  if completeNums.len > 0:
+    let newest = max(completeNums)
+    for t in snap["transactions"]:
+      if t{"blockNumber"}.getInt == newest and t{"capturedWindow"} != nil:
+        let cw = t["capturedWindow"]
+        frozenFrom = cw["replayableFrom"].getInt
+        frozenTip = cw["tip"].getInt
+        frozenBlocks = frozenTip - cw["finalized"].getInt
   let captured =
     if prov{"frozen"}.getBool and completeNums.len > 0:
       "Captured from " & endpointHost &
@@ -828,7 +847,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       "being extended: " & blockList & " were taken WHOLE — every transaction the chain " &
       "published in " & (if completeNums.len == 1: "it" else: "them") &
       " was re-executed and its trace is published here. The replay window was blocks " &
-      $replFrom & "–" & $tipAt & " (" & $win["blocks"].getInt &
+      $frozenFrom & "–" & $frozenTip & " (" & $frozenBlocks &
       " blocks) when the last of them was taken. "
     elif firstAt.len > 0 and firstAt != lastAt:
       "Captured from " & endpointHost & " over a watch that began " & firstAt &
