@@ -100,10 +100,43 @@ proc homePage*(infos: seq[ChainInfo];
           span(class = "accent"):
             text "deepest"
           text " view into every transaction."
+        # THE ORIGIN CLAUSE WAS REMOVED BECAUSE IT WAS FALSE.
+        #
+        # This line used to end "Trace any value to its origin — across many
+        # chains, VMs and languages." No surface in this product does that, and
+        # the gap is not the one-assignment gap it was reported to be. The
+        # measurement, against the pinned Embed SDK
+        # (`ci/embed-sdk-pin.env`, 8d1c84a8):
+        #
+        #   `ReplayDataStore.requestLocals` (replay_data_store.nim:664-680)
+        #   SENDS `ct/load-locals` and DISCARDS the reply — its `onSuccess`
+        #   sets `loadingState` and `loadedForRRTicks` and nothing else. Its
+        #   own comment says so: "The actual JSON→Variable parsing will be
+        #   added when the locals panel is converted". The only writer of
+        #   `store.locals.locals` is `updateLocals` (:795), and nothing under
+        #   `client/hydrate/` calls it.
+        #
+        # So `StateVM.currentVariables` — which `projectState` iterates — is
+        # EMPTY for the life of every hydrated session. There is no live value
+        # in this product to ask the origin OF, and an origin affordance would
+        # have been drawn over the statically exported fixture rows the visitor
+        # is still looking at.
+        #
+        # The second reason is fidelity, and it survives the first being fixed:
+        # every real transaction this explorer publishes is declared rung 3,
+        # and rung 3 is where `demo_session.nim` prints "This recording carries
+        # no variable names: naming a local needs debug symbols, which an Aztec
+        # contract class does not publish." The origin classifier works by
+        # splitting the right-hand side of a source assignment; with no source
+        # and no names there is nothing for it to split.
+        #
+        # Restore the clause when BOTH hold, not either: the SDK parses the
+        # locals reply (upstream, behind the pin), and the recording in front
+        # of the visitor is source-level. Until then this sentence claims what
+        # it can show. See `tools/journeys/journeys/07-*.journey.mjs`.
         p(class = "lead sub"):
           text "Step and rewind every instruction. See the full call trace "
-          text "at a glance. Trace any value to its origin — across many "
-          text "chains, VMs and languages."
+          text "at a glance — across many chains, VMs and languages."
         form(class = "search", action = "/search", `method` = "get"):
           input(name = "q", placeholder = "Paste a block, tx hash, or address")
           button(class = "btn primary", `type` = "submit"):

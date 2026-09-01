@@ -342,4 +342,83 @@ suite "The foundations reached the SHIPPED page":
     if offenders.len > 0:
       echo "  raw colours in shipped rule bodies: ", offenders
 
+suite "The home page claims only what the product can do":
+  ## The origin clause was removed from the hero and the meta description
+  ## because no surface in this product traces a value to its origin. This
+  ## suite is what stops it coming back by habit — a sentence is easy to
+  ## restore and expensive to notice, and this one reaches a visitor who
+  ## cannot check it.
+  ##
+  ## Asserted on the EXPORTED bytes rather than on `renderHome`'s return
+  ## value: the meta description is written into `<head>` by `pageLayout`,
+  ## and the artefact a visitor loads is the file, not the proc.
+  let homeHtml = readFile(dist / "index.html")
+
+  # The claim lived in TWO places that reach a visitor differently — the hero a
+  # reader sees, and the meta description a search result shows to someone who
+  # has not loaded the page. They are extracted separately and asserted
+  # separately on purpose. A scan of the whole file cannot tell them apart, and
+  # a mutation arm proved that matters: breaking the hero sentence left a
+  # whole-file control GREEN, because the meta description happens to contain
+  # the same words. A control that a broken subject still satisfies is not a
+  # control.
+  proc extract(pattern, subject: string): string =
+    var m: array[1, string]
+    if subject.find(re(pattern, {reIgnoreCase, reDotAll}), m) >= 0: m[0] else: ""
+
+  let heroLead = extract(r"<p class=""lead sub"">(.*?)</p>", homeHtml)
+  let metaDesc = extract(r"<meta name=""description"" content=""(.*?)""", homeHtml)
+  let flatOf = proc(s: string): string = s.replace(re"\s+", " ").toLowerAscii
+
+  test "CONTROL: the hero and the meta description were both found, and both say what the product does":
+    # Every absence below is satisfied for free by an extraction that returned
+    # "" — a renamed class, a changed tag shape — so each subject is proved
+    # present and substantial before anything is asserted to be missing FROM
+    # it. These two are the reason the absences are measurements.
+    check heroLead.len > 40
+    check metaDesc.len > 40
+    check "Step and rewind every instruction" in heroLead
+    check "Step and rewind every instruction" in metaDesc
+
+  test "the HERO does not claim a value can be traced to its origin":
+    # Case- and whitespace-insensitive: the hero is written as adjacent `text`
+    # calls, so the rendered sentence is reassembled across them and an
+    # exact-substring search on one source spelling would miss a reinstatement
+    # that happened to break at a different word.
+    let flat = flatOf(heroLead)
+    check "trace any value to its origin" notin flat
+    check "trace a value to its origin" notin flat
+
+  test "and neither does the META DESCRIPTION, which reaches search results":
+    let flat = flatOf(metaDesc)
+    check "trace any value to its origin" notin flat
+    check "trace a value to its origin" notin flat
+
+  test "and neither does any other exported page":
+    # The claim was in two places and could be reinstated in a third — the
+    # footer, an about block, a chain page's preamble. The whole tree is
+    # cheaper to scan than the argument about which pages are exempt.
+    var offenders: seq[string]
+    for path in walkDirRec(dist):
+      if path.endsWith(".html"):
+        let flat = readFile(path).replace(re"\s+", " ").toLowerAscii
+        if "value to its origin" in flat:
+          offenders.add path.relativePath(dist)
+    check offenders.len == 0
+    if offenders.len > 0:
+      echo "  pages claiming value-origin tracing: ", offenders
+
+  test "CONTROL: that same tree-wide scan finds the claims the product DOES make":
+    # Without this, `offenders.len == 0` above is equally explained by a scan
+    # that reads no files, matches nothing, or was pointed at an empty dir.
+    var withHero = 0
+    var scanned = 0
+    for path in walkDirRec(dist):
+      if path.endsWith(".html"):
+        inc scanned
+        if "Step and rewind every instruction" in readFile(path):
+          inc withHero
+    check scanned > 20
+    check withHero >= 1
+
 removeDir(workDir)

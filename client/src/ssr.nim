@@ -220,7 +220,13 @@ proc renderHome*(r: DataRoot): string =
   for c in chains(r): infos.add chainInfo(r, c)
   pageLayout(
     "BlockTracer — the deepest view into every transaction",
-    "The deepest view into every transaction. Step and rewind every instruction, see the full call trace at a glance, and trace any value to its origin — across many chains, VMs and languages.",
+    # The origin clause is gone, and the reason is recorded once, at the hero
+    # in `pages/home.nim` — the SDK discards the `ct/load-locals` reply, so a
+    # hydrated session holds no live values, and every published transaction is
+    # rung 3, which carries no variable names. This string matters more than
+    # the hero rather than less: it is what a search result shows to someone
+    # who has not loaded the page and so cannot check it.
+    "The deepest view into every transaction. Step and rewind every instruction and see the full call trace at a glance — across many chains, VMs and languages.",
     homePg.homePage(infos, demoSessionFor(r)),
     robots = $routeClass("/"),
     canonical = SiteDomain & "/")
