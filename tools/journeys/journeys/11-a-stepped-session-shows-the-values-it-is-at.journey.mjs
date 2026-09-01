@@ -49,6 +49,27 @@
 // NOTHING BELOW NAMES A VALUE. Not a variable, not a number, not a type, not a
 // step. Rule 4: the fixture must not supply the answer. Every expectation is a
 // relation between two things the page itself reported.
+//
+// AND IT IS DRIVEN OVER BOTH KINDS OF RECORDING
+// ---------------------------------------------
+// This file carried the same subject-selection defect journeys 03, 09, 07, 02
+// and 06 did — the sixth occurrence, and the last one in this directory:
+//
+//     sessions.find((t) => !t.real) ?? sessions[0]
+//
+// PREFERS a synthetic fixture, and the corpus has 15 of them, so the `??` arm
+// could never run. So the journey written to catch a pane frozen on the served
+// frame had only ever watched the demo chain — over a defect whose cause,
+// `requestLocals` discarding its reply, was upstream of both and identical for
+// both.
+//
+// It was worth measuring rather than assuming. A chain recording is rung 3 and
+// carries no variable names, and the reasonable expectation was that its Values
+// pane could only ever be §14's sentence. It is not: the engine answers with
+// the AVM's own machine state, so the walk reads 70 engine-supplied rows across
+// 14 distinct sets of values over 15 positions, none of them blank and none of
+// them the exporter's. The claim holds on both kinds of recording, and until
+// now it had only ever been asked of one.
 
 import { visit, readFacts } from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";
@@ -56,7 +77,7 @@ import { transactions, landingOf } from "../lib/corpus.mjs";
 export const id = "a-stepped-session-shows-the-values-it-is-at";
 export const claim = "A visitor who steps sees the values at the new position.";
 export const spec = "Page-Descriptions.md §7.0, §14 — BlockTracer";
-export const assertions = 9;
+export const assertions = 3 + 8 + 8;
 export const needsEngine = true;
 
 /** How many times the session is stepped. See the header for why it is a walk. */
@@ -118,12 +139,48 @@ async function servedPane(browser, origin, path) {
   }
 }
 
+/**
+ * Walk the session, taking a settled reading at the landing and after each step.
+ *
+ * One implementation for both arms. Two hand-written walks would let the demo
+ * and the chain arm drift in how long they wait, and a difference there reads
+ * as a difference in the product.
+ */
+async function walk(page) {
+  const readings = [await settledReading(page)];
+  for (let i = 0; i < WALK; i++) {
+    const before = await readFacts(page);
+    await page.click('[data-action="step-forward"]');
+    // A predicate, never a sleep. The POSITION first — a fixed sleep is how a
+    // suite comes to measure the machine it runs on — and then the pane, which
+    // the engine answers one round trip behind it.
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      if ((await readFacts(page)).step !== before.step) break;
+      await page.waitForTimeout(150);
+    }
+    readings.push(await settledReading(page));
+  }
+  return readings;
+}
+
 export async function run({ browser, site, j }) {
   const all = await transactions(site.root);
   const sessions = all.filter((t) => landingOf(t.phase) === "session" && t.hasListing);
   j.subjects(sessions, 3, "transactions whose landing is a session with rows in its Code pane");
 
-  const subject = sessions.find((t) => !t.real) ?? sessions[0];
+  // TWO SUBJECT LISTS, EACH ASSERTED NON-EMPTY, AND NO FALLBACK BETWEEN THEM —
+  // see the header.
+  const synthetic = sessions.filter((t) => !t.real);
+  const realCaptures = sessions.filter((t) => t.real);
+  j.atLeast(synthetic.length, 1, "SUBJECTS: synthetic sessions, so the demo arm has a subject");
+  j.atLeast(
+    realCaptures.length,
+    1,
+    "SUBJECTS: REAL-capture sessions, so the chain arm has a subject",
+  );
+
+  const subject = synthetic[0];
   j.note(`driving ${subject.debugPath}`);
 
   const served = await servedPane(browser, site.origin, subject.debugPath);
@@ -152,20 +209,7 @@ export async function run({ browser, site, j }) {
 
     // The walk. Every reading a visitor could have taken, starting with the one
     // the landed session shows before any click.
-    const readings = [await settledReading(page)];
-    for (let i = 0; i < WALK; i++) {
-      const before = await readFacts(page);
-      await page.click('[data-action="step-forward"]');
-      // A predicate, never a sleep. The POSITION first — a fixed sleep is how a
-      // suite comes to measure the machine it runs on — and then the pane,
-      // which the engine answers one round trip behind it.
-      const deadline = Date.now() + 15000;
-      while (Date.now() < deadline) {
-        if ((await readFacts(page)).step !== before.step) break;
-        await page.waitForTimeout(150);
-      }
-      readings.push(await settledReading(page));
-    }
+    const readings = await walk(page);
 
     const positions = new Set(readings.map((r) => r.step));
     // DISTINCT SETS OF VALUES, and the word "values" is load-bearing.
@@ -251,6 +295,103 @@ export async function run({ browser, site, j }) {
       0,
       "every row the pane draws carries both a name and a value",
     );
+  } finally {
+    await page.close();
+  }
+
+  // ── THE CHAIN CAPTURE ─────────────────────────────────────────────────
+  await realArm(browser, site, j, realCaptures[0]);
+}
+
+/**
+ * The same claim, over a REAL capture.
+ *
+ * WHAT IS DIFFERENT ABOUT THE SUBJECT, AND WHAT IS NOT
+ * ----------------------------------------------------
+ * The served frame. A chain recording carries no variable names, so what the
+ * exporter writes into its Values pane is not ten rows — it is §14's sentence,
+ * verbatim: "This recording carries no variable names. Naming a local needs the
+ * debug symbols from the contract's compiled artifact, and none resolved for
+ * this contract." So the demo arm's non-vacuity control ("the served frame
+ * already shows Values rows") is false here for a correct reason, and this arm
+ * states the control the subject actually supports: the served pane SAYS
+ * something, rows or sentence.
+ *
+ * Everything else is the same claim and is asserted the same way — and it is
+ * substantive, which was not obvious before it was measured. A rung-3 recording
+ * has no source-level locals and the engine still answers with the AVM's own
+ * machine state, so the walk reads real, changing, engine-supplied values:
+ * measured over 15 positions, 14 distinct sets, 70 rows, none blank, none of
+ * them the served frame's.
+ *
+ * The assertion texts are worded so that no text CONTAINS another — three
+ * `selftest.mjs` arms target this journey by name, and a "REAL: " + verbatim
+ * copy would resolve each of them to two records and silently stop all three
+ * from running.
+ */
+async function realArm(browser, site, j, subject) {
+  j.note(`driving REAL capture ${subject.debugPath}`);
+
+  const served = await servedPane(browser, site.origin, subject.debugPath);
+  j.note(
+    `REAL served frame: ${served.rows} Values rows, note ${JSON.stringify(served.note.slice(0, 60))}`,
+  );
+
+  const live = await visit(browser, site.origin, subject.debugPath, {
+    settle: (f) => f.phase === "ready" && f.controlsLive > 0,
+  });
+  const page = live.page;
+  try {
+    j.expect(
+      live.settled && !live.timedOut,
+      "REAL: the chain capture's session went live, so its Values pane is the bundle's",
+      `phase=${live.facts.phase} live=${live.facts.controlsLive}`,
+    );
+
+    // NON-VACUITY, in the form this subject supports. The demo arm counts
+    // served ROWS; a chain capture's served pane is a sentence, and a pane that
+    // said NOTHING would make every verdict below green for a reason that has
+    // nothing to do with the engine.
+    j.atLeast(
+      served.rows + (served.note.trim().length > 0 ? 1 : 0),
+      1,
+      `REAL CONTROL: the served frame states its Values pane (${served.rows} rows, ${served.note.trim().length} chars of sentence)`,
+    );
+
+    const readings = await walk(page);
+    const positions = new Set(readings.map((r) => r.step));
+    const valueSets = new Set(readings.filter((r) => r.rows > 0).map((r) => r.text));
+
+    j.atLeast(
+      positions.size,
+      3,
+      `REAL CONTROL: the walk moved the chain session through distinct positions (${[...positions].join(" → ")})`,
+    );
+
+    const stale = readings.filter((r) => r.rows > 0 && r.text === served.text);
+    j.countIs(
+      stale.length,
+      0,
+      "REAL: not one reading of the chain capture's pane is the frame the exporter wrote",
+    );
+
+    const mute = readings.filter((r) => r.rows === 0 && r.note.length === 0);
+    j.countIs(mute.length, 0, "REAL: every reading is values or a sentence saying why there are none");
+
+    j.atLeast(
+      valueSets.size,
+      2,
+      `REAL: the values change as the chain session moves: ${valueSets.size} distinct sets over ${positions.size} positions`,
+    );
+
+    const cells = readings.flatMap((r) => r.cells);
+    const blank = cells.filter((c) => !c.name || !c.value);
+    j.atLeast(
+      cells.length,
+      1,
+      `REAL CONTROL: the walk read ${cells.length} engine-supplied rows from the chain capture`,
+    );
+    j.countIs(blank.length, 0, "REAL: every row carries both a name and a value");
   } finally {
     await page.close();
   }

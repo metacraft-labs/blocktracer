@@ -64,7 +64,7 @@ import { readdir, writeFile, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
-import { Journey, renderJourney } from "./lib/harness.mjs";
+import { Journey, renderJourney, nameCollisions } from "./lib/harness.mjs";
 import { openBrowser, readFacts } from "./lib/probe.mjs";
 import { openSite, serveDist } from "./lib/site.mjs";
 import { stageEngine } from "./lib/engine.mjs";
@@ -118,11 +118,86 @@ async function loadLedger() {
   return parsed.known_red ?? {};
 }
 
+/**
+ * REFUSE A SUBJECT CHOSEN WITH A FALLBACK.
+ *
+ * This is a lint and not a journey because the defect it names is not visible
+ * in any verdict. Six files in this directory selected their subject as
+ *
+ *     list.find((t) => !t.real) ?? list[0]
+ *
+ * which PREFERS a synthetic fixture and, with 15 synthetic sessions in the
+ * corpus, could never reach its own `??` arm. Every one of them was GREEN
+ * throughout, over a subject nobody had chosen — journeys 03 and 09 were found
+ * one at a time, from two visitor reports about real captures, and 07, 02, 06
+ * and this pattern's last occurrence were found only by looking for the SHAPE.
+ * Three occurrences is a pattern; a pattern that costs nothing to refuse
+ * mechanically should not be found a seventh time by someone reading carefully.
+ *
+ * WHY `??` IS THE THING REFUSED. It makes "no subject of this kind was
+ * available" and "a subject of this kind passed" the same green. The correct
+ * form is two lists selected by filter, each asserted non-empty with its count
+ * printed, both driven — so a corpus that loses one kind of recording is a RED,
+ * which is what it is: the journey can no longer judge the claim it makes.
+ *
+ * Comments are stripped first, deliberately: five of those files now QUOTE the
+ * defect in their headers to explain what was removed, and a lint that could
+ * not tell an explanation from an instance would force the explanations out.
+ *
+ * AND IT MATCHES THE CLOSING PAREN, NOT A REGEX OVER THE CALL. The first
+ * spelling of this check was `/\.find\([^;]*?\)\s*\?\?/`, and it failed journey
+ * 09 on its first run over
+ *
+ *     .find((r) => (r.getAttribute("data-step") ?? "") !== "" && …)
+ *
+ * — a `??` INSIDE the predicate, defaulting an absent attribute to the empty
+ * string, which is not a subject fallback and is correct. A gate that cries
+ * wolf gets switched off, and then it is not there for the real one
+ * (README.md, "Rendered, not present"). So the parens are counted: the `??`
+ * has to follow the find call's own closing bracket. `list.find(…)?.text ?? x`
+ * is not flagged either — that defaults a FIELD of the found item, and the
+ * subject has already been chosen without a fallback by then.
+ */
+function refuseSubjectFallback(file, source) {
+  const code = source
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ")
+    .replace(/\s+/g, " ");
+  for (let i = code.indexOf(".find("); i !== -1; i = code.indexOf(".find(", i + 1)) {
+    let depth = 0;
+    let end = -1;
+    for (let k = i + ".find".length; k < code.length; k++) {
+      if (code[k] === "(") depth += 1;
+      else if (code[k] === ")") {
+        depth -= 1;
+        if (depth === 0) {
+          end = k;
+          break;
+        }
+      }
+    }
+    if (end === -1) continue; // unbalanced — a parse problem, not this lint's
+    if (!/^\s*\?\?/.test(code.slice(end + 1))) continue;
+    throw Object.assign(
+      new Error(
+        `${file} selects a subject with a fallback:\n` +
+          `      ${code.slice(i, Math.min(end + 20, code.length))}\n` +
+          `    A \`??\` between two subject kinds makes "none of this kind was available" and\n` +
+          `    "one of this kind passed" the same green — it is how six journeys came to judge\n` +
+          `    only the demo chain. Select each kind by filter, assert each list non-empty with\n` +
+          `    \`j.atLeast(list.length, 1, "SUBJECTS: …")\`, and drive both.`,
+      ),
+      { exitCode: 2 },
+    );
+  }
+}
+
 async function discover() {
   const dir = join(HERE, "journeys");
   const files = (await readdir(dir)).filter((f) => f.endsWith(".journey.mjs")).sort();
   const mods = [];
   for (const f of files) {
+    refuseSubjectFallback(f, await readFile(join(dir, f), "utf8"));
     const m = await import(join(dir, f));
     if (!m.id || !m.claim || !m.run) {
       throw Object.assign(
@@ -257,7 +332,14 @@ async function main() {
 
       const declared = mod.assertions;
       const countOk = declared === undefined || declared === j.total;
-      const green = j.passed && countOk;
+      // A name collision is a FAILURE of the journey and not a note about it:
+      // it disarms every mutation arm aimed at the shorter text, and a journey
+      // whose arms cannot run is a journey nothing has demonstrated to bite.
+      // Folded in beside the declared-count check because it is the same kind
+      // of defect — the run looks correct and the machinery underneath it is
+      // silently not running.
+      const namesOk = nameCollisions(j).length === 0;
+      const green = j.passed && countOk && namesOk;
       const ledgered = Object.prototype.hasOwnProperty.call(ledger, mod.id);
 
       console.log(renderJourney(j, declared));

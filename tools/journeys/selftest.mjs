@@ -468,6 +468,18 @@ async function main() {
     const before = await verdictFor(arm.journey, arm.assertion);
     if (!before.found) {
       log(`    NEVER RAN — no single assertion matched that name on the unmutated tree`);
+      // AND WHICH OF THE TWO WAYS IT MISSED. `verdictFor` matches with
+      // `r.what.includes(assertion)` and treats any count but 1 as no match, so
+      // "the assertion was renamed" and "a SECOND assertion's text now CONTAINS
+      // this one" arrive here identically — and the second is a live hazard,
+      // because every journey that grows a REAL-capture arm grows a set of
+      // near-duplicate assertion texts. Naming the count turns a puzzling
+      // NEVER RAN into a one-word diagnosis.
+      if (before.ambiguous > 1) {
+        log(`               AMBIGUOUS: ${before.ambiguous} assertions contain that text.`);
+        log(`               An arm must name exactly one. Reword whichever assertion`);
+        log(`               CONTAINS the other — a "REAL: " + verbatim copy is the usual cause.`);
+      }
       neverRan += 1;
       log("");
       continue;

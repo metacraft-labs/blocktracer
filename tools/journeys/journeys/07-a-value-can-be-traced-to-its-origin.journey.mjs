@@ -66,6 +66,32 @@
 // recorded by `nargo trace`, each with a `sources/` tree and `varnames` in its
 // trace. That — not the real chain — is the subject the surface should first be
 // demonstrated on.
+//
+// AND IT IS DRIVEN OVER BOTH KINDS OF RECORDING
+// ---------------------------------------------
+// THIS FILE CARRIED THE SAME SUBJECT-SELECTION DEFECT AS JOURNEYS 03 AND 09,
+// and was the third occurrence of it. Until it was removed the subject was
+//
+//     sessions.find((t) => !t.real) ?? sessions[0]
+//
+// which PREFERS a synthetic fixture. With 19 synthetic sessions in the corpus
+// the `??` arm could never be reached, so every assertion this journey has ever
+// made about the capability was made about the demo chain — including the
+// "counted 0" its ledger entry is written from. The claim above names no
+// chain, so a corpus-wide absence was being inferred from one recording.
+//
+// The fix is the one 03 and 09 took: TWO SUBJECT LISTS SELECTED BY FILTER, each
+// asserted non-empty with its count printed, both driven, and NO `??` between
+// them. The fallback is what made "no real capture was available" and "a real
+// capture passed" the same green — a corpus that loses one kind of recording
+// must be a RED, because the journey can no longer judge the claim it makes.
+//
+// Measured with the arm in place: the absence is real on both. The demo session
+// and the chain capture each carry a live bundle with interactive controls, and
+// each counts ZERO controls matching the generous origin selector. The chain
+// arm's red is therefore the SAME defect the ledger entry names, restated over
+// the subject that entry could not previously speak for — not a second, unnamed
+// failure absorbed by it.
 
 import { visit } from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";
@@ -75,7 +101,7 @@ export const claim =
   "A visitor can trace a value to its origin — and until they can, the product does not say they can.";
 export const spec =
   "client/src/pages/home.nim (the hero) and ssr.nim (the meta description) — the product's own promise, now withdrawn";
-export const assertions = 9;
+export const assertions = 14;
 export const needsEngine = true;
 
 const PROMISE = /trace any value to its origin/i;
@@ -93,6 +119,81 @@ const READ_ROWS = () => {
     // The reading, not the markup: a class change elsewhere must not read as
     // "the engine supplied different values".
     text: rows.map((e) => (e.textContent ?? "").replace(/\s+/g, " ").trim()).join("|"),
+  };
+};
+
+/**
+ * The origin affordances on screen, and the interactive controls beside them.
+ *
+ * ONE selector for both arms, hoisted here so that "counted 0" means the same
+ * measurement on a demo session and on a chain capture. Two copies of the regex
+ * is two chances for the arms to disagree about what an origin control looks
+ * like, and a difference there would read as a difference in the product.
+ *
+ * THE LABEL, NOT THE CONTENT — AND THIS IS A MEASURED CORRECTION
+ * -------------------------------------------------------------
+ * The previous form matched the regex against each candidate's whole
+ * `textContent`. On the demo chain it counted 0 and the journey read as
+ * correct. The first run that reached a CHAIN capture counted 1, and the one
+ * match was this, on every one of the eight real captures in the corpus:
+ *
+ *   <a class="evrow k-event" href="?v=1&t=344&…">
+ *     …avm:11912 status=unavailable-in-principle origin=settled-chain …
+ *
+ * An EVENT-LOG ROW. `origin=` there is a field of the event the chain recorded,
+ * and `textContent` on a row flattens every column into one string. Nothing on
+ * that page offers to trace anything; the word was in the data.
+ *
+ * That number is the whole verdict of this journey. `atLeast(…, 1)` asserts
+ * PRESENCE, so a match that is not a control is a FALSE GREEN — and because
+ * this journey is ledgered known-red, a false green here does not merely
+ * mis-measure, it FAILS THE RUN with "this journey is in ledger.json as
+ * known-red and it is GREEN" and invites someone to delete a ledger entry over
+ * an event-log string. The generosity was written when this assertion claimed
+ * an ABSENCE, where erring wide is the safe direction; it is the unsafe
+ * direction for the presence claim the file now makes.
+ *
+ * So the regex is applied to what an AUTHOR wrote as a label:
+ *
+ *   * `data-action`, `aria-label`, `title` — always authored, never content;
+ *   * the element's text, but only where that text is SHORT ENOUGH TO BE A
+ *     LABEL. A control says "Trace to origin"; a trace row is four columns of
+ *     recorded data flattened together.
+ *
+ * The threshold is a property of labels, not a blacklist of classes, so a pane
+ * that gains a row kind does not need an edit here. Both counts are returned
+ * and both are printed: the wide one stays visible in the transcript, so a
+ * future affordance that this narrowing would miss shows up as a gap between
+ * two numbers rather than as silence.
+ */
+const READ_CONTROLS = () => {
+  const RE = /origin|where did this come from|provenance|trace value/i;
+  const LABEL_MAX_CHARS = 60;
+  const shown = (e) =>
+    !!e &&
+    typeof e.checkVisibility === "function" &&
+    e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+  const candidates = [
+    ...document.querySelectorAll("a, button, [data-action], [role=button]"),
+  ];
+  const attrs = (e) =>
+    `${e.getAttribute("data-action") ?? ""} ${e.getAttribute("aria-label") ?? ""} ${
+      e.getAttribute("title") ?? ""
+    }`;
+  const label = (e) => (e.textContent ?? "").replace(/\s+/g, " ").trim();
+  return {
+    // The verdict: an authored label offering the gesture.
+    originAffordances: candidates.filter(
+      (e) => RE.test(attrs(e)) || (label(e).length <= LABEL_MAX_CHARS && RE.test(label(e))),
+    ).length,
+    // The old, fully generous reading, kept and REPORTED so the narrowing is
+    // visible as a number rather than as an absence.
+    originMentions: candidates.filter((e) => RE.test(`${label(e)} ${attrs(e)}`)).length,
+    // UNCHANGED from the form this control was written in — `a, button,
+    // [data-action]`, on screen. It answers "did the bundle run", and moving it
+    // while narrowing the selector above would have made the two numbers
+    // incomparable with every reading taken before today.
+    interactive: [...document.querySelectorAll("a, button, [data-action]")].filter(shown).length,
   };
 };
 
@@ -134,7 +235,22 @@ export async function run({ browser, site, j }) {
   const sessions = all.filter((t) => landingOf(t.phase) === "session" && t.hasListing);
   j.subjects(sessions, 3, "transactions whose landing is a session with rows in its Code pane");
 
-  const subject = sessions.find((t) => !t.real) ?? sessions[0];
+  // TWO SUBJECT LISTS, EACH ASSERTED NON-EMPTY, AND NO FALLBACK BETWEEN THEM.
+  // See the header: `find((t) => !t.real) ?? sessions[0]` is what kept this
+  // journey on the demo chain for its whole life. Selecting by filter and
+  // asserting each size makes a corpus that has lost one kind of recording a
+  // RED — which is what it is, because the journey can no longer judge the
+  // claim it makes — instead of a green over whichever kind survived.
+  const synthetic = sessions.filter((t) => !t.real);
+  const realCaptures = sessions.filter((t) => t.real);
+  j.atLeast(synthetic.length, 1, "SUBJECTS: synthetic sessions, so the demo arm has a subject");
+  j.atLeast(
+    realCaptures.length,
+    1,
+    "SUBJECTS: REAL-capture sessions, so the chain arm has a subject",
+  );
+
+  const subject = synthetic[0];
   j.note(`driving ${subject.debugPath}`);
 
   // The SERVED frame: the same URL with scripting off, which is what the
@@ -170,29 +286,7 @@ export async function run({ browser, site, j }) {
       `phase=${live.facts.phase}`,
     );
 
-    const probe = await live.page.evaluate(() => {
-      const shown = (e) =>
-        !!e &&
-        typeof e.checkVisibility === "function" &&
-        e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
-      // Every spelling an origin affordance could plausibly take. Generous on
-      // purpose: the claim is that NONE of them is present, and a narrow
-      // selector would make that easy to satisfy by accident.
-      const origin = [
-        ...document.querySelectorAll("a, button, [data-action], [role=button]"),
-      ].filter((e) =>
-        /origin|where did this come from|provenance|trace value/i.test(
-          `${e.textContent ?? ""} ${e.getAttribute("data-action") ?? ""} ${
-            e.getAttribute("aria-label") ?? ""
-          } ${e.getAttribute("title") ?? ""}`,
-        ),
-      );
-      return {
-        originAffordances: origin.length,
-        interactive: [...document.querySelectorAll("a, button, [data-action]")].filter(shown)
-          .length,
-      };
-    });
+    const probe = await live.page.evaluate(READ_CONTROLS);
     const hydrated = await live.page.evaluate(READ_ROWS);
 
     // NON-VACUITY. Comparing two empty panes would report "unchanged" for a
@@ -224,11 +318,115 @@ export async function run({ browser, site, j }) {
         : `served ${served.rows} rows, live ${hydrated.rows} rows`,
     );
 
-    // THE CONSEQUENT.
+    // THE CONSEQUENT. The wide count is printed beside the verdict so the
+    // narrowing in READ_CONTROLS is auditable from the transcript: on this page
+    // the two agree, and where they ever diverge the gap says which reading to
+    // go and look at.
+    j.note(
+      `origin affordances: ${probe.originAffordances} labelled, ${probe.originMentions} matched anywhere in a candidate's text`,
+    );
     j.atLeast(
       probe.originAffordances,
       1,
       "some control offers to trace a value to its origin",
+    );
+  } finally {
+    await live.page.close();
+  }
+
+  // ── THE CHAIN CAPTURE ─────────────────────────────────────────────────
+  //
+  // A separate subject and a separate page, so the chain arm reddens on its
+  // own instead of being answered by a demo session. This is the arm the
+  // fallback removed above had made unreachable for this journey's whole life.
+  await realArm(browser, site, j, realCaptures[0]);
+}
+
+/**
+ * The same claim, over a REAL capture.
+ *
+ * WHAT THIS ARM ASSERTS, AND WHAT IT DELIBERATELY DOES NOT
+ * -------------------------------------------------------
+ * Not the Values-pane comparison the demo arm makes. A chain recording is rung
+ * 3 — `demo_session.nim` states the consequence verbatim: "This recording
+ * carries no variable names: naming a local needs debug symbols, which an Aztec
+ * contract class does not publish" — so its served frame may legitimately carry
+ * no Values rows at all, and "the live pane differs from the served one" would
+ * then be a claim about a corpus rather than about the engine. Asserting it
+ * here would put a SECOND, unrelated red on a journey whose ledger entry speaks
+ * for exactly one, which is how a ledgered entry comes to absorb a failure it
+ * does not name.
+ *
+ * So the two panes are REPORTED, as notes, and the arm asserts the thing the
+ * claim is actually about: that on a chain capture too, with the bundle
+ * demonstrably running, nothing on screen offers to trace a value to its
+ * origin. That is one number, measured by the same selector as the demo arm's,
+ * on the subject this journey had never once looked at.
+ *
+ * The assertion texts are worded so that none of them CONTAINS another
+ * assertion's text: `selftest.mjs` resolves an arm's target with
+ * `r.what.includes(assertion)` and treats two hits as no hit, so a "REAL: " +
+ * verbatim copy of a demo-arm assertion would silently make a future arm on
+ * either of them unrunnable.
+ */
+async function realArm(browser, site, j, subject) {
+  j.note(`driving REAL capture ${subject.debugPath}`);
+
+  const servedCtx = await browser.newContext({ javaScriptEnabled: false });
+  let served;
+  try {
+    const servedPage = await servedCtx.newPage();
+    await servedPage.goto(site.origin + subject.debugPath, {
+      waitUntil: "domcontentloaded",
+      timeout: 45000,
+    });
+    served = await servedPage.evaluate(READ_ROWS);
+  } finally {
+    await servedCtx.close();
+  }
+
+  const live = await visit(browser, site.origin, subject.debugPath, {
+    settle: (f) => f.phase === "ready" && f.controlsLive > 0,
+  });
+  try {
+    j.expect(
+      live.settled && !live.timedOut,
+      "REAL: the chain capture reached a live session, so the bundle owns its panes",
+      `phase=${live.facts.phase} live=${live.facts.controlsLive}`,
+    );
+
+    const probe = await live.page.evaluate(READ_CONTROLS);
+    const hydrated = await live.page.evaluate(READ_ROWS);
+
+    // REPORTED, NOT ASSERTED — see the header. A rung-3 recording with no
+    // variable names is a state the product is allowed to be in, and the number
+    // belongs in the transcript so the arm below is read with it in view.
+    j.note(
+      `REAL Values pane: served ${served.rows} rows (${served.shown} shown), live ${hydrated.rows} rows` +
+        `${hydrated.text === served.text ? " — identical text" : " — different text"}`,
+    );
+
+    // CONTROL. Without it, "no origin affordance" is equally explained by a
+    // page the bundle never reached, and the red below would be a statement
+    // about this suite rather than about the product.
+    j.atLeast(
+      probe.interactive,
+      5,
+      `REAL: CONTROL — the chain capture's live page carries ${probe.interactive} interactive controls, so the bundle ran here too`,
+    );
+
+    // THE CONSEQUENT, on the subject this journey had never judged — and the
+    // page the false positive was found on. The two numbers are printed
+    // together because on a chain capture they DISAGREE: the event log's own
+    // `origin=settled-chain` field is matched by the wide reading and by no
+    // authored label, which is the whole reason READ_CONTROLS narrowed.
+    j.note(
+      `REAL origin affordances: ${probe.originAffordances} labelled, ${probe.originMentions} matched anywhere in a candidate's text`,
+    );
+    j.atLeast(
+      probe.originAffordances,
+      1,
+      "REAL: a chain capture offers no way to trace a value to its origin either",
     );
   } finally {
     await live.page.close();

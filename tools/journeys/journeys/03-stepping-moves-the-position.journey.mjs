@@ -172,7 +172,16 @@ async function realArm(browser, site, j, subject) {
       "REAL: the session reached `ready` with live controls",
       `phase=${live.facts.phase} live=${live.facts.controlsLive}`,
     );
-    j.countIs(live.facts.controlsLive, 8, "REAL: all eight stepping controls are live");
+    // Worded so it does not CONTAIN the demo arm's text: `selftest.mjs`
+    // resolves an arm with `r.what.includes(assertion)`, so "REAL: " + a
+    // verbatim copy would make an arm on the demo assertion resolve to two
+    // records and never run. `lib/harness.mjs`'s `nameCollisions` now refuses
+    // the shape; this is the reword it asked for.
+    j.countIs(
+      live.facts.controlsLive,
+      8,
+      "REAL: the chain capture offers all eight stepping controls, live",
+    );
 
     const before = live.facts;
     const after = await stepOnce(page, before);

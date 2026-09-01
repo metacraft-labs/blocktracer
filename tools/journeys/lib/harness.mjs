@@ -80,6 +80,37 @@ export class Journey {
   }
 }
 
+/**
+ * Assertion texts inside ONE journey where one CONTAINS another.
+ *
+ * `selftest.mjs` resolves a mutation arm's target with
+ * `r.what.includes(assertion)` and treats any count but one as no match, so an
+ * assertion whose text is a substring of a sibling's makes every arm aimed at
+ * the shorter one AMBIGUOUS AND NEVER-RUN — a mutation that scores NEVER RAN
+ * rather than SURVIVED, which reads as a harness problem and not as an
+ * unguarded defect.
+ *
+ * It is a real hazard and not a hypothetical: the shape arrives whenever a
+ * journey grows a REAL-capture arm and names its assertions `"REAL: " + <the
+ * demo arm's text>`. Three such pairs existed in journeys 03 and 09 the day
+ * this was written — none of them yet targeted by an arm, which is exactly the
+ * window in which it is cheap to refuse.
+ *
+ * Refused HERE, over the assertions a run actually recorded, rather than by
+ * reading the sources: the texts are built at run time out of counts and paths,
+ * so the only place the real strings exist is the report.
+ */
+export function nameCollisions(j) {
+  const out = [];
+  const texts = j.records.map((r) => r.what);
+  for (const a of texts) {
+    for (const b of texts) {
+      if (a !== b && b.includes(a)) out.push({ inner: a, outer: b });
+    }
+  }
+  return out;
+}
+
 /** Format one journey's result block for the transcript. */
 export function renderJourney(j, declared) {
   const out = [];
@@ -94,6 +125,13 @@ export function renderJourney(j, declared) {
     out.push(
       `         [FAILED] the journey declares ${declared} assertions and made ${j.total}` +
         ` — a run that stopped early reports fewer passes, not a failure, unless the count is checked`,
+    );
+  }
+  for (const c of nameCollisions(j)) {
+    out.push(
+      `         [FAILED] two assertions collide by name — "${c.inner}" is contained in` +
+        ` "${c.outer}", so a selftest arm aimed at the first resolves to two records and never runs.` +
+        ` Reword the longer one.`,
     );
   }
   return out.join("\n");

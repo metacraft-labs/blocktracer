@@ -456,13 +456,20 @@ async function realArm(browser, site, j, subject) {
       "REAL: the session reached `ready` with live controls",
       `phase=${live.facts.phase} live=${live.facts.controlsLive}`,
     );
-    j.countIs(live.pageErrors.length, 0, "REAL: no uncaught page errors while the session came up");
+    // Reworded rather than prefixed — see `nameCollisions` in lib/harness.mjs:
+    // an assertion whose text CONTAINS a sibling's disarms every mutation arm
+    // aimed at the shorter one.
+    j.countIs(
+      live.pageErrors.length,
+      0,
+      "REAL: the chain session came up with no uncaught page errors",
+    );
 
     const before = await readFacts(page);
     j.countIs(before.marked, 1, "REAL: exactly one line carries the position mark");
     j.expect(
       before.markedShown,
-      "REAL: the marked line is on screen, not merely in the DOM",
+      "REAL: the mark is on screen on the chain capture, not merely in the DOM",
       `marked ${positionOf(before)}`,
     );
 
