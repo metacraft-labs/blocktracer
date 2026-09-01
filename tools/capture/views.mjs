@@ -1431,6 +1431,21 @@ export const VIEWS = [
             `(role=${focused.role}, tabindex=${focused.tabindex}, focused=${focused.isActive})`,
         );
       }
+      // ONE SUBJECT PER IMAGE, asserted the way the engine views assert it.
+      // This opens the same exact-hit §6.0a link they do, precisely so the
+      // landing notice has nothing to say — but unlike them nothing was
+      // CHECKING that, and the block forbids a notice appearing here. A view
+      // whose expectation says "must not show" and whose capture cannot tell is
+      // an expectation nothing enforces.
+      const stray = await page.evaluate(
+        () => document.querySelector("#dbg-position-notice .dbgnotice")?.innerText ?? "",
+      );
+      if (stray.length > 0) {
+        throw new Error(
+          `a copy-affordance capture also rendered a §6.0a notice (${JSON.stringify(stray.slice(0, 120))}) — ` +
+            "the image would carry two unrelated subjects",
+        );
+      }
     },
   },
 
