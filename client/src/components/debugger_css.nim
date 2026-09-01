@@ -278,12 +278,39 @@ html[data-register="debugger"],
    that comment gives: one overflow treatment, and it is the fade. A mask rather
    than an overlay because `.panebody` has no positioned ancestor to hang one
    on; `currentColor` as the opaque stop because a mask reads ALPHA and the
-   colour is never painted. `.panebody` carries no background of its own — the
-   surface belongs to `.pane` — so unlike `.src` this needs no `mask-clip`: the
-   pane's own edge and fill stay solid and only the text under them goes.
+   colour is never painted.
+
+   THE `mask-clip` SENTENCE THAT USED TO BE HERE WAS WRONG, and the correction
+   matters because a later round built a diagnosis on it. It said `.panebody`
+   "carries no background of its own … so unlike `.src` this needs no
+   `mask-clip`: the pane's own edge and fill stay solid and only the text under
+   them goes". Measured: every `.panebody` on both graded pages has
+   `padding:0` and `border-width:0`, so border box, padding box and content box
+   COINCIDE — `mask-clip` cannot do anything here, and `.src`'s own
+   `mask-clip:padding-box` is equally inert for the same reason. Setting
+   `mask-clip`/`mask-origin` to `content-box` or `padding-box` produces a
+   byte-identical page (sha256 over the raw pixel buffer, all four captures).
+
+   The pane's fill stays solid for a different reason than the one given: `.src`
+   paints `--bt-surface-raised`, which is the SAME colour as the `.pane` behind
+   it (255,255,255 light / 27,27,27 dark), so fading it toward the pane changes
+   nothing visible. `pre.raw` paints `--bt-surface-code`, which is NOT that
+   colour (236 / 0), and its surface is therefore destroyed by the same ramp —
+   measured all the way to 255, i.e. complete erasure, with its 1px `#A2A2A2`
+   bottom border going 3.66:1 -> 1.06:1. A mask composites the whole subtree at
+   one alpha; it cannot fade ink and spare a background.
+
+   That also refutes vd9-r2's isolated "mechanism" — "the mask is anchored to
+   the pane BORDER rather than the content box, so it spends its first 9px
+   fading padding". There is no padding anywhere in this chain. All 24px of the
+   `lg` ramp fall on content.
 
    A pane whose content does NOT reach the bottom is unaffected: the faded band
-   is over empty surface, and masking nothing changes nothing.
+   is over empty surface, and masking nothing changes nothing. THAT claim is
+   confirmed — 6 of the 8 panes measured do not overflow and their bands are
+   unchanged blank surface. What is NOT true is the converse: the ramp is
+   anchored to the scroll container, so it never switches off, and a pane
+   scrolled to its very end still fades its last line with nothing below it.
 
    THE RAMP STAYS AT `lg` AND THE LENSES DISAGREE ABOUT WHETHER IT SHOULD.
    It was briefly moved to `2xl` — the horizontal fade's rung — on the strength

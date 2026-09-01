@@ -1009,3 +1009,117 @@ by a round before anything else is decided. If reviewers read the cyan `⊙` on
 the band as "you are here AND this arm ran", the vocabulary is complete and (c)
 follows — delete the dead `▶` rather than restore it. That is a question for
 eyes, not for measurement, and this round's re-capture puts it in front of them.
+
+## Q11 — SETTLED. Option (a) is a misconception, and two of the findings cannot both be answered
+Q11 recommended option (a) — "fade the INK only, not the scroll container: put
+the mask on an inner wrapper so the pane's surfaces and borders stay solid" —
+and called it "the only option that answers all four measurements". It was
+measured in the built page. It does not work, and it cannot.
+
+**A mask composites the whole subtree at one alpha.** `mask-origin` and
+`mask-clip` choose which RECTANGLE the mask covers, never which PAINT it applies
+to. An inner wrapper still contains `pre.raw`, so it still contains that
+element's background. Three variants were tried in-browser:
+
+  * **a1, the inner wrapper** — worse than a no-op. The wrapper IS the scrolled
+    content, so `calc(100% - 24px)` resolves against `scrollHeight`: the metadata
+    pane's wrapper measured h=1178.27, bottom=1273.06, putting the ramp 174px
+    BELOW the clip. In the visible area the fade vanishes entirely, pixel-for-
+    pixel identical to deleting the mask. It also breaks layout — `.srcwrap`
+    loses its definite height, the Code pane's wrapper collapses to 39.19px and
+    the pane renders empty — and it relocates the call-trace ramp to mid-pane,
+    fading content at no boundary at all.
+  * **a2/a3, `mask-clip`/`mask-origin` to content-box or padding-box** —
+    byte-identical to baseline, sha256 over the raw pixel buffer, all four
+    captures. Every `.panebody` has `padding:0` and `border-width:0`, so the
+    three boxes coincide and there is nothing for these properties to move.
+  * **a4, a `.pane::after` gradient veil instead of a mask** — every number
+    matches the mask to ±1/255. An overlay tinted with the pane surface
+    composites toward exactly the colour the mask composites toward.
+  * **a5, `padding-bottom` to reserve a glyph-free band** — identical to
+    baseline. A scroll container clips at its PADDING box and content scrolls
+    through it, so bottom padding reserves nothing mid-scroll.
+
+**THE DEADLOCK, stated exactly.** Finding (1) requires the ramp not to touch
+live glyphs. Finding (3) requires it not to touch the RAW well's surface. A mask
+over a scroll container touches both by construction, and the only free
+parameter — ramp length — trades one against the other. That is the same
+deadlock this entry already described at the level of "reads as continuation
+versus keeps the last line legible", now shown to be structural rather than a
+matter of tuning.
+
+### What reproduced, what did not
+  * **(1) reproduced, and worse than recorded in one specific way.** The CSS
+    comment says 2.19-2.22:1 and 2.43:1 were measured at the reverted `2xl` and
+    that reverting to `lg` answered them. **They reproduce AT `lg`.** On
+    `debugger/wide/light`, Code pane line 61 — entirely inside the clip — runs
+    4.81 -> 3.19 -> **2.19:1**; its coverage dot reads **2.60:1** against
+    **4.87:1** for the identical dot one line up outside the ramp; the gutter
+    number reads 4.36:1 in dark. The Transaction pane's last fully-inside line
+    goes 12.47:1 -> **3.04:1**. Three marks under 4.5:1 on text that has not
+    left the box, in the shipped build. **The revert did not change what it was
+    made to change**, and that is the load-bearing correction.
+  * **(3) reproduced and understated.** `pre.raw`'s surface does not stop at
+    `#FBFBFB`; it ramps to **(255,255,255)**, complete erasure, and its 1px
+    `#A2A2A2` bottom border measures **1.06:1** against the pane instead of
+    3.66:1 when scrolled to the end. On `debugger--testnet/wide/light` the
+    entire visible extent of `pre.raw` is 24.8px and ALL of it is inside the
+    ramp — that well never renders at full strength anywhere on that page.
+  * **(2) "the fade renders behind its text" — not reproducible as stated.** A
+    mask is an alpha channel on the element's own output; nothing can be behind
+    anything. The observable it names is (3): the well's surface gradient reads
+    as a band around the glyph.
+  * **(4) "anchored to the pane BORDER rather than the content box, so it spends
+    its first 9px fading padding" — REFUTED.** There is no padding anywhere in
+    the chain; all 24px of the ramp fall on content. Its corollary — "`.src`
+    masks the content element and was already doing the right thing by accident"
+    — is wrong about mechanism too. `.src` reads correctly because it paints
+    `--bt-surface-raised`, the SAME colour as the pane behind it, so fading it
+    changes nothing visible; `pre.raw` paints `--bt-surface-code`, which differs,
+    and is destroyed. Nothing to do with clip boxes. **This entry's "mechanism
+    isolated" result from vd9-r2 should be treated as withdrawn.**
+  * **(5) the 5x theme gap — attribution refuted, figure real, two ledger rows
+    crossed.** `"hydrationRounds": 6,` sits at y=1248.95 on a canvas 1080 tall:
+    it is **174px below the clip and not in either image**. The 1.16:1 IS real,
+    on the `{` of line 0 at y=1072. The same rows in dark measure **1.31:1, not
+    6.17:1** — a theme gap of 1.37x, not 5x. 6.17:1 does exist in the corpus, at
+    `debugger/wide/**dark**` `pre.raw` y=1060. So the "cleanest comparison in the
+    campaign" compared two different lines.
+  * **(6) the compounding is confirmed and quantified**, and its mechanism is
+    not the one the sibling diagnosis guessed: `.src` and `pre.raw` are
+    DESCENDANTS of `.panebody`, so their paint passes through both masks.
+    a = a_h x a_v matched measurement to within 1/255. Affected surface reaches
+    full page-white ~10 rows earlier than the vertical mask alone, on `pre.raw`
+    in the metadata pane only. **Surface only today — no ink lies in the overlap
+    on any of the four captures.**
+  * **NEW: the fade never switches off.** Anchored to the scroll container's
+    border box, so a pane scrolled to its very END still fades its last line at
+    full strength with zero content hidden below: the RAW block's last line goes
+    13.13:1 -> 3.21:1 and its bottom border vanishes. This is the vertical
+    analogue of Q13's false positive, and it is arguably worse — not a pane
+    faded that never overflows, but a fade that stays on after the reader has
+    arrived.
+
+### The options, now that they are real
+  (a) **withdrawn** — measured, does not work, breaks layout.
+  (b) drop the mask; mark overflow with an edge rule or a persistent scrollbar.
+      Zero contrast cost. Reintroduces the hard edge L2 credits the fade with
+      removing, and Q13 shows the scrollbar is suppressed in the corpus by
+      `--hide-scrollbars` anyway, so this needs the harness decision too;
+  (c) keep the fade and move `--bt-surface-code` OUT of the masked subtree, so
+      the RAW well's surface is painted by an element the mask does not cover.
+      This is the only thing that answers (3), and it answers nothing else;
+  (d) reserve a glyph-free band with a SPACER ELEMENT as the last child of the
+      scroll content — not `padding-bottom`, which a5 measured to do nothing.
+      At the end of the scroll the spacer sits under the ramp, so the last real
+      line is legible and the fade correctly signals nothing; mid-scroll the
+      ramp still falls on text that genuinely has more below it, which is the
+      honest case. Answers (1) and the never-switches-off finding together, and
+      does not answer (3);
+  (e) accept the deadlock, leave `lg`, and record that the last line of an
+      overflowing pane is dim by design.
+
+Recommendation: **(d) then (c)**, in separate commits, each photographed. They
+are independent and they answer different findings. NOT (a). And the CSS
+comment's claim that reverting to `lg` answered finding (1) is corrected in this
+round, because it does not.

@@ -290,26 +290,43 @@ async function main() {
 
         // ── IS THIS DIST EVEN THE TREE THE CORPUS WAS CAPTURED AGAINST? ────
         //
-        // F re-resolves every ready view against `client/dist` and compares. It
-        // therefore assumes dist is the tree capture built — and capture builds
-        // with `-d:publishDemoChain`, which the DEPLOY build deliberately omits.
-        // `cd client && just export` and `just design-check` are both documented
-        // workflows and both leave a dist WITHOUT the synthetic chain.
+        // F re-resolves every ready view against `client/dist` and compares, so
+        // it assumes dist is the tree the capture was taken against. When those
+        // two trees publish different CHAINS, every view resolving through the
+        // primary chain re-resolves somewhere else and F reports drift that is
+        // an artefact of the build rather than a fact about the corpus.
         //
-        // The consequence is not a small one. With `demo` absent, every view
-        // that resolves through the primary chain re-resolves to `aztec`, and F
-        // reports 72 images as having drifted from `/demo` to `/aztec` — an
-        // alarming, specific, entirely false result about a corpus that is
-        // perfectly correct. I produced exactly that this session by rebuilding
-        // dist between a capture and a check, and spent the time to find out it
-        // was my own build rather than the corpus.
-        //
-        // A check that cries wolf whenever someone runs the project's own export
-        // recipe teaches people to disbelieve it, and F is the assertion that
-        // exists because nobody could see a stale corpus. So the mismatch is
-        // detected and named BEFORE the comparison rather than expressed as
+        // That is not hypothetical. It happened once at scale: 72 images
+        // reported as drifted from `/demo` to `/aztec`, an alarming and
+        // entirely false result about a corpus that was perfectly correct,
+        // produced by rebuilding dist between a capture and a check. A check
+        // that cries wolf whenever someone runs the project's own export recipe
+        // teaches people to disbelieve it, and F is the assertion that exists
+        // because nobody could see a stale corpus. So a chain mismatch is
+        // detected and NAMED before the comparison rather than expressed as
         // drift: if the corpus was photographed against a chain this dist does
         // not publish, the dist is the wrong tree and F cannot decide anything.
+        //
+        // THE CAUSE THAT PRODUCED IT NO LONGER EXISTS, and this comment used to
+        // say otherwise. It said "capture builds with `-d:publishDemoChain`,
+        // which the DEPLOY build deliberately omits", and sent the reader at a
+        // rebuild command carrying that flag. The default has since flipped:
+        // `static_export.nim` now publishes the synthetic chain under `when not
+        // defined(noDemoChain)`, so the graded tree and the deployed tree are
+        // the same tree, `just export` produces the capture shape, and the flag
+        // still spelled in `capture.mjs` is a no-op. The whole class of
+        // stale-corpus risk that motivated this block is gone with it.
+        //
+        // The DETECTION stays, and stays exactly as it is, for two reasons. It
+        // is keyed on the chains the manifest actually recorded against the
+        // chains this dist actually publishes, so it never depended on the flag
+        // and catches a mismatch arising from any cause — including the next
+        // re-scope of the published set, which is a live source of them. And an
+        // assertion that reads a BUILD rather than the source of truth has this
+        // shape whatever the build flags are; E reads the same dist. What is
+        // corrected below is only the diagnosis, because a correct check
+        // carrying a false explanation sends its one reader at a command that
+        // cannot help.
         const capturedChains = new Set(
           (manifest.images ?? [])
             .filter((i) => i && i.ok === true && i.chain)
@@ -320,12 +337,13 @@ async function main() {
             `F: this dist does not publish ${absentChains.map((c) => `"${c}"`).join(", ")}, ` +
             `but ${(manifest.images ?? []).filter((i) => i && i.chain && absentChains.includes(i.chain)).length} ` +
             `image(s) in the corpus were captured from it — so this dist is NOT the tree ` +
-            `the corpus was captured against and F cannot compare them. The capture tree is ` +
-            `built with \`-d:publishDemoChain\` and the deploy tree is not; \`just export\` ` +
-            `produces the deploy shape. Rebuild the capture tree before trusting this ` +
-            `assertion:\n` +
-            `       cd client && nim c -r --mm:orc -d:isServer -d:release -d:publishDemoChain \\\n` +
-            `         --hints:off src/static_export.nim`);
+            `the corpus was captured against and F cannot compare them. Since the synthetic ` +
+            `chain became the default (\`when not defined(noDemoChain)\`), a plain rebuild ` +
+            `produces the capture shape, so the likely causes are a build that set ` +
+            `\`-d:noDemoChain\`, or a corpus older than a re-scope of the published set. ` +
+            `Rebuild, then re-capture if the corpus is the stale half:\n` +
+            `       cd client && just export        # then, if the chains still disagree:\n` +
+            `       just capture ""`);
           report.subjects = {
             status: "not-run",
             reason:
