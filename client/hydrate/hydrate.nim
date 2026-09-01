@@ -265,6 +265,26 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch) =
   ## it" true rather than "replace it with something similar".
   var view = view
   view.editor = openAtCurrent(view.editor, SourceLeadIn)
+
+  # THE SESSION'S POSITION, WRITTEN WHERE THE SESSION PUBLISHES IT.
+  #
+  # `data-step` was READ once, out of the served DOM, and never written again.
+  # So after the first step the root said 128 while the session stood somewhere
+  # else, and it went on saying 128 for the rest of the session. Everything that
+  # reads the page for a position — a share link, a test, a person with the
+  # inspector open — was told the landing step forever.
+  #
+  # It is written HERE, in the one proc that draws the panes, rather than in
+  # `applyStop`, so the attribute and the panes cannot disagree: they are the
+  # same call over the same `view`. Writing it in the stepper would have made
+  # them two facts that happen to be updated together, which is the arrangement
+  # that let them drift in the first place.
+  #
+  # `totalSteps` is written too, because a step count without its denominator is
+  # half a coordinate, and the served value is only correct until the engine has
+  # its own opinion.
+  ui.root.setAttribute("data-step", ($view.controls.step).cstring)
+  ui.root.setAttribute("data-total-steps", ($view.controls.totalSteps).cstring)
   # "Content" for the source pane is not "documents" — a pane that has resolved
   # to `srcUnverified` has no documents and IS the honest §14 row, so it counts
   # as something to say. What must never replace a served listing is a pane

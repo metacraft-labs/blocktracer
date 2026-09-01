@@ -392,4 +392,106 @@ suite "entry state — a position the fixture constant does not describe":
     check marks[0].path == otherPath
     check marks[0].line == otherLine
 
+suite "entry state — the engine and the bundle name the same file differently":
+  ## The half of "becoming positioned" that only the HYDRATED session has, and
+  ## that every suite in this tree was structurally unable to see.
+  ##
+  ## Everything above drives `renderToString` and constructs its position with
+  ## paths it also wrote, so both sides of the comparison are this repository's
+  ## spelling and they always agree. In a live session they come from two
+  ## different producers and they never did:
+  ##
+  ##   the engine   `/private/tmp/blocktracer-fixture-rec/noir_space_ship/src/main.nr`
+  ##   the bundle   `src/main.nr`
+  ##
+  ## The engine reports the path the program was RECORDED at — absolute, and
+  ## belonging to the machine that ran it. The published bundle stores paths
+  ## relative to the package root, because that is the only form that survives
+  ## being served to someone else. `==` between them was false for every file in
+  ## every session, so no hydrated session ever marked a line.
+  ##
+  ## It hid behind the fix directly above it. That fix made an unmatched
+  ## position CLEAR `currentLine` rather than carry it onto the wrong document —
+  ## correct, and it turned "marks the wrong line" into "marks no line", which
+  ## is also what a bundle that genuinely lacks the file looks like. The safe
+  ## fallback masked the broken comparison, and a browser was needed to tell
+  ## them apart: `tools/journeys/` journey 06.
+  ##
+  ## No case below names a repository path as an expected answer. Each states a
+  ## RELATION between a document list and a position, and holds for any project
+  ## layout.
+
+  const Docs = @["Nargo.toml", "Prover.toml", "src/main.nr", "src/shield.nr"]
+
+  test "the resolver finds the file the engine names, absolutely":
+    # The case that was live: an absolute record path against relative bundle
+    # paths.
+    let i = positionDocumentIndex(Docs, "/tmp/rec/noir_space_ship/src/main.nr")
+    check i >= 0
+    check Docs[i] == "src/main.nr"
+
+  test "CONTROL: an exact path still resolves, and to the same document":
+    # The pairing that makes the case above a measurement rather than a
+    # coincidence — same function, same list, the spelling that always worked.
+    let exact = positionDocumentIndex(Docs, "src/main.nr")
+    let absolute = positionDocumentIndex(Docs, "/anywhere/at/all/src/main.nr")
+    check exact >= 0
+    check exact == absolute
+
+  test "a suffix that is not a path segment is NOT a match":
+    # `domain.nr` ends with the characters of `main.nr`. The boundary has to
+    # fall on a separator, or the resolver marks a line in a file the session
+    # is not in — the one outcome worse than marking none.
+    check positionDocumentIndex(@["main.nr"], "/rec/src/domain.nr") < 0
+    check positionDocumentIndex(@["shield.nr"], "/rec/src/myshield.nr") < 0
+
+  test "the MOST SPECIFIC document wins when several could match":
+    # A bundle holding both `main.nr` and `src/main.nr` has two documents whose
+    # paths are suffixes of `/rec/src/main.nr`. Resolving to the shorter one
+    # would open the wrong file while looking entirely successful.
+    let ambiguous = @["main.nr", "src/main.nr"]
+    let i = positionDocumentIndex(ambiguous, "/rec/src/main.nr")
+    check i >= 0
+    check ambiguous[i] == "src/main.nr"
+
+  test "a file the bundle does not carry resolves to nothing":
+    check positionDocumentIndex(Docs, "/rec/src/absent.nr") < 0
+    check positionDocumentIndex(Docs, "") < 0
+    check positionDocumentIndex(@[], "/rec/src/main.nr") < 0
+
+  test "separators are normalised, and only for comparison":
+    # A recording made on Windows names its files with `\`. The document's own
+    # path is untouched — this is a comparison rule, not a rewrite.
+    let i = positionDocumentIndex(Docs, "C:\\rec\\noir_space_ship\\src\\main.nr")
+    check i >= 0
+    check Docs[i] == "src/main.nr"
+
+  test "the decoded pane marks the position, and marks it once":
+    # End to end through the real decoder, with the two spellings that differ.
+    var docs = newJArray()
+    for p in Docs:
+      docs.add %*{"path": p, "language": "noir",
+                  "text": "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\n"}
+    let island = $(%*{"availability": "sourceLevel", "documents": docs,
+                      "activeIndex": 0})
+
+    let pane = decodeSourceIsland(island, "/rec/noir_space_ship/src/main.nr", 4)
+    let marks = markedCurrent(pane)
+    check marks.len == 1
+    check marks[0].line == 4
+    # The pane opens on the document the mark is in — asserted as a relation
+    # between the pane's own two answers, never against a constant.
+    check activePath(pane) == marks[0].path
+
+  test "MUTATION BITE: exact-equality resolution marks nothing at all":
+    # The pre-fix comparison, written out. If this ever passes, the resolver has
+    # been narrowed back to `==` and journey 06 is the only thing left standing
+    # between that and a visitor.
+    var matched = 0
+    for p in Docs:
+      if p == "/rec/noir_space_ship/src/main.nr": inc matched
+    check matched == 0                      # the old rule found nothing, and
+    check positionDocumentIndex(Docs, "/rec/noir_space_ship/src/main.nr") >= 0
+                                            # the new one finds the file
+
 removeDir(workDir)

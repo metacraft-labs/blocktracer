@@ -104,6 +104,79 @@ func availabilityFromWire*(s: string): SourceAvailabilityView =
   of "unverified": srcUnverified
   else: srcAbsent
 
+func normalisedPath*(p: string): string =
+  ## One spelling of a path, for comparison only — never for display.
+  ##
+  ## Separators to `/`, and a leading `./` dropped. Nothing else: this is not a
+  ## resolver, it does not touch `..`, and it must not, because the two sides
+  ## being compared come from different machines and `..` cannot be collapsed
+  ## without knowing which one's filesystem to collapse it against.
+  result = newStringOfCap(p.len)
+  for ch in p:
+    result.add(if ch == '\\': '/' else: ch)
+  if result.len >= 2 and result[0] == '.' and result[1] == '/':
+    result = result[2 .. ^1]
+
+func positionDocumentIndex*(paths: openArray[string]; positionPath: string): int =
+  ## Which published document the engine's position is in, or -1 for none.
+  ##
+  ## ## Why this is not `==`
+  ##
+  ## It was, and the consequence was that a hydrated session marked NO line,
+  ## ever. The two sides are the same file named by two different producers:
+  ##
+  ##   the engine     `/private/tmp/blocktracer-fixture-rec/noir_space_ship/src/main.nr`
+  ##   the bundle     `src/main.nr`
+  ##
+  ## The engine reports the path the program was RECORDED at, which is absolute
+  ## and belongs to the machine that ran it; the published bundle stores paths
+  ## relative to the package root, because that is the only form that survives
+  ## being served to someone else. `==` between them is false for every file in
+  ## every session, so `decodeSourceIsland`'s `matched` was permanently false.
+  ##
+  ## That went unnoticed because the PREVIOUS fix in this file made the
+  ## unmatched branch safe: an unmatched position clears `currentLine` rather
+  ## than carrying it onto the wrong document. So the pane stopped marking the
+  ## wrong line and started marking none, which is correct behaviour for a file
+  ## the bundle genuinely does not carry — and indistinguishable, from inside
+  ## this function, from the case where it carries it under another spelling.
+  ## The safe fallback masked the broken comparison.
+  ##
+  ## ## The rule
+  ##
+  ## A document matches when its path is a trailing PATH-SEGMENT suffix of the
+  ## position's path, or the reverse. `src/main.nr` matches
+  ## `/…/noir_space_ship/src/main.nr`; `main.nr` does NOT match
+  ## `/…/src/domain.nr`, because the boundary must fall on a `/`.
+  ##
+  ## Where several match, the LONGEST document path wins. This is the case that
+  ## makes suffix matching safe rather than merely convenient: a bundle holding
+  ## both `main.nr` and `src/main.nr` has two documents whose paths are suffixes
+  ## of `/…/src/main.nr`, and the more specific one is the answer. Ties are
+  ## impossible — two documents with the same normalised path are the same
+  ## document — and are reported as no match rather than resolved arbitrarily,
+  ## because marking a line in the wrong file is worse than marking none.
+  result = -1
+  if positionPath.len == 0: return
+  let want = normalisedPath(positionPath)
+  var bestLen = -1
+  var tied = false
+  for i, raw in paths:
+    let have = normalisedPath(raw)
+    if have.len == 0: continue
+    let hit =
+      have == want or
+      (want.len > have.len and want.endsWith("/" & have)) or
+      (have.len > want.len and have.endsWith("/" & want))
+    if not hit: continue
+    if have.len > bestLen:
+      bestLen = have.len
+      result = i
+      tied = false
+    elif have.len == bestLen:
+      tied = true
+  if tied: result = -1
+
 proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
     EditorPane =
   ## The island, back into an `EditorPane` positioned wherever the ENGINE says.
@@ -129,7 +202,16 @@ proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
   result.currentLine = currentLine
   let docs = payload{"documents"}
   if docs == nil or docs.kind != JArray: return result
-  var matched = false
+
+  # The position is resolved against the WHOLE document list before any document
+  # is built, because the rule is "the longest matching path wins" and that
+  # cannot be decided one document at a time. The previous per-document `==`
+  # could, which is exactly why it was written that way and why it was wrong.
+  var paths: seq[string]
+  for d in docs: paths.add d{"path"}.getStr("")
+  let positionIndex = positionDocumentIndex(paths, currentPath)
+  let matched = positionIndex >= 0
+
   var index = 0
   for d in docs:
     let path = d{"path"}.getStr("")
@@ -140,11 +222,10 @@ proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
     result.documents.add newSourceDocument(
       path, d{"language"}.getStr(""), d{"text"}.getStr(""),
       executed = executed,
-      currentLine = (if path == currentPath: currentLine else: 0))
-    if path == currentPath:
-      result.activeIndex = index
-      matched = true
+      currentLine = (if index == positionIndex: currentLine else: 0))
     inc index
+  if matched:
+    result.activeIndex = positionIndex
   # The pane opens on the file the session is IN. Falling back to the island's
   # own `activeIndex` would be worse than the default: it records where the
   # STATIC export opened, and after a step into another file that is a document

@@ -271,7 +271,19 @@ async function main() {
               ` The defect is fixed; remove the entry. (${entry.reason})`,
           );
           failures += 1;
-          report.journeys.push({ id: mod.id, verdict: "ledgered-but-green" });
+          // `records` on THIS branch too. It was the one verdict that omitted
+          // them, and `selftest.mjs` — which finds its arm's assertion by name
+          // in the report — reported NEVER RAN for two arms whose journeys had
+          // simply become ledgered-and-green. A verdict that carries less
+          // evidence than its neighbours is a verdict that reads as a different
+          // failure than it is.
+          report.journeys.push({
+            id: mod.id,
+            verdict: "ledgered-but-green",
+            assertions: j.total,
+            declared: declared ?? null,
+            records: j.records,
+          });
         } else {
           console.log(`         LEDGERED RED — ${entry.reason}`);
           console.log(`                        closed by: ${entry.closed_by}`);

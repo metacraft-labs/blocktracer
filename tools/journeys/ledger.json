@@ -12,34 +12,34 @@
     "that says what was measured. A ledger entry written to make a suite green is the defect",
     "this whole layer exists to catch, wearing the suite's own uniform.",
     "",
-    "All three entries below were found BY this layer, on dev, at the commit that introduces",
-    "it. None of them is visible to any existing gate: two are defects of the hydration bundle,",
-    "which every Nim suite in the tree is blind to because they drive `renderToString`, and the",
-    "third is on the six real-chain sessions that the 108 `.srcline` assertions never covered."
+    "It is currently EMPTY, and that is the state to keep it in."
   ],
-  "known_red": {
-    "position-survives-hydration": {
-      "reason": "The HYDRATED arm marks nothing. The served frame is correct — 42 lines on screen, one marked, in the file the position is in — and after hydration the same page shows the same file with 0 lines marked, while the session still publishes step=128 of 1315. So the position survives the server and is lost by the bundle a visitor loads. The SERVED half of this journey is green and is the control: it is what proves the red half is a statement about the hydration path and not about the assertion.",
-      "evidence": "dev @ bd39317, client/dist built by `just export-hydrated` + fetch-engine: SERVED marked=1 (src/shield.nr:32), HYDRATED marked=0, docsShown=1 (src/shield.nr), step=128/1315.",
-      "closed_by": "unowned as of 2026-09-01. The nearest work is `fix/current-line-marker` (98ccd72, a490ee3, 79c4f48), which adds the mark to both of `renderSource`'s outputs and checks the bundle for it — but it was written against the SSR path and the static export, and this journey measures the bundle after it has re-rendered the pane. Needs `client/hydrate/hydrate.nim`'s re-render to carry the position through, or a statement of why it cannot."
-    },
-    "stepping-moves-the-position": {
-      "reason": "A step advances the URL and moves nothing on the screen. `?t=` goes 1 -> 5 and the recovery anchor goes main.nr:12 -> main.nr:13, so the click reaches the engine and the engine steps; `data-step` stays pinned at its landing value and no line is ever marked. This is Verification-Harness-Traps.md §2 in the product rather than in a harness: every success is real and the artefact never changed.",
-      "evidence": "dev @ bd39317: CONTROL green (query advanced), data-step 128 -> 128, marked 0 -> 0 across two step-forward clicks.",
-      "closed_by": "unowned as of 2026-09-01. Shares a cause with `position-survives-hydration` — both are the bundle's re-render — and should be closed with it."
-    }
-  },
+  "known_red": {},
 
   "_closed": {
     "_comment": [
-      "Not machine-read. Kept because the both-directions rule paid for itself here and the",
-      "record is worth more than the two lines it costs."
+      "Not machine-read. Kept because the both-directions rule paid for itself three times in",
+      "two days, and the record is worth more than the lines it costs. Every entry here was",
+      "removed because the run FAILED demanding its removal — nobody had to remember."
     ],
     "a-positioned-session-says-where-it-is": {
       "was": "Six frozen real-chain sessions published a position (step 128 of 235/345/1315) and never said where it was. They correctly stated that the chain publishes no source and that stepping is at instruction level; they never stated the step. The 108 `.srcline` assertions all ran on the demo chain, so this branch had no assertions at all.",
-      "closed_by": "98ccd72 + a490ee3 (`fix/current-line-marker`), landed on dev between this branch's first commit and its rebase. `renderPositionHead` now draws 'The session is stopped at step N of M' on the pane that has no line to mark.",
-      "how_this_entry_died": "The ledger FAILED THE RUN demanding its own deletion: the journey went green, and a ledgered journey that goes green is a failure. Nobody had to remember. That is the whole argument for the rule failing in both directions, and it was demonstrated on the first rebase after the ledger was written.",
+      "closed_by": "98ccd72 + a490ee3 (`fix/current-line-marker`), landed on dev by a sibling between this branch's first commit and its rebase. `renderPositionHead` now draws 'The session is stopped at step N of M' on the pane that has no line to mark.",
       "now": "7 of 7 positioned sessions with no line to mark state their step; 13 of 13 positioned sessions say where they are."
+    },
+    "position-survives-hydration": {
+      "was": "The hydrated frame marked no line. The served frame showed src/shield.nr with line 32 marked; after hydration the same page showed the same file with 0 lines marked, while the session still published step=128 of 1315. §7.0's 'no state renders less than the pre-hydration page', violated by the product's own bundle.",
+      "cause": "`decodeSourceIsland` matched the engine's position path against the bundle's document paths with `==`. The engine reports the path the program was RECORDED at — absolute, belonging to the machine that ran it — and the bundle stores paths relative to the package root, because that is the only form that survives being served to someone else. The comparison was false for every file in every session.",
+      "why_it_hid": "The Nargo.toml fix directly above it made an unmatched position CLEAR currentLine rather than carry it onto the wrong document. Correct — and it turned 'marks the wrong line' into 'marks no line', which is also exactly what a bundle that genuinely lacks the file looks like. The safe fallback masked the broken comparison, and only a browser could tell the two apart.",
+      "closed_by": "`positionDocumentIndex` in src/debugger/source_island.nim — longest matching path-segment suffix wins. Unit-covered by test_entry_state.nim's eighth suite; mutation arm E in tools/journeys/selftest.mjs.",
+      "now": "HYDRATED: one line marked, on screen, in the file the position is in — src/main.nr line 1, 'mod shield;'."
+    },
+    "stepping-moves-the-position": {
+      "was": "A step advanced the URL and moved nothing on the screen. `?t=` went 1 -> 5 and the recovery anchor went main.nr:12 -> main.nr:13, so the click reached the engine and the engine stepped; `data-step` stayed pinned at its landing value and no line was ever marked.",
+      "cause": "Two causes, and only the first was shared with the entry above. `data-step` was READ once out of the served DOM (`intAttr(ui.root, \"data-step\")`) and never written again, so the root reported the landing step for the rest of the session. The absent mark was the path-matching defect.",
+      "why_it_matters_which": "Verification-Harness-Traps.md §2 in the product rather than in a harness: every success along the way was real. A check written against `location.search` would have been green throughout, which is why journey 03 reads the URL as a CONTROL and takes its verdict from the rendered position.",
+      "closed_by": "`renderPanes` now writes `data-step` and `data-total-steps` on every re-render — in the proc that draws the panes, so the attribute and the panes cannot disagree. Mutation arm F.",
+      "now": "data-step 0 -> 1 (of 1315), marked line 1 -> 12, exactly one mark after the step."
     }
   }
 }

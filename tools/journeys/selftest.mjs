@@ -44,7 +44,7 @@
 // that removes the source pane reddens the position check too, and would score
 // a kill it did not earn.
 
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, readdir } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -92,6 +92,39 @@ const ARMS = [
     assertion: "SERVED: the file on screen is the file the position is in",
   },
   {
+    id: "E/the-position-path-never-matches",
+    why:
+      "Narrow the position resolver back to exact string equality. The engine" +
+      " names the file it RECORDED at ('/…/noir_space_ship/src/main.nr') and the" +
+      " bundle names it relative to the package root ('src/main.nr'), so `==` is" +
+      " false for every file in every session and no hydrated session marks a" +
+      " line. This shipped, and it hid behind the Nargo.toml fix: an unmatched" +
+      " position clears currentLine, so the pane marked none instead of marking" +
+      " the wrong one — indistinguishable from a bundle that lacks the file.",
+    file: join(CLIENT, "src", "debugger", "source_island.nim"),
+    find: `  let positionIndex = positionDocumentIndex(paths, currentPath)`,
+    replace: `  var positionIndex = -1
+  for pi, pp in paths:
+    if pp == currentPath: positionIndex = pi`,
+    journey: "position-survives-hydration",
+    assertion: "HYDRATED: exactly one line carries the position mark",
+  },
+  {
+    id: "F/data-step-goes-stale",
+    why:
+      "Stop writing the session's step back to the root. `data-step` was READ" +
+      " once out of the served DOM and never written again, so it reported the" +
+      " landing step for the rest of the session however far the session moved." +
+      " Note which assertion this arm targets: the URL still advances with every" +
+      " step, so a check written against `location.search` stays green. The" +
+      " verdict has to come from what the page RENDERS.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `  ui.root.setAttribute("data-step", ($view.controls.step).cstring)`,
+    replace: `  discard ($view.controls.step)`,
+    journey: "stepping-moves-the-position",
+    assertion: "the session's reported step advanced",
+  },
+  {
     id: "C/phase-renamed",
     why:
       "Rename a SessionPhase's published string. §7.0's table is a claim about" +
@@ -121,12 +154,51 @@ const ARMS = [
 
 const log = (s = "") => console.log(s);
 
-async function rebuild() {
-  // The exporter only. `hydrate.js` is unaffected by every mutation above — all
-  // four are in `client/src`, which the hydration bundle compiles against but
-  // whose SSR output is what changes — so rebuilding it per arm would cost
-  // minutes and prove nothing. If a future arm touches `client/hydrate/`, it
-  // must say so and rebuild it.
+/**
+ * Does this arm's journey judge the HYDRATED artefact?
+ *
+ * If it does, the mutation has to reach `hydrate.js` or the arm measures the
+ * previous bundle — the mutation on disk, absent from the thing under test, and
+ * the arm reporting SURVIVED against a defect it never introduced.
+ *
+ * THIS IS DERIVED, NOT DECLARED, because the declared version was wrong on its
+ * first use. The rule was written as "arms that touch `client/hydrate/`", and
+ * arm E touches `client/src/debugger/source_island.nim` — which the bundle
+ * compiles against just as much, because `hydrate.nim` imports it through
+ * `session_project`. The arm rebuilt only the exporter and survived. The
+ * comment in this file already said what would happen; the flag encoding it
+ * asked the wrong question.
+ *
+ * The right question is not "which file did I edit" — that needs an import
+ * closure nobody maintains — but "which artefact is this journey judging",
+ * which the journey already answers: `needsEngine` is exactly the set of
+ * journeys that drive a live session. So an arm cannot forget the flag, because
+ * there is no flag.
+ */
+async function judgesHydratedArtefact(journeyId) {
+  const dir = join(HERE, "journeys");
+  for (const f of await readdir(dir)) {
+    if (!f.endsWith(".journey.mjs")) continue;
+    const m = await import(join(dir, f));
+    if (m.id === journeyId) return !!m.needsEngine;
+  }
+  throw new Error(`arm targets journey '${journeyId}', which does not exist`);
+}
+
+async function rebuild({ hydration = false } = {}) {
+  // The exporter is always rebuilt. The hydration BUNDLE is rebuilt only for
+  // arms whose journey judges it, because `nim js` over `hydrate.nim` costs
+  // about a minute and most arms cannot affect what it measures.
+  if (hydration) {
+    try {
+      await run("bash", [join(CLIENT, "hydrate", "build.sh"), "--require"], {
+        cwd: REPO,
+        maxBuffer: 64 * 1024 * 1024,
+      });
+    } catch (err) {
+      return { built: false, log: String(err.stderr ?? err.stdout ?? err).slice(-1500) };
+    }
+  }
   try {
     await run(
       "nim",
@@ -186,8 +258,12 @@ async function main() {
   let neverRan = 0;
 
   for (const arm of ARMS) {
+    const needsBundle = await judgesHydratedArtefact(arm.journey);
     log(`--- ${arm.id}`);
     log(`    ${arm.why}`);
+    if (needsBundle) {
+      log(`    (its journey judges the hydrated artefact, so the bundle is rebuilt too)`);
+    }
     log(`    target: ${arm.journey} :: "${arm.assertion}"`);
 
     const original = await readFile(arm.file, "utf8");
@@ -223,7 +299,7 @@ async function main() {
     await writeFile(arm.file, original.split(arm.find).join(arm.replace));
     let verdict;
     try {
-      const built = await rebuild();
+      const built = await rebuild({ hydration: needsBundle });
       if (!built.built) {
         log(`    NEVER RAN — the mutated tree did not compile, so nothing was measured`);
         log(`               ${built.log.split("\n").slice(-3).join(" / ")}`);
@@ -248,7 +324,7 @@ async function main() {
     }
 
     // 4. and prove the restore took
-    const restored = await rebuild();
+    const restored = await rebuild({ hydration: needsBundle });
     const back = restored.built ? await verdictFor(arm.journey, arm.assertion) : { found: false };
     if (!back.found || !back.ok) {
       log(`    NEVER RAN — the assertion did not come back green after restoring, so the`);

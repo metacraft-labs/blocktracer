@@ -571,11 +571,21 @@ jobs:
           ./client/hydrate/fetch-engine.sh .journey-site/replay-engine
 
       - name: Do the journeys bite?
-        # BEFORE the verdict, never after. Four mutations in real product source,
+        # BEFORE the verdict, never after. Six mutations in real product source,
         # each aimed at one named assertion. A suite whose assertions cannot fail
         # would otherwise report a clean sweep over anything at all — and this
         # step runs the local exporter, so it also proves that build still works.
-        run: nix run .#capture-env -- node tools/journeys/selftest.mjs
+        #
+        # `.#capture` and not `.#capture-env`: the arms REBUILD, so this needs the
+        # Nim toolchain as well as the pinned browser, and `.#capture` is the
+        # shell that is "the same environment, PLUS the Nim toolchain" for exactly
+        # this reason. Measured on the first real run of this job: under
+        # `capture-env` alone every arm reported DID-NOT-BUILD, because `nim` was
+        # not on PATH. The harness was right to call that "never ran" rather than
+        # a kill — an arm that cannot compile has demonstrated nothing.
+        run: |
+          nix develop .#capture --command \
+            vd0-capture-env node tools/journeys/selftest.mjs
 
       - name: The journeys, over the deployed artefact
         run: |
