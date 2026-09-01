@@ -300,8 +300,16 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch) =
             latch.editor)
   writePane(ui.calltrace, panes.renderCallTrace(view.calltrace),
             view.calltrace.frames.len > 0, latch.calltrace)
+  # The State pane's "content" is not "values", for the reason the source pane's
+  # is not "documents", one clause up. A live session that has asked the engine
+  # for this position's values and not yet been answered has a true sentence to
+  # print — and MUST print it, because the alternative is leaving the served
+  # frame's values on screen under a position they do not belong to. That is the
+  # shape of §7.0 violation the latch cannot see: the pane is full, and full of
+  # the wrong frame. `session_project.projectState` produces the sentence and
+  # `live_locals.noteFor` decides which one.
   writePane(ui.state, panes.renderState(view.state),
-            view.state.values.len > 0, latch.state)
+            view.state.values.len > 0 or view.state.note.len > 0, latch.state)
   writePane(ui.eventLog, panes.renderEventLog(view.eventLog),
             view.eventLog.rows.len > 0, latch.eventLog)
   setControls(ui, view)
@@ -491,6 +499,16 @@ type
       ## and would not open this container are different faults with different
       ## fixes, and a single sentence covering both sent a real diagnosis down
       ## the wrong path for hours.
+    stopped: bool            ## `fail` has been called; the session is over
+      ## Read by ONE thing: the locals feed's re-render (`goLive`). A failure
+      ## settles every request the transport was holding — `WorkerBackend`
+      ## .failAllPending exists so a dropped request cannot present as a pane
+      ## that spins forever — so the `ct/load-locals` reply this bundle waits
+      ## for ARRIVES on the failure path, as a refusal, milliseconds after
+      ## `fail` has written the failure onto the page. Repainting then would
+      ## put a live-looking toolbar and a live projection back over the
+      ## sentence that says the engine is gone, which is §7.0's guarantee
+      ## broken by the code that was added to keep it.
     latch: PaneLatch         ## which panes the live session has ever filled
     landing: LinkLanding     ## where §6.0a said this link puts the session
 
@@ -506,6 +524,7 @@ proc fail(h: Hydration; reason: string) =
   ## does not roll the panes back to the served frame: they hold the last
   ## position the engine reached, which is a real frame of this trace and is
   ## strictly more than the pre-hydration page had.
+  h.stopped = true
   if h.live:
     for b in h.ui.controls.querySelectorAll(".dcbtn"):
       b.classList.add("off")
@@ -753,6 +772,74 @@ proc goLive(h: Hydration) =
   ## makes that true.
   h.live = true
   h.bindGestures()
+  # NOTHING SENT BEFORE THIS POINT REACHED THE ENGINE, and the store does not
+  # know that.
+  #
+  # `openLiveSession` creates the ViewModels, and two of them issue a backend
+  # command from an effect that runs the moment they are constructed —
+  # `CalltraceVM`'s auto-load and `StateVM`'s `requestLocals`. That is several
+  # hundred milliseconds before `startWorker`, so `postJson` finds no
+  # `__btReplayWorker` and drops the message; the future never settles and
+  # `RequestTracker` holds the request pending forever.
+  #
+  # `requestLocals` skips a send whose key AND arguments match a pending one,
+  # and the arguments include the position. The session's landing position is
+  # rrTicks 0 — the store's own initial value, and the entry frame of every
+  # trace this route opens — so the FIRST request that could have been answered
+  # is deduplicated against one that was thrown away before the worker existed,
+  # and the State pane would wait out its deadline and report an engine that
+  # never answered. The engine answered nothing because it was never asked.
+  #
+  # Clearing here says exactly that: the engine is ready as of this line, and
+  # every request issued before it is not in flight. One call, at the one moment
+  # the claim becomes true.
+  h.session.store.requestTracker.clear()
+
+  # THE OTHER HALF OF A STOP, AND IT CANNOT BE SYNCHRONOUS.
+  #
+  # `applyStop` writes the position, the URL and the panes in one call, which is
+  # what keeps them from becoming facts that happen to be updated together. The
+  # values cannot be in that call: the position is known when the engine reports
+  # it and the values have to be asked for, so they arrive one round trip later.
+  #
+  # `onApplied` is that call. `StateVM`'s effect issues the request the instant
+  # `applyStop` moves the store, `live_locals` writes the reply into the store,
+  # and this re-renders — so the store and the panes are made consistent by ONE
+  # call on the reply's arrival, exactly as they are by one call on the stop's.
+  # Nothing else re-renders for locals, and `renderPanes` remains the only
+  # writer of the panes.
+  #
+  # WIRED HERE AND NOT IN `hydrate`, AND THIS WAS MEASURED RATHER THAN
+  # REASONED. A page whose engine never loaded still issues these requests —
+  # the ViewModels ask the moment they are constructed — and `WorkerBackend`
+  # .failAllPending settles every one of them when the worker dies, precisely
+  # so a dropped request cannot present as a pane that spins forever. So the
+  # `ct/load-locals` reply ARRIVES on the failure path, as a refusal,
+  # milliseconds after `fail` has written the failure onto the page.
+  #
+  # With the callback assigned at construction instead, a build with no
+  # `/replay-engine/` ended up — measured in a browser, on the artefact the
+  # exporter writes — with eight LIVE stepping controls, `data-session-phase`
+  # `ready`, `data-step` reset from 128 to 0, the served frame's ten Values
+  # rows replaced, and the position mark on the source pane GONE. That is
+  # every clause of §7.0 broken at once, by the code added to keep it, on the
+  # state every local build and every capture run is in.
+  #
+  # A session that never goes live now never gets the callback. One that goes
+  # live and then fails is caught by `stopped` — the same mechanism, one
+  # `failAllPending` later, where a repaint would re-enable with `live = true`
+  # the very buttons `fail` had just turned off.
+  h.session.locals.onApplied = proc() =
+    if not h.stopped: h.render()
+  # §8's deadline, for the pane rather than for the session. The engine is
+  # documented to drop requests silently in some handshake orders
+  # (`backend/dap_dialect.md` §1), and a request that is never answered leaves a
+  # promise that never settles — so without this the pane would say "Reading the
+  # values at this position…" for as long as the tab is open, which is a spinner
+  # with a name. Injected rather than reached for, so `live_locals` stays a
+  # module a headless suite can drive.
+  h.session.locals.scheduleTimeout = proc(ms: int; action: proc()) =
+    afterMs(ms, action)
   # The CONTROLS only. Not the panes: at this instant the engine has answered
   # `threads` and has not yet produced a call trace, a set of locals or a
   # position, so every pane projection is empty and rendering them would blank

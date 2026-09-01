@@ -125,6 +125,54 @@ const ARMS = [
     assertion: "the session's reported step advanced",
   },
   {
+    id: "J/the-locals-reply-is-discarded-again",
+    why:
+      "Throw the ct/load-locals reply away, which is what the pinned Embed SDK's" +
+      " own `requestLocals` does: it sends the request and drops the response" +
+      " through a private `onComplete` wrapper written to discard the result" +
+      " value. That is the defect journey 11 exists for, and it is the one shape" +
+      " of it a row count cannot see — the pane keeps saying something, every" +
+      " step keeps moving the position, and the values never change.",
+    file: join(CLIENT, "hydrate", "live_locals.nim"),
+    find: `feed.store.updateLocals(variablesOf(body))`,
+    replace: `feed.store.updateLocals(variablesOf(newJObject()))`,
+    journey: "a-stepped-session-shows-the-values-it-is-at",
+    assertion: "the values the pane shows change as the session moves",
+  },
+  {
+    id: "K/the-served-values-stand",
+    why:
+      "Narrow the State pane's latch back to `values.len > 0`, so a pane with a" +
+      " sentence and no values is not 'content' and never replaces the served" +
+      " one. This is the mechanism by which the defect was INVISIBLE rather than" +
+      " the defect itself: the exporter's ten fixture rows stayed on screen under" +
+      " whatever position the visitor stepped to, and journey 07's original" +
+      " non-vacuity control was satisfied by exactly those rows. Note which" +
+      " assertion this targets — the pane is full, it is just full of another" +
+      " frame, so every count of it stays green.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `            view.state.values.len > 0 or view.state.note.len > 0, latch.state)`,
+    replace: `            view.state.values.len > 0, latch.state)`,
+    journey: "a-stepped-session-shows-the-values-it-is-at",
+    assertion: "no reading of the Values pane is the SERVED frame's values",
+  },
+  {
+    id: "L/the-value-kind-is-misread",
+    why:
+      "Render one wire kind as the empty string. The engine's `Value` is a flat" +
+      " tagged record whose `kind` is a NUMERIC ordinal, and getting one wrong" +
+      " produces rows with names, types and no values — which every count of the" +
+      " pane survives. This is a mistake with a precedent in the tree rather than" +
+      " a hypothetical: the pinned SDK's `headless_session.nim` lists the ordinals" +
+      " in a comment and six of the ten are wrong, so a parser written by copying" +
+      " it renders every string, bool, char, array and tuple exactly this way.",
+    file: join(CLIENT, "hydrate", "live_locals.nim"),
+    find: `  of tkInt: node{"i"}.getStr("")`,
+    replace: `  of tkInt: ""`,
+    journey: "a-stepped-session-shows-the-values-it-is-at",
+    assertion: "every row the pane draws carries both a name and a value",
+  },
+  {
     id: "C/phase-renamed",
     why:
       "Rename a SessionPhase's published string. §7.0's table is a claim about" +

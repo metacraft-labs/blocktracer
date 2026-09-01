@@ -130,6 +130,26 @@ export const readFacts = (page) =>
         [...document.querySelectorAll(".srcline")].filter(shown)[0]?.querySelector(".t")
           ?.textContent?.trim() ?? null,
 
+      // ---- the Values pane ---------------------------------------------------
+      // Scoped to `#pane-state`, not to `.strow` document-wide. The transaction
+      // page renders the same rows outside the debugger, and a journey that
+      // counted both would report a pane that had not changed as one that had.
+      //
+      // The pane is read as three things and NEVER as an expected value: how
+      // many rows it has, what each row's three cells say, and — when it has no
+      // rows — the sentence it shows instead. That last field is the whole
+      // point of reading the pane here rather than counting rows: "no values"
+      // and "the values of some other frame" are the two answers a Values pane
+      // can give wrongly, and a row count cannot tell them apart.
+      stateRows: [...(document.querySelector("#pane-state")?.querySelectorAll(".strow") ?? [])]
+        .filter(shown)
+        .map((r) => ({
+          name: r.querySelector(".stname")?.textContent?.trim() ?? "",
+          value: r.querySelector(".stval")?.textContent?.trim() ?? "",
+          type: r.querySelector(".sttype")?.textContent?.trim() ?? "",
+        })),
+      stateNote: document.querySelector("#pane-state .panenote")?.textContent?.trim() ?? "",
+
       // ---- the stepping controls --------------------------------------------
       controlsLive: count(".dcbtn:not(.off)"),
       controlsInert: count(".dcbtn.off"),

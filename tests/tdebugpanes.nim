@@ -169,7 +169,13 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       ], startIndex = 0'i64, totalCount = 3'u64)
 
       # Variables.
-      s.store.updateLocals(@[
+      # `applyLocals` and not `store.updateLocals`: since `live_locals`, values
+      # in the store are not on their own a statement about WHICH position they
+      # belong to, and `projectState` refuses to render values it cannot place.
+      # A driver that mirrors a reply into the store directly — which is what
+      # this suite is, standing in for the parse `live_locals` does against a
+      # real engine — says here that they are this position's.
+      s.applyLocals(@[
         makeVariable("initial_shield", "10000", "Field"),
         makeVariable("remaining_shield", "9000", "Field"),
       ])
@@ -250,7 +256,7 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
         makeCallLine("main", 0, 1'u64, file = "src/main.nr", line = 12)],
         startIndex = 0'i64, totalCount = 1'u64)
       s.store.updateDebuggerPosition(10'u64, file = "src/shield.nr", line = 2)
-      s.store.updateLocals(@[makeVariable("remaining_shield", "10000", "Field")])
+      s.applyLocals(@[makeVariable("remaining_shield", "10000", "Field")])
 
       let before = panes.renderLayout(defaultReplayLayout(),
         projectSession(s, "src/shield.nr", ShieldNr, 10, 1315))
@@ -259,7 +265,7 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       # frame was pushed. Every one of those is a change to a signal in the
       # store — the seam a real backend writes through.
       s.store.updateDebuggerPosition(11'u64, file = "src/shield.nr", line = 5)
-      s.store.updateLocals(@[makeVariable("remaining_shield", "9000", "Field")])
+      s.applyLocals(@[makeVariable("remaining_shield", "9000", "Field")])
       s.store.updateCalltraceSection(@[
         makeCallLine("main", 0, 1'u64, file = "src/main.nr", line = 12),
         makeCallLine("calculate_damage", 1, 41'u64, file = "src/shield.nr", line = 4)],

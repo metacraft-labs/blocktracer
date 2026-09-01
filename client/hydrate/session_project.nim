@@ -34,6 +34,12 @@
 ## The single import from the CodeTracer side is `codetracer_embed`
 ## (CodeTracer-Embed-SDK.md §7). Nothing here reaches an internal module, and
 ## `ci/test/debug-panes-test.sh` re-checks that against this file's own imports.
+##
+## `./live_locals` is not an exception to that: it is a sibling in this same
+## tree, on this same side of the line, and it reaches CodeTracer through the
+## facade exactly as this file does. It is separate because it is the only
+## thing here that reads a WIRE FORMAT rather than a ViewModel, and that is a
+## different kind of knowledge with a different way of being wrong.
 
 import std/[options, strutils]
 
@@ -43,7 +49,9 @@ import ../src/debugger/deeplink_landing
 import ../src/debugger/instruction_listing
 import ../src/debugger/session_view
 import ../src/debugger/source_island
+import ./live_locals
 export deeplink_landing
+export live_locals
 
 # ---------------------------------------------------------------------------
 # One store, one backend, five ViewModels
@@ -62,6 +70,14 @@ type
     state*: StateVM
     eventLog*: EventLogVM
     controls*: DebugControlsVM
+    locals*: LocalsFeed
+      ## The `ct/load-locals` traffic this session's store cannot read for
+      ## itself (`live_locals.nim`). Held beside the ViewModels rather than
+      ## inside one because it is not a ViewModel: it is what the pinned store
+      ## would hold if its `requestLocals` kept the reply, and `projectState`
+      ## reads it for exactly the reason `projectEditor` reads the store's
+      ## position — the VM exposes the values but not whether they are THIS
+      ## position's.
     flow*: FlowVM
       ## The sixth, and it is not one of the five panes.
       ##
@@ -117,12 +133,21 @@ proc openLiveSession*(backend: BackendService; sourceIsPublished: bool):
   ##     what the page knows, and `projectEditor` renders §14's
   ##     "no verified source" row when it is false — instruction-level
   ##     stepping with the supply-sources action, rather than an empty pane.
-  let store = createReplayDataStore(backend)
+  ##   * the locals feed. `createReplayDataStore` is given the DECORATED
+  ##     backend, so the `ct/load-locals` request `StateVM`'s own effect issues
+  ##     on every move passes through `live_locals` and its reply is read on
+  ##     the way back. Wrapping here rather than at the call site is what makes
+  ##     it true of every session — the browser's and `tests/tdebugpanes.nim`'s
+  ##     alike — instead of true of whichever caller remembered.
+  let feed = LocalsFeed()
+  let store = createReplayDataStore(withLiveLocals(backend, feed))
+  feed.store = store
   store.setSessionMode(completedReplay)
   store.setSourceAvailability(
     if sourceIsPublished: savVerified else: savUnverified)
   result = LiveSession(
     store: store,
+    locals: feed,
     editor: createEditorVM(store),
     calltrace: createCalltraceVM(store),
     state: createStateVM(store),
@@ -322,7 +347,38 @@ proc projectCalltrace*(vm: CalltraceVM; contentHash = ""): CallTracePane =
     result.frames[i].href = positionQuery(
       contentHash, result.frames[i].step, result.frames[i].anchor)
 
-proc projectState*(vm: StateVM): StatePane =
+proc applyLocals*(s: LiveSession; variables: seq[Variable]) =
+  ## Mirror a backend locals response into the store, as the session's own
+  ## position's.
+  ##
+  ## `store.updateLocals` is the SDK's documented bridge for a host that has
+  ## already parsed a reply, and it is the whole of what a caller needed before
+  ## the pane knew WHICH position its values belong to. It is not the whole of
+  ## it now: values in the store with no statement about their position is the
+  ## condition `projectState` refuses to render, so a driver that writes the
+  ## store directly says here that it is writing this position's.
+  s.store.updateLocals(variables)
+  s.locals.adopt(s.store.debugger.val.rrTicks)
+
+proc projectState*(vm: StateVM; feed: LocalsFeed; ticks: uint64): StatePane =
+  ## The values at the position the session is AT, or the reason there are
+  ## none to show.
+  ##
+  ## `feed` is the second argument because `currentVariables` alone cannot
+  ## answer the question the pane asks. It is a memo over `store.locals.locals`,
+  ## which holds whatever was last written into it — the previous position's
+  ## values while this position's are in flight, and nothing at all for the life
+  ## of a session whose store discards every reply. Neither of those is "the
+  ## values here", and a pane that rendered them as if they were is the defect
+  ## `live_locals` exists to close.
+  ##
+  ## `note` is what `renderState` draws when there are no values, and it is
+  ## produced for EVERY state that is not "this position's values are in the
+  ## store". So a live session's State pane always has something in it, which
+  ## is what makes `renderPanes`' latch replace the statically exported one —
+  ## the served frame's values are never left standing as a fallback.
+  result.note = feed.noteFor(ticks, vm.currentVariables.val.len)
+  if result.note.len > 0: return
   for v in vm.currentVariables.val:
     result.values.add StateValue(
       name: v.name, typ: v.typeName, value: v.value,
@@ -466,7 +522,7 @@ proc projectReplayPanes*(s: LiveSession; base: DebugSessionView;
   # keeps the rows' links pointing at the same trace the metadata pane
   # describes.
   result.calltrace = projectCalltrace(s.calltrace, base.traceContentHash)
-  result.state = projectState(s.state)
+  result.state = projectState(s.state, s.locals, s.store.debugger.val.rrTicks)
   result.eventLog = projectEventLog(s.eventLog, base.traceContentHash)
   result.controls = projectControls(
     s.controls, int(s.store.debugger.val.rrTicks), base.controls.totalSteps,
