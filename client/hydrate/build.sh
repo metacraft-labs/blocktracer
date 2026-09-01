@@ -126,3 +126,56 @@ for needle in "__btReplayWorker" "querySelector"; do
 	}
 done
 echo "--- the bundle reaches both the document and the worker"
+
+# THE POSITION MARK IS IN THE BUNDLE, and it is checked HERE because it cannot
+# be checked anywhere else.
+#
+# `just export` and `flake.nix` build the same route from the same renderers and
+# ship different artefacts: the first ships zero JavaScript, the second defers
+# this bundle, and hydration re-renders every pane through `renderPanes`. A fix
+# to the source renderer that never reached this file would be green in every
+# suite, visible in every capture, and absent from the page a visitor loads —
+# which this campaign has already shipped once.
+#
+# The needles are CHAR-CODE ARRAYS because that is how `nim js` emits a static
+# string literal — a Nim string is bytes, so `<div class="` is
+# `[60,100,105,118,32,99,108,97,115,115,61,34]` and the class name arrives as
+# `escapeAttr([115,114,99,112,111,115])`. Grepping this file for `srcpos` finds
+# NOTHING: the only readable text in it is what passes through
+# `makeNimstrLit`. A check written the obvious way would report the mark
+# missing from a bundle that has it, and the next person would loosen the check
+# instead of reading it.
+#
+# COUNTED, and the count asserted, because the first draft of this check was
+# not and could not fail. `▶` was spelled `9654` — its code POINT — which
+# matches four incidental digit runs in a minified bundle and would have been
+# green over a bundle that drew no position at all. The glyph is three UTF-8
+# bytes, `226,150,182`, and it legitimately appears three times: the stepping
+# toolbar's Step-forward button, the head, and the gutter column. Only the
+# third is a bare assignment (`= [226,150,182];`, the `if ln.current` arm), so
+# that is what is counted — a substring check would have been answered by the
+# button, which has been on this page since M8a.
+#
+#   srcposlabel      the head's sentence — 1, and it exists nowhere else
+#   aria-current     the row state and the head's — 2, and no more
+#   = [▶];           the gutter's position column — 1, distinct from the button
+declare -a marks=(
+	"115,114,99,112,111,115,108,97,98,101,108:1:the position head (.srcposlabel)"
+	"97,114,105,97,45,99,117,114,114,101,110,116:2:the current-row state (aria-current)"
+	"= \[226,150,182\];:1:the gutter's position column (.p)"
+)
+for mark in "${marks[@]}"; do
+	codes="${mark%%:*}"
+	rest="${mark#*:}"
+	want="${rest%%:*}"
+	what="${rest#*:}"
+	got="$(grep -o "${codes}" "${here}/hydrate.js" | wc -l | tr -d ' ')"
+	[ "${got}" = "${want}" ] || {
+		echo "hydrate/build.sh: the built bundle draws ${what} ${got} time(s), expected ${want}." >&2
+		echo "  The static export would still show it, so a loss here presents as" >&2
+		echo "  a debugger that has a cursor until the engine loads and then does" >&2
+		echo "  not. The needle is a char-code array, not text: see the note." >&2
+		exit 1
+	}
+done
+echo "--- the bundle draws the session's position on both of the pane's outputs"
