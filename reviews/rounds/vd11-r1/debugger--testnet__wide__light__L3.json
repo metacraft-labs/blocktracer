@@ -1,0 +1,80 @@
+Expected elements: present
+
+I WITHDRAW last round's P2 #1. `.btn.disabled` is now `background:transparent` with `--bt-border-subtle`/`--bt-text-subtle`, and it measures as claimed: `Supply sources` (x13-119/y287-309) is #ffffff/#c8c8c8/#565656, byte-identical to the disabled Share button (x1836-1861) and to all eight `.dcbtn.off` stepping controls (x472-529, 546-598, 615-678, 695-758). One inert vocabulary, three surfaces, no `#dddddd` fill anywhere on an inert control. I also withdraw the counter-proposal in that finding — unifying onto the filled treatment is wrong, the round-5 evidence stands, and the body-less direction is the right one. The fix is clean.
+
+The other five carried findings re-measure byte-identical and hold; #4 got worse. New this round: the identity bar now carries THREE unrelated cool accents — indigo #4f46e5 (hue 243, links), cyan #155e75 (hue 194, scrubber played run x775-867), blue #2563eb/#dbeafe/#1e40af (hue 214-226, active phase segment x1325-1398) — inside 1100px, one of them spent on a 1x8px tick at x1324. And the status vocabulary is now two tones for six meanings: green #dcfce7/#16a34a/#166534 four times over (outcome, provenance, trace-state), neutral #f3f3f3/#c8c8c8/#565656 three times over (`No timestamp published`, `Yes`, `Pending` — an absence, an affirmative and an unresolved state, indistinguishable).
+
+Highest-priority fixes: collapse the three cool accents to one family; give `Pending` a tone that is not `Yes`.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L3",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L3/1",
+      "severity": "P2",
+      "location": "identity bar y0-62: exit link ink x25-132/y29-35 and BLOCK link ink x1848-1906/y592-604; scrubber played run x775-867/y28-35; phase-rail active segment x1325-1398/y21-41 with its accent tick x1324/y28-35",
+      "finding": "Three unrelated cool accent hues inside 1100px of one bar, with no shared family. Links are #4f46e5 (hue 243, 6.29:1 on #ffffff). The scrubber's played run is #155e75 (hue 194, 7.27:1) against a #919191 track (3.15:1). The active phase segment is #dbeafe fill (hue 214, 1.22:1 on the bar), #1e40af text (7.15:1 on that fill) and a #2563eb tick (hue 221, 5.17:1) that is exactly 1px wide and 8px tall — an entire accent hue spent on 8 pixels. Brief §2 names one shared accent hue family across both registers; this bar has three, spanning 49 degrees, all at 70-95% saturation. Worse, the bar's only filled, hue-bearing object marks the least durable thing on the page: FETCHING, an engine-load phase. On the PLAIN build captured here that phase never advances (no JS ships), so the strongest colour in the register's chrome is permanently parked on a transient state; on the deployed hydrated build it does advance, but the hue budget is the same either way. Pick one family — the scrubber and the phase rail both express progress and should not be two hues.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/2",
+      "severity": "P2",
+      "location": "green: identity-bar Succeeded x260-349/y20-42, transaction-pane Succeeded x1542-1631/y99-121, Real Aztec testnet data badge x1735-1906/y177-199, Trace ready x1594-1687/y808-830. neutral: AGE `No timestamp published` x1725-1912/y646-669, CANONICAL `Yes` x1866-1910/y677-701, FINALITY `Pending` x1829-1912/y709-733",
+      "finding": "Carried from vd10-r2 and now larger. The page has exactly two chip tones carrying six meanings. The green four re-measure byte-identical — #dcfce7 fill, #16a34a rule (3.00:1 on the fill), #166534 text (6.49:1) — for the transaction's outcome, the provenance of the data, and the availability of a trace. The neutral three are equally byte-identical — #f3f3f3 fill (1.11:1 on the pane), #c8c8c8 border (1.51:1 on that fill), #565656 text (6.61:1) — for an ABSENCE (`No timestamp published`), an AFFIRMATIVE FACT (`Yes`) and an UNRESOLVED STATE (`Pending`). `Pending` and `Yes` sit 32px apart in the same column and differ in no colour channel, so the finality row reads as settled. In this register the provenance badge is the only provenance marker there is — no nav, no footer, no band — and colour gives a reader nothing to separate it from the routine status chip 78px above it. Give provenance its own tone and give an unresolved state a tone that is not the affirmative one.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/3",
+      "severity": "P2",
+      "location": "transaction pane, RAW (CHAIN-NATIVE) well, x1546-1908/y1050-1074 (label at y1033-1041)",
+      "finding": "Carried from vd10-r2, re-measured, unchanged to the pixel. The well's entire visible extent lies inside the panebody bottom mask, so the code-surface token never renders at strength anywhere on this page: down x1543 the fill ramps #ececeb (y1055) to #ffffff (y1074), surface-vs-pane contrast falling 1.18:1 to 1.00:1 over 20 rows before the pane's own border (#a2a2a2) at y1075. The well holds exactly one piece of ink — the top-left of the `{` of line 0, peaking #c4c4c4 at x1559/y1068 on #fafafa = 1.67:1. The same glyph in the dark capture peaks #505050 on #141414 = 2.28:1, so this is a 1.37x theme gap on top of a mask that is already the dominant cause. A mask composites the whole subtree at one alpha; painting the code surface on an element outside the masked subtree is the fix.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/4",
+      "severity": "P2",
+      "location": "identity bar, stepping-control groups x472-529, x546-598, x615-678, x695-758 (y18-44), against the trace scrubber x775-1034/y28-35",
+      "finding": "Carried from vd10-r2 and now worse. All eight controls are outlined in #c8c8c8 on #ffffff = 1.67:1, fainter than the pane borders (#a2a2a2, 2.55:1) and fainter than anything else structural on the page. Seventeen pixels to the right, the scrubber's unplayed track is #919191 = 3.15:1 and its played run — new since last round — is #155e75 = 7.27:1. So the bar the controls move through is now painted up to 4.4x harder than the controls themselves, and the part of the trace NOT yet reached is still painted nearly twice as hard as the controls. The glyphs are fine (#565656, 7.34:1); only the chrome disappears. These controls are inactive so SC 1.4.11 does not bind them, but a hierarchy in which the passive readout outranks the active affordance is an inversion regardless. Raise the outline, or drop the track.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/5",
+      "severity": "P2",
+      "location": "transaction pane, SELECTOR value x1897-1906/y871-872 and RAW value x1897-1906/y896-897, against the AGE value chip x1725-1912/y646-669",
+      "finding": "Carried from vd10-r2, re-measured, unchanged to the pixel. The same meaning — this field has no value — gets two treatments at two contrast levels. SELECTOR and RAW each render a 10x1px dash, #8a8a8a on #ffffff = 3.45:1 with a #b0b0b0 second row; that is the lowest full-strength text ratio in the image and it is below the 4.5:1 floor. Two rows above, AGE renders the same absence as a full chip, `No timestamp published`, #565656 on #f3f3f3 = 6.61:1. Two rows below, the prose block at y915-1015 explains that absence in #484848 at 9.15:1. Three treatments, three contrast levels, one meaning. Pick one.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/6",
+      "severity": "P3",
+      "location": "transaction pane: prose block x1540-1908/y215-570, full hash y132-168 and EXECUTIONS kind `public` x1538-1592/y810-830 (all #484848), against the section labels DATA y178-195, BLOCK y588-606, EXECUTIONS y788-806, DECODED INPUT y838-858, RAW (CHAIN-NATIVE) y1028-1048 (all #565656)",
+      "finding": "Carried from vd10-r2, unchanged. Two nominally distinct emphasis levels sit 14/255 apart and read as one: body prose, the full hash and the execution kind at #484848 (9.15:1), section labels at #565656 (7.34:1), measuring 1.25:1 against each other. The ladder's other rungs are well spaced — #101010 (19.03:1, the truncated hash and the 128/345 readout), #242424 (15.52:1, the TYPE value and the fee figure) — so the collapse is confined to the label/body pair, which is the pair this pane repeats fourteen times. Note also that the SAME transaction hash is #101010 in the identity bar and #484848 in the pane, 2.08:1 apart. Case and letterspacing do all the separating; either let colour help or collapse the two tokens into one.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/7",
+      "severity": "P3",
+      "location": "all toned surfaces: green chip fill #dcfce7 (four instances, e.g. x1735-1906/y177-199), phase-rail active fill #dbeafe (x1325-1398/y21-41), neutral chip fill #f3f3f3 (x1725-1912/y646-669)",
+      "finding": "This theme's tonal-surface layer is close to weightless and has no counterpart in the other theme, which is the tell that it was not designed as a pair. All three toned fills sit within 1.22:1 of the #ffffff pane they are on: #dcfce7 = 1.10:1, #dbeafe = 1.22:1, #f3f3f3 = 1.11:1. So a badge's TONE — the word §4 uses for the provenance marker — is in practice a border-and-text effect, not a fill effect. In the dark capture the same three fills are all #202020, identical to each other and carrying zero hue, with the meaning moved entirely into #4ade80 / #60a5fa / #919191 text over a shared neutral. The accent tick #2563eb is meanwhile frozen at the same value in both themes while every other accent shifts (#4f46e5 to #818cf8, #155e75 to #22d3ee, #166534 to #4ade80). Two channels are theme-mapped, one is not, and the fill channel exists in light only.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L3/8",
+      "severity": "P3",
+      "location": "pane header band y69-94 (#dddddd): CODE label x18-60, VALUES label x928-1000, TRANSACTION label x1538-1640 (all #484848); CALL TRACE tab x928-1010 (#101010 plus a 2px #101010 underline at y93-94 spanning x922-1012); EVENT LOG tab x1018-1095 (#565656)",
+      "finding": "Four panes, one header band, three ink levels for the same structural rank. The three untabbed pane titles are #484848 on #dddddd = 6.73:1. The Call Trace pane's active tab is #101010 = 14.01:1 — 2.59:1 heavier than its own sibling pane titles — AND carries a 2px full-black underline, so selection is signalled twice while the other pane headers get neither. The inactive EVENT LOG tab is #565656 = 5.40:1. The net effect is that the Call Trace pane's header outweighs the Transaction pane's, which is where the page's only provenance marker lives. The underline is sufficient for tab selection; drop the active tab to #484848 so all four pane titles share one rung.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

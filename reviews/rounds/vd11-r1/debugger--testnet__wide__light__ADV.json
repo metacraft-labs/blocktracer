@@ -1,0 +1,29 @@
+Expected elements: present
+
+The re-fix landed, verified in pixels rather than taken on trust. `Supply sources` samples `#565656` on `#ffffff` with a `#c8c8c8` hairline — no body — and the darkest pixel in all four `.dcbtn` groups is `#565656` too, so the pill and the eight inert stepping controls are one treatment. `.btn.disabled` resolves to `background:transparent`, matching `.dcbtn.off`. That P1 lineage is closed. Presence is otherwise clean: no invented source, no fixture leak, no band above the identity bar, no page scrollbar (1920×1080), and all three empty panes speak.
+
+Weakest is the `Data` row's paragraph. `p.reason.measure` measures x1542 y209, 365×**369px** — 17 lines at 14px/21.7px, 38% of the Transaction pane's 980px body. Its block specifies endpoint, moment and window; that is the first four lines. The other 282px is a curated-window essay — pruning counts, a longest-run-with-none, 26 unpublished — shouting `THIS CHAIN IS PUBLISHED AS A CURATED WINDOW.` in caps mid-prose. It is per-chain, identical on all six testnet debug pages, and on the affirmative view it spends 84% of its height on what was *not* captured.
+
+The cost is mechanical. The pane's content is 1443px in a 980px body: **463px below the fold**, including `effectsMismatched: 0` — the MUST-SHOW evidence the replay is faithful — while the 913px Code pane beside it holds 227px of content and 753px of white. B1's failure sentence, verbatim. The band cost 190px full-width; its replacement costs 369px of the narrowest column. That trade lost.
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/ADV/1",
+      "severity": "P2",
+      "location": "Transaction pane, first row (`Data`) — the explanatory paragraph `p.reason.measure` at x1542-1907, y209-578 (365 x 369px, 17 lines), and the 463px of pane content it pushes below the fold at y1076",
+      "finding": "I verified the claimed re-fix before looking elsewhere and it is real: `Supply sources` renders body-less (`#565656` on `#ffffff`, `#c8c8c8` hairline) and the darkest pixel in every one of the four `.dcbtn` pairs is the same `#565656`, so the pill and the eight inert stepping controls now read as one treatment; `.btn.disabled` computes to `background:transparent` with border and foreground matching `.dcbtn.off`. The weakest element is elsewhere, and it is the provenance row's own body. Moving provenance off the band into the pane was the right call and the previous round asked for it, but the sentences were not rewritten for the column they moved into. At band width this text was a strip; at 365px it wraps to 17 lines and 369px, which is 38 percent of the Transaction pane's 980px visible body. The view's block asks this row for the capture's endpoint, moment and replay window: that is lines 1-4, about 87px. The remaining 282px is a curated-window essay -- how many blocks the watch spanned, the longest run with no transactions, that 25 of 26 unpublished transactions were already pruned, that bodies below block 63628 are gone -- which is a property of the chain's publishing policy, not of this trace, and is byte-identical on all six aztec-testnet debug pages. It also shouts `THIS CHAIN IS PUBLISHED AS A CURATED WINDOW.` in capitals in the middle of 14px body prose, a typographic register the rest of this page never uses. The effect is that the one view whose job is the affirmative claim spends roughly 84 percent of its provenance row explaining what could NOT be captured; against `debugger`'s equivalent row, which is 5 lines and stays on topic, this reads as apology where confidence was the point. The mechanical cost is worse than the tonal one. The pane's content is 1443px inside a 980px body, so 463px sits below an in-pane fold -- and what is down there is the `pre.raw` carrying `instructionsExecuted: 345, effectsMatched: 23, effectsMismatched: 0`, the MUST-SHOW replay telemetry that is this page's only evidence the session reproduced the chain's own effects. That evidence is invisible at 1920x1080 while the adjacent Code pane, 913px wide, holds 227px of content and 753px of empty white: B1's failure clause -- half the pane empty while the content it holds is scrolled -- occurring literally, across two panes. The band it replaced cost about 190px of full-width vertical and displaced nothing; this row costs 369px of the narrowest column and displaces the telemetry. Judged as the trade the last round asked for, the trade lost. Fix: keep the badge and the first two sentences in the row, and move the curated-window paragraph to a chain-level surface or behind a disclosure, which pulls the telemetry above the fold without showing less. This is build-independent -- both the plain build captured here and the deployed hydrated build server-render this identical paragraph at this identical width, and the hydration bundle's `.copyable` upgrades only add height to this pane, so the overflow is a lower bound on what a visitor gets. P2 and not P1 because the row is present, correctly labelled, correctly toned by its badge, and the telemetry exists on the page: the presentation is broken, not the information.",
+      "criterion": "B1"
+    }
+  ]
+}
+```

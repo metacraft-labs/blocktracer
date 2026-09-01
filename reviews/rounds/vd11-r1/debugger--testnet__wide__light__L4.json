@@ -1,0 +1,75 @@
+Expected elements: present
+
+Re-verified against pixels and the served DOM: exit → `/aztec-testnet`, hash `0x0858d6…7fb2`, block 63675, eight stepping controls, `128 / 345`, phase rail, `Data` + `Real Aztec testnet data` as the pane's first labelled row, three per-pane explanations, `Supply sources`; no band above the bar, no invented source, no `aztec` slug or fixture string in the body.
+
+No withdrawals, one resolution. My vd10-r2/5 is fixed: `Supply sources` (x13-119, y287-309) is now body-less — #FFFFFF ground, #C8C8C8 border, #565656 label at 7.34:1 — pixel-identical to the eight `.dcbtn off` controls, which are equally inert. Its lost fill is the round's whole ink delta (Code body 1.52%→1.37%). Everything else reproduces exactly: all ten row rules at y204/581/611/641/673/705/737/783/883/909, unmoved.
+
+Q22 ordering: worse than "after a raw dump" — it is inside one, unlabelled. `effectsMismatched: 0` is line 12 of a 45-line `pre.raw` that is the pane's 16th and last element. The box's top border lands at y1051, the exact first pixel of the 24px fade, so zero pixels of it are painted opaque; its total ink is three pixels at x1558-1560, y1068-1071. Line 12 sits at y≈1318, 244px below the pane's last painted row. Meanwhile `345` is above the fold twice as the scrubber denominator — the two numbers that were buried are the two that carry the claim.
+
+Fixes: promote effectsMatched/Mismatched to a labelled row beside `EXECUTIONS`; the identity bar has 269 unused px at x1567-1835.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L4/1",
+      "severity": "P2",
+      "location": "Transaction pane, `RAW (CHAIN-NATIVE)` label y1032-1044, and its `pre.raw` box x1543-1907 whose top border is y1051; the telemetry lines sit at y~1249 (effectsMatched), y~1318 (effectsMismatched) and y~1064+ (instructionsExecuted, line 8)",
+      "finding": "Q22, ORDERING — measured, and my verdict is that the ordering is wrong, though not for the reason the queue item states. It is not merely that the faithfulness claim sits AFTER a raw JSON dump; it sits INSIDE one, with no label of its own. The pane has sixteen elements in DOM order (identity block, Data row, provenance prose, Block, Type, Age, Canonical, Finality, Cost, Executions, Decoded input, Selector, Raw, decode prose, `Raw (chain-native)` label, `pre.raw`). The telemetry is not any of the first fifteen. It is lines 8/11/12 of a 45-line `<pre class=\"raw\">` that is element sixteen. Three measurements make the cost concrete. (a) The box's top border falls at y1051, which is the exact first pixel of the 24px fade (`.panebody` mask stop = body bottom y1074 minus `--bt-space-lg` 24px = y1050), so NOT ONE PIXEL of this block is painted at full opacity. Total ink darker than #E0 inside the ramp is 28px, of which 25 are the pane's own rounded border; the block's entire visible contribution is three pixels at x1558-1560, y1068-1071 rendering #C4C4C4 — the top of `{` at the 25% alpha the ramp predicts (#101010 over #ECECEB at 0.25 = #C4C4C4, matching to the value). (b) `pre.raw` is `max-height:480px`, border 1 + padding 12, first line box y1064, 14px/1.65 = 23.1px per line; line 12 (`\"effectsMismatched\": 0,`) tops at 1064 + 11*23.1 = y1318 — 244px below the pane's last painted row and 268px below its last opaque one — reachable with 291px of the 456px pane scroll available. (c) The block overflows on THREE axes at once and shows a scrollbar on none: the pane scrolls 456px, the `pre` windows 480px onto ~1065px of content (lines 21-45, including `stepsUnpositioned`, need a second nested scroll), and its longest line is 89 chars ~= 748px against a 364px interior, masked by the `to right` ramp. A further ordering consequence within the block: `\"effectsMismatched\": 0` (line 12) is two lines above `\"rootsAnyAgree\": false` (line 14) and six above the first of four `\"agrees\": false` (lines 20/26/32/38), all set in the same 14px monospace at the same weight and colour. The evidence that the replay was faithful and the four facts that most look like its contradiction are delivered at identical rank, uninterpreted, in a container whose own name tells the reader it is the escape hatch for what the UI declined to render. Note also the asymmetry the ordering creates: `instructionsExecuted: 345` IS above the fold — twice, as `data-total-steps` and as the `128 / 345` denominator at x1273-1297, y24-37 — so of the three numbers the brief names, the one already surfaced is surfaced and the two that carry the faithfulness claim are the two buried. This is a P2, not a P1: presence was settled unanimously last round and I do not reopen it. The fix is additive and cheap — a labelled row between `EXECUTIONS` (y783-883) and `DECODED INPUT` reading e.g. `REPLAY  345 instructions · 23/23 effects matched · 0 mismatched` costs ~32px, the height of the `AGE` row, and would put the claim at y~915, above the fold, without removing a byte of the JSON.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/2",
+      "severity": "P2",
+      "location": "the three-column split — Code x4-916 (913px), Call Trace x920-1528 y68-669 / Values x920-1528 y674-1075 (609px), Transaction x1533-1915 (383px), all y68-1075",
+      "finding": "Standing finding, re-measured this round and unchanged to within the Supply-sources fill delta. Code body (x5-915, y95-1074) is 44.4% of the 1920x1080 viewport and carries 1.37% ink over 980 rows, 90.1% of them empty; its content ends at y309 and the remaining 758px — 75.5% of the pane, ~33% of the viewport — is unbroken white. Call Trace body 0.86% ink, 94.4% rows empty, content ends y151 with 511px blank. Values body 1.83% ink, 91.2% rows empty, content ends y751 with 316px blank. Summed, 1,191,700px2 — 57.5% of the entire viewport — is blank pane interior. The Transaction pane is simultaneously the narrowest column on the page (381px interior), the only one at real density (19.44% ink, 38.8% rows empty), and the only one whose content overflows: 456px of it, 31.8% of its 1436px scroll height, is below the fold. The split is percentage-only, with no min-width and no content-aware term, so it hands 74% of the horizontal budget to three panes that are empty by necessity and starves the one pane that is full. This is B4's failing description almost verbatim (\"one pane starved while another is empty\"), and the fix is a reallocation rather than a subtraction — widening Transaction to ~560px at the Code pane's expense would take roughly 90px off the provenance prose's wrapped height and pull the telemetry ~90px closer to the fold on its own. Also worth recording as evidence the empty panes are wider than they need to be: the Code pane's prose measure is capped at 578px (x21-598), so 335px of its 913px is slack that no content will ever reach.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/3",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row — badge y177-199, prose bounded by rules at y204 and y581",
+      "finding": "Standing, re-measured, and it is the proximate cause of finding 1. The provenance paragraph is 377px between rules — 38.5% of the pane's 980px visible body — laid out as seventeen line boxes from y213 to y573 at 21.9px leading (14px/1.55) across a 344px measure, ~58 characters per line. Set that against the eleven chain-fact rows below it: BLOCK 30px, TYPE 30, AGE 32, CANONICAL 32, FINALITY 32, COST 46, EXECUTIONS 100, DECODED INPUT 26, SELECTOR/RAW ~26 each — ~380px for every fact about this transaction combined, i.e. the vouching text costs as much as everything it vouches for. Read as density, the composition of that text is the sharper problem: the first two sentences are about THIS capture (endpoint, 2026-08-31T07:40:55.566Z, node 5.2.0, replay window 63629-63678) and occupy y213-270; the remaining thirteen lines, y278-573 — 296px, 30% of the visible pane body — are chain-level statistics about OTHER transactions (220 blocks watched, 32 transactions, 26 not published, 25 pruned, longest run of 11 blocks, the 63628 pruning floor). None of it is a fact about the transaction the visitor opened, and all of it is stacked above the three numbers that are. This is also the answer to the §4 'what did the removed band buy' question: the band was right to go — 190px of a 1080px viewport is back and every pane is 190px taller for it — but the text was moved unchanged into a column five times narrower, where the same prose wraps from a two- or three-line strip into a seventeen-line, 377px column head. The viewport gained; the one pane with content paid roughly double, in scroll.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/4",
+      "severity": "P3",
+      "location": "identity bar, y0-62: inked column runs end at x1566 (phase rail) and resume at x1836 (Share); scrubber x775-1034, engine readout x1051-1298, phase rail x1322-1566",
+      "finding": "A density budget worth naming beside finding 1. The bar's inked extent is x24-1895; inside it there is a single 269px void at x1567-1835 (14.0% of the viewport width) where `.dbgspacer` absorbs the slack, and a 260px uniform-step scrubber at x775-1034 whose own source comment concedes it 'carries almost no information' and duplicates the `128 / 345` readout 187px to its right. Together, 529px — 28.3% of the bar — carries nothing the adjacent glyph readout does not. The comparison that makes this a finding rather than a preference: x775-1566 (791px, 42% of the bar) is spent on ENGINE-LOADING telemetry, while the REPLAY telemetry — which is final, true, and the page's stated evidence — is 244px below the fold in the narrowest column. The proposed fix is purely additive and needs no width from anything: `23/23 effects matched · 0 mismatched` sets in roughly 240px at the bar's 14px, fitting the void with 29px to spare. BUILD NOTE, since this differs across the two: on the PLAIN build captured here (no JS) the loading strip is a still frame — `FETCHING` stays lit, 18 MB and 128/345 never move — so on this build those 791px are permanently inert. On the DEPLOYED build the hydration bundle drives them, so there the width is doing work; the finding is that the width is committed to a transient on both builds while the durable evidence gets none.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/5",
+      "severity": "P3",
+      "location": "Transaction pane, COST · TRANSACTION FEE row (rules y737 and y783), label x1542-1695 y745-754, value x1747-1906 y747-758, unit x1812-1906 y766-777",
+      "finding": "Standing finding, re-confirmed identical. The fee is nineteen ungrouped digits, `1755555891986239551`, in a 160px run — thirteen separable glyph clusters, 8.42px per digit — so a reader cannot tell 1.76e18 from 1.76e17 without counting, and nothing else on the page is grouped, so no local convention calibrates the eye. The row is 46px against siblings of 30/30/32/32/32px, the excess being the `mana (FeeJuice)` unit stacked as a second value line. The §4 prediction for this row stays REFUTED for a second round: the fee does NOT arrive as a raw 32-byte hex quantity and does NOT wrap across several lines or break the label/value grid — label one line at the left edge, value one line right-aligned to x1906, unit right-aligned beneath it, grid intact. The remaining defect is grouping only.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/6",
+      "severity": "P3",
+      "location": "middle column — Call Trace body x922-1527 y96-668 (573px) against Values body x922-1527 y701-1074 (374px)",
+      "finding": "Standing, re-measured, ratio unchanged at 1.53x. Each pane holds exactly two prose line boxes — Call Trace y117-129 and y139-151, Values y718-730 and y739-751 — yet Call Trace is allotted 199px more height, all of it blank (511px trailing blank vs 316px). The numerator is content-shaped and I do not withdraw that: a source-less trace publishes no frames and no locals, and drawing rows there would be the invented-source P1. The allocation is layout-shaped, and a split that consulted its content would equalise the two or collapse both and give the height to the column that overflows.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L4/7",
+      "severity": "P3",
+      "location": "Code pane, `Supply sources` button, x13-119 y287-309 (107x23px)",
+      "finding": "RESOLUTION of my vd10-r2/5, recorded so the ledger closes it, plus one residual. The control is now body-less as the register intends: #FFFFFF ground taking the pane surface behind it, #C8C8C8 hairline border, #565656 label at 7.34:1 on white, x-height band y296-301. It is now byte-identical in treatment to the eight `.dcbtn off` stepping controls at x472-758 (also #FFFFFF / #C8C8C8 / #565656) — which is CORRECT here, because every one of those is inert too (`aria-disabled=\"true\"`, 'inert until the replay engine loads'), so the page now expresses inertness one way. The lost fill is -1,329 ink px, dropping the Code body from 1.52% to 1.37%, and that is the entire measurable pixel delta between vd10-r2 and this round, which independently confirms nothing else on the page moved. Residual nit, unchanged and still worth the line: the button's reason lives in a `title` attribute, so on the PLAIN build captured here it is hover-only and contributes zero pixels, while the panes around it state their limitation in visible text. On the DEPLOYED build the hydration bundle rewrites `title` on copy controls but not on this one, so the reason stays hover-only there as well.",
+      "criterion": "B3"
+    }
+  ]
+}
+```

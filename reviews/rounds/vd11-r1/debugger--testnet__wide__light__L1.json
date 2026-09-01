@@ -1,0 +1,98 @@
+Expected elements: present
+
+Presence: exit → `/aztec-testnet` (x24-133, #4F46E5); identity hash, `Succeeded`, `block 63675`, eight stepping controls, `128 / 345`, phase rail all present; DATA is the first row of the transaction pane with the `Real Aztec testnet data` badge (x1735-1906) and its own sentences; no band above the identity bar; all three left panes explain themselves; `Supply sources` present; zero `/aztec/` hrefs, zero fixture strings, no invented source. Telemetry is present but only inside the RAW (CHAIN-NATIVE) `<pre>` below the fold — a ranking fault, not a presence one.
+
+WITHDRAWN — last round's P2 on `Supply sources` is FIXED. Measured x13-119 y287-309: #FFFFFF fill, #C8C8C8 hairline, #565656 ink — byte-identical to the stepping controls (x472-529) and to the disabled Share icon (x1836-1861, #565656) against the enabled Download (#101010). The body-less pattern now holds page-wide.
+
+What replaced it: the provenance note grew from ~4 lines to 17 (y213-573, 361px = 37% of the pane), and it carries a 44-character sentence in literal capitals — measured pure caps, ink strictly y279-288, no ascender or descender pixel — inside running body prose at body size and body ink. That growth also pushed `effectsMismatched: 0` further under a 24px, 19-level fade.
+
+Second new one: cap height is 9px for pane titles, tab labels, row labels and phase chips alike; `EVENT LOG` and `DECODED INPUT` are typographically identical.
+
+Fixes: unshout the caps sentence; separate control type from label type.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L1",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L1/1",
+      "severity": "P2",
+      "location": "Transaction pane, DATA note, line 4 — glyph band y279-288, x1542 to ~x1830",
+      "finding": "NEW. The sentence `THIS CHAIN IS PUBLISHED AS A CURATED WINDOW.` is set in literal capitals inside running body prose. Measured: the ink in that band is confined to y279-288 with zero pixels above the cap line and zero below the baseline, against the neighbouring mixed-case line (y256-269) which carries ascender ink at y256 and descender ink at y267-269 — i.e. it is capitals-only, not a styled variant. It is 44 characters, ~289px, essentially the whole line. It is emphasised by case alone: same face, same cap height, same #484848 body ink, no size or weight change. All-caps at this size destroys word-shape, so the one sentence the author most wants read is the slowest to read on the page, and in a light product surface it reads as shouting rather than as emphasis. The correct device at this scale is a weight or ink step on sentence case, or lifting the claim out of the paragraph as its own line.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/2",
+      "severity": "P2",
+      "location": "whole page — pane headers y76-84, tabs y76-84, row labels y180-188/589-597/791-799/842-850, phase chips y26-34",
+      "finding": "NEW. One type level does three unrelated structural jobs. Measured cap heights are 9px for every one of: pane titles (`CODE` x13-44, `TRANSACTION` x1542-1626, `VALUES` x931-975), the tab controls (`CALL TRACE` x931-1003, `EVENT LOG` x1021-1086), the row labels (`DATA`, `BLOCK`, `COST · TRANSACTION FEE`, `EXECUTIONS`, `DECODED INPUT`), and the phase chips (`FETCHING`). Letterspaced advance is the same to within 3%: 7.3px/char on `CALL TRACE` and `EVENT LOG`, 7.5px/char on `DECODED INPUT` and `EXECUTIONS`. The sharpest instance: `EVENT LOG` — a clickable tab — and `DECODED INPUT` — a static label — are indistinguishable in face, size, case, letterspacing AND ink (both #565656), and #565656 is also the page's disabled-control ink. Type therefore contributes nothing to the pane/label/control distinction; the whole hierarchy rests on the #DDDDDD header band and the ink ladder, which is not this lens's to credit. Nothing on the 1920x1080 page exceeds 10px cap height, so there is no level above `row label` for the eye to land on first.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/3",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) block below y1050; overflow fade y1051-1074",
+      "finding": "STILL HOLDS and is worse than last round. `effectsMismatched: 0` — the claim this view exists to make — has no type level anywhere: grep of the served HTML finds it in exactly one place, as a line inside the `<pre class=\"raw\">` of RAW (CHAIN-NATIVE), which is the last block in the pane. Its label `RAW (CHAIN-NATIVE)` sits at y1033-1044 and the pre's first glyph is only half-drawn (ink at y1067-1074, x~1560). The DATA note has grown since vd10-r2 from ~4 lines to 17 (y213 to y573, 361px, 37% of the pane's 980px visible content region), pushing the telemetry further down. The pane is a genuine scroll region and the bottom mask is present, but re-measured at x1750 it still ramps #ECECEB (235.9) to #FFFFFF over y1051-1074 — 24px for 19 luminance levels, 0.8/px — which in the light theme is indistinguishable from an empty pane bottom. Fix is a type level for the replay telemetry, ranked above RAW, not a stronger fade.",
+      "criterion": "B3"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/4",
+      "severity": "P2",
+      "location": "Transaction pane, full hash, glyph bands y132-141 and y152-163, x1542-1903 / x1542-1734",
+      "finding": "STILL HOLDS, re-measured. The 64-character hash wraps mid-byte. Line 1 ink spans x1542-1903 (362px), line 2 x1542-1734 (193px); solving 42*adv+gw=362 and 22*adv+gw=193 gives adv=8.45px and gw=7.1px, i.e. 43 cells on line 1 (`0x` + 41 hex) and 23 on line 2. An odd split breaks the byte pairing, which is the unit a reader compares hashes in. Break after an even hex count.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/5",
+      "severity": "P2",
+      "location": "Transaction pane, COST · TRANSACTION FEE row, rules at y737 and y783",
+      "finding": "STILL HOLDS, numbers re-measured and unchanged. Label ink x1542-1695 (154px) on ONE line; 51px of clear space before the value at x1747; value line 1 x1747-1906 (160px), unit `mana (FeeJuice)` forced to a second line at x1812-1906 (95px). Row height 46px against siblings measured at 30 (BLOCK y581-611), 30 (TYPE y611-641), 32 (AGE), 32 (CANONICAL), 32 (FINALITY). The break is entirely on the VALUE side, so any no-break-label rule is not exercised here. The 19-digit figure 1755555891986239551 fills 160px of ~165px available and is ungrouped, hence unreadable as a magnitude. This is a tension, not a clean fix: 19 digits plus six separators would measure ~178px and wrap the number itself, so the answer is a narrower rendering of the quantity, not thousands separators.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/6",
+      "severity": "P3",
+      "location": "Transaction pane, DATA note — line 1/2 boundary (y213-226 to y234-248), line 9/10 (y386-399 to y408-422), line 13/14 (y474-486 to y495-509)",
+      "finding": "STILL HOLDS and now occurs three times in the one paragraph. The ISO 8601 capture moment breaks at its own internal hyphen: `2026-08-` ends line 1 (last word group x1822-1885), `31T07:40:55.566Z` begins line 2 (first word group x1542-1658). Two more atomic pairs are split by ordinary word-break: `220` is orphaned at the end of line 9 (x1837-1860) from its unit `blocks` at the head of line 10, and the bare numeral `1` ends line 13 (x1869-1873) with `carried` beginning line 14. Held at P3 rather than raised, because all three remain legible; the ISO one is the only genuine defect, since a value that reads as two tokens cannot be matched against a log line. Fix is non-breaking glue on the value spans, not a narrower measure.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/7",
+      "severity": "P3",
+      "location": "identity bar x143-250; Transaction pane header x1644-1802 y106-115; full hash y132-141",
+      "finding": "STILL HOLDS, sharpened by measurement. One value is rendered at three different lengths on one screen, all in the same face at the same advance (8.5px/glyph, 10px cap): the identity bar's `.dbgid` is 13 cells / 108px (`0x` + 6 + ellipsis + 4), the pane's `.mdhash` is 19 cells / 159px (`0x` + 8 + ellipsis + 8), and the `.mdfull` beneath it is all 66. A reader cannot pattern-match the bar's string against the pane's, because the two truncations expose different hex. Compounding it, the abbreviation is the more prominent of the pair: the truncated hash is #101010 and the full expansion 26px below it (baseline y115 to y141) is #484848, so the complete value ranks below the incomplete one. Note for the deployed build only: the hydration bundle upgrades both `.mdhash` (data-copy) and `.mdfull` (.copyable) into copy controls, so the live page carries two copy affordances for the same value 26px apart; the plain build photographed here shows neither.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/8",
+      "severity": "P3",
+      "location": "Code pane text x21-598; Call Trace pane text x931-1499; Values pane text x930-1504; Transaction DATA note x1542-1906",
+      "finding": "STILL HOLDS, and it is broader than I filed it last round — it is all three left panes, not just Code. Measured line extents: Code pane 578px at 6.64px/char = ~87 characters; Call Trace 569px at ~6.94px/char = ~82; Values 575px = ~83. All three exceed the comfortable ceiling for multi-line body copy. The Transaction pane's `measure` cap holds its prose to 365px = ~50 characters, so the page runs two body measures 1.74:1 apart. In Code the cap is binding but set too generous (text stops at x598 in a pane whose inner edge is x915); in Call Trace and Values it is not binding at all — the text runs to within 19px and 14px of the pane edge respectively, so those two panes have no effective measure.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/9",
+      "severity": "P3",
+      "location": "identity bar x402-437 and x1169-1296; Transaction pane BLOCK row x1848-1906; DATA note x1590-1681",
+      "finding": "NEW. The same classes of value are set in two faces on one screen. Block height 63675 measures 36px for 5 digits (7.2px/digit, proportional) in the identity bar's `.dbgblock num`, and 59px for 7 cells (8.5px/char, monospace) as `63675:0` in the pane's BLOCK row — the same number, two faces, 1450px apart. The DATA note sets block ranges in the proportional face too, confirmed by `31T07:40:55.566Z` measuring 117px for 16 characters (7.3px/char) against the monospace 8.5. Within the status readout the split is 14px wide: `.dcphase` sets `18 MB` proportionally (`18` = x1169-1182, 14px for two digits) while `.dcsteps num` sets `128 / 345` in monospace (`128` = x1221-1245, 25px for three), so one phrase changes numeric voice mid-sentence. Pick one treatment for chain quantities and let prose be the only exception.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L1/10",
+      "severity": "P3",
+      "location": "Code pane, `Supply sources` button, x13-119 y287-309 — WITHDRAWN finding from vd10-r2",
+      "finding": "WITHDRAWN on measurement — FIXED. Last round I filed that the disabled `Supply sources` button was the only filled, body-having object in a 909x1003 pane: #DDDDDD fill on a #FFFFFF pane, the inverse of the body-less pattern used by every other inert control here. Re-measured this round: the button box is x13-119 y287-309 (107x23) with a #C8C8C8 1px hairline on all four edges, #FFFFFF interior sampled at (60,291), (30,291), (100,305) and (115,300), and #565656 label ink. That is now identical to the eight stepping controls (box x472-529, #FFFFFF fill, #C8C8C8 border, #565656 darkest ink) and consistent with the disabled Share icon at x1836-1861 (#565656) against the enabled Download at x1870-1895 (#101010). The markup confirms the mechanism — `class=\"btn ghost sm disabled\"`. The finding does not survive and should be struck from the ledger.",
+      "criterion": "B5"
+    }
+  ]
+}
+```

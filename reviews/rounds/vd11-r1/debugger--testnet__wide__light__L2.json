@@ -1,0 +1,98 @@
+Expected elements: present
+
+Presence holds. Exit is `/aztec-testnet`, the `Data` row carries `Real Aztec testnet data` plus 17 lines of capture prose, all three panes explain themselves, `Supply sources` is present, and no fixture content or invented source appears. `effectsMismatched: 0` is in the DOM — I extracted the exported body and the raw JSON below the cut is 46 lines ending `instructionsExecuted: 345, effectsMatched: 23, effectsMismatched: 0`. It is in a real scroll region, so I file placement, not absence.
+
+Nothing layout-shaped moved this round. The one change — `Supply sources` re-fixed to body-less (border #c8c8c8, interior #ffffff, box still x13-119 / y287-309) — altered no geometry, so I re-file the outdent on narrower ground: the mechanism is `.panenote`'s own 8px padding nested inside `.srcnone`'s, which indents the Code pane's prose to 16px while the header label, the button and every other pane's prose sit at 8px. The paragraphs are the outlier, not the button.
+
+New this round, and it answers the band-to-row question in layout terms: as a band the provenance cost ~190px of full width; as a row it costs 377px (y204-581) of a 383px-wide column — 38.5% of the pane that is the only one overflowing. The trade halved the width and doubled the height.
+
+Also new: the ~577px cap is `--bt-measure-prose:68ch` on `.panenote`, so Code's 911px body can never use 334px of itself.
+
+Fixes: widen Transaction by ~200px; drop one of the two nested paddings.
+
+Rating: 5/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 5,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L2/1",
+      "severity": "P2",
+      "location": "three-column split: Code x4-916, Call Trace/Values x921-1528, Transaction x1533-1915 (bodies x5-915, x922-1527, x1534-1914; 4px outer frame, 4px gutters). Code prose column x21-597.",
+      "finding": "Unchanged geometry, re-measured, and this round I found the mechanism that makes it unfixable by content. Border-to-border the columns are 913/608/383px = 47.9/31.9/20.1% of 1904px. Counting pixels below luminance 200 between y96 and y1074: Code 8,686 (16.3% of the page's ink, 0.97% density), middle 6,623 (12.5%, 1.12%), Transaction 37,867 (71.2%, 10.15%). Seventy-one percent of the ink sits in the narrowest column and that column is the only one that overflows. The new measurement: the Code pane's longest line ends at x597 against a body that runs to x915, leaving 318px of dead width — and that is not a short-copy accident, it is `.panenote{max-width:var(--bt-measure-prose)}` with `--bt-measure-prose:68ch`, measuring 577px here. Call Trace's longest line is 569px and Values' 575px against the same cap, so all three explanations are set at one fixed measure. The consequence is structural: the Code pane can never use 334px of the 913px it is given, no matter what is put in it, while the Transaction pane sets the same kind of prose at a 363px measure (x1542-1905) because that is all it has. The pane that would use the 68ch measure is the one that cannot have it. Move roughly 200px from Code into Transaction, or make the split respond to which panes carry rows. The middle column's own 601/401 vertical split is unmotivated the same way: Call Trace body 606x573 holds a 569x35 content box (5.7% of area) and Values body 606x374 holds 575x34 (8.6%) — near-identical content, 60/40 allocation.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/2",
+      "severity": "P2",
+      "location": "Transaction pane, provenance block: `Data` row y177-204 (label x1542-1571, badge x1700-1912), capture prose y214-573 at measure x1542-1905, bounded by full-bleed rules at y204 and y581",
+      "finding": "New this round, and it is the layout answer to what the removed band bought. The band was a full-width strip costing ~190px of a 1080px viewport. As a pane row the same content is 377px tall from rule to rule (y204-581) — 38.5% of the Transaction pane's 980px body — because the measure collapsed from ~1900px to 363px and the prose reflowed from a handful of full-width lines into 17 lines at a 22px pitch (y214, 234, 256, 279, 301, 322, 344, 366, 387, 408, 431, 452, 474, 496, 518, 540, 562). The trade halved the width and doubled the height, and it spent that height in the ONE pane on the page that overflows, which is what puts the replay telemetry off-screen (finding 3). Second-order, and this is the eye-flow half of the brief's question: at 1920px the left 1521px of the page is exhausted by three short items, so the reader's scan path ends at the far right, in the narrowest measure on the page, at a 17-line paragraph that is the page's headline claim. A row in the right-hand pane is enough to be FOUND — the toned badge at x1700-1912 catches the eye at the top of the column — but not enough to be READ at this width. The fix is finding 1's: give this column ~200px from Code and the block reflows to roughly 12 lines, ~265px, which puts the RAW block's first telemetry lines above the fold.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/3",
+      "severity": "P2",
+      "location": "Transaction pane bottom: RAW (CHAIN-NATIVE) heading y1032-1044 (x1542-1669); code panel top edge y1051 (x1543-1899); pane body edge y1074; pane right gutter x1900-1914",
+      "finding": "Third consecutive round with no telemetry on screen, now measured against the exported source rather than inferred. Scanning x1534-1914 for pixels below luminance 210, rows y1045-1074 contain exactly two: x1559-1560 at y1068, the top 2px of the opening `{`. Everything else in that band is the mask ramp, luminance 235.9 at y1051 rising monotonically to 255.0 at y1074. I extracted the served body from client/dist/.../debug/index.html: the block below that `{` is 45 further lines and contains `instructionsExecuted: 345`, `effectsMatched: 23` and `effectsMismatched: 0` — the expectation's named evidence that this replay is faithful, on the one view whose reason for existing is that claim, with zero characters of it legible. There is no scrollbar: x1900-1914 is #ffffff at y300, y400, y600, y900 and y1000, so the only signal that anything continues is a 24px fade applied to a heading and an empty box. THE CALL, unchanged: P2, not P1. `.panebody` is a genuine scroll container, so the information is intact and reachable and what is broken is presentation. BUILD NOTE: the cut is a property of both builds, and the deployed build is worse, not better — the full hash at y132-162 carries `data-copy`, and the hydration bundle upgrades every `.copyable`/`[data-copy]` into a role=\"button\" control, so anything that control adds above y1051 pushes the JSON further down. This capture is the lower bound.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/4",
+      "severity": "P2",
+      "location": "all four pane bodies, header rule row to first ink row: Code rule y94 / ink y124; Call Trace rule y95 / ink y117; Values rule y700 / ink y718; Transaction rule y94 / ink y99",
+      "finding": "Four panes, four body top insets: 29, 21, 17 and 4px. Measured at five thresholds (250/240/220/200/180) with identical results, so these are glyph tops, not antialiasing. The Call Trace and Values figures are the sharp ones: they render the same `.panenote` element, in the same column, with the same three-row ink signature at the cap top (48/49/34 against 53/56/37), and still start 4px apart. Only 1px of that is explicable — the Call Trace header is 26 rows tall against 25 for the other three because it hosts the tab underline at y93-94, so its bottom rule falls at y95 where Code's and Transaction's fall at y94. That 1px stagger is itself visible as two adjacent panes whose bodies begin on different rows. Code's 29px is `.srcnone`'s extra padding (finding 5) and Transaction's 4px reads as the Succeeded pill colliding with its own header. With the left two thirds of the page otherwise blank these four top edges are the page's only horizontal landmarks, and they form a stepped set rather than one grid. Unchanged since vd10-r1.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/5",
+      "severity": "P2",
+      "location": "Code pane x5-915: CODE header label x13-15, body paragraphs x21-22, Supply sources button box x13-119 (y287-309) with its label at x22-110",
+      "finding": "Re-filed on corrected ground after re-testing last round's version. The disabled treatment was re-fixed to body-less — border #c8c8c8, interior #ffffff sampled at x17/x66/x115 y290-298 — so the loud filled slab I described last round is gone and I withdraw the 'a 107px filled rectangle now protrudes' framing. The geometry is identical (box x13-119, 107x23) and the outdent is still legible, because a 1px border is a crisper edge than the old fill was, but the direction of the fault is the opposite of what I said. Checking the served markup: `.panenote` carries its own `padding: … var(--bt-density-cell-x)` and in this pane it is nested inside `.srcnone`, which carries the same, so the two paragraphs land at 8+8=16px while the sibling `<button class=\"btn ghost sm disabled\">` — not a `.panenote` — lands at the outer 8px. Across the shell every other body item sits on the 8px edge: Call Trace prose x931 (9px, an 'F' bearing), Values prose x930 (8px), Transaction row labels and prose x1542 (8px), and this pane's own CODE label x13. The Code pane's two paragraphs are the only content in the shell at 16px. Drop one of the two nested paddings; do not move the button. This alone would now be P3 — it is P2 because it is the shell's only double content edge.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/6",
+      "severity": "P2",
+      "location": "Transaction pane dividers: full-bleed rules x1534-1914 at y204, 581, 611, 641, 673, 705, 737, 783; inset rules x1542-1906 at y883 and y909; unruled headings EXECUTIONS y791-800 and DECODED INPUT y842-851",
+      "finding": "Unchanged and re-measured. The pane runs two divider systems and two rhythms and then abandons both. Main rows use #c8c8c8 rules that bleed to the pane border, ignoring the 8px content padding their own labels obey; the DECODED INPUT sub-rows SELECTOR and RAW use rules inset to exactly that padding. Row pitch breaks the same way: 30/30/32/32/32px down the main grid (y581→611→641→673→705→737) against 26px for the SELECTOR-to-RAW pair (y883→909), and 46px for COST (finding 7). The section headings get no rule at all and are not spaced alike either — EXECUTIONS sits 8px below the y783 rule, DECODED INPUT has no rule above it and 11px of clearance from the badge row that ends at y830 — so the grid visibly stops two thirds of the way down the only pane on the page that has one. Pick one inset and one pitch. Unchanged since vd10-r1.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/7",
+      "severity": "P3",
+      "location": "Transaction pane, COST · TRANSACTION FEE row y737-783: label x1542-1695 (y745-753), value 1755555891986239551 at x1750-1903 (y748-757), unit mana (FeeJuice) at x1812-1906 (y766-777)",
+      "finding": "Unchanged. The label holds on one line, so the no-break-space fix is still observable, but the row breaks the label/value grid on the value side. The figure fills the value column to x1903 and displaces its unit onto a second line, making the row 46px tall against 30-32px for BLOCK, TYPE, AGE, CANONICAL and FINALITY above it — the one row in the pane off the grid. Measured deficit: the figure is 154px and the unit 95px, so with a word space the pair needs ~256px, and the space from the label's right edge at x1695 to the content edge at x1906 is 211px; roughly 50px more pane width collapses it back, which finding 1 supplies. Minor addition: the two lines do not share a right edge — the mono figure ends at x1903, the proportional unit at x1906 — so even as a deliberate stacked treatment it would not be aligned. On the thousands rule, the 19-digit figure is ungrouped and grouping it would add six separators to a value that already exactly fills its column, so excluding cost figures at this width remains the right call and is not a finding.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/8",
+      "severity": "P3",
+      "location": "identity bar, phase rail (x1322-1566, y20-42), active FETCHING segment left cap",
+      "finding": "Present, and NARROWED from last round on re-measurement. I reported a '2px saturated blue edge at x1323-1324 spanning y26-37'. Sampling the pixel grid x1318-1332 by y20-44: the saturated #2563eb is a single column at x1324 running y27-35 solid, with #6591f0 at y26 and #4d80ee at y36, so it is a 1px stub about 11px tall, not 2px by 12px; x1323 carries only the antialias mix (#d9d9d9, #ccd2de, #a3bbea, #769ef0). The container's own rounded cap is a grey arc through x1322-1328 spanning y20-42, and the pale #dbeafe fill starts at x1325. The artifact survives the correction: a square-ended 1px saturated stub sitting inside a 23px-tall rounded grey arc, 8px before the F stem of FETCHING at x1331-1332, reads at 100% as a tick or an opening bracket in the page's primary state indicator. Clip the active fill to the rail's radius, or give the first segment the rail's own left radius. Unchanged in kind since vd8.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/9",
+      "severity": "P3",
+      "location": "identity bar, stepping-control cluster: ink groups at x472-529, x546-598, x615-678, x695-758, all spanning y18-44",
+      "finding": "Unchanged, with one figure corrected: the inter-group gaps are 16px, not the 17px I reported last round (546-529-1, 615-598-1, 695-678-1 all give 16). The groups measure 58, 53, 64 and 64px because each button is sized to its glyph rather than to a fixed control size. Because the gaps are exactly regular and the groups are not, the irregularity reads as the buttons being uneven rather than as deliberate grouping — 11px of variance against a 0px variance in the separators. Set one min-width for the icon buttons so the cluster has a single horizontal rhythm.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L2/10",
+      "severity": "P3",
+      "location": "identity bar, vertical divider at x447 (1px, #a2a2a2, y18-44), between `block 63675` (ink ends x437) and the first stepping control (ink starts x472)",
+      "finding": "New this round. The bar's single separator is not centred in the gap it separates: 9px of clearance on its left (438-446) against 24px on its right (448-471), a 15px asymmetry, so the rule reads as belonging to the block number rather than as dividing identity from controls. Every other gap in the bar is regular — 4, 9, 8, 8, 8 through the identity cluster and a uniform 16px between the control groups and onward to the progress bar (x775-1034) and readout (x1051-1207) — which is what makes this one visible. Caveat on the measurement: it is taken on ink, and the first control's button box presumably extends left of its glyph at x472, so the true right-hand clearance is smaller than 24px; the left-hand 9px is against a text run and is exact, so the asymmetry is real but its magnitude is an upper bound. Give the divider equal margins.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

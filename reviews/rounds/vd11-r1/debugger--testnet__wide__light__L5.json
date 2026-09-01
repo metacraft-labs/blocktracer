@@ -1,0 +1,73 @@
+Expected elements: present
+
+TWO WITHDRAWALS ON MEASUREMENT. Last round's L5/2 ("two disabled vocabularies") and L5/3 ("a reader cannot tell it is inert") are both withdrawn. `Supply sources` (x13–119, y287–309) now paints #FFFFFF fill, #C8C8C8 hairline, #565656 label — the same three values as the eight inert stepping chips — and Share/Download at x1832–1910 have lost their #DDDDDD fill too. Light tokens make a live `.dcbtn` #DDDDDD/#101010/#A2A2A2, so inert now reads lighter than live everywhere on this page. The register says "inert" one way.
+
+THE SENTENCE IS FIXED. The title now reads "BlockTracer cannot accept supplied sources yet. Stepping continues at instruction level in the meantime." — it names no mechanism and is true on both builds. L5/4 is withdrawn but for its closing clause, which merges into one P3.
+
+Build-scoped, not a defect: `Engine loading — 18 MB` (x1052–1207, y26–38) with its rail (x1322–1566) is the page's remaining build-dependent claim. True on the deployed build, false only on the photographed plain build where no script runs — the opposite direction from the failure just fixed. Filed P3 so the ledger carries the scope; no product change asked for.
+
+Unchanged and re-measured: zero legible telemetry pixels under the RAW fade (third round); 1.18M blank px across the three panes, 57% of the viewport; the four provenance/fee copy defects byte-identical in the served HTML.
+
+Fixes: give the Code pane the instruction column its own sentence promises; move `Supply sources`' reason into the panenote.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger--testnet",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger--testnet__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger--testnet/wide/light/L5/1",
+      "severity": "P2",
+      "location": "transaction pane (x1533-1915), RAW (CHAIN-NATIVE) heading y1033-1044 and the pre.raw block beginning y1051, x1541-1908",
+      "finding": "UNCHANGED, AND NOW THE THIRD CONSECUTIVE ROUND AT ZERO LEGIBLE TELEMETRY. Re-measured this round, identical to vd10-r2: the heading paints y1033-1044 (min luminance 86); the pre.raw block starts y1051 and the .panebody mask ramps 236 to 255 across y1051-1074; the pane's own bottom border closes at y1075 (#A2A2A2) with page background #ECECEB from y1076 to y1079. Nothing is clipped — the pane closes inside the viewport and its body is a bounded scroll region — so this stays a presentation finding and not a presence one. What a reader sees at 1920x1080 is a section heading over an empty faded box: the only ink beneath the heading is a partial glyph at x1558-1561, y1068-1072, minimum luminance 196 against a ~250 field. `effectsMatched: 23` and `effectsMismatched: 0` are in the served document (confirmed in client/dist/aztec-testnet/tx/0x0858d6.../debug/index.html) and are the evidence this replay reproduced the chain's own effects — the single strongest claim this view exists to make — and they are the only content on the page a still cannot reach at all. The instruction count survives only because 345 is repeated in the identity bar readout at x1221-1296. Q11 in reviews/QUEUED-DECISIONS.md holds the treatment options; the finding is re-filed because it is unresolved, not because it is unknown.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/2",
+      "severity": "P2",
+      "location": "Code pane (x4-916, content ink y124-304, empty y310-1074), Call Trace (x921-1528, ink y117-151, empty y160-660), Values (x921-1528, ink y718-751, empty y760-1068)",
+      "finding": "UNCHANGED FROM vd10-r1/r2, RE-MEASURED AND RESTATED AS A REGISTER FINDING RATHER THAN A DENSITY ONE. An ink scan at luminance threshold 230 returns ZERO marks in all three regions named above: 695k px in the Code pane, 299k in Call Trace, 184k in Values — 1.18M px, 57% of a 1920x1080 viewport, with nothing in it. What does occupy the three panes is explanatory prose set to `--bt-measure-prose` (the Code paragraph runs x21-597, 576px, in a 912px pane) in the body face at body leading, plus one ghost button. That is the explorer register's copy composition placed inside debugger chrome. The chrome itself is correct — identity bar, uppercase .panetitle headers, monospace values in the transaction pane — which is why this is P2 and not the P1 register error the expectation defines; but a CodeTracer desktop user given this frame has no pane vocabulary to recognise. The copy at y124-194 asserts 'every step is a program counter' and 'Stepping is complete', and no program counter is rendered anywhere in the pane that says it: the only positional evidence on the page is `128 / 345` at x1221-1296, 900px away in a different region. Re-affirmed alongside it: the source-less copy is honest and non-apologetic, each pane naming the Aztec contract class as the source of the limit and blaming no recorder, so the fix ADDS information rather than softening it — give the Code pane the instruction column its own sentence promises.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/3",
+      "severity": "P2",
+      "location": "transaction pane, Data row provenance paragraph, line 4 (x1541-1900, y283)",
+      "finding": "UNCHANGED from vd10-r1 and vd10-r2; string confirmed still present in the served HTML this round. `THIS CHAIN IS PUBLISHED AS A CURATED WINDOW.` is set in full capitals in the middle of otherwise sentence-case prose — the same defect family as the shouted `WERE` found elsewhere in the product. It reads as a legal disclaimer bolted into the one paragraph asking to be believed, and shouting a caveat undercuts the affirmative `Real Aztec testnet data` badge (x1735-1908, y178-198) 95px above it. In this register the pane row is the only provenance marker there is — no nav, no footer, no band — so the paragraph's voice is carrying the whole claim on its own."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/4",
+      "severity": "P2",
+      "location": "transaction pane, provenance paragraph (x1600-1745, y414)",
+      "finding": "UNCHANGED from vd10-r1 and vd10-r2; `transaction(s)` confirmed still in the served HTML. `32 transaction(s)` leaves a pluralisation placeholder in the page's provenance copy. The same paragraph pluralises correctly by hand two lines up ('All 6 of them were re-executed') and two lines down ('25 had already been pruned'), so the artifact is visibly inconsistent with its own neighbours and marks the sentence as machine-assembled at exactly the point the reader is deciding whether to trust it."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/5",
+      "severity": "P2",
+      "location": "transaction pane, provenance paragraph (x1541-1735, y501) and COST · TRANSACTION FEE unit line (x1810-1910, y771)",
+      "finding": "UNCHANGED from vd10-r1 and vd10-r2, filed together as one machine-vocabulary defect with two sites; both strings confirmed still in the served HTML. `1 carried another outcome (not-attempted).` surfaces a raw enum value, hyphen and all, in running prose whose neighbouring sentences say 'pruned' and 're-executed' in English; it also explains nothing, handing the reader an identifier in place of the outcome. `mana (FeeJuice)` compresses a gas unit and an asset name into one unit string, with the asset in its camel-cased machine spelling rather than the two words the chain writes ('Fee Juice'). This is the only surface in the set that publishes a real transactionFee, so it is the only place the unit vocabulary can be judged. Reporting the Watch-for alongside it: the fee does NOT arrive as raw 32-byte hex here and does NOT wrap or break the grid — it renders as a single-line 19-digit decimal `1755555891986239551` right-aligned at y745-760 with the unit on its own line beneath. The anticipated wrapping failure is absent; the vocabulary failure is what remains.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/6",
+      "severity": "P3",
+      "location": "Code pane, `Supply sources` (x13-119, y287-309) and the panenote at x21-290, y240",
+      "finding": "MERGES AND DOWNGRADES vd10-r2's L5/4 (P2) and L5/5 (P3); the P2 half is WITHDRAWN. The false clause is gone: the title now reads 'BlockTracer cannot accept supplied sources yet. Stepping continues at instruction level in the meantime.' — it names no mechanism, it is spoken about the product's capability rather than its delivery pipeline, and it is true on the plain build and on the hydrated one alike. What survives is smaller and is about delivery, not truth. (a) The whole justification still lives in a `title`, so on BOTH builds — the plain one photographed here and the deployed one, whose hydration bundle rewrites titles only on .copyable/[data-copy] elements, of which this button is not one — a reader who does not hover sees one grey pill and no reason. (b) Of the two sentences the hover does yield, the second restates the panenote rendered 47px above the button at y240 ('Stepping continues at instruction level.') almost verbatim, so half the tooltip's payload is copy already read. (c) Now that the treatment is unified, one visual state carries two different meanings on this page: the eight chips are inert 'until the replay engine loads' (seconds, on the deployed build) and this one is inert because the capability does not exist (indefinitely). Do not fix that with a second tone — the round-5 evidence forbids it — fix it by promoting the reason to visible text in the panenote."
+    },
+    {
+      "id": "debugger--testnet/wide/light/L5/7",
+      "severity": "P3",
+      "location": "identity bar, status phrase `Engine loading — 18 MB` at x1052-1207, y26-38, beside the phase rail at x1322-1566, y20-42 and the scrubber at x775-1034",
+      "finding": "BUILD-SCOPED, AND FILED SO THE LEDGER CARRIES THE SCOPE RATHER THAN BECAUSE THE PRODUCT SHOULD CHANGE. This is the one sentence left on the page that names a build-dependent mechanism: the replay-engine wasm fetch. `demo_session.nim:328` emits it whenever the session is positioned but not live, and on the DEPLOYED build (flake.nix, -d:hydrationBundle=/assets/hydrate.js) it is true — the bundle does fetch 18 MB, the rail's FETCHING chip is genuinely in progress, and the eight chips whose titles read 'inert until the replay engine loads' do become live. On the PLAIN build photographed here (client/dist, whose only <script> is the application/json #bt-session-source block) no engine is loading and none ever will, so the status phrase, the FETCHING chip and the scrubber filled to 36% (#155E75 x775-867 on a #919191 track to x1034) all describe a process that does not exist in this artefact. That is the same class of sentence as the `Supply sources` title just corrected, pointing the other way: correct on the build that matters, false only on the one the campaign measures. B8 asks for named phases and a quantified announcement and this delivers both, so no change is requested on the deployed build; the note exists so a later reviewer grading this still does not read the frozen rail as an engine-failure state and file it as the forbidden banner."
+    }
+  ]
+}
+```
