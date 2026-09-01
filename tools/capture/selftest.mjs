@@ -121,12 +121,48 @@ async function main() {
       return { n, code: r.code, out: r.out };
     };
 
+    // THE TWO SLUGS ARE DERIVED, NEVER SPELLED.
+    //
+    // This arm used to rewrite `/aztec/…` to `/demo/…` by name, and it went on
+    // reporting "a chain rename is caught: false" long after the detector it
+    // grades had stopped being at fault. Two things moved underneath the
+    // literal: the corpus's chain-scoped views resolve through `demo` now, and
+    // the one ready view still on the real chain is the chain overview, whose
+    // route is `/aztec` exactly — which does not start with `/aztec/`. So the
+    // rewrite matched nothing, `renamed.n` fell to 0, and the arm graded a
+    // mutation it had not made. A mutation arm that mutates nothing is not a
+    // failing arm, it is an ABSENT one, and the only thing separating the two
+    // in the output was the image count nobody was reading.
+    //
+    // The source slug is whichever chain the corpus actually holds most images
+    // of, and the target is any OTHER chain this dist publishes. The target has
+    // to be a published one: F names a corpus captured from a chain the dist
+    // does not serve as the WRONG TREE and declines to compare subjects at all,
+    // so a made-up slug here would grade that guard instead of the drift
+    // detector.
+    const publishedChains = Object.keys(
+      JSON.parse(
+        await readFile(join(REPO_ROOT, "client", "dist", "registry", "chains.v1.json"), "utf8"),
+      ).chains ?? {},
+    );
+    const perChain = new Map();
+    for (const i of baseManifest.images ?? []) {
+      if (i && i.ok === true && typeof i.url === "string" && i.chain) {
+        perChain.set(i.chain, (perChain.get(i.chain) ?? 0) + 1);
+      }
+    }
+    const movedFrom = [...perChain.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    const movedTo = publishedChains.find((c) => c !== movedFrom) ?? null;
+
     const renamed = await doctor((m) => {
+      if (!movedFrom || !movedTo) return 0;
       let n = 0;
       for (const i of m.images ?? []) {
-        if (i.ok && typeof i.url === "string" && i.url.startsWith("/aztec/")) {
-          i.url = "/demo" + i.url.slice("/aztec".length);
-          i.chain = "demo";
+        if (i.ok && i.chain === movedFrom && typeof i.url === "string") {
+          // `chain` is `chainOfPath(url)`, so equality with `movedFrom` already
+          // establishes that the URL's first segment is that slug.
+          i.url = "/" + movedTo + i.url.slice(1 + movedFrom.length);
+          i.chain = movedTo;
           n++;
         }
       }
@@ -163,7 +199,11 @@ async function main() {
       renameCaught && repointCaught && unrecordedCaught && covAfter.code === 0,
       [
         `the undoctored corpus passes (the base case): ${covAfter.code === 0}`,
-        `a chain rename is caught: ${renameCaught} (${renamed.n} image(s) moved)`,
+        `a chain rename is caught: ${renameCaught} (${renamed.n} image(s) moved` +
+          (movedFrom && movedTo
+            ? `, ${movedFrom} → ${movedTo})`
+            : `; no two published chains to move an image between, so this arm ` +
+              `could not be posed — that is a FAILURE, not a pass)`),
         `a re-pointed subject on the same chain is caught: ${repointCaught} ` +
           `(${repointed.n} image(s))`,
         `an image with no recorded URL is caught: ${unrecordedCaught} ` +
