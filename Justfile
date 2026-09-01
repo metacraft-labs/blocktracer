@@ -175,6 +175,33 @@ review-brief:
 review-check-brief:
     node tools/capture/check-brief.mjs
 
+# verify_corpus_names_the_build_it_photographs (H1) and
+# verify_hydration_adds_no_class_the_page_cannot_draw (H2).
+#
+# The campaign photographs `client/dist` — `just export`, zero JavaScript — and
+# the deployed site is `flake.nix`'s `packages.default`, which exports the same
+# routes with `-d:hydrationBundle`. `debugLayout` emits that script, so every
+# `debugger*` view and `tx-detail--session` are captures of a build no visitor
+# is served. That is a gap in the INSTRUMENT, and until VD.11 nothing a reviewer
+# read said which build was in front of them: one shipped reason string
+# misattributed its own cause to it and one P1 was nearly filed on it.
+#
+# H1 decides the per-view answer from the two built trees and `render-brief.mjs`
+# renders it into every block, so the brief's claim is measured. H2 is the
+# assertion the campaign could not make before: a class the shipped bundle adds
+# and the inlined stylesheet cannot draw is invisible to every capture and every
+# reviewer, which is the affordance-that-lies defect with a build boundary
+# hiding it.
+#
+# NO VERDICT rather than PASS without both trees — `just capture ""` builds them.
+capture-hydration-divergence:
+    node tools/capture/check-hydration-divergence.mjs
+
+# Re-measure and rewrite the committed map. Read the diff: a view moving between
+# arms means a route started or stopped serving a session.
+capture-hydration-divergence-write:
+    node tools/capture/check-hydration-divergence.mjs --write
+
 # Emit the sub-agent prompts for one captured image, e.g.
 #   just review-prompt "--view tx-detail --size wide --theme light --all"
 review-prompt args="":
