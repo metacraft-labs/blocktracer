@@ -15,6 +15,11 @@ mod counter;
 
 use counter::Counter;
 
+struct Acc {
+    total: u32,
+    hits: u32,
+}
+
 // ── recorded: plain reassignment ──────────────────────────────────────────
 // Each statement rebinds `level`, so the trace holds its whole history and
 // stepping backward through this block walks it in reverse.
@@ -41,6 +46,26 @@ unconstrained fn accumulate(values: [u32; 5]) -> u32 {
     total
 }
 
+// ── recorded: assignment INTO a compound, by field and by index ───────────
+// `a.total = …`, `a.hits += 1` and `arr[1] = …` are three distinct kinds of
+// assignment target — a member, a compound member, and an index — and the
+// recorder captures all three, holding the whole struct and the whole array at
+// every step. They are here because the language HAS them, not because anybody
+// remembered them: `tools/noir-coverage.mjs` enumerates the compiler's own
+// `LValue` variants and reported these as neither demonstrated nor explained.
+unconstrained fn tally(n: u32) -> u32 {
+    let mut a = Acc { total: 0, hits: 0 };
+    for i in 0..n {
+        a.total = a.total + i;
+        a.hits += 1;
+    }
+    let mut arr: [u32; 3] = [0, 0, 0];
+    arr[1] = a.total;
+    arr[2] = a.hits;
+    assert_eq(arr[1], a.total);
+    arr[1] + arr[2]
+}
+
 // ── recorded: a compound value whose FIELD moves ──────────────────────────
 // The methods return a new `Counter` rather than writing through `&mut self`,
 // so each step rebinds the whole struct and the recording holds the field's
@@ -56,17 +81,28 @@ unconstrained fn run_counter(start: u32) -> Counter {
     c
 }
 
-// ── NOT recorded: a write through a mutable reference ─────────────────────
+// ── a write through a mutable reference — KNOWN FAILURE, defect NR-04 ─────
 //
-// This is correct Noir and the circuit executes it correctly — `main` asserts
-// the result below and the assertion holds. What the RECORDER does not do is
-// capture it: inside this frame `slot` is written as a reference whose
-// dereferenced value is absent, and in the caller the bound value never moves.
+// WHAT SHOULD HAPPEN: `bump` is called three times, so the recording should
+// show `slot` taking 5, 12, 19 and 26 in `main`, and `*slot` should have a
+// value inside this frame.
 //
-// It is here, and it is here last and alone, because a tour of what a debugger
-// can show is worth more if it also shows where the recording stops. A reader
-// who sees `slot` frozen at its initial value should know that is the tracer
-// and not the program.
+// What happens instead: `slot` is recorded once, as 5, and never again, and
+// inside `bump` the reference records with no dereferenced value at all. The
+// circuit is correct — `main` asserts the result below and the assertion holds —
+// so every one of the three writes happened. Only the recording is missing them.
+//
+// The defect is UPSTREAM Noir's, not ours: its debug instrumenter emits a
+// literal `0` where the assignment oracle should go, the stub it would have
+// called is named `__debug_dereference_assign` while the debugger dispatches on
+// `__debug_deref_assign`, and the handler behind that is `unimplemented!()`.
+// See `docs/NOIR-RECORDER-DEFECTS.md` NR-04.
+//
+// This is stated as what SHOULD happen rather than as an assertion that the
+// value stays frozen, and that is deliberate: a corpus asserting the broken
+// behaviour would teach the next reader that absence is correct, and would go
+// red the day somebody fixed it. `check-corpus.sh` carries the entry and fails
+// LOUDLY the moment `slot` reaches 26.
 unconstrained fn bump(slot: &mut u32, by: u32) {
     *slot = *slot + by;
 }
@@ -74,6 +110,7 @@ unconstrained fn bump(slot: &mut u32, by: u32) {
 unconstrained fn main(start: u32, step: pub u32) -> pub u32 {
     let level = ramp(start, step);
     let acc = accumulate([1, 2, 3, 4, 5]);
+    let t = tally(4);
     let c = run_counter(start);
 
     // The one unrecorded form, exercised three times.
@@ -89,6 +126,7 @@ unconstrained fn main(start: u32, step: pub u32) -> pub u32 {
     assert(acc == 10);
     assert(c.value == 1);
     assert(c.ticks == 4);
+    assert_eq(t, 10);
 
-    level + acc + c.value + slot
+    level + acc + c.value + slot + t
 }

@@ -73,6 +73,38 @@ layout-vendor:
     ci/test/flow-layout-vendor.sh --require
     ci/test/flow-layout-vendor-test.sh
 
+# ── The Noir corpus (fixtures/trace/tour) ───────────────────────────────────
+# Two sets: `programs` are recordable and are the capability tour the demo chain
+# publishes; `toolchainPrograms` exercise the toolchain and cannot produce a
+# servable recording. See fixtures/trace/tour/README.md.
+
+# Both sets, checked against what the toolchain actually does — including the
+# KNOWN FAILURES, which report loudly when they start passing rather than
+# asserting that a broken thing stays broken.
+corpus-check args="":
+    fixtures/trace/tour/check-corpus.sh {{args}}
+
+# Proof that the known-failure mechanism decides in BOTH directions: an entry
+# that stops holding must FAIL the run, the same observation without the flag
+# must PASS, and the real corpus must pass so neither arm is vacuous.
+corpus-selftest:
+    fixtures/trace/tour/check-corpus.sh --selftest
+
+# Re-record every container. DELIBERATELY, not on every build: `nargo trace` is
+# not byte-deterministic. Pass an id to re-record one.
+corpus-record args="":
+    fixtures/trace/tour/record.sh {{args}}
+
+# The tour's coverage of the Noir LANGUAGE, enumerated from the compiler's own
+# AST enums rather than from a sample of programs. Every form is either
+# demonstrated or carries an explicit reason; a form with neither fails.
+corpus-coverage:
+    node tools/noir-coverage.mjs
+
+# Regenerate docs/NOIR-COVERAGE.md from the same source of truth.
+corpus-coverage-doc:
+    node tools/noir-coverage.mjs --markdown
+
 # Generate a demo static tree into ./demo-site.
 demo-gen out="demo-site" seed="blocktracer-demo-0":
     nim c -r --hints:off src/blocktracer_demo_gen.nim --out:{{out}} --seed:{{seed}}

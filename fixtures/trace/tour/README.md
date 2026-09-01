@@ -1,7 +1,9 @@
-# The capability tour — eight Noir programs and eight real recordings
+# The Noir corpus — the capability tour, and the toolchain set beside it
 
-Each directory here is one small Noir package and the CTFS container `nargo
-trace` recorded from it. `manifest.json` beside them says what each one
+Each directory here is one small Noir package. Nine of them carry the CTFS
+container `nargo trace` recorded from them and make up the **capability tour**;
+five more, under `toolchain/`, cannot produce a recording and are tests all the
+same. `manifest.json` beside them says what each one
 demonstrates and what its recording must contain.
 
 This corpus replaces the arrangement where the `demo` chain served the single
@@ -25,16 +27,56 @@ It has three consumers and one reason to stay correct.
    corpus of real recordings exists to remove.
 3. **Desktop CodeTracer's GUI.** The same containers open there.
 
+## Two sets, and why the split matters
+
+`manifest.json` carries **two** lists, and a consumer selects one:
+
+| set | key | what it is |
+|---|---|---|
+| **recordable** | `programs` | produces a recording BlockTracer publishes and serves. This is the capability tour, and it is the set the E2E layer selects. |
+| **toolchain** | `toolchainPrograms` | exercises the Noir toolchain and **cannot** produce a servable recording — it fails to compile, or the recorder cannot represent it. Still tests, and still the reason the tour is written the way it is. |
+
+Three of the toolchain programs pin **language rules** the tour had to work
+around (`Field` has no `Ord`; a signed integer cannot be cast straight to
+`Field`; a format string interpolates bindings, not expressions). Two pin
+**recorder gaps that are ours to close**, and each names the defect that owns it
+in [`docs/NOIR-RECORDER-DEFECTS.md`](../../../docs/NOIR-RECORDER-DEFECTS.md).
+
+Note `constraints` is deliberately in the RECORDABLE set: a constraint failure
+at run time produces a real recording that stops at the assertion, which is the
+case a zero-knowledge debugger exists for. Only programs that cannot produce a
+servable recording at all belong in the other set.
+
 ## Layout
 
 ```
-manifest.json              what each program demonstrates, and what its recording must contain
+manifest.json              the two sets: what each program demonstrates, and what its recording must contain
 record.sh                  re-record every container, from a pinned workdir
+check-corpus.sh            both sets, checked against what the toolchain actually does (+ --selftest)
 <id>/<package>.ct          the recording — VENDORED, see below
 <id>/sources/              the package: Nargo.toml, Prover.toml, src/**.nr
+toolchain/<id>/sources/    the non-recordable set — no container, by definition
 ```
 
-## The programs
+## Known failures — never assert the broken behaviour
+
+Where the recorder does something wrong, the corpus states what SHOULD happen
+and marks it a **known failure** attributed to its defect id. It does not assert
+the wrong behaviour: a test asserting "the `&mut` write is not recorded" would
+teach the next reader that absence is correct, and would go red the day somebody
+fixed it.
+
+`check-corpus.sh` decides in **both directions** — the same rule
+`tools/journeys/run.mjs` states for the journeys ledger:
+
+* still failing → `KNOWN-FAILURE`, reported in full, does **not** fail the run;
+* **starts passing** → `NOW PASSING`, and the run **fails**, naming the defect
+  and telling you to move the program into the tour and delete the entry.
+
+`check-corpus.sh --selftest` proves both arms decide, plus a base case so
+neither is vacuous. (The journeys ledger has no such arm; this one does.)
+
+## The recordable set — the tour
 
 | id | demonstrates | steps | calls | events |
 |---|---|---|---|---|

@@ -1,0 +1,6 @@
+[package]
+name = "toolchain_fmtstr_field_access"
+type = "bin"
+authors = ["BlockTracer capability tour — toolchain set"]
+
+[dependencies]

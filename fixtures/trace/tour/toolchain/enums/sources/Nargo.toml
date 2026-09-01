@@ -1,0 +1,6 @@
+[package]
+name = "toolchain_enums"
+type = "bin"
+authors = ["BlockTracer capability tour — toolchain set"]
+
+[dependencies]
