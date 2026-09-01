@@ -11,7 +11,17 @@
   "rollupVersion": 1821665230,
   "rollupAddress": "0xd73a91bdcf6891c7642f3e460036e1ef2cc23178",
   "tool": "tools/chain/capture-chain.mjs",
-  "runtimeCommit": "505cb11117c6560ba060f6e9ca1c5e0e1b18d6b3"
+  "runtimeCommit": "505cb11117c6560ba060f6e9ca1c5e0e1b18d6b3",
+  "frozen": true,
+  "frozenAt": "2026-09-01T04:50:32.529Z",
+  "completeBlocks": [
+   63675,
+   63671,
+   63670,
+   63664,
+   63653,
+   63642
+  ]
  },
  "window": {
   "tip": 63678,

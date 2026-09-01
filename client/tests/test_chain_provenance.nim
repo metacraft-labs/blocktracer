@@ -1729,3 +1729,79 @@ suite "10 — a real recording's step count is its own, not the fixture's":
 
   test "assertion count":
     expectCount(21)
+
+# ── 11 — A FROZEN CAPTURE SPEAKS IN THE PAST TENSE ───────────────────────────
+#
+# The demo's chain snapshots are captured ONCE and then frozen: 2-3 complete
+# blocks per network, and no ongoing watch. The wording that shipped while the
+# watch was running says the capture "was last extended" at a moment and gives a
+# window "when it was last looked at" — both true only while something might
+# extend it again. Once the capture is finished those phrases quietly mislead:
+# they date the page to a last look that will never happen and invite a reader
+# to expect a newer window than the one in front of them.
+#
+# The frozen arm therefore states what was captured and when, and it NAMES the
+# blocks it claims are whole — which is a universal statement over each block's
+# contents, so `tools/chain/freeze-snapshot.mjs` re-reads them from the chain
+# before it will write the flag. This suite grades the sentence; that tool's own
+# selftest grades the refusals behind it.
+suite "11 — a frozen capture states what was captured, in the past tense":
+  asserted = 0
+  let frozenBody = renderRoute(root, "/" & RealChain).body
+  let frozenProv = snap{"provenance"}
+
+  test "the committed testnet capture IS frozen, so this suite is not vacuous":
+    # A skip here would make every assertion below pass over a snapshot that
+    # never reached the frozen arm at all.
+    ck frozenProv{"frozen"}.getBool
+    ck frozenProv{"completeBlocks"}.kind == JArray
+    ck frozenProv["completeBlocks"].len >= 2
+
+  test "the page says the capture is complete and not being extended":
+    ck "This capture is complete and is not being extended" in frozenBody
+
+  test "and it names every block it claims was taken whole":
+    # One assertion over the whole set, not one per member: the number of
+    # complete blocks is data and would silently change this suite's count.
+    var allNamed = true
+    for b in frozenProv["completeBlocks"]:
+      if ($b.getInt) notin frozenBody: allNamed = false
+    ck allNamed
+    ck "were taken WHOLE" in frozenBody
+
+  test "the ongoing-watch phrasing is GONE from a frozen chain":
+    # The mutation arm's target. These are the two phrases that were true of a
+    # running watch and are wrong once it has stopped.
+    ck "was last extended" notin frozenBody
+    ck "when it was last looked at" notin frozenBody
+
+  test "MUTATION BITE: the same snapshot without `frozen` reverts to watch tense":
+    # The identical capture, ingested with the flag removed, must produce the
+    # OTHER wording — which proves the frozen arm is what the assertions above
+    # are measuring, and not something true of this snapshot either way.
+    let mutDir = workDir / "unfrozen-capture"
+    removeDir(mutDir)
+    createDir(mutDir)
+    var mutSnap = parseJson(readFile(snapshotDir / "snapshot.json"))
+    mutSnap["provenance"].delete("frozen")
+    # A watched snapshot is one with two distinct ends; give it the pair so the
+    # comparison is against the watch arm rather than the single-moment arm.
+    mutSnap["provenance"]["firstCapturedAt"] = %"2026-08-30T00:00:00.000Z"
+    writeFile(mutDir / "snapshot.json", $mutSnap)
+    createDir(mutDir / "ct")
+    for kind, path in walkDir(snapshotDir / "ct"):
+      if kind == pcFile: copyFile(path, mutDir / "ct" / path.extractFilename)
+    let mutOut = workDir / "unfrozen-out"
+    removeDir(mutOut)
+    createDir(mutOut)
+    discard generate(DemoConfig(outDir: mutOut, seed: "chain-prov-unfrozen",
+                                traceFixturePath: fixture,
+                                traceSourcesDir: fixtureSources))
+    let mutIng = ingestSnapshot(IngestConfig(outDir: mutOut, snapshotDir: mutDir))
+    let mutBody = renderRoute(newDataRoot(mutOut), "/" & mutIng.chain).body
+    ck "was last extended" in mutBody
+    ck "This capture is complete and is not being extended" notin mutBody
+    ck "were taken WHOLE" notin mutBody
+
+  test "assertion count":
+    expectCount(11)

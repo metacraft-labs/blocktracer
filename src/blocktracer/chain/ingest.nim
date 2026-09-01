@@ -797,8 +797,40 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # snapshot rather than equal to `capturedAt`, so this cannot misclassify a scan.
   let firstAt = prov{"firstCapturedAt"}.getStr
   let lastAt = prov{"capturedAt"}.getStr
+  # A FROZEN CAPTURE IS FINISHED, AND SAYS SO IN THE PAST TENSE. The two arms below both
+  # describe a capture that is still going: "was last extended" and "when it was last
+  # looked at" are true only while something might extend it again. Once the demo's target
+  # is met the snapshot stops changing, and those phrases become quietly wrong — they
+  # invite a reader to expect a newer window than the one on the page, and they date the
+  # capture to a "last look" that will never happen again.
+  #
+  # `frozen` is written by `tools/chain/freeze-snapshot.mjs` only after every complete
+  # block has been verified against the chain, so this arm cannot be reached by a snapshot
+  # that merely stopped being written to.
+  var completeNums: seq[int] = @[]
+  if prov{"completeBlocks"} != nil and prov["completeBlocks"].kind == JArray:
+    for b in prov["completeBlocks"]: completeNums.add b.getInt
+  let blockList =
+    if completeNums.len == 1: "block " & $completeNums[0]
+    elif completeNums.len == 2: "blocks " & $completeNums[0] & " and " & $completeNums[1]
+    else:
+      var parts: seq[string] = @[]
+      for i, n in completeNums:
+        if i == completeNums.high: parts.add "and " & $n
+        else: parts.add $n
+      "blocks " & parts.join(", ")
   let captured =
-    if firstAt.len > 0 and firstAt != lastAt:
+    if prov{"frozen"}.getBool and completeNums.len > 0:
+      "Captured from " & endpointHost &
+      (if firstAt.len > 0 and firstAt != lastAt: " between " & firstAt & " and " & lastAt
+       else: " at " & lastAt) &
+      " (node " & prov["nodeVersion"].getStr & "). This capture is complete and is not " &
+      "being extended: " & blockList & " were taken WHOLE — every transaction the chain " &
+      "published in " & (if completeNums.len == 1: "it" else: "them") &
+      " was re-executed and its trace is published here. The replay window was blocks " &
+      $replFrom & "–" & $tipAt & " (" & $win["blocks"].getInt &
+      " blocks) when the last of them was taken. "
+    elif firstAt.len > 0 and firstAt != lastAt:
       "Captured from " & endpointHost & " over a watch that began " & firstAt &
       " and was last extended " & lastAt & " (node " & prov["nodeVersion"].getStr &
       "). The replay window was blocks " & $replFrom & "–" & $tipAt & " (" &
