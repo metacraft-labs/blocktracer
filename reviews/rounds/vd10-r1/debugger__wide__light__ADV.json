@@ -1,0 +1,26 @@
+Expected elements: present
+
+Every must-show item is on the screen and no must-not-show item is: the tabbed Call Trace / Event Log region with Call Trace open and seven frames, Values as a pane below the strip rather than a third tab, both stepping directions in the bar, the scrubber, the position readout, the phase rail, the current line unmistakable at line 32, and the DATA provenance row as the transaction pane's first labelled row with its toned badge and the producer's sentences.
+
+The weakest element is the amber "Partial" badge — identity bar x202-261 y20-42, repeated in the transaction pane at x1542-1601 y99-121 — sitting directly above "Status reason: private-part-succeeded-public-part-succeeded" at x1542-1900 y150-188. That badge is the transaction's execution outcome, printed by the same outcome label the explorer's transaction page uses, not a trace-coverage note. So the page asserts a warning-toned partial outcome and then prints, as the reason for that outcome, a sentence saying both halves succeeded. One of the two is false and nothing on the page lets a reader tell which. On a product whose stated commitment is that it never presents one state as another, a self-contradicting status outranks every density problem here — including the 348px (58%) of the Call Trace region that sits empty below "By call order.", which I would otherwise have named. Fix the badge or the reason; do not ship both.
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "ADV",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": null,
+  "findings": [
+    {
+      "id": "debugger/wide/light/ADV/1",
+      "severity": "P1",
+      "location": "transaction pane identity block, amber \"Partial\" badge at x1542-1601 y99-121, directly above the status-reason lines at x1542-1900 y150-188; the same badge repeats in the identity bar at x202-261 y20-42",
+      "finding": "The page states two incompatible things about one transaction, three lines apart. The badge is the execution-outcome marker (the same outcome label the explorer transaction page prints in the same slot beside the hash), rendered in the warn tone: border #ea580c, text #9a3412. The sentence it introduces is \"Status reason: private-part-succeeded-public-part-succeeded\" - both halves of the transaction succeeded. A wholly successful execution cannot carry a partial outcome, and a partial outcome cannot have \"everything succeeded\" as its reason; one of the two statements is wrong and the page offers no way to tell which. Neither instance of the badge is labelled, so the benign reading - that \"Partial\" describes trace coverage rather than outcome - is not available to the reader and is not what the badge means. This is broken information rather than broken presentation: a state presented as a different state, on the pane whose whole job on this route is to tell the reader what the data is. Either correct the outcome the fixture asserts, or, if the outcome is genuinely partial, make the reason say what was partial about it."
+    }
+  ]
+}
+```

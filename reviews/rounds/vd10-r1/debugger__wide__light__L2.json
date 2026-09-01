@@ -1,0 +1,98 @@
+Expected elements: present
+
+Structure is sound: 4px page margin, opcode and type columns right-aligning at x1518, Transaction values at x1906, and a determinate 260px scrubber whose 24px fill matches 128/1,315.
+
+Two withdrawals. (1) Last round's gutter finding is FIXED — the row gutter is now 4px (borders y669/674), matching the 4px column gutter (x916/921); one token on both axes. (2) I WITHDRAW my P3 asking for a longer vertical fade. Re-measured: vertical ramp y1046-1072 (26px) against horizontal x866-915 (50px). But line 61 ghosts across a full 23px pitch (alpha 0.79 to 0.23) and the Transaction RAW block's grey background fades with its text (235 to 255 over y1063-1073), so both panes read "more below". The refutation is correct; that was a preference, not a defect. Changes (a)-(c) fall outside L2.
+
+Holding unchanged: the nav column is 47% empty (348px / 58% below "By call order." at y320; 122px / 30% below the last Values row at y952) while Code truncates lines 40 and 53 at the x915 edge; the two overflow-chip rows break the 23px pitch to 43.5px; one depth guide at x936 serves every depth; the DATA hairline (y224) still sits below its label (y200-208).
+
+New: FEE PAYER and TARGET get a 269px value column (x1638-1906) for a hash the pane itself sets on one 353px line at y131, so both wrap, costing 21px each in an overflowing pane.
+
+Fixes: narrow the nav column; move the DATA rule above its label.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L2",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L2/1",
+      "severity": "P2",
+      "location": "navigation column x921-1528: tabbed region (inner y69-668) below the 'By call order.' footer whose last ink is y320, and Values pane (inner y675-1074) below its last row rule at y952",
+      "finding": "Re-measured; holds. The tabbed region is 348px empty (y321-668) = 58.0% of its 600px inner height. Values is 122px empty (y953-1074) = 30.5% of its 400px. Together the column throws away 470px of 1000px, 47%. A row re-split cannot recover it: neither pane wants more height, so the only lever is the COLUMN split, and the horizontal slack confirms it. The widest Call Trace row's label ends at x1353 while the opcode column's leftmost ink is x1484 - 131px of dead width in the best case - and the widest Values row (masses) ends at x1404 with the type column starting at x1472. Meanwhile the Code pane truncates line 40 (ink to x900) and line 53 (x892) against the pane edge at x915, and the Transaction pane is overflowing at its own bottom edge. Take ~100px from the navigation column and give it to Code and Transaction.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L2/2",
+      "severity": "P2",
+      "location": "Code pane, the row after line 26 (line-number bands y199-210 then y243-253) and after line 48 (y730-741 then y774-785)",
+      "finding": "Unchanged from last round. The listing runs a 23px line pitch for 34 of 36 rows (measured centre-to-centre: 22.5-24.0px) and breaks to 43.5px and 44.0px at exactly the two rows where the overflow chips wrap below the code instead of sitting inline. The '+3' chip occupies x844-867, y216-234; its centre y225 is 20.5px from line 26's number centre (y204.5) and 23.0px from line 27's (y248), so proximity assigns it to neither line. The '+2' chip after line 48 repeats it. Screen rows stop corresponding to source lines across those two breaks. Clip the chip to the line box or right-align it inside its own line's row.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L2/3",
+      "severity": "P2",
+      "location": "Call Trace list, guide column x936, rows y151-300",
+      "finding": "Unchanged. Exactly one depth guide is drawn, at x936, and it is drawn at that same x on every non-root row regardless of depth - 16-17px tall on each of rows 2-7. Measured label left edges: x933 (depth 0, 'main'), x954 (depth 1), x970 (depth 2), x986 (depth 3). Depth 2 and depth 3 rows therefore carry indentation alone beside a tick that marks depth 1's channel; the guide means 'not root', not 'this deep'. The ladder is also not one step: 933 to 954 is 21px, then 16px per level thereafter, so the first indent is 5px off the scale the rest of the ladder uses. Draw one guide per ancestor level and make the first step 16px.",
+      "criterion": "B6"
+    },
+    {
+      "id": "debugger/wide/light/L2/4",
+      "severity": "P2",
+      "location": "Transaction pane, DATA row: label ink y200-208 at x1542, badge y197-219 at x1753-1906, hairline at y224, provenance sentences y234-354",
+      "finding": "Unchanged. The row's hairline falls BELOW the DATA label instead of above it, so proximity groups the label with the wrong content. The status-reason line ends at y184 and the DATA label starts at y200 - a 16px gap with no rule crossed; the label ends at y208 and the sentences begin at y234 - a 26px gap that DOES cross a rule. Read against the pane's own rule grid (rules at y94, 224, 363, 393, ...), the identity block and the DATA label share one cell y95-223, and the producer's five sentences sit in an unlabelled cell y225-362. Since the open question is whether this row is too quiet for the claim it makes, having its label visually annexed by the block above it is the layout half of that problem. Move the rule above the DATA label.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/5",
+      "severity": "P2",
+      "location": "Transaction pane, FEE PAYER row (rules y518-569) and TARGET row (y569-620), value column x1638-1906",
+      "finding": "New. Both address rows wrap their 42-character hash onto a second line: FEE PAYER renders x1638-1906 (269px) then x1823-1906 (84px); TARGET is identical. The pane disproves its own constraint twelve rows above - the transaction's own full hash is set on ONE line at y131-142 spanning x1542-1894, i.e. 353px. The value column is 269px because the label column takes x1542-1604 plus a 33px gap, leaving it exactly 84px short of the 353px the same string needs, which is precisely the width of the wrapped remainder. Each wrap costs 21px (51px rows against the 30px plain rows), 42px total, in a pane that is already overflowing its bottom edge and fading content out at y1046. Either let hash rows run full-pane-width with the label above the value, as the DATA and RAW sections already do, or give the column the missing 84px.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/6",
+      "severity": "P3",
+      "location": "identity bar, control block x370-656 and scrubber x673-932",
+      "finding": "Holds, now measured on the button boxes rather than the ink. Four segmented control groups have 1px borders at x370-427, x444-496, x513-576 and x593-656, each split internally by a hairline (x398, x469, x544, x624). The gaps between adjacent groups are 16px, 16px and 16px; the gap from the last group to the scrubber is also 16px, and from the scrubber to 'Engine loading' 16px again. So the space separating two stepping-button groups equals the space separating the whole control block from the scrubber and the scrubber from the status readout - five peers on one rhythm. The bar already owns a 24px group separator and uses it correctly twice (divider x345 to controls, and readout x1212 to phase rail x1237). Apply it around the control block.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/light/L2/7",
+      "severity": "P3",
+      "location": "Code pane, 'Showing from line 26' notice band y165-192, right edge x866-915",
+      "finding": "New. The notice band is inside the horizontally-faded scroll container, so its own background ramps from (221,221,221) at x866 to white at x915 and the band loses its right edge. The three header bands directly above it hold a hard (221,221,221) edge all the way to x915 - CODE title y69-93, LOOP row y95-132, file tabs y134-159 - so this is the one band in the pane that appears clipped. The fade communicates nothing here: the notice text's last ink is x758, 108px clear of where the ramp begins. Exclude the notice from the content mask.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/8",
+      "severity": "P3",
+      "location": "Code pane, file-tab row (Nargo.toml / Prover.toml / src/main.nr / src/shield.nr) y134-159",
+      "finding": "Holds. Four stacked header rows in the same pane use two left edges. The CODE title, the LOOP/iteration row and the 'Showing from line 26' notice all begin their first dark ink at x14, 10px from the pane border at x4; the file-tab row begins at x22, 18px from it. Nothing in the row justifies the extra 8px, and it is the only row in the pane's header stack that does not line up with the three around it. Related: the active tab's underline runs x925-1012 while its 'CALL TRACE' label runs x930-1003, so the underline carries 5px of lead-in and 9px of trail.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/9",
+      "severity": "P3",
+      "location": "Transaction pane metadata rows AGE, CANONICAL and FINALITY (rules at y423, 455, 487, 518)",
+      "finding": "Holds. Rows whose value is a pill are taller than rows whose value is plain text. Rule-to-rule: BLOCK 30px (y363-393), TYPE 30px (y393-423), COST-MANA 30px (y620-650); against AGE 32px (y423-455), CANONICAL 32px (y455-487), FINALITY 31px (y487-518). Because the three pill rows are consecutive, the drift accumulates to 5px by the FINALITY rule and the label baselines in that stretch fall off the 30px pitch the rest of the column keeps. Set a min-height on the row instead of letting the pill size it.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L2/10",
+      "severity": "P3",
+      "location": "pane header rules: Code pane y94, Transaction pane y94, Call Trace tab strip y95",
+      "finding": "New. The three top-row pane headers do not rule off on the same line. The Code and Transaction header bands run y69-93 with their (200,200,200) rule at y94; the tab strip runs y69-94 with its rule at y95, because the active tab's 2px underline occupies y93-94 and pushes the rule down one pixel. The result is a 1px step in what should be one continuous horizontal line across 1912px of viewport. Give the tab strip the same 25px band and let the underline sit on the rule.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

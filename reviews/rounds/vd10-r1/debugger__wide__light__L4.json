@@ -1,0 +1,73 @@
+Expected elements: present
+
+Dense and legible; the numeric formatting got fixed, the geometry did not.
+
+(a) Landed. Line 32's arm glyph takes position ink (22,78,99), CR 7.30 on the highlighted band; line 29's stays neutral (72,72,72). But the two differ by 4.4 in luminance, so at 8px the distinction is hue alone.
+(b) Inert at wide. "COST · MANA" occupies x1542-1620 on one line with 71px clear before its value at x1691; the label cannot wrap at this width, so the change is unobservable in this image.
+(c) Landed. The bar reads "128 / 1,315", matching the Call Trace. I withdraw the COST·MANA half of last round's L4/5 — the grouped/ungrouped split is now rule-governed and coherent.
+(d) Judged as found. Ramps are 15px (Code y1052-1066, ink 83→204) and 14px (Transaction y1049-1062, 36→141) — still one line-height. I downgrade my prior P2 to P3: the measured cost is one 23px row per pane, and the Transaction ramp does reach the pane edge, so last round's "reads as content ended" overstated it.
+
+The standing measurement reproduces on all three counts. Columns 913/608/383 — a fixed 47.8/31.8/20.0% split (laptop 682/453/286, 1.339× on every column). Call Trace 348/600px empty = 58.0%. Values 122/399 = 30.6% at wide against 43/328 = 13.1% at laptop.
+
+Small text passes: the smallest labels are 9px cap-height at 6.7-9.2:1.
+
+Fix: move ~150px from the middle column to the Transaction pane.
+
+Rating: 7/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L4",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 7,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L4/1",
+      "severity": "P2",
+      "location": "middle column x921-1528 (Call Trace y63-669, Values y674-1075) against the Transaction pane x1533-1915",
+      "finding": "Re-measured and unchanged. The three columns are 913/608/383px, a fixed 47.8/31.8/20.0% split of the 1911px content width: the laptop capture is 682/453/286, exactly 1.339x on every column, so no pane loses width first at 1440 - all three shed 25% while one of them is already clipping. The middle column is the only one with surplus in both dimensions. Vertically, 470px of its 1007px interior is empty (Call Trace 348/600px = 58.0%, 60.7% of the 573px below the tab strip; Values 122/399px = 30.6%). Horizontally, its widest Call Trace row ends at x1354 and the opcode column starts at x1506 - a 152px dead band on every frame row - and its widest Values row ('masses') has a 157px gap between the label ending x975 and the array bracket at x1132. Beside it the 383px Transaction pane wraps both 42-character hashes onto two lines with 10 characters orphaned (FEE PAYER y526-559, TARGET y577-610), sets its prose at 48 characters, and fades JSON off its bottom edge. Transferring ~150px takes the hash value column from 240px to 330px (32 to 44 mono characters, so both hashes fit one line, saving 48px) and the prose measure from 48 to ~66 characters, collapsing the DATA, EXECUTIONS and RAW notes and the Status reason from 16 lines to ~11 - roughly 166px recovered inside a pane that is currently clipping, taken from a column where no row loses a character.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L4/2",
+      "severity": "P2",
+      "location": "Transaction pane, RAW (CHAIN-NATIVE) heading y991-1002 and its toned block y1009-1074",
+      "finding": "The block is 66px of pane body, 90px with its heading - 9.0% of the 1006px pane interior - and it renders exactly two tokens: '{' at y1026-1039 and '\"aztec\": {' at y1049-1062, the second half-faded. An opening brace and one key name, zero values. By height-per-datum this is the most expensive block on the page, and it sits in the one pane that is short of height. The heading also carries no line or byte count, so a reader cannot tell whether two lines or two hundred are below the fade; this product quantifies elsewhere in the same viewport ('Engine loading - 18 MB', 'No timestamp published', '[Field; 8]'). Either give the block enough height to show a value, or collapse it to a counted one-line affordance.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L4/3",
+      "severity": "P2",
+      "location": "Code pane gutter, x68-90; executable dot measured at line 31 (x78-79, y340-341) against the arm glyph at line 29 (x75-82, y292-298) and line 32 (x75-82, y361-368)",
+      "finding": "The gutter's two signals differ by about 10x in area. The executable-line marker is a 2x3px smudge whose darkest pixel is luminance 104 with immediate neighbours at 164-172 and 244-250, so its effective weight is far below the 4.87:1 its darkest pixel measures; the arm glyph beside it is 8x8px. It appears on roughly 14 of the 36 visible lines and is the gutter's highest-frequency mark, and at 1x it is easy to miss entirely. Separately, change (a) landed - line 32's arm renders in position ink (22,78,99), CR 7.30 on the current-line band, while line 29's is neutral (72,72,72) - but the two inks are 67.6 and 72.0 in luminance, a 4.4 difference, so at 8px the current/non-current arm distinction is carried by hue alone. Give the executable dot a third to half the arm's area, and give the current-line arm a weight or size difference as well as a hue one.",
+      "criterion": "B2"
+    },
+    {
+      "id": "debugger/wide/light/L4/4",
+      "severity": "P3",
+      "location": "Code pane header stack y68-192, above the first code glyph at y197",
+      "finding": "124px of chrome in four stacked bands - CODE title 26px (y68-94), the LOOP/iteration rail 39px (y94-133), the file tab strip 27px (y133-160), the 'Showing from line 26' notice 32px (y160-192) - is 12.3% of the 1006px pane interior and 5.4 code lines at the pane's 23px pitch, in a pane whose last line is fading off the bottom. Reproduces last round's measurement exactly. Only the notice's second clause is new information; the gutter already begins at 26.",
+      "criterion": "B1"
+    },
+    {
+      "id": "debugger/wide/light/L4/5",
+      "severity": "P3",
+      "location": "Code pane last line y1052-1066 and Transaction pane RAW block last line y1049-1062",
+      "finding": "Downgraded from P2 on re-measurement. The fades are unchanged as stated: the Code ramp runs 15px with ink falling from 83 (CR 7.0) at cap-height to 204 (CR 1.6) at baseline, and the Transaction ramp runs 14px from 36 to 141. Both still attenuate exactly one line, which is what I flagged last round. But the density cost is only one 23px row per fading pane, and in the Transaction pane the ramp does continue past the glyphs - the block ground lightens from 236 at y1062 to 254 at y1074, reaching the border - so the 'reads as the content ended' claim I made last round overstated the case. Recording the residual as a nitpick rather than re-filing the refuted fix.",
+      "criterion": "B8"
+    },
+    {
+      "id": "debugger/wide/light/L4/6",
+      "severity": "P3",
+      "location": "Call Trace tabbed region y63-669, tab strip y68-94",
+      "finding": "Tension, not a defect. The region is 601px tall and 348px of it is empty below the 'By call order.' footer ending y320, while the Event Log sits hidden behind the second tab. At this viewport the empty space would hold the Event Log outright, which would show strictly more information - but the expectation block requires Call Trace and Event Log as ONE tabbed region with Call Trace open, so the density win is unavailable by spec. Recording it so the 58.0% emptiness is not read as an unexplored fix.",
+      "criterion": "B4"
+    }
+  ]
+}
+```

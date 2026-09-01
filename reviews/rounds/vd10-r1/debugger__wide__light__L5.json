@@ -1,0 +1,89 @@
+Expected elements: present
+
+Every must-show is on the page: an identity bar with a chain-targeting `← demo` exit (y=31), four dense panes, the Data row as the transaction pane's first labelled row (badge "Synthetic demo data", y=205, with prose that agrees with it), Code with line 32 marked, a seven-frame call trace, CALL TRACE / EVENT LOG as one tab strip with Call Trace open, Values as a pane below it rather than a third tab, bidirectional stepping, and a scrubber whose 25px-of-255px fill (9.8%) matches 128/1,315. Nothing forbidden is present. It reads as a tool.
+
+It does not read as *this* product's tool. The design system's brand accent #4f46e5 occurs in exactly four places on the whole screen, and all four are hyperlinks; every debugger-native state mark uses a cyan or blue the brand does not own. "You are here" is drawn five ways, including a doubled rule under iteration chip 3.
+
+On the changes: (a) landed — the current arm takes the position ink — but the reader meets four gutter states in three inks with no key. (b) landed; COST · MANA holds one line. (c) did not land as an inferable rule: "128 / 1,315" and "88000 / 200000" are the same construction formatted two ways. (d) as found: the fade is one 23px row in the Code pane only; the transaction pane clips at full ink.
+
+Fixes: give the debugger's own state marks the brand accent; unify the current-marker primitive.
+
+Rating: 6/10
+
+```json
+{
+  "view": "debugger",
+  "size": "wide",
+  "theme": "light",
+  "image": "screenshots/debugger__wide__light.png",
+  "reviewer": "L5",
+  "expectedElements": "present",
+  "missing": [],
+  "rating": 6,
+  "findings": [
+    {
+      "id": "debugger/wide/light/L5/1",
+      "severity": "P2",
+      "location": "whole screen; brand accent occurrences at 'demo' (y=20, x=20-80), 'line 4' (y=105-125, x=180-215), 'Self cost' (y=305-325, x=1465-1520), '101:0' (y=370-390, x=1860-1910)",
+      "finding": "A scan for the design system's brand accent #4f46e5 (colors.brand.600, per client/tests/test_static_export.nim:40) finds it in exactly four clusters on the 1920x1080 frame, and all four are hyperlinks - the explorer register's primitive. Not one debugger-native mark carries it: the current code line, its gutter arm and left rail are #164e63, the selected call-trace frame is #a5f3fc, the scrubber fill is #155e75, the active phase chip is #1e40af and the Data badge #2563eb. So the debugger's whole identity is carried by two hue families (cyan ~186-194deg, blue ~221-226deg) that are not the product's, while the one hue the product owns (indigo 243deg) is spent only on links. Section 2 names the accent hue family as a primitive shared across both registers; here the register that most needs to look like the same product looks like it only where it links away.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L5/2",
+      "severity": "P2",
+      "location": "iteration chip 3 (x=505-568, y=98-130); CALL TRACE tab (x=930-1005, y=93); src/shield.nr file tab (y~160); code line 32 (y=355-375); call-trace frame row 6 (y=253-275)",
+      "finding": "'This is the one you are on' is drawn five different ways at once. Iteration chip 3 carries TWO stacked rules - a 2px cyan #164e63 at y=120-121 and a 2px black #101010 at y=124-125, separated by 2px of chip fill - which at a glance reads as a rendering fault rather than a marker. The active tab in the navigation column uses a single 2px black rule with square ends; the active file tab uses a black rule with rounded caps; the current code line uses a cyan wash plus a left rail; the selected call-trace frame uses a cyan-200 wash with no rail. Five treatments of one state on one screen means the primitive is not a primitive, and a desktop-app user has five things to learn where the app teaches one.",
+      "criterion": "B5"
+    },
+    {
+      "id": "debugger/wide/light/L5/3",
+      "severity": "P2",
+      "location": "identity bar position readout (y=31, x=1120-1215); COST . MANA row (y=636, x=1680-1830); call-trace ACIR column (y=137, y=162); Values pane (y=713, y=738, y=889)",
+      "finding": "Change (c) did NOT land as a rule a reader can infer. The identity bar's '128 / 1,315' and the fee row's '88000 / 200000' are the same 'A / B' construction rendered with two different grouping policies, and the call trace groups its opcode counts (1,315 at y=137, 1,208 at y=162) while the Values pane leaves 10000, 9000 and 2000 ungrouped. The stated rule is 'copyable figures are not grouped', but nothing on the page marks a figure as copyable, and the counter-example is visible: the ACIR opcode counts are exactly as copyable as the mana figures and they ARE grouped. A reader therefore meets an inconsistency, not a policy - the honesty argument for the rule never reaches them.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L5/4",
+      "severity": "P2",
+      "location": "Code pane gutter, x=72-90, lines 26-33 (y=196-390)",
+      "finding": "Change (a) landed and is withdrawn as a defect: the current line's arm IS painted and IS in the position ink - line 32's glyph measures #164e63 against #1a7b95 for the executable dots on lines 26/27/28/31 - so the earlier claim that no current-position marker is ever painted does not hold for this image. What remains is that the reader meets four gutter states in three inks with no key anywhere on the page: a cyan middot (executable), a grey slashed circle at line 29 (#484848, plus a grey left rail), a dark-cyan dotted circle at line 32, and nothing at all on lines 30 and 33. The two circles are the same ~7px ring differing only by an interior mark. The desktop app teaches this vocabulary through hover and daily use; a static page a visitor arrives at from a shared link offers neither, so the continuity claim is charged here without being cashed.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L5/5",
+      "severity": "P2",
+      "location": "Transaction pane prose blocks: Data (y=234-354), Executions (y=710-779), Raw (y=877-974)",
+      "finding": "Answering the block's own fair question directly: the provenance row is not too QUIET, it is the loudest object in the pane and it is loud in the other register's voice. The three explanatory paragraphs occupy 288px of the pane's ~1005px of height - 29 percent - set in the proportional sans at a 21.6px line pitch across the pane's full width with no measure, against 25px metadata rows in the same pane and 25px mono rows in Values. The debugger register has inherited the explorer's paragraph typography unchanged, so honesty copy reads as marketing copy pasted into a tool. The two prose treatments are not even the same as each other: Data and Raw run at a 21.6px pitch, Executions at 19.5px.",
+      "criterion": "B9"
+    },
+    {
+      "id": "debugger/wide/light/L5/6",
+      "severity": "P2",
+      "location": "Transaction pane, 'Status reason:' line, y=157-180",
+      "finding": "'Status reason: private-part-succeeded-public-part-succeeded' is a raw machine enum presented as a sentence. It is set in the proportional sans, unlike every other machine value on the page (hashes, selectors, the raw JSON, the file tabs) which is mono, and it wraps at an internal hyphen so 'private-part-' ends one line and 'succeeded' begins the next, leaving a reader unable to tell whether the break belongs to the value. It is the only string on the screen that is neither the product's voice nor a formatted value, and it sits three rows above the pane's most carefully written paragraph.",
+      "criterion": "B7"
+    },
+    {
+      "id": "debugger/wide/light/L5/7",
+      "severity": "P2",
+      "location": "identity bar, x=680-1500: scrub track (680-935), 'Engine loading - 18 MB' (947-1110), '128 / 1,315' (1120-1215), phase rail (1237-1490)",
+      "finding": "The bar interleaves two borrowed vocabularies with no boundary between them. Left to right a reader gets a partially-filled determinate track, then the words 'Engine loading - 18 MB', then the position readout, then a three-stage phase rail. The track is in fact a correct trace scrubber (25px fill of a 255px track = 9.8%, matching 128/1,315 = 9.7%), but a determinate bar immediately left of the word 'loading' and immediately right of a media-transport button cluster reads as engine-load progress. Three loading signals bracket the one position signal, and the position readout - the only thing in that run that is about the trace - is the least marked item in it.",
+      "criterion": "B10"
+    },
+    {
+      "id": "debugger/wide/light/L5/8",
+      "severity": "P3",
+      "location": "Code pane last row (line 61, y=1045-1068) vs Transaction pane last row ('\"aztec\": {', y~1056); both panes end at the border at y=1075",
+      "finding": "Judged as found per (d), with a measurement: the fade is real but is a single-row step, not a ramp. Line 61's line-number ink measures #6f6f6f and its body ink #535353, against #565656 and #242424 for every row above it including line 60 - so the entire ramp is one 23px row. The transaction pane, whose last row is cut mid-structure at the same y=1075 border, applies no fade at all: '\"aztec\": {' renders at full #242424. One 'there is more below' condition, two primitives, 600px apart on one screen.",
+      "criterion": "B4"
+    },
+    {
+      "id": "debugger/wide/light/L5/9",
+      "severity": "P3",
+      "location": "Transaction pane, Raw paragraph, y=942-974",
+      "finding": "'...is not something this section can tell; where that is known, it is stated above' switches the voice mid-paragraph from talking about the data ('BlockTracer holds no call data for this transaction') to talking about its own layout. 'This section' and 'above' are positional self-references inside a pane that scrolls, so the sentence can become false without the data changing. The house voice everywhere else on this page - 'No timestamp published', 'Not observable', 'By call order.' - states what is true of the subject, not of the panel.",
+      "criterion": "B9"
+    }
+  ]
+}
+```
