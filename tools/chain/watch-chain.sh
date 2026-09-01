@@ -70,13 +70,16 @@ URL="${URL:-https://aztec.drpc.org}"
 CHAIN="${CHAIN:-aztec}"
 LABEL="${LABEL:-Real Aztec mainnet data}"
 DEADLINE_MIN="${DEADLINE_MIN:-360}"
+# The capture target: stop once the snapshot holds this many COMPLETE blocks (every
+# transaction the chain published in them replayed). 0 = no target, watch continuously.
+UNTIL_COMPLETE="${UNTIL_COMPLETE:-0}"
 INTERVAL_S="${INTERVAL_S:-60}"
 STOP_FILE="${STOP_FILE:-$LOG.stop}"
 
 now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 say() { printf '{"at":"%s",%s}\n' "$(now)" "$1" >> "$LOG"; }
 
-say "\"event\":\"supervisor-start\",\"pid\":$$,\"maxArms\":$MAX_ARMS,\"deadlineMin\":$DEADLINE_MIN,\"stopFile\":\"$STOP_FILE\",\"until\":0"
+say "\"event\":\"supervisor-start\",\"pid\":$$,\"maxArms\":$MAX_ARMS,\"deadlineMin\":$DEADLINE_MIN,\"stopFile\":\"$STOP_FILE\",\"until\":0,\"untilCompleteBlocks\":$UNTIL_COMPLETE"
 
 ARM=0
 while : ; do
@@ -101,6 +104,7 @@ while : ; do
     --runtime "$RUNTIME" \
     --avm "$AVM" --ct-writer "$CTW" --node "$NODE_BIN" \
     --interval "$INTERVAL_S" --deadline-min "$DEADLINE_MIN" --until 0 \
+    --until-complete-blocks "$UNTIL_COMPLETE" \
     --log "$LOG" >> "$LOG.stderr" 2>&1
   rc=$?
 
@@ -113,7 +117,18 @@ while : ; do
     exit 2
   fi
 
-  # rc 0 and rc 1 both mean "that arm finished" — 0 that it caught something, 1 that it did
-  # not. NEITHER ends the watch. See the header.
+  # WITH A TARGET SET, rc 0 MEANS THE TARGET WAS MET. `--until-complete-blocks N` makes the
+  # follower return 0 the moment the snapshot holds N complete blocks, so this is the
+  # capture finishing, not an arm ending — and a capture-once run has a finish line by
+  # design. Without a target (UNTIL_COMPLETE=0) rc 0 is just "this arm caught something",
+  # which is NOT a reason to stop; that conflation is what ended the previous watch two
+  # seconds after its only success.
+  if [ "$UNTIL_COMPLETE" -gt 0 ] && [ "$rc" -eq 0 ]; then
+    say "\"event\":\"supervisor-done\",\"reason\":\"capture-target-met\",\"arms\":$ARM,\"completeBlocksTarget\":$UNTIL_COMPLETE,\"stillWatching\":false"
+    exit 0
+  fi
+
+  # Otherwise rc 0 and rc 1 both mean "that arm finished" — 0 that it caught something, 1
+  # that it did not. NEITHER ends the watch. See the header.
   sleep 5
 done

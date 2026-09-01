@@ -60,6 +60,7 @@ run_sup() {  # run_sup <rc> <max-arms> [stopfile-after-arms]
   RCDIR="$TMP" WT="$TMP/wt" RUNTIME="$TMP" NODE_BIN="$TMP/fakenode" \
     AVM_WASM_PATH="$TMP/a" CT_WRITER_WASM_PATH="$TMP/c" \
     DEADLINE_MIN=1 INTERVAL_S=1 STOP_FILE="$TMP/log.stop" \
+    UNTIL_COMPLETE="${3:-0}" \
     sh "$SUP" "$TMP/log" "$2" >/dev/null 2>&1
 }
 
@@ -124,8 +125,24 @@ ck 'control: it records where the stop file is, so it can be found without this 
    "$(has "$TMP/log" '"stopFile"')"
 
 echo
-if [ "$asserted" -ne 15 ]; then
-  echo "ASSERTION COUNT IS $asserted, EXPECTED 15 — a case was added, removed or skipped."
+echo 'case 6 — a capture target turns rc 0 into a finish line, and ONLY then'
+# The capture is finite: `--until-complete-blocks N` makes the follower return 0 the moment
+# the snapshot holds N complete blocks, so with a target set rc 0 is the capture FINISHING.
+# Without a target it is just "this arm caught something". The same exit code means two
+# different things depending on the target, and conflating them is what ended the previous
+# watch at its moment of success — so both readings are pinned here, against the same rc.
+run_sup 0 5 3
+ck 'control: with a target, rc 0 stops the capture after one arm' \
+   "$([ "$(countOf "$TMP/log" '"event":"supervisor-arm"')" = 1 ] && echo yes || echo no)"
+ck 'control: and names the reason as the target being met, not a bare done' \
+   "$(has "$TMP/log" '"reason":"capture-target-met"')"
+# MUTATION: the identical rc, with NO target. It must re-arm instead of stopping.
+bite 'mutation: the same rc 0 with no target re-arms rather than finishing' \
+     "$(run_sup 0 5 0; [ "$(countOf "$TMP/log" '"event":"supervisor-arm"')" = 5 ] && echo yes || echo no)"
+
+echo
+if [ "$asserted" -ne 18 ]; then
+  echo "ASSERTION COUNT IS $asserted, EXPECTED 18 — a case was added, removed or skipped."
   failed=$((failed + 1))
 else
   echo "assertion count: $asserted (as declared)"

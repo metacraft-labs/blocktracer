@@ -83,6 +83,12 @@
 //     [--deadline-min 480] [--until 1] [--log <file>] [--dry-run]
 //
 //   --until N        stop after N NEW replays land (default 1; 0 = never stop early)
+//   --until-complete-blocks N
+//                    stop once the snapshot holds N COMPLETE blocks — blocks in which
+//                    EVERY transaction the chain published has a reproduced replay. This
+//                    is the capture-once target; `--until` counts transactions, which is
+//                    a different and weaker thing. Counted over the whole snapshot, so
+//                    blocks captured by earlier sessions count toward it.
 //   --deadline-min   stop after this many minutes regardless (default 480 = 8h)
 //   --dry-run        watch and log, never replay and never write the snapshot
 //   --log <file>     append one JSON object per poll. Written even when nothing is caught,
@@ -95,7 +101,8 @@ import { existsSync } from 'node:fs';
 import { appendFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import { replayTransaction, run, preflightToolchain } from './lib/replay.mjs';
+import { replayTransaction, run, preflightToolchain, completeBlockCount, completeBlockNumbers }
+  from './lib/replay.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -116,6 +123,9 @@ const nodeBin = arg('node', process.execPath);
 const intervalS = Number(arg('interval', 60));
 const deadlineMin = Number(arg('deadline-min', 480));
 const until = Number(arg('until', 1));
+// THE DEMO'S ACTUAL BAR: whole blocks that step, not transactions that step. See
+// `completeBlockCount` in lib/replay.mjs for why the two are different targets.
+const untilComplete = Number(arg('until-complete-blocks', 0));
 const logPath = arg('log', '');
 const dryRun = flag('dry-run');
 const backfillCap = Number(arg('backfill-cap', 400));
@@ -237,6 +247,10 @@ async function main() {
   const runtimeCommit = dryRun ? ''
     : (await run('git', ['rev-parse', 'HEAD'], runtime)).out.trim();
 
+  const stopReached = () =>
+    (until > 0 && caught >= until)
+    || (untilComplete > 0 && completeBlockCount(snap) >= untilComplete);
+
   const startedAt = Date.now();
   const deadline = startedAt + deadlineMin * 60_000;
   const seen = new Set(snap.transactions.map((t) => t.txHash));
@@ -246,7 +260,18 @@ async function main() {
 
   log({ event: 'start', chain, url, nodeVersion: nodeInfo.nodeVersion,
         knownTransactions: seen.size, knownBlocks: knownBlocks.size,
-        intervalS, deadlineMin, until, dryRun });
+        intervalS, deadlineMin, until, untilComplete, dryRun,
+        completeBlocks: completeBlockCount(snap),
+        completeBlockNumbers: completeBlockNumbers(snap) });
+
+  // Already there. A watch that would exit on its first predicate check must say so before
+  // it polls, not look like a watch that ran and found nothing.
+  if (stopReached()) {
+    log({ event: 'done', reason: 'target-already-met', caught: 0, polls: 0,
+          completeBlocks: completeBlockCount(snap),
+          completeBlockNumbers: completeBlockNumbers(snap) });
+    return 0;
+  }
 
   while (Date.now() < deadline) {
     polls++;
@@ -288,7 +313,8 @@ async function main() {
     const replayable = candidates.filter((c) => !c.skip);
     log({ event: 'poll', n: polls, tip, finalized, windowBlocks: tip - finalized,
           inWindow: candidates.length, candidates: replayable.length,
-          caught, elapsedMin: Math.round((Date.now() - startedAt) / 60000) });
+          caught, completeBlocks: completeBlockCount(snap),
+          elapsedMin: Math.round((Date.now() - startedAt) / 60000) });
 
     // ── 2. take one, and ASK whether its body is still there ────────────────────────
     for (const c of replayable) {
@@ -360,6 +386,7 @@ async function main() {
                       blocks: tip - finalized };
 
       log({ event: 'replayed', tx: c.txHash, outcome: decided.outcome,
+            completeBlocks: completeBlockCount(snap),
             effects: decided.effects
               ? `${decided.effects.matched}/${decided.effects.matched + decided.effects.mismatched}`
               : null,
@@ -368,7 +395,7 @@ async function main() {
       if (decided.replayed) caught++;
       recount(snap);
       await saveSnapshot(snap);
-      if (until > 0 && caught >= until) break;
+      if (stopReached()) break;
     }
 
     // ── 3. backfill the block record so the chain stays contiguous ──────────────────
@@ -461,14 +488,18 @@ async function main() {
       }
     }
 
-    if (until > 0 && caught >= until) {
-      log({ event: 'done', reason: 'until-reached', caught, polls });
+    if (stopReached()) {
+      log({ event: 'done', reason: 'until-reached', caught, polls,
+            completeBlocks: completeBlockCount(snap),
+            completeBlockNumbers: completeBlockNumbers(snap) });
       return 0;
     }
     await sleep(intervalS * 1000);
   }
 
   log({ event: 'done', reason: 'deadline', caught, polls,
+        completeBlocks: completeBlockCount(snap),
+        completeBlockNumbers: completeBlockNumbers(snap),
         elapsedMin: Math.round((Date.now() - startedAt) / 60000) });
   return caught > 0 ? 0 : 1;
 }

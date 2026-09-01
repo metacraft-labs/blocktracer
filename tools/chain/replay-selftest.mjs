@@ -27,7 +27,8 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { decideOutcome, refusalName, refusalDetail } from './lib/replay.mjs';
+import { decideOutcome, refusalName, refusalDetail, completeBlockCount,
+         completeBlockNumbers } from './lib/replay.mjs';
 
 let asserted = 0;
 let failed = 0;
@@ -423,13 +424,83 @@ async function main() {
        refusalName('    Foo: bar,\nAvmTrap: the trap fired\n') === 'AvmTrap');
   }
 
+  // ── CASE 9 — A BLOCK IS COMPLETE OR IT IS NOT ──────────────────────────────────────
+  //
+  // The capture target is 2-3 COMPLETE blocks per network — blocks in which every
+  // transaction the chain published has a reproduced replay — and not 2-3 transactions.
+  // The two targets are satisfiable by different snapshots, and the difference is an
+  // overclaim: a block page that lists three transactions and can step one of them.
+  console.error('\ncase 9 — completeness is counted over the chain\'s list, not ours');
+  {
+    const snap = {
+      blocks: [
+        { number: 300, transactions: ['0xa'] },                 // 1/1 replayed  -> complete
+        { number: 299, transactions: ['0xb', '0xc', '0xd'] },   // 3/3 replayed  -> complete
+        { number: 298, transactions: ['0xe', '0xf', '0xg'] },   // 1/3 replayed  -> NOT
+        { number: 297, transactions: [] },                      // empty         -> NOT
+        { number: 296, transactions: ['0xh'] },                 // divergent     -> NOT
+        { number: 295, transactions: ['0xi', '0xj'] },          // one not-first -> NOT
+      ],
+      transactions: [
+        { txHash: '0xa', outcome: 'replayed' },
+        { txHash: '0xb', outcome: 'replayed' },
+        { txHash: '0xc', outcome: 'replayed' },
+        { txHash: '0xd', outcome: 'replayed' },
+        { txHash: '0xe', outcome: 'replayed' },
+        { txHash: '0xf', outcome: 'refused' },
+        { txHash: '0xg', outcome: 'pruned' },
+        { txHash: '0xh', outcome: 'divergent' },
+        { txHash: '0xi', outcome: 'replayed' },
+        { txHash: '0xj', outcome: 'not-first-in-block' },
+      ],
+    };
+
+    ck('control: exactly two blocks are complete', completeBlockCount(snap) === 2);
+    ck('control: and they are named, newest first',
+       JSON.stringify(completeBlockNumbers(snap)) === JSON.stringify([300, 299]));
+    ck('control: a block with 1 of 3 replayed is NOT complete',
+       !completeBlockNumbers(snap).includes(298));
+    ck('control: an empty block is not a captured block',
+       !completeBlockNumbers(snap).includes(297));
+    ck('control: a divergent recording does not complete its block',
+       !completeBlockNumbers(snap).includes(296));
+    ck('control: a `not-first-in-block` sibling leaves its block incomplete',
+       !completeBlockNumbers(snap).includes(295));
+
+    // MUTATION: the target as a COUNT OF REPLAYS, over the same snapshot. It reports 6 —
+    // enough to declare "3 blocks captured" twice over — while completeness reports 2.
+    // That gap is the overclaim the bar exists to prevent, and it is why the stop
+    // condition counts blocks.
+    const replayCount = snap.transactions.filter((t) => t.outcome === 'replayed').length;
+    bite('mutation: counting replays reports 6 where completeness reports 2',
+         replayCount === 6 && completeBlockCount(snap) === 2);
+
+    // A snapshot whose replays are spread one-per-block across half-covered blocks would
+    // satisfy a replay count of 3 with ZERO complete blocks. The strongest form of the trap.
+    const spread = {
+      blocks: [
+        { number: 10, transactions: ['0x1', '0x2'] },
+        { number: 11, transactions: ['0x3', '0x4'] },
+        { number: 12, transactions: ['0x5', '0x6'] },
+      ],
+      transactions: [
+        { txHash: '0x1', outcome: 'replayed' }, { txHash: '0x2', outcome: 'pruned' },
+        { txHash: '0x3', outcome: 'replayed' }, { txHash: '0x4', outcome: 'pruned' },
+        { txHash: '0x5', outcome: 'replayed' }, { txHash: '0x6', outcome: 'pruned' },
+      ],
+    };
+    bite('mutation: three replays across three half-covered blocks is ZERO complete blocks',
+         spread.transactions.filter((t) => t.outcome === 'replayed').length === 3
+           && completeBlockCount(spread) === 0);
+  }
+
   await rm(dir, { recursive: true, force: true });
   ck('the temp container was cleaned up', !existsSync(ctPath));
 
-  // 62: 8 cases (7+1, 6+2, 5+1+2, 3+1, 3+1, 2, 7+1, 8+2) = 53, plus 3 outcome-set,
+  // 70: 9 cases (7+1, 6+2, 5+1+2, 3+1, 3+1, 2, 7+1, 8+2, 6+2) = 61, plus 3 outcome-set,
   // 5 invariant, 1 cleanup. Declared rather than derived, so adding a case without
   // updating this number is a failure — which is the whole point of counting.
-  expectCount(62);
+  expectCount(70);
   if (failed) {
     console.error(`\nFAIL — ${failed} problem(s)`);
     return 1;

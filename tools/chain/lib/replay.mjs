@@ -172,6 +172,45 @@ export function refusalDetail(stderr, name) {
   return picked.join(' ').slice(0, 400);
 }
 
+/** How many blocks in this snapshot are COMPLETE — every transaction the chain put in the
+ *  block has a reproduced replay.
+ *
+ *  WHY THIS AND NOT A COUNT OF REPLAYS. The demo's bar is a whole block that steps, not a
+ *  transaction that steps: a block page showing three transactions of which one has a trace
+ *  is an overclaim of exactly the kind this campaign exists to prevent. Counting replays
+ *  would reach a target of "3" on three transactions drawn from three different half-covered
+ *  blocks, and every one of those blocks would render incomplete.
+ *
+ *  IT MEASURES AGAINST THE CHAIN'S OWN LIST. `block.transactions` is written from the
+ *  node's `txEffects` for that block — every transaction the chain put in it, including the
+ *  ones this tool declined to attempt (`not-first-in-block`, `pruned`). So a block only
+ *  counts when nothing in it is unaccounted for. A definition that instead ranged over the
+ *  transactions the follower CHOSE would be satisfied by choosing fewer, which is the
+ *  vacuity trap in another costume.
+ *
+ *  `divergent` does not count. A divergent recording is real and worth showing, but it did
+ *  not reproduce the block, and "every transaction in this block replays" would be false. */
+export function completeBlockCount(snap) {
+  const outcome = new Map((snap?.transactions ?? []).map((t) => [t.txHash, t.outcome]));
+  let n = 0;
+  for (const b of snap?.blocks ?? []) {
+    const hashes = b?.transactions ?? [];
+    if (hashes.length === 0) continue;            // an empty block is not a captured block
+    if (hashes.every((h) => outcome.get(h) === 'replayed')) n++;
+  }
+  return n;
+}
+
+/** The complete blocks themselves, newest first — for a log line that names what it has. */
+export function completeBlockNumbers(snap) {
+  const outcome = new Map((snap?.transactions ?? []).map((t) => [t.txHash, t.outcome]));
+  return (snap?.blocks ?? [])
+    .filter((b) => (b?.transactions ?? []).length > 0
+      && b.transactions.every((h) => outcome.get(h) === 'replayed'))
+    .map((b) => b.number)
+    .sort((a, b) => b - a);
+}
+
 /** Prove the replay toolchain works BEFORE starting to wait for a rare event.
  *
  *  WHY THIS EXISTS, and it is the most expensive lesson this tool has taught. The follower
