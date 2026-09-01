@@ -740,3 +740,82 @@ This is a strong additional argument for option (a) — mask the ink via an inne
 wrapper rather than the scroll container — because it also implies any
 ramp-length answer would have to differ per theme, which the token layer has no
 mechanism for and which would be two designs rather than one.
+
+## Q15. A gated triple stopped being photographable, and that is not mine to fix
+`tx-detail--mainnet-zero-trace/wide/light` is in `reviews/ledger.json`'s
+`gateScope` with a complete, ingested, six-lens triple. It can no longer be
+captured. The published set was re-scoped to the window where every transaction
+opens, so no real chain now carries a trace-less transaction to photograph;
+`views.mjs` marks the view `pending` with exactly that reason, and
+`check-coverage` assertion F went from 308 subjects to 300 with zero drift.
+
+G2 fails on it and must keep failing — six reviews of an image the corpus no
+longer publishes are still not six reviews of the image on disk. The gate's
+SENTENCE was wrong, though, and is fixed: it said "the capture reviewed is
+missing (… is gone)", which describes a deleted file and implies `just capture`
+as the remedy. It now names the view's status, quotes `pendingReason`, and says
+the decision is a gateScope one.
+
+Options:
+  (a) restore a trace-less real transaction to the published set, so the subject
+      exists again — this is the sibling agent's re-scoping work and taking it
+      here would be fighting it;
+  (b) retire the triple from `gateScope` in its own commit naming the six
+      reviews it retires and why, accepting that the campaign loses its only
+      real-chain `tx-detail` subject;
+  (c) leave it failing, honestly, until the re-scoping settles.
+
+Recommendation: (c) now, then (a) or (b) once the sibling's set is final. Not
+taken here because the corpus is moving and a gateScope edit made against a
+half-landed re-scope is a decision taken twice. The three P1 on that triple —
+including Q10, the permanence claim with a repairable cause printed beneath it —
+are NOT retired by any of these options; they are findings about copy that
+`isFull` still publishes and that is graded elsewhere.
+
+## Q16. The 19-digit fee: the one remedy the grouping rule excludes
+Four reviewers on two triples filed `1755555891986239551` (and
+`3070954237478732800` on the other subject) as unreadable, all on rubric B7:
+
+  * "19 digits set as one unbroken monospace run … 1.7 quintillion and 17
+    quintillion are indistinguishable at a glance, and it is the largest number
+    on the page";
+  * "a reader cannot tell 1.75e18 from 1.75e17 without counting glyphs … the
+    value column has only ~202px of room and the number already consumes ~133px
+    of it, so this row is one order of magnitude away from a hard overflow";
+  * "the defect is 19 unseparated digits, not the wrap" — filed while REFUTING
+    the Q9 wrap regression on the same row;
+  * "two such values could not be compared by eye, which is the whole job of a
+    numeric cell in a facts grid".
+
+They are right, and the obvious fix is forbidden. `groupDigits` states the rule:
+a figure the reader will COPY is rendered exactly as published, because
+`.copyable` is `user-select:all` and the rendered text is the copied text. This
+value renders as `span(class = "identifier " & Copyable)`. Inserting separators
+would silently corrupt an on-chain fee on its way to a terminal.
+
+Two of the four named the remedy the rule permits: "lead with an abbreviated
+magnitude and keep the exact figure secondary", "carry a scaled form beside the
+exact one".
+
+Options:
+  (a) a scaled companion — `1.76 × 10¹⁸` or `1.76 Emana` as the read figure,
+      with the exact integer kept copyable and secondary. Answers all four
+      findings and keeps the rule. Costs a new element in a facts grid, and the
+      choice between scientific notation and an SI prefix is a register
+      decision (this product's register is an explorer, not a lab);
+  (b) group the digits and drop `.copyable` from this row. Cheapest, and it
+      trades a legibility defect for a data-integrity one — the exact fee is
+      the fact the row exists to publish;
+  (c) group VISUALLY without changing the text, e.g. per-three-digit spans with
+      letter-spacing, so selection still yields the bare integer. Preserves both
+      properties; adds markup to every cost cell and has never been reviewed;
+  (d) leave it and let the unit suffix carry the magnitude.
+
+Recommendation: (a), and it needs a round to look at it. NOT (b): a fee is the
+one number on the page a reader might paste somewhere it matters.
+
+Note a second, separable finding on the same string that two lenses raised and
+that IS a copy defect rather than a taste call: the unit renders
+`mana (FeeJuice)` — a gas unit and an asset name in one value, and `FeeJuice` is
+the camel-cased machine spelling of an asset Aztec writes as `Fee Juice`. That
+is `roleLabel`-shaped work, not a numeric one.
