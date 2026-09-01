@@ -66,7 +66,7 @@
 ##  * **A section-heading level.** `.sec-title` is a real 20px heading between
 ##    the 32px page title and 16px body; the mono uppercase kicker is a kicker
 ##    again, never the heading itself (VD.1 round 1). The scale is not settled:
-##    ledger@2026-08-31.14:tx-detail/wide/light/L1/6 measures the hero H1 at a
+##    ledger@2026-09-01.5:tx-detail/wide/light/L1/6 measures the hero H1 at a
 ##    24px figure height against the section headings' 17px cap — a 1.41x step
 ##    that now does read as two levels — and reports what survives it, a WEIGHT
 ##    inversion in which the one level-one title carries the page's lightest
@@ -76,11 +76,11 @@
 ##    are the sans face; mono is reserved for hashes, addresses, selectors,
 ##    amounts and code, so it marks "copyable identifier" again, and every
 ##    numeric column carries tabular figures — credited in
-##    ledger@2026-08-31.14:tx-detail/wide/light/L1/7, which finds the cost row's
+##    ledger@2026-09-01.5:tx-detail/wide/light/L1/7, which finds the cost row's
 ##    figures "correctly tabular mono with the unit dropped to the proportional
 ##    muted face" and downgrades what remains there to a refinement. The rule's
 ##    one open breach runs the other way:
-##    ledger@2026-08-31.14:tx-detail/wide/light/L1/3 has 22 characters of
+##    ledger@2026-09-01.5:tx-detail/wide/light/L1/3 has 22 characters of
 ##    English set in the letterspaced mono chip the grid reserves for one-word
 ##    machine tokens, so a sentence reads as a value the chain emitted.
 ##  * **A measure.** Running prose is capped at `--bt-measure-prose` instead of

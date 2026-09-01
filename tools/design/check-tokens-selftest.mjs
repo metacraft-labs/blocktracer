@@ -516,30 +516,44 @@ const PLANTS = [
     // verified absent from the 2026-08-31.14 ledger; had it existed, this
     // case would pass while asserting nothing.
     rule: "B4", name: "a citation naming a finding id that does not exist", file: STYLES,
-    from: "ledger@2026-08-31.14:tx-detail/wide/light/L1/6",
-    to: "ledger@2026-08-31.14:tx-detail/wide/light/L1/99",
+    from: "ledger@2026-09-01.5:tx-detail/wide/light/L1/6",
+    to: "ledger@2026-09-01.5:tx-detail/wide/light/L1/99",
     names: "L1/99",
   },
   {
-    // The case that actually happened, four times now. The ledger was
+    // The case that actually happened, five times now. The ledger was
     // replaced, the ids were reused, and every citation kept parsing while
-    // meaning something else. vd9-r2's ingest moved the revision again
-    // (`2026-08-31.13` → `2026-08-31.14`), so `.13` is the revision that has
+    // meaning something else. vd10-r1's ingest moved the revision again
+    // (`2026-08-31.14` → `2026-09-01.5`), so `.14` is the revision that has
     // just been superseded and is the honest thing to plant here. The id is
     // held FIXED across the plant and `tx-detail/wide/light/L1/6` is verified
-    // to exist in the `.13` ledger too, so the single planted defect is the
+    // to exist in the `.14` ledger too, so the single planted defect is the
     // stale revision and nothing else — a plant whose id had also gone would
     // turn B4 red for the wrong reason and prove nothing about revisions.
     //
     // NOTE the anchors above and below track `styles.nim`'s CURRENT revision,
     // and must be moved with it. A `from:` that no longer appears in the file
     // makes this case fail rather than silently pass, which is the behaviour
-    // wanted — vd9-r2's bump was caught exactly this way, as VD.5's own was
-    // before it.
+    // wanted — vd10-r1's bump was caught exactly this way, as vd9-r2's and
+    // VD.5's were before it.
+    //
+    // THE MAINTENANCE COST IS ITSELF A FINDING, recorded in
+    // `reviews/QUEUED-DECISIONS.md` Q21. vd10-r1 re-reviewed only the FIVE
+    // debugger triples; `tx-detail/wide/light` was untouched and its findings
+    // are byte-identical. The global `ledgerRevision` still moved, so these
+    // anchors and five live citations in `styles.nim` and `tx.nim` all went
+    // stale over a round that changed nothing they refer to —
+    // `design-citations` classified all nine SAFE-RESTAMP, the first time this
+    // campaign has seen that verdict. B4 fires on revision CURRENCY, which is
+    // a proxy for the property it actually wants (does this citation still
+    // mean what the comment says), and the proxy over-fires once per round per
+    // citation regardless of subject. That is how a check teaches people to
+    // bulk re-stamp, which is the exact move `citation-evidence.mjs` exists to
+    // warn against.
     rule: "B4", name: "a citation of a SUPERSEDED ledger revision", file: STYLES,
-    from: "ledger@2026-08-31.14:tx-detail/wide/light/L1/6",
-    to: "ledger@2026-08-31.13:tx-detail/wide/light/L1/6",
-    names: "2026-08-31.13",
+    from: "ledger@2026-09-01.5:tx-detail/wide/light/L1/6",
+    to: "ledger@2026-08-31.14:tx-detail/wide/light/L1/6",
+    names: "2026-08-31.14",
   },
 
   // ── The evasions tried against the FIX OF THE FIX, and closed ────────────

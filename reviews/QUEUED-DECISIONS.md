@@ -1252,3 +1252,61 @@ numbers against each other, and it was confirmed only by reading the fixture
 source rather than the image. A campaign that grades stills cannot see this
 class of defect; it took a reviewer reasoning about arithmetic, being wrong in a
 specific and checkable way, and having its error traced.
+
+## Q21. B4 fires on a proxy, and the proxy over-fires once per round
+Found by using the tooling rather than by reasoning about it. vd10-r1 re-reviewed
+five debugger triples and did NOT touch `tx-detail/wide/light`, whose findings are
+byte-identical before and after. Ingesting the round still moved the global
+`ledgerRevision` (2026-08-31.14 -> 2026-09-01.5), and that alone turned five live
+citations red — three in `styles.nim`, two in `tx.nim`, every one of them
+pointing at a tx-detail finding that did not change — plus the two `styles.nim`
+anchors the B4 self-test plants against, which failed with "the anchor text is no
+longer in styles.nim".
+
+`design-citations` classified all nine **SAFE-RESTAMP**. That is the first time
+this campaign has seen that verdict: earlier in this same session all 70 sites
+were MEANING-CHANGED and a bulk re-stamp would have been the worst available
+move. The tool distinguishes the two cases correctly, which is exactly what it
+was built for.
+
+**The problem is that B4 does not consult it.** B4 asserts revision CURRENCY —
+"`ledger@<revision>` must name the current revision" — as a proxy for the
+property it actually wants, which is "this citation still means what the comment
+says". The proxy is sound in one direction and badly calibrated in the other:
+
+  * it never misses a meaning change, because a meaning change implies a
+    revision bump; but
+  * it fires on EVERY citation at EVERY round, regardless of whether the round
+    touched the triple that citation refers to. A round that re-reviews the
+    debugger turns tx-detail citations red.
+
+So the steady-state cost is one human judgement per citation per round, on
+citations that mostly did not change. That is how a check teaches people to
+re-stamp in bulk — which is precisely the move `citation-evidence.mjs` was
+written to warn against, and which would have been catastrophic earlier today.
+A tripwire that cries wolf trains its reader to disbelieve it; that is the same
+lesson Q14 recorded about assertion F, one layer up.
+
+Options:
+  (a) B4 accepts a citation whose cited revision resolves to a finding
+      byte-identical to the one at that id now — i.e. B4 calls what
+      `citation-evidence.mjs` already computes, and fails only on
+      MEANING-CHANGED. Strictly stronger than today: it still catches every
+      meaning change and stops reporting the ones that are not. Costs B4 a git
+      dependency, since resolving an old revision means reading history;
+  (b) make the revision PER-TRIPLE rather than global, so a citation only goes
+      stale when its own triple is re-reviewed. Cleaner in principle, and a
+      schema change to the ledger that every consumer would have to follow;
+  (c) prefer the report-path form for everything, keeping `ledger@` only for
+      findings that are currently OPEN and being answered by the code beside
+      them. This is what this session's 44-citation pass already did, and it is
+      why only five sites went stale this round instead of sixty-three;
+  (d) leave it, and pay the re-stamp cost per round with `design-citations` as
+      the guard.
+
+Recommendation: **(a)**, with (c) as the standing convention regardless. (b) is
+the most correct and the most invasive; it should not be done to fix a reporting
+nuisance.
+
+Not taken here because it changes what a green B4 means, and that deserves to be
+a decision rather than a side effect of the round that noticed it.

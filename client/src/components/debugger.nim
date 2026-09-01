@@ -478,7 +478,49 @@ proc renderSource*(p: EditorPane): string =
         if p.availability == srcUnverified:
           p(class = "panenote"):
             text "Stepping continues at instruction level."
-          button(class = "btn ghost sm"): text "Supply sources"
+          # A CONTROL THAT CANNOT ACT HAS TO SAY SO AS A CONTROL. This button
+          # was a bare `<button class="btn ghost sm">` with no handler, href,
+          # form, `data-action` or `aria-disabled`, on a route that ships no
+          # script at all — so it promised the one thing this page cannot do,
+          # in the live style, directly under the sentence explaining the
+          # limitation it claimed to lift. vd10-r1's adversarial reviewer on
+          # `debugger--testnet/wide/light` named it the weakest element on the
+          # screen and it is the only control here that hid its incapacity:
+          # every one of the eight stepping buttons already carries
+          # `aria-disabled="true"` with a bespoke reason, and so do Share and
+          # the download.
+          #
+          # Same three channels the stepping controls use, and the long comment
+          # on `renderControls` argues for them: `.disabled` carries the
+          # disabled surface, foreground and `cursor:not-allowed`;
+          # `aria-disabled` puts the same fact on the accessibility tree; the
+          # `title` names the move AND what it is waiting for.
+          #
+          # `aria-disabled` and NOT the `disabled` attribute, for the reason
+          # given there: a `disabled` button leaves the tab order and in
+          # several browsers stops showing its own tooltip, so the one channel
+          # that explains WHY it is inert would be unreachable exactly for the
+          # readers who most need it.
+          #
+          # NOT DELETED, though the tx-detail precedent argued for deleting the
+          # analogous one. vd9-r2's L5 withdrew a P1 about an absent
+          # `supply an ABI` action on the grounds that a control which would be
+          # inert even in a product that accepted ABIs is the "retry that
+          # cannot succeed" §1 forbids, and that the note naming the gap is the
+          # honest render. That reasoning turns on the subject having no raw
+          # bytes to decode. Here the gap is real and general — this trace runs
+          # at instruction level because no source is published for it — so the
+          # route is a thing the product genuinely intends and does not yet
+          # have. An inert control that states what it waits for says that; a
+          # deleted one says the limitation has no route out at all, which
+          # would be the page claiming something worse than the truth.
+          button(class = "btn ghost sm disabled",
+                 `aria-disabled` = "true",
+                 title = "Supplying sources is not available yet — this " &
+                         "route ships no client script, so there is nowhere " &
+                         "to upload them. Stepping continues at instruction " &
+                         "level in the meantime."):
+            text "Supply sources"
   let doc = activeDocument(p)
 
   proc tabStrip(activePath: string): string =
