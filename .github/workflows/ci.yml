@@ -179,7 +179,7 @@ jobs:
 
       # ── the chain capture tooling, for this job's own stated reason ──────
       #
-      # Same hole, same shape. `tools/chain/`'s three selftests — 115 counted
+      # Same hole, same shape. `tools/chain/`'s three selftests — 124 counted
       # assertions between them — were referenced by nothing: not by
       # `just test`, not by any job here, and not by `ci-coverage.sh`, whose
       # enumeration reaches `ci/test/*.sh` and `client/Justfile` and nothing
@@ -196,7 +196,9 @@ jobs:
         # divergence and not a refusal, a refusal whose name was `unknown`
         # because the classifier was a suffix allowlist, and a detail field
         # that spent its whole budget on Node's preamble. Case 10 is the
-        # three-state `artifacts` rule.
+        # three-state `artifacts` rule; case 11 refuses a runtime that
+        # cannot resolve artifacts, which replays perfectly and records
+        # nothing.
         run: node tools/chain/replay-selftest.mjs
 
       - name: Does the freeze gate refuse? (four checks, each re-asked of the chain)

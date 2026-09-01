@@ -12,7 +12,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# Three suites — 78 + 19 + 18 = 115 counted assertions — over the three
+# Three suites — 87 + 19 + 18 = 124 counted assertions — over the three
 # decisions the capture path makes that nothing else can check afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
 # called frozen (`freeze-snapshot-selftest`), and when a supervised watch is

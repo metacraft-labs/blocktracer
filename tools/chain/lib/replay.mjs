@@ -232,11 +232,60 @@ export function completeBlockNumbers(snap) {
  *  imports `compileAvm` and calls it. If the loader ever gains a condition, this gains it
  *  too, for free.
  */
+/** The file whose ABSENCE means this runtime cannot resolve artifacts at all. */
+export const RESOLVER_PATH = 'replay/src/artifact_resolution.ts';
+
+/** Can this runtime checkout resolve an off-chain artifact?
+ *
+ *  THE FAILURE THIS EXISTS TO STOP IS THE ONE THAT ALREADY HAPPENED, and it left no trace
+ *  at the moment it happened. The eight transactions frozen into `client/fixtures/chain/`
+ *  were captured against runtime `86c36ad`, which predates artifact resolution. That runtime
+ *  replays PERFECTLY: it hydrates, it reproduces the block's effects, it writes a container
+ *  that steps. What it cannot do is look for source — so every one of those captures reads
+ *  `declaredRung: 3` with no `artifacts` key, and for a year that looked like a finding about
+ *  Aztec contracts. It was not. Measured afterwards with a runtime that CAN resolve, one of
+ *  those eight contracts resolves outright (FeeJuice at `0x…03`), and its transaction can
+ *  never be re-recorded because the body pruned about half an hour after it landed.
+ *
+ *  So the cost of this misconfiguration is not a failed run to retry. It is a permanently
+ *  unanswerable question about a transaction nobody can fetch again — the same shape as the
+ *  bad `--avm` path that `preflightToolchain` exists for, and worse, because a bad `--avm`
+ *  path REFUSES loudly while a stale runtime succeeds quietly.
+ *
+ *  `86c36ad` is not an old tag somebody would have to go looking for: it is what a sibling
+ *  `aztec-avm-runtime` checkout that has not been pulled still has on `dev`, 64 commits behind
+ *  its own `origin/dev`. The default state of a stale working copy is the dangerous one.
+ *
+ *  A PATH TEST AND NOT A COMMIT TEST, deliberately. Pinning a commit would go stale the first
+ *  time the runtime moved and would then refuse runtimes that are fine; asking whether the
+ *  capability's own module is present asks the question that actually matters and keeps being
+ *  right as the runtime develops. It is the same choice `refusalName` made when it stopped
+ *  being a suffix allowlist. */
+export function resolverPresence(runtime) {
+  const path = resolve(runtime ?? '', RESOLVER_PATH);
+  if (existsSync(path)) return { ok: true, path };
+  return {
+    ok: false,
+    path,
+    problem:
+      `this runtime cannot resolve contract artifacts: ${path} does not exist. It will replay `
+      + `and write containers exactly as normal, and every transaction it captures will record `
+      + `rung 3 with NO artifacts array — indistinguishable, afterwards, from a chain whose `
+      + `contracts have no published source. A capture is unrepeatable (a body prunes ~30 `
+      + `minutes after it lands), so this is refused rather than warned about. Remedy: pull the `
+      + `runtime checkout — a working copy left behind on 86c36ad is exactly this state.`,
+  };
+}
+
 export async function preflightToolchain({ nodeBin, runtime, avm, ctWriter }) {
   const problems = [];
   for (const [what, p] of [['avm', avm], ['ct-writer', ctWriter]]) {
     if (!existsSync(p)) problems.push(`${what} path does not exist: ${p}`);
   }
+  // ASKED BEFORE THE MODULE GATE, because it is the cheaper question and because a runtime that
+  // cannot resolve is a wrong capture rather than a failed one — the operator must see it first.
+  const resolver = resolverPresence(runtime);
+  if (!resolver.ok) problems.push(resolver.problem);
   if (problems.length) return { ok: false, problems };
 
   const loader = resolve(runtime, 'node-host/src/loader.ts');

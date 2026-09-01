@@ -22,13 +22,14 @@
 // redden the assertion written for it (§4a: the pairing is the control — a negative
 // assertion with no positive twin running through the same code path has nothing to fail).
 
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { decideOutcome, refusalName, refusalDetail, completeBlockCount,
-         completeBlockNumbers } from './lib/replay.mjs';
+         completeBlockNumbers, preflightToolchain, resolverPresence, RESOLVER_PATH }
+  from './lib/replay.mjs';
 
 let asserted = 0;
 let failed = 0;
@@ -573,13 +574,74 @@ async function main() {
            === JSON.stringify([resolvedEntry]));
   }
 
+  // ── CASE 11 — A RUNTIME THAT CANNOT RESOLVE IS REFUSED BEFORE IT CAPTURES ──────────
+  //
+  // The `--avm` lesson, applied to the failure that came after it. A bad `--avm` path
+  // REFUSES: the run dies, the operator sees it, the transaction is lost but the reason is on
+  // the screen. A runtime that predates artifact resolution does something worse — it replays
+  // perfectly, reproduces the block's effects, writes a container that steps, and records
+  // rung 3 with no `artifacts` key. Nothing looks wrong at any point. The eight transactions
+  // frozen into this repository are that capture, and one of the eight contracts (FeeJuice at
+  // 0x…03) resolves outright when asked with a runtime that can ask.
+  //
+  // A capture is unrepeatable, so this is REFUSED and not warned about, and the test is a
+  // fixture-directory test rather than a mock because the rule is "does this file exist".
+  console.error('\ncase 11 — a runtime with no resolver is refused before a watch starts');
+  {
+    const good = join(dir, 'runtime-good');
+    const stale = join(dir, 'runtime-stale');
+    await mkdir(join(good, 'replay', 'src'), { recursive: true });
+    await writeFile(join(good, 'replay', 'src', 'artifact_resolution.ts'), '// present\n');
+    // The stale runtime is a COMPLETE checkout apart from the one module — it has the replay
+    // directory and the loader, exactly like 86c36ad. A test whose "stale" case was an empty
+    // directory would pass against a rule that merely checked the runtime path existed.
+    await mkdir(join(stale, 'replay', 'src'), { recursive: true });
+    await writeFile(join(stale, 'replay', 'src', 'settled_transaction.ts'), '// replays fine\n');
+    await mkdir(join(stale, 'node-host', 'src'), { recursive: true });
+    await writeFile(join(stale, 'node-host', 'src', 'loader.ts'), '// loads fine\n');
+
+    const okR = resolverPresence(good);
+    ck('control: a runtime carrying artifact_resolution.ts is accepted', okR.ok === true);
+    ck('control: and it names the path it looked at', okR.path.endsWith(RESOLVER_PATH));
+
+    const badR = resolverPresence(stale);
+    ck('control: a runtime WITHOUT it is refused', badR.ok === false);
+    ck('control: and the refusal says the capture would look normal, not broken',
+       /rung 3 with NO artifacts array/.test(badR.problem)
+         && /replay and write containers exactly as normal/.test(badR.problem));
+    ck('control: …and names the remedy and the commit that is this state',
+       /86c36ad/.test(badR.problem) && /pull the runtime checkout/.test(badR.problem));
+
+    // The preflight FAILS on it, which is the thing a watch consults. Driven with avm and
+    // ct-writer paths that DO exist, so the only reason it can fail is the resolver.
+    const pf = await preflightToolchain({
+      nodeBin: process.execPath, runtime: stale, avm: ctPath, ctWriter: ctPath,
+    });
+    ck('control: preflightToolchain refuses that runtime', pf.ok === false);
+    ck('control: …for the resolver, not for a missing wasm',
+       pf.problems.length === 1 && /cannot resolve contract artifacts/.test(pf.problems[0]));
+
+    // MUTATION: the pre-fix preflight over the SAME inputs — paths exist, so it had nothing to
+    // object to and would have started the watch. That is the silent success this case closes.
+    const oldPreflightWouldPass =
+      existsSync(ctPath) && existsSync(ctPath) && existsSync(stale);
+    bite('mutation: the old path-existence preflight passes the stale runtime and starts a watch',
+         oldPreflightWouldPass === true && pf.ok === false);
+    // And it must NOT refuse a good runtime, or the gate would be refusing everything.
+    const pfGood = await preflightToolchain({
+      nodeBin: process.execPath, runtime: good, avm: ctPath, ctWriter: ctPath,
+    });
+    bite('mutation: …and the same gate still ACCEPTS a runtime that can resolve',
+         pfGood.ok === true);
+  }
+
   await rm(dir, { recursive: true, force: true });
   ck('the temp container was cleaned up', !existsSync(ctPath));
 
-  // 78: 10 cases (7+1, 6+2, 5+1+2, 3+1, 3+1, 2, 7+1, 8+2, 6+2, 6+2) = 69, plus 3
+  // 87: 11 cases (7+1, 6+2, 5+1+2, 3+1, 3+1, 2, 7+1, 8+2, 6+2, 6+2, 7+2) = 78, plus 3
   // outcome-set, 5 invariant, 1 cleanup. Declared rather than derived, so adding a case
   // without updating this number is a failure — which is the whole point of counting.
-  expectCount(78);
+  expectCount(87);
   if (failed) {
     console.error(`\nFAIL — ${failed} problem(s)`);
     return 1;

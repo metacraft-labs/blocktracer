@@ -210,14 +210,26 @@ whether a contract's sources could be proved. Rung 3 there is an *absence of
 measurement*, not a measured ceiling — and the two are only distinguishable
 because the key is absent rather than `[]` (§6.3).
 
-> **Check the runtime you point `--runtime` at.** `86c36ad` is not an old tag,
-> it is what a sibling `aztec-avm-runtime` checkout that has not been pulled
-> still has on `dev` — 64 commits behind its own `origin/dev`, and without
-> `replay/src/artifact_resolution.ts`. A capture taken against it produces
-> exactly the shape this section is about, silently. `follow-chain.mjs` records
-> the runtime commit in `provenance.runtimeCommit`, so which one a snapshot was
-> taken with is always answerable after the fact; the preflight cannot check it,
-> because a runtime without the resolver replays perfectly well.
+> **The capture path now refuses this, and here is what it was.** `86c36ad` is
+> not an old tag: it is what a sibling `aztec-avm-runtime` checkout that has not
+> been pulled still has on `dev` — 64 commits behind its own `origin/dev`, and
+> without `replay/src/artifact_resolution.ts`. A runtime in that state replays
+> *perfectly*: it hydrates, reproduces the block's effects, and writes a
+> container that steps. It simply never looks for source. A bad `--avm` path
+> refuses loudly; this one succeeds quietly, which is why it cost the corpus a
+> year and one permanently unanswerable transaction.
+>
+> `resolverPresence` (`lib/replay.mjs`) now asks whether the resolver module is
+> there, and **both** `follow-chain.mjs` (via the preflight) and
+> `capture-chain.mjs` refuse before a single poll. It is a path test and not a
+> commit pin, deliberately: a pinned commit goes stale the first time the
+> runtime moves and then refuses runtimes that are fine, which is the mistake
+> `refusalName` made when it was a suffix allowlist. Case 11 of
+> `replay-selftest.mjs` drives both arms against a synthetic stale checkout that
+> is complete *except* for that one module — an empty directory would pass a
+> rule that merely checked the runtime path existed. `provenance.runtimeCommit`
+> still records which runtime a snapshot was taken with, so the question stays
+> answerable after the fact as well as before it.
 
 That question cannot be answered by re-capturing the eight. **All eight bodies
 are pruned**, re-measured on 2026-09-01: `getTxByHash` returns `null` for every
@@ -320,6 +332,83 @@ demonstrated end to end:
 Do not report "everything is rung 3 on Aztec" from this. The correct sentence is
 that these particular contracts have no published artifact, and it is one
 FeeJuice-executing transaction inside the window away from being false.
+
+### 6.2b Can the frozen FeeJuice transaction be upgraded to rung 1 in place?
+
+It was asked properly, because the artifact comes from **npm and not the chain** and the
+container is already frozen — so nothing about the pruned body obviously blocks it.
+**The answer is no, and the reason is not the mapping.** Recorded here because the
+question is a good one and will be asked again.
+
+**The positioning input is all there.** The frozen container's steps carry AVM program
+counters (108 steps, 108 distinct pcs, 0–645), and `brillig_locations` is keyed by AVM
+byte offset — `avm-transpiler` re-keys it on the way through (`transpile.rs:1803`), which
+is `source_map.ts`'s whole finding. Measured against the artifact: **86 of the 108 steps
+would position**, at real Noir lines (`main.nr:203:12`, `main.nr:223:44`, inlining depth
+2). The 22 that would not are the dispatch prologue — 14 pcs below the map's first key,
+130 — plus 8 gaps in range. Nothing was dropped at capture time that only a re-record
+could supply.
+
+**The proof half is as strong as §6.4's standard demands**, re-derived against the
+*installed nightly* as well as `5.2.0`, since a nightly is where a substitution would
+hide. Both give byte-identical answers: `public_dispatch` 1,947 B byte-equal to the
+class's `packedBytecode`, `computeArtifactHash` = `0x1a57ff2a…` equal to the class's, and
+the class id recomputing to `0x1f85d8b901a8…`. `rungFor` returns rung 1 (map keys
+130–1785, inside the 1,947-byte bytecode).
+
+**But the symbols are not tied to the recorded bytecode, and the control proves the tie
+cannot be tightened by inspection.** `computeArtifactHash`'s preimage is the
+private-function tree root, the utility-function tree root and `sha256(name, outputs)` —
+**public function bytecode is not in it, and neither is `debug_symbols` or `file_map`.**
+The obvious hope is that pc-alignment discriminates: a map from a different compilation
+would misalign with the pcs the AVM really visited. It does not. Run against
+`5.0.0-rc.2` — the published decoy the resolver **refuses** on `artifact-hash-mismatch` —
+the alignment is *identical*:
+
+| release | observed pcs mapped | map keys that are real pcs | positions at the first 5 steps |
+| --- | --- | --- | --- |
+| `5.0.0-rc.2` (**refused**) | 86/94 (91.5%) | 86/91 (94.5%) | `main.nr:203`, `223`, `223`, `223`, `223` |
+| `5.2.0` (resolves) | 86/94 (91.5%) | 86/91 (94.5%) | identical |
+| `5.3.0-nightly` (resolves) | 86/94 (91.5%) | 86/91 (94.5%) | identical |
+
+So alignment shows the map is for *this bytecode*; it cannot show *which compilation's*
+symbols you hold. The only thing separating the decoy from the good release is
+`artifactHash`, and `artifactHash` does not cover the map. `artifact_resolution.ts` states
+that bound; this measurement shows it is tight rather than conservative. Corroboration
+here is **single-distributor** — npm only; `5.2.0` and the nightly are two releases of one
+distributor, and Aztecscan answers 404 for `0x1a57ff2a…`.
+
+**The blocker is what the object would be.** The mapping is defensible under the runtime's
+own policy (rung 1 is permitted at `single-distributor` provided the container says so).
+What is not available is the container:
+
+* it would need a **CTFS transcoder** — read the frozen `.ct`, re-emit every event through
+  a writer opened at rung 1. `codetracer-trace-format-nim` has both halves, so it is
+  buildable; but this repository cannot depend on it (§Justfile `chain-instructions`:
+  reading a `.ct` needs a checkout that "is not a dependency of this repository and cannot
+  be one — the site build is hermetic");
+* it would be a **second producer of containers**, beside `buildSettledRecording`, which
+  is the only thing that has ever written one for this corpus;
+* the rung is fixed at `CtWriter` **construction** on purpose — `resolveTracingConfig`
+  throws `ColumnAwarenessUnavailable` below rung 1 — because the rung is a property of the
+  recording *session*. A post-hoc transcode would have to synthesise `ct.step-producer`,
+  `ct.source-provenance` and `ct.source-mapping-ceiling` describing a session that never
+  happened, and serve the result at `t/<id>/trace.ct`, which the product means as "the
+  transaction, re-executed".
+
+A wrong source mapping is worse than an honest rung 3, and a synthesised recording served
+as a recording is the confident-but-wrong artefact this repository refuses everywhere else.
+So the container stays rung 3.
+
+**What IS available, and is a separate axis.** `reader.sourceCoverage` folds
+`native.replay.artifacts` **and nothing else** — it is orthogonal to
+`recording.sourceLevel` and says so. So a retroactive resolution can move the frozen rows
+off `scUnchecked` (to `scAll` for the FeeJuice transaction, `scNone` for the other seven)
+with no container change and no source-level claim. It needs a sidecar the ingest merges
+rather than an edit to the frozen `snapshot.json`, and it introduces `scAll` with
+`sourceLevel: false` — a combination the live pipeline never produces and the product has
+no copy for. That is a deliberate product decision of the same kind `static_export.nim`
+reserves for `canHeadline`, so it is written down here rather than taken unilaterally.
 
 ### 6.3 `artifacts` has three states, and two of them used to be one
 

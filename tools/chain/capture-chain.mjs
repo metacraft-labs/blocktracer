@@ -61,6 +61,8 @@ import { mkdir, rm, writeFile, readFile, copyFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
+import { resolverPresence } from './lib/replay.mjs';
+
 const argv = process.argv.slice(2);
 const arg = (name, fallback) => {
   const i = argv.indexOf(`--${name}`);
@@ -91,6 +93,15 @@ if (!avm) die('--avm <avm.wasm> (or $AVM_WASM_PATH) is required. It must be the 
 if (!ctWriter) die('--ct-writer <aztec_ct_writer.wasm> (or $CT_WRITER_WASM_PATH) is required.');
 for (const [label, p] of [['runtime', runtime], ['avm', avm], ['ct-writer', ctWriter]]) {
   if (!existsSync(p)) die(`${label} path does not exist: ${p}`);
+}
+// A RUNTIME THAT CANNOT RESOLVE ARTIFACTS IS A WRONG CAPTURE, NOT A FAILED ONE, so it is
+// refused here rather than discovered in the committed fixture a year later. The rule is
+// `lib/replay.mjs`'s and is IMPORTED rather than restated: this file already carries a second
+// copy of the outcome decision, and a second copy of this one would be the same mistake in a
+// place where being wrong costs an unrepeatable transaction. See `resolverPresence`.
+{
+  const r = resolverPresence(runtime);
+  if (!r.ok) die(r.problem);
 }
 
 // ---- the node, spoken to directly for enumeration -------------------------------------------
