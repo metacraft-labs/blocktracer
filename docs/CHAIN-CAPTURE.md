@@ -195,3 +195,192 @@ The preflight proves the toolchain can replay **before** the watch starts. Two
 live mainnet transactions were lost to a bad `--avm` path discovered only at
 catch time; a catch is rare and unrepeatable, so everything a watch can check
 about itself it checks before it starts watching.
+
+---
+
+## 6. `fixtures/chain-artifacts/` — the capture that answers the rung question
+
+### Why a second capture exists at all
+
+The eight transactions frozen into `client/fixtures/chain/` all read
+`declaredRung: 3, stepsPositioned: 0` **and carry no `artifacts` key at all.**
+That is not a finding about Aztec contracts. Their runtime is `86c36ad`, which
+predates off-chain artifact resolution, so nothing in those captures ever asked
+whether a contract's sources could be proved. Rung 3 there is an *absence of
+measurement*, not a measured ceiling — and the two are only distinguishable
+because the key is absent rather than `[]` (§6.3).
+
+> **Check the runtime you point `--runtime` at.** `86c36ad` is not an old tag,
+> it is what a sibling `aztec-avm-runtime` checkout that has not been pulled
+> still has on `dev` — 64 commits behind its own `origin/dev`, and without
+> `replay/src/artifact_resolution.ts`. A capture taken against it produces
+> exactly the shape this section is about, silently. `follow-chain.mjs` records
+> the runtime commit in `provenance.runtimeCommit`, so which one a snapshot was
+> taken with is always answerable after the fact; the preflight cannot check it,
+> because a runtime without the resolver replays perfectly well.
+
+That question cannot be answered by re-capturing the eight. **All eight bodies
+are pruned**, re-measured on 2026-09-01: `getTxByHash` returns `null` for every
+one of them on both networks while `getTxEffect` still answers, which is §1's
+constraint arriving. Nothing can restore them, so the freeze is not merely
+"preferably kept" — it is irreplaceable, and any capture that answers the
+question has to be **additive**.
+
+### 6.1 Asking the old captures the question anyway
+
+`tools/chain/resolve-frozen-artifacts.mjs` asks it without the transaction.
+Three facts survive pruning: the committed `.ct` interned every contract address
+the execution entered; the node still serves the contract *instance* at that
+address; and it still serves the *class* behind it, which is what carries
+`artifactHash` and `packedBytecode`. Given those, `resolveContractArtifact` —
+imported from the runtime, never restated here — decides as it would have at
+capture time. The freeze is opened **read-only**.
+
+```sh
+node --experimental-strip-types tools/chain/resolve-frozen-artifacts.mjs \
+  --runtime …/aztec-avm-runtime [--snapshot <dir>]… [--json]
+```
+
+A runtime without `replay/src/artifact_resolution.ts` is refused **by name**,
+because "this runtime cannot resolve" and "it resolved nothing" are the two
+readings this whole section exists to keep apart, and an empty run exits 1
+saying so rather than letting a vacuous universal pass.
+
+**The result, 2026-09-01, over all 8 frozen transactions and all 8 contracts
+they entered: 1 resolves, 7 do not.** The one is testnet
+`0x12525d6d…` at block 63670, which executes **FeeJuice at `0x…03`**, class
+`0x1f85d8b901a8…`, artifact hash `0x1a57ff2a…` — proved by
+`npm:@aztec/protocol-contracts@5.3.0-nightly.20260819`, 32 source files. So that
+transaction's `declaredRung: 3` is a fact about *when it was captured* and not
+about the contract, it would record at rung 1 today, and it can never be
+recorded again. The other seven are genuine: their classes have no
+length-matching artifact on npm and Aztecscan answers 404-with-empty-body for
+each of their artifact hashes.
+
+**It does not produce a recording and must never be read as one.** A resolution
+says an artifact is provably a class's; a rung-1 *recording* additionally needs
+the step stream written against that artifact's debug map, which needs the body.
+Nothing downstream reads this tool — `ingest.nim` takes `recording.sourceLevel`
+out of the snapshot, and this tool writes no snapshot.
+
+### 6.2 The additive capture, and what it measured
+
+`fixtures/chain-artifacts/aztec-testnet/` — a snapshot in the identical format,
+taken with runtime `29bd9cf`, which resolves artifacts. It is deliberately
+**outside `client/fixtures/chain/`**, the directory `static_export.nim` walks,
+for two reasons: its `provenance.chain` is `aztec-testnet` and a second
+directory at that slug would have two producers overwriting one chain's blocks
+(the hazard `assertSlugAvailable` names); and publishing it is a product
+decision about the home page's `canHeadline` exhibit, which `static_export.nim`
+says in as many words must be made deliberately *with* a source-level capture
+rather than discovered by one appearing in the tree. Reproduce it with the §5
+command and `--snapshot fixtures/chain-artifacts/aztec-testnet`; it passes §4's
+freeze gate unchanged.
+
+As frozen on 2026-09-01: **8 complete blocks** — 65530, 65519, 65508, 65497,
+65489, 65486, 65475, 65464 — out of 144 blocks and 18 transactions watched, all
+8 replays reproducing their block's effects, 0 divergent, 0 refused.
+
+**Every one of the 8 carries a real `artifacts` array: 8 of 8, and 8 contract
+records in total.** The counts are stated because they are non-zero — a
+universal claim over an empty set is vacuous — and each record names the
+contract address and its **contract class id**, so verifiability can be checked
+against a third party without re-running anything. Two distinct classes:
+
+| class id | address | records |
+| --- | --- | --- |
+| `0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc` | `0x2a9a1d0e8f19…` | 7 |
+| `0x05c0419f2029dadb95fd75fc8fea90382d8d1f43261de91a3691f9db85b44220` | `0x0f826fa58eda…` | 1 |
+
+Both are **unresolved, and measurably so**: each record carries
+`candidatesConsidered: 0` with an empty `rejected`, which under
+`resolveContractArtifact` means both providers were asked and neither offered a
+candidate — a provider that threw would appear as a `provider-error` candidate
+and therefore as a rejection, so zero-and-zero cannot be a swallowed network
+failure. §6.4's three outside checks agree. Consequently every transaction
+records `declaredRung: 3`, `sourceLevel: false`, `stepsPositioned: 0`. **That is
+now a measured ceiling rather than an unasked question, which is the entire
+difference from §6's opening paragraph.**
+
+### 6.2a Rung 1 is reachable; this capture did not reach it
+
+Stated separately because they are separate claims and only the first is
+demonstrated end to end:
+
+* the **resolution** half is demonstrated on this corpus — §6.1's FeeJuice;
+* the **recording** half is demonstrated in the runtime's own L5 arms, which
+  produce `declaredRung: 1, sourceLevel: true, stepsPositioned: 64/64` over that
+  same proved artifact with real Noir positions (`main.nr:203:12`, `avm.nr:85:5`,
+  `poseidon2.nr:68:17`);
+* **no transaction captured live here has been both.** A live rung-1 recording
+  needs a transaction whose first-in-block public execution enters a contract
+  whose artifact resolves, and that is a matter of what the chain happens to
+  carry inside the replay window.
+
+Do not report "everything is rung 3 on Aztec" from this. The correct sentence is
+that these particular contracts have no published artifact, and it is one
+FeeJuice-executing transaction inside the window away from being false.
+
+### 6.3 `artifacts` has three states, and two of them used to be one
+
+| value | means |
+| --- | --- |
+| an array with entries | we looked; here is what each contract answered, rejections included |
+| `[]` | we looked; the transaction executed no contract |
+| `null` | no resolution was performed — this runtime cannot do one |
+
+`ingest.nim` has always distinguished the third from the second. The capture
+side could not hand it the third: both `lib/replay.mjs` and `capture-chain.mjs`
+wrote `facts.artifacts ?? []`, which turns "nobody looked" into "looked, nothing
+to look at" — in a committed fixture, about a transaction that in fact executed
+a contract. Case 10 of `tools/chain/replay-selftest.mjs` pins all three states
+and mutates the old rule to show it collapses exactly one of them.
+
+### 6.4 Reading a resolution
+
+A rejection with a reason is a result; a `null` is not, and `candidatesConsidered: 0`
+is a third thing again — it means both providers were asked and neither offered
+anything to verify. Corroborate it outside the tool before reading it as a fact
+about the chain:
+
+* the npm provider offers `@aztec/protocol-contracts`' artifacts, filtered by
+  `public_dispatch` byte length. The installed `5.3.0-nightly.20260819` ships
+  three, at 22 / 4,574 / 1,947 bytes;
+* the Aztecscan provider is keyed by `artifactHash`, and its three answers are
+  distinguishable by hand:
+  `GET {base}/l2/artifacts/{artifactHash}` → **200** when it holds one, **404
+  with an empty body** when it does not, **404 with an Express page** when the
+  route has moved. Only the third is a bug in us, and the provider raises on it.
+  All three were re-measured on 2026-09-01 against the testnet deployment: a
+  `Train` artifact hash answered 200 with 1.5 MB, an unheld hash answered 404
+  with 0 bytes, and a bad route answered 404 with 157 bytes;
+* and independently of the artifact route, `GET
+  {base}/l2/contract-classes/{classId}/versions/1` reports the explorer's own
+  view of the class. For both classes this capture's transactions entered it
+  answers **200 with `artifactContractName: null`** and an `artifactHash` equal
+  to the node's — so the key the resolver asked with was the right key, and the
+  explorer's answer is "I know this class and hold no artifact for it" rather
+  than "I have never heard of it".
+
+`artifactHash` does **not** commit to `debug_symbols` or `file_map`, so byte
+equality of `public_dispatch` against `packedBytecode` proves nothing on its
+own. Re-derived live on 2026-09-01 against the **deployed** testnet FeeJuice
+(`0x…03`, class `0x1f85d8b901a8…`, artifact hash `0x1a57ff2a…`, 1,947 bytes of
+`packedBytecode`), one release at a time so each verdict is about that release:
+
+| release | `public_dispatch` | byte-equal to `packedBytecode` | `debug_symbols` | verdict |
+| --- | --- | --- | --- | --- |
+| `5.0.0-rc.2` | 1,947 B | **yes** | 2,968 chars | **REFUSED — `artifact-hash-mismatch`** |
+| `5.2.0` | 1,947 B | yes | 2,964 chars | **RESOLVES** (32 source files) |
+
+The bytecode is identical and the debug symbols are not, which is what makes
+`5.0.0-rc.2` a decoy rather than merely a wrong answer: a resolver that stopped
+at byte equality would have produced plausible line numbers out of a different
+compilation. That ordering has been reported backwards before — the release that
+resolves is **`5.2.0`**.
+
+Because `artifactHash` does not commit to `debug_symbols` or `file_map`, a
+resolution reports `corroboration` and the distributors that agree on the debug
+digest separately from the proof itself; `single-distributor` is the honest
+label for source text only one party attests, and `requireCorroboration` exists
+for a caller who will not claim source level over it.

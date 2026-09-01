@@ -494,13 +494,92 @@ async function main() {
            && completeBlockCount(spread) === 0);
   }
 
+  // ── CASE 10 — "NOBODY LOOKED" IS NOT "WE LOOKED AND FOUND NOTHING" ─────────────────
+  //
+  // `artifacts` has THREE states and the rule used to have two. An array with entries is
+  // "we looked, and here is what each contract answered"; an empty array is "we looked,
+  // and the transaction executed no contract"; and NO ARRAY is "the runtime that produced
+  // this report cannot resolve artifacts at all, so nobody looked". `?? []` folded the
+  // third onto the second.
+  //
+  // This is not hypothetical. The eight transactions frozen into this repository on
+  // 2026-09-01 were captured with runtime 86c36ad, which predates `artifacts`, so their
+  // driver reports carry no such key. Under the old rule a capture would have written
+  // `artifacts: []` beside them — a committed fixture asserting that a resolution had been
+  // performed and had found no contract, for a transaction that executed one. Measured
+  // afterwards against the same resolver, one of those eight (testnet 0x12525d6d…,
+  // FeeJuice class 0x1f85d8b9…) RESOLVES, so the `[]` would have been false and not merely
+  // imprecise.
+  console.error('\ncase 10 — three states for `artifacts`, and `null` is one of them');
+  {
+    const resolvedEntry = {
+      address: '0x0000000000000000000000000000000000000000000000000000000000000003',
+      contractClassId: '0x1f85d8b901a87b3fa9b93a44ab569ca2f5eb62412dfd58c894fdfff218be11a4',
+      resolved: true, origin: 'npm:@aztec/protocol-contracts@5.3.0-nightly.20260819 FeeJuice',
+      corroboration: 'single-distributor', sourceFiles: 32, rejected: [],
+    };
+    const rejectedEntry = {
+      address: '0x2a9a1d0e8f1974267536abefa565e7a7351f92ddbe95ec13c57c79b70664f7c8',
+      contractClassId: '0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc',
+      resolved: false, candidatesConsidered: 1,
+      rejected: [{ origin: 'npm:@aztec/protocol-contracts@5.0.0-rc.2 FeeJuice',
+                   fault: 'artifact-hash-mismatch' }],
+    };
+
+    // (a) a report that looked and proved something copies the whole array through.
+    const dLooked = decide({ code: 0, err: '',
+      out: JSON.stringify({ ...reproducedReport, artifacts: [resolvedEntry, rejectedEntry] }) });
+    ck('control: a populated resolution travels whole', Array.isArray(dLooked.artifacts)
+       && dLooked.artifacts.length === 2);
+    ck('control: and the REJECTION travels with it — a rejection with a reason is a result',
+       dLooked.artifacts[1].resolved === false
+         && dLooked.artifacts[1].rejected[0].fault === 'artifact-hash-mismatch');
+
+    // (b) a report that looked and had nothing to look at stays the EMPTY ARRAY.
+    const dEmpty = decide({ code: 0, err: '',
+      out: JSON.stringify({ ...reproducedReport, artifacts: [] }) });
+    ck('control: "we looked and the transaction executed no contract" stays `[]`',
+       Array.isArray(dEmpty.artifacts) && dEmpty.artifacts.length === 0);
+
+    // (c) a report from a runtime that cannot resolve at all is `null`, not `[]`.
+    //     `reproducedReport` carries no `artifacts` key, which is the shape of every
+    //     driver report the frozen captures were taken from.
+    const dNever = decide({ code: 0, out: JSON.stringify(reproducedReport), err: '' });
+    ck('control: an absent `artifacts` key becomes `null` — nobody looked',
+       dNever.artifacts === null);
+    ck('twin: an explicit `artifacts: null` is the same statement and stays null',
+       decide({ code: 0, err: '',
+                out: JSON.stringify({ ...reproducedReport, artifacts: null }) })
+         .artifacts === null);
+
+    // The three states are DISTINGUISHABLE, which is the whole claim. Asserted as one
+    // proposition so it cannot pass by two of the three happening to agree.
+    ck('control: the three states are three different values',
+       dLooked.artifacts !== null && dEmpty.artifacts !== null
+         && dNever.artifacts === null && dEmpty.artifacts.length !== dLooked.artifacts.length);
+
+    // MUTATION: the pre-fix rule, over the SAME report. It must produce `[]` for the
+    // never-looked case — indistinguishable from (b) — which is what proves (c) measures
+    // the repair rather than agreeing with everything.
+    const oldRule = (facts) => facts.artifacts ?? [];
+    const oldNever = oldRule(reproducedReport);
+    bite('mutation: `?? []` makes "nobody looked" identical to "looked, nothing to look at"',
+         Array.isArray(oldNever) && oldNever.length === 0
+           && JSON.stringify(oldNever) === JSON.stringify(dEmpty.artifacts));
+    // And it must NOT bite on the populated case, or the mutation would be proving that
+    // the old rule was broken everywhere rather than in exactly this one state.
+    bite('mutation: …and only there — `?? []` is correct for a report that DID resolve',
+         JSON.stringify(oldRule({ ...reproducedReport, artifacts: [resolvedEntry] }))
+           === JSON.stringify([resolvedEntry]));
+  }
+
   await rm(dir, { recursive: true, force: true });
   ck('the temp container was cleaned up', !existsSync(ctPath));
 
-  // 70: 9 cases (7+1, 6+2, 5+1+2, 3+1, 3+1, 2, 7+1, 8+2, 6+2) = 61, plus 3 outcome-set,
-  // 5 invariant, 1 cleanup. Declared rather than derived, so adding a case without
-  // updating this number is a failure — which is the whole point of counting.
-  expectCount(70);
+  // 78: 10 cases (7+1, 6+2, 5+1+2, 3+1, 3+1, 2, 7+1, 8+2, 6+2, 6+2) = 69, plus 3
+  // outcome-set, 5 invariant, 1 cleanup. Declared rather than derived, so adding a case
+  // without updating this number is a failure — which is the whole point of counting.
+  expectCount(78);
   if (failed) {
     console.error(`\nFAIL — ${failed} problem(s)`);
     return 1;

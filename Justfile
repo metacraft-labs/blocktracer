@@ -10,6 +10,53 @@ test:
     ci/test/client-sdk-boundary.sh
     ci/test/client-sdk-boundary-test.sh
 
+# ── the chain capture tooling's own selftests ──────────────────────────────
+#
+# Three suites — 78 + 19 + 18 = 115 counted assertions — over the three
+# decisions the capture path makes that nothing else can check afterwards:
+# which outcome a driver run is (`replay-selftest`), whether a snapshot may be
+# called frozen (`freeze-snapshot-selftest`), and when a supervised watch is
+# allowed to stop (`watch-chain-selftest`).
+#
+# THEY WERE REFERENCED BY NOTHING. Not by `just test`, not by any CI job, not
+# by `ci-coverage.sh` — whose enumeration covers `ci/test/*.sh` and
+# `client/Justfile`'s aggregate and reaches nothing under `tools/`. That is the
+# same hole `deploy-gates` was created for after `check-assets-selftest.mjs`
+# was found dead, and these three were in it: the only evidence they could go
+# red was that someone had once watched them.
+#
+# All three are OFFLINE and toolchain-free — plain node plus bash, a mock node
+# for the freeze gate, recorded driver output for the replay rule — so they run
+# on a stock runner and are wired into CI's `deploy-gates` job for exactly the
+# reason its header gives: a gate that needs the busy Nix runner to prove it
+# can fail is a gate that gets skipped.
+chain-selftest:
+    node tools/chain/replay-selftest.mjs
+    node tools/chain/freeze-snapshot-selftest.mjs
+    bash tools/chain/watch-chain-selftest.sh
+
+# ── what a frozen capture would have measured ──────────────────────────────
+#
+# Every transaction in `client/fixtures/chain/` reads `declaredRung: 3` and
+# carries NO `artifacts` key, because its runtime predates off-chain artifact
+# resolution. That is an absence of measurement and not a measured ceiling, and
+# the difference cannot be settled by re-capturing: all eight bodies are pruned
+# (CHAIN-CAPTURE.md §1), permanently.
+#
+# So it is settled without the transaction — from the container's interned
+# addresses plus the instance and class the node still serves — by the resolver
+# the driver itself uses. READ-ONLY over the freeze. See CHAIN-CAPTURE.md §6.1,
+# including the paragraph on what a `resolved: true` here does NOT mean.
+#
+# Needs a runtime checkout carrying `replay/src/artifact_resolution.ts`, and
+# reaches the chain, npm and a block explorer — so it is by hand and in no
+# build, the same standing as `chain-instructions`.
+#
+#     just chain-frozen-artifacts ../aztec-avm-runtime
+chain-frozen-artifacts runtime:
+    node --experimental-strip-types tools/chain/resolve-frozen-artifacts.mjs \
+      --runtime {{runtime}}
+
 # ── the chain captures' instruction streams ────────────────────────────────
 #
 # Derive `instructions/<tx>.json` beside a committed capture's containers: the

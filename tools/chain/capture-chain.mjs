@@ -323,7 +323,14 @@ for (const c of candidates) {
     // L5: THE RESOLUTION ITSELF, INCLUDING EVERY REJECTION. "we did not look" and "we looked and
     // proved nothing" are different sentences for a transaction page to say, and a snapshot that
     // recorded only successes could not tell them apart.
-    artifacts: facts.artifacts ?? [],
+    //
+    // THREE STATES, AND `?? []` COLLAPSED TWO OF THEM. See the long note on the same line in
+    // `lib/replay.mjs`, which is the copy the follower uses: an array with entries, an empty
+    // array, and NO array are three different facts, and the third one — "the runtime that
+    // produced this report cannot resolve artifacts at all" — is the one every capture frozen
+    // before 2026-09-01 is in. `ingest.nim` distinguishes `null` from `[]` deliberately; this
+    // side has to be able to hand it the `null`.
+    artifacts: Array.isArray(facts.artifacts) ? facts.artifacts : null,
     // THE ROOTS DELIBERATELY DO NOT AGREE, and the divergence travels with the recording. Replay
     // hydrates only the leaves the execution touched, so the trees it rebuilds are sparse and their
     // roots cannot equal the block's. Dropping this in transit would turn a known, explained

@@ -177,6 +177,40 @@ jobs:
         # that it does.
         run: node tools/ci/requeue-decide-selftest.mjs
 
+      # ── the chain capture tooling, for this job's own stated reason ──────
+      #
+      # Same hole, same shape. `tools/chain/`'s three selftests — 115 counted
+      # assertions between them — were referenced by nothing: not by
+      # `just test`, not by any job here, and not by `ci-coverage.sh`, whose
+      # enumeration reaches `ci/test/*.sh` and `client/Justfile` and nothing
+      # under `tools/`. They cover decisions that CANNOT be rechecked after
+      # the fact, because a capture is unrepeatable: an Aztec transaction body
+      # is hard-deleted about half an hour after it lands, so a rule that
+      # misfiles a catch does not cost a retry, it costs the transaction.
+      #
+      # All three are offline and toolchain-free, which is why they belong in
+      # THIS job rather than behind the Nix runner.
+      - name: Does the replay verdict rule bite? (which outcome a driver run is)
+        # Ten cases over recorded driver output. The three that have already
+        # cost something are pinned as fixtures: a non-zero exit that is a
+        # divergence and not a refusal, a refusal whose name was `unknown`
+        # because the classifier was a suffix allowlist, and a detail field
+        # that spent its whole budget on Node's preamble. Case 10 is the
+        # three-state `artifacts` rule.
+        run: node tools/chain/replay-selftest.mjs
+
+      - name: Does the freeze gate refuse? (four checks, each re-asked of the chain)
+        # 19 arms against a mock node. `frozen` is a conclusion the tool
+        # reaches, not a flag a caller sets, and a gate that has never said no
+        # is indistinguishable from no gate.
+        run: node tools/chain/freeze-snapshot-selftest.mjs
+
+      - name: Does the watch supervisor stop only when it means to?
+        # 18 arms. A watch that exhausts its arms and a watch that dies with
+        # its session both stop without saying they stopped, and rc 0 means
+        # "this arm caught something" unless a capture target says otherwise.
+        run: bash tools/chain/watch-chain-selftest.sh
+
   contract:
     runs-on: eph-linux-x64
     steps:

@@ -358,7 +358,26 @@ export function decideOutcome(r, ctPath, containerOnDisk, containerBytes) {
     // also builds this transaction's code edges from here, which is why UNRESOLVED entries
     // are kept: a code edge is a fact about what the transaction executed, not about
     // whether source was found for it.
-    artifacts: facts.artifacts ?? [],
+    //
+    // AND THE THIRD SENTENCE IS `null`, WHICH `?? []` USED TO DESTROY HERE. There are three
+    // states, not two: an ARRAY WITH ENTRIES ("we looked, and here is what each contract
+    // answered"), an EMPTY ARRAY ("we looked, and the transaction executed no contract"),
+    // and NO ARRAY AT ALL ("the runtime that produced this report cannot resolve artifacts,
+    // so nobody looked"). `?? []` folded the third onto the second and made a capture taken
+    // with a pre-resolution runtime assert, in the committed fixture, that it had looked.
+    //
+    // `ingest.nim` already keeps the distinction one layer down — its `artifactSummary` is
+    // `null` for an absent key and `[]` for an empty one, with a paragraph explaining why —
+    // so the defect was that THIS side could never hand it the first case. The eight frozen
+    // captures of 2026-09-01 are exactly that shape: their runtime (86c36ad) predates
+    // `artifacts`, they carry no key, and a re-capture through the old rule would have
+    // written `[]` over them. Measured retroactively, one of those eight (testnet
+    // 0x12525d6d…, FeeJuice class 0x1f85d8b9…) resolves, so `[]` would have been false as
+    // well as ambiguous.
+    //
+    // `Array.isArray` and not `!== undefined`: a report carrying `artifacts: null` is making
+    // the same statement as one carrying no key, and both mean "no resolution was performed".
+    artifacts: Array.isArray(facts.artifacts) ? facts.artifacts : null,
     // The roots deliberately do not agree, and the divergence travels with the recording:
     // replay hydrates only the leaves the execution touched, so the trees it rebuilds are
     // sparse and their roots cannot equal the block's. Dropping this in transit would turn
