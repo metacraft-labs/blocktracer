@@ -631,6 +631,53 @@ html[data-register="debugger"],
 .srcline.rnnow .mg{display:none}
 .srcline.rnnow .mt{display:inline}
 .srcline.rnnow .rnbar{display:block}
+/* THE CURRENT LINE'S ARM GLYPH TAKES THE POSITION INK, and this restores a pair
+   that was designed, measured, documented and then silently defeated by cascade
+   order — it is not a new decision.
+
+   `.srcline.cur .n,.srcline.cur .m` above sets the position ink and its comment
+   claims the result as "a designed PAIR rather than two rungs of one ramp:
+   7.14:1 in dark and 7.30:1 in light". That is true of the LINE NUMBER. It has
+   never been true of the mark on the flagship view. `.srcline .mt` and
+   `.srcline .mn` carry equal specificity (0,2,1) and come LATER in this sheet,
+   so they win, and the mark on the current line keeps executable/not-taken ink
+   against the position band.
+
+   What that costs, measured on the built page in all four size/theme
+   combinations (they are pixel-identical for every gutter glyph):
+
+     `⊙` on the band   4.26:1 dark / 4.29:1 light — a hard CEILING; ring flanks
+                       2.67 and 2.35 (dark), 2.13 and 1.92 (light), i.e. the
+                       ring that is the mark's whole silhouette is under 3:1
+     `⊘` on the band   3.29:1 dark / 7.33:1 light, on
+                       `debugger--omniscience-earlier-pass`, which is the same
+                       defect with the other glyph and WORSE in the default theme
+     with this rule    7.14:1 dark / 7.30:1 light — exactly the pair the comment
+                       above already claims, because it IS that pair
+
+   Two facts make this the minimal fix rather than one of several. Only ONE
+   glyph on a page lands on the band at all — 25 of the 26 gutter marks sit on
+   the plain pane and are fine there (`·` 5.36/7.09, `⊘` 9.15/5.47) — and the
+   one that does is structural, because the line the session is stopped at is
+   also the arm that ran in the displayed pass. So this is one element per page
+   and it needs no new token, no change to `--bt-mark-position-surface` (read by
+   `.ctrow.cur` and `.evrow.cur` as well, with 14-16 foreground pairs measured
+   against it), and no glyph redrawn.
+
+   It does not break the family argument at `.srcline .mt` above. That rule
+   picks `--bt-mark-executable` so the dot and `⊙` are "one family at two
+   resolutions", and `--bt-mark-position` is the SAME HUE one step along the
+   ramp — cyan.300 against cyan.500 in dark, cyan.900 against cyan.700 in light.
+   The family survives; only the level moves, on the single line whose
+   background demands it.
+
+   WHAT THIS DOES NOT FIX, stated because the round measured it. `⊙` and `⊘`
+   still share IoU 0.750 (dark) / 0.781 (light) with colour normalised away, so
+   the pair is still not separable without hue — that is a silhouette decision,
+   `reviews/QUEUED-DECISIONS.md` Q1 recommendation (b), and it is explicitly a
+   taste call about which mark to draw. And `▶` is never painted anywhere in the
+   corpus, which the same measurement discovered and which is Q18. */
+.srcline.cur .mt,.srcline.cur .mn{color:var(--bt-mark-position)}
 .src .tk-comment{color:var(--bt-syntax-comment)}
 .src .tk-keyword{color:var(--bt-syntax-keyword)}
 .src .tk-type{color:var(--bt-syntax-type)}
