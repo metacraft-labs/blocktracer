@@ -451,7 +451,7 @@ proc revealCurrentLine(pane: Element) {.importjs: """
   // painted between the two, `renderPanes` being one synchronous task, so the
   // visitor sees the restored offset and never the zero. `scroll` events
   // therefore cannot tell a restore from a policy scroll and are the wrong
-  // instrument; journey 12 counts changes in the PAINTED `scrollTop` from one
+  // instrument; journey 13 counts changes in the PAINTED `scrollTop` from one
   // step to the next, which is what the visitor's complaint was counting.
   for (var i = 0; i < scrollers.length; i++) {
     var s = scrollers[i];

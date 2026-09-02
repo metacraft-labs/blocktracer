@@ -84,7 +84,7 @@ edge and true when it is properly revealed, so a journey written that way would
 have printed GREEN over the reported behaviour and certified it.
 
 **A complaint about movement is not answerable by an assertion about presence.**
-Journey 12 asserts where the *pane* is, and two readings are needed rather than
+Journey 13 asserts where the *pane* is, and two readings are needed rather than
 one, because the defect had two mechanisms:
 
 - `scrollTop` catches a pane that re-scrolls on every step.
@@ -109,6 +109,19 @@ Two smaller rules came out of the same file and generalise:
   times at a recording with thirteen left and entered every non-step as a step
   during which nothing moved — reporting a working product as broken. The length
   of the walk is asserted against a floor instead.
+- **Where two mechanisms meet, assert the rule and not the outcome.** The source
+  pane is opened at the position twice by two different things — `autofocus` plus
+  a scroll margin on the served frame, the reveal policy on every stop after it —
+  and journey 13 judges the one transition between them. The tempting assertion,
+  *the hydrated landing keeps the served offset*, is **false**: the session does
+  not land where the served frame stands (`shield.nr:32` → `main.nr:1` on the demo
+  subject, step 128 → step 0 on a chain capture), so asserting it would have been
+  a false RED against two correct changes. What is asserted is the policy's own
+  rule applied to that transition — the pane leaves the served offset exactly when
+  that offset no longer shows the position — with all three cases written and the
+  one taken named in the transcript. `visitWithoutScript` exists for this single
+  comparison: with the bundle running, the two mechanisms are indistinguishable by
+  the time any probe can look.
 
 ## The ledger
 

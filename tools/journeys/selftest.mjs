@@ -656,7 +656,7 @@ const ARMS = [
   // the position to its top edge. The fix has three separable parts — WHEN the
   // pane moves, WHERE the position lands when it does, and whether the document
   // underneath it is stable enough for either question to mean anything — and a
-  // single arm that reverted the lot would prove only that journey 12 notices
+  // single arm that reverted the lot would prove only that journey 13 notices
   // SOMETHING. Each of these reverts exactly one part and names the assertion
   // that must go red, and R and S are written so that the assertion Q targets
   // stays GREEN under them: if it did not, the three would be one arm wearing
@@ -713,7 +713,7 @@ const ARMS = [
       "Restore the windowing `renderPanes` used to do — drop every line above" +
       " `currentLine - 6` on every stop — while leaving the reveal policy entirely" +
       " alone. This is the SECOND mechanism of the reported defect and the reason" +
-      " journey 12 does not judge `scrollTop` alone: with the document rebuilt" +
+      " journey 13 does not judge `scrollTop` alone: with the document rebuilt" +
       " beneath the position on every step, the position sits at row 7 by" +
       " construction and `scrollTop` is 0 before and 0 after. Q's assertion stays" +
       " GREEN under this arm — nothing scrolls, because nothing needs to — and so" +

@@ -83,6 +83,31 @@
 // constant 0 before the fix and 0 after, and a constant supports any assertion
 // its author wants.
 //
+// AND THE FIRST PAINT IS ITS OWN CLAIM, BECAUSE TWO SCROLLS MEET THERE
+// --------------------------------------------------------------------
+// The served frame opens the pane at the position with `autofocus` on the marked
+// row plus a `scroll-margin-block-start` — no script, and the whole mechanism on
+// a `just export` build. Then the bundle runs, rewrites the pane and this policy
+// decides whether to move it. Two separately-correct changes, landed from two
+// different reports, meeting exactly once; the failure available there is a
+// double jump that every other assertion in this file is blind to, because both
+// endpoints show the position.
+//
+// The obvious assertion — "the hydrated landing keeps the served offset" — is
+// FALSE, and writing it would have been a false RED. The hydrated session does
+// not land where the served frame stands: on the demo subject the served frame
+// marks `shield.nr:32` and the session lands on `main.nr:1`, a different FILE,
+// and on the chain capture the file is the same and the position moves from step
+// 128 to step 0. Journey 06 records that move and declines to judge it, and it is
+// not this journey's to judge either.
+//
+// So the first paint is judged by the POLICY'S OWN RULE, applied to the one
+// transition whose starting point it does not choose: the pane leaves the served
+// offset exactly when that offset no longer shows the position. Three cases —
+// different document, same document with the position out of the box, same
+// document with it inside — all three written, and the one taken is named in the
+// transcript.
+//
 // AND IT IS DRIVEN OVER BOTH KINDS OF RECORDING
 // ---------------------------------------------
 // The visitor said "the instructions listing", which is the REAL-capture
@@ -94,14 +119,14 @@
 // subject list asserted non-empty, and no fallback between them — a `??` there
 // is how six journeys in this directory came to judge only the demo chain.
 
-import { visit, readFacts } from "../lib/probe.mjs";
+import { visit, visitWithoutScript, readFacts } from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";
 
 export const id = "source-pane-holds-still-while-the-position-is-visible";
 export const claim =
   "A visitor stepping a session sees the source pane hold still while the position is on screen.";
 export const spec = "Page-Descriptions.md §7.0; Debugger-Integration.md §7 — BlockTracer";
-export const assertions = 33;
+export const assertions = 39;
 export const needsEngine = true;
 
 // The walk stops at `MAX_STEPS` or when the trace ends, whichever comes first,
@@ -252,11 +277,83 @@ export async function run({ browser, site, j }) {
 async function arm(browser, site, j, subject, rendering) {
   const tag = `${rendering}: `;
   j.note(`${tag}driving ${subject.debugPath}`);
+
+  // ── FIRST PAINT: `autofocus` AND THIS POLICY ARE TWO SCROLLS ──────────
+  //
+  // They are separately correct and they meet once, and that is the shape of
+  // interaction two changes landed by two people get wrong. The served frame
+  // opens the pane at the position with `autofocus` on the marked row plus a
+  // `scroll-margin-block-start` — no code, and it is the whole mechanism on a
+  // `just export` build. Then the bundle runs, rewrites the pane, and this
+  // policy decides whether to move it.
+  //
+  // The risk is a double jump: the browser places the position before first
+  // paint and hydration immediately yanks it somewhere else, which is a worse
+  // reading experience than either mechanism alone and is invisible to every
+  // other assertion here because both endpoints show the position.
+  //
+  // WHAT WAS MEASURED, because the obvious assertion is wrong. "The hydrated
+  // landing keeps the served offset" is FALSE, and asserting it would have been
+  // a false red: the hydrated session does not land where the served frame
+  // stands. On the demo subject the served frame marks `shield.nr:32` and the
+  // session lands on `main.nr:1` — a DIFFERENT DOCUMENT — and on the chain
+  // capture the document is the same and the position moves from step 128 to
+  // step 0. Journey 06 records that move and declines to judge it; it is not
+  // this journey's to judge either.
+  //
+  // So the claim is the POLICY'S OWN RULE, applied to the one transition it
+  // does not control the start of: the pane moves off the served offset exactly
+  // when that offset no longer shows the position. Three cases, all three
+  // stated, and the one taken is reported — a future landing that agrees with
+  // the served frame exercises the "must not move" side and this assertion is
+  // already written for it.
+  const served = await visitWithoutScript(browser, site.origin, subject.debugPath);
+  const ss = served.sourceScroll;
+  j.expect(
+    !!ss && ss.scrollable === true && ss.inView === true,
+    `${tag}COMPOSE: with scripting off, the served frame already puts the position on screen`,
+    ss
+      ? `${served.markedDoc} line ${served.markedNumber} at ${ss.fromTop}px of a ${ss.boxHeight}px box, scrollTop ${ss.top}`
+      : "no scroller found from the marked line on the served frame",
+  );
+
   const live = await visit(browser, site.origin, subject.debugPath, {
     settle: (f) => f.phase === "ready" && f.controlsLive > 0,
   });
   const page = live.page;
   try {
+    const hs = live.facts.sourceScroll;
+    j.expect(
+      !!hs && hs.scrollable === true && hs.inView === true,
+      `${tag}COMPOSE: and the hydrated landing puts the position on screen too`,
+      hs
+        ? `${live.facts.markedDoc} line ${live.facts.markedNumber} at ${hs.fromTop}px, scrollTop ${hs.top}`
+        : "no scroller found from the marked line after hydration",
+    );
+
+    // Which of the three cases this landing is, decided from the served reading
+    // and the hydrated one, and then the rule for that case.
+    const sameDoc = !!ss && !!hs && served.markedDoc !== null && served.markedDoc === live.facts.markedDoc;
+    const wouldShow =
+      sameDoc && destinationWasOnScreen(ss.top, served.markedDoc, live.facts) === true;
+    const held = !!hs && !!ss && hs.top === ss.top;
+    let why;
+    let ok;
+    if (!sameDoc) {
+      why = `the session landed in a different document (${served.markedDoc} -> ${live.facts.markedDoc}), so the served offset means nothing and the pane MUST move`;
+      ok = !held || ss.top === 0;
+    } else if (!wouldShow) {
+      why = `same document, but the landing position is not visible at the served offset ${ss.top}, so the pane MUST move`;
+      ok = !held || ss.top === 0;
+    } else {
+      why = `same document and the landing position is visible at the served offset ${ss.top}, so the pane MUST NOT move`;
+      ok = held;
+    }
+    j.expect(
+      ok,
+      `${tag}COMPOSE: hydration moves the pane off the served offset only when that offset no longer shows the position`,
+      `${why} — scrollTop ${ss?.top} -> ${hs?.top}`,
+    );
     j.expect(
       live.settled && !live.timedOut,
       `${tag}the session reached \`ready\` with live controls, so there is something to step`,

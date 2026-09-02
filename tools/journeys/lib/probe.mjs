@@ -136,7 +136,7 @@ export const readFacts = (page) =>
       // pinned the position to its top edge, and the assertion that would have
       // caught it is a reading of `scrollTop` — NOT "the marked line is
       // visible", which is true of the defect and true of the fix and therefore
-      // certifies neither. Journey 12 owns the judgement; this reports the
+      // certifies neither. Journey 13 owns the judgement; this reports the
       // numbers.
       //
       // THE SCROLLER IS FOUND, NOT NAMED. `#pane-editor .panebody` is the
@@ -243,6 +243,36 @@ export const readFacts = (page) =>
  * as a product failure — Verification-Harness-Traps.md §3: "a timeout is a
  * symptom, not a diagnosis".
  */
+/**
+ * The same page, with SCRIPTING OFF — the served frame and nothing else.
+ *
+ * This exists for exactly one comparison and should not be reached for by
+ * anything else. `just export` ships a build with no JS at all, and on the
+ * hydrated build the served frame is still what a reader sees until the bundle
+ * runs; the source pane opens at the position on that frame through `autofocus`
+ * on the marked row plus a `scroll-margin-block-start`, with no code involved.
+ *
+ * Turning scripting off is the only way to read what THAT mechanism did on its
+ * own. With the bundle running, the hydrated reveal has already had its say by
+ * the time any probe can look, and the two would be indistinguishable — which is
+ * precisely the confusion a journey about their interaction must not be built
+ * on.
+ *
+ * It returns facts only. There is no settling to do: nothing on this page will
+ * ever change.
+ */
+export async function visitWithoutScript(browser, origin, path, { timeoutMs = 45000 } = {}) {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  await page.goto(origin + path, { waitUntil: "load", timeout: timeoutMs });
+  // `autofocus` scrolls before the first paint, but the READING is a round trip
+  // and must see the settled layout rather than race it.
+  await page.waitForTimeout(400);
+  const facts = await readFacts(page);
+  await context.close();
+  return facts;
+}
+
 export async function visit(
   browser,
   origin,
