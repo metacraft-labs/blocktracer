@@ -1058,14 +1058,35 @@ proc renderCallTrace*(p: CallTracePane): string =
     return paneNote(if p.note.len > 0: p.note else:
       "The call structure comes from the execution trace.")
 
+  # Declared before the row builders because the tooltip reads it: the unit is
+  # the COLUMN's, carried once by the header, and a frame that does not repeat
+  # it must still be describable on hover.
+  let unit = (if p.costUnit.len > 0: p.costUnit
+              elif p.frames.len > 0: p.frames[0].costUnit else: "")
+
   proc frameCells(f: CallFrame): string =
     ## The row's contents, so the two element shapes below cannot drift. A row
     ## is an `<a>` when the producer gave it a destination and a `<div>` when it
     ## did not, and everything inside is written once.
+    ##
+    ## **The name is painted in full and the path is not painted at all.**
+    ## `.ctname` and `.ctmod` used to share the row's one flexible column with
+    ## `text-overflow:ellipsis` on both, so a narrow pane cut BOTH of them and
+    ## the reader got a truncated name beside a truncated path — two half
+    ## identifiers where one whole one was wanted. The path is the long part
+    ## and the rarely load-bearing part, so it leaves the row: it rides as
+    ## `data-module` and in the row's tooltip, and the name gets the width.
+    ##
+    ## This generalises what the stylesheet already did at 720px, where
+    ## `.ctmod` was `display:none` — the pane had ALREADY decided the path was
+    ## the droppable half; it only decided it at one breakpoint.
     let name = ui:
       span(class = "ctfn"):
         span(class = "ctname " & Copyable): text f.fn
-        span(class = "ctmod"): text f.module
+        # A coordinate is a few characters; a path is not. Dropped entirely
+        # when the producer has no line, rather than rendered as `:0`.
+        if f.line > 0:
+          span(class = "ctline"): text ":" & $f.line
     let cost = ui:
       span(class = "ctcost num"): text f.cost
     name & cost
@@ -1099,16 +1120,38 @@ proc renderCallTrace*(p: CallTracePane): string =
           # loaded. Inert either way — a row with no href does nothing with it.
           let cls = "ctrow " & depthClass(f.depth) &
                     (if f.current: " cur" else: "")
+          #
+          # `title` and `data-module` come AFTER `data-anchor` and that order
+          # is load-bearing: `tools/capture/lib/entities.mjs` matches
+          # `data-step="…" data-anchor="…"` as ADJACENT attributes, so anything
+          # inserted between them silently stops the capture harness finding
+          # rows. New attributes go on the end.
+          #
+          # `title` is the path's new home. A native tooltip rather than a
+          # styled one because this route ships no JavaScript and must work
+          # with scripting off: `title` is the only hover text a static page
+          # can offer, and it is reachable by keyboard focus and to a screen
+          # reader, which a CSS-only `::after` popover is not. Its content is
+          # DERIVED from the frame by `session_view.frameTooltip` — no clause
+          # of it is spelled here, so a row cannot describe a fact its own
+          # data does not carry.
+          #
+          # `data-module` is the path as DATA. `hydrate.rowsOf` needs it to
+          # resolve a `src:` deep link against the served rows, and it used to
+          # get it by reading `.ctmod`'s `textContent` — scraping a
+          # presentation element for a value. That coupling is why removing a
+          # span from this row would otherwise have broken deep-link landing
+          # with nothing to catch it.
+          let tip = frameTooltip(f, unit)
           if f.href.len > 0:
             a(class = cls, href = f.href, `data-step` = $f.step,
-              `data-anchor` = f.anchor):
+              `data-anchor` = f.anchor, title = tip,
+              `data-module` = f.module):
               raw frameCells(f)
           else:
-            tdiv(class = cls, `data-step` = $f.step, `data-anchor` = f.anchor):
+            tdiv(class = cls, `data-step` = $f.step, `data-anchor` = f.anchor,
+                 title = tip, `data-module` = f.module):
               raw frameCells(f)
-
-  let unit = (if p.costUnit.len > 0: p.costUnit
-              elif p.frames.len > 0: p.frames[0].costUnit else: "")
 
   proc head(first, cost: string; withCalls: bool): string =
     ## The unit belongs to the COLUMN, not to every row in it. Repeating it per
@@ -1142,10 +1185,16 @@ proc renderCallTrace*(p: CallTracePane): string =
     ui:
       tdiv(class = "ctrows"):
         for r in selfCostRows(p):
-          tdiv(class = "ctrow d0 flat" & (if r.unmetered: " partial" else: "")):
+          # Same treatment as a frame row, and for the same reason: this view
+          # shares the pane's width and shared `.ctfn` column, so leaving the
+          # path painted here would have left half the pane still truncating
+          # two things at once. A function row has no line of its own — it is a
+          # function, not an occurrence — so the tooltip is name and path.
+          tdiv(class = "ctrow d0 flat" & (if r.unmetered: " partial" else: ""),
+               title = (if r.module.len > 0: r.fn & "\n" & r.module else: r.fn),
+               `data-module` = r.module):
             span(class = "ctfn"):
               span(class = "ctname " & Copyable): text r.fn
-              span(class = "ctmod"): text r.module
             span(class = "ctcalls num"): text $r.calls
             if r.unmetered:
               # A floor, marked as one. An aggregate that silently dropped an

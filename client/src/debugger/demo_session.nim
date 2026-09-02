@@ -186,7 +186,14 @@ proc fixtureCalltrace(): CallTracePane =
   proc frame(name: string; depth, step: int; cost: string;
              current = false): CallFrame =
     let s = symbolOf(name)
+    # `s.line` is the symbol table's line for the FUNCTION — where it is
+    # declared — so the two `calculate_damage` frames below carry the same one.
+    # That is correct and it is also the limit of what a line can do here: they
+    # are two occurrences of one function, and what tells them apart is `step`
+    # (41 and 112). The row paints the line to place the function in its file,
+    # and the selection panel leads with the step to identify the frame.
     CallFrame(depth: depth, fn: s.name, module: DemoModule & " · " & s.path,
+              line: s.line,
               cost: cost, costUnit: "opcodes", step: step, current: current)
   result.costLabel = "ACIR"
   result.costUnit = "opcodes"

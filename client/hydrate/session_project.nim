@@ -398,6 +398,11 @@ proc projectCalltrace*(vm: CalltraceVM; contentHash = ""): CallTracePane =
       depth: line.depth,
       fn: line.name,
       module: line.location.file,
+      # The frame's own source line, from the same `Location` the path comes
+      # from — so a live row's coordinate and its path can never describe two
+      # different places. `0` when the recording has no line for the call,
+      # which the renderer draws as nothing rather than as `:0`.
+      line: line.location.line,
       cost: $line.rrTicks,
       costUnit: "ticks",
       # The time coordinate the frame starts at — what `data-step` carries into

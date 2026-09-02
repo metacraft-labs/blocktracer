@@ -704,10 +704,20 @@ proc markUnavailable(ui: Ui; reason: string) =
 
 proc rowsOf(root: Element; selector: cstring):
     seq[tuple[step: int, anchor, module: string]] =
+  ## The path comes from `data-module` and NOT from a child element's text.
+  ##
+  ## It used to be `row.querySelector(".ctmod").textContent` — this reader
+  ## scraped a value out of a span that existed for PRESENTATION, so the
+  ## question "may the call trace stop painting the path?" silently had
+  ## "no, deep-link landing reads it" as part of its answer, and nothing here
+  ## or there said so. The row now states the path as data; the renderer is
+  ## free to paint it, tooltip it or drop it, and this keeps working either
+  ## way. An attribute is also what the row already does for `data-step` and
+  ## `data-anchor`, which is the whole point — the other two facts a landing
+  ## needs were never scraped out of the rendering.
   for row in root.querySelectorAll(selector):
-    let module = row.querySelector(".ctmod")
     result.add (intAttr(row, "data-step"), attr(row, "data-anchor"),
-                (if module == nil: "" else: $module.textContent))
+                attr(row, "data-module"))
 
 proc servedCallTrace(root: Element): CallTracePane =
   ## The served call trace as pane data. Only what an anchor lookup reads:

@@ -1137,11 +1137,31 @@ a.frseg:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
 .ctrow:hover{background:var(--bt-surface-hover)}
 .ctrow.cur{background:var(--bt-mark-position-surface);
   border-left-color:var(--bt-mark-position)}
+/* THE NAME IS NEVER TRUNCATED, and that is structural rather than lucky.
+   `.ctfn` used to be `overflow:hidden` around two `text-overflow:ellipsis`
+   children — the name and the path — sharing the row's one flexible column, so
+   a narrow pane cut BOTH and the reader got two half identifiers. The path has
+   left the row (it is `data-module` and the row's tooltip), and what is left
+   WRAPS instead of clipping.
+
+   Wrapping, not `overflow-x` on `.ct`: giving the pane a horizontal scroll
+   container would force `overflow-y` to compute to `auto` as well, which moves
+   the scroll container the sticky `.cthead` resolves against and would break a
+   header that currently works. A taller row costs nothing and clips nothing.
+   `overflow-wrap:anywhere` is for the pathological case — one unbroken
+   identifier longer than the column — so even that is shown rather than cut. */
 .ctfn{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;
-  gap:var(--bt-space-xs);overflow:hidden}
+  gap:var(--bt-space-xs);flex-wrap:wrap}
 .ctname{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
-  color:var(--bt-text-strong);white-space:nowrap;overflow:hidden;
-  text-overflow:ellipsis}
+  color:var(--bt-text-strong);white-space:normal;overflow-wrap:anywhere}
+/* The line number, and nothing else, stays inline beside the name: a
+   coordinate is a few characters and places the frame in its file the way
+   VS Code's dimmed `file:line` does. It is NOT the frame's identity — two
+   frames of one recursive function carry the same line — which is why it is
+   quiet, and why the step is what the selection panel leads with. */
+.ctline{flex:0 0 auto;color:var(--bt-text-subtle);
+  font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
+  font-size:var(--bt-type-label-size)}
 /* Marking the current frame used to cut its contrast by four times: the name
    went from the strongest foreground on white at 19.03:1 to accent-on-accent
    at 3.83:1 (dark) /
@@ -1159,10 +1179,12 @@ a.frseg:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
    reviews/rounds/vd5-round5/debugger__wide__light__L1.md). */
 .ctrow.cur .ctname{color:var(--bt-text-strong);
   font-weight:var(--bt-type-h3-weight)}
-.ctrow.cur .ctmod{color:var(--bt-text-default)}
+/* `.ctrow.cur .ctmod` is gone with the element it styled. The contrast finding
+   it was written for still stands and still binds — it is now `.ctline` that
+   sits beside the name on a marked row, and it is `--bt-text-subtle` on the
+   position fill rather than the retired path colour. */
+.ctrow.cur .ctline{color:var(--bt-text-default)}
 .ctrow.cur .ctcost{color:var(--bt-text-strong)}
-.ctmod{color:var(--bt-text-subtle);font-size:var(--bt-type-label-size);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ctcost{flex:0 0 auto;text-align:right;color:var(--bt-text-default);
   font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
   font-variant-numeric:var(--bt-numeric-features);
@@ -1988,7 +2010,11 @@ a .copyable,button .copyable{cursor:pointer}
   .dbgbar{gap:var(--bt-space-2xs) var(--bt-space-sm);
     padding:var(--bt-space-2xs) var(--bt-space-md)}
   .dbgblock,.dbglang{display:none}
-  .ctmod,.evdetail{display:none}
+  /* `.ctmod` was here too, and it is not any more: the call trace no longer
+     paints a path at ANY width, so the breakpoint has nothing left to drop.
+     This rule was the pane already conceding that the path was the droppable
+     half — it just conceded it at one viewport width instead of everywhere. */
+  .evdetail{display:none}
 }
 """
 

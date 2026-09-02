@@ -669,6 +669,27 @@ type
     depth*: int
     fn*: string           ## function or entry-point name
     module*: string       ## the contract / module it belongs to
+      ##
+      ## NO LONGER PAINTED IN THE ROW. It is the row's `data-module` attribute
+      ## and part of its tooltip, and `renderCallTrace` gives the whole of the
+      ## row's text width to `fn`. The path is what was long; the name is what
+      ## the reader came for, and a pane this narrow cannot show both at full
+      ## length. `hydrate.rowsOf` reads the attribute — it used to scrape this
+      ## string back out of the `.ctmod` element's `textContent`, which is a
+      ## coupling to a PRESENTATION choice, and this change is exactly the kind
+      ## of edit that would have broken it silently.
+    line*: int            ## the frame's source line, or 0 when it has none
+      ## Painted beside the name, because a coordinate is a few characters and
+      ## a path is not — the same split VS Code and IntelliJ make.
+      ##
+      ## **It does not, on its own, tell two frames of the same function
+      ## apart.** Both producers give the frame's SOURCE location, and a
+      ## function is declared once: the demo's two `calculate_damage` frames
+      ## carry the same line, and so do two frames of a recursive call. What
+      ## separates them is `step`, which is why the row already carries it as
+      ## `data-step` and why the selection panel leads with it. Rendered
+      ## because it orients the reader in the file, not because it identifies
+      ## the frame.
     cost*: string         ## already formatted by the producer
     costUnit*: string
     step*: int            ## the time coordinate the frame starts at
@@ -815,6 +836,41 @@ func formatCost*(n: int): string =
   ## COST and not to grouping is the em dash: a frame the producer did not meter
   ## has no number, and `-1` is the absence rather than a quantity.
   if n < 0: "—" else: groupDigits(n)
+
+func frameWhere*(f: CallFrame): string =
+  ## `zk_shields · src/shield.nr:41` — the frame's place, as one string.
+  ##
+  ## Both halves are optional and each is omitted when the producer has none,
+  ## so a frame with a path and no line reads `src/shield.nr` rather than
+  ## `src/shield.nr:0`. Shared by the tooltip and the selection panel: those
+  ## two must not be able to disagree about where a frame is.
+  result = f.module
+  if f.line > 0:
+    result.add(if result.len > 0: ":" & $f.line else: "line " & $f.line)
+
+func frameTooltip*(f: CallFrame; paneUnit = ""): string =
+  ## The hover text for one call-trace row — what the row stopped painting.
+  ##
+  ## **Every clause is read off the frame.** A fact the producer did not supply
+  ## is absent from the tooltip rather than described by a constant, which is
+  ## the same rule the debugger controls' tooltips follow for their chords: the
+  ## text is derived from the data, never spelled twice. `paneUnit` is the
+  ## column's unit (`CallTracePane.costUnit`), used only when the frame carries
+  ## none of its own — the header holds it once for the pane, so a frame need
+  ## not repeat it to be describable here.
+  ##
+  ## The name leads even though the row still paints it in full. The tooltip is
+  ## a description of a ROW, and a description that opened with the path would
+  ## make the reader find the subject in the second line.
+  result = f.fn
+  let where = frameWhere(f)
+  if where.len > 0: result.add "\n" & where
+  var tail: seq[string] = @[]
+  if f.step > 0: tail.add "starts at step " & groupDigits(f.step)
+  if f.cost.len > 0:
+    let unit = if f.costUnit.len > 0: f.costUnit else: paneUnit
+    tail.add f.cost & (if unit.len > 0: " " & unit else: "")
+  if tail.len > 0: result.add "\n" & tail.join(" · ")
 
 func selfCost*(frames: seq[CallFrame]; i: int): int =
   ## Frame `i`'s cost with its DIRECT callees' cost removed, or `-1` when the
