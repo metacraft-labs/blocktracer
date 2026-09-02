@@ -397,6 +397,103 @@ const ARMS = [
     journey: "a-value-can-be-traced-to-its-origin",
     assertion: "NO-SOURCE: the pane says why a value here cannot be traced",
   },
+  {
+    id: "P/the-mark-is-painted-and-nothing-is-sent",
+    why:
+      "Paint the breakpoint and tell the engine nothing. This is not a" +
+      " hypothetical shape — it is what the product did until this feature" +
+      " landed, measured at ZERO `setBreakpoints` frames sent by the whole" +
+      " bundle. The gutter is rendered from a set this repository owns, so all" +
+      " three marks appear, `aria-pressed` is correct on all three, and" +
+      " Continue runs straight past them to the end of the recording. Every" +
+      " assertion that reads the DOM stays green; only the wire says otherwise," +
+      " which is why the journey counts frames at all.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `  h.render()
+  h.sendBreakpoints(path)`,
+    replace: `  h.render()
+  discard path`,
+    journey: "continuing-stops-at-a-breakpoint",
+    assertion: "CONTROL: three `setBreakpoints` frames reached the engine, one per click",
+  },
+  {
+    id: "Q/only-the-clicked-line-is-sent",
+    why:
+      "Send just the line that was clicked instead of the file's whole set." +
+      " DAP `setBreakpoints` REPLACES a source's breakpoints —" +
+      " `dap_handler.set_breakpoints` calls `clear_breakpoints_for_source`" +
+      " first — so a request naming one line does not add a breakpoint, it" +
+      " makes that line the ONLY one in the file. The gutter still shows three" +
+      " marks because the page's own set is untouched; the engine has one, and" +
+      " the forward walk reaches a single line instead of all three. This is" +
+      " the arm for the sentence in `live_breakpoints`'s header that a reader" +
+      " would most plausibly 'simplify'.",
+    file: join(CLIENT, "hydrate", "live_breakpoints.nim"),
+    find: `  let lines = s.linesFor(path)
+  let name =`,
+    replace: `  let lines = (if s.linesFor(path).len > 0: @[s.linesFor(path)[^1]] else: @[])
+  let name =`,
+    journey: "continuing-stops-at-a-breakpoint",
+    assertion: "the forward walk reaches all three marked lines, not just the first",
+  },
+  {
+    id: "R/the-absolute-path-the-engine-reports",
+    why:
+      "Send the path the engine REPORTS instead of the one the document" +
+      " carries. The engine names positions at the recording machine's" +
+      " absolute path ('/private/tmp/…/src/main.nr') while the island carries" +
+      " the interned relative one ('src/main.nr'), and making the two 'agree'" +
+      " is the exact correction `live_source.nim` warns silently removes a" +
+      " feature. Here it removes this one: the breakpoints are never resolved," +
+      " so Continue reaches none of them. Aimed at the forward walk rather" +
+      " than at the mark, because all three marks still paint.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `    (attr(doc, "data-path"), intAttr(row, "data-line"))`,
+    replace: `    ("/private/tmp/" & attr(doc, "data-path"), intAttr(row, "data-line"))`,
+    journey: "continuing-stops-at-a-breakpoint",
+    assertion: "continuing forward stops at least three times",
+  },
+  {
+    id: "S/an-empty-set-still-reaches-the-engine",
+    why:
+      "Remove the short-circuit that answers a continue with no breakpoints" +
+      " without a round trip. §10.8 requires the control to SAY there was" +
+      " nothing to reach rather than run to the end; the engine does the" +
+      " opposite, so a session with no breakpoints would be sent to the last" +
+      " step of the recording and seeked back — a jump the visitor did not ask" +
+      " for, and one they would SEE. The restore keeps the final position" +
+      " correct, which is exactly why this arm is aimed at the wire: the" +
+      " position assertion alone would survive it.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `    if h.breakpoints.isEmpty():`,
+    replace: `    if false:`,
+    journey: "continuing-stops-at-a-breakpoint",
+    assertion: "no `continue` reached the engine at all, so there was no jump to undo",
+  },
+  {
+    id: "T/reversing-rewinds-to-the-first-breakpoint",
+    why:
+      "Make reverse continue seek to the earliest breakpoint hit instead of" +
+      " asking the engine to find the nearest preceding one. THE ERROR A" +
+      " SINGLE BREAKPOINT CANNOT CATCH: with one breakpoint, or from a" +
+      " position just after the first, 'nearest preceding' and 'first in the" +
+      " file' are the same answer and this mutation is invisible. The journey" +
+      " sets three and reverses from the last, and it asserts the two are" +
+      " DIFFERENT before comparing, so the discrimination is not vacuous." +
+      " Implemented as a seek to the recording's start, which is where a" +
+      " reverse-continue that ignores the current position ends up.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `    h.continueFrom = h.session.store.debugger.val.rrTicks
+    h.continueAwaiting = true`,
+    replace: `    h.continueFrom = h.session.store.debugger.val.rrTicks
+    if not forward:
+      h.gotoTicks(0)
+      return
+    h.continueAwaiting = true`,
+    journey: "continuing-stops-at-a-breakpoint",
+    assertion:
+      "the first reverse continue lands on the stop NEAREST BEFORE it, not the first in the file",
+  },
 ];
 
 const log = (s = "") => console.log(s);
