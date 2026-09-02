@@ -46,13 +46,16 @@ import std/[options, strutils]
 import codetracer_embed
 
 import ../src/debugger/deeplink_landing
+import ../src/debugger/flow_view
 import ../src/debugger/instruction_listing
 import ../src/debugger/session_view
 import ../src/debugger/source_island
+import ./live_flow
 import ./live_locals
 import ./live_navigation
 import ./live_origin
 export deeplink_landing
+export live_flow
 export live_locals
 export live_navigation
 export live_origin
@@ -128,6 +131,19 @@ type
       ## reads it for exactly the reason `projectEditor` reads the store's
       ## position — the VM exposes the values but not whether they are THIS
       ## position's.
+    flowWindow*: FlowFeed
+      ## The `ct/updated-flow` STEPS this session's `FlowVM` cannot read for
+      ## itself (`live_flow.nim`). Beside `locals` and `navigation` for the same
+      ## reason and with the same shape, and it is the fifth time this exact
+      ## shape has been found here: the engine answers in full, the pinned
+      ## consumer keeps a part of the answer, and the pane looked healthy
+      ## because the static export shipped a real overlay for the served frame.
+      ##
+      ## Measured on the wire before it was written — see `live_flow`'s header
+      ## for the numbers, including the one that names the defect: 23 value
+      ## labels on the served frame, 0 after hydration, 0 after four steps,
+      ## with a window carrying 13 lines' worth of values arriving for every
+      ## one of those positions.
     flow*: FlowVM
       ## The sixth, and it is not one of the five panes.
       ##
@@ -216,9 +232,12 @@ proc openLiveSession*(backend: BackendService; sourceIsPublished: bool):
   let feed = LocalsFeed()
   let nav = NavigationFeed()
   let origin = OriginFeed()
+  let flowWindow = FlowFeed()
   let store = createReplayDataStore(
-    withLiveOrigin(withLiveNavigation(withLiveLocals(backend, feed), nav),
-                   origin))
+    withLiveFlow(
+      withLiveOrigin(withLiveNavigation(withLiveLocals(backend, feed), nav),
+                     origin),
+      flowWindow))
   feed.store = store
   feed.sourcePublished = sourceIsPublished
   nav.store = store
@@ -241,6 +260,7 @@ proc openLiveSession*(backend: BackendService; sourceIsPublished: bool):
     controls: createDebugControlsVM(store),
     originChain: createOriginChainVM(store),
     origin: origin,
+    flowWindow: flowWindow,
     flow: createFlowVM(store))
   # AFTER the VMs exist: the feed writes event rows through the EventLogVM's own
   # `appendLiveDebuggerStop`, so it needs the handle the line above creates. The
@@ -369,6 +389,87 @@ proc projectEditor*(vm: EditorVM; store: ReplayDataStore;
   else:
     result.availability = SourceAvailabilityView.srcAbsent
     result.reason = "This execution ran no contract code."
+
+proc projectFlowWindow*(feed: FlowFeed; pane: EditorPane): FlowWindowInput =
+  ## The engine's window, joined to the page's source text.
+  ##
+  ## Two halves of one overlay that come from two places, which is
+  ## `FlowLayoutWindow`'s own design ("who owns the source differs per
+  ## consumer"): the engine sends the recorded values and knows nothing about
+  ## what this page published, and the page holds the text and knows nothing
+  ## about what ran. Only here are both present.
+  ##
+  ## ## The path is RESOLVED and not compared
+  ##
+  ## `location.path` is an absolute path on the recording machine —
+  ## `/private/tmp/blocktracer-fixture-rec/noir_space_ship/src/main.nr` on the
+  ## published fixture — while the pane's documents carry the path the trace
+  ## interned, `src/main.nr`. A `==` between them is false for every real
+  ## session, which would present as an overlay that silently never appears; and
+  ## `flow_view.applyFlow` matches its input's path against the documents with
+  ## `==`, so the resolution has to happen HERE and the resolved path has to be
+  ## the one handed on.
+  ##
+  ## `source_island.positionDocumentIndex` is the resolver, and it is the same
+  ## one `decodeSourceIsland` uses to decide which document the POSITION is in —
+  ## longest matching suffix, resolved against the whole document list rather
+  ## than one document at a time. Two different answers to "which file is the
+  ## engine talking about" on one page would put the values in a different file
+  ## from the current-line mark, which is a failure a reader could not see.
+  ##
+  ## An unresolvable path yields an input with an empty `path`, which
+  ## `applyFlow` refuses — the honest reading of "no window has been loaded for
+  ## any file this page is showing".
+  if feed == nil: return
+  var paths: seq[string]
+  for doc in pane.documents: paths.add doc.path
+  let index = positionDocumentIndex(paths, feed.enginePath)
+  if index < 0: return
+  result.path = pane.documents[index].path
+  result.returns = feed.returns
+  result.locationTicks = feed.locationTicks
+  result.functionLabel = feed.functionLabel
+  result.window = feed.window
+  # The text, line for line, from the document the engine's path resolved to.
+  # `SourceLine.text` and not the island's raw blob: the pane is what the
+  # renderer draws, so placing an expression against anything else would let the
+  # column a label is computed at and the line it is drawn on come from two
+  # different strings.
+  #
+  # `sourceLines` is indexed from zero for line 1 (`FlowLayoutWindow.lineText`),
+  # and an instruction listing's rows start at 0, so the offset is taken from
+  # the document rather than assumed. A window whose first line is not 1 that
+  # was indexed as though it were would place every label one row off — which
+  # renders perfectly and is wrong everywhere.
+  var lines: seq[string] = @[]
+  for line in pane.documents[index].lines:
+    while lines.len < max(0, line.number - 1): lines.add ""
+    lines.add line.text
+  result.window.sourceLines = lines
+
+proc applyLiveFlow*(pane: var EditorPane; feed: FlowFeed;
+                    ticks: uint64): bool =
+  ## Draw the engine's window on the pane, if the window is THIS position's.
+  ##
+  ## The return value is the whole contract: `true` means the overlay and the
+  ## rail on this pane both came from `feed`, `false` means nothing was written
+  ## and the caller still owns the rail. It is a `bool` and not a silent
+  ## mutation because the alternative — calling `applyFlow` unconditionally —
+  ## would CLEAR the rail on every position whose window has not landed yet
+  ## (`applyFlow` clears before it decides), so a session would flicker the loop
+  ## control off and on at every step.
+  ##
+  ## `hasWindowFor` is the staleness gate and it is asked about the SESSION's
+  ## tick, passed in by the caller, rather than about the window's own
+  ## `locationTicks`. A window that answered its own question would pass it by
+  ## construction; the whole point is to compare what the engine computed
+  ## against where the session actually is, which is the same discipline
+  ## `projectState` applies to the locals.
+  if not feed.hasWindowFor(ticks): return false
+  let input = projectFlowWindow(feed, pane)
+  if input.path.len == 0: return false
+  applyFlow(pane, input)
+  true
 
 proc projectFlowRail*(vm: FlowVM; path: string): FlowRail =
   ## The loop-iteration control, from the engine's own flow window.
@@ -690,8 +791,19 @@ proc projectReplayPanes*(s: LiveSession; base: DebugSessionView;
   # `flow_view.applyFlow` refuses for the same reason on the static side. One
   # rule, enforced on both producers rather than remembered by both.
   if result.editor.availability == SourceAvailabilityView.srcSourceLevel:
-    result.editor.flow =
-      projectFlowRail(s.flow, s.store.debugger.val.location.file)
+    # THE VALUES FIRST, AND THE RAIL ONLY IF THEY DID NOT ARRIVE.
+    #
+    # `applyFlow` builds the rail itself, out of the same window the labels come
+    # from, so calling both would set it twice from two parsers — the "two
+    # producers of one fact" arrangement this route has already been bitten by.
+    # When the engine's window is this position's, it is the one producer; when
+    # it is not, `projectFlowRail` is what the pane had before this line existed
+    # and the pane keeps it, so nothing regresses on a session whose window has
+    # not landed yet.
+    if not applyLiveFlow(result.editor, s.flowWindow,
+                         s.store.debugger.val.rrTicks):
+      result.editor.flow =
+        projectFlowRail(s.flow, s.store.debugger.val.location.file)
   # `base.traceContentHash` and not a value from the engine: §6.0's witness is
   # a fact about the artifact the PAGE recommends, which the served DOM carries
   # and the engine has no opinion about. Reading it from `base` is also what

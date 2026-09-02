@@ -2147,6 +2147,14 @@ proc goLive(h: Hydration) =
   # something else happened to repaint.
   h.session.navigation.onApplied = proc() =
     if not h.stopped: h.render()
+  # AND ONCE MORE FOR THE FLOW WINDOW, which is the same arrangement a third
+  # time: `FlowVM` asks on every move, `ct/updated-flow` comes back as an
+  # unsolicited event a round trip later, and `live_flow` parses it. Without
+  # this the values overlay would land one STEP behind the position it belongs
+  # to — visible, plausible, and describing the frame the visitor just left,
+  # which is the failure the whole module is written against.
+  h.session.flowWindow.onApplied = proc() =
+    if not h.stopped: h.render()
   # AND RE-ISSUE THE ONE REQUEST THE CLEAR ABOVE CANNOT REPLAY. See
   # `requestNavigationSections`: the call trace's auto-load fired before the
   # worker existed and its effect will not run again until something it reads
@@ -2162,6 +2170,14 @@ proc goLive(h: Hydration) =
   # with a name. Injected rather than reached for, so `live_locals` stays a
   # module a headless suite can drive.
   h.session.locals.scheduleTimeout = proc(ms: int; action: proc()) =
+    afterMs(ms, action)
+  # The same deadline for the flow window, and it matters more here than it
+  # reads: an unanswered `ct/load-flow` would leave the feed `ffPending`
+  # forever, `hasWindowFor` false forever, and the pane back on the loop rail
+  # with no values — which is the state this change exists to leave. The
+  # deadline is what turns that into a settled `ffUnavailable` the next answer
+  # can replace.
+  h.session.flowWindow.scheduleTimeout = proc(ms: int; action: proc()) =
     afterMs(ms, action)
   # The CONTROLS only. Not the panes: at this instant the engine has answered
   # `threads` and has not yet produced a call trace, a set of locals or a
