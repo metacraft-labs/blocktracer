@@ -863,9 +863,36 @@ type
     typ*: string
     value*: string
     changed*: bool        ## written at the current step
+    origin*: string
+      ## What tracing this value to its origin would SHOW, in one line — the
+      ## classified terminator expression. Empty means no control is offered
+      ## for this row, and empty is the common case: a value the classifier
+      ## could not attribute has nothing behind a control, and a control with
+      ## nothing behind it is one that cannot succeed.
+      ##
+      ## Filled only from a summary that is actually classified — a non-zero
+      ## confidence and a terminator that is not `unknownSource`. The engine
+      ## answers `success: true` with `confidence: 0` and
+      ## `terminatorKind: "unknownSource"` for every value it could not
+      ## attribute, so keying the affordance off the REPLY rather than off the
+      ## CLASSIFICATION would put a control on every row of every session and
+      ## have it answer "unknown" on all of them.
   StatePane* = object
     values*: seq[StateValue]
     note*: string
+    originNote*: string
+      ## Why no value in this pane can be traced to its origin, when none can.
+      ##
+      ## Set for a recording that published no source: the classifier works by
+      ## parsing the right-hand side of a source assignment, so with no source
+      ## there is nothing to parse and the honest answer is a sentence rather
+      ## than a row of controls that would each answer "unknown". Every chain
+      ## capture this explorer publishes is in that state — `sourceBundles` is
+      ## empty and `execution.sourceLevel` is false on all eight — and saying
+      ## so is the correct product behaviour for them, not a degraded one.
+      ##
+      ## Empty when the recording DID publish source, whether or not any
+      ## individual value turned out to be classifiable.
 
 # ---------------------------------------------------------------------------
 # Event log pane

@@ -1102,6 +1102,27 @@ proc renderState*(p: StatePane): string =
           span(class = "stname"): text v.name
           span(class = "stval " & Copyable): text v.value
           span(class = "sttype"): text v.typ
+          # THE ORIGIN CONTROL, on the rows that have an origin and on no
+          # others. `v.origin` is the classified terminator expression, so the
+          # button's title says what the answer will be BEFORE it is asked —
+          # which is the difference between an affordance and a lottery ticket.
+          #
+          # A row whose value the classifier could not attribute gets no
+          # button. That is deliberate and it is the whole point: the engine
+          # answers `success: true` for those too, carrying
+          # `confidence: 0` and "source unavailable", so a control rendered on
+          # every row would be a control that fails on most of them while
+          # looking identical to one that works.
+          if v.origin.len > 0:
+            button(class = "storigin", `data-action` = "origin",
+                   `data-name` = v.name,
+                   title = "Trace to origin: " & v.origin):
+              text "origin"
+      # Said once for the pane, not once per row: it is a property of the
+      # RECORDING, and repeating it beside every value would read as a
+      # per-value failure rather than as the one fact it is.
+      if p.originNote.len > 0:
+        tdiv(class = "stnote"): text p.originNote
 
 proc renderEventLog*(p: EventLogPane): string =
   if p.rows.len == 0:

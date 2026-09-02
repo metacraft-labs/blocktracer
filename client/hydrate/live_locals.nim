@@ -264,6 +264,30 @@ proc variablesOf*(body: JsonNode): seq[Variable] =
       value = valueText(value),
       typeName = typeName)
 
+proc originSummariesOf*(body: JsonNode): seq[(string, OriginSummary)] =
+  ## The `originSummary` each local carries, keyed by the local's name.
+  ##
+  ## THE FIELD WAS ALWAYS THERE AND WAS ALWAYS DROPPED. `variablesOf` above
+  ## reads `expression`, `value` and `typ.langType` and nothing else, so the
+  ## summary — which `task.rs:44` puts on every `Variable` and which the engine
+  ## fills for every local it can attribute — went into the parser and did not
+  ## come out. Measured against the published engine: 6 of 6 locals carry one.
+  ##
+  ## Parsed here rather than in `variablesOf` because it goes somewhere else:
+  ## `Variable` is the store's row type and has no room for it, while
+  ## `StateVM.originSummaries` is the signal the row renderer reads. One reply,
+  ## two readers, and neither has to know about the other.
+  if body.isNil or body.kind != JObject: return
+  let locals = body{"locals"}
+  if locals == nil or locals.kind != JArray: return
+  for local in locals:
+    if local.kind != JObject: continue
+    let name = local{"expression"}.getStr("")
+    if name.len == 0: continue
+    let summary = local{"originSummary"}
+    if summary == nil or summary.kind != JObject: continue
+    result.add (name, parseOriginSummary(summary))
+
 # ---------------------------------------------------------------------------
 # The feed
 # ---------------------------------------------------------------------------
@@ -287,6 +311,23 @@ type
       ## built ON the decorated service, so the decoration cannot be given the
       ## store at construction time; this is where that knot is tied, in one
       ## place, rather than by threading a lookup through every send.
+    state*: StateVM
+      ## Where the per-local `originSummary` goes. Assigned by
+      ## `openLiveSession` after the ViewModels exist, for the same reason
+      ## `NavigationFeed.eventLog` is: the VM is built on the store which is
+      ## built on this decoration, so it cannot exist before the decoration
+      ## does. Nil-checked at every use, because a session that never built
+      ## one is `tests/tdebugpanes.nim`'s and must keep working.
+    sourcePublished*: bool
+      ## Whether this recording published source at all.
+      ##
+      ## Load-bearing, and NOT the same question as "did any value get
+      ## classified". A recording with no source cannot have an origin chain
+      ## over any of its values — every chain capture this explorer publishes
+      ## is in that state — and the pane must say so once rather than render
+      ## nothing and let the absence read as a defect. A recording that DID
+      ## publish source and still classified nothing is a different situation
+      ## and gets no such sentence.
     phase*: LocalsPhase
     forTicks*: uint64
       ## The position `phase` is a statement about. Compared against the
@@ -345,6 +386,13 @@ proc apply*(feed: LocalsFeed; epoch: int; response: JsonNode) =
   # `settle` triggers reads a store that already holds this position's values.
   if feed.store != nil:
     feed.store.updateLocals(variablesOf(body))
+  # The summaries go to the StateVM and not to the store, because the store's
+  # `Variable` has nowhere to put them and `StateVM.originSummaries` is what
+  # the row renderer reads. BULK-replaced rather than merged: they belong to
+  # THIS position, and a summary left over from the previous one would put a
+  # control on a row whose value is no longer the value it described.
+  if feed.state != nil:
+    feed.state.updateOriginSummaries(originSummariesOf(body))
   feed.settle(epoch, lpLive)
 
 proc refuse*(feed: LocalsFeed; epoch: int; message: string) =

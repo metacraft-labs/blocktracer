@@ -51,9 +51,11 @@ import ../src/debugger/session_view
 import ../src/debugger/source_island
 import ./live_locals
 import ./live_navigation
+import ./live_origin
 export deeplink_landing
 export live_locals
 export live_navigation
+export live_origin
 
 # ---------------------------------------------------------------------------
 # One store, one backend, five ViewModels
@@ -72,6 +74,16 @@ type
     state*: StateVM
     eventLog*: EventLogVM
     controls*: DebugControlsVM
+    originChain*: OriginChainVM
+      ## The sixth ViewModel, and the one BlockTracer built five of and not
+      ## this. It is driven entirely by the visitor — no auto-load effect —
+      ## so it costs nothing on a session where nobody asks for an origin.
+    origin*: OriginFeed
+      ## The `ct/originChain` reply and the `ct/updated-origin-chain` event,
+      ## which `OriginChainVM` issues and discards for itself
+      ## (`live_origin.nim`). Beside `locals` and `navigation`, and for the
+      ## third time the same reason: the engine answers, the pinned consumer
+      ## drops it, and the surface looks like a missing feature.
     navigation*: NavigationFeed
       ## The `ct/updated-calltrace` and `ct/updated-events` payloads this
       ## session's store and EventLogVM cannot read for themselves
@@ -118,6 +130,19 @@ const
     ## generous constant is the honest stand-in: it over-fetches a little and
     ## cannot under-fetch into a blank pane.
 
+  NoSourceOriginNote* =
+    "This recording carries no source, so a value cannot be traced to its " &
+    "origin: the origin is read from the line that assigned the value, and " &
+    "an Aztec contract class does not publish one."
+    ## The §14 sentence for a recording that cannot support the capability.
+    ##
+    ## Written in the register `demo_session.nim` already uses for the sibling
+    ## fact ("This recording carries no variable names: naming a local needs
+    ## debug symbols, which an Aztec contract class does not publish") — states
+    ## what is missing, why it is missing, and stops. It does not apologise and
+    ## it does not promise the feature later, because for this recording there
+    ## is no later.
+
   EventLogPageRows* = 50
     ## `EventLogVM`'s own `DEFAULT_PAGE_SIZE`, restated so the page the
     ## projection slices is a decision this consumer made rather than one it
@@ -161,9 +186,12 @@ proc openLiveSession*(backend: BackendService; sourceIsPublished: bool):
   ##     nothing in this repository called outside `tests/tdebugpanes.nim`.
   let feed = LocalsFeed()
   let nav = NavigationFeed()
+  let origin = OriginFeed()
   let store = createReplayDataStore(
-    withLiveNavigation(withLiveLocals(backend, feed), nav))
+    withLiveOrigin(withLiveNavigation(withLiveLocals(backend, feed), nav),
+                   origin))
   feed.store = store
+  feed.sourcePublished = sourceIsPublished
   nav.store = store
   store.setSessionMode(completedReplay)
   store.setSourceAvailability(
@@ -177,12 +205,19 @@ proc openLiveSession*(backend: BackendService; sourceIsPublished: bool):
     state: createStateVM(store),
     eventLog: createEventLogVM(store),
     controls: createDebugControlsVM(store),
+    originChain: createOriginChainVM(store),
+    origin: origin,
     flow: createFlowVM(store))
   # AFTER the VMs exist: the feed writes event rows through the EventLogVM's own
   # `appendLiveDebuggerStop`, so it needs the handle the line above creates. The
   # handler registered inside `withLiveNavigation` reads this field when an
   # event arrives, which is necessarily later than here.
   nav.eventLog = result.eventLog
+  # The same knot, tied for the locals' summaries and for the chain: both VMs
+  # are built on the store which is built on the decorations, so neither could
+  # have been handed to its feed at construction time.
+  feed.state = result.state
+  origin.chain = result.originChain
   result.calltrace.setViewportHeight(CalltraceViewportRows)
   result.eventLog.setPageSize(EventLogPageRows)
 
@@ -408,9 +443,25 @@ proc projectState*(vm: StateVM; feed: LocalsFeed; ticks: uint64): StatePane =
   ## the served frame's values are never left standing as a fallback.
   result.note = feed.noteFor(ticks, vm.currentVariables.val.len)
   if result.note.len > 0: return
+  # WHY NO VALUE HERE CAN BE TRACED, when none can — said once, and said only
+  # for the recording that cannot rather than for the value that happened not
+  # to be. The origin classifier parses the right-hand side of a source
+  # assignment, so a recording that published no source has nothing for it to
+  # read; every chain capture this explorer publishes is in that state and
+  # will stay there. Stating it is the correct behaviour for those sessions,
+  # and it is what the alternative — a row of controls that each answer
+  # "unknown" — would have hidden.
+  if not feed.sourcePublished:
+    result.originNote = NoSourceOriginNote
   for v in vm.currentVariables.val:
+    let summary = vm.originSummaryFor(v.name)
     result.values.add StateValue(
       name: v.name, typ: v.typeName, value: v.value,
+      # The control is offered for a CLASSIFIED origin and for nothing else —
+      # see `classifiedOriginOf`. A summary is present on essentially every
+      # local (6 of 6, measured), so "has a summary" would put a control
+      # everywhere; what varies is whether the summary says anything.
+      origin: (if summary.isSome: classifiedOriginOf(summary.get) else: ""),
       # `changed` is the pane's "written at this step" marker. The StateVM does
       # not model that yet, so the projection maps it to the VM's own selection
       # rather than inventing a value — a marker that lit up on nothing would

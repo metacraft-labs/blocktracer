@@ -56,6 +56,7 @@ import ../src/debugger/source_island
 import ../src/components/debugger as panes
 
 import ./engine_transport
+import ./live_origin
 import ./live_source
 import ./session_project
 
@@ -727,6 +728,29 @@ proc bindGestures(h: Hydration) =
     let wire = attr(btn, "data-action")
     for a in DebugAction:
       if $a == wire: h.invoke(a))
+
+  # "Where did this value come from" — delegated on the State pane's body for
+  # the reason every other row handler is: `renderPanes` replaces that body on
+  # every stop, and a listener bound to a button would be dropped by the first
+  # step the visitor took.
+  #
+  # The button only exists on a row whose origin the engine actually
+  # classified (`projectState`), so this handler cannot be reached for a value
+  # that has no chain — which is what keeps "the control is offered" and "the
+  # control can answer" the same claim.
+  h.ui.state.addEventListener("click", proc(ev: Event) =
+    let btn = closestFrom(ev, ".storigin")
+    if btn == nil: return
+    let name = attr(btn, "data-name")
+    if name.len == 0: return
+    if not isPlainActivation(ev): return
+    ev.preventDefault()
+    # `onShowOrigin` issues `ct/originChain` and discards the future; the
+    # reply is read by `withLiveOrigin` on the way back. The location is the
+    # session's own — the value is being asked about where it is being shown.
+    h.session.originChain.onShowOrigin(
+      name, h.session.store.debugger.val.location,
+      int64(h.session.store.debugger.val.rrTicks)))
 
   rowHandler(h.ui.calltrace, ".ctrow")
   rowHandler(h.ui.eventLog, ".evrow")

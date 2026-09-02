@@ -212,6 +212,42 @@ async function main() {
     console.log(`session phase: ${phase}`);
 
     const out = await page.evaluate(ASK);
+
+    // WHAT THE PAGE OFFERS, after the walk above has put the session on a
+    // position with values. Counted with the same generous selector the
+    // journey uses, plus the specific one, so a mismatch between them says
+    // the control was renamed rather than removed.
+    const surface = await page.evaluate(() => {
+      const shown = (e) =>
+        !!e &&
+        typeof e.checkVisibility === "function" &&
+        e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+      const labelled = [
+        ...document.querySelectorAll("a, button, [data-action], [role=button]"),
+      ].filter((e) =>
+        /origin|where did this come from|provenance|trace value/i.test(
+          `${e.textContent ?? ""} ${e.getAttribute("data-action") ?? ""} ${
+            e.getAttribute("aria-label") ?? ""
+          } ${e.getAttribute("title") ?? ""}`,
+        ),
+      );
+      return {
+        originButtons: [...document.querySelectorAll(".storigin")].length,
+        originButtonsShown: [...document.querySelectorAll(".storigin")].filter(shown).length,
+        labelled: labelled.length,
+        titles: [...document.querySelectorAll(".storigin")].map((e) => e.getAttribute("title")),
+        note: document.querySelector("#pane-state .stnote")?.textContent?.trim() ?? "",
+        rows: document.querySelectorAll("#pane-state .strow").length,
+      };
+    });
+    console.log(`\n--- the State pane as the visitor sees it ---`);
+    console.log(`  rows: ${surface.rows}`);
+    console.log(
+      `  origin controls: ${surface.originButtons} (${surface.originButtonsShown} visible), ` +
+        `matched by the journey's wide selector: ${surface.labelled}`,
+    );
+    for (const t of surface.titles) console.log(`      title: ${t}`);
+    console.log(`  origin note: ${surface.note ? JSON.stringify(surface.note) : "(none)"}`);
     if (!out.ok) {
       console.log(`FAILED: ${out.error}`);
       process.exitCode = 1;
