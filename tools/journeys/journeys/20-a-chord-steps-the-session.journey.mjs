@@ -97,7 +97,7 @@ export const id = "a-chord-steps-the-session";
 export const claim =
   "A visitor can step the session from the keyboard, and the shortcuts dialog lists exactly what is bound.";
 export const spec = "Debugger-Integration.md §10.5; Page-Descriptions.md §13 — BlockTracer";
-export const assertions = 16;
+export const assertions = 21;
 export const needsEngine = true;
 
 const GEAR = "#dbg-shortcuts-open";
@@ -144,15 +144,28 @@ async function readShortcuts(page) {
         rows: rows.length,
         actions: rows.map((r) => r.getAttribute("data-kb-action")),
         chords: rows.map((r) => r.querySelector(".kbchord")?.textContent?.trim() ?? ""),
-        // The toolbar's own account of which moves exist, for the set equality.
-        toolbar: [...document.querySelectorAll(".dc .dcbtn[data-action]")].map((b) =>
-          b.getAttribute("data-action"),
-        ),
+        // The toolbar's own account of which moves exist, AND what each button
+        // says about itself. The tooltip is what the visitor's report was
+        // about — "I still don't see the keyboard shortcuts being displayed in
+        // the tooltips of the debugger control buttons" — and until this was
+        // read here, nothing outside a Nim string comparison ever looked at it:
+        // this reader took `data-action` and dropped the attribute the report
+        // named. A feature can be correct in the renderer, correct in the
+        // dialog, and absent from the one channel that was asked for.
+        buttons: [...document.querySelectorAll(".dc .dcbtn[data-action]")].map((b) => ({
+          action: b.getAttribute("data-action"),
+          title: b.getAttribute("title") ?? "",
+          ariaLabel: b.getAttribute("aria-label") ?? "",
+        })),
       };
     },
     { gear: GEAR, dialog: DIALOG },
   );
 }
+
+/** The chord a surface spells for a move, keyed by the move. */
+const chordByAction = (actions, chords) =>
+  new Map(actions.map((a, i) => [a, chords[i]]));
 
 const sameSet = (a, b) => {
   const x = [...new Set(a)].sort();
@@ -185,6 +198,23 @@ export async function run({ browser, site, j }) {
       !served.gear && !served.present,
       "the script-less page offers no shortcuts control and no dialog to open",
       `gear=${served.gear} dialog=${served.present}`,
+    );
+    // AND NO TOOLTIP HERE NAMES A KEY. The same rule as the gear, in the
+    // attribute the visitor's report was about: this build has no `keydown`
+    // handler, so a chord in a tooltip would be a key nothing on the page
+    // listens for. `renderControls` defaults to `kmNone` to make that true,
+    // and this is where the default is checked on the artefact rather than in
+    // the renderer that produced it.
+    //
+    // THE SUBJECT COUNT IS ASSERTED FIRST. "No button names a chord" is
+    // satisfied by a page with no buttons, and a served frame whose toolbar
+    // failed to render would pass this arm silently.
+    j.atLeast(served.buttons.length, 1, "SUBJECTS: stepping buttons on the script-less page");
+    j.countIs(
+      served.buttons.filter((b) => b.title.includes("(")).length,
+      0,
+      `no tooltip on the script-less page names a key, because none is bound there` +
+        ` — ${served.buttons.map((b) => b.title).join(" | ")}`,
     );
   } finally {
     await noJs.close();
@@ -249,9 +279,10 @@ export async function run({ browser, site, j }) {
     // The toolbar is the other surface that enumerates the moves. Comparing
     // against it — rather than against the number 8 — is what makes this an
     // assertion about agreement rather than two copies of one literal.
+    const toolbarActions = open.buttons.map((b) => b.action);
     j.countIs(
       open.rows,
-      open.toolbar.length,
+      toolbarActions.length,
       "the dialog draws one row per move the toolbar offers",
     );
     j.countIs(
@@ -260,14 +291,51 @@ export async function run({ browser, site, j }) {
       "the count the renderer declared matches the rows it actually drew",
     );
     j.expect(
-      sameSet(open.actions, open.toolbar),
+      sameSet(open.actions, toolbarActions),
       "the rows name the SAME moves the toolbar does — no extra, none missing",
-      `dialog=${[...new Set(open.actions)].sort().join(",")} toolbar=${[...new Set(open.toolbar)].sort().join(",")}`,
+      `dialog=${[...new Set(open.actions)].sort().join(",")} toolbar=${[...new Set(toolbarActions)].sort().join(",")}`,
     );
     j.expect(
       open.chords.length > 0 && open.chords.every((c) => c.length > 0),
       "every listed move names a chord, so no row documents a key that is not spelled",
       `chords=${open.chords.join(" ")}`,
+    );
+
+    // ── THE TOOLTIP ON THE BUTTON, WHICH IS WHAT WAS REPORTED ───────────
+    //
+    // Everything above judges the DIALOG. The report was about the buttons —
+    // "I still don't see the keyboard shortcuts being displayed in the
+    // tooltips of the debugger control buttons" — and until this arm existed
+    // no check anywhere read a `title` off a hydrated toolbar. The Nim suite
+    // compares the renderer's output string; the renderer is not the artefact,
+    // and this route has twice shipped a capability that was correct in the
+    // renderer and never reached the screen.
+    //
+    // THE EXPECTATION IS A RELATION BETWEEN TWO SURFACES THE PAGE RENDERS —
+    // the button's tooltip and the dialog's row for the same move — and not a
+    // chord written here. A keymap change moves both together; a renderer that
+    // stopped composing the chord into the tooltip moves only one, and that is
+    // the defect this arm is for.
+    const spelled = chordByAction(open.actions, open.chords);
+    const named = open.buttons.filter((b) => {
+      const c = spelled.get(b.action);
+      return c && b.title.includes(`(${c})`);
+    });
+    j.atLeast(open.buttons.length, 1, "SUBJECTS: stepping buttons on the hydrated page");
+    j.countIs(
+      named.length,
+      open.buttons.length,
+      `every button's tooltip names the chord the dialog gives that same move` +
+        ` — ${open.buttons.map((b) => b.title).join(" | ")}`,
+    );
+    // One accessible name per control: the tooltip a pointer user reads and
+    // the name a screen reader announces are the same sentence, so the chord
+    // is not a thing only sighted visitors are told. `renderControls` emits
+    // them from one string; this is that holding on the artefact.
+    j.countIs(
+      open.buttons.filter((b) => b.ariaLabel === b.title).length,
+      open.buttons.length,
+      "each button's accessible name is the same sentence as its tooltip",
     );
 
     // ── THE TYPING GUARD, ON THE ONE INPUT THIS ROUTE HAS ───────────────

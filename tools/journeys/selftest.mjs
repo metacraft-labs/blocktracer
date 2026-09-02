@@ -1135,6 +1135,33 @@ proc noteFor*`,
     assertion: "the tooltip names every key the control advertises",
   },
 
+  // ── THE CHORD IN THE TOOLTIP, WHICH IS WHAT WAS REPORTED (journey 20) ────
+  //
+  // The keymap landed with no mutation arm at all, and its Nim suite is where
+  // the composition is checked. That suite compares the RENDERER'S OUTPUT
+  // STRING; this arm is aimed at the assertion that reads the attribute off a
+  // hydrated page, because a renderer that is correct and a page that never
+  // shows its output is this route's signature defect and the Nim suite cannot
+  // tell the difference.
+  {
+    id: "KB1/the-tooltip-drops-the-chord",
+    why:
+      "Return the control's plain name from the keymap-aware `controlLabel`, so" +
+      " the button is labelled exactly as the served frame labels it. The chord" +
+      " is still bound, the dialog still lists it, and the one channel the" +
+      " visitor's report was about — 'I still don't see the keyboard shortcuts" +
+      " being displayed in the tooltips of the debugger control buttons' —" +
+      " silently stops carrying it. Every Nim assertion about the DIALOG, every" +
+      " assertion about dispatch, and the chord that steps the session all stay" +
+      " green.",
+    file: join(CLIENT, "src", "debugger", "keymap.nim"),
+    find: `  if not bound: name
+  else: name & " (" & describe(c) & ")"`,
+    replace: `  if not bound: name
+  else: name`,
+    journey: "a-chord-steps-the-session",
+    assertion: "every button's tooltip names the chord the dialog gives that same move",
+  },
 
   // ── THE PLAYHEAD, AS A FACT JOURNEY 06 CAN NOW SEE (journey 06) ──────────
   //

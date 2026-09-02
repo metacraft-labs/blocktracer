@@ -4444,6 +4444,43 @@ suite "the stepping chords — one table, and every surface reads it":
     # …while the preset that has real modifier bits does.
     check "Shift+" in renderShortcutsDialog(keymapOf(kmDesktop), mac = false)
 
+  test "the default preset's tooltip is a VALUE, not just whatever the table says":
+    ## THE ONE PLACE IN THIS SUITE THAT PINS A WHOLE TOOLTIP AS A LITERAL, and
+    ## it is here because every other check above is RELATIONAL — "the tooltip
+    ## says whatever `chordFor` says" is satisfied by a table and a renderer
+    ## that are wrong together. Two of the three inputs are already pinned
+    ## independently: `controlLabel(daStepForward) == "Step over"` is asserted
+    ## by "the two controls that send `next` are named for what they send",
+    ## and `describe(chord("n")) == "n"` by the case above. This pins the
+    ## COMPOSITION of them, which nothing else does.
+    ##
+    ## `n` is not an arbitrary letter to have chosen and that is why it is
+    ## safe to write down: it is gdb's `next`, which is where `LettersBindings`
+    ## says it came from. A reader checking this line has an authority outside
+    ## this repository to check it against.
+    let km = keymapOf(DefaultKeymapId)
+    check controlLabel(daStepForward, km) == "Step over (n)"
+    check controlLabel(daContinue, km) == "Continue (c)"
+    # And it reaches the attribute, on a real projection of a real session,
+    # rather than stopping at the string that feeds it.
+    #
+    # The buttons are flipped to ENABLED first, because a served projection's
+    # are not: `renderControls` appends "— inert until the replay engine
+    # loads" to an inert control's name, and the whole attribute is then that
+    # longer sentence. A live session is the state this pin is about — it is
+    # the only one on which a chord is bound at all.
+    var s = sessionFor(readyTx)
+    check s.controls.buttons.len > 0
+    for b in s.controls.buttons.mitems: b.enabled = true
+    let html = dbgc.renderControls(s.controls, km)
+    check "title=\"Step over (n)\"" in html
+    check "aria-label=\"Step over (n)\"" in html
+    check "title=\"Continue (c)\"" in html
+    # THE NEGATIVE. The served frame binds nothing and must therefore say
+    # nothing, and this is the same string checked for its absence — so a
+    # renderer that ignored its keymap argument cannot satisfy both lines.
+    check "title=\"Step over (n)\"" notin dbgc.renderControls(s.controls)
+
 suite "the scrubber names the keys it answers to":
   ## The stepping buttons were given their chords and the control BESIDE them
   ## was not, though its keys had been bound for longer. `markScrubberSeekable`
