@@ -1402,8 +1402,35 @@ func selectionDetail*(v: DebugSessionView): SelectionDetail =
   let unit = (if v.calltrace.costUnit.len > 0: v.calltrace.costUnit
               elif v.calltrace.frames.len > 0: v.calltrace.frames[0].costUnit
               else: "")
-  for f in v.calltrace.frames:
-    if not f.current: continue
+
+  # WHICH FRAME THE SESSION IS IN, from the mark if there is one and from the
+  # POSITION if there is not.
+  #
+  # `CallFrame.current` is `CalltraceVM.selectedEntry`, and on a live session
+  # that signal is read and never written — nothing in the hydration bundle or
+  # in the Embed SDK's own projection sets it, because a click on a row is
+  # `ct/goto-ticks` and the session's answer is a POSITION, not a selection. So
+  # on a hydrated session no frame is ever marked, and a panel that waited for
+  # the mark showed the source line on the one kind of session that has the
+  # most frames to describe. Measured, on the hydrated calls-and-recursion
+  # trace: 49 frames drawn, none marked.
+  #
+  # Frames are in call order and each carries the coordinate it STARTS at, so
+  # the frame containing the position is the last one that started at or before
+  # it. That is a fact about the rows the pane is already showing, derived here
+  # rather than asked of an engine — and it is the same relation
+  # `deeplink_landing.startCoordinate` uses to land a link on a frame.
+  var chosen = -1
+  for i, f in v.calltrace.frames:
+    if f.current:
+      chosen = i
+      break
+  if chosen < 0 and v.controls.positioned and v.controls.step > 0:
+    for i, f in v.calltrace.frames:
+      if f.step > 0 and f.step <= v.controls.step: chosen = i
+
+  if chosen >= 0:
+    let f = v.calltrace.frames[chosen]
     result.kind = selFrame
     result.heading = "Current frame"
     result.subject = f.fn

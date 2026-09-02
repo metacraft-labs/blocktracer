@@ -763,6 +763,73 @@ const ARMS = [
     assertion:
       "LISTING: the position moves DOWN the box while the pane holds still, rather than staying pinned to one offset",
   },
+  {
+    id: "P1/the-name-is-ellipsised-again",
+    why:
+      "Put the retired declarations back on `.ctname`, which is exactly the rule" +
+      " that shipped: the name clips and ellipsises inside a column it shares. This" +
+      " is the defect the user reported — 'both function names and their paths are" +
+      " truncated' — and the arm proves the journey measures TRUNCATION rather than" +
+      " presence, because `textContent` is identical either way and every other" +
+      " assertion in the file stays green.",
+    file: join(CLIENT, "src", "components", "debugger_css.nim"),
+    find: `.ctname{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
+  color:var(--bt-text-strong);white-space:normal;overflow-wrap:anywhere}`,
+    replace: `.ctname{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
+  color:var(--bt-text-strong);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;flex:0 1 auto;min-width:0}`,
+    journey: "call-trace-names-its-frames-in-full",
+    assertion: "SERVED: no painted function name is truncated",
+  },
+  {
+    id: "P2/the-path-leaves-the-page-as-well-as-the-row",
+    why:
+      "Stop stating the path as data on the row. This is the FALSE PASS this" +
+      " journey exists to exclude, made real: 'the row does not paint a path' is" +
+      " still true — truer than before — and the pane has quietly stopped being able" +
+      " to say where any frame is. It is also the live defect, because" +
+      " `hydrate.rowsOf` resolves a `src:` deep link against this attribute.",
+    file: join(CLIENT, "src", "components", "debugger.nim"),
+    find: `              \`data-anchor\` = f.anchor, title = tip,
+              \`data-module\` = f.module):`,
+    replace: `              \`data-anchor\` = f.anchor, title = tip,
+              \`data-module\` = ""):`,
+    journey: "call-trace-names-its-frames-in-full",
+    assertion: "SERVED: rows carry their path as data",
+  },
+  {
+    id: "P3/the-panel-drops-the-path-it-was-given-to-hold",
+    why:
+      "Remove the one fact that makes the path's departure from the row safe. The" +
+      " row stops painting it, the panel stops stating it, and the path is then" +
+      " reachable on hover and nowhere a reader can select or read it at length —" +
+      " which is the trade this change is only allowed to make because the panel" +
+      " holds the other end of it.",
+    file: join(CLIENT, "src", "debugger", "session_view.nim"),
+    find: `      result.facts.add selectionFact("Source", where, identifier = true)`,
+    replace: `      discard where`,
+    journey: "call-trace-names-its-frames-in-full",
+    assertion: "SERVED: the selection area states the path the row no longer paints",
+  },
+  {
+    id: "P4/no-frame-is-current-on-a-live-session",
+    why:
+      "Remove the position fallback and wait for `CallFrame.current` alone. This is" +
+      " not a hypothetical: `CalltraceVM.selectedEntry` is read and never written," +
+      " so on a hydrated session NO frame is ever marked, and the panel measured" +
+      " here fell through to the source line while 49 frames were on screen beside" +
+      " it. The arm is the reason that fallback exists, and it targets a LIVE" +
+      " assertion because the served page — where the demo producer does mark a" +
+      " frame — stays green throughout.",
+    file: join(CLIENT, "src", "debugger", "session_view.nim"),
+    find: `  if chosen < 0 and v.controls.positioned and v.controls.step > 0:
+    for i, f in v.calltrace.frames:
+      if f.step > 0 and f.step <= v.controls.step: chosen = i`,
+    replace: `  if false:
+    discard`,
+    journey: "call-trace-names-its-frames-in-full",
+    assertion: "LIVE: selecting a repeated frame makes the panel name that function",
+  },
 ];
 
 const log = (s = "") => console.log(s);

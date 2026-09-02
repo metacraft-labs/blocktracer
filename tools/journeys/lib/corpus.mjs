@@ -110,6 +110,27 @@ export async function transactions(root) {
         // The complement, named rather than inferred, because it is a SUBJECT
         // SET in its own right: the pages the instruction listing exists for.
         instructionLevel: /class="src instr"/.test(html),
+
+        // How many FRAME rows the served Call Trace paints.
+        //
+        // `data-step` is what makes it a frame: the aggregate ("self cost")
+        // view carries `class="ctrow d0 flat"` too, and its rows are functions
+        // rather than occurrences, so counting the class alone would count one
+        // pane's rows twice over in two different meanings.
+        calltraceFrames: (html.match(/class="ctrow [^"]*"[^>]*?data-step=/g) ?? [])
+          .length,
+
+        // Whether there is a container to replay at all. `data-trace` is the
+        // page's own answer — the same predicate `pages/debug.nim` derives from
+        // `canShare`, rather than a second one built from a path that may be
+        // merely derivable.
+        hasContainer: /data-trace="\/[^"]/.test(html),
+
+        // The recording's length, as the page publishes it. A cheap ranking
+        // key for "which sessions are worth hydrating", never an assertion.
+        totalSteps: Number(
+          (/data-total-steps="(\d+)"/.exec(html) ?? [])[1] ?? 0,
+        ),
       });
     }
   }
