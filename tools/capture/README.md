@@ -57,9 +57,12 @@ demo seed does not silently rename every image and re-point every baseline.
 The list is complete with respect to
 [Page-Descriptions.md](../../../codetracer-specs/BlockTracer/Page-Descriptions.md) —
 every route in its §1 map and every row of its §14 degraded-state catalogue.
-A view whose route the client does not yet serve is `pending` with a stated
-`pendingReason`. **`just check-coverage` prints the ready/pending split**; this
-paragraph used to say "most views are `pending`", and they are the minority.
+A view the client cannot yet be photographed in is `pending` with a stated
+`pendingReason` — either `route not yet served` or `state not yet modelled by
+the client ViewModel`, and today every pending view is the second kind.
+**`just check-coverage` prints the ready/pending split**; this paragraph used to
+say "the client currently renders five route types, so most views are
+`pending`", and they are the minority.
 They are listed, counted and reported as unmet captures, never silently dropped
 and never photographed against a 404 that a reviewer would mistake for a styled
 page. When a route lands, flipping

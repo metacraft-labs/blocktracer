@@ -120,9 +120,10 @@
 //
 // ── The allowlist cannot rot ───────────────────────────────────────────────
 //
-// Four kinds of literal are legitimately unavoidable in CSS (a breakpoint
+// A few kinds of literal are legitimately unavoidable in CSS (a breakpoint
 // cannot read a custom property; `transparent` is the absence of a colour).
-// Each is allowlisted BY PATTERN WITH A REASON, and check A6 fails when an
+// `ALLOWLIST` below is the set — read its length there; this line said "Four"
+// over three entries. Each is allowlisted BY PATTERN WITH A REASON, and check A6 fails when an
 // allowlist entry stops matching anything — so an exemption written for one
 // line cannot quietly become a blanket permission after that line is deleted.
 

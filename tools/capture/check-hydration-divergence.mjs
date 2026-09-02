@@ -108,9 +108,12 @@ const BUNDLE_URL = "/assets/hydrate.js";
  *  EMPTY, and it should be hard to add to. Every name here is a claim that a
  *  class the shipped bundle puts on a visitor's page needs no rule to draw it,
  *  and that claim is exactly the one this assertion exists to stop being made
- *  by accident. `off` — the only other literal the bundle adds — is NOT here
- *  because it does not need to be: it is `dcbtn`'s disabled state and
- *  `debugger_css.nim` already draws it.
+ *  by accident. The other literals the bundle adds are NOT here because they do
+ *  not need to be: `off` is `dcbtn`'s disabled state, and `seekable` and
+ *  `scrubbing` are the scrubber's cursor states — `debugger_css.nim` draws all
+ *  three. (This comment named only `off`, and called it "the only other
+ *  literal"; grep `classList.add("` under `client/hydrate/` for the real set,
+ *  which is what the scan below recovers from the built bundle anyway.)
  *
  *  In particular this is not the place to silence `.copybtn`, `.copied` and
  *  `.copyfailed`. See QUEUED-DECISIONS Q23: they are undrawn because of a

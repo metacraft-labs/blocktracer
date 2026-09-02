@@ -78,8 +78,10 @@
 ##
 ## Measured on the wire over the built site with the published engine staged
 ## (`tools/journeys/journeys/19-the-flow-window-follows-the-position.journey
-## .mjs`, which is RED and ledgered with this reason): eight distinct request
-## ticks, sixteen answers, EVERY one carrying `location.rrTicks = 0` and
+## .mjs`, which is RED and ledgered with this reason): ELEVEN distinct request
+## ticks — 0, 1, 5, 8 and 671..677, reached by four `step-forward` and six
+## `step-in` from the landing position — sixteen answers, EVERY one carrying
+## `location.rrTicks = 0` and
 ## `functionFirst = 0` for a function whose body begins on line 12. The engine
 ## answers every position with the same window, so the values overlay shows one
 ## function's window for the life of the session — the second half of the

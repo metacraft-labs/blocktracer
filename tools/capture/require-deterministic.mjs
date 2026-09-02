@@ -7,7 +7,7 @@
 // the tier-1 verdict written by check-canary.mjs and answers one question:
 // may a perceptual comparison against stored baselines be believed?
 //
-// It refuses in four distinct ways, because collapsing them would produce
+// It refuses in five distinct ways, because collapsing them would produce
 // exactly the failure this exists to prevent — a comparison that runs, passes,
 // and means nothing:
 //

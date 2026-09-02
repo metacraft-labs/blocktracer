@@ -10,19 +10,29 @@ See the specs in `codetracer-specs/BlockTracer/` for the full design and the
 
 ## Status
 
-This repository currently implements the **demo-first decoupling seam** — the first
-slice of the plan:
+This section described the repository as implementing only the **demo-first
+decoupling seam** and said that "the IsoNim explorer UI, browser replay, the
+publisher, real ingestion" were "a later milestone and **not** built here".
+**All four are in this tree**, and the sentence was keeping readers out of them:
+
+- the explorer UI — `client/src/pages/` renders fourteen routes;
+- browser replay — `client/hydrate/` is the hydration bundle that drives the
+  WASM replay engine over a served frame;
+- the publisher — `src/blocktracer_publish.nim`, `just publish`,
+  `tests/tpublish.nim`;
+- real ingestion — `src/blocktracer/chain/ingest.nim` and `tools/chain/`, which
+  capture and freeze real Aztec snapshots.
+
+The seam itself is still here and still the foundation:
 
 - **M5b — Data Contract.** The versioned contract between the chain-extractor and
   the site-generator, encoded as concrete Nim types plus a conformance validator.
 - **M5c — Demo Data Generator.** A fake extractor/trace-gen that emits a valid,
   Aztec-shaped static tree honouring the contract, so the front end, publishing and
-  the visual-design campaign can be built against demo data before real ingestion
-  (M6) or real replay (M10) exist.
+  the visual-design campaign can be built against demo data.
 
-Everything else in the plan — the IsoNim explorer UI, browser replay, the
-publisher, real ingestion — is a later milestone and is **not** built here. See
-`docs/data-contract.md` for exactly what is and is not in scope.
+`docs/data-contract.md` describes the contract; `AGENTS.md` is the current map of
+what exists.
 
 ## Layout
 
@@ -33,7 +43,7 @@ src/blocktracer/demo/         the Demo Data Generator
 src/blocktracer_demo_gen.nim  CLI: emit a demo tree
 src/blocktracer_validate.nim  CLI: validate a tree against the contract
 tests/tcontract.nim           conformance, determinism, cross-producer, negatives
-fixtures/trace/               a STAND-IN .ct container (see its README)
+fixtures/trace/               REAL .ct containers from `nargo trace` (see each README)
 docs/data-contract.md         the contract representation and why
 ```
 

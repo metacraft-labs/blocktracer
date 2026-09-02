@@ -8,11 +8,17 @@
 // ── status: ready | pending ────────────────────────────────────────────────
 //
 // The view list is deliberately COMPLETE with respect to Page-Descriptions,
-// while the client currently renders five route types. A view whose route the
-// client does not yet serve is `status: "pending"` with a `pendingReason`. It
-// is listed, counted, and reported as an unmet capture — never silently
-// dropped, and never captured against a 404 that would be mistaken for a
-// styled page. When the route lands, flipping `status` is the whole change.
+// while the client does not yet produce every state in it. A view the client
+// cannot yet be photographed in is `status: "pending"` with a `pendingReason`,
+// and the reason says WHICH kind: `PENDING_ROUTE` (the route is not served) or
+// `PENDING_STATE` (the route is served and the ViewModel does not model the
+// state). This paragraph used to say "the client currently renders five route
+// types" and cast every pending view as a missing route; today NO view is
+// pending for a missing route and the great majority are `PENDING_STATE`.
+// Filter `VIEWS` by `status` for the split rather than trusting a count here.
+// A pending view is listed, counted, and reported as an unmet capture — never
+// silently dropped, and never captured against a 404 that would be mistaken for
+// a styled page. When the state lands, flipping `status` is the whole change.
 
 import {
   headBlock,
