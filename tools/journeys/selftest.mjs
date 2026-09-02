@@ -37,6 +37,24 @@
 // for a red journey, for a browser that would not start and for a syntax error
 // in this file, all the same number.
 //
+// DO NOT COLLAPSE THIS TO TWO. It has already caught the thing it exists for,
+// and the case is worth keeping because it is invisible from every other angle.
+// `Z3/the-document-is-re-windowed-under-the-position` stopped compiling the day
+// a sibling change gave `renderPanes` its own `var view = view` — the mutation
+// supplied a second one — and it reported:
+//
+//     before:  GREEN
+//     NEVER RAN — the mutated tree did not compile, so nothing was measured
+//                 hydrate.nim(594, 7) Error: redefinition of 'view'
+//
+// Z3 is the sole arm behind journey 13's "the position moves DOWN the box while
+// the pane holds still", which is the one assertion that catches a pane
+// re-windowed UNDER the position — a defect `scrollTop` cannot see, because the
+// content moves and the viewport does not. So for as long as those two changes
+// coexisted, that assertion had no mutation proving it bites: an untested test
+// wearing the appearance of a tested one, on the branch that had just been
+// merged. Folded into "killed", it would have read as a pass and stayed one.
+//
 // THE ASSERTION IS NAMED, NOT COUNTED
 // -----------------------------------
 // An arm passes only if the assertion WRITTEN FOR IT flipped. "The journey went
@@ -900,12 +918,88 @@ async function verdictFor(journey, assertion) {
   return { found: true, ok: hits[0].ok, detail: hits[0].detail };
 }
 
+/**
+ * Is a previous run's mutation still sitting in the tree?
+ *
+ * THE RESTORE IS A `finally`, AND A `finally` DOES NOT RUN WHEN THE PROCESS IS
+ * KILLED. A timeout, a Ctrl-C, an OOM, an agent's shell wrapper giving up at ten
+ * minutes — any of those between the write and the restore leaves real product
+ * source mutated on disk, and nothing downstream notices. Every later arm then
+ * measures a defective tree: `before:` readings are taken against it, and an arm
+ * whose assertion is already red is reported NEVER RAN for a reason that has
+ * nothing to do with the arm.
+ *
+ * BOTH OF THIS REPOSITORY'S REAL INCIDENTS ARE THIS SHAPE, and neither was found
+ * by the harness:
+ *
+ *   * `L/the-value-kind-is-misread` — `of tkInt: ""` reached `dev` inside a
+ *     commit whose own message says "neither of them a behaviour change". Every
+ *     integer local rendered blank until someone re-read the diff.
+ *   * `K/the-served-values-stand` — left in a worktree when a selftest process
+ *     was killed at a shell timeout, found by `git diff HEAD` and not by
+ *     anything here.
+ *
+ * The test is exact rather than a dirty-tree check, because a dirty tree is
+ * normal — an agent's own uncommitted work must not block the suite. A STRANDED
+ * MUTATION has a signature no ordinary edit has: the arm's `find` is absent from
+ * its file and the arm's `replace` is present. That is precisely "this file has
+ * been through this arm and has not come back".
+ *
+ * Arms whose `replace` CONTAINS their `find` (the mutation appends rather than
+ * substitutes) are unaffected: `find` is still there, so they cannot be flagged.
+ *
+ * Exit 2, never a verdict. A suite that measures a mutated tree is not a suite
+ * that failed, it is one that did not run — and saying so is the whole of
+ * Verification-Harness-Traps.md §1a's third verdict applied to the harness
+ * itself rather than to the arms.
+ */
+async function strandedMutations() {
+  const stranded = [];
+  const seen = new Map();
+  for (const arm of ARMS) {
+    let text = seen.get(arm.file);
+    if (text === undefined) {
+      text = await readFile(arm.file, "utf8").catch(() => null);
+      seen.set(arm.file, text);
+    }
+    if (text === null) continue;
+    if (!text.includes(arm.find) && text.includes(arm.replace)) stranded.push(arm);
+  }
+  return stranded;
+}
+
 async function main() {
   log("=== journey selftest — do the journeys bite? ===");
   log("    One mutation per arm, in real product source, each aimed at ONE");
   log("    assertion. An arm passes only if THAT assertion flips, and only if");
   log("    it was green before and is green again after.");
   log("");
+
+  // BEFORE ANYTHING IS MEASURED. See `strandedMutations` for the two incidents
+  // this exists for; the second of them was created by killing this very file
+  // at a shell timeout, so it is not a hypothetical.
+  const stranded = await strandedMutations();
+  if (stranded.length > 0) {
+    log("a previous run's mutation is still in the tree, so nothing below would mean");
+    log("anything — every `before:` reading would be taken against a defective product.");
+    log("");
+    for (const arm of stranded) {
+      log(`  ${arm.id}`);
+      log(`    ${arm.file}`);
+      log(`    its \`find\` is absent and its \`replace\` is present, which is this arm`);
+      log(`    applied and not restored.`);
+    }
+    log("");
+    log("  remedy: restore those files, then re-run.");
+    log("          `git diff HEAD -- <file>` shows it; `git checkout HEAD -- <file>`");
+    log("          undoes it. Diff against HEAD and NOT against a branch ref —");
+    log("          `origin/dev` moves under you while other agents push, and a diff");
+    log("          against a moving base reports their commits as your damage.");
+    log("");
+    log("RESULT: DID NOT RUN");
+    process.exitCode = 2;
+    return;
+  }
 
   const base = await rebuild();
   if (!base.built) {
