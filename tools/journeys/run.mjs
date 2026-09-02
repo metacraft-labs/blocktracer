@@ -67,7 +67,7 @@ import { dirname, join, resolve } from "node:path";
 import { Journey, renderJourney, nameCollisions } from "./lib/harness.mjs";
 import { openBrowser, readFacts } from "./lib/probe.mjs";
 import { openSite, serveDist } from "./lib/site.mjs";
-import { stageEngine } from "./lib/engine.mjs";
+import { stageEngine, engineIdentity, bundleIdentity } from "./lib/engine.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -245,6 +245,18 @@ async function main() {
   const site = await openSite(args.dist, REPO);
   console.log(`  artefact:      ${site.root}`);
   console.log(`  build:         HYDRATED — the shape flake.nix packages.default deploys`);
+  // THE BUNDLE NAMES ITSELF, for the reason `lib/engine.mjs:bundleIdentity`
+  // gives: this runner does not rebuild, so the only honest statement about
+  // which bytes were judged is a hash taken here, off the tree about to be
+  // served.
+  const bundleId = await bundleIdentity(args.dist);
+  console.log(
+    `  bundle:        ${
+      bundleId
+        ? `${bundleId.bytes} bytes  sha256 ${bundleId.sha256}`
+        : "<no assets/hydrate.js — this tree ships no hydration bundle>"
+    }`,
+  );
   console.log(
     `  replay engine: ${
       site.engine
@@ -252,6 +264,19 @@ async function main() {
         : `ABSENT — stepping journeys will SKIP, and a skip is not a pass.\n                 ${staged.remedy ?? ""}`
     }`,
   );
+  // THE ENGINE IS NAMED, NOT JUST COUNTED PRESENT. It is the one artefact this
+  // repository does not pin, it changes under the suite, and it has already
+  // decided a verdict on its own — see `lib/engine.mjs:engineIdentity`.
+  const engineId = site.engine ? await engineIdentity(args.dist) : null;
+  if (engineId) {
+    for (const [f, id] of Object.entries(engineId)) {
+      console.log(
+        `                 ${f.padEnd(24)} ${
+          id ? `${String(id.bytes).padStart(10)} bytes  ${id.sha256.slice(0, 16)}…` : "<missing>"
+        }`,
+      );
+    }
+  }
   console.log(`  origin:        ${site.origin}`);
   console.log("");
 
@@ -264,7 +289,7 @@ async function main() {
   let browser = null;
   let failures = 0;
   let checks = 0;
-  const report = { artefact: site.root, hydrated: true, engine: site.engine, journeys: [] };
+  const report = { artefact: site.root, hydrated: true, engine: site.engine, engineIdentity: engineId, bundleIdentity: bundleId, journeys: [] };
 
   try {
     browser = await openBrowser();
