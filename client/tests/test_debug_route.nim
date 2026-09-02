@@ -4347,8 +4347,15 @@ suite "the stepping chords — one table, and every surface reads it":
 
   test "the dialog lists EXACTLY the bindings, and declares the count it drew":
     ## `data-kb-rows` is what journey 20 counts, so it has to be the real
-    ## number and not an intention. Both are checked here, cheaply, and the
-    ## browser layer checks that they agree with each other on the live page.
+    ## number and not an intention.
+    ##
+    ## THE PRESETS ALONE CANNOT PROVE THIS, and the first version of this test
+    ## did not notice. All three bind exactly eight moves, so
+    ## `$km.bindings.len` and the literal `"8"` render identically — a mutation
+    ## replacing the expression with `"8"` SURVIVED this test until the
+    ## synthetic keymap below was added. That is the "check that cannot fail"
+    ## this file's header is about, reproduced by the person writing the guard
+    ## against it.
     for id in presets:
       let km = keymapOf(id)
       let html = renderShortcutsDialog(km, mac = false)
@@ -4358,6 +4365,24 @@ suite "the stepping chords — one table, and every surface reads it":
         check ("data-kb-action=\"" & $b.action & "\"") in html
         # The chord is SPELLED in the row, from the same binding.
         check (">" & escapeHtml(describe(b.chord)) & "<") in html
+
+    # A KEYMAP THAT IS NOT EIGHT. Built here rather than taken from a preset,
+    # precisely because no preset can distinguish a count from the constant it
+    # happens to equal. Three bindings must render three rows and declare
+    # three.
+    let full = keymapOf(kmLetters)
+    check full.bindings.len > 3          # the slice below is a real subset
+    var partial = Keymap(id: kmLetters, bindings: full.bindings[0 ..< 3])
+    let partialHtml = renderShortcutsDialog(partial, mac = false)
+    check occurrences(partialHtml, "class=\"kbrow\"") == 3
+    check "data-kb-rows=\"3\"" in partialHtml
+    check "data-kb-rows=\"8\"" notin partialHtml
+    # And the rows are the three it was given, not the first three of a preset
+    # the renderer looked up for itself from `partial.id`.
+    for b in partial.bindings:
+      check ("data-kb-action=\"" & $b.action & "\"") in partialHtml
+    for b in full.bindings[3 .. ^1]:
+      check ("data-kb-action=\"" & $b.action & "\"") notin partialHtml
 
   test "the empty preset renders a sentence, never an empty table":
     ## `kmNone` is a choice a visitor can make. An empty table would read as a
