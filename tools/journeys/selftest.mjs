@@ -933,9 +933,13 @@ proc noteFor*`,
       " here fell through to the source line while 49 frames were on screen beside" +
       " it. The arm is the reason that fallback exists, and it targets a LIVE" +
       " assertion because the served page — where the demo producer does mark a" +
-      " frame — stays green throughout.",
+      " frame — stays green throughout." +
+      " THIS ARM WAS DEAD AND HAS BEEN REPAIRED: its `find` still carried the" +
+      " `and v.controls.step > 0` conjunct that the guard shed when step 0 was" +
+      " recognised as a real position, so the string occurred ZERO times and the" +
+      " arm silently proved nothing about the assertion below.",
     file: join(CLIENT, "src", "debugger", "session_view.nim"),
-    find: `  if chosen < 0 and v.controls.positioned and v.controls.step > 0:
+    find: `  if chosen < 0 and v.controls.positioned:
     for i, f in v.calltrace.frames:
       if f.step > 0 and f.step <= v.controls.step: chosen = i`,
     replace: `  if false:
