@@ -892,7 +892,7 @@ suite "M8b — omniscience follows a live session":
       # step to another position in the same loop is still this window's. What
       # changes is WHICH PASS is on screen, and that is decided by the SESSION's
       # tick and not by the window's own `location.rrTicks` — which the engine
-      # leaves at 0 on every answer this build receives (journey 18), so a
+      # leaves at 0 on every answer this build receives (journey 19), so a
       # projection reading it would pin every session to pass 0 for ever. That
       # is issue #593 arriving through a field that is not filled rather than
       # through a comparison that is wrong.

@@ -447,7 +447,7 @@ proc projectFlowWindow*(feed: FlowFeed; pane: EditorPane;
   # The window's own `location.rrTicks` is the engine's answer to a different
   # question and, measured on every answer this build receives, is 0 (journey
   # 15) — so reading it would pin every session to pass 0. `feed.locationTicks`
-  # is kept on the feed and is what journey 18 reads; nothing draws from it.
+  # is kept on the feed and is what journey 19 reads; nothing draws from it.
   result.locationTicks = int(ticks)
   result.functionLabel = feed.functionLabel
   result.window = feed.window

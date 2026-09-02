@@ -547,7 +547,7 @@ proc hasWindow*(feed: FlowFeed): bool =
   ## .projectFlowWindow` now takes from the SESSION rather than from the
   ## window's own `location.rrTicks`. That is a stronger guarantee than the gate
   ## gave, and it holds independently of the engine: the measured
-  ## `location.rrTicks` is 0 on every answer this build receives (journey 18),
+  ## `location.rrTicks` is 0 on every answer this build receives (journey 19),
   ## so a pass selected from it was pass 0 forever, gate or no gate. Rule 2 of
   ## `flow_view` — "a label belongs to the pass that produced it" — is now
   ## satisfied by construction rather than by trusting a field that is not
