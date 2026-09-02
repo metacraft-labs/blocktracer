@@ -61,7 +61,7 @@ import { mkdir, rm, writeFile, readFile, copyFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import { resolverPresence } from './lib/replay.mjs';
+import { resolverPresence, refusalName, refusalDetail } from './lib/replay.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -242,14 +242,36 @@ for (const c of candidates) {
   if (facts === null) {
     // A genuine refusal. The runtime names its refusals; the row keeps the name so the snapshot
     // says which transaction could not be replayed and why, rather than silently omitting it.
-    const why = (r.err.match(/^\s*([A-Z][A-Za-z]+(?:Error|Unavailable|NotFound|Unsupported|Regression|Exceeded)):?.*$/m) ?? [null, 'unknown'])[1];
+    // BOTH HALVES COME FROM `lib/replay.mjs`, AND THIS FILE USED TO CARRY ITS OWN COPY OF EACH.
+    // The copies were the versions that library had already been fixed for, so the tool an
+    // operator drives BY HAND was the one recording the worse answer:
+    //
+    //   * the name was matched by a SUFFIX ALLOWLIST (`Error|Unavailable|NotFound|Unsupported|
+    //     Regression|Exceeded`). `refusalName`'s comment records what that costs — measured
+    //     against the 92 error classes the runtime defines it classified 43 and returned
+    //     `unknown` for the other 49, including `AvmTrap`, `WasiProcExit` and
+    //     `HydrationDidNotConverge`, every one a plausible verdict on a live public
+    //     transaction. Two mainnet catches were filed as `unknown` by that rule and both
+    //     bodies have since pruned, so what refused them is now permanently unknowable.
+    //   * the detail was the LAST THREE LINES of stderr. Node prints an uncaught throw as the
+    //     message, then the stack, then the error's own properties, a blank line and its
+    //     version banner — so the last three lines are the END of that, not the message. On a
+    //     real `AvmToolchainRegression` this recorded `"}  Node.js v24.19.0"`: the closing
+    //     brace of the error object, a blank line and the Node version, with the sentence
+    //     naming the wrong `--avm` build discarded. `refusalDetail` anchors on the message
+    //     line and skips the stack, the caret and the banner.
+    //
+    // A capture is rare and a refused body prunes within the hour, so the detail is frequently
+    // the only surviving evidence of why a transaction was lost. Duplicating the logic meant
+    // fixing it twice; this asks the library instead, so it is fixed once.
+    const why = refusalName(r.err);
     console.error(`capture-chain:   refused (${why})`);
     replays.set(c.txHash, {
       replayed: false,
       refusal: why,
       reason: `This transaction could not be re-executed: the replay runtime refused with `
         + `${why}. No trace was recorded for it.`,
-      detail: r.err.trim().split('\n').slice(-3).join(' ').slice(0, 400),
+      detail: refusalDetail(r.err, why),
     });
     continue;
   }
