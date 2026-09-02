@@ -310,6 +310,45 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       s.close()
       dispose()
 
+  test "an integer local off the wire renders its digits":
+    ## The two tests above hand `makeVariable` its value already spelled, so
+    ## neither of them reads a `ct/load-locals` `Value` at all. This one does,
+    ## and it is here because that gap let a one-line regression through:
+    ## `4419c61` ("code pane: the exact price of the window…") replaced
+    ## `live_locals.valueText`'s integer arm with `""` while changing nothing
+    ## else about locals — a stray edit in a commit whose message is entirely
+    ## about code-pane windowing and which says of its changes "neither of them
+    ## a behaviour change". Every `Field` and `u32` in a Noir trace — which is
+    ## most of a Noir frame — rendered as a blank cell, and the State pane went
+    ## on presenting the blanks as confidently as it presents values.
+    ##
+    ## `kind` is the wire ORDINAL, not a name (`live_locals.nim:99-149`): 7 is
+    ## `tkInt`, in the module's own spelling, and the payload is the DECIMAL
+    ## STRING in `i` — an engine `Field` does not fit an i64, which is why the
+    ## arm is `getStr` and why `getInt` would be the same defect with a
+    ## different cause.
+    const tkInt = 7
+
+    let wireInt = %*{"kind": tkInt, "i": "42",
+                     "typ": {"langType": "Field", "kind": tkInt}}
+    # Both halves stated: the digits exactly, and that the result is not the
+    # empty string. The second is what the regression produced, and an
+    # assertion that only compared to "42" would have caught it while an
+    # assertion that only checked non-emptiness would not have caught a wrong
+    # number.
+    check valueText(wireInt) == "42"
+    check valueText(wireInt).len > 0
+
+    # …and through the parse the store is actually written by, so this is a
+    # statement about the reply path and not only about one helper.
+    let parsed = variablesOf(%*{"locals": [
+      {"expression": "remaining_shield", "value": wireInt}]})
+    check parsed.len == 1
+    check parsed[0].name == "remaining_shield"
+    check parsed[0].value == "42"
+    check parsed[0].value.len > 0
+    check parsed[0].typeName == "Field"
+
   test "a degraded state arriving over the BACKEND SEAM reaches the panes":
     # Not a host-side setter: a `CtReplayStatus` event pushed through
     # `MockBackendService.emitEvent`, which is the path a real worker uses.
