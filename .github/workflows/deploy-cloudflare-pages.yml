@@ -359,6 +359,80 @@ jobs:
           nix develop .#ci --command node tools/deploy/check-freshness.mjs verify \
             --manifest .deploy/freshness.json --dir site
 
+      - name: Stamp the published tree with what built it
+        # WHAT IS LIVE SHOULD BE A FACT YOU READ, NOT ONE YOU DEDUCE.
+        #
+        # Until this step, nothing this repository publishes said which commit
+        # produced it. `check-freshness.mjs record` writes `.deploy/freshness
+        # .json`, but that path is OUTSIDE `site/` — the only directory wrangler
+        # uploads — so it is never served, and both candidate URLs answer 404.
+        # Establishing "what is on blocktracer.org" therefore meant reading the
+        # branch->project mapping in this file, guessing which push last
+        # succeeded, and then confirming by probing for a behavioural
+        # difference. That is an inference chain with three places to be wrong,
+        # and on 2026-09-01 it was wrong: a stale asset was read as a stale
+        # deploy, and four workflow logs had to be read to establish otherwise.
+        #
+        # codetracer solved the same problem by exporting `CT_WEB_REVISION`
+        # (deploy-web-codetracer.yml) and stamping it into the served page as
+        # plain-text provenance, which is why its deploy state can be read in
+        # seconds. This is the same idea with the same purpose.
+        #
+        # WHY A SEPARATE FILE RATHER THAN A STAMP INSIDE `index.html`, which is
+        # what codetracer does: `index.html` is a BUILT artefact here, and the
+        # step above has just asserted that every built artefact in `site/` is
+        # byte-identical to what `nix build` produced from this commit. Editing
+        # it afterwards would either break that assertion or, worse, slip past
+        # it and then fail `Verify the ORIGIN serves the bytes this run
+        # published`, which re-checks the same hashes against the deployment.
+        # A new file is invisible to both: the manifest names the artefacts it
+        # knows, and neither gate asserts the absence of anything else.
+        #
+        # WHY AFTER THE FRESHNESS GATE, not before: the marker is generated at
+        # DEPLOY time, like the vendored engine, and is not something this
+        # commit builds. Staging it earlier would add an artefact with no built
+        # counterpart to the very comparison that exists to catch exactly that.
+        #
+        # TWO FILES, because there are two readers. `build-info.json` is for a
+        # script; `build-id.txt` is one line for a human with `curl`, and the
+        # one-line form is the whole reason codetracer's was usable under
+        # pressure.
+        shell: bash
+        env:
+          DEPLOY_BRANCH: ${{ steps.vars.outputs.branch }}
+          PROJECT_NAME: ${{ inputs.project-name }}
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          short_sha="${COMMIT_SHA:0:8}"
+
+          # `printf %s` on a here-doc-free construction: no interpolation of
+          # anything the workflow did not set, and no dependency on `jq` being
+          # in the runner's PATH outside the nix shell.
+          cat >site/build-info.json <<EOF
+          {
+            "commit": "${COMMIT_SHA}",
+            "shortCommit": "${short_sha}",
+            "branch": "${DEPLOY_BRANCH}",
+            "project": "${PROJECT_NAME}",
+            "repository": "${REPOSITORY}",
+            "runId": "${RUN_ID}",
+            "runAttempt": "${RUN_ATTEMPT}",
+            "builtAt": "${built_at}"
+          }
+          EOF
+
+          printf 'builtFrom %s branch=%s project=%s run=%s attempt=%s at=%s\n' \
+            "${COMMIT_SHA}" "${DEPLOY_BRANCH}" "${PROJECT_NAME}" \
+            "${RUN_ID}" "${RUN_ATTEMPT}" "${built_at}" >site/build-id.txt
+
+          echo "Stamped site/build-id.txt:"
+          cat site/build-id.txt
+
       - name: Deploy to Cloudflare Pages
         id: deploy
         # The self-hosted eph-* runners are Nix runners with no preinstalled
