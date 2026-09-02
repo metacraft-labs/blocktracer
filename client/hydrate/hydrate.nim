@@ -153,7 +153,16 @@ proc isPrimaryDrag(ev: Event): bool {.importjs: """
 
 proc pointerX(ev: Event): float {.importjs: "(function(e){ return e.clientX; })(#)".}
 proc pointerIdOf(ev: Event): int {.importjs: "(function(e){ return e.pointerId; })(#)".}
-proc keyName(ev: Event): string {.importjs: "(function(e){ return e.key || ''; })(#)".}
+proc keyName(ev: Event): cstring {.importjs: "(function(e){ return e.key || ''; })(#)".}
+  ## `cstring`, and the distinction is not pedantry — it cost this file a
+  ## silently dead keyboard. Declared as `string`, Nim wraps the return in
+  ## `toJSStr`, which walks its argument as an array of CHARACTER CODES,
+  ## because that is what a Nim `string` is on this backend. Handed a real JS
+  ## string it compares `"H" < 128`, takes the non-ASCII branch for every
+  ## character and produces a value no `case` branch matches. It compiles, it
+  ## runs, it throws nothing, and every key falls through to `else`. The
+  ## surrounding code already knew this — `attr` returns `cstring` and converts
+  ## with `$` — and this proc simply did not follow it.
 
 proc capturePointer(e: Element; id: int) {.importjs: """
 (function(el, id){ try { el.setPointerCapture(id); } catch (_) {} })(#, #)
@@ -1950,6 +1959,13 @@ proc bindGestures(h: Hydration) =
     # a drag that selects the step counter on its way past is the browser and
     # the control both acting on one gesture.
     ev.preventDefault()
+    # `preventDefault` above suppresses the text selection AND the focus the
+    # press would otherwise have moved here, so the focus is put back by hand.
+    # Without it the slider is reachable by Tab and not by the gesture everyone
+    # actually uses to reach it: a visitor who drags the handle and then presses
+    # an arrow key would find the keys doing nothing, having just demonstrated
+    # to themselves that the control works.
+    track.focus()
     h.scrubbing = true
     track.classList.add("scrubbing")
     # CAPTURED ON `.dbgctl`, NOT ON THE TRACK, and this is the load-bearing
@@ -2011,7 +2027,7 @@ proc bindGestures(h: Hydration) =
     let now = intAttr(h.ui.root, "data-step")
     let tick = max(1, total div TimelineTicks)
     let step =
-      case keyName(ev)
+      case $keyName(ev)
       of "ArrowLeft", "ArrowDown": now - tick
       of "ArrowRight", "ArrowUp": now + tick
       of "PageDown": now - tick * 5
