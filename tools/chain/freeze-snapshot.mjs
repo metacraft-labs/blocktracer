@@ -29,10 +29,16 @@
 //      campaign exists to prevent, and it is the reason the target counts blocks and not
 //      transactions.
 //
-//   3. EVERY CONTAINER IS ON DISK AND ITS BYTE COUNT MATCHES ITS ROW. `containerBytes` is
-//      what the page states and what the conformance suite compares against; a row whose
-//      declared size disagrees with the file is a page telling a visitor a number the
-//      bytes do not support.
+//   3. EVERY `replayed` ROW'S CONTAINER IS ON DISK AND ITS BYTE COUNT MATCHES ITS ROW.
+//      `containerBytes` is what the page states and what the conformance suite compares
+//      against; a row whose declared size disagrees with the file is a page telling a
+//      visitor a number the bytes do not support.
+//
+//      THE SCOPE IS NARROWER THAN "every container", and the gap is real: the loop below
+//      skips every row whose `outcome` is not `replayed`, and a `divergent` row carries a
+//      container too (`ingest.nim` counts `withTrace` as ready + divergent). Those
+//      containers are published and are NOT checked here for presence, size or magic.
+//      Stated rather than silently narrowed; the run prints how many it did verify.
 //
 //   4. THE CONTAINER CARRIES THE CTFS MAGIC. Cheap, and it catches a truncated or
 //      half-written file that still has the right length. It is not a full parse — the
@@ -167,7 +173,8 @@ for (const t of snap.transactions ?? []) {
   }
   checkedContainers++;
 }
-console.error(`  containers verified: ${checkedContainers} (bytes match row, CTFS magic present)`);
+console.error(`  containers verified: ${checkedContainers} of the \`replayed\` rows `
+  + `(bytes match row, CTFS magic present); containers on non-replayed rows are not checked`);
 
 if (problems.length) {
   console.error(`\nfreeze-snapshot: REFUSING TO FREEZE — ${problems.length} problem(s):`);
