@@ -490,8 +490,19 @@ const ARMS = [
       " so the mutation is one token and cannot be confused with a file that failed to" +
       " save.",
     file: join(CLIENT, "src", "components", "debugger_css.nim"),
-    find: `[role="button"]{cursor:pointer}`,
-    replace: `[role="button"]{cursor:auto}`,
+    // ANCHORED TO THE COMMENT ABOVE IT, and it has to be. The bare selector
+    // `[role="button"]{cursor:pointer}` stopped being unique the moment the
+    // breakpoint gutter landed in this same stylesheet: `.srcline .n[role=
+    // "button"]{cursor:pointer}` CONTAINS it as a substring, so the bare form
+    // matches twice and `find` must occur exactly once. Two independently
+    // correct changes composing into an ambiguous mutation target is precisely
+    // what the exactly-once rule is for — without it this arm would have
+    // silently mutated the gutter's rule instead of the copy control's and
+    // gone on reporting a kill it did not earn.
+    find: `keep \`not-allowed\` from their own, higher-specificity rules. */
+[role="button"]{cursor:pointer}`,
+    replace: `keep \`not-allowed\` from their own, higher-specificity rules. */
+[role="button"]{cursor:auto}`,
     journey: "a-clickable-surface-shows-the-hand",
     assertion: "copy controls hydration added to this page — each computes `pointer`",
   },
