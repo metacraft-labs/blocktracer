@@ -338,6 +338,54 @@ const ARMS = [
     journey: "a-failed-execution-is-tellable-from-a-completed-one",
     assertion: "the two are tellable apart by what the page says about the execution",
   },
+  {
+    id: "O1/the-engine-never-gets-the-source",
+    why:
+      "Stop writing the recording's own source into the engine's VFS. This is the" +
+      " state every session was in before today: `ct/originChain` still answers" +
+      " `success: true` for every value, still returns one hop each, and every hop" +
+      " says kind `unknown`, confidence 0, 'built-in: source unavailable'. The arm" +
+      " exists because that is a CHAIN OF SUCCESSFUL CALLS carrying no information," +
+      " and an assertion that counted replies rather than classifications would not" +
+      " move.",
+    file: join(CLIENT, "hydrate", "live_source.nim"),
+    find: `  let files = sourceFilesOf(island)`,
+    replace: `  let files: seq[SourceFile] = @[]`,
+    journey: "a-value-can-be-traced-to-its-origin",
+    assertion: "a value's origin is actually CLASSIFIED, not merely answered",
+  },
+  {
+    id: "O2/a-control-on-every-row",
+    why:
+      "Offer the origin control wherever a summary arrived, instead of wherever the" +
+      " summary says something. A summary is present on essentially every local (6" +
+      " of 6, measured), so this is the exact shape NR-05 calls 'a confident-looking" +
+      " affordance that resolves nothing … worse than the absence': the control" +
+      " appears on every row of every session, including recordings that published" +
+      " no source, and answers 'unknown' on all of them. It is aimed at the" +
+      " source-less arm because that is where the mistake is unambiguous — there," +
+      " no control can possibly answer.",
+    file: join(CLIENT, "hydrate", "live_origin.nim"),
+    find: `  if summary.terminatorKind == tkwUnknownSource: return ""`,
+    replace: `  if false: return ""`,
+    journey: "a-value-can-be-traced-to-its-origin",
+    assertion: "NO-SOURCE: and it offers no origin control, because none could answer",
+  },
+  {
+    id: "O3/an-unexplained-absence",
+    why:
+      "Drop the sentence that says why a value in a source-less recording cannot be" +
+      " traced. The pane then shows values, offers no origin control, and explains" +
+      " nothing — which is correct behaviour and an unreadable surface at the same" +
+      " time, and is indistinguishable from the feature having silently broken. The" +
+      " arm guards the half of this journey that is about what the product SAYS" +
+      " rather than what it offers.",
+    file: join(CLIENT, "hydrate", "session_project.nim"),
+    find: `    result.originNote = NoSourceOriginNote`,
+    replace: `    result.originNote = ""`,
+    journey: "a-value-can-be-traced-to-its-origin",
+    assertion: "NO-SOURCE: the pane says why a value here cannot be traced",
+  },
 ];
 
 const log = (s = "") => console.log(s);

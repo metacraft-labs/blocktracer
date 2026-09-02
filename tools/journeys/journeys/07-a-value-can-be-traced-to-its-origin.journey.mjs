@@ -86,12 +86,49 @@
 // capture passed" the same green — a corpus that loses one kind of recording
 // must be a RED, because the journey can no longer judge the claim it makes.
 //
-// Measured with the arm in place: the absence is real on both. The demo session
-// and the chain capture each carry a live bundle with interactive controls, and
-// each counts ZERO controls matching the generous origin selector. The chain
-// arm's red is therefore the SAME defect the ledger entry names, restated over
-// the subject that entry could not previously speak for — not a second, unnamed
-// failure absorbed by it.
+// AND THE SPLIT IS NOW BY SOURCE, WHICH IS WHAT THE CAPABILITY DEPENDS ON
+// -----------------------------------------------------------------------
+// The two arms used to be synthetic-vs-real. That is not the property the
+// claim turns on. Whether a value can be traced to its origin depends on
+// whether the RECORDING published source: the classifier parses the
+// right-hand side of the assignment that produced the value, so a recording
+// with no source has nothing for it to read — permanently, and correctly.
+//
+// Today `hasSource` happens to separate the demo chain from the chain
+// captures, and selecting on it rather than on `real` is what keeps that a
+// coincidence the journey does not depend on. `corpus.mjs` reads it per
+// transaction from the served markup, so a capture whose contract gains a
+// verified artifact moves into the capability arm on its own.
+//
+// WHAT EACH ARM ASSERTS, AND WHY THEY DIFFER
+// ------------------------------------------
+// SOURCE-BEARING: the control is offered, AND it can answer. The second half
+// is the one this journey most needed and did not have — `ct/originChain`
+// replies `success: true` for a value it cannot attribute at all, so a chain
+// of successful calls every one of which says `kind: "unknown"`,
+// `confidence: 0`, `"built-in: source unavailable"` is precisely the false
+// pass this entry was written from. The arm counts CLASSIFIED hops and
+// prints the count.
+//
+// SOURCE-LESS: the pane STATES WHY, and offers no control. Demanding an
+// affordance here could only be satisfied by shipping one that answers
+// "unknown" on every value — NR-05's "confident-looking affordance that
+// resolves nothing … worse than the absence". A source-less capture that DOES
+// offer a working control is a RED, because that is the direction the defect
+// returns from.
+//
+// The two negative provenances are counted separately and must stay separate:
+// "source unavailable" is a recording the classifier could not READ, while
+// "unparseable source line" is one it read and could not attribute — the
+// correct answer for a function parameter, and evidence the source arrived.
+// The fix moves values out of the first bucket, so collapsing them would hide
+// the regression.
+//
+// Measured over `just export-hydrated` with the published engine staged:
+//   demo/tx/0x5c67… (Noir)      6 rows, 2 controls, 2 of 6 hops classified
+//                               (kind=functionCall, confidence=0.7), no note
+//   aztec-testnet/tx/0x1252…    5 rows, 0 controls, note present,
+//                               5 of 5 hops "source unavailable"
 
 import { visit } from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";
@@ -101,7 +138,7 @@ export const claim =
   "A visitor can trace a value to its origin — and until they can, the product does not say they can.";
 export const spec =
   "client/src/pages/home.nim (the hero) and ssr.nim (the meta description) — the product's own promise, now withdrawn";
-export const assertions = 14;
+export const assertions = 21;
 export const needsEngine = true;
 
 const PROMISE = /trace any value to its origin/i;
@@ -194,7 +231,128 @@ const READ_CONTROLS = () => {
     // while narrowing the selector above would have made the two numbers
     // incomparable with every reading taken before today.
     interactive: [...document.querySelectorAll("a, button, [data-action]")].filter(shown).length,
+    // The AUTHORED control, by its own class, and the sentence that stands in
+    // its place. Read together with `originAffordances` above: where the two
+    // disagree the gap says the control was renamed rather than removed, which
+    // a selector-only reading would report as a regression.
+    originControls: [...document.querySelectorAll(".storigin")].filter(shown).length,
+    originTitles: [...document.querySelectorAll(".storigin")].map(
+      (e) => e.getAttribute("title") ?? "",
+    ),
+    originNote: document.querySelector("#pane-state .stnote")?.textContent?.trim() ?? "",
   };
+};
+
+/**
+ * The HOPS, asked of the engine the bundle itself booted.
+ *
+ * The DOM can say a control is offered; only the engine can say the control
+ * would answer. This is the difference the whole journey turns on, because
+ * `ct/originChain` replies `success: true` in BOTH states — a chain of
+ * successful calls every one of which says `kind: "unknown"`,
+ * `confidence: 0`, `classificationProvenance: "built-in: source unavailable"`
+ * is exactly what this journey's ledger entry was written from.
+ *
+ * `globalThis.__btReplayWorker` is where `engine_transport.nim` parks the
+ * worker. Nothing is added to the page for this: a session that never reached
+ * an engine has no worker there and this returns `null`, which the caller
+ * reports rather than scoring as zero.
+ */
+const ASK_ENGINE = async () => {
+  const w = globalThis.__btReplayWorker;
+  if (!w) return null;
+  let seq = 900000; // clear of the bundle's own counter, so no reply is stolen
+  const send = (command, args_) =>
+    new Promise((resolve, reject) => {
+      const s = seq++;
+      const onMsg = (e) => {
+        let m = e.data;
+        if (typeof m === "string") {
+          const t = m.trim();
+          if (!t.startsWith("{")) return;
+          try {
+            m = JSON.parse(t);
+          } catch {
+            return;
+          }
+        }
+        if (m && m.type === "response" && m.request_seq === s) {
+          w.removeEventListener("message", onMsg);
+          resolve(m);
+        }
+      };
+      // addEventListener and not `onmessage`, which the transport owns and
+      // which assigning would disconnect the live session out from under the
+      // page this journey is judging.
+      w.addEventListener("message", onMsg);
+      setTimeout(() => {
+        w.removeEventListener("message", onMsg);
+        reject(new Error(`timeout on ${command}`));
+      }, 45000);
+      w.postMessage({ seq: s, type: "request", command, arguments: args_ ?? {} });
+    });
+
+  try {
+    // WALK TO A POSITION THAT HAS VALUES. A session opens at its entry line
+    // where nothing is bound yet, and a reading taken there finds no locals,
+    // asks about nothing, and reports zero classified — a measurement of the
+    // POSITION dressed as a measurement of the product. The `let` bindings a
+    // chain can speak about are a dozen steps in.
+    let rows = [];
+    for (let i = 0; i < 14; i++) {
+      const locals = await send("ct/load-locals", {
+        rrTicks: 0,
+        countBudget: 3000,
+        minCountLimit: 50,
+        depthLimit: 7,
+        watchExpressions: [],
+        lang: 0,
+      });
+      const got = locals?.body?.locals ?? [];
+      if (got.length > rows.length) rows = got;
+      await send("next", { threadId: 1 });
+    }
+    let hops = 0;
+    let classified = 0;
+    let unparseable = 0;
+    let unavailable = 0;
+    for (const r of rows.slice(0, 10)) {
+      const res = await send("ct/originChain", {
+        variableName: r.expression,
+        variablePath: [],
+        frameId: -1,
+        stepId: -1,
+        threadId: 1,
+        maxHops: 32,
+        lazy: false,
+        sessionId: "",
+        classifySource: true,
+      });
+      for (const h of res?.body?.hops ?? []) {
+        hops += 1;
+        const prov = String(h.classificationProvenance ?? "");
+        // THE TWO NEGATIVE VERDICTS ARE COUNTED SEPARATELY AND MUST STAY SO.
+        // "source unavailable" is a recording the classifier could not READ.
+        // "unparseable source line" is one it read and could not attribute —
+        // which is the correct answer for a function PARAMETER, and a sign the
+        // source arrived. Collapsing them would hide the regression this
+        // journey exists to catch, because the fix moves values from the first
+        // bucket into the second and the third.
+        if (/source unavailable/i.test(prov)) unavailable += 1;
+        else if (/unparseable/i.test(prov)) unparseable += 1;
+        if (
+          h.kind &&
+          String(h.kind).toLowerCase() !== "unknown" &&
+          Number(h.confidence ?? 0) > 0 &&
+          !/source unavailable/i.test(prov)
+        )
+          classified += 1;
+      }
+    }
+    return { asked: rows.length, hops, classified, unparseable, unavailable };
+  } catch (e) {
+    return { error: String(e.message ?? e) };
+  }
 };
 
 export async function run({ browser, site, j }) {
@@ -241,16 +399,31 @@ export async function run({ browser, site, j }) {
   // asserting each size makes a corpus that has lost one kind of recording a
   // RED — which is what it is, because the journey can no longer judge the
   // claim it makes — instead of a green over whichever kind survived.
-  const synthetic = sessions.filter((t) => !t.real);
-  const realCaptures = sessions.filter((t) => t.real);
-  j.atLeast(synthetic.length, 1, "SUBJECTS: synthetic sessions, so the demo arm has a subject");
+  // ...AND THE SPLIT IS BY SOURCE, NOT BY SYNTHETIC-VS-REAL.
+  //
+  // The capability is a property of the RECORDING, not of where it came from.
+  // The origin classifier reads the line that assigned a value, so a recording
+  // that published source can support the gesture and one that did not cannot
+  // — permanently, and correctly. Today those two sets happen to be the demo
+  // chain and the chain captures, and selecting on `hasSource` rather than on
+  // `real` is what makes that a coincidence the journey does not depend on:
+  // the day a chain capture carries source (its contract gains a verified
+  // artifact, which `corpus.mjs` reads per transaction), it moves into the
+  // first arm and is judged by it, with no edit here.
+  const withSource = sessions.filter((t) => t.hasSource);
+  const withoutSource = sessions.filter((t) => !t.hasSource);
   j.atLeast(
-    realCaptures.length,
+    withSource.length,
     1,
-    "SUBJECTS: REAL-capture sessions, so the chain arm has a subject",
+    `SUBJECTS: sessions whose recording published source (${withSource.length}), so the capability arm has a subject`,
+  );
+  j.atLeast(
+    withoutSource.length,
+    1,
+    `SUBJECTS: sessions whose recording published NO source (${withoutSource.length}), so the honest-absence arm has a subject`,
   );
 
-  const subject = synthetic[0];
+  const subject = withSource[0];
   j.note(`driving ${subject.debugPath}`);
 
   // The SERVED frame: the same URL with scripting off, which is what the
@@ -322,68 +495,138 @@ export async function run({ browser, site, j }) {
     // narrowing in READ_CONTROLS is auditable from the transcript: on this page
     // the two agree, and where they ever diverge the gap says which reading to
     // go and look at.
+    // THE CONTROL CAN ANSWER — asked FIRST, because asking also MOVES. This is the assertion the previous version
+    // of this journey did not have and most needed: the surface being present
+    // is not the capability, because `ct/originChain` answers `success: true`
+    // for a value it cannot attribute at all. So the hops are asked for and
+    // the CLASSIFIED ones are counted — kind not "unknown", confidence above
+    // zero, provenance not "source unavailable" — and the count is printed
+    // beside the verdict.
+    // ZEROS AND NOT AN EARLY RETURN when the engine cannot be reached: the
+    // three assertions below must be issued on every path, or the declared
+    // assertion count varies with the failure and `run.mjs`'s count check
+    // reddens for the wrong reason — hiding whichever real assertion was
+    // skipped behind a arithmetic complaint.
+    const engine = (await live.page.evaluate(ASK_ENGINE)) ?? {
+      error: "no __btReplayWorker on the page — the bundle never reached an engine",
+    };
+    if (engine.error) j.note(`engine not queried: ${engine.error}`);
+    const asked = engine.asked ?? 0;
+    const hops = engine.hops ?? 0;
+    const classified = engine.classified ?? 0;
+    const unparseable = engine.unparseable ?? 0;
+    const unavailable = engine.unavailable ?? 0;
     j.note(
-      `origin affordances: ${probe.originAffordances} labelled, ${probe.originMentions} matched anywhere in a candidate's text`,
+      `hops: ${hops} over ${asked} values — ${classified} CLASSIFIED, ` +
+        `${unparseable} read-but-unparseable, ${unavailable} source-unavailable`,
+    );
+    // Non-vacuity: universal quantification over an empty set passes for free,
+    // and "no values here" would make every count below a zero that means
+    // nothing.
+    j.atLeast(
+      asked,
+      1,
+      `the position has values to ask about (${asked}), so the counts below are measurements`,
     );
     j.atLeast(
-      probe.originAffordances,
+      classified,
+      1,
+      `a value's origin is actually CLASSIFIED, not merely answered (${classified} of ${hops} hops)`,
+    );
+    // The two negative verdicts are different facts and the journey keeps them
+    // apart. On a recording whose source DID arrive, no hop may say "source
+    // unavailable" — that string reappearing here is the exact regression this
+    // journey was red for, and it would otherwise hide behind a classified
+    // count that was still non-zero.
+    j.expect(
+      unavailable === 0 && hops > 0,
+      "no hop reports 'source unavailable' on a recording that published source",
+      `${unavailable} of ${hops} did; ${unparseable} said 'unparseable source line', which is the correct answer for a parameter`,
+    );
+
+    // THE SURFACE, READ WHERE THE VALUES ARE.
+    //
+    // `probe` above was taken at the LANDING position, and a session lands on
+    // its entry line where nothing is bound yet: the State pane has no rows
+    // there, so it has no row controls either, and a reading taken then counts
+    // zero for a reason that has nothing to do with whether the product offers
+    // the gesture. `ASK_ENGINE` steps the session to a position that has
+    // values — the same walk, for the same reason — so the pane is re-read
+    // after it. The landing count is still printed beside this one, because
+    // the two differing is a fact about the SUBJECT and not about the surface.
+    const shownHere = await live.page.evaluate(READ_CONTROLS);
+    j.note(
+      `origin affordances at landing: ${probe.originAffordances} labelled, ${probe.originControls} authored; ` +
+        `at a position with values: ${shownHere.originAffordances} labelled, ${shownHere.originControls} authored, ` +
+        `${shownHere.originMentions} matched anywhere`,
+    );
+    for (const t of shownHere.originTitles) j.note(`  control says: ${t}`);
+    j.atLeast(
+      shownHere.originAffordances,
       1,
       "some control offers to trace a value to its origin",
+    );
+    // The control is offered exactly where a chain exists and nowhere else.
+    // Without this the first assertion is satisfied by a control on every row,
+    // which is the shape NR-05 calls worse than the absence.
+    j.expect(
+      shownHere.originControls === classified,
+      "and it is offered on exactly the values whose origin was classified, not on every row",
+      `${shownHere.originControls} control(s) against ${classified} classified of ${asked} values`,
     );
   } finally {
     await live.page.close();
   }
 
-  // ── THE CHAIN CAPTURE ─────────────────────────────────────────────────
+  // ── THE RECORDING THAT CANNOT ─────────────────────────────────────────
   //
-  // A separate subject and a separate page, so the chain arm reddens on its
-  // own instead of being answered by a demo session. This is the arm the
-  // fallback removed above had made unreachable for this journey's whole life.
-  await realArm(browser, site, j, realCaptures[0]);
+  // A separate subject and a separate page, asserting the OTHER correct
+  // behaviour rather than the same one twice.
+  await noSourceArm(browser, site, j, withoutSource[0]);
 }
 
 /**
- * The same claim, over a REAL capture.
+ * The claim's OTHER half, over a recording that cannot support it.
  *
- * WHAT THIS ARM ASSERTS, AND WHAT IT DELIBERATELY DOES NOT
- * -------------------------------------------------------
- * Not the Values-pane comparison the demo arm makes. A chain recording is rung
- * 3 — `demo_session.nim` states the consequence verbatim: "This recording
- * carries no variable names: naming a local needs debug symbols, which an Aztec
- * contract class does not publish" — so its served frame may legitimately carry
- * no Values rows at all, and "the live pane differs from the served one" would
- * then be a claim about a corpus rather than about the engine. Asserting it
- * here would put a SECOND, unrelated red on a journey whose ledger entry speaks
- * for exactly one, which is how a ledgered entry comes to absorb a failure it
- * does not name.
+ * WHY THIS ARM DOES NOT ASSERT THE AFFORDANCE
+ * -------------------------------------------
+ * It used to, and that was wrong in a way worth writing down. A recording
+ * that published no source cannot have an origin chain over any of its
+ * values: the classifier works by parsing the right-hand side of the source
+ * assignment that produced the value, and there is no source to parse. Every
+ * chain capture this explorer publishes is in that state — `sourceBundles` is
+ * empty and `execution.sourceLevel` is false on all of them — and it is not a
+ * defect but a property of a rung-3 recording of a contract class that
+ * publishes no debug information.
  *
- * So the two panes are REPORTED, as notes, and the arm asserts the thing the
- * claim is actually about: that on a chain capture too, with the bundle
- * demonstrably running, nothing on screen offers to trace a value to its
- * origin. That is one number, measured by the same selector as the demo arm's,
- * on the subject this journey had never once looked at.
+ * So demanding a control here could only ever be satisfied by shipping one
+ * that answers "unknown" on every value. `docs/NOIR-RECORDER-DEFECTS.md`
+ * NR-05 says exactly what that would be: "a confident-looking affordance that
+ * resolves nothing … worse than the absence".
  *
- * The assertion texts are worded so that none of them CONTAINS another
- * assertion's text: `selftest.mjs` resolves an arm's target with
- * `r.what.includes(assertion)` and treats two hits as no hit, so a "REAL: " +
- * verbatim copy of a demo-arm assertion would silently make a future arm on
- * either of them unrunnable.
+ * WHAT IT ASSERTS INSTEAD
+ * -----------------------
+ * The behaviour that IS correct here, and which is a real product
+ * requirement rather than a lowered bar: the pane STATES why, rather than
+ * silently offering nothing. That is the standard the rest of this surface
+ * already holds — "Frames are recorded. Nothing resolved a position for this
+ * recording" is the sibling sentence, and `demo_session.nim` states the
+ * variable-names one verbatim.
+ *
+ * AND THE INVERSE MISTAKE IS A FAILURE TOO
+ * ----------------------------------------
+ * A source-less capture that DOES offer a working control is a red here, not
+ * a bonus. That is the direction the defect would come back from: a control
+ * keyed off "a summary arrived" or "the call succeeded" rather than off the
+ * classification would reappear on exactly these pages, and an arm that only
+ * checked for the sentence would pass while it did.
+ *
+ * The assertion texts contain no other assertion's text: `selftest.mjs`
+ * resolves an arm's target with `r.what.includes(assertion)` and treats two
+ * hits as no hit.
  */
-async function realArm(browser, site, j, subject) {
-  j.note(`driving REAL capture ${subject.debugPath}`);
-
-  const servedCtx = await browser.newContext({ javaScriptEnabled: false });
-  let served;
-  try {
-    const servedPage = await servedCtx.newPage();
-    await servedPage.goto(site.origin + subject.debugPath, {
-      waitUntil: "domcontentloaded",
-      timeout: 45000,
-    });
-    served = await servedPage.evaluate(READ_ROWS);
-  } finally {
-    await servedCtx.close();
-  }
+async function noSourceArm(browser, site, j, subject) {
+  j.note(`driving SOURCE-LESS capture ${subject.debugPath} (chain ${subject.chain})`);
 
   const live = await visit(browser, site.origin, subject.debugPath, {
     settle: (f) => f.phase === "ready" && f.controlsLive > 0,
@@ -391,42 +634,74 @@ async function realArm(browser, site, j, subject) {
   try {
     j.expect(
       live.settled && !live.timedOut,
-      "REAL: the chain capture reached a live session, so the bundle owns its panes",
+      "NO-SOURCE: the capture reached a live session, so the bundle owns its panes",
       `phase=${live.facts.phase} live=${live.facts.controlsLive}`,
     );
 
     const probe = await live.page.evaluate(READ_CONTROLS);
-    const hydrated = await live.page.evaluate(READ_ROWS);
 
-    // REPORTED, NOT ASSERTED — see the header. A rung-3 recording with no
-    // variable names is a state the product is allowed to be in, and the number
-    // belongs in the transcript so the arm below is read with it in view.
-    j.note(
-      `REAL Values pane: served ${served.rows} rows (${served.shown} shown), live ${hydrated.rows} rows` +
-        `${hydrated.text === served.text ? " — identical text" : " — different text"}`,
-    );
-
-    // CONTROL. Without it, "no origin affordance" is equally explained by a
-    // page the bundle never reached, and the red below would be a statement
-    // about this suite rather than about the product.
+    // CONTROL. Without it, "no origin control here" is equally explained by a
+    // page the bundle never reached, and the assertions below would be
+    // statements about this suite rather than about the product.
     j.atLeast(
       probe.interactive,
       5,
-      `REAL: CONTROL — the chain capture's live page carries ${probe.interactive} interactive controls, so the bundle ran here too`,
+      `NO-SOURCE: CONTROL — the page carries ${probe.interactive} interactive controls, so the bundle ran here too`,
     );
 
-    // THE CONSEQUENT, on the subject this journey had never judged — and the
-    // page the false positive was found on. The two numbers are printed
-    // together because on a chain capture they DISAGREE: the event log's own
-    // `origin=settled-chain` field is matched by the wide reading and by no
-    // authored label, which is the whole reason READ_CONTROLS narrowed.
+    // THE ENGINE FIRST, because asking also MOVES: the session lands on its
+    // entry line with nothing bound, and a State pane read there has no rows,
+    // hence no controls AND no note — a pair of zeros that would satisfy one
+    // assertion below for free and fail the other for the wrong reason.
+    // Zeros rather than an early return, for the reason the other arm gives:
+    // the assertion count must not depend on whether the engine answered.
+    const engine = (await live.page.evaluate(ASK_ENGINE)) ?? {
+      error: "no __btReplayWorker on the page",
+    };
+    if (engine.error) j.note(`NO-SOURCE: engine not queried (${engine.error})`);
+    const hops = engine.hops ?? 0;
+    const classified = engine.classified ?? 0;
+    const unavailable = engine.unavailable ?? 0;
     j.note(
-      `REAL origin affordances: ${probe.originAffordances} labelled, ${probe.originMentions} matched anywhere in a candidate's text`,
+      `NO-SOURCE hops: ${hops} over ${engine.asked ?? 0} values — ` +
+        `${classified} classified, ${unavailable} source-unavailable`,
     );
     j.atLeast(
-      probe.originAffordances,
+      hops,
       1,
-      "REAL: a chain capture offers no way to trace a value to its origin either",
+      `NO-SOURCE: the engine did return hops (${hops}), so the zero below is a verdict and not an empty set`,
+    );
+    j.expect(
+      classified === 0,
+      "NO-SOURCE: and none of them is classified, which is why no control is offered",
+      `${classified} classified; ${unavailable} said 'source unavailable'`,
+    );
+
+    // THE SURFACE, READ WHERE THE VALUES ARE — see the demo arm's note.
+    const shownHere = await live.page.evaluate(READ_CONTROLS);
+    j.note(
+      `NO-SOURCE origin readings at a position with values: ${shownHere.originControls} authored controls, ` +
+        `${shownHere.originAffordances} labelled, ${shownHere.originMentions} matched anywhere`,
+    );
+
+    // THE SENTENCE. This is the capability's honest form for this recording:
+    // the pane states why, rather than leaving an absence the visitor has to
+    // explain to themselves.
+    j.expect(
+      shownHere.originNote.length > 0,
+      "NO-SOURCE: the pane says why a value here cannot be traced, instead of showing nothing",
+      shownHere.originNote.length > 0
+        ? shownHere.originNote
+        : "no note in the State pane — the absence is unexplained, which is the state this arm exists to forbid",
+    );
+
+    // THE INVERSE MISTAKE. A control offered where nothing can answer is the
+    // defect returning, and it is asserted as a count so it cannot pass
+    // vacuously.
+    j.expect(
+      shownHere.originControls === 0,
+      "NO-SOURCE: and it offers no origin control, because none could answer",
+      `${shownHere.originControls} authored control(s) on a recording with no source to classify`,
     );
   } finally {
     await live.page.close();
