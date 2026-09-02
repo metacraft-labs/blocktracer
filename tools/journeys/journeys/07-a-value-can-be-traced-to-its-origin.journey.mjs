@@ -110,6 +110,18 @@
 // pass this entry was written from. The arm counts CLASSIFIED hops and
 // prints the count.
 //
+// AND IT READS THE CONTROL'S OWN LABEL, WHICH WAS OBSERVED AND UNDEFENDED
+// ----------------------------------------------------------------------
+// The renderer writes the classified terminator expression into the control's
+// `title` ("Trace to origin: <expr>"), and that is what makes the button an
+// offer rather than a decoration: it says what the answer will be before it is
+// asked. Every reading of it was printed as a note and asserted by nothing, so
+// a control whose title had lost its expression — the empty-classification
+// case this whole module is written around — would have read as a clean green
+// with the evidence of the defect sitting two lines above the verdict in the
+// transcript. It is now a count: as many titles naming an expression as there
+// are controls on screen.
+//
 // SOURCE-LESS: the pane STATES WHY, and offers no control. Demanding an
 // affordance here could only be satisfied by shipping one that answers
 // "unknown" on every value — NR-05's "confident-looking affordance that
@@ -138,10 +150,28 @@ export const claim =
   "A visitor can trace a value to its origin — and until they can, the product does not say they can.";
 export const spec =
   "client/src/pages/home.nim (the hero) and ssr.nim (the meta description) — the product's own promise, now withdrawn";
-export const assertions = 21;
+export const assertions = 22;
 export const needsEngine = true;
 
 const PROMISE = /trace any value to its origin/i;
+
+/**
+ * A title that names the origin it offers to trace to.
+ *
+ * The renderer writes `"Trace to origin: " & v.origin`, where `v.origin` is the
+ * engine's classified terminator expression, so the title is the one place the
+ * control states its own answer in advance. The CAPTURE is the load-bearing
+ * half and the reason this is not a `startsWith`: a control titled
+ * `"Trace to origin: "` with nothing after it satisfies a prefix test while
+ * being exactly the empty-classification case the surface must not ship — the
+ * confident-looking affordance NR-05 calls worse than the absence, wearing a
+ * correct-looking label.
+ *
+ * Anchored at both ends and applied to the title as a whole, so a title that
+ * merely CONTAINS the phrase somewhere does not count as one that leads with
+ * it.
+ */
+const ORIGIN_TITLE = /^\s*Trace to origin:\s*(\S[\s\S]*?)\s*$/;
 
 /** The State pane's rows as the DOM holds them, from an already-loaded page. */
 const READ_ROWS = () => {
@@ -236,9 +266,14 @@ const READ_CONTROLS = () => {
     // disagree the gap says the control was renamed rather than removed, which
     // a selector-only reading would report as a regression.
     originControls: [...document.querySelectorAll(".storigin")].filter(shown).length,
-    originTitles: [...document.querySelectorAll(".storigin")].map(
-      (e) => e.getAttribute("title") ?? "",
-    ),
+    // THE SAME SET `originControls` COUNTS — `shown`, and in the same order.
+    // The titles used to be read off every `.storigin` in the document while
+    // the count beside them was of the visible ones, so comparing the two
+    // numbers compared two different subjects, and a title read off a control
+    // no visitor can see would have answered for one they can.
+    originTitles: [...document.querySelectorAll(".storigin")]
+      .filter(shown)
+      .map((e) => e.getAttribute("title") ?? ""),
     originNote: document.querySelector("#pane-state .stnote")?.textContent?.trim() ?? "",
   };
 };
@@ -573,6 +608,31 @@ export async function run({ browser, site, j }) {
       shownHere.originControls === classified,
       "and it is offered on exactly the values whose origin was classified, not on every row",
       `${shownHere.originControls} control(s) against ${classified} classified of ${asked} values`,
+    );
+
+    // AND EACH OF THOSE CONTROLS SAYS WHAT IT WOULD ANSWER.
+    //
+    // The subject is the controls the page is SHOWING — read off the page by
+    // the same `.storigin`-and-`checkVisibility` reading that produced the
+    // count above, never a list of rows or names written here — and the
+    // expectation is a relation between two numbers that page reports: as many
+    // titles carrying an origin expression as there are controls carrying a
+    // title.
+    //
+    // `countIs` and not `atLeast`: the size of this set is knowable, it is the
+    // control count, and §4b's existential control ("at least one title is
+    // fine") is satisfied by one good label among five empty ones — which is
+    // the state a partial classification regression would actually leave.
+    //
+    // It cannot pass vacuously either. `originControls` is asserted equal to a
+    // `classified` that is itself asserted `>= 1` two verdicts above, so a page
+    // with no controls at all has already reddened before reaching here, and
+    // `countIs(0, 0)` is not a verdict this assertion can reach on its own.
+    const naming = shownHere.originTitles.filter((t) => ORIGIN_TITLE.test(t));
+    j.countIs(
+      naming.length,
+      shownHere.originControls,
+      "and each control names the origin it would trace to, so the offer states its own answer",
     );
   } finally {
     await live.page.close();

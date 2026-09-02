@@ -463,6 +463,25 @@ const ARMS = [
     journey: "a-value-can-be-traced-to-its-origin",
     assertion: "NO-SOURCE: the pane says why a value here cannot be traced",
   },
+  {
+    id: "O4/the-control-does-not-say-what-it-would-answer",
+    why:
+      "Drop the classified expression out of the origin control's own title, leaving" +
+      " the label 'Trace to origin: ' with nothing after it. Every other reading of" +
+      " the surface is unmoved — the control is rendered, it is rendered on exactly" +
+      " the two values whose origin the engine classified, and the labelled and" +
+      " authored counts both still read 2 — so this is the shape a presence check" +
+      " cannot see, and the shape a `startsWith` check cannot see either. It is the" +
+      " same NR-05 direction as O2 arriving through the label instead of through the" +
+      " guard: the button says it will answer and names no answer. The journey" +
+      " printed these titles as notes for its whole life and asserted nothing about" +
+      " them, so the evidence sat two lines above a green verdict.",
+    file: join(CLIENT, "src", "components", "debugger.nim"),
+    find: `                   title = "Trace to origin: " & v.origin):`,
+    replace: `                   title = "Trace to origin: "):`,
+    journey: "a-value-can-be-traced-to-its-origin",
+    assertion: "and each control names the origin it would trace to",
+  },
 ];
 
 const log = (s = "") => console.log(s);
