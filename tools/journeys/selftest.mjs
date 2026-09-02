@@ -437,19 +437,25 @@ const ARMS = [
     assertion: "the forward walk reaches all three marked lines, not just the first",
   },
   {
-    id: "W/the-absolute-path-the-engine-reports",
+    id: "W/the-breakpoint-names-a-file-the-trace-does-not-have",
     why:
-      "Send the path the engine REPORTS instead of the one the document" +
-      " carries. The engine names positions at the recording machine's" +
-      " absolute path ('/private/tmp/…/src/main.nr') while the island carries" +
-      " the interned relative one ('src/main.nr'), and making the two 'agree'" +
-      " is the exact correction `live_source.nim` warns silently removes a" +
-      " feature. Here it removes this one: the breakpoints are never resolved," +
-      " so Continue reaches none of them. Aimed at the forward walk rather" +
-      " than at the mark, because all three marks still paint.",
+      "Name a file the recording never interned, so no breakpoint resolves and" +
+      " Continue reaches none of them. Aimed at the forward walk rather than at" +
+      " the mark, because the marks are painted from this page's own set and" +
+      " all three still appear." +
+      "\n    THIS ARM WAS FIRST WRITTEN AS THE ABSOLUTE PATH — prefixing the" +
+      " document's path with the recording machine's directory, the correction" +
+      " `live_source.nim` warns silently removes a feature — AND IT SURVIVED." +
+      " That is worth recording rather than hiding: `set_breakpoints` resolves" +
+      " through `db.rs`'s `load_path_id`, which is `reader.fuzzy_path_id_for`," +
+      " and the fuzzy match absorbs a prefix. So the absolute spelling is NOT a" +
+      " defect for breakpoints, even though it is one for the origin" +
+      " classifier, which builds its own probe path and does not go through" +
+      " that lookup. The two failure modes are not the same and this arm may" +
+      " not pretend they are.",
     file: join(CLIENT, "hydrate", "hydrate.nim"),
     find: `    (attr(doc, "data-path"), intAttr(row, "data-line"))`,
-    replace: `    ("/private/tmp/" & attr(doc, "data-path"), intAttr(row, "data-line"))`,
+    replace: `    ("not-a-file-in-this-trace.nr", intAttr(row, "data-line"))`,
     journey: "continuing-stops-at-a-breakpoint",
     assertion: "continuing forward stops at least three times",
   },
