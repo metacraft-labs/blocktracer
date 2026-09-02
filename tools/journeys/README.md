@@ -74,6 +74,42 @@ An earlier draft read the first `.srcline` in document order, reported
 assertion here goes through `checkVisibility`. A gate that cries wolf gets
 switched off, and then it is not there for the real one.
 
+## Visible is not the same claim as still
+
+A visitor reported that stepping scrolled the source pane on every step and
+pinned the position to the pane's top edge. Journeys 03, 06 and 09 were green
+throughout, and correctly so — they assert that the position is **rendered**, and
+it was. `the marked line is on screen` is true when the line is glued to the top
+edge and true when it is properly revealed, so a journey written that way would
+have printed GREEN over the reported behaviour and certified it.
+
+**A complaint about movement is not answerable by an assertion about presence.**
+Journey 12 asserts where the *pane* is, and two readings are needed rather than
+one, because the defect had two mechanisms:
+
+- `scrollTop` catches a pane that re-scrolls on every step.
+- **The position's distance from the top of the box** catches the other half, and
+  nothing else does. The bundle used to re-window the document on every stop, so
+  the position sat at row 7 of a listing rebuilt beneath it — `scrollTop` was 0
+  before and 0 after, every journey stayed green, and the pane moved under the
+  reader on every step. Measured with that half restored as a selftest arm, the
+  position stands at 189px from the top for twenty-three consecutive steps while
+  every other assertion in this directory passes.
+
+Two smaller rules came out of the same file and generalise:
+
+- **Read the scroller you find, not the one you name.** `#pane-editor .panebody`
+  is the element the product's own code holds and it is *not* where the source
+  pane overflows — `.src` is. On the demo pane `.panebody` has a scroll range of
+  zero. A journey that read it would have measured a constant, and a constant
+  supports whichever assertion its author wants. `sourceScroll` walks out from the
+  marked line and takes the first ancestor that actually scrolls, and asserts that
+  it found one with somewhere to go before judging that it stayed put.
+- **A walk stops when the trace does.** A fixed thirty steps clicked seventeen
+  times at a recording with thirteen left and entered every non-step as a step
+  during which nothing moved — reporting a working product as broken. The length
+  of the walk is asserted against a floor instead.
+
 ## The ledger
 
 `ledger.json` names the journeys known RED on this branch, each with what was
