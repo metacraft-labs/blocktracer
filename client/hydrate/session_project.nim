@@ -544,7 +544,8 @@ proc canDo*(vm: DebugControlsVM; a: DebugAction): bool =
   of daReverseContinue: vm.canReverseContinue.val
 
 proc projectControls*(vm: DebugControlsVM; step, total: int;
-                      live: bool): DebugControlsPane =
+                      live: bool;
+                      served = DebugControlsPane()): DebugControlsPane =
   ## The toolbar, in the order `session_view.DebugAction` declares — which is
   ## CodeTracer's desktop order, backward first in each pair.
   ##
@@ -552,6 +553,35 @@ proc projectControls*(vm: DebugControlsVM; step, total: int;
   ## before the engine is ready every button is inert whatever the VM's memos
   ## say, because those memos have a value from the moment the store exists and
   ## it is not yet a statement about a running engine.
+  ##
+  ## `served` is the SERVED page's own controls, and it exists because
+  ## `rrTicks == 0` is ambiguous in exactly the window this projection runs in.
+  ##
+  ## `ReplayDataStore` initialises `debugger.rrTicks` to `0`, and `goLive`
+  ## renders the ready page BEFORE the `ct/goto-ticks` it issues has come back —
+  ## and on a session with no `?t=` it issues no seek at all, so `requestPosition`
+  ## writes the store's own `0` straight back and it stands until the visitor
+  ## steps. Between those moments the `0` is the store's initial value, not a
+  ## frame the engine reported. Reading it as a position published
+  ## `data-step="0"` and — because `positioned` was `step > 0` — drew NO PLAYHEAD
+  ## AT ALL, on a page whose served frame had just drawn one on its correct tick
+  ## (`renderControls`'s `filled` is `0` when `positioned` is false, so not one
+  ## of the 48 ticks carries `.at` or `.on`).
+  ##
+  ## That is precisely what Page-Descriptions §7.0 forbids — "**No state renders
+  ## less than the pre-hydration page**" — and it is the loss journey 06's header
+  ## records observing ("its hydrated session lands at step 0 of 345") and
+  ## deliberately does not assert, because its own implication
+  ## (`step > 0 && totalSteps > 0` guarding the marked-line check) passes
+  ## VACUOUSLY at step 0.
+  ##
+  ## So the served frame stands until the engine states otherwise, which makes
+  ## the position monotonic across hydration by construction: a page that showed
+  ## a position cannot stop showing one because a second compilation took over
+  ## drawing it. The served page publishes a non-zero `data-step` exactly when it
+  ## was positioned (`demo_session.entryStepWithin` returns `0` only for a trace
+  ## with no steps), so `served.step` needs no separate positioned flag to be
+  ## read honestly.
   proc btn(a: DebugAction; label, glyph: string): ControlButton =
     ControlButton(action: a, label: label, glyph: glyph,
                   enabled: live and canDo(vm, a))
@@ -566,9 +596,13 @@ proc projectControls*(vm: DebugControlsVM; step, total: int;
     btn(daContinue, "Continue", "⏭"),
   ]
   result.statusText = vm.statusText.val
-  result.step = step
+  # The engine's tick when it has stated one, the served page's when it has not.
+  # `step > 0` is read here as "the engine has reported a frame" and NOT as
+  # "there is a position to draw" — the second is what it used to mean, and the
+  # difference is the whole defect above.
+  result.step = if step > 0: step else: served.step
   result.totalSteps = total
-  result.positioned = step > 0
+  result.positioned = result.step > 0
 
 proc projectReplayPanes*(s: LiveSession; base: DebugSessionView;
                          island: string): DebugSessionView =
@@ -604,9 +638,12 @@ proc projectReplayPanes*(s: LiveSession; base: DebugSessionView;
   result.calltrace = projectCalltrace(s.calltrace, base.traceContentHash)
   result.state = projectState(s.state, s.locals, s.store.debugger.val.rrTicks)
   result.eventLog = projectEventLog(s.eventLog, base.traceContentHash)
+  # `base.controls` and not `base.controls.totalSteps` alone: the served frame's
+  # STEP is inherited for the same reason its total is, and for the window in
+  # which the engine has not yet stated one. See `projectControls`.
   result.controls = projectControls(
     s.controls, int(s.store.debugger.val.rrTicks), base.controls.totalSteps,
-    live = true)
+    live = true, served = base.controls)
   result.integrity =
     if s.controls.divergenceDetected.val: siDivergent
     elif s.controls.traceTruncated.val: siTruncated
