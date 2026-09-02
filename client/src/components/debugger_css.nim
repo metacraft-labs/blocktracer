@@ -1149,7 +1149,24 @@ a.frseg:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
    the scroll container the sticky `.cthead` resolves against and would break a
    header that currently works. A taller row costs nothing and clips nothing.
    `overflow-wrap:anywhere` is for the pathological case — one unbroken
-   identifier longer than the column — so even that is shown rather than cut. */
+   identifier longer than the column — so even that is shown rather than cut.
+
+   WHAT THE WRAP IS AND IS NOT DOING, MEASURED. The truncation this change
+   fixes is carried ENTIRELY by the path leaving the row: the longest name in
+   the corpus needs 217px and the frame column is 357px wide at 1440px once the
+   path is gone, so it fits with room to spare. The wrap is belt and braces for
+   a name longer than the column, and NO viewport reaches that state here —
+   narrowing the window makes this column WIDER, not narrower, because below
+   about 1000px the panes stop sitting side by side and stack (675px at 780px
+   wide, against 357px at 1440px).
+
+   That is stated because a mutation arm was written for these two lines and
+   could not be made to kill: restoring `nowrap`/`ellipsis` here changes
+   nothing a browser can be made to show, at any width, on any recording this
+   product publishes. The arm was withdrawn rather than propped up with an
+   invented fixture, and these declarations are kept because they make
+   "the name is never cut" true by construction instead of true by arithmetic
+   that holds only while names stay shorter than the column. */
 .ctfn{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;
   gap:var(--bt-space-xs);flex-wrap:wrap}
 .ctname{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
