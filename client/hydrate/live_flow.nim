@@ -532,20 +532,68 @@ proc withLiveFlow*(inner: BackendService; feed: FlowFeed): BackendService =
     onEventProc: inner.onEventProc,
     disconnectProc: inner.disconnectProc)
 
-proc hasWindowFor*(feed: FlowFeed; ticks: uint64): bool =
-  ## Whether the window this feed holds is THIS position's.
+proc hasWindow*(feed: FlowFeed): bool =
+  ## Whether this feed holds a window the projection may draw.
   ##
-  ## The one gate the projection asks. It is a conjunction and every conjunct
-  ## earns its place: a feed that never asked has no window; a pending one's
-  ## window is the previous position's; an unavailable one's is too; and a live
-  ## one's is only this position's if it was computed for this position.
+  ## ## WHY THE SESSION'S TICK IS NOT THE GATE, AND WHAT IS
   ##
-  ## A window with no steps is still a window and still passes — that is a real
-  ## answer ("the engine recorded nothing at this position") and drawing no
-  ## annotations for it is correct. Refusing it here would leave the PREVIOUS
-  ## position's overlay on screen, which is the one outcome that must not
-  ## happen.
-  feed != nil and feed.phase == ffLive and feed.forTicks == ticks
+  ## It was, and the tick gate was wrong twice over.
+  ##
+  ## It bought nothing it was written for. A flow window is a window over a
+  ## FUNCTION, not over a tick: the same window is the answer at every position
+  ## inside that function, and the thing that varies with the position is WHICH
+  ## LOOP PASS is on screen — which `computeFlowLayout` derives from
+  ## `FlowWindowInput.locationTicks`, and which `session_project
+  ## .projectFlowWindow` now takes from the SESSION rather than from the
+  ## window's own `location.rrTicks`. That is a stronger guarantee than the gate
+  ## gave, and it holds independently of the engine: the measured
+  ## `location.rrTicks` is 0 on every answer this build receives (journey 15),
+  ## so a pass selected from it was pass 0 forever, gate or no gate. Rule 2 of
+  ## `flow_view` — "a label belongs to the pass that produced it" — is now
+  ## satisfied by construction rather than by trusting a field that is not
+  ## filled.
+  ##
+  ## And it cost something real. A gate on the tick means the overlay cannot be
+  ## drawn in the render that MOVES the session — the window for the new tick is
+  ## a round trip away — so every step painted the pane without values and then
+  ## repainted it with them. That is not merely a flicker: inline labels make
+  ## source lines taller, so the second paint changes the height of the content
+  ## above the position, and `hydrate.revealCurrentLine` then finds the position
+  ## outside the box and re-centres. Measured against
+  ## `13-the-source-pane-holds-still-while-the-position-is-visible`: three runs
+  ## in six went red with the gate, none without it. The pane jumped a beat
+  ## after a step the visitor had already watched land.
+  ##
+  ## ## What refuses a window that is not this session's
+  ##
+  ## The FILE, and it is checked where the file is known — `projectFlowWindow`
+  ## resolves `enginePath` against the pane's own documents and yields nothing
+  ## when it does not resolve, so a window loaded for `main.nr` puts no label on
+  ## `shield.nr`. `tests/tdebugpanes.nim` drives exactly that case.
+  ##
+  ## ## AND WHY THE PHASE IS NOT THE GATE EITHER
+  ##
+  ## `FlowVM` issues a fresh `ct/load-flow` on every move, so the feed drops to
+  ## `ffPending` in the same statement that writes the new position — before any
+  ## projection runs. A gate that required `ffLive` therefore hid the overlay on
+  ## EVERY step, whatever it compared ticks with, and that is the repaint the
+  ## measurement above is about.
+  ##
+  ## The window it would have hidden is the answer the engine has already given
+  ## for this file, and the next answer either replaces it or does not arrive.
+  ## Holding it is not the stale-values hazard `live_locals` refuses: a
+  ## `ct/load-locals` reply is a statement about ONE position and showing the
+  ## previous one's is a false claim about this one, while a flow window is a
+  ## statement about a FUNCTION and every position inside it has the same
+  ## answer. The pass — the part that does vary with the position — is selected
+  ## from the SESSION's tick downstream, so it moves on every step whether or
+  ## not a new window has landed.
+  ##
+  ## So the only conditions are: there is a window, and it has steps in it. An
+  ## empty one is refused rather than drawn, because a parse that produced
+  ## nothing and an engine that answered nothing are the same "no answer" and
+  ## drawing either would clear an overlay that is still correct.
+  feed != nil and feed.window.steps.len > 0
 
 proc adopt*(feed: FlowFeed; ticks: uint64; payload: JsonNode) =
   ## Declare that `payload` is the window at `ticks`, without a request.

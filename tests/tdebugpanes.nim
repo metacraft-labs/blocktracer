@@ -794,7 +794,7 @@ suite "M8b — omniscience follows a live session":
       let blank = projectSession(s, "src/shield.nr", shieldNr,
                                  int(ticks), 1315)
       check paneLabels(blank.editor, "src/shield.nr").len == 0
-      check not s.flowWindow.hasWindowFor(ticks)
+      check not s.flowWindow.hasWindow()
 
       # …and the move DID make the session ask. A window that appeared without
       # the request having gone out would be reading something else.
@@ -812,7 +812,7 @@ suite "M8b — omniscience follows a live session":
         "event": UpdatedFlowEvent,
         "body": {"location": position, "viewUpdates": [view]}})
 
-      check s.flowWindow.hasWindowFor(ticks)
+      check s.flowWindow.hasWindow()
       check s.flowWindow.functionLabel == "iterate_asteroids"
 
       let live = projectSession(s, "src/shield.nr", shieldNr, int(ticks), 1315)
@@ -886,15 +886,29 @@ suite "M8b — omniscience follows a live session":
       check live.editor.flow.line == 4
       check live.editor.flow.selected == 1
 
-      # ── and it goes STALE the moment the session moves ────────────────────
-      # The window is a statement about tick 121. A step away from it must
-      # remove the overlay, not carry it to the new position — a value from the
-      # frame you WERE at, shown as the frame you are in, is the confident wrong
-      # answer this whole route refuses.
-      s.store.updateDebuggerPosition(203'u64, file = "src/shield.nr", line = 9)
-      check not s.flowWindow.hasWindowFor(203'u64)
-      let moved = projectSession(s, "src/shield.nr", shieldNr, 203, 1315)
-      check paneLabels(moved.editor, "src/shield.nr").len == 0
+      # ── and moving inside the function RE-SELECTS THE PASS ────────────────
+      #
+      # The window is a window over `iterate_asteroids`, not over tick 121, so a
+      # step to another position in the same loop is still this window's. What
+      # changes is WHICH PASS is on screen, and that is decided by the SESSION's
+      # tick and not by the window's own `location.rrTicks` — which the engine
+      # leaves at 0 on every answer this build receives (journey 15), so a
+      # projection reading it would pin every session to pass 0 for ever. That
+      # is issue #593 arriving through a field that is not filled rather than
+      # through a comparison that is wrong.
+      #
+      # 257 is the FOURTH iteration header of this loop, so the rail must open
+      # on pass 3.
+      s.store.updateDebuggerPosition(257'u64, file = "src/shield.nr", line = 9)
+      check s.flowWindow.hasWindow()
+      let moved = projectSession(s, "src/shield.nr", shieldNr, 257, 1315)
+      check moved.editor.flow.loopIndex == 1
+      check moved.editor.flow.selected == 3
+      # …and the labels are still the engine's, on the same lines. The overlay
+      # does not blink off between two positions of one function — which it did
+      # while the tick was the gate, and which made the pane jump a beat after
+      # every step (`live_flow.hasWindow`).
+      check paneLabels(moved.editor, "src/shield.nr").len == 179
 
       s.close()
       dispose()
@@ -924,7 +938,7 @@ suite "M8b — omniscience follows a live session":
 
       # The control: at source level this window DOES annotate. Without it the
       # assertion below would be satisfied by a window that never applied.
-      check s.flowWindow.hasWindowFor(ticks)
+      check s.flowWindow.hasWindow()
       let verified = projectSession(s, "src/shield.nr", shieldNr,
                                     int(ticks), 1315)
       check paneLabels(verified.editor, "src/shield.nr").len == 179
@@ -970,7 +984,7 @@ suite "M8b — omniscience follows a live session":
             "line": 12, "rrTicks": 121},
           "viewUpdates": [view]}})
 
-      check s.flowWindow.hasWindowFor(121'u64)
+      check s.flowWindow.hasWindow()
       let view2 = projectSession(s, "src/shield.nr", shieldNr, 121, 1315)
       check paneLabels(view2.editor, "src/shield.nr").len == 0
 

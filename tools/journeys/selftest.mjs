@@ -1095,19 +1095,19 @@ proc noteFor*`,
     assertion: "the slider answers the keyboard it puts itself in the tab order for",
   },
 
-  // ── the omniscience overlay (journey 12) ─────────────────────────────────
+  // ── the omniscience overlay (journey 14) ─────────────────────────────────
   //
-  // Three arms, aimed at three things the overlay claims — and NOT at "the
-  // overlay is present", which was TRUE throughout the defect on the served
-  // frame and is the false pass journey 12 is written against.
+  // Two arms, aimed at two things the overlay claims — and NOT at "the overlay
+  // is present", which was TRUE throughout the defect on the served frame and is
+  // the false pass journey 14 is written against.
   //
   // ONE ARM WAS TRIED AND WITHDRAWN, and it is worth the lines. "Keep the first
   // flow window and drop every later one" should be a kill and cannot be:
   // measured on the wire, the engine ALREADY answers every `ct/load-flow` with
   // one window computed for tick 0 whatever position was asked about, so
-  // freezing it changes nothing observable. That is journey 13's defect, and
-  // the arm that would have proved journey 12 could see it is exactly the arm
-  // that proves journey 12 cannot. Journey 13 exists because of it.
+  // freezing it changes nothing observable. That is journey 15's defect, and
+  // the arm that would have proved journey 14 could see it is exactly the arm
+  // that proves journey 14 cannot. Journey 15 exists because of it.
 
   {
     id: "F1/an-overlay-of-names-with-no-values",
@@ -1122,23 +1122,23 @@ proc noteFor*`,
     file: join(CLIENT, "hydrate", "live_locals.nim"),
     find: `  of tkInt: node{"i"}.getStr("")`,
     replace: `  of tkInt: ""`,
-    journey: "a-stepped-session-shows-the-flow-of-the-function-it-is-in",
+    journey: "a-stepped-session-shows-the-values-recorded-on-its-lines",
     assertion: "every value label carries a value and not just a name",
   },
 
   {
     id: "F2/the-engine-window-never-reaches-the-pane",
     why:
-      "Refuse every parsed window at the staleness gate. The session still asks, the" +
-      " engine still answers, the answer is still parsed — and the pane falls back" +
-      " to the loop rail with no values, which is EXACTLY the state `dev` was in" +
-      " before this work and exactly the state a visitor reported. The arm proves" +
-      " the overlay on screen is the live one and not the exporter's, which is the" +
-      " one thing a presence check cannot establish.",
+      "Refuse every parsed window where the projection asks for it. The session still" +
+      " asks, the engine still answers, the answer is still parsed — and the pane" +
+      " falls back to the loop rail with no values, which is EXACTLY the state `dev`" +
+      " was in before this work and exactly the state a visitor reported. The arm" +
+      " proves the overlay on screen is the live one and not the exporter's, which" +
+      " is the one thing a presence check cannot establish.",
     file: join(CLIENT, "hydrate", "live_flow.nim"),
-    find: `  feed != nil and feed.phase == ffLive and feed.forTicks == ticks`,
-    replace: `  feed != nil and feed.phase == ffLive and feed.forTicks == ticks and false`,
-    journey: "a-stepped-session-shows-the-flow-of-the-function-it-is-in",
+    find: `  feed != nil and feed.window.steps.len > 0`,
+    replace: `  feed != nil and feed.window.steps.len > 0 and false`,
+    journey: "a-stepped-session-shows-the-values-recorded-on-its-lines",
     assertion: "a live session is given a values overlay at all",
   },
 

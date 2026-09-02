@@ -395,7 +395,8 @@ proc projectEditor*(vm: EditorVM; store: ReplayDataStore;
     result.availability = SourceAvailabilityView.srcAbsent
     result.reason = "This execution ran no contract code."
 
-proc projectFlowWindow*(feed: FlowFeed; pane: EditorPane): FlowWindowInput =
+proc projectFlowWindow*(feed: FlowFeed; pane: EditorPane;
+                        ticks: uint64): FlowWindowInput =
   ## The engine's window, joined to the page's source text.
   ##
   ## Two halves of one overlay that come from two places, which is
@@ -439,7 +440,15 @@ proc projectFlowWindow*(feed: FlowFeed; pane: EditorPane): FlowWindowInput =
   if index < 0: return
   result.path = pane.documents[index].path
   result.returns = feed.returns
-  result.locationTicks = feed.locationTicks
+  # THE SESSION'S TICK, NOT THE WINDOW'S. `locationTicks` decides which loop
+  # pass the overlay shows and which pass the rail opens on, and that is a
+  # question about where the DEBUGGER is — `flow_view` rule 2, and issue #593,
+  # which was a counter that read pass 1 of 8 for as long as the session lasted.
+  # The window's own `location.rrTicks` is the engine's answer to a different
+  # question and, measured on every answer this build receives, is 0 (journey
+  # 15) — so reading it would pin every session to pass 0. `feed.locationTicks`
+  # is kept on the feed and is what journey 15 reads; nothing draws from it.
+  result.locationTicks = int(ticks)
   result.functionLabel = feed.functionLabel
   result.window = feed.window
   # The text, line for line, from the document the engine's path resolved to.
@@ -471,14 +480,12 @@ proc applyLiveFlow*(pane: var EditorPane; feed: FlowFeed;
   ## (`applyFlow` clears before it decides), so a session would flicker the loop
   ## control off and on at every step.
   ##
-  ## `hasWindowFor` is the staleness gate and it is asked about the SESSION's
-  ## tick, passed in by the caller, rather than about the window's own
-  ## `locationTicks`. A window that answered its own question would pass it by
-  ## construction; the whole point is to compare what the engine computed
-  ## against where the session actually is, which is the same discipline
-  ## `projectState` applies to the locals.
-  if not feed.hasWindowFor(ticks): return false
-  let input = projectFlowWindow(feed, pane)
+  ## `ticks` is the SESSION's position and it is what the overlay is laid out
+  ## for — see `projectFlowWindow`. It is not a staleness gate: `hasWindow`'s
+  ## header records why the tick stopped being one and what refuses a window
+  ## that belongs to another file.
+  if not feed.hasWindow(): return false
+  let input = projectFlowWindow(feed, pane, ticks)
   if input.path.len == 0: return false
   applyFlow(pane, input)
   true

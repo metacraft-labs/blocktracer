@@ -77,7 +77,7 @@
 ## unchanged.
 ##
 ## Measured on the wire over the built site with the published engine staged
-## (`tools/journeys/journeys/13-the-flow-window-follows-the-position.journey
+## (`tools/journeys/journeys/15-the-flow-window-follows-the-position.journey
 ## .mjs`, which is RED and ledgered with this reason): eight distinct request
 ## ticks, sixteen answers, EVERY one carrying `location.rrTicks = 0` and
 ## `functionFirst = 0` for a function whose body begins on line 12. The engine

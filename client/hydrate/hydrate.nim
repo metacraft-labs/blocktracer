@@ -2173,7 +2173,7 @@ proc goLive(h: Hydration) =
     afterMs(ms, action)
   # The same deadline for the flow window, and it matters more here than it
   # reads: an unanswered `ct/load-flow` would leave the feed `ffPending`
-  # forever, `hasWindowFor` false forever, and the pane back on the loop rail
+  # forever, `hasWindow` false forever, and the pane back on the loop rail
   # with no values — which is the state this change exists to leave. The
   # deadline is what turns that into a settled `ffUnavailable` the next answer
   # can replace.

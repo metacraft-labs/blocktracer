@@ -1,5 +1,11 @@
-// "A visitor who steps sees the recorded values on the lines of the function
-//  they are in."
+// "A visitor who steps sees the engine's recorded values, placed on the source
+//  lines they were recorded on."
+//
+// The narrower half of the report. The other half — that the overlay FOLLOWS the
+// position and belongs to the function the session is in — is journey 15, which
+// is RED and ledgered with the cause. Splitting them is not bookkeeping: they
+// close on different fixes, and one entry in the ledger has to be able to close
+// on one of them.
 //
 // `Omniscience-Flow.md` (the inline values overlay and its loop rail), and
 // Page-Descriptions.md §7.0 — "hydration is what turns a POSITIONED first frame
@@ -61,11 +67,11 @@
 import { visit, readFacts } from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";
 
-export const id = "a-stepped-session-shows-the-flow-of-the-function-it-is-in";
+export const id = "a-stepped-session-shows-the-values-recorded-on-its-lines";
 export const claim =
-  "A visitor who steps sees the recorded values on the lines of the function they are in.";
+  "A visitor who steps sees the engine's recorded values, placed on the source lines they were recorded on.";
 export const spec = "Omniscience-Flow.md; Page-Descriptions.md §7.0 — BlockTracer";
-export const assertions = 2 + 11 + 4; // 17
+export const assertions = 2 + 6 + 4; // 12
 export const needsEngine = true;
 
 /** How many times each session is stepped. See journey 11 on why it is a walk. */
@@ -296,20 +302,9 @@ export async function run({ browser, site, j }) {
       "every value label carries a value and not just a name",
     );
 
-    // 3. WHAT IS ON SCREEN CHANGES AS THE POSITION MOVES.
-    //
-    //    Stated exactly, because it is weaker than it looks and the difference
-    //    matters: the pane opens six lines above the position and runs to the
-    //    end of the file (`source_document.openAtCurrent`), so the SET OF
-    //    LABELS A VISITOR SEES is a function of the position even when the
-    //    window behind it is not. Journey 13 is the stronger claim — that the
-    //    engine's window itself follows the position — and it is RED.
-    const shapes = new Set(readings.map((r) => r.text));
-    j.atLeast(shapes.size, 2, "the set of labels on screen changes as the position moves");
-
-    // 2. IT IS NOT THE EXPORTER'S. The served overlay is a real one, drawn for
-    //    the frame the page was served at, and a hydrated session still showing
-    //    it is the defect wearing the fix's clothes.
+    // 3. AND IT IS NOT THE EXPORTER'S. The served overlay is a real one, drawn
+    //    for the frame the page was served at, and a hydrated session still
+    //    showing it is the defect wearing the fix's clothes.
     j.expect(
       withOverlay.every((r) => r.text !== served.text),
       "no live reading is the overlay the exporter wrote",
@@ -317,45 +312,25 @@ export async function run({ browser, site, j }) {
         `live readings ${withOverlay.map((r) => r.labels).join("/")}`,
     );
 
-    // 3. IT CORRESPONDS TO THE FUNCTION THE SESSION IS IN. `markedFunction` is
-    //    derived from the page's source text and its position mark, never from
-    //    the overlay — see the probe. The count of readings checked is itself
-    //    asserted, so "every annotated line was inside the function" cannot be
-    //    true of an empty set.
-    const framed = withOverlay
-      .map((r) => ({ ...r, fn: enclosing(headers, r.doc, r.marked) }))
-      .filter((r) => r.fn !== null);
-    // NON-VACUITY, and it is the assertion that makes the next one mean
-    // anything: "every annotated line was inside the function" is true of no
-    // readings at all. The number is reported, so a walk that stopped finding
-    // functions says so instead of going quietly green.
-    j.atLeast(
-      framed.length,
-      3,
-      "CONTROL: several overlaid positions were inside a named function",
-    );
-    const outside = framed.filter((r) => r.lines.some((n) => n < r.fn.first || n > r.fn.last));
-    j.countIs(
-      outside.length,
-      0,
-      "every annotated line lies inside the function the session is in",
-    );
-    // And the mark itself is inside it — which is what makes the assertion
-    // above a statement about the SESSION's function rather than about whatever
-    // range `enclosing` happened to compute. Without this, a header list that
-    // resolved every line to one enormous function would satisfy it.
-    j.countIs(
-      framed.filter((r) => r.marked < r.fn.first || r.marked > r.fn.last).length,
-      0,
-      "the marked line lies inside that same function",
-    );
-    // …and the function is not the whole file, which is the other way that
-    // containment could be true for a trivial reason.
-    j.countIs(
-      framed.filter((r) => r.fn.first > 1 || r.fn.last < (headers.$last?.[r.doc] ?? 0)).length,
-      framed.length,
-      "that function is a part of the file and not the whole of it",
-    );
+    // WHAT IS DELIBERATELY NOT ASSERTED HERE, AND WHERE IT WENT
+    //
+    // "The overlay changes as the position moves" and "every annotated line is
+    // inside the function the session is in" are the OTHER half of the report,
+    // and both are RED. They are journey 15's, with one ledger entry naming one
+    // cause: the engine answers every `ct/load-flow` with the same file-wide
+    // window, computed for tick 0, so the labels do not move and some of them
+    // sit on lines outside the enclosing function.
+    //
+    // They were briefly asserted here and passed, and it is worth recording why
+    // they did. The pane used to open six lines above the position
+    // (`openAtCurrent`), so the SET OF LABELS ON SCREEN was a function of the
+    // position even though the window behind it was a constant, and the labels
+    // that fell outside the function were the ones scrolled off the top. When
+    // `a-source-file-is-shown-whole` landed and the pane stopped cutting the
+    // file, both assertions went red WITHOUT the overlay changing at all — the
+    // cut had been supplying the evidence. Keeping them here would have made
+    // this journey red for a defect it does not name, and moving them is what
+    // lets one entry in the ledger close on one fix.
   }
 
   // ── the instruction-level arm ───────────────────────────────────────────

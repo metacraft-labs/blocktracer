@@ -53,14 +53,14 @@
 // BOTH directions: whoever lands the fix is told, by name, to delete the entry.
 // A note in a file would not have said anything the day it started working.
 
-import { visit, readFacts } from "../lib/probe.mjs";
+import { readFacts } from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";
 
 export const id = "the-flow-window-follows-the-position";
 export const claim =
   "The flow window the engine answers with is the window for the position the session is at.";
 export const spec = "Omniscience-Flow.md — BlockTracer";
-export const assertions = 1 + 5;
+export const assertions = 1 + 8; // 9
 export const needsEngine = true;
 
 const WALK = 8;
@@ -118,6 +118,42 @@ window.__flowWire = { requested: [], answered: [] };
 })();
 `;
 
+/**
+ * Accumulate the `fn` headers several readings saw, per document.
+ *
+ * A fact about the FILE and not about the session. Kept as an accumulation
+ * rather than a single reading because it must stay correct whether or not the
+ * pane cuts the file: it does not today (`a-source-file-is-shown-whole`), it did
+ * until recently, and this journey's verdict must not depend on which.
+ */
+function mergeHeaders(into, facts) {
+  for (const [doc, heads] of Object.entries(facts.fnHeaders ?? {})) {
+    const seen = (into[doc] ??= new Map());
+    for (const h of heads) if (h.n >= 0) seen.set(h.n, h.name);
+  }
+  for (const [doc, last] of Object.entries(facts.docLastLine ?? {})) {
+    into.$last ??= {};
+    into.$last[doc] = Math.max(into.$last[doc] ?? -1, last);
+  }
+  return into;
+}
+
+/** The function containing `line` in `doc`, or `null` when none does. */
+function enclosing(headers, doc, line) {
+  const heads = headers[doc];
+  if (!heads || heads.size === 0 || !Number.isFinite(line) || line < 0) return null;
+  const ns = [...heads.keys()].sort((a, b) => a - b);
+  let open = null;
+  for (const n of ns) if (n <= line && (open === null || n > open)) open = n;
+  if (open === null) return null;
+  const next = ns.find((n) => n > open);
+  return {
+    name: heads.get(open),
+    first: open,
+    last: next === undefined ? (headers.$last?.[doc] ?? open) : next - 1,
+  };
+}
+
 const wire = (page) => page.evaluate(() => window.__flowWire);
 
 async function stepAndSettle(page, action) {
@@ -150,14 +186,28 @@ export async function run({ browser, site, j }) {
   }
   await page.waitForTimeout(2500);
 
-  const positions = [(await readFacts(page)).step];
+  const readings = [];
+  const headers = {};
+  const note = async () => {
+    const f = await readFacts(page);
+    mergeHeaders(headers, f);
+    readings.push({
+      step: f.step,
+      marked: Number(f.markedNumber),
+      doc: f.shownDoc,
+      labels: (f.flowLines ?? []).flatMap((r) => r.labels),
+      lines: (f.flowLines ?? []).map((r) => r.n),
+      text: (f.flowLines ?? []).map((r) => `${r.n}:${r.labels.join(",")}`).join(" | "),
+    });
+  };
+  await note();
   // Both actions, because they leave a function by different routes and a
   // window that followed one and not the other would be a different defect.
   for (let i = 0; i < WALK; i++) {
     const moved = await stepAndSettle(page, i < WALK / 2 ? "step-forward" : "step-in");
     if (moved === null) break;
-    positions.push(moved.step);
     await page.waitForTimeout(900);
+    await note();
   }
 
   const w = await wire(page);
@@ -199,6 +249,38 @@ export async function run({ browser, site, j }) {
     answers.filter((a) => (a.functionFirst ?? 0) <= 0).length,
     0,
     "the reported function extent is a real one and not an uninitialised location",
+  );
+
+  // ── AND THE HALF A VISITOR CAN SEE ──────────────────────────────────────
+  //
+  // The same defect, read off the page rather than off the wire, because that
+  // is the form it was reported in. Both are here rather than in journey 12
+  // because they close on the same fix: a window computed for the position
+  // would move with it and would carry that position's function.
+  //
+  // They lived in journey 12 briefly and were GREEN, and the reason is the
+  // trap this whole layer keeps finding. The pane used to open six lines above
+  // the position, so the SET OF LABELS ON SCREEN changed at every step even
+  // though the window behind it never did, and the labels that fell outside
+  // the function were exactly the ones the cut removed. When
+  // `a-source-file-is-shown-whole` landed, both went red — with nothing about
+  // the overlay having changed. The cut had been supplying the evidence.
+  const screen = readings.filter((r) => r.labels.length > 0);
+  j.atLeast(screen.length, 3, "SUBJECTS: positions with an overlay on screen");
+
+  j.atLeast(
+    new Set(screen.map((r) => r.text)).size,
+    2,
+    "ON SCREEN: the overlay changes as the position moves",
+  );
+
+  const framed = screen
+    .map((r) => ({ ...r, fn: enclosing(headers, r.doc, r.marked) }))
+    .filter((r) => r.fn !== null);
+  j.countIs(
+    framed.filter((r) => r.lines.some((n) => n < r.fn.first || n > r.fn.last)).length,
+    0,
+    "ON SCREEN: every annotated line lies inside the function the session is in",
   );
 
   await ctx.close();
