@@ -1026,7 +1026,20 @@ proc paint(h: Hydration) =
     h.pendingQuery = ""
 
 proc render(h: Hydration) =
-  ## Draw the panes — at most once per animation frame, and never mid-move.
+  ## Draw the panes now.
+  ##
+  ## Immediate and synchronous, which is what every caller but one wants: a
+  ## locals reply, a call-trace section and an event-log section are each a fact
+  ## arriving, with nothing half-finished to protect, and a page that painted
+  ## them a frame later would make every reading of itself a race for no gain.
+  ## `renderAfterMove` is the one caller that holds a paint back, and its comment
+  ## is where the reasoning lives.
+  h.everPainted = true
+  h.paint()
+
+proc renderAfterMove(h: Hydration) =
+  ## A stop's paint, held until the move has settled — and the ONLY paint in
+  ## this file that is held at all.
   ##
   ## ## WHY THIS IS COALESCED, AND WHY IT IS NOT A TIMING HACK
   ##
@@ -1097,6 +1110,29 @@ proc render(h: Hydration) =
   ## that says it is a live session and still shows the exported one. Journey 09
   ## found exactly that, by taking its reading the instant the page called
   ## itself ready.
+  ##
+  ## ## WHY THIS IS A SECOND ENTRY POINT AND NOT A FLAG INSIDE `render`
+  ##
+  ## The first version deferred EVERY paint, and two journeys that had nothing
+  ## to do with stepping went red: the chain capture's navigation regions read
+  ## as empty, and a click on a row landed on an element the deferred paint had
+  ## replaced ("not attached to the DOM"). Both were right to fail. A call-trace
+  ## section arriving is not a move — there is no half-updated position to
+  ## protect — so making the page paint it a frame later bought nothing and made
+  ## every reading of the page a race.
+  ##
+  ## The wait is for the ONE case that needs it: `applyStop` has the position and
+  ## the values are a round trip behind it, and painting between the two shows a
+  ## frame in which the page contradicts itself. Everything else — the locals
+  ## reply, the call trace, the event log — paints through `render`, immediately
+  ## and synchronously, exactly as it always did.
+  ##
+  ## And the wait usually ends early rather than expiring. The locals reply calls
+  ## `render` on its way in, `settlingPosition` is false by then, and the paint
+  ## happens there — position and values in one synchronous call. The frame this
+  ## proc scheduled still fires and paints again; `writePane` finds every pane
+  ## already saying what it would write and does nothing, which is the guard one
+  ## level down paying for itself.
   if not h.everPainted:
     h.everPainted = true
     h.paint()
@@ -1107,8 +1143,8 @@ proc render(h: Hydration) =
   h.paintWhenSettled()
 
 proc paintWhenSettled(h: Hydration) =
-  ## The scheduled half of `render`. Re-arms itself while the move is still
-  ## settling, up to `PositionSettleFrames`, then paints.
+  ## The scheduled half of `renderAfterMove`. Re-arms itself while the move is
+  ## still settling, up to `PositionSettleFrames`, then paints.
   onNextFrame(proc() =
     if h.stopped:
       h.framePending = false
@@ -1188,7 +1224,7 @@ proc applyStop(h: Hydration; ticks: uint64; file: string; line: int) =
   # bar must not name a position the screen is not yet showing.
   h.pendingQuery = positionQuery(h.base.traceContentHash, int(ticks),
     (if file.len > 0 and line > 0: "src:" & file & ":" & $line else: ""))
-  h.render()
+  h.renderAfterMove()
 
 proc requestPosition(h: Hydration) =
   ## Ask where the session is, and apply it.
