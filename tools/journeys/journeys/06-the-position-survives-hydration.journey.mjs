@@ -44,13 +44,36 @@
 // the hydrated chain capture marks one line, on screen, in the one document on
 // screen, reading as disassembly.
 //
-// One thing the arm reports and deliberately does not assert: a chain capture's
-// served frame stands at step 128 of 345 and its hydrated session lands at step
-// 0 of 345. That is a MOVE, not a loss — §7.0's rule is that no state renders
-// LESS, and the hydrated page renders a position with the same six properties.
-// Whether the landing position should be the served one is a question about
-// `?t=` and the entry state, and it belongs to whoever owns that, stated here
-// rather than smuggled in as an assertion this journey did not come to make.
+// WHAT THIS JOURNEY REPORTED BUT DID NOT ASSERT, AND WHAT CAME OF IT
+// -------------------------------------------------------------------
+// This header used to record, as an observation deliberately left unasserted,
+// that "a chain capture's served frame stands at step 128 of 345 and its
+// hydrated session lands at step 0 of 345", and filed the question of whether
+// the landing position should be the served one to "whoever owns `?t=` and the
+// entry state".
+//
+// It was not a move. It was the loss §7.0 forbids, in the one pane this journey
+// does not look at. `projectControls` read the store's `rrTicks` as a position
+// and `positioned` as `step > 0`; `ReplayDataStore` initialises `rrTicks` to 0
+// and a session with no `?t=` never seeks off it, so `renderControls`'s `filled`
+// collapsed to 0 and NOT ONE of the 48 ticks carried `.at` or `.on` — no
+// playhead at all, on a page whose served frame had just drawn one on its
+// correct tick. Fixed in `client/hydrate/session_project.nim`: the served frame
+// stands until the engine states a position.
+//
+// WHY THIS FILE DID NOT CATCH IT, WHICH IS THE PART WORTH KEEPING. The
+// implication below is guarded by `Number(live.facts.step) > 0`, so AT step 0 it
+// passes VACUOUSLY — the antecedent was false precisely when the defect was
+// present. The guard is right for what this journey came to judge (a session
+// that reports a position must show one), but it means this file can never be
+// the thing that notices a session reporting NO position.
+//
+// The playhead is now asserted in `tests/tdebugpanes.nim` ("the timeline's
+// playhead SURVIVES hydration, on its own tick"), over the shipping projection
+// and the shipping renderer, pinning the SPECIFIC tick rather than its
+// existence. `probe.mjs` collects no tick fact, so asserting it HERE as well
+// would mean a new fact on a lib eight journeys share; that is worth doing and
+// is not done here.
 
 import { visit } from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";

@@ -494,3 +494,111 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
 
       s.close()
       dispose()
+
+  test "the timeline's playhead SURVIVES hydration, on its own tick":
+    ## Page-Descriptions §7.0: "No state renders less than the pre-hydration
+    ## page." Journey 06 asserts the marked SOURCE LINE survives; nothing
+    ## asserted the PLAYHEAD did, and it did not.
+    ##
+    ## `ReplayDataStore` initialises `debugger.rrTicks` to 0, and a freshly-live
+    ## session has not been moved off it: `goLive` renders the ready page before
+    ## its seek returns, and a session with no `?t=` issues no seek at all. So
+    ## the store says 0, `positioned` was `step > 0`, and `renderControls`'s
+    ## `filled` collapsed to 0 — not one of the 48 ticks carried `.at` or `.on`,
+    ## on a page whose served frame had drawn the playhead moments before.
+    ##
+    ## THE PLAYHEAD'S TICK IS ASSERTED, NOT ITS EXISTENCE. "Something is marked"
+    ## is satisfied by a playhead parked anywhere, including the wrong end of the
+    ## trace, so each arm pins the SPECIFIC tick by counting the `.on` ticks that
+    ## precede the `.at` one — `renderControls` marks `i == filled` as `.at` and
+    ## every `i < filled` as `.on`, so that count IS the position, read off the
+    ## rendered markup rather than from the pane object that produced it.
+    createRoot proc(dispose: proc()) =
+      let s = openSession()
+      s.store.setSourceAvailability(savVerified)
+
+      # The rendered scrubber, as three counts. Nothing here restates the
+      # renderer's arithmetic — it reads the marks back off the HTML.
+      proc scrubber(view: DebugSessionView):
+          tuple[total, before, at: int] =
+        let html = panes.renderControls(view.controls)
+        (html.count("class=\"tick"),
+         html.count("class=\"tick on\""),
+         html.count("class=\"tick at\""))
+
+      var asserted = 0
+
+      # ARM A — THE DEFECT. The engine has said nothing, so the store still
+      # holds its initial 0; the served page stood at step 128 of 1315.
+      check s.store.debugger.val.rrTicks == 0'u64   # the arm's precondition
+      inc asserted
+      let live = projectSession(s, "src/shield.nr", ShieldNr, 128, 1315)
+      let a = scrubber(live)
+
+      # 48 ticks, asserted so that a change to the renderer's `TimelineTicks`
+      # reddens HERE rather than silently shifting every expected index below.
+      check a.total == 48
+      inc asserted
+      # 128/1315 = 0.09734; 0.09734*48 = 4.672; +0.5 -> 5.172; truncated -> 5.
+      # So the playhead is the 5th tick and exactly 4 ticks are filled behind it.
+      check a.at == 1
+      inc asserted
+      check a.before == 4
+      inc asserted
+      check live.controls.step == 128
+      inc asserted
+      check live.controls.positioned
+      inc asserted
+
+      # ARM B — THE ENGINE OVERRIDES IT. The fallback must yield the moment a
+      # real frame arrives, or it is a hardcode that would pin every session to
+      # the served step forever.
+      s.store.updateDebuggerPosition(700'u64, file = "src/shield.nr", line = 5)
+      check s.store.debugger.val.rrTicks == 700'u64  # the arm really mutated
+      inc asserted
+      let moved = projectSession(s, "src/shield.nr", ShieldNr, 128, 1315)
+      let b = scrubber(moved)
+      check moved.controls.step == 700          # the ENGINE's, not the served 128
+      inc asserted
+      # 700/1315 = 0.53232; *48 = 25.551; +0.5 -> 26.051; truncated -> 26.
+      check b.at == 1
+      inc asserted
+      check b.before == 25
+      inc asserted
+      # And it MOVED — the two arms are distinguishable, which is what a third
+      # position buys that a second one does not.
+      check b.before != a.before
+      inc asserted
+
+      # ARM C — NO POSITION IS STILL NO POSITION. The fallback must not
+      # MANUFACTURE one: a served page that published `data-step="0"` was not
+      # positioned, and the hydrated session must not claim otherwise. Without
+      # this arm "keep the served step" would be indistinguishable from "always
+      # claim a position", which would put a playhead on every unpositioned page.
+      let fresh = openSession()
+      fresh.store.setSourceAvailability(savVerified)
+      check fresh.store.debugger.val.rrTicks == 0'u64
+      inc asserted
+      let unpositioned =
+        projectSession(fresh, "src/shield.nr", ShieldNr, 0, 1315)
+      let c = scrubber(unpositioned)
+      check not unpositioned.controls.positioned
+      inc asserted
+      check unpositioned.controls.step == 0
+      inc asserted
+      check c.at == 0
+      inc asserted
+      check c.before == 0
+      inc asserted
+      check c.total == 48        # the ticks are drawn; none of them is marked
+      inc asserted
+
+      # THE COUNT ITSELF. Seventeen `check`s ran — an arm deleted, an arm that
+      # failed to compile into the block, or a `check` that never executed
+      # reddens HERE, which is the one failure a suite of passing assertions
+      # cannot otherwise report.
+      check asserted == 17
+
+      fresh.close()
+      s.close()
+      dispose()
