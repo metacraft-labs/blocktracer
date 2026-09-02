@@ -63,6 +63,7 @@ import ../debugger/flow_view
 import ../debugger/layout_model
 import ../debugger/replay_engine
 import ../debugger/session_view
+import ../debugger/keymap
 # NOT `../viewutil`. These renderers are compiled TWICE — once by
 # `static_export.nim` for the served HTML, and once by `nim js` for the
 # hydration bundle, which is what makes the live session's markup the same
@@ -1450,9 +1451,141 @@ func controlMark(a: DebugAction): string =
   of daReverseContinue: reverseContinueMark()
   of daContinue: continueMark()
 
-proc renderControls*(p: DebugControlsPane): string =
+const ShortcutsLabel* = "Keyboard shortcuts"
+  ## The gear's `title` and `aria-label`, and the dialog's heading — one
+  ## string, so the control and the thing it opens cannot come to be called
+  ## two different names.
+
+proc renderShortcutsDialog*(km: Keymap; mac: bool): string =
+  ## The keyboard-shortcuts dialog: which preset is in force, what it binds,
+  ## and what this platform will do to each chord.
+  ##
+  ## ## IT IS RENDERED FROM THE TABLE, WHICH IS THE POINT OF IT
+  ##
+  ## Every row below comes from iterating `km.bindings` — the same sequence
+  ## `keymap.actionFor` matches a key press against. There is no list of
+  ## shortcuts in this file to fall out of date, and there cannot be one,
+  ## because the loop has nothing to read but the bindings themselves.
+  ##
+  ## That is the defect this dialog exists to cure rather than to join.
+  ## `Debugger-Integration.md` §10.5 records the sibling product shipping
+  ## chords "restated as literals" in two documents that already contradict
+  ## each other on `Shift+F5`. A settings dialog that listed shortcuts from its
+  ## own hardcoded table would be a third copy — and the most authoritative
+  ## looking one, because a dialog headed "Keyboard shortcuts" is precisely
+  ## where a visitor goes to find out what is true.
+  ##
+  ## The consequence worth stating plainly: this dialog lists EXACTLY the bound
+  ## set. Not the intended set, not the documented set. If a binding is dropped
+  ## the row disappears, and if one is added the row appears, with no edit here.
+  ##
+  ## ## THE HAZARD COLUMN, which is the honest half
+  ##
+  ## `hazardOf` is computed per chord and per platform, so a preset cannot
+  ## claim a key works that this browser will eat. A visitor who picks the
+  ## desktop preset on a Mac is told, on the `F12` row, that the browser takes
+  ## that key — rather than discovering it by pressing it and concluding the
+  ## shortcuts are broken.
+  ##
+  ## `mac` is passed in rather than sniffed here because this is a pure
+  ## renderer shared with a build that has no `navigator`.
+  ui:
+    tdiv(class = "kbdlg", id = "dbg-shortcuts", hidden = "hidden",
+         role = "dialog", `aria-modal` = "true",
+         `aria-labelledby` = "dbg-shortcuts-title"):
+      tdiv(class = "kbdlgbox"):
+        tdiv(class = "kbdlghead"):
+          h2(class = "kbdlgtitle", id = "dbg-shortcuts-title"):
+            text "Keyboard shortcuts"
+          button(class = "kbdlgclose", `data-kb` = "close",
+                 title = "Close", `aria-label` = "Close"):
+            text "×"
+
+        # THE PRESET PICKER. Radios and not a `<select>`: the options are four
+        # and each needs a sentence, which an option element cannot carry.
+        tdiv(class = "kbpresets", role = "radiogroup",
+             `aria-label` = "Shortcut preset"):
+          for id in KeymapId:
+            let on = id == km.id
+            label(class = "kbpreset" & (if on: " on" else: "")):
+              input(class = "kbradio", `type` = "radio", name = "kbpreset",
+                    value = $id, `data-kb` = "preset",
+                    checked = (if on: "checked" else: ""))
+              span(class = "kbpresetname"): text presetName(id)
+              span(class = "kbpresetwhy"): text presetWhy(id)
+
+        # THE ACTIVE BINDINGS. `data-kb-rows` is what a check counts, so the
+        # count is read off the rendered set rather than off an intention.
+        if km.bindings.len == 0:
+          # kmNone is a CHOICE a visitor can make, and it renders as a
+          # sentence rather than as an empty table — an empty table reads as a
+          # dialog that failed to load, which is the one thing this surface
+          # must never look like.
+          p(class = "kbempty"):
+            text "No stepping shortcuts are bound. The toolbar buttons still "
+            text "work, and their tooltips name no key — because there is none "
+            text "to name."
+        else:
+          tdiv(class = "kbrows", `data-kb-rows` = $km.bindings.len):
+            for b in km.bindings:
+              let hz = hazardOf(b.chord, mac)
+              tdiv(class = "kbrow", `data-kb-action` = $b.action):
+                span(class = "kbwhat"): text controlLabel(b.action)
+                kbd(class = "kbchord"): text describe(b.chord)
+                if hz != hzNone:
+                  span(class = "kbhazard" & (if hz == hzBrowserReserved:
+                                               " blocked" else: " maybe"),
+                       `data-kb-hazard` = (if hz == hzBrowserReserved:
+                                             "reserved" else: "mac-fn")):
+                    text hazardText(hz)
+
+        p(class = "kbfoot"):
+          text "Kept in this browser only. Nothing is sent anywhere."
+
+proc renderShortcutsButton*(): string =
+  ## The gear, for the identity bar's `.dbgacts` group.
+  ##
+  ## ## IT IS NOT RENDERED BY THE PAGE, and that is the whole design
+  ##
+  ## `pages/debug.nim` does not call this. Hydration does, once, and inserts
+  ## the result into `.dbgacts` beside Share and Download.
+  ##
+  ## A gear on the served, script-less page would open nothing. This product
+  ## has a standing rule against exactly that, and states it about this exact
+  ## family of control — `Page-Descriptions.md` §13, on why there is no
+  ## pre-hydration copy button: "a copy *button* there would be a control that
+  ## cannot succeed — which this product does not ship." The same discipline
+  ## already governs the scrubber, whose `role="slider"` is stamped only by the
+  ## compilation that implements the drag.
+  ##
+  ## So the affordance and the behaviour ship in one artefact and cannot come
+  ## apart: the only build that emits this button is the build that binds its
+  ## click, and the only build that binds the chords it configures.
+  ##
+  ## A real `<button>`, not a `role="button"` on a div — `pages/debug.nim`
+  ## records why in as many words ("it shipped on this route once already").
+  ui:
+    button(class = "btn ghost sm icon", id = "dbg-shortcuts-open",
+           `data-kb` = "open",
+           title = ShortcutsLabel, `aria-label` = ShortcutsLabel,
+           `aria-haspopup` = "dialog", `aria-expanded` = "false"):
+      raw settingsMark()
+
+proc renderControls*(p: DebugControlsPane; km = keymapOf(kmNone)): string =
   ## The stepping toolbar, the scrubber and the status — rendered into the
   ## identity bar (`pages/debug.nim`), not into a pane of its own.
+  ##
+  ## ## `km`, AND WHY ITS DEFAULT IS THE EMPTY ONE
+  ##
+  ## `km` is which chords are bound, and it defaults to `kmNone` so that the
+  ## SERVED frame — which has no bundle, no `keydown` handler and therefore no
+  ## chords — names no key in any tooltip. Hydration passes the live keymap;
+  ## every other caller gets silence.
+  ##
+  ## This is the safe direction by construction rather than by convention: a
+  ## new call site that forgets the argument under-promises. The opposite
+  ## default would make forgetting it ship a tooltip naming a key that does
+  ## nothing, which is the defect `keymap.controlLabel` exists to prevent.
   ##
   ## ## Why the inertness is on the buttons and not in a paragraph
   ##
@@ -1499,7 +1632,14 @@ proc renderControls*(p: DebugControlsPane): string =
     tdiv(class = "dc"):
       tdiv(class = "dcbtns"):
         for b in p.buttons:
-          let label = controlLabel(b.action)
+          # THE CHORD COMPOSES HERE, into the one string that already feeds
+          # both `title` and `aria-label` — which is where
+          # `session_view.controlLabel`'s note said it would, and the reason
+          # the note said so: a chord cannot be put in front of a visitor
+          # without passing through a keymap that the dispatcher matches key
+          # presses against. `km` is empty on the served page, so this is
+          # exactly the old string there.
+          let label = controlLabel(b.action, km)
           let why = (if b.enabled: label
                      else: label & " — inert until the replay engine loads")
           # `data-action` names the MOVE, in the wire spelling of

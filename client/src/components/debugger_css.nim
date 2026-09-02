@@ -2278,7 +2278,82 @@ func valueWidthRegimes(): string =
     result.add openRows.join(",\n") & "{display:flex}\n"
     result.add "}\n"
 
-const debugRouteCss* = debugRouteBaseCss & """
+const shortcutsDialogCss = """
+/* ── the keyboard-shortcuts dialog ───────────────────────────────────────────
+   Shown only on the hydrated build: `renderShortcutsDialog` is inserted by
+   `hydrate.bindShortcuts`, so none of this matches anything on the static
+   export. The rules ship anyway rather than being conditionally emitted —
+   one stylesheet for one route is what makes a served page and a hydrated
+   page the same document with more behaviour, not two documents.
+
+   `hidden` does the hiding, and the `display` here has to be written so it
+   does not beat it: `[hidden]` is a UA rule of `display:none` and a bare
+   `.kbdlg{display:flex}` would OUTRANK it and leave the dialog permanently
+   open. Hence the `:not([hidden])`. This is the same class of defect as a
+   `cursor:pointer` outliving its handler — a state expressed in markup that
+   the stylesheet quietly overrules. */
+/* `z-index:30` is a raw number, and it is the house practice rather than an
+   exception: `components/styles.nim` writes `z-index:20` for the fixed site
+   nav and `z-index:1` for a sticky cell. There is no `--bt-layer-*` group in
+   `web.tokens.json` to reference — stacking order is not a design VALUE the
+   token pipeline carries, it is a structural relation between two elements,
+   and 30 is chosen to sit above the nav's 20 because a modal that the site
+   header punched through would be a dialog with a hole in it. */
+.kbdlg:not([hidden]){position:fixed;inset:0;z-index:30;
+  display:flex;align-items:center;justify-content:center;
+  padding:var(--bt-space-md);background:var(--bt-surface-overlay)}
+.kbdlgbox{width:100%;max-width:var(--bt-measure-prose);
+  max-height:100%;overflow-y:auto;
+  border:var(--bt-stroke-hairline) solid var(--bt-border-default);
+  border-radius:var(--bt-radius-lg);
+  padding:var(--bt-density-card-pad) var(--bt-density-cell-x);
+  background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-overlay)}
+.kbdlghead{display:flex;align-items:baseline;justify-content:space-between;
+  gap:var(--bt-space-sm)}
+.kbdlgtitle{font-size:var(--bt-type-body-sm-size);
+  font-weight:var(--bt-type-h3-weight);color:var(--bt-text-strong)}
+.kbdlgclose{border:0;background:none;cursor:pointer;
+  color:var(--bt-text-muted);padding:var(--bt-space-3xs) var(--bt-space-2xs)}
+.kbdlgclose:hover{color:var(--bt-text-strong)}
+.kbpresets{display:flex;flex-direction:column;gap:var(--bt-space-2xs);
+  margin-top:var(--bt-space-md)}
+.kbpreset{display:grid;grid-template-columns:auto 1fr;
+  gap:var(--bt-space-3xs) var(--bt-space-xs);align-items:baseline;
+  cursor:pointer;padding:var(--bt-space-2xs);border-radius:var(--bt-radius-sm)}
+.kbpreset:hover{background:var(--bt-surface-sunken)}
+.kbradio{grid-row:span 2;cursor:pointer}
+.kbpresetname{color:var(--bt-text-strong);
+  font-weight:var(--bt-type-label-weight)}
+.kbpresetwhy{grid-column:2;color:var(--bt-text-muted);
+  font-size:var(--bt-type-caption-size)}
+.kbrows{display:flex;flex-direction:column;gap:var(--bt-space-3xs);
+  margin-top:var(--bt-space-md);
+  border-top:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
+  padding-top:var(--bt-space-sm)}
+.kbrow{display:grid;
+  grid-template-columns:var(--bt-layout-label-column) auto 1fr;
+  gap:var(--bt-space-xs);align-items:baseline}
+.kbwhat{color:var(--bt-text-default)}
+/* The chord is CODE, in the code face, for the reason every hash on this site
+   is: it is a literal to be reproduced exactly, and a proportional face makes
+   `S` and `s` — which are two different bindings here — harder to tell apart
+   than they need to be. */
+.kbchord{font-family:var(--bt-font-code);font-size:var(--bt-type-code-size);
+  color:var(--bt-text-code);background:var(--bt-surface-sunken);
+  border:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
+  border-radius:var(--bt-radius-xs);
+  padding:var(--bt-space-3xs) var(--bt-space-2xs);white-space:nowrap}
+.kbhazard{font-size:var(--bt-type-caption-size);color:var(--bt-text-muted)}
+/* A chord the browser eats is not merely a footnote — it is the row that is
+   NOT going to work — so it is coloured as the warning it is, while the
+   softer macOS case stays muted. Two hazards, two weights, because telling
+   them apart is the whole reason `Hazard` has three values. */
+.kbhazard.blocked{color:var(--bt-mark-not-taken)}
+.kbempty,.kbfoot{color:var(--bt-text-muted);
+  font-size:var(--bt-type-caption-size);margin-top:var(--bt-space-md)}
+"""
+
+const debugRouteCss* = debugRouteBaseCss & shortcutsDialogCss & """
 /* ── the pane-width regimes for counted elision (generated; see
    valueWidthRegimes) ────────────────────────────────────────────────────── */
 """ & valueWidthRegimes() & """
