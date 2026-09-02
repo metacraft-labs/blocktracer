@@ -954,6 +954,21 @@ type
       ## things a visitor needs told apart.
     framePending: bool       ## a paint is already scheduled
     framesWaited: int        ## frames this paint has held for the values
+    everPainted: bool        ## a live paint has replaced the served frame
+    pendingQuery: string     ## the §6.3 coordinate the next paint publishes
+      ## The address bar moves WITH the panes, not ahead of them.
+      ##
+      ## `applyStop` used to call `replaceQuery` itself, which was right while
+      ## the paint was synchronous and became a defect the moment it was not: the
+      ## URL advanced to the new position while the screen still showed the old
+      ## one, for as long as the paint waited. That is the page contradicting
+      ## itself in the one place a visitor can copy — and journey 09 caught it,
+      ## by taking its reading the instant ANY of the three coordinates moved and
+      ## finding the URL had moved without the page.
+      ##
+      ## §6.3's "`t` updates on every navigation" is a claim about EVERY, not
+      ## about when: the query is composed at the stop, where the stack frame's
+      ## path and line are in hand, and published by the paint that shows it.
 
 const PositionSettleFrames = 6
   ## How long a paint may wait for the position's values before going ahead
@@ -970,10 +985,16 @@ const PositionSettleFrames = 6
 proc paintWhenSettled(h: Hydration)
 
 proc paint(h: Hydration) =
-  ## The panes, drawn from the live projection with everything this page
-  ## owns stamped onto it. Split out of `render` when `render` became the
-  ## SCHEDULING half: the decoration below has to happen on the pass that
-  ## actually draws, not on the one that asks for a draw.
+  ## The panes, drawn from the live projection with everything this page owns
+  ## stamped onto it — and then the address bar.
+  ##
+  ## Split out of `render` when `render` became the SCHEDULING half: the
+  ## decoration below has to happen on the pass that actually draws, not on the
+  ## one that asks for a draw. The §6.3 coordinate is published from here for
+  ## the same reason and in the same breath — "what is on screen" and "what a
+  ## reader would copy" cannot be published by two call sites at two moments,
+  ## which is exactly how they came apart once the paint stopped being
+  ## synchronous.
   var view = projectReplayPanes(h.session, h.base, h.ui.island)
   # THE MARKS GO ON HERE, INSIDE THE RENDER, and that placement is the whole
   # reason they survive.
@@ -998,6 +1019,11 @@ proc paint(h: Hydration) =
       view.editor.documents[di].lines[li].breakpoint =
         h.breakpoints.contains(path, view.editor.documents[di].lines[li].number)
   renderPanes(h.ui, view, h.latch)
+  # After the panes and never before them, so a reader who copies the address
+  # bar copies the position they are looking at.
+  if h.pendingQuery.len > 0:
+    replaceQuery(h.pendingQuery)
+    h.pendingQuery = ""
 
 proc render(h: Hydration) =
   ## Draw the panes — at most once per animation frame, and never mid-move.
@@ -1043,9 +1069,10 @@ proc render(h: Hydration) =
   ## had not arrived. The page was internally inconsistent for a frame. Waiting
   ## means every painted frame is a whole position — either all of A or all of
   ## B, never the head of one and the body of the other. Nothing is shown that
-  ## is not true, and nothing true is withheld: `applyStop` writes the URL
-  ## before this is scheduled, so §6.3's "`t` updates on every navigation" is
-  ## unaffected by how the panes are timed.
+  ## is not true, and nothing true is withheld: the §6.3 coordinate is composed
+  ## at the stop and published BY this paint (`pendingQuery`), so the address
+  ## bar names the position on screen rather than one the screen has not
+  ## reached.
   ##
   ## And it hides no wait. Past the bound the panes are painted exactly as they
   ## always were, "Reading the values at this position…" and all, because a wait
@@ -1058,6 +1085,22 @@ proc render(h: Hydration) =
   ## fails between the request and the frame would otherwise repaint a live
   ## toolbar over the sentence saying the engine is gone — the same hazard
   ## `goLive`'s `onApplied` guards against, arriving one frame later.
+  ##
+  ## ## THE FIRST PAINT DOES NOT WAIT, AND THAT IS NOT AN EXCEPTION
+  ##
+  ## Everything above is about not disturbing what is already on screen. At the
+  ## FIRST paint of a live session there is nothing of the session's on screen
+  ## to disturb: what a visitor is looking at is the served frame, and §7.0
+  ## wants it replaced as early as the engine can answer, not as late. A wait
+  ## there buys no smoothness and costs the one thing it must not — `goLive`
+  ## publishes `ready` before this runs, so every frame of the wait is a page
+  ## that says it is a live session and still shows the exported one. Journey 09
+  ## found exactly that, by taking its reading the instant the page called
+  ## itself ready.
+  if not h.everPainted:
+    h.everPainted = true
+    h.paint()
+    return
   if h.framePending: return
   h.framePending = true
   h.framesWaited = 0
@@ -1139,8 +1182,12 @@ proc applyStop(h: Hydration; ticks: uint64; file: string; line: int) =
   # witness and `a` is a `src:` anchor for the line the session is ON — both
   # recomputed here, because an anchor left at the position the page was
   # served at would recover a regenerated trace to the wrong frame.
-  replaceQuery(positionQuery(h.base.traceContentHash, int(ticks),
-    (if file.len > 0 and line > 0: "src:" & file & ":" & $line else: "")))
+  #
+  # COMPOSED HERE, PUBLISHED BY THE PAINT. See `Hydration.pendingQuery`: the
+  # path and the line are in hand at the stop and nowhere else, but the address
+  # bar must not name a position the screen is not yet showing.
+  h.pendingQuery = positionQuery(h.base.traceContentHash, int(ticks),
+    (if file.len > 0 and line > 0: "src:" & file & ":" & $line else: ""))
   h.render()
 
 proc requestPosition(h: Hydration) =

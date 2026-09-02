@@ -467,6 +467,90 @@ const ARMS = [
     assertion: "scrolling a Code pane to its end paints the file's last line",
   },
   {
+    id: "FL1/the-pane-is-rebuilt-with-what-it-already-says",
+    why:
+      "Remove the content guard from `writePane`, restoring the state a visitor" +
+      " reported as flicker. Every event that could change a pane rewrites all four" +
+      " of them, so one forward step becomes 28 `innerHTML` assignments of which 21" +
+      " are byte-identical — the Call Trace's 24 KB and the Event Log's 7.5 KB torn" +
+      " down and rebuilt seven times each to say what they already said. NOTE WHICH" +
+      " ASSERTION THIS TARGETS. The pane shows the right rows before and after, the" +
+      " position moves, the values are the engine's: every reading taken AFTER a" +
+      " step is green, which is why this survived journeys 03, 09 and 11 for the" +
+      " life of the route. Only a reading taken during the step can see it.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `  if pane.latched and html == pane.written: return`,
+    replace: `  if false and pane.latched and html == pane.written: return`,
+    journey: "a-step-repaints-only-what-it-changed",
+    assertion: "no pane write rewrote the markup the pane already held",
+  },
+  {
+    id: "FL2/the-panes-move-before-the-values-arrive",
+    why:
+      "Paint each stop as soon as it is known instead of when the move has settled." +
+      " `applyStop` has the position about 13 ms before the engine answers with its" +
+      " values, and a frame is 16.7 ms, so the page paints one frame in which it" +
+      " contradicts itself: the new line marked, the new step on the toolbar, and" +
+      " the Values pane empty because there is nothing in it yet. Measured on the" +
+      " unmutated tree, a six-step walk paints that frame six or seven times. It is" +
+      " the flicker the visitor actually reported, and it is invisible to every" +
+      " reading this suite could take before per-frame sampling existed — the" +
+      " content guard alone does NOT fix it, which is why the two are separate arms.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `    if h.session.locals.settlingPosition() and`,
+    replace: `    if false and h.session.locals.settlingPosition() and`,
+    journey: "a-step-repaints-only-what-it-changed",
+    assertion: "no painted frame showed an empty Values pane at a position that has values",
+  },
+  {
+    id: "VD1/the-mark-follows-the-selection-again",
+    why:
+      "Restore `changed: vm.selectedPath.val == v.name` — the projection that" +
+      " shipped. It is a different fact wearing this one's name: the pane's only" +
+      " colour said 'selected' while its stylesheet said 'changed'. The arm is the" +
+      " reason the verdict is an equality of sets rather than 'a highlight class is" +
+      " present', because with this in place a class IS present, on a row, on every" +
+      " position — and it is on the wrong row.",
+    file: join(CLIENT, "hydrate", "session_project.nim"),
+    find: `      changed: diff == dvChanged,`,
+    replace: `      changed: vm.selectedPath.val == v.name,`,
+    journey: "a-motion-says-which-values-it-changed",
+    assertion: "SOURCE-LEVEL: every row whose value differs from the previous position carries a mark",
+  },
+  {
+    id: "VD2/every-value-is-marked-changed",
+    why:
+      "Mark every value that was in scope at the previous position, whether or not" +
+      " it changed. A blanket highlight passes 'the highlight is present', passes" +
+      " 'a marked row is on screen', and passes any step on which everything" +
+      " happened to change — which is why the verdict is taken on a MIXED step and" +
+      " compares two sets. This arm is that argument made falsifiable.",
+    file: join(CLIENT, "hydrate", "live_locals.nim"),
+    find: `      return if prior.value == value: dvUnchanged else: dvChanged`,
+    replace: `      return dvChanged`,
+    journey: "a-motion-says-which-values-it-changed",
+    assertion: "on every mixed step the marks are on exactly the values that changed",
+  },
+  {
+    id: "VD3/an-arrival-reads-as-a-change",
+    why:
+      "Collapse 'this name was not in scope where you came from' into 'this value" +
+      " changed'. Both are true statements about a motion and they are not the same" +
+      " statement: a reader told a value CHANGED goes looking for what it changed" +
+      " from, and on a step into a call there is nothing to find. The arm is" +
+      " surgical — every changed/unchanged assertion stays green, because the only" +
+      " rows it misdescribes are the ones that arrived.",
+    file: join(CLIENT, "hydrate", "live_locals.nim"),
+    find: `  dvAppeared
+
+proc noteFor*`,
+    replace: `  dvChanged
+
+proc noteFor*`,
+    journey: "a-motion-says-which-values-it-changed",
+    assertion: "a name that was not in scope at the previous position is marked as arriving, not as changed",
+  },
+  {
     id: "O3/an-unexplained-absence",
     why:
       "Drop the sentence that says why a value in a source-less recording cannot be" +

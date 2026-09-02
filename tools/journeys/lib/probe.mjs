@@ -210,6 +210,14 @@ export const readFacts = (page) =>
           name: r.querySelector(".stname")?.textContent?.trim() ?? "",
           value: r.querySelector(".stval")?.textContent?.trim() ?? "",
           type: r.querySelector(".sttype")?.textContent?.trim() ?? "",
+          // WHAT THE LAST MOTION DID TO THIS ROW, as the pane marks it. Read as
+          // two independent booleans and not as one tri-state, so a row that
+          // somehow carried both classes is visible to a journey rather than
+          // being resolved here into whichever the probe happened to test
+          // first — the renderer's mutual exclusion is a claim to assert, not
+          // an assumption to build the instrument on.
+          changed: r.classList.contains("chg"),
+          appeared: r.classList.contains("new"),
         })),
       stateNote: document.querySelector("#pane-state .panenote")?.textContent?.trim() ?? "",
 
