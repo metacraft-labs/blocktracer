@@ -151,21 +151,7 @@ func tokenClass*(k: TokenKind): string =
 
 # ── omniscience: the recorded values, beside the code ──────────────────────
 
-proc pill(e: LineElision; selected: int): string =
-  ## One `+N` chip. Shared by the two placements, so an inline count and a
-  ## stacked one cannot come to say different things or read differently.
-  let now = (if e.iteration < 0 or e.iteration == selected: " now" else: "")
-  ui:
-    # It carries `.fv` as well as `.fvmore`, so the iteration ladder moves it
-    # with the values it is a statement about — with no rung of its own to keep
-    # in step, and no way for a count from one pass to be left standing beside
-    # another pass's labels.
-    span(class = "fv fvmore " & iterationClass(e.iteration) & now,
-         title = elisionTitle(e)):
-      text "+" & $e.count
-
 proc renderAnnotations*(annotations: seq[LineAnnotation];
-                        elisions: seq[LineElision];
                         selected: int): string =
   ## One line's value labels — `Omniscience-Flow.md`'s three renderings.
   ##
@@ -195,36 +181,23 @@ proc renderAnnotations*(annotations: seq[LineAnnotation];
   ## `flow_view.applyFlow`. `fv-any` is a line outside every loop and is always
   ## shown.
   ##
-  ## ## Why some labels are wrapped and some are not
+  ## ## Every recorded value is emitted
   ##
-  ## `flow_view.planElision` has already decided which values fit beside this
-  ## line at each pane width, and nothing is decided again here. A label drawn
-  ## at every width is emitted bare, exactly as it always was; one that needs a
-  ## wider pane is emitted inside a `widthFromClass` wrapper the stylesheet
-  ## turns on at that width; one that fits at no width is not emitted at all and
-  ## is instead COUNTED, by the pill below and by the list the pill carries. A
-  ## label the reader could never have read is not information the markup owes
-  ## them — but the fact that it exists is, which is the pill's whole job.
+  ## Nothing here decides which of a line's values the reader is allowed. There
+  ## is no width budget, no priority order and no `+N` count, and the three
+  ## sections of documentation that used to be here explaining those things are
+  ## gone with them — see the "Why there is no width budget here" header in
+  ## `debugger/flow_view.nim` for what they said, what it measured, and what
+  ## CodeTracer desktop does instead.
   ##
-  ## ## Where a pill goes, and why only two answers are allowed
+  ## The run is a flex item on `.srcline`, which is `min-width:max-content`
+  ## inside an `overflow:auto` pane. A line with more labels than fit is a line
+  ## that is WIDER, and the pane scrolls to it — which is exactly what the
+  ## desktop does (`ui/flow.nim:258-271` raises Monaco's
+  ## `scrollBeyondLastColumn` to cover the widest flow row rather than dropping
+  ## anything from it). A label cannot be separated from its line by that
+  ## scroll, because the label and the line are items on the same row.
   ##
-  ## Beside the values, when `planElision` says the row has room for it — which
-  ## it computed in the same arithmetic that decided the values, so an inline
-  ## pill is inside the pane by construction rather than by a positioning
-  ## behaviour that might rescue it.
-  ##
-  ## Otherwise on a row of its own, `renderElisionRows` below. There is no third
-  ## answer, and in particular the pill is never allowed to be drawn ON the code
-  ## in order to stay in view. That WAS the third answer for one revision — a
-  ## `position:sticky` chip pinned to the right of the scrollport — and it was
-  ## wrong in a way the first measurement of it missed. It looked like a chip
-  ## sitting over the tail of a line that was scrolling away; what it actually
-  ## did, on every line whose code overruns the pane, was land in the MIDDLE of
-  ## the visible text, because the pane's right edge is nowhere near the end of
-  ## such a line. Measured at 1440 over the demo session: 82 collisions, most of
-  ## them mid-identifier, of which `initial_shield` under a `+3` rendering as
-  ## `initial_sh+3ld` is the shape of the whole problem. A count that changes
-  ## what the source says is worse than a count nobody can see.
   proc chip(a: LineAnnotation): string =
     let now = (if a.iteration < 0 or a.iteration == selected: " now" else: "")
     ui:
@@ -256,65 +229,10 @@ proc renderAnnotations*(annotations: seq[LineAnnotation];
         else:
           span(class = "fvv"): text a.beforeValue
 
-  # Assembled by concatenation rather than as one `ui:` block with two roots: a
-  # `ui:` block with more than one top-level element wraps them in a `div`, and
-  # that `div` would become the flex item — a box between the pill and
-  # `.srcline` that neither of them asked for.
   result = ui:
     span(class = "ann"):
       for a in annotations:
-        if a.bucket == ElidedEverywhere: continue
-        let gate = widthFromClass(a.bucket)
-        if gate.len == 0:
-          raw chip(a)
-        else:
-          span(class = gate): raw chip(a)
-  proc inlinePill(e: LineElision): string =
-    ui:
-      span(class = widthBandClass(e.bucket, e.lastBucket)):
-        raw pill(e, selected)
-
-  for e in elisions:
-    if e.stacked: continue
-    result.add inlinePill(e)
-
-proc renderElisionRows*(elisions: seq[LineElision]; selected: int): string =
-  ## The rows a line's counts take when they cannot share the line.
-  ##
-  ## Emitted AFTER `.srcline` and not inside it, because `.srcline` is a flex
-  ## row that is `min-width:max-content` wide, and a flex container sized to its
-  ## own single-line content never wraps: an item asking for a line of its own
-  ## in there just makes the line wider. A sibling block gets a row because
-  ## block layout gives it one, with nothing to arrange around and nothing to
-  ## overlap.
-  ##
-  ## ## One row per REGIME, holding every pass's count
-  ##
-  ## Not one row per pass. The rail shows one pass at a time, so per-pass rows
-  ## would leave the other passes' rows on screen and empty — a listing with
-  ## blank lines in it that appear and disappear as the rail moves. `planElision`
-  ## merges its bands over the whole LINE so that every pill sharing a regime
-  ## shares a band, which is what lets them share one row here; the chips inside
-  ## carry their own iteration classes and the ladder shows one, exactly as it
-  ## does on the code's own row.
-  ##
-  ## The row is gated by `widthRowClass` and nothing else, so at any pane width a
-  ## line contributes at most one of them, and at widths where its counts fit
-  ## beside the code it contributes none.
-  proc row(first, last: int): string =
-    ui:
-      tdiv(class = "fvrow " & widthRowClass(first, last)):
-        for e in elisions:
-          if not e.stacked: continue
-          if e.bucket != first or e.lastBucket != last: continue
-          raw pill(e, selected)
-
-  var bands: seq[(int, int)] = @[]
-  for e in elisions:
-    if not e.stacked: continue
-    if (e.bucket, e.lastBucket) notin bands: bands.add (e.bucket, e.lastBucket)
-  for band in bands:
-    result.add row(band[0], band[1])
+        raw chip(a)
 
 proc renderFlowRail*(rail: FlowRail): string =
   ## The loop-iteration control: `[Iteration: 3/8]` and a track.
@@ -938,18 +856,12 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
                     text tok.text
                   else:
                     span(class = tokenClass(tok.kind)): text tok.text
-            # `elisions` and not only `annotations`: a line every one of whose
-            # values was elided still has something to say, and it is the one
-            # line where saying it matters most.
-            if ln.annotations.len > 0 or ln.elisions.len > 0:
-              raw renderAnnotations(ln.annotations, ln.elisions, p.flow.selected)
-          # …and, AFTER the row, the counts that could not fit on it. Outside
-          # `.srcline` because `.srcline` is a `min-width:max-content` flex row,
-          # which never wraps — an item asking for a line of its own in there
-          # only makes the row wider. See `renderElisionRows`. Emits nothing at
-          # all for a line whose counts fit beside it, which is most of them.
-          if ln.elisions.len > 0:
-            raw renderElisionRows(ln.elisions, p.flow.selected)
+            # Every value the trace recorded on this line, all on this row.
+            # An empty `annotations` emits no `.ann` at all rather than an
+            # empty one, so a line the flow window says nothing about costs
+            # the markup nothing.
+            if ln.annotations.len > 0:
+              raw renderAnnotations(ln.annotations, p.flow.selected)
 
   # The ACTIVE document is emitted LAST so that `.srcdoc.alt:target` can reach
   # forward and hide it. CSS has only a forward sibling combinator, and the

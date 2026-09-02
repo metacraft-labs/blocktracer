@@ -207,102 +207,6 @@ type
     afterValue*: string   ## its value leaving the line
     mode*: ValueMode
     iteration*: int       ## the loop pass, or -1 for "outside any loop"
-    bucket*: int
-      ## The NARROWEST pane-width regime this label is drawn in — see
-      ## `ValueWidthBuckets`. `0` is "drawn at every width", which is the zero
-      ## value, so an annotation built by anything that has not run the elision
-      ## is shown exactly as it was before there was one. `ElidedEverywhere`
-      ## (-1) is a label that fits at no width the route serves; it is not
-      ## rendered at all, and it is counted by the `LineElision` for its pass.
-
-const
-  ValueWidthBuckets* = 8
-    ## How many code-pane widths the inline values are laid out for.
-    ##
-    ## The served page is ONE file for every viewport, and counted elision needs
-    ## a width to count against, so the width is quantised: the renderer emits
-    ## each regime's answer and the stylesheet picks one.
-  ValueBucketPanePx*: array[ValueWidthBuckets, int] =
-    [300, 360, 515, 600, 675, 755, 905, 1010]
-    ## The code pane's width at which each regime STARTS, in CSS pixels.
-    ##
-    ## Read by `components/debugger_css` to emit the container queries and by
-    ## `flow_view.valueBudgetPx` to pick the width each count is true at, for
-    ## the reason `flowIterationLadder` reads `MaxStaticIterations`: a threshold
-    ## that disagreed with the arithmetic behind it would show one regime's
-    ## labels beside another regime's `+N`, and would look completely normal
-    ## doing it.
-    ##
-    ## ## Why the PANE and not the viewport
-    ##
-    ## Because the two do not agree, and the disagreement is not small. The code
-    ## pane is a flex fraction of a multi-pane layout above the debugger's
-    ## 1100px stacking rung and nearly the whole viewport below it, so the pane
-    ## DROPS from 1090px to 518px as the viewport grows from 1100 to 1101. A
-    ## ladder of viewport breakpoints is therefore not monotone in the thing the
-    ## budget is about, and the first version of this was: it gave a 1024px
-    ## tablet, whose code pane is 1014px — wider than a 1920px desktop's 911px —
-    ## the budget of a 320px phone, and took every value off the tablet view to
-    ## fix the desktop one. A container query asks the pane, which is the only
-    ## question the arithmetic ever wanted the answer to, and it is right at
-    ## widths nobody measured.
-    ##
-    ## Each threshold is a FLOOR and the budget is computed at it, so a pane
-    ## between two thresholds gets the narrower one's answer: generous, never
-    ## wrong. That is why there are eight of them and why they are not evenly
-    ## spaced. Each sits a few pixels under a pane width this route actually
-    ## renders at — 310 and 365 on phones, 518 one pixel above the stacking
-    ## rung, 604 at 1280, 681 at 1440, 758 at 1600, 911 at 1920 and 1014 on a
-    ## tablet — because the cost of a rung being 80px low is a label the reader
-    ## could have had, and an evenly spaced ladder puts the two widths the
-    ## debugger is judged at in exactly that position.
-
-  ElidedEverywhere* = -1
-    ## `LineAnnotation.bucket` for a value that fits beside its line at no
-    ## served width. It is still RECORDED and still reaches the reader, through
-    ## the `+N` pill's full list; what it does not do is get drawn off-screen.
-
-type
-  LineElision* = object
-    ## One `+N` pill: the values a line recorded that do not fit beside it.
-    ##
-    ## This is `Debugger-UX-Research.md` row 9's counted pill — "elision drawn
-    ## as a counted, expandable pill, never a silent cut" — and the whole of its
-    ## value is in `count` being a FACT. A pill that says `+3` where four labels
-    ## were dropped is worse than no pill: it is the product's own overlay
-    ## making a confident, checkable, wrong claim, which is the one thing this
-    ## surface cannot afford. So `count` is never estimated and never clamped;
-    ## it is `group.len - shown`, computed by the same pass that decided which
-    ## labels are shown, and `hidden` carries exactly that many labels.
-    ##
-    ## One pill per (pass, width regime), because both change which labels are
-    ## on screen: `iteration` rides the same `:target` ladder the labels do, and
-    ## `bucket` is the width the count is true at — a pill correct at 1920 and
-    ## displayed at 1440 is the same wrong claim by another route.
-    iteration*: int   ## the loop pass, or `NoIteration` for "outside any loop"
-    bucket*: int      ## the narrowest width regime this count is the answer for
-    lastBucket*: int
-      ## …and the widest. A RANGE and not a single regime, because most counts
-      ## are the same number at several of them — a line whose code already
-      ## overruns the pane drops everything at every width — and four identical
-      ## pills, three of them switched off, are three copies of a claim rather
-      ## than four claims. The range is always contiguous: a wider pane fits
-      ## more, so a group's count is non-increasing across the regimes and equal
-      ## counts cannot be separated by a different one.
-    count*: int       ## N. What `+N` says, and what `hidden` lists.
-    hidden*: string   ## those N labels in full, for the pill's `title`
-    stacked*: bool
-      ## The pill does not fit on its line's own row and takes a row beneath it.
-      ##
-      ## True exactly where the CODE has already taken the row — where the pill
-      ## would have to be drawn over source text to be drawn at all. It is not a
-      ## style: a count laid over an identifier does not merely look crowded, it
-      ## produces a composite that reads as a different token (`initial_sh+3ld`
-      ## was the measured one), which is a page inventing a glyph the program
-      ## does not contain. Below the line the pill covers nothing.
-      ##
-      ## Decided per REGIME and not per pass, so that a line's rows do not
-      ## change height as the iteration rail moves.
 
 func annotationText*(a: LineAnnotation): string =
   ## The label as one string — the plain-text form of the three renderings.
@@ -322,62 +226,6 @@ func annotationText*(a: LineAnnotation): string =
     if a.label.len == 0: "→" & a.afterValue
     else: a.label & "=" & a.afterValue
   of vmChanged: a.label & ": " & a.beforeValue & " → " & a.afterValue
-
-func elisionTitle*(e: LineElision): string =
-  ## What the `+N` pill hands over when a reader asks it.
-  ##
-  ## The ONE definition, for `annotationText`'s reason and one more. The prose
-  ## and the number on the pill are the same `count` read twice here, so a pill
-  ## reading `+3` cannot introduce a tooltip that says four — and the labels
-  ## after it are the ones that count counted, spelled by `annotationText`, so
-  ## a reader who opens the pill gets the same string they would have read on
-  ## the row.
-  ##
-  ## No JavaScript reaches the served page, so this travels on `title` and
-  ## nothing pretends otherwise: the pill is not a button, does not focus, and
-  ## does not offer an expansion the page cannot perform. That is the honest
-  ## rung of `Omniscience-Flow.md`'s ladder — the count is complete and always
-  ## legible, and the list behind it is as reachable as a static document can
-  ## make it.
-  $e.count & (if e.count == 1: " more value recorded on this line:\n"
-              else: " more values recorded on this line:\n") & e.hidden
-
-func widthFromClass*(bucket: int): string =
-  ## The class that carries "drawn from this pane-width regime UPWARD".
-  ##
-  ## Empty for regime 0, which is every width, so the ordinary label's markup is
-  ## unchanged and the common case costs no bytes. It goes on a WRAPPER around
-  ## the chip and never on the chip itself: `.fv`'s own `display` is what the
-  ## iteration ladder switches, and a second owner of that property would have
-  ## to win a specificity argument against an `#id:target ~ …` selector to do
-  ## it. A wrapper that is `display:contents` or `display:none` decides whether
-  ## the chip exists on this viewport, and the ladder goes on deciding, for the
-  ## chips that do, which pass is on screen. The two never meet.
-  if bucket <= 0: "" else: "fvw" & $bucket
-
-func widthRowClass*(first, last: int): string =
-  ## The class that gates a STACKED pill's own row to a band of pane widths.
-  ##
-  ## A third family, and not a reuse of `widthBandClass`, because the two gate
-  ## different boxes and therefore need different `display` values: an inline
-  ## pill's wrapper must generate no box at all (`display:contents`) so the chip
-  ## itself is the flex item on the code's row, while a stacked pill's row is a
-  ## BLOCK — that is the whole of what makes it a row. One class family cannot
-  ## carry both answers, and the version that tried made the row a flex item on
-  ## the row it was supposed to be underneath.
-  "fvs" & $first & $last
-
-func widthBandClass*(first, last: int): string =
-  ## The class that carries "drawn from this pane-width regime to that one".
-  ##
-  ## For the pills, and the distinction from `widthFromClass` is the whole
-  ## reason both exist. A label kept at 1440 is still kept at 1920, so its class
-  ## is a floor. A COUNT true at 1440 can be false at 1920 — the wider pane fits
-  ## more and drops fewer — so a pill's class has to be a BAND, closed at both
-  ## ends. Giving a pill a floor would leave every narrower regime's count
-  ## stacked up beside the widest one's, each of them a different number, all of
-  ## them displayed at once.
-  "fvr" & $first & $last
 
 type
   FlowIteration* = object
@@ -488,11 +336,32 @@ type
       ## session's state — the served frame has no engine to stop — so the
       ## export renders no marks and the field costs it one `false` per line.
     annotations*: seq[LineAnnotation]
-    elisions*: seq[LineElision]
-      ## The `+N` pills for this line — one per (pass, width regime) that has
-      ## anything to count. Empty is the ordinary case and renders nothing: a
-      ## line whose values all fit says so by having no pill, not by having a
-      ## `+0`.
+      ## Every value the trace recorded on this line, all of them rendered.
+      ##
+      ## THERE IS NO WIDTH BUDGET HERE, and its absence is the correction. This
+      ## field used to be paired with an `elisions` seq: `flow_view.planElision`
+      ## measured each chip against the code pane's width in eight quantised
+      ## regimes, dropped every label that did not fit, and replaced the dropped
+      ## ones with a dashed `+N` chip carrying the rest on `title`. Measured over
+      ## the demo session's `0xd663…` window, that arithmetic drew 88 of the 186
+      ## recorded values at the WIDEST regime it serves and 0 of them below a
+      ## 515px pane — a pane under half the values and, on a phone, an overlay
+      ## made entirely of counts.
+      ##
+      ## CodeTracer desktop budgets nothing. Its inline values are Monaco
+      ## `after`-content decorations and every recorded value gets one; the only
+      ## thing that gives way is the TEXT INSIDE one box, by
+      ## `overflow:hidden;text-overflow:ellipsis` on `.flow-inline-value-box`
+      ## (`src/frontend/styles/components/flow.styl:292-311` in codetracer).
+      ## A value is never removed and nothing is ever counted. The row simply
+      ## runs as wide as it needs and scrolls with the editor's content.
+      ##
+      ## This pane already had the same answer available: `.src` is
+      ## `overflow:auto` and `.srcline` is `min-width:max-content`, so a row
+      ## carrying every one of its labels is a row that is wider and scrolls —
+      ## it cannot overdraw the code and it cannot leave the pane clipped. The
+      ## values were being withheld from a surface that had room to scroll to
+      ## them.
     notTaken*: seq[int]
       ## The loop passes in which this line sits inside a branch that was
       ## evaluated and **not taken**, or `[-1]` for a conditional outside every

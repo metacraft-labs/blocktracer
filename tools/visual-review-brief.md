@@ -1468,13 +1468,11 @@ transaction. Inherited items are presence requirements exactly like the rest.
 - The code still legible as code with the labels present: the labels must not be what the eye lands on first.
 - The branch this pass did NOT take marked as such: line 29 (`damage = mass * 1;`) is inside the `if` arm that pass 3 declined, and carries a `⊘` in the gutter where other lines carry `·`, plus a recession on the code itself. A reviewer should be able to say 'that statement did not run' from the row alone.
 - That mark reading as a statement about the EXECUTION, not as a disabled control. The line is still fully readable code — dimmed, not greyed out — and the gutter carries a mark rather than merely losing one.
-- A counted `+N` pill on the rows whose values do not all fit beside them — `Debugger-UX-Research.md` row 9's counted elision. Every value on this pane is either drawn in full or counted by one of these; nothing is cut silently. A reviewer should be able to say, for any annotated row, how many values it recorded.
-- Every `+N` pill wholly inside the pane, including on the rows whose CODE already runs past the right edge — those are the rows with the most to withhold, and a count that scrolled away with them would be the defect it exists to report.
-- The pill reading as a COUNT and not as a value: dashed border where a value's is solid, and no value colour.
-- Counts in ONE column, at the right of the listing, whether they sit beside their line or on a row of their own beneath it. A row of one's own is what a line whose code fills the pane gets; a reviewer should be able to say which line such a count belongs to.
+- EVERY value the recording holds for a row drawn in full on that row. There is no summary, no count and no `+N`: a line with more values than the pane is wide is a line that is wider, reached by the listing's own horizontal scroll, which is what CodeTracer desktop does. A reviewer should be able to read every value on any annotated row, scrolling if the row is long.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
 
+- A `+N` chip, a count, an ellipsis or any other summary standing in for values the pane did not draw. This route had one and it withheld more than half the recorded values at the widest pane it serves; its return is a regression, not a refinement.
 - Two passes' values on one line at once. Every label on screen belongs to the pass the rail names; a line carrying `remaining_shield` twice with different values would be the overlay reporting two moments as one.
 - Whole regions of the listing dimmed. Exactly one line is marked untaken on this capture, because that is what the recording can prove; a pane where every unexecuted-looking line receded would be claiming 'not taken' about lines that were merely never reached.
 - An untaken line so faint that its code cannot be read, or one whose syntax colouring has been flattened to a single grey. The recession multiplies the existing hues; it does not replace them.

@@ -150,357 +150,89 @@ func returnAnnotation*(r: FlowReturn): LineAnnotation =
     mode: vmAfter, iteration: r.iteration)
 
 # ---------------------------------------------------------------------------
-# Rule 5 — a value that is drawn where nobody can read it has not been shown
+# Why there is no width budget here
 # ---------------------------------------------------------------------------
 #
-# ## The defect this answers
+# There WAS one, for several revisions, and removing it is the correction.
 #
-# Measured in a browser against the served page, at the pinned coordinate, in
-# both themes: of the fifteen labels the default pass puts on screen at 1920,
-# eight were wholly inside the code pane; at 1440 it was six. On the rail's
-# first pass, where the window carries fifty-one, it was twenty-two and twelve.
-# The rest were cut by the pane's right edge or past it entirely.
+# `planElision` measured every chip's width in pixels against the code pane's
+# own width, quantised into the eight regimes of
+# `session_view.ValueBucketPanePx`, kept a prefix of each pass's labels in a
+# priority order and replaced the rest with a dashed `+N` chip whose `title`
+# carried the values it had dropped. It was careful — the count was computed
+# rather than estimated, the pill moved to a row of its own where the code had
+# taken the line, and a test asserted that nothing was withheld without being
+# counted — and all of that care was spent defending a behaviour the product
+# should not have had.
 #
-# Three things that look like the fix are not:
+# ## What it cost
 #
-#   * **The labels are not what overflows.** The CODE alone reaches 1127px in a
-#     pane that is 911px at 1920 and 681px at 1440. A line whose text already
-#     runs past the pane puts everything after it past the pane too, and the
-#     values are after it.
-#   * **Scrolling is not a remedy.** The listing scrolls horizontally, to
-#     1834px; but a label sits at the END of its own line, so scrolling right
-#     far enough to read one takes the line it belongs to off the other side.
-#     A value read against the wrong line is worse than one not read.
-#   * **Width will not reach it.** The code pane is `weight = 3.0` against the
-#     navigation column's `2.0` in `blockTracerReplayLayout()`. Taking it to 4.0
-#     buys about 100px against a shortfall of 900.
+# Counted in the exported markup, not argued from the arithmetic. Over the demo
+# session's `0xd663…` flow window, which records 186 values across its lines:
 #
-# So the answer is not to make room. It is `Debugger-UX-Research.md` row 9:
-# show what fits, and draw the rest as a COUNTED pill — "elision drawn as a
-# counted, expandable pill, never a silent cut". The count is the product's own
-# claim about its own overlay, so it is computed, not estimated; see
-# `LineElision`.
+#     pane >= 1010px    88 values drawn, 98 replaced by a count
+#     pane >=  905px    77 drawn, 109 counted
+#     pane >=  755px    57 drawn, 129 counted
+#     pane >=  675px    38 drawn, 148 counted
+#     pane >=  600px    26 drawn, 160 counted
+#     pane >=  515px    15 drawn, 171 counted
+#     pane <   515px     0 drawn, 186 counted — 35 rows of nothing but `+N`
 #
-# ## Why the arithmetic is here and not in the stylesheet
+# At the widest pane this route serves, more than half of Omniscience was a
+# number saying how much of Omniscience was missing. Below a 515px pane the
+# overlay was ENTIRELY counts: every value the trace recorded was behind a
+# `title` attribute, which on a touch device is behind nothing at all.
 #
-# CSS can hide what does not fit. It cannot say how many it hid, and the number
-# is the whole point. So the fit is decided where the labels are — before they
-# are markup — which means this renderer-free module has to carry a few facts
-# about the shape the renderer gives them. They are named below, each with the
-# declaration it mirrors, and every one of them is rounded in the direction
-# that shows FEWER labels: a label that was budgeted 4px too wide is a label
-# that did not have to be, while one budgeted 4px too narrow is the defect
-# coming back.
+# ## What the desktop does, which is the tree this pane's layout is vendored
+# ## from
 #
-# ## Why the alignment in the wireframe is a different change
+# It budgets nothing, and that is not an oversight — it is arranged for.
 #
-# `Omniscience-Flow.md` draws a column of labels and the served page does not:
-# left edges spread over 862px on one pass. Aligning them is NOT this fix, and
-# measurement says it would work against it. A column has to sit past the
-# longest line in the file or it draws over source text, and past the longest
-# line is past the pane — the two lines that are worst off now would be exactly
-# as far off-screen, while every SHORT line, which today gets its labels early
-# and legibly, would have them pushed out to the same column and lose them. The
-# spec files strict alignment under "Proposed Enhancement" for the desktop app
-# and records its upstream implementation as dead code; it stays a separate
-# piece of work, and it is one that costs visibility rather than buying it.
-
-const
-  CodeAdvancePx = 8.35
-    ## One character of `--bt-type-code-size` in `--bt-font-code`. Measured at
-    ## 8.291 and rounded up: the code is monospaced, so a line's width is its
-    ## length times this, and over-stating it moves the labels left.
-
-  LabelAdvancePx = 7.30
-    ## One character of `--bt-type-label-size` in the same face — measured at
-    ## 7.226 and rounded up, so a label is budgeted slightly wider than it is.
-
-  LabelChromePx = 10.0
-    ## A `.fv` chip's own width: `--bt-space-2xs` of padding and a
-    ## `--bt-stroke-hairline` border, on both sides.
-
-  LabelMaxPx = 160.0
-    ## `--bt-layout-label-column`, the `max-width` a chip is capped at. A label
-    ## longer than this does not measure longer than this — the NAME elides and
-    ## the value survives whole — so the budget must not think it does.
-
-  LabelGapPx = 4.0
-    ## `--bt-space-2xs`, the gap between two chips in `.ann`.
-
-  ArrowMarginPx = 4.0
-    ## The two `--bt-space-3xs` margins around `.fvto`'s arrow.
-
-  ChangeMarginPx = 6.0
-    ## `.fvto`'s two plus the one `.fv.m-changed .fvsep` adds after the colon.
-
-  RunOffsetPx = 122.0
-    ## Line left edge to the first chip, with the code taken out of it: the
-    ## gutter (`--bt-density-cell-x` padding, a `--bt-stroke-thick` border,
-    ## `--bt-space-2xl` of line number, `--bt-space-md` of marker and two
-    ## `--bt-space-xs` gaps = 90px), then `.srcline`'s third `--bt-space-xs` gap
-    ## after the code, then `.ann`'s own `--bt-space-lg` margin.
-
-  PillGapPx = 8.0
-    ## `--bt-space-xs`, `.srcline`'s gap — what separates the pill from the run.
-
-  FadePx = 48.0
-    ## `--bt-space-2xl`, the width of the mask `.src` fades its right edge over.
-    ## Subtracted from every budget because a label that ends inside the fade is
-    ## a label rendered half-transparent, and "shown" has to mean "readable".
-
-  SlackPx = 2.0
-    ## A last pixel or two against sub-pixel rounding in the measurements above.
-
-func valuePriority*(a: LineAnnotation): int =
-  ## Which values give way first when they do not all fit. **The judgement.**
-  ##
-  ## A reader with this pane open is stepping through a transaction and asking
-  ## what THIS step did. The value that changed on this row is the only thing on
-  ## the row that answers that, and it exists nowhere else on the page; the
-  ## values the row merely read are still in scope, still in the Values pane,
-  ## and still on the rows above that wrote them. So when a row cannot show
-  ## everything, what it gives up is the context that is available elsewhere,
-  ## and what it keeps is the fact that is not.
-  ##
-  ## Three tiers, in the order `ValueMode` already ranks them —
-  ## `vmChanged`'s own documentation says a write is "the single most valuable
-  ## thing an inline value can say", and this is that sentence made operative:
-  ##
-  ##   0. `vmChanged` — this line wrote this variable and the value moved.
-  ##   1. `vmAfter` — this line produced this value: a first assignment, or the
-  ##      call's return (`→230`), which is the whole outcome of its row.
-  ##   2. `vmBefore` — this line read this variable. Context, not news.
-  ##
-  ## Ties keep SOURCE order, which is `orderExpressionsByColumn`'s order, so the
-  ## rule never reaches inside a tier to reorder what the layout decided.
-  ##
-  ## Two orderings that were considered and rejected. **Shortest first** fits
-  ## the most labels per row and is the wrong maximisation — it would drop a
-  ## write of `remaining_shield` to keep two reads of `i`, and a count is not
-  ## what the reader came for. **Source order**, the order the labels arrive in,
-  ## is worse still: it is `assignExpressionColumns`' left-to-right sweep, which
-  ## correlates with nothing a reader wants and would make the surviving label
-  ## on a tight row a matter of where the variable happened to be typed.
-  case a.mode
-  of vmChanged: 0
-  of vmAfter: 1
-  of vmBefore: 2
-
-func labelWidthPx*(a: LineAnnotation): float =
-  ## How wide the renderer will draw this chip, capped as the stylesheet caps
-  ## it. Counted in RUNES and not bytes: `→` is one glyph and three bytes, and
-  ## a value could carry any others.
-  let glyphs =
-    case a.mode
-    of vmBefore: a.label.runeLen + 1 + a.beforeValue.runeLen
-    of vmAfter:
-      # `→230` when there is no name — the arrow IS the label there.
-      (if a.label.len == 0: 1 else: a.label.runeLen + 1) + a.afterValue.runeLen
-    of vmChanged:
-      a.label.runeLen + 1 + a.beforeValue.runeLen + 1 + a.afterValue.runeLen
-  let margins =
-    case a.mode
-    of vmBefore: 0.0
-    of vmAfter: (if a.label.len == 0: ArrowMarginPx else: 0.0)
-    of vmChanged: ChangeMarginPx
-  min(LabelChromePx + margins + LabelAdvancePx * float(glyphs), LabelMaxPx)
-
-func pillWidthPx(count: int): float =
-  ## `+12` drawn as the same chip the labels are.
-  LabelChromePx + LabelAdvancePx * float(1 + len($count))
-
-func valueBudgetPx*(bucket: int; codeText: string): float =
-  ## How much readable width this line leaves for its values in this regime.
-  ##
-  ## Negative is a real answer and the important one: it is a line whose CODE
-  ## already runs past the pane, and it means no label may be drawn beside it at
-  ## all. Clamping it to zero would be the same lie one pixel smaller.
-  float(ValueBucketPanePx[bucket]) - FadePx - RunOffsetPx - SlackPx -
-    CodeAdvancePx * float(codeText.runeLen)
-
-func fitCount(widths: seq[float]; budget: float): int =
-  ## How many of these chips fit, in order, with room left for the `+N` pill
-  ## that accounts for the ones that do not.
-  ##
-  ## A PREFIX, not a subset. Skipping a wide label to squeeze in a narrow one
-  ## behind it would fit more chips and would break the only promise the pill
-  ## makes worth making: that what was dropped is the least of what this row
-  ## recorded, and `+N` is a suffix of a stated order rather than a bag.
-  ##
-  ## Every k is tried rather than stopping at the first that does not fit,
-  ## because the pill's own width is part of the sum and it goes away when the
-  ## last label is included — so the whole run can fit where the run minus one
-  ## label plus a `+1` did not.
-  result = 0
-  var run = 0.0
-  for k in 1 .. widths.len:
-    if k > 1: run += LabelGapPx
-    run += widths[k - 1]
-    var need = run
-    if k < widths.len: need += PillGapPx + pillWidthPx(widths.len - k)
-    if need <= budget: result = k
-
-func runWidthPx*(widths: seq[float]; count: int): float =
-  for i in 0 ..< count:
-    if i > 0: result += LabelGapPx
-    result += widths[i]
-
-func pillFitsInline*(drawnPx: float; count: int; budget: float): bool =
-  ## Whether a `+count` pill can sit at the end of a row that is already
-  ## carrying `drawnPx` of value chips. **Rule 6's whole test.**
-  ##
-  ## `fitCount` reserved room for the pill whenever it kept a label, so this can
-  ## only answer no where it kept none — on a line whose CODE has taken the row
-  ## by itself. There the pill has nowhere to go that is not on top of source
-  ## text, and `LineElision.stacked` sends it below the line instead.
-  ##
-  ## Exported because it is the rule a test has to be able to check: an inline
-  ## pill must be one that PROVABLY fits, and "provably" means against this
-  ## expression rather than against a second copy of it that agrees today.
-  drawnPx + PillGapPx + pillWidthPx(count) <= budget
-
-proc planElision*(annotations: var seq[LineAnnotation];
-                  codeText: string): seq[LineElision] =
-  ## Decide which of a line's values are drawn at which widths, and count the
-  ## rest. Writes `bucket` on every annotation and returns the line's pills.
-  ##
-  ## ## The groups are the passes, because that is what is on screen at once
-  ##
-  ## Every pass the window carries is in the markup and the stylesheet shows one
-  ## (`applyFlow`), so the labels competing for a row's width are the labels of
-  ## ONE pass — budgeting them against the whole line's worth would elide a row
-  ## that had room and would count values that were never beside each other.
-  ##
-  ## `NoIteration` is the exception and is handled first: those labels belong to
-  ## no pass and are therefore on screen in ALL of them, so they take their
-  ## width out of every pass's budget before any pass is measured. The demo
-  ## trace has no line that carries both kinds, and the arrangement is here for
-  ## the one that will: a per-pass count that ignored the labels permanently
-  ## beside it would be a count of the wrong row.
-  result = @[]
-  if annotations.len == 0: return
-
-  var order: seq[int] = @[]          ## group keys, in first-appearance order
-  var groups = initTable[int, seq[int]]()
-  for i, a in annotations:
-    if a.iteration notin groups:
-      order.add a.iteration
-      groups[a.iteration] = @[]
-    groups[a.iteration].add i
-  # The always-on group is measured first so the passes can subtract it.
-  if NoIteration in groups and order[0] != NoIteration:
-    order.delete(order.find(NoIteration))
-    order.insert(NoIteration, 0)
-
-  var reserved: array[ValueWidthBuckets, float]  ## what `NoIteration` occupies
-  var dropped = initTable[int, array[ValueWidthBuckets, seq[string]]]()
-  var fits = initTable[int, array[ValueWidthBuckets, bool]]()
-
-  for key in order:
-    # Priority order inside the group, source order inside a priority — a
-    # stable insertion sort, because `seq` sorting in Nim is not stable and the
-    # tie-break IS the guarantee (see `valuePriority`).
-    var ranked: seq[int] = @[]
-    for idx in groups[key]:
-      var at = ranked.len
-      while at > 0 and
-            valuePriority(annotations[ranked[at - 1]]) >
-              valuePriority(annotations[idx]):
-        dec at
-      ranked.insert(idx, at)
-
-    var widths: seq[float] = @[]
-    for idx in ranked: widths.add labelWidthPx(annotations[idx])
-
-    # Budgets, then a suffix minimum over them. `fitCount` is monotone in the
-    # budget, so the kept sets nest and a label's `bucket` can be a single
-    # threshold — but only if the budgets themselves never fall as the pane
-    # grows. They can, by a few pixels, when the `NoIteration` group takes one
-    # more label at a wider pane than it did at a narrower one. Taking each
-    # budget down to the smallest that follows it costs a label nobody would
-    # notice and keeps the thresholds honest.
-    var budgets: array[ValueWidthBuckets, float]
-    for b in 0 ..< ValueWidthBuckets:
-      budgets[b] = valueBudgetPx(b, codeText) -
-                   (if reserved[b] > 0.0: reserved[b] + LabelGapPx else: 0.0)
-    for b in countdown(ValueWidthBuckets - 2, 0):
-      budgets[b] = min(budgets[b], budgets[b + 1])
-
-    var kept: array[ValueWidthBuckets, int]
-    for b in 0 ..< ValueWidthBuckets:
-      kept[b] = fitCount(widths, budgets[b])
-
-    for rank, idx in ranked:
-      var bucket = ElidedEverywhere
-      for b in 0 ..< ValueWidthBuckets:
-        if rank < kept[b]:
-          bucket = b
-          break
-      annotations[idx].bucket = bucket
-
-    if key == NoIteration:
-      for b in 0 ..< ValueWidthBuckets:
-        reserved[b] = runWidthPx(widths, kept[b])
-
-    var missingAt: array[ValueWidthBuckets, seq[string]]
-    var fitsAt: array[ValueWidthBuckets, bool]
-    for b in 0 ..< ValueWidthBuckets:
-      # Listed in SOURCE order, not in the order they were given up: the pill's
-      # list is read as "the other values on this row", and a row's values read
-      # left to right. `groups[key]` is already that order.
-      for idx in groups[key]:
-        if annotations[idx].bucket == ElidedEverywhere or
-           annotations[idx].bucket > b:
-          missingAt[b].add annotationText(annotations[idx])
-      # Rule 6. Does the pill fit on the row, after the labels that did?
-      #
-      # `fitCount` reserved room for it whenever it kept anything, so this can
-      # only be false where it kept NOTHING — a line whose code alone has
-      # already taken the row. There the answer is not to draw the pill anyway.
-      fitsAt[b] = pillFitsInline(runWidthPx(widths, kept[b]),
-                                 max(missingAt[b].len, 1), budgets[b])
-    dropped[key] = missingAt
-    fits[key] = fitsAt
-
-  # ── Rule 6, continued: one placement per REGIME, not one per pass ─────────
-  #
-  # A stacked pill leaves the row it belongs to and takes a row of its own, and
-  # a row is a fact about the LINE: if one pass's count has to go below, they
-  # all do. Passes are shown one at a time, so pills that disagreed about this
-  # would make the listing's rows change height as the rail moved — the same
-  # line taller in pass 1 than in pass 3, for a reason nothing on screen states.
-  var stacked: array[ValueWidthBuckets, bool]
-  for b in 0 ..< ValueWidthBuckets:
-    for key in order:
-      if dropped[key][b].len > 0 and not fits[key][b]:
-        stacked[b] = true
-
-  # One pill per RUN of regimes with the same answer — the same counts AND the
-  # same placement. Merged over the whole LINE rather than per pass, so that
-  # every pill sharing a regime shares a band, and the stacked ones can be
-  # collected into ONE row per band instead of one row per pass.
-  var b = 0
-  while b < ValueWidthBuckets:
-    var last = b
-    while last + 1 < ValueWidthBuckets and stacked[last + 1] == stacked[b] and
-          (block:
-            var same = true
-            for key in order:
-              if dropped[key][last + 1] != dropped[key][b]: same = false
-            same):
-      inc last
-    for key in order:
-      if dropped[key][b].len == 0: continue
-      # `count` is `dropped[key][b].len` and not `ranked.len - kept[b]`, which
-      # is the same number by construction. The point of taking it from the list
-      # is that it CANNOT stop being the same number: what `+N` says and what
-      # the pill hands over are then one value read twice, and no later edit can
-      # make the count drift from the thing it counts.
-      result.add LineElision(iteration: key, bucket: b, lastBucket: last,
-                             stacked: stacked[b],
-                             count: dropped[key][b].len,
-                             hidden: dropped[key][b].join("\n"))
-    b = last + 1
+#   * Every recorded value is drawn. `ui/flow.nim:2191-2213` (`flowComplexStep`)
+#     and `ui/flow.nim:4700-4711` (`renderFlow`) both walk `step.exprOrder` to
+#     the end and append a chip for each: no running width, no cap, no `break`.
+#   * The row refuses to clip. `.flow-parallel` is
+#     `overflow: visible !important`, `display: inline-flex`, with no
+#     `max-width` and no `flex-wrap`
+#     (`styles/components/text_editor.styl:307-312`).
+#   * The surplus is made REACHABLE rather than removed.
+#     `ui/flow.nim:258-271` (`adjustEditorWidth`) takes the widest flow row and
+#     raises Monaco's `scrollBeyondLastColumn` to cover it, so the horizontal
+#     scrollbar extends to the values instead of stopping at the code. The
+#     desktop's answer to "more values than fit" is literally "more scroll".
+#   * The only thing that ever gives way is the text inside ONE value's own box:
+#     `FLOW_VALUE_LIMIT = 30` characters (`ui/flow.nim:244-246`) with
+#     `overflow:hidden;text-overflow:ellipsis`
+#     (`styles/components/flow.styl:292-310`), and a per-chip "view more" toggle
+#     that lifts even that (`ui/flow.nim:1677-1694`). A value is never removed,
+#     never counted, never summarised.
+#
+# The desktop tree does have a `…+N` fit calculation — `reviewChipsThatFit`,
+# `viewmodel/viewmodels/review_flow_overlay.nim:524-554` — and its only consumer
+# is the DeepReview unified-diff surface (`ui/unified_diff.nim:1015-1088`).
+# Nothing in `ui/flow.nim` calls it. The debugger's flow view was offered that
+# mechanism and does not use it.
+#
+# ## And the argument this module used to make against scrolling was false
+#
+# The comment removed from here said: "Scrolling is not a remedy. The listing
+# scrolls horizontally, to 1834px; but a label sits at the END of its own line,
+# so scrolling right far enough to read one takes the line it belongs to off the
+# other side. A value read against the wrong line is worse than one not read."
+#
+# That describes an overlay this pane does not have. `.srcline` is a flex ROW
+# and is `min-width:max-content`: the line number, the executable marker, the
+# code and `.ann` are all items on the same row, in the same box. Scrolling
+# right moves them together, and a label cannot separate from its line because
+# the label is ON its line. The sentence would have been true of a label
+# positioned against the pane; it was never true of one positioned against the
+# row. It is also, as it happens, the arrangement the desktop ships and lives
+# with.
+#
+# So: every recorded value is emitted, in `assignExpressionColumns`' own reading
+# order. `.src` is `overflow:auto`, so a row that outgrows the pane is a row
+# that scrolls — which is what the desktop does, and what this pane's stylesheet
+# was already built for.
 
 # ---------------------------------------------------------------------------
 # The whole overlay
@@ -822,7 +554,6 @@ proc applyFlow*(pane: var EditorPane; input: FlowWindowInput) =
   for d in 0 ..< pane.documents.len:
     for i in 0 ..< pane.documents[d].lines.len:
       pane.documents[d].lines[i].annotations = @[]
-      pane.documents[d].lines[i].elisions = @[]
       pane.documents[d].lines[i].notTaken = @[]
       pane.documents[d].lines[i].ran = @[]
   if pane.availability != srcSourceLevel: return
@@ -906,17 +637,11 @@ proc applyFlow*(pane: var EditorPane; input: FlowWindowInput) =
   for i in 0 ..< pane.documents[index].lines.len:
     let number = pane.documents[index].lines[i].number
     if byLine.hasKey(number):
+      # EVERY value the window recorded for this line, with nothing dropped
+      # and nothing counted. There is no second pass here that decides which
+      # of them the reader is allowed — see the section header above for what
+      # used to be here and what the desktop does instead.
       pane.documents[index].lines[i].annotations = byLine[number]
-      # Rule 5, and it is measured against the line the READER sees. The width
-      # a label has to fit in is what its own row leaves, so the code it is
-      # counted against is `lines[i].text` — the pane's copy, the one the
-      # renderer emits — and not `window.lineText`, which is the same text
-      # today and is the wrong thing to depend on: the pane's document is what
-      # gets drawn, and a budget computed from a second copy of it would go
-      # quietly wrong the first time the two differed.
-      pane.documents[index].lines[i].elisions =
-        planElision(pane.documents[index].lines[i].annotations,
-                    pane.documents[index].lines[i].text)
     if branches.notTaken.hasKey(number):
       pane.documents[index].lines[i].notTaken = branches.notTaken[number]
     if branches.ran.hasKey(number):

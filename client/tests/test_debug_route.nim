@@ -1099,15 +1099,13 @@ suite "M8a — the source pane renders real source, with stable line identity":
     for d in 0 ..< bare.documents.len:
       for i in 0 ..< bare.documents[d].lines.len:
         bare.documents[d].lines[i].annotations = @[]
-        # The overlay is the labels AND the counts of the labels that did not
-        # fit: a line stripped of its values still has something to say if its
-        # elisions are left behind, and this test's whole subject is what a
-        # pane with NO overlay renders.
-        bare.documents[d].lines[i].elisions = @[]
     bare.flow = FlowRail()
     let before = dbgc.renderSource(bare)
     check "class=\"ann\"" notin before
-    check "fvmore" notin before
+    # No value chip of any kind. `class="fv ` is the prefix of every one of
+    # them and of nothing else, so this is the whole overlay counted rather
+    # than one class of it named.
+    check occurrences(before, "class=\"fv ") == 0
 
     var doc = activeDocument(bare)
     let target = doc.lines[2].number
@@ -1122,6 +1120,11 @@ suite "M8a — the source pane renders real source, with stable line identity":
     let after = dbgc.renderSource(bare)
     check "class=\"ann\"" in after
     check "title=\"remaining_shield: 10000 \u2192 9000\"" in after
+    # ONE annotation was added, so exactly one chip appeared. Counted, because
+    # the assertion above is satisfied by a renderer that draws the label twice
+    # and by one that draws it beside a chip nobody asked for.
+    check occurrences(after, "class=\"fv ") ==
+          occurrences(before, "class=\"fv ") + 1
     # The line kept its identity: an overlay attaches to the line, it does not
     # replace it.
     check ("id=\"" & anchor & "\"") in after
@@ -1827,151 +1830,104 @@ suite "Omniscience — the recorded values, against the real zk_shields trace":
     check annotationsAt(pane, "src/shield.nr", 19).len == 0
     check annotationsAt(pane, "src/shield.nr", 35).len == 0
 
-  test "every +N counts exactly the values it withholds, at every pane width":
-    # Rule 5's whole risk in one test. A pill is the product asserting a NUMBER
-    # about its own overlay, and a `+3` where four were dropped is a confident,
-    # checkable, wrong claim on the surface least able to afford one.
+  test "every value the window records is drawn, and drawn once":
+    # THE INVERSE of the five tests this replaces, and the reason they are gone.
     #
-    # Three properties, over every line, every pass and every width regime of
-    # the real zk_shields session, and it takes all three: the first alone
-    # allows a pill that under-counts and lists the rest, the second allows a
-    # count that agrees with a list of the wrong labels, and the third is what
-    # rules out a value being drawn AND counted as missing — which would read
-    # to a reader as a second, different value of the same name.
-    let pane = flowPane()
-    var pillsSeen = 0
-    var withheldSeen = 0
-    for d in pane.documents:
-      for ln in d.lines:
-        for e in ln.elisions:
-          inc pillsSeen
-          # 1. the count is the length of the list the pill hands over
-          check e.count == e.hidden.split("\n").len
-          check e.count > 0
-          check elisionTitle(e).startsWith($e.count & " more value")
-
-          # 2. that list is exactly the labels of this pass that this regime
-          #    does not draw — same set, same order, nothing invented
-          var withheld: seq[string] = @[]
-          var drawn: seq[string] = @[]
-          for a in ln.annotations:
-            if a.iteration != e.iteration: continue
-            if a.bucket == ElidedEverywhere or a.bucket > e.bucket:
-              withheld.add annotationText(a)
-            else:
-              drawn.add annotationText(a)
-          check withheld == e.hidden.split("\n")
-          withheldSeen += withheld.len
-
-          # 3. and nothing is on both sides of that line
-          for t in drawn:
-            check t notin withheld
-
-          # 4. the pill's band is a real, forward range of regimes
-          check e.bucket >= 0
-          check e.lastBucket >= e.bucket
-          check e.lastBucket < ValueWidthBuckets
-
-    # Nothing above fires on a pane with no pills, so the demo session has to
-    # be one that elides — it is, at every width, because its code alone
-    # overruns the pane.
-    check pillsSeen > 0
-    check withheldSeen > 0
-
-  test "no value is dropped without being counted, at any pane width":
-    # The other half of the promise, and the one a per-pill check cannot make:
-    # not "the pills are right about what they withhold" but "nothing was
-    # withheld that no pill mentions". A label given `ElidedEverywhere` and no
-    # accompanying elision would be a value the page recorded, did not draw,
-    # and did not admit to — a silent cut, which is precisely what the counted
-    # pill exists to replace.
-    let pane = flowPane()
-    for d in pane.documents:
-      for ln in d.lines:
-        for b in 0 ..< ValueWidthBuckets:
-          var missing = 0
-          for a in ln.annotations:
-            if a.bucket == ElidedEverywhere or a.bucket > b: inc missing
-          if missing == 0: continue
-          var counted = 0
-          for e in ln.elisions:
-            if b >= e.bucket and b <= e.lastBucket: counted += e.count
-          check counted == missing
-
-  test "a count is never placed where the code already is":
-    # The defect this rule exists for was found in a browser, not here: a pill
-    # pinned to the right of the scrollport landed in the MIDDLE of any line
-    # whose code overruns the pane, and `initial_shield` under a `+3` rendered
-    # as `initial_sh+3ld` — a composite that reads as a token the program does
-    # not contain. 82 of them at 1440 over this session.
+    # This suite used to grade a width budget: `flow_view.planElision` measured
+    # each chip against the code pane's width in eight quantised regimes, drew a
+    # prefix of each pass's labels and replaced the rest with a dashed `+N` chip
+    # carrying them on `title`. The tests checked that the counts were honest —
+    # and they were. What none of them asked was whether the page should be
+    # withholding values at all. Counted over the exported demo session, it was
+    # withholding 98 of 186 at the WIDEST pane it serves and all 186 below a
+    # 515px one.
     #
-    # So an INLINE pill must be one that provably fits on its row, checked
-    # against `pillFitsInline` itself rather than a restatement of it, and
-    # anything else must have been sent to a row of its own.
+    # CodeTracer desktop, which this pane's layout is vendored from, budgets
+    # nothing: `ui/flow.nim:2191-2213` appends a chip for every entry of
+    # `step.exprOrder` with no cap, `.flow-parallel` is
+    # `overflow:visible !important` with no `max-width` and no `flex-wrap`
+    # (`styles/components/text_editor.styl:307-312`), and
+    # `ui/flow.nim:258-271` raises Monaco's `scrollBeyondLastColumn` so the
+    # surplus is REACHED rather than removed. There is no `+N` in its debugger
+    # at all.
+    #
+    # So the property is now the simple one: what the window recorded is what
+    # the reader is given.
+    #
+    # ## Why this is asserted against the HTML and not against the pane
+    #
+    # Because the defect it rules out lived in the RENDERER. `planElision` wrote
+    # a `bucket` onto each annotation and `renderAnnotations` skipped the ones it
+    # did not like; `ln.annotations` carried every value throughout, so a check
+    # that read the seq would have passed unchanged for the whole of that regime.
+    # `class="fv ` is the prefix of every value chip and of nothing else.
     let pane = flowPane()
-    var inlineSeen = 0
-    var stackedSeen = 0
+    let html = dbgc.renderSource(pane)
+    var recorded = 0
     for d in pane.documents:
       for ln in d.lines:
-        for e in ln.elisions:
-          for b in e.bucket .. e.lastBucket:
-            var drawn = 0.0
-            var n = 0
-            for a in ln.annotations:
-              if a.iteration != e.iteration: continue
-              if a.bucket == ElidedEverywhere or a.bucket > b: continue
-              if n > 0: drawn += 4.0          # `.ann`'s --bt-space-2xs gap
-              drawn += labelWidthPx(a)
-              inc n
-            if not e.stacked:
-              check pillFitsInline(drawn, e.count, valueBudgetPx(b, ln.text))
-          if e.stacked: inc stackedSeen else: inc inlineSeen
-    # Both placements have to be exercised or the check above is vacuous: the
-    # session must contain lines whose counts fit beside them AND lines whose
-    # code has taken the row.
-    check inlineSeen > 0
-    check stackedSeen > 0
+        recorded += ln.annotations.len
+    check recorded > 0
+    check occurrences(html, "class=\"fv ") == recorded
 
-  test "a line's rows do not change height as the rail moves":
-    # A stacked pill takes a row, and a row is a fact about the LINE. If one
-    # pass's count went below the line and another's stayed beside it, the
-    # listing would reflow every time the iteration rail moved — the same line
-    # one row tall in pass 3 and two in pass 1, for a reason nothing on screen
-    # states. So within one width regime, every one of a line's counts agrees
-    # about where it goes.
+  test "no value is summarised, counted or hidden behind a tooltip":
+    # The user-visible half: none of the elision machinery's marks survive
+    # anywhere on the served page. Named rather than counted, because these are
+    # exactly the strings a reviewer would search for, and because each of them
+    # is a separate way for the behaviour to come back — a chip (`fvmore`), a
+    # row of its own (`fvrow`), a width gate on a label (`fvw`), a band on a
+    # count (`fvr`/`fvs`), or the container query that switched them.
     let pane = flowPane()
-    for d in pane.documents:
-      for ln in d.lines:
-        for b in 0 ..< ValueWidthBuckets:
-          var placements: seq[bool] = @[]
-          for e in ln.elisions:
-            if b < e.bucket or b > e.lastBucket: continue
-            if e.stacked notin placements: placements.add e.stacked
-          check placements.len <= 1
+    let html = dbgc.renderSource(pane)
+    for mark in ["fvmore", "fvrow", "class=\"fvw", "class=\"fvr",
+                 "fvs0", "+N"]:
+      check mark notin html
+    # …and the stylesheet neither styles nor generates them.
+    for mark in ["fvmore", "fvrow", "fvw1", "fvr01", "fvs01",
+                 "container-type", "@container"]:
+      check mark notin debugRouteCss
 
-  test "a value is never given a width regime the pane cannot honour":
-    # The budget is what stops a label being drawn where it cannot be read, so
-    # it must be the pane's own arithmetic and not a guess: at the regime a
-    # label is admitted in, that label and everything before it must fit the
-    # width that regime is the answer for.
+  test "a line with more values than fit is wider, not emptier":
+    # What replaces the budget. The desktop's answer to overflow is scroll, and
+    # this pane was built for it: `.src` is `overflow:auto` and `.srcline` is
+    # `min-width:max-content`, so a row carrying more labels is a WIDER row and
+    # the pane reaches it. The labels cannot be separated from their line by
+    # that scroll because they are items on the same flex row.
+    #
+    # Both halves are asserted because either alone permits the failure. Without
+    # `max-content` the row is capped at the pane and the labels are clipped;
+    # without `overflow:auto` the row is as wide as it likes and unreachable.
+    check ".srcline{display:flex" in debugRouteCss
+    check "min-width:max-content" in debugRouteCss
+    check "flex:1 1 0;overflow:auto}" in debugRouteCss
+    # And the run itself does not wrap or shrink — a wrapping `.ann` would put
+    # a line's values on a row the line number does not reach.
+    check "white-space:nowrap;\n  flex:0 0 auto}" in debugRouteCss
+
+  test "the busiest line in the session keeps every one of its values":
+    # The tests above are counts, and a count is satisfied by a page that
+    # renders the right NUMBER of the wrong things. This one names the values:
+    # it finds the line the demo session records the most of, and asserts each
+    # of its labels is on the page by its own text.
+    #
+    # It is also the direct regression for the reported defect. Under the old
+    # budget this line rendered as one `+N` chip at every pane width the route
+    # serves, because its code alone overran the narrowest of them.
     let pane = flowPane()
+    let html = dbgc.renderSource(pane)
+    var busiest: SourceLine
     for d in pane.documents:
       for ln in d.lines:
-        for b in 0 ..< ValueWidthBuckets:
-          var passes: seq[int] = @[]
-          for a in ln.annotations:
-            if a.iteration notin passes: passes.add a.iteration
-          for pass in passes:
-            var used = 0.0
-            var n = 0
-            for a in ln.annotations:
-              if a.iteration != pass: continue
-              if a.bucket == ElidedEverywhere or a.bucket > b: continue
-              if n > 0: used += 4.0            # `.ann`'s --bt-space-2xs gap
-              used += labelWidthPx(a)
-              inc n
-            if n == 0: continue
-            check used <= valueBudgetPx(b, ln.text)
+        if ln.annotations.len > busiest.annotations.len: busiest = ln
+    # The demo session has to HAVE a crowded line or every check below is
+    # vacuous. Four is above what the narrowest regime ever drew.
+    check busiest.annotations.len >= 4
+    for a in busiest.annotations:
+      # The value, not the whole label: `annotationText` is what `title`
+      # carries and asserting it back would only be re-deriving the renderer's
+      # own string. The VALUE is the fact the reader came for.
+      let shown = (if a.mode == vmBefore: a.beforeValue else: a.afterValue)
+      check (">" & shown & "<") in html
 
   test "no line carries a value the gutter says never executed":
     # The overlay and the executed-line set are two producers of "this ran", and

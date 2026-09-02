@@ -290,29 +290,24 @@ export const readFacts = (page) =>
       // `.fv` and not `.ann`: one `.ann` span holds a line's whole run of
       // labels, so reading its `textContent` would concatenate them and make
       // "three labels" and "one label spelling all three" indistinguishable.
-      // `.fv` is one chip — and it is also the `+N` elision pill (`.fv.fvmore`),
-      // deliberately: at a given pane width the overlay a reader sees IS the
-      // labels that fit plus the counts of the ones that did not, and a reading
-      // that took only the labels would be measuring the width regime rather
-      // than the product (`flow_view` rule 5).
+      // `.fv` is one chip, and now every `.fv` is a label: the `+N` elision
+      // pill this reading used to separate out is gone, along with the width
+      // budget that produced it (see the "Why there is no width budget here"
+      // header in `client/src/debugger/flow_view.nim`).
       //
       // Filtered by `shown`, which is load-bearing here rather than tidy: every
       // pass the window carries is in the markup at once and the stylesheet
-      // shows one, and every width regime's answer is in the markup at once and
-      // a container query shows one. Reading the DOM instead of the render
-      // would report eight passes of values on screen simultaneously.
+      // shows one. Reading the DOM instead of the render would report every
+      // pass's values on screen simultaneously.
       flowLines: shownDocs.length === 1
         ? [...shownDocs[0].querySelectorAll(".srcline")]
             .map((ln) => ({
               n: Number(ln.querySelector(".n")?.textContent?.trim() ?? -1),
-              // A LABEL and a COUNT are different things and are reported
-              // separately. `.fv.fvmore` is the `+N` elision pill — the count of
-              // the values that did NOT fit beside this line at this pane width
-              // — and it has no name, no separator and no value by design. A
-              // reading that folded it in with the labels would make "every
-              // label carries a value" false on a correct page, for the one
-              // element on the line that is not a label.
-              labels: [...ln.querySelectorAll(".fv:not(.fvmore)")]
+              // Every `.fv` on the row, with no exclusion. There used to be
+              // one — `.fv.fvmore`, the `+N` count of the values that did not
+              // fit — and its removal is why `labels` and `values` now have
+              // the same selector as each other and as the page.
+              labels: [...ln.querySelectorAll(".fv")]
                 .filter(shown)
                 .map((a) => a.textContent.trim())
                 .filter(Boolean),
@@ -327,12 +322,17 @@ export const readFacts = (page) =>
               // reads as a value. `renderAnnotations` puts the value, and only
               // the value, in `.fvv`, so this is the same string the stylesheet
               // draws at full strength.
-              values: [...ln.querySelectorAll(".fv:not(.fvmore)")]
+              values: [...ln.querySelectorAll(".fv")]
                 .filter(shown)
                 .map((a) =>
                   [...a.querySelectorAll(".fvv")].map((v) => v.textContent).join(""),
                 ),
-              pills: [...ln.querySelectorAll(".fv.fvmore")]
+              // Kept as a field, and kept EMPTY, on purpose. A journey that
+              // asserted `pills.length === 0` must keep meaning that, and a
+              // reading that dropped the key would make such an assertion pass
+              // against `undefined.length` errors or silently against nothing.
+              // If a `+N` ever comes back this reports it.
+              pills: [...ln.querySelectorAll(".fvmore")]
                 .filter(shown)
                 .map((a) => a.textContent.trim())
                 .filter(Boolean),

@@ -80,14 +80,20 @@ const WALK = 10;
 /**
  * The viewport this journey judges at, stated rather than inherited.
  *
- * The overlay is laid out against the CODE PANE's width by a container-query
- * ladder — `session_view.ValueBucketPanePx`, eight regimes — and the markup
- * carries every regime's answer at once. So "how many values are on screen" is
- * a question about a width, and at Playwright's launch default the answer is
- * legitimately zero labels and a row of `+N` counts. That is the product
- * working (`flow_view` rule 5: "a value that is drawn where nobody can read it
- * has not been shown"), and a journey that had not said which width it meant
- * would have reported it as the defect.
+ * IT NO LONGER DEPENDS ON THE WIDTH, and stating one is now belt and braces
+ * rather than the load-bearing declaration it was. This paragraph used to say
+ * that the overlay was laid out against the code pane's width by a
+ * container-query ladder of eight regimes, that "how many values are on screen"
+ * was therefore a question about a width, and that at Playwright's launch
+ * default the honest answer was zero labels and a row of `+N` counts. All of
+ * that was true, and the behaviour it described has been removed: every value
+ * the window records is now drawn at every width, and the pane scrolls to the
+ * ones that do not fit. See the "Why there is no width budget here" header in
+ * `client/src/debugger/flow_view.nim`.
+ *
+ * The viewport stays declared because the SERVED-versus-LIVE comparison below
+ * still has to be made at one width — a scrolled pane and an unscrolled one
+ * would differ in what is inside the viewport even with identical markup.
  *
  * `wide` is `tools/capture/views.mjs`'s primary size, so this reads the overlay
  * at the width the visual corpus photographs it at rather than at a second one
@@ -190,10 +196,13 @@ async function settled(page, timeoutMs = 15000) {
 
 /** The served frame's overlay: the same URL with scripting off. */
 async function servedOverlay(browser, origin, path) {
-  // The SAME viewport as the live reading. Two widths would compare two regimes
-  // of the same overlay and report a difference the position had nothing to do
-  // with — which is the one comparison this journey cannot afford to get wrong,
-  // since "it is still the exporter's overlay" is its central negative.
+  // The SAME viewport as the live reading. The overlay no longer varies with
+  // width, but the SCROLL POSITION of a pane does, and the values now live at
+  // the end of rows that can outrun it — so two widths would still compare two
+  // different slices of one overlay and report a difference the position had
+  // nothing to do with. That is the one comparison this journey cannot afford
+  // to get wrong, since "it is still the exporter's overlay" is its central
+  // negative.
   const ctx = await browser.newContext({ javaScriptEnabled: false, viewport: VIEWPORT });
   try {
     const page = await ctx.newPage();
