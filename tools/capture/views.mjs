@@ -226,8 +226,8 @@ const PENDING_STATE = "state not yet modelled by the client ViewModel";
 // A view below carrying `hydrated: true` is captured from `client/dist-hydrated`
 // (`capture.mjs`'s `runHydratedExporter`) instead of `client/dist`, and names
 // the `engine:` scenario the capture server runs at `/replay-engine/worker.js`
-// (`lib/engine-stubs.mjs`). The static tree and the 63 views over it are
-// untouched.
+// (`lib/engine-stubs.mjs`). The static tree and every view that is not
+// `hydrated: true` are untouched.
 //
 // What is substituted in these images and what is not, stated once here and
 // again in every affected expectation block: the page is the one the real
@@ -663,7 +663,7 @@ export const VIEWS = [
     // Narrower again, and the old reason is now WRONG rather than merely
     // incomplete — corrected with VD.7. It said "the client ships no JavaScript
     // at all", which stopped being true when the hydration bundle landed and is
-    // demonstrably not true of the tree the eight `hydrated: true` views below
+    // demonstrably not true of the tree the `hydrated: true` views below
     // are captured from: those pages carry the bundle, it runs, and §13's copy
     // affordances are upgraded in every one of their images.
     //

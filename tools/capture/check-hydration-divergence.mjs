@@ -8,8 +8,10 @@
 //
 // THE ARTEFACT THIS CAMPAIGN PHOTOGRAPHS IS NOT THE ARTEFACT THE VISITOR LOADS.
 //
-// `client/dist` — what `cd client && just export` writes, and what 41 of the 49
-// ready views are captured from — contains zero `.js`. `flake.nix`'s
+// `client/dist` — what `cd client && just export` writes, and what every ready
+// view that is not `hydrated: true` is captured from (`just check-coverage`
+// prints the split; this line used to say "41 of the 49 ready views") — contains
+// zero `.js`. `flake.nix`'s
 // `packages.default`, which IS the deployed site, runs the same exporter with
 // `-d:hydrationBundle=/assets/hydrate.js`, and `components/layout.debugLayout`
 // emits that `<script>` on every debugger-shell route: every `debugger*` view,
@@ -31,7 +33,7 @@
 // Both are the same error, and neither is a reviewer's fault: nothing a
 // reviewer reads has ever said which build the image in front of them is of.
 // The brief's per-view table already carries a **Captured from** row for the
-// eight `hydrated: true` views. The gap is that the OTHER arm said nothing, so
+// `hydrated: true` views. The gap is that the OTHER arm said nothing, so
 // the honest default reading — "this photograph is the product" — was wrong on
 // exactly the views the campaign spends most of its rounds on.
 //

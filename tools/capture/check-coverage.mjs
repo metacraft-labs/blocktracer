@@ -283,7 +283,8 @@ async function main() {
       if (manifest) {
         // Resolve each ready view ONCE. A view resolving to several images
         // (its sizes and themes) must not resolve its route once per image:
-        // that would be the same answer computed 308 times, and a route with
+        // that would be the same answer computed once per ready IMAGE — several
+        // hundred times — and a route with
         // any nondeterminism in it would then disagree with ITSELF and be
         // reported as drift on some images and not others.
         const resolvedNow = new Map();
