@@ -464,7 +464,7 @@ const ARMS = [
     assertion: "NO-SOURCE: the pane says why a value here cannot be traced",
   },
   {
-    id: "P/the-plus-comes-back",
+    id: "Z/the-plus-comes-back",
     why:
       "Put the reported defect back exactly as it was. `.ctname` and `.evlabel` carry" +
       " `.copyable`, so restoring `cursor:copy` on a copyable inside a clickable row" +
@@ -662,7 +662,7 @@ const ARMS = [
   // stays GREEN under them: if it did not, the three would be one arm wearing
   // three hats.
   {
-    id: "Q/the-pane-scrolls-on-every-step",
+    id: "Z1/the-pane-scrolls-on-every-step",
     why:
       "Remove the guard that leaves an already-correct scroller alone, so the reveal" +
       " centres on every step whether or not the position is on screen. This is the" +
@@ -683,7 +683,7 @@ const ARMS = [
     assertion: "SOURCE: a step to a position already on screen leaves `scrollTop` UNCHANGED",
   },
   {
-    id: "R/the-revealed-position-is-anchored-to-the-top",
+    id: "Z2/the-revealed-position-is-anchored-to-the-top",
     why:
       "Anchor the reveal to the TOP of the box instead of centring it — the" +
       " `revealLineNearTop` behaviour the product had, via `scrollIntoView()`'s" +
@@ -708,7 +708,7 @@ const ARMS = [
     assertion: "LISTING: the revealed position is NOT the first line on screen",
   },
   {
-    id: "S/the-document-is-re-windowed-under-the-position",
+    id: "Z3/the-document-is-re-windowed-under-the-position",
     why:
       "Restore the windowing `renderPanes` used to do — drop every line above" +
       " `currentLine - 6` on every stop — while leaving the reveal policy entirely" +
