@@ -943,6 +943,150 @@ proc noteFor*`,
     journey: "call-trace-names-its-frames-in-full",
     assertion: "LIVE: selecting a repeated frame makes the panel name that function",
   },
+  {
+    id: "Q/the-scrubber-is-only-an-animation",
+    why:
+      "Make every scrub seek a no-op while leaving the painting alone. This is THE" +
+      " defect journey 12 was written against and the cheapest way to build the" +
+      " control wrongly: the handle follows the pointer perfectly, the cursor" +
+      " changes, the readout counts up, and the session never moves — a decoration" +
+      " with a grab cursor. Note which assertion it is aimed at. The mid-drag" +
+      " tracking check stays GREEN with this in place, because the handle really" +
+      " does track, and that is exactly why 'the handle moved' cannot be the" +
+      " verdict.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `  if step <= 0: return
+  if h.scrubInFlight:`,
+    replace: `  if step <= 0: return
+  if true: return
+  if h.scrubInFlight:`,
+    journey: "the-timeline-can-be-dragged",
+    assertion: "every drop moved the marked source position, not only the readout",
+  },
+  {
+    id: "R/the-handle-waits-for-the-engine",
+    why:
+      "Stop painting the handle under the pointer, so it only moves when a seek is" +
+      " answered. The session still ends up exactly where it was dropped — every" +
+      " landing assertion stays green — and the control becomes unusable, because" +
+      " on a real chain capture a seek takes about 2.1 s and the handle spends the" +
+      " whole gesture two seconds behind the hand. Aimed at the REAL arm because" +
+      " that is where the lag is large enough to be a fact rather than a" +
+      " stopwatch argument, and because it is the arm that proves the mid-drag" +
+      " reading is doing work no post-release reading could do.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `  let track = ui.controls.querySelector(".dctl")
+  if track == nil: return
+  let p = DebugControlsPane(step: step, totalSteps: totalSteps, positioned: step > 0)`,
+    replace: `  let track = ui.controls.querySelector(".dctl")
+  if track == nil or true: return
+  let p = DebugControlsPane(step: step, totalSteps: totalSteps, positioned: step > 0)`,
+    journey: "the-timeline-can-be-dragged",
+    assertion: "REAL: the handle stayed under the pointer even while the engine lagged behind it",
+  },
+  {
+    id: "S/the-drop-point-loses-to-a-stale-target",
+    why:
+      "Hand the chained seek its target instead of letting it re-read the pending" +
+      " one. THIS ARM IS A REGRESSION THAT ACTUALLY SHIPPED IN THE FIRST DRAFT of" +
+      " the drag, which is why it is worth a whole arm: the continuation closed" +
+      " over the target that was pending when the previous seek settled, faster" +
+      " pointer moves then found the slot free and sent themselves, and the stale" +
+      " continuation overwrote the newer target. Measured on the demo chain, a drag" +
+      " released at step 1052 put 1052 on the wire and then 707, and the session" +
+      " finished at 707 — a position the visitor dragged THROUGH. Every other" +
+      " symptom is that of a working scrubber: the handle tracked, the mark moved," +
+      " the session settled. Only an equality against the release point sees it.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `    h.scrubInFlight = false
+    # DEFERRED, and carrying nothing. \`deferTick\` says why the send waits for
+    # the next turn; \`scrubDrain\` says why it must re-read the target rather
+    # than be handed one.
+    deferTick(proc() = h.scrubDrain()))`,
+    replace: `    h.scrubInFlight = false
+    let nxt = h.scrubPending
+    h.scrubPending = 0
+    if nxt > 0 and nxt != h.scrubSent:
+      deferTick(proc() = h.scrubSeek(nxt)))`,
+    journey: "the-timeline-can-be-dragged",
+    assertion: "the step the session reports is the step the release point names",
+  },
+  {
+    id: "T/the-affordance-ships-without-the-gesture",
+    why:
+      "Put the seekable class on the track in the RENDERER, so the scriptless build" +
+      " carries it too. That build has no bundle, so nothing there can honour it —" +
+      " which makes this the house defect in its purest form, after the plus-cursor" +
+      " on rows that were not clickable and the `cursor: pointer` that outlived the" +
+      " click handler it belonged to (with a spec asserting the class by name). It" +
+      " is a ONE-WORD edit and it changes nothing a visitor of the hydrated page" +
+      " could see, which is precisely why the guard has to read the other artefact" +
+      " rather than the DOM in front of it.",
+    file: join(CLIENT, "src", "components", "debugger.nim"),
+    find: `      tdiv(class = "dctl"):`,
+    replace: `      tdiv(class = "dctl seekable"):`,
+    journey: "the-timeline-can-be-dragged",
+    assertion: "the scriptless build promises no gesture: no role, no tab stop, no range, no cursor class",
+  },
+  {
+    id: "U/the-handle-stops-telling-the-truth",
+    why:
+      "Freeze the drawn playhead at the first tick, leaving the drag untouched." +
+      " This is the QUIETER member of the same defect family — not a control that" +
+      " refuses to take you somewhere, but one that lies about where you are — and" +
+      " it is the form the drag made newly possible, because painting the handle" +
+      " from a pointer added a second writer of a readout that used to have one." +
+      " Every drag assertion stays green: the mid-drag paint goes through" +
+      " `paintScrubber`, which is not mutated, and the landings are read from the" +
+      " session. Only the stepping readings, taken through the toolbar's entirely" +
+      " separate sender, can see it.",
+    file: join(CLIENT, "src", "components", "debugger.nim"),
+    find: `  let filled = p.markedTick`,
+    replace: `  let filled = (if p.positioned: 1 else: 0)`,
+    journey: "the-timeline-can-be-dragged",
+    assertion: "after every toolbar step the handle sits on the tick the session's own step names",
+  },
+  {
+    id: "V/only-a-drag-counts-as-a-gesture",
+    why:
+      "Stop seeking on the press, so the control answers a drag and ignores a" +
+      " click. A visitor who has just learnt the track is draggable will click it," +
+      " and this is the version of the product where that does nothing — or worse," +
+      " re-seeks to wherever the previous drag ended, because the release path" +
+      " still commits the last target. The drags all keep working, which is the" +
+      " point: the click was a deliberate decision and it needs an assertion of its" +
+      " own or it is one refactor from being dropped as redundant.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `    # THE PRESS SEEKS. See the \`scrubbing\` field block: a click on the track is
+    # a press and a release at one point, so making the press act is what makes
+    # a bare click seek there, with no second code path to keep in agreement.
+    scrubTo(stepUnderPointer(track, pointerX(ev))))`,
+    replace: `    discard track)`,
+    journey: "the-timeline-can-be-dragged",
+    assertion: "a click on the track, with no drag at all, takes the session to that point",
+  },
+  {
+    id: "W/the-keyboard-goes-dead-again",
+    why:
+      "Return from the keydown handler before it reads a key. The slider keeps" +
+      " `role=\"slider\"` and its tab stop, so it is still announced as a range" +
+      " control and still focusable — and no key moves it, which is a" +
+      " `role=\"button\"` that neither Enter nor Space activates wearing a" +
+      " different name. This route has shipped that once already. The arm exists" +
+      " because the real defect here was not a missing handler but a WORKING one" +
+      " whose key never matched: `keyName` was declared `string`, so Nim wrapped" +
+      " it in `toJSStr`, which walks its argument as character codes and returns" +
+      " something no branch matches — it compiled, ran, threw nothing, and every" +
+      " key fell through to `else`.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `    if track == nil: return
+    let total = totalNow()`,
+    replace: `    if track == nil: return
+    if true: return
+    let total = totalNow()`,
+    journey: "the-timeline-can-be-dragged",
+    assertion: "the slider answers the keyboard it puts itself in the tab order for",
+  },
 ];
 
 const log = (s = "") => console.log(s);
