@@ -28,6 +28,7 @@ import ../src/viewutil
 import ../src/debugger/layout_model
 import ../src/debugger/session_layout
 import ../src/debugger/session_view
+import ../src/debugger/keymap
 import ../src/debugger/replay_engine
 import ../src/debugger/source_document
 import ../src/debugger/source_island
@@ -4225,6 +4226,229 @@ suite "§6.0a — the five resolution branches, each one visible":
     # Present, and empty, where there is no artifact — `absent` is a value
     # §6.0's table treats as unverifiable, not as agreement.
     check "data-content-hash=\"\"" in debugHtml(onDemandTx)
+
+suite "the stepping chords — one table, and every surface reads it":
+  ## WHY THIS SUITE EXISTS, AND WHAT ITS ABSENCE COST
+  ##
+  ## It was written after the keymap shipped, because the keymap shipped with a
+  ## defect that this file was green through. `renderControls` defaults its
+  ## keymap argument to `kmNone`, so every pre-existing call renders EXACTLY as
+  ## it did before — 520 assertions passed, no source file under `tests/`
+  ## contained the word `keymap`, and the suite's greenness was independent of
+  ## whether the feature worked at all.
+  ##
+  ## A suite that is green because it is not looking is worse than no suite,
+  ## because it is counted as coverage. So the discipline this file states at
+  ## the top is applied here literally: EVERY CLAIM HAS A NEGATIVE. It is not
+  ## enough that a keymap renders chords; a DIFFERENT keymap must render
+  ## DIFFERENT chords, and `kmNone` must render none — otherwise the assertion
+  ## is satisfied by a renderer that ignores its argument, which is the exact
+  ## shape of the bug that got through.
+  ##
+  ## Nothing below writes a chord as an expected literal except where the
+  ## SPELLING RULE itself is the subject. Everywhere else the expectation is
+  ## read out of `km.bindings` — the same sequence the dispatcher matches
+  ## against — so these tests cannot drift when a binding moves, and cannot
+  ## pass by agreeing with a copy of the table.
+
+  let presets = [kmLetters, kmVsCode, kmDesktop]
+    ## The presets that bind something. `kmNone` is the negative and is used as
+    ## one throughout rather than iterated with these.
+
+  test "a chord that is DISPLAYED is a chord that DISPATCHES — the round trip":
+    ## The one invariant the whole design rests on. `chordFor` feeds every
+    ## tooltip and every dialog row; `actionFor` is what the `keydown` handler
+    ## matches against. If those two ever disagree, a visitor is shown a key
+    ## that does nothing — §10.5's "what they learn is that the shortcuts do
+    ## not work".
+    for id in presets:
+      let km = keymapOf(id)
+      check km.bindings.len > 0          # nothing here quantifies over nothing
+      for b in km.bindings:
+        let (dispatched, action) = km.actionFor(b.chord)
+        check dispatched
+        check action == b.action
+        let (shown, c) = km.chordFor(b.action)
+        check shown
+        check c == b.chord
+
+  test "no preset gives one chord two meanings, or one move two chords":
+    ## A duplicate would make `actionFor` depend on binding order — the defect
+    ## §10.5 records in the sibling docs, where `Shift+F5` is given to both
+    ## Reverse Continue and Stop in a single table.
+    for id in presets:
+      let km = keymapOf(id)
+      var chords: HashSet[string]
+      var actions: HashSet[string]
+      for b in km.bindings:
+        chords.incl describe(b.chord)
+        actions.incl $b.action
+      check chords.len == km.bindings.len
+      check actions.len == km.bindings.len
+
+  test "every preset binds every move the toolbar offers, and no other":
+    ## The dialog's claim to list "exactly the bound set" is only meaningful if
+    ## the bound set IS the toolbar's set. Checked against the projection the
+    ## page actually renders, not against the number eight.
+    let s = sessionFor(readyTx)
+    check s.controls.buttons.len > 0
+    var offered: HashSet[string]
+    for b in s.controls.buttons: offered.incl $b.action
+    for id in presets:
+      let km = keymapOf(id)
+      var bound: HashSet[string]
+      for b in km.bindings: bound.incl $b.action
+      check bound == offered
+    # THE NEGATIVE. `kmNone` binds none of them, so the equality above is a
+    # statement about the keymap and not something every value satisfies.
+    check keymapOf(kmNone).bindings.len == 0
+
+  test "the served toolbar names NO key; a hydrated one names every bound key":
+    ## `renderControls`' default is `kmNone` because the pre-hydration page has
+    ## no `keydown` handler. A tooltip naming a chord there would be a promise
+    ## the only build that cannot keep it is making.
+    let s = sessionFor(readyTx)
+    let served = dbgc.renderControls(s.controls)
+    let letters = dbgc.renderControls(s.controls, keymapOf(kmLetters))
+
+    # The served frame carries each control's plain name and no chord.
+    for b in s.controls.buttons:
+      check controlLabel(b.action) in served
+      let (_, c) = keymapOf(kmLetters).chordFor(b.action)
+      check ("(" & describe(c) & ")") notin served
+
+    # The hydrated one carries the SAME names plus the chord from the table.
+    for b in s.controls.buttons:
+      let (bound, c) = keymapOf(kmLetters).chordFor(b.action)
+      check bound
+      check (controlLabel(b.action) & " (" & describe(c) & ")") in letters
+
+    # THE NEGATIVE, and the one that would have caught a renderer ignoring its
+    # argument: the two renders are not the same bytes.
+    check served != letters
+
+  test "a DIFFERENT preset renders DIFFERENT chords in the same tooltips":
+    ## Three renders of one toolbar, one per preset. Each must name its own
+    ## table's chord for a given move, which no single hardcoded string can
+    ## satisfy.
+    let s = sessionFor(readyTx)
+    var rendered: seq[string]
+    for id in presets:
+      let km = keymapOf(id)
+      let html = dbgc.renderControls(s.controls, km)
+      for b in s.controls.buttons:
+        let (bound, c) = km.chordFor(b.action)
+        check bound
+        check (controlLabel(b.action) & " (" & describe(c) & ")") in html
+      rendered.add html
+    # Pairwise distinct: three presets, three different toolbars.
+    check rendered.len == presets.len
+    check rendered.toHashSet.len == presets.len
+
+  test "the dialog lists EXACTLY the bindings, and declares the count it drew":
+    ## `data-kb-rows` is what journey 20 counts, so it has to be the real
+    ## number and not an intention. Both are checked here, cheaply, and the
+    ## browser layer checks that they agree with each other on the live page.
+    for id in presets:
+      let km = keymapOf(id)
+      let html = renderShortcutsDialog(km, mac = false)
+      check occurrences(html, "class=\"kbrow\"") == km.bindings.len
+      check ("data-kb-rows=\"" & $km.bindings.len & "\"") in html
+      for b in km.bindings:
+        check ("data-kb-action=\"" & $b.action & "\"") in html
+        # The chord is SPELLED in the row, from the same binding.
+        check (">" & escapeHtml(describe(b.chord)) & "<") in html
+
+  test "the empty preset renders a sentence, never an empty table":
+    ## `kmNone` is a choice a visitor can make. An empty table would read as a
+    ## dialog that failed to load, which is the one thing a settings surface
+    ## must not look like.
+    let html = renderShortcutsDialog(keymapOf(kmNone), mac = false)
+    check occurrences(html, "class=\"kbrow\"") == 0
+    check "data-kb-rows" notin html
+    check "kbempty" in html
+    # It still offers every preset, so the choice is reversible from inside it.
+    for id in KeymapId:
+      check ("value=\"" & $id & "\"") in html
+
+  test "hazards are COMPUTED per platform — the same preset differs on a Mac":
+    ## `hazardOf` is a function of the chord and the platform, never a field on
+    ## a preset. The test that this is real is that one keymap renders two
+    ## different dialogs.
+    let km = keymapOf(kmDesktop)
+    let onMac = renderShortcutsDialog(km, mac = true)
+    let notMac = renderShortcutsDialog(km, mac = false)
+    check onMac != notMac
+    # The Mac's function row is a weaker hazard than a browser-reserved key and
+    # gets its own marker, so the two are counted separately.
+    check occurrences(onMac, "data-kb-hazard=\"mac-fn\"") >
+          occurrences(notMac, "data-kb-hazard=\"mac-fn\"")
+    # F11 and F12 are taken above the page on every platform, so THAT count
+    # does not move between the two renders.
+    check occurrences(onMac, "data-kb-hazard=\"reserved\"") ==
+          occurrences(notMac, "data-kb-hazard=\"reserved\"")
+    check occurrences(onMac, "data-kb-hazard=\"reserved\"") > 0
+
+  test "the dialog prints a hazard exactly where `hazardOf` finds one":
+    ## Counted against the function rather than against a number, on both
+    ## platforms and every preset — so a renderer that dropped the column, or
+    ## printed it on every row, fails.
+    for id in presets:
+      let km = keymapOf(id)
+      for mac in [false, true]:
+        var expected = 0
+        for b in km.bindings:
+          if hazardOf(b.chord, mac) != hzNone: inc expected
+        let html = renderShortcutsDialog(km, mac)
+        check occurrences(html, "data-kb-hazard=\"") == expected
+
+  test "the DEFAULT preset is hazard-free on every platform":
+    ## `Configuration.md` §4.2: the default must be a preset with no platform
+    ## hazard on any chord. A default a platform silently swallows reproduces,
+    ## as a default, the defect the feature exists to fix.
+    let km = keymapOf(DefaultKeymapId)
+    check km.bindings.len > 0
+    for b in km.bindings:
+      for mac in [false, true]:
+        check hazardOf(b.chord, mac) == hzNone
+    # And its dialog therefore prints no hazard column at all, on either.
+    for mac in [false, true]:
+      check "data-kb-hazard" notin renderShortcutsDialog(km, mac)
+    # THE NEGATIVE: the check above is not vacuous, because another preset DOES
+    # report hazards through the same code path.
+    check "data-kb-hazard" in renderShortcutsDialog(keymapOf(kmDesktop), true)
+
+  test "a stored preset round-trips, and an unknown one falls back to default":
+    ## The wire spellings go into `localStorage` under `bt.ui.keymap`
+    ## (`Configuration.md` §4.2), so a rename is a migration. An unrecognised
+    ## value must not leave a visitor with no chords — §4's forward-compatible
+    ## rule applied at the field level.
+    for id in KeymapId:
+      check parseKeymapId($id) == id
+    check parseKeymapId("nonsense-from-a-newer-build") == DefaultKeymapId
+    check parseKeymapId("") == DefaultKeymapId
+    # `none` is a real stored value and must NOT be mistaken for "unset".
+    check parseKeymapId("none") == kmNone
+    check parseKeymapId("none") != DefaultKeymapId
+
+  test "Shift is spelled once — the capital IS the shift, for letters":
+    ## The spelling rule is the subject here, so the expectations are literals
+    ## deliberately. The browser reports Shift+n as `key == "N"`, so a chord
+    ## whose key is `"N"` must not also print "Shift" — that would name two key
+    ## presses for one, and a visitor who pressed both would be right and the
+    ## tooltip wrong about why.
+    check describe(chord("N")) == "N"
+    check describe(chord("n")) == "n"
+    # Function keys are the opposite: Shift does not change `key`, so the bit
+    # is the only thing distinguishing forward from backward and IS printed.
+    check describe(chord("F10", shift = true)) == "Shift+F10"
+    check describe(chord("F10")) == "F10"
+    check describe(chord("F5", alt = true)) == "Alt+F5"
+    # The letters preset therefore names no modifier anywhere in its dialog.
+    let html = renderShortcutsDialog(keymapOf(kmLetters), mac = false)
+    check "Shift+" notin html
+    # …while the preset that has real modifier bits does.
+    check "Shift+" in renderShortcutsDialog(keymapOf(kmDesktop), mac = false)
 
 removeDir(workDir)
 removeDir(degradedDir)

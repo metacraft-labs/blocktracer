@@ -40,6 +40,35 @@
 // Neither expectation names a chord, a preset or a count as a literal. Both
 // are relations between two things the page reports — rule 4 in `run.mjs`.
 //
+// DO NOT SIMPLIFY THIS INTO A DOM CHECK. IT ALREADY CAUGHT THE THING A DOM
+// CHECK CANNOT SEE.
+// ---------------------------------------------------------------------------
+// The first run of this journey found the gear could not open the dialog at
+// all. `bindShortcuts` toggled with
+//
+//     setShortcutsOpen(not shortcutsDialog().hasAttribute("hidden"))
+//
+// and `hidden` is present when the dialog is CLOSED — so the expression asked
+// "is it already open?", answered `false`, and the click closed an
+// already-closed dialog. The shortcuts surface was unreachable.
+//
+// EVERY STRUCTURAL FACT ABOUT IT WAS TRUE THE WHOLE TIME. The dialog was in the
+// DOM, its eight rows were present, its counts agreed, its actions matched the
+// toolbar, its chords were spelled. A check that queried the markup — including
+// four of the assertions in THIS file — passed over a dialog no visitor could
+// reach. The Nim suites could not see it either: they were 520 green with the
+// bug present, and none of them names the word `keymap`.
+//
+// The only thing that could tell the difference was performing the gesture and
+// reading the element's STATE afterwards:
+//
+//     await page.click(GEAR)  →  open === true && aria-expanded === "true"
+//
+// So that assertion is the point of the file, not a formality around the
+// content ones. A future edit that replaces the click with a query of the
+// dialog's markup, or that drops it because "the dialog is obviously there",
+// restores the exact hole this journey was written to close.
+//
 // AND THE GUARD IS ASSERTED AGAINST AN ELEMENT THAT EXISTS
 // --------------------------------------------------------
 // The stepping chords are UNMODIFIED LETTERS, which is only safe while no
