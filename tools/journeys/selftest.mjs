@@ -61,8 +61,29 @@
 // red" is satisfied by a mutation that broke some other assertion — a mutation
 // that removes the source pane reddens the position check too, and would score
 // a kill it did not earn.
+//
+// EVERY VERDICT NAMES THE ARTEFACT IT WAS TAKEN ON
+// ------------------------------------------------
+// See `artefactIdentity`. A verdict printed without the identity of the thing it
+// was measured on is unfalsifiable, and this file spent a run reporting confident
+// verdicts about a bundle nobody had built.
+//
+// TWO TRAPS, RECORDED SO THE NEXT PERSON DOES NOT LOSE AN HOUR
+// -----------------------------------------------------------
+// 1. A FRESH WORKTREE BUILDS NOTHING UNTIL `direnv allow` HAS BEEN RUN. The
+//    toolchain comes from the flake devShell via `.envrc`, and an unallowed
+//    `.envrc` fails by producing an environment without `nim` in it — which
+//    surfaces much further downstream than it happens.
+//
+// 2. GREPPING THE HYDRATION BUNDLE FOR A STRING LITERAL FINDS NOTHING, and that
+//    is NOT evidence the string is absent. `nim js` emits Nim string literals as
+//    CHAR-CODE ARRAYS, so "Trace to origin" is in the bundle as
+//    `[84,114,97,99,101,32,116,111,32,111,114,105,103,105,110]` and matches no
+//    text search for itself. Encode the string before searching, or check the
+//    behaviour in a browser instead — which is what the journeys are for.
 
 import { readFile, writeFile, readdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -949,10 +970,98 @@ async function judgesHydratedArtefact(journeyId) {
   throw new Error(`arm targets journey '${journeyId}', which does not exist`);
 }
 
+const DIST = join(CLIENT, "dist");
+const BUNDLE = join(DIST, "assets", "hydrate.js");
+
+/**
+ * WHICH ARTEFACT WAS MEASURED — printed beside every verdict, and checked.
+ *
+ * ## The defect this exists for
+ *
+ * `rebuild()` used to be called ONCE at the top with no `hydration`, so the
+ * "before" reading of every arm was taken against whatever `dist/` happened to
+ * hold. It was found because an arm scored `NEVER RAN — the assertion is
+ * ALREADY RED before the mutation`, from a hand-staged mutation still sitting in
+ * a stale bundle. That is the LUCKY outcome, because it is loud.
+ *
+ * The quiet outcomes are the reason this function exists. A stale bundle that is
+ * CORRECT gives a green before-reading, a mutation that never reaches the
+ * artefact, a green after-reading — and a false `SURVIVED`, which reads as "this
+ * assertion does not detect this defect" and sends someone to strengthen a test
+ * that was already fine. A stale bundle that is already MUTATED gives the mirror
+ * image, a false `KILLED`: an assertion certified as biting when it does not.
+ * Neither prints anything unusual.
+ *
+ * That is an instrument reporting a VERDICT rather than a VALUE, inside the one
+ * tool whose job is to certify that every other instrument is honest — so it can
+ * launder exactly the class of error it was built to catch. The fix is not to
+ * remember to rebuild. It is that a verdict with no artefact identity beside it
+ * is unfalsifiable, so every verdict below carries one and the run refuses to
+ * score an arm whose artefact did not move.
+ *
+ * ## What is hashed, and what is not
+ *
+ * The bundle, separately and by name, because that is the artefact the stale
+ * reading was of. And everything the build WRITES that a journey can read: the
+ * exported pages and their JavaScript and CSS.
+ *
+ * `dist/replay-engine/**` is excluded. It is 18 MB of `.js` and `.wasm` that
+ * `lib/engine.mjs` STAGES into the tree from a cache — it is fetched, never
+ * built, so no mutation can change it and its presence or absence depends only
+ * on whether a journey has run yet. Including it made two consecutive exports of
+ * identical source hash differently, which would have made the restore check
+ * below fail on every arm.
+ *
+ * Verified byte-deterministic across three consecutive exports of an unchanged
+ * tree: the bundle and the rendered digest are both stable.
+ */
+async function filesUnder(dir, out = []) {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const e of entries.sort((a, b) => (a.name < b.name ? -1 : 1))) {
+    if (e.name === "replay-engine") continue;
+    const full = join(dir, e.name);
+    if (e.isDirectory()) await filesUnder(full, out);
+    else if (/\.(html|js|css)$/.test(e.name)) out.push(full);
+  }
+  return out;
+}
+
+const shortHash = (buf) => createHash("sha256").update(buf).digest("hex").slice(0, 16);
+
+async function artefactIdentity() {
+  const bundle = await readFile(BUNDLE).catch(() => null);
+  const files = await filesUnder(DIST);
+  const h = createHash("sha256");
+  for (const f of files.sort()) {
+    h.update(f.slice(DIST.length));
+    h.update(await readFile(f).catch(() => Buffer.alloc(0)));
+  }
+  return {
+    rendered: h.digest("hex").slice(0, 16),
+    bundle: bundle ? shortHash(bundle) : "ABSENT",
+    bundleBytes: bundle ? bundle.length : 0,
+    files: files.length,
+  };
+}
+
+const sameArtefact = (a, b) => a.rendered === b.rendered && a.bundle === b.bundle;
+const describe = (id) =>
+  `rendered ${id.rendered} · bundle ${id.bundle} (${id.bundleBytes} B over ${id.files} files)`;
+
 async function rebuild({ hydration = false } = {}) {
   // The exporter is always rebuilt. The hydration BUNDLE is rebuilt only for
   // arms whose journey judges it, because `nim js` over `hydrate.nim` costs
   // about a minute and most arms cannot affect what it measures.
+  //
+  // THE BASELINE BUILD PASSES `hydration: true` REGARDLESS — see
+  // `artefactIdentity`. "Most arms cannot affect the bundle" is a reason not to
+  // rebuild it PER ARM; it was never a reason to start the run against a bundle
+  // nobody built, and that is what it had been read as.
   if (hydration) {
     try {
       await run("bash", [join(CLIENT, "hydrate", "build.sh"), "--require"], {
@@ -1085,13 +1194,18 @@ async function main() {
     return;
   }
 
-  const base = await rebuild();
+  // `hydration: true`, ALWAYS. Not an optimisation to revisit: without it the
+  // whole run is judged against whatever bundle was left in `dist/` by whoever
+  // built last. See `artefactIdentity` for the two silent verdicts that buys.
+  const base = await rebuild({ hydration: true });
   if (!base.built) {
     log("the unmutated tree does not build; nothing below would mean anything");
     log(base.log);
     process.exitCode = 2;
     return;
   }
+  log(`baseline artefact: ${describe(await artefactIdentity())}`);
+  log("");
 
   let killed = 0;
   let survived = 0;
@@ -1164,14 +1278,31 @@ async function main() {
       log("");
       continue;
     }
-    log(`    before:  GREEN`);
+    const beforeId = await artefactIdentity();
+    log(`    before:  GREEN   on ${describe(beforeId)}`);
 
     // 2. mutate
     await writeFile(arm.file, original.split(arm.find).join(arm.replace));
     let verdict;
+    let mutatedId = beforeId;
     try {
       const built = await rebuild({ hydration: needsBundle });
-      if (!built.built) {
+      mutatedId = await artefactIdentity();
+      if (built.built) log(`    mutated: ${describe(mutatedId)}`);
+      if (built.built && sameArtefact(mutatedId, beforeId)) {
+        // THE MUTATION DID NOT REACH THE ARTEFACT, so whatever the journey says
+        // next is a statement about the unmutated build. Scored NEVER RAN and
+        // not SURVIVED, because "survived" would be read as a fact about the
+        // assertion — Verification-Harness-Traps.md §1a: killed, survived and
+        // never-ran, and the third is the one an rc-based harness folds into
+        // the first.
+        log(`    NEVER RAN — the artefact is byte-identical to the unmutated one, so the`);
+        log(`               mutation did not reach what the journey measures.`);
+        log(`               Either the file is outside this build's graph, or the build`);
+        log(`               that would carry it was not run (a bundle arm whose journey`);
+        log(`               reports needsEngine === false rebuilds no bundle).`);
+        verdict = "never";
+      } else if (!built.built) {
         log(`    NEVER RAN — the mutated tree did not compile, so nothing was measured`);
         log(`               ${built.log.split("\n").slice(-3).join(" / ")}`);
         verdict = "never";
@@ -1196,13 +1327,24 @@ async function main() {
 
     // 4. and prove the restore took
     const restored = await rebuild({ hydration: needsBundle });
+    const restoredId = await artefactIdentity();
+    if (!sameArtefact(restoredId, beforeId)) {
+      // The SOURCE is restored byte-for-byte above; this says the ARTEFACT came
+      // back too. They are not the same claim — a build that silently reused a
+      // stale object file, or a `nim js` that exited 0 without writing, leaves
+      // the source correct and the tree measuring something else, and every arm
+      // after this one would inherit it.
+      log(`    NEVER RAN — the artefact did not come back: ${describe(restoredId)}`);
+      log(`               was ${describe(beforeId)}`);
+      verdict = "never";
+    }
     const back = restored.built ? await verdictFor(arm.journey, arm.assertion) : { found: false };
     if (!back.found || !back.ok) {
       log(`    NEVER RAN — the assertion did not come back green after restoring, so the`);
       log(`               red above cannot be attributed to the mutation`);
       verdict = "never";
     } else {
-      log(`    after:   GREEN again`);
+      log(`    after:   GREEN again on ${describe(restoredId)}`);
     }
 
     if (verdict === "killed") killed += 1;
