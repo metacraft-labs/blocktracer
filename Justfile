@@ -177,6 +177,35 @@ corpus-coverage:
 corpus-coverage-doc:
     node tools/noir-coverage.mjs --markdown
 
+# ── The engine seam (the Noir DAP port) ────────────────────────────────────
+# CodeTracer's Noir DAP tests — `noir_flow_dap_test.rs`, `origin_noir_dap_test.rs`
+# and the `noir-space-ship` GUI journey — over the engine BlockTracer actually
+# ships and the container it actually vendors.
+#
+# This is the ONE lane in the repository that drives a real replay session: the
+# Embed SDK's own `WorkerBackendService` against the published wasm32 engine in
+# a Node worker, over `fixtures/trace/noir_space_ship/zk_shields.ct`. Every
+# check names an artefact — a stepped position, a frame count, a variable's
+# value, a loop iteration — and never a `success: true`.
+#
+# It needs the Embed SDK ($CODETRACER_SRC or ../codetracer) and an engine
+# ($REPLAY_ENGINE_DIR, else client/dist/replay-engine, else it fetches the
+# published one). It FAILS rather than skips when either is missing.
+#
+# **rc 124 means a request the engine never answered.** Not a slow test, not a
+# broken one: a dropped request, which is what a pane spinning forever looks
+# like from this side.
+noir-engine-dap:
+    ci/test/noir-engine-dap.sh
+
+# The self-test: every rule above driven against a deliberately broken input,
+# each arm asserting that the check written FOR it is the one that reddens —
+# plus the control that matters for a suite whose deliverable is failures, that
+# each red check goes green on the engine's own reported values and so is not
+# stuck red.
+noir-engine-dap-test:
+    ci/test/noir-engine-dap-test.sh
+
 # Generate a demo static tree into ./demo-site.
 demo-gen out="demo-site" seed="blocktracer-demo-0":
     nim c -r --hints:off src/blocktracer_demo_gen.nim --out:{{out}} --seed:{{seed}}
