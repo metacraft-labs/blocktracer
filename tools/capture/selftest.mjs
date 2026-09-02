@@ -390,7 +390,10 @@ async function main() {
       "theme axis produces an independent image per theme",
       pairs.length > 0 && pairs.every(([, v]) => v.light && v.dark),
       `${pairs.length} light/dark pair(s); ${differing.length} differ in pixels, ` +
-        `${pairs.length - differing.length} identical (the client's token layer is dark-only until VD.2)`,
+        `${pairs.length - differing.length} identical — CAUSE NOT ESTABLISHED. This used to ` +
+        `read "the client's token layer is dark-only until VD.2", which is not true of ` +
+        `client/src/design_system/tokens.nim: :root carries the LIGHT tokens and both ` +
+        `[data-theme] overrides are emitted. See capture.mjs's themeParity note.`,
     );
 
     // ── Named view list shape ─────────────────────────────────────────────
