@@ -732,12 +732,24 @@ const ARMS = [
       " half shipped. The pane moves under the reader and no reading of the scroll" +
       " offset can see it; only the position's distance from the top of the box can." +
       " The windowing is written out inline rather than restored as a call, because" +
-      " an arm is one edit in one file and `source_document` is no longer imported —" +
-      " which is itself part of the fix.",
+      " an arm is one edit in one file and `openAtCurrent` no longer exists — the" +
+      " sibling fix removed the constant, the proc and both call sites, so there is" +
+      " nothing left to call and the mutation has to spell the window out." +
+      " IT HANGS OFF `var view = view`, AND IT DID NOT USED TO. Anchored to" +
+      " `noteRevealAnchor(ui.editor)` — the line above — it inserted a SECOND" +
+      " `var view = view` over the one already there, and the mutated tree stopped" +
+      " compiling: `hydrate.nim(594, 7) Error: redefinition of 'view'`. This arm was" +
+      " therefore NEVER RAN on `dev`, not killed, for as long as both changes have" +
+      " been in the tree together. It measured nothing, and the journey assertion it" +
+      " is the sole guard for — the one that catches the half `scrollTop` cannot" +
+      " see — had no mutation proving it bites." +
+      " That is the third verdict earning its place. An rc-based harness scores a" +
+      " build failure as a kill, because a red journey and a broken build both exit" +
+      " non-zero; this one reports DID-NOT-BUILD and is why the gap was visible at" +
+      " all rather than sitting under a green summary.",
     file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `  noteRevealAnchor(ui.editor)`,
-    replace: `  noteRevealAnchor(ui.editor)
-  var view = view
+    find: `  var view = view`,
+    replace: `  var view = view
   block:
     let ai = view.editor.activeIndex
     if ai >= 0 and ai < view.editor.documents.len:
