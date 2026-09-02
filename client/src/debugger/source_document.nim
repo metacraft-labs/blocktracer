@@ -185,20 +185,28 @@ proc focus*(pane: var EditorPane; path: string; line: int) =
 ## strictly better than dropping lines — the reader lands on the position AND
 ## can scroll up to the rest of the program.
 ##
-## WHAT THE WINDOW WAS SAVING, measured rather than assumed. Nothing:
+## WHAT THE WINDOW WAS SAVING, measured rather than assumed — and it is not
+## nothing, so here is the number:
 ##
-##   * the whole file is ALREADY in the served bytes. `pages/debug.nim` encodes
+##   * NOT ONE BYTE OF SOURCE TEXT. `pages/debug.nim` encodes
 ##     `#bt-session-source` from the COMPLETE documents, deliberately and before
 ##     the window was taken, so hydration can step outside it. On the demo
 ##     session that island is 5.6 KB and carries every one of `shield.nr`'s 67
-##     lines. The window removed rows from the paint and not one byte from the
-##     download.
-##   * the corpus it would have to protect against does not exist. All 24 Noir
-##     files in `fixtures/` total 49.7 KB; the largest single file is
-##     `tour/mutation/src/main.nr` at 132 lines / 5.4 KB. Against a ~140 KB
-##     container, a 1.3 MB hydration bundle and an 18 MB replay engine, a whole
-##     source file is not a quantity this page can notice.
-##   * the widest listing in the eight published chain captures is 338 rows.
+##     lines. Every line the window hid was already downloaded.
+##   * WHAT IT SAVED WAS ROW MARKUP, and the whole `just export` tree was
+##     measured either side of this commit: the 27 debug pages go 7,000,823 ->
+##     7,396,065 bytes, +395,242 in total and +5.6%. The demo session's page is
+##     290,565 -> 316,386 (+25,821, +8.9%, 108 -> 133 rows); the widest chain
+##     listing is 280,105 -> 308,009 (+27,904, +10.0%, 216 -> 338 rows).
+##   * AND THAT IS THE WRONG PRICE TO PAY. 26 KB is 2% of the 1.33 MB hydration
+##     bundle the same page fetches, and 0.1% of the 18 MB replay engine behind
+##     it. What it bought was hiding 70 of an 83-line program, including all
+##     four functions the visible `main` calls.
+##   * the corpus a size bound would have to protect against does not exist
+##     either. All 24 Noir files in `fixtures/` total 49.7 KB; the largest
+##     single file is `tour/mutation/src/main.nr` at 132 lines / 5.4 KB, against
+##     a ~140 KB container per transaction. The widest listing in the eight
+##     published chain captures is 338 rows.
 ##
 ## A LARGER LEAD-IN WOULD HAVE BEEN THE SAME DEFECT WITH A HIGHER THRESHOLD, so
 ## the bound is removed rather than widened: any number picked here is a number

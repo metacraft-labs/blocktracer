@@ -279,6 +279,31 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch) =
   ## it always rested on: one decision, made in one place, for both builds. The
   ## place is now "no reduction", and `scrollToCurrentLine` below is what puts the
   ## reader at the position instead.
+  ##
+  ## ## ONE CAUSE, TWO REPORTS — and the second one is why BOTH calls had to go
+  ##
+  ## This call was independently found from the other end, by a reader who
+  ## reported that "stepping pins the current line to the top of the pane". It is
+  ## the same line of code: re-windowing to `currentLine - 6` on every stop put
+  ## the position at row 7 BY CONSTRUCTION, so the pane could not have placed it
+  ## anywhere else and no scroll policy could have moved it. Truncation and
+  ## top-pinning were one mechanism wearing two symptoms.
+  ##
+  ## That investigation also established the measurement hazard, and it is
+  ## recorded here because it is the thing a future regression will hide behind:
+  ## `scrollTop` DOES NOT DISCRIMINATE. Under re-windowing the pane never
+  ## scrolls — the CONTENT moves — so `scrollTop` reads 0 before and after, and a
+  ## journey asserting on it stayed green across 23 consecutive steps with the
+  ## position frozen at 189px. The assertion that separates a windowed pane from
+  ## a whole one is the PAINTED ROW COUNT against the file's own published
+  ## length, which is what `12-a-source-file-is-shown-whole` asserts and what its
+  ## Q1 arm reddens.
+  ##
+  ## Fixing only this call would have left the SERVED frame windowed —
+  ## `pages/debug.nim` made the identical call — which is 29 "Showing from
+  ## line/step N" notices across the exported tree, on the exact artefact the
+  ## design-review campaign photographs. That is why the constant and the proc
+  ## are gone rather than one of their two callers.
   var view = view
 
   # THE SESSION'S POSITION, WRITTEN WHERE THE SESSION PUBLISHES IT.
