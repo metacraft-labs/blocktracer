@@ -366,8 +366,19 @@ const ARMS = [
       " source-less arm because that is where the mistake is unambiguous — there," +
       " no control can possibly answer.",
     file: join(CLIENT, "hydrate", "live_origin.nim"),
-    find: `  if summary.terminatorKind == tkwUnknownSource: return ""`,
-    replace: `  if false: return ""`,
+    // ALL THREE GUARDS, and a non-empty fallback. Dropping only the
+    // `unknownSource` test does NOT reproduce the defect — the confidence
+    // guard still suppresses the control and `terminatorExpr` is empty on an
+    // unattributed summary, so the surface is unchanged and the arm SURVIVES.
+    // That happened, and it is what this harness is for: a mutation has to
+    // change the behaviour, not merely the source.
+    find: `  if summary.isPlaceholder: return ""
+  if summary.terminatorKind == tkwUnknownSource: return ""
+  if summary.confidence <= 0.0: return ""
+  summary.terminatorExpr`,
+    replace: `  if summary.isPlaceholder: return ""
+  if summary.terminatorExpr.len > 0: return summary.terminatorExpr
+  "unknown"`,
     journey: "a-value-can-be-traced-to-its-origin",
     assertion: "NO-SOURCE: and it offers no origin control, because none could answer",
   },
@@ -493,7 +504,26 @@ async function main() {
   let survived = 0;
   let neverRan = 0;
 
-  for (const arm of ARMS) {
+  // `--arm <substring>` runs a subset, matching `run.mjs --only`. Each arm
+  // rebuilds the tree and re-runs its journey, so the full set is a long job
+  // and landing one arm should not require re-proving nineteen others.
+  //
+  // The FULL set is what the suite claims, so a filtered run says so in its
+  // own summary rather than reporting a pass over the arms it skipped.
+  const armFilterIdx = process.argv.indexOf("--arm");
+  const armFilter = armFilterIdx >= 0 ? process.argv[armFilterIdx + 1] : null;
+  const arms = armFilter ? ARMS.filter((a) => a.id.includes(armFilter)) : ARMS;
+  if (armFilter) {
+    log(`--arm ${armFilter}: running ${arms.length} of ${ARMS.length} arm(s)`);
+    log("");
+    if (arms.length === 0) {
+      log(`RESULT: FAILED — no arm's id contains ${armFilter}`);
+      process.exitCode = 2;
+      return;
+    }
+  }
+
+  for (const arm of arms) {
     const needsBundle = await judgesHydratedArtefact(arm.journey);
     log(`--- ${arm.id}`);
     log(`    ${arm.why}`);
@@ -588,8 +618,9 @@ async function main() {
     log("");
   }
 
-  log(`${ARMS.length} arm(s): ${killed} killed, ${survived} survived, ${neverRan} never ran`);
-  if (killed !== ARMS.length) {
+  log(`${arms.length} arm(s): ${killed} killed, ${survived} survived, ${neverRan} never ran`);
+  if (armFilter) log(`(filtered run — ${ARMS.length - arms.length} arm(s) not exercised)`);
+  if (killed !== arms.length) {
     log("RESULT: FAILED — every arm must be killed by the assertion written for it");
     process.exitCode = 1;
     return;
