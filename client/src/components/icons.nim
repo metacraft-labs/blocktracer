@@ -318,6 +318,41 @@ proc stepOutMark*(cls = "svgicon dcmark"): string = badgedMark(cls, StepOutPath)
 proc reverseStepOutMark*(cls = "svgicon dcmark"): string =
   badgedMark(cls, ReverseStepOutPath)
 
+const SettingsPath = "M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 " &
+  "1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169" &
+  ".311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34" &
+  ".1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 " &
+  "1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 " &
+  "2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 " &
+  "1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 " &
+  "1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-" &
+  "1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-" &
+  ".1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"
+  ## Bootstrap Icons `gear-fill` (MIT), which is already authored on the 16×16
+  ## box these marks use, so it needs none of `githubMark`'s viewBox folding.
+  ##
+  ## A DRAWN MARK AND NOT A DINGBAT, for the reason this file's header records
+  ## at length: the toolbar's `⏭`/`⏮` were `Emoji_Presentation=Yes` codepoints
+  ## and rendered as COLOUR EMOJI beside six monochrome neighbours on macOS,
+  ## iOS and Android. `⚙` (U+2699) has exactly that property and would
+  ## reproduce it in the identity bar, next to Share and Download, which are
+  ## already drawn paths.
+  ##
+  ## The inner circle is a second subpath wound the other way, so the gear's
+  ## hole is a hole under the default fill rule and needs no `fill-rule`
+  ## attribute.
+
+proc settingsMark*(cls = "svgicon"): string =
+  ## The gear, for the shortcuts dialog's opener in `.dbgacts`.
+  ##
+  ## `aria-hidden`, like every other mark here: the button that carries it has
+  ## an `aria-label` already, and a mark that announced itself would be a
+  ## control named twice.
+  ui:
+    svg(class = cls, viewBox = "0 0 16 16", fill = "currentColor",
+        `aria-hidden` = "true", focusable = "false"):
+      path(d = SettingsPath)
+
 proc codeTracerMark*(cls = "svgicon"): string =
   ## CodeTracer's mark, at the size the caller's class gives it.
   ui:

@@ -51,12 +51,14 @@ import codetracer_embed
 
 import ../src/debugger/replay_engine
 import ../src/debugger/session_view
+import ../src/debugger/keymap
 import ../src/debugger/scrub_queue
 import ../src/debugger/source_island
 import ../src/components/debugger as panes
 
 import ./engine_transport
 import ./live_breakpoints
+import ./live_preferences
 import ./live_origin
 import ./live_source
 import ./session_project
@@ -164,6 +166,68 @@ proc keyName(ev: Event): cstring {.importjs: "(function(e){ return e.key || ''; 
   ## runs, it throws nothing, and every key falls through to `else`. The
   ## surrounding code already knew this — `attr` returns `cstring` and converts
   ## with `$` — and this proc simply did not follow it.
+
+# ── the modifier bits, for chord matching ──────────────────────────────────
+#
+# Four separate one-expression procs rather than one that returns a record,
+# because `importjs` hands back a JS value and a JS object would arrive as
+# something Nim has no type for. Each is wrapped in a function for the arity
+# reason stated above `isPrimaryDrag`.
+#
+# `bool` is safe here where `string` was not: a JS boolean and a Nim `bool` are
+# the same value on this backend. It is the STRING case that needs `cstring`,
+# which is the whole of `keyName`'s note.
+
+proc shiftHeld(ev: Event): bool {.importjs: "(function(e){ return !!e.shiftKey; })(#)".}
+proc ctrlHeld(ev: Event): bool {.importjs: "(function(e){ return !!e.ctrlKey; })(#)".}
+proc altHeld(ev: Event): bool {.importjs: "(function(e){ return !!e.altKey; })(#)".}
+proc metaHeld(ev: Event): bool {.importjs: "(function(e){ return !!e.metaKey; })(#)".}
+
+proc isRepeat(ev: Event): bool {.importjs: "(function(e){ return !!e.repeat; })(#)".}
+  ## Whether this is the OS's auto-repeat rather than a fresh press.
+  ##
+  ## Held-down keys are refused at the dispatch site. A held `n` would queue
+  ## one `next` per repeat interval — tens of engine round trips the visitor
+  ## did not ask for, arriving after they let go, with the session ending up
+  ## somewhere they cannot account for. The pointer path cannot produce this
+  ## and so has never needed the guard; the keyboard path can.
+
+proc isTypingTarget(ev: Event): bool {.importjs: """
+(function(e){
+  // Is the visitor typing into something?
+  //
+  // The stepping chords are UNMODIFIED LETTERS, which is only safe while no
+  // focused element wants letters.
+  //
+  // WHAT IS ACTUALLY ON THIS ROUTE, measured rather than assumed. This comment
+  // used to say `components/nav.nim` puts a site-wide search box "on every page
+  // including this one". IT DOES NOT: the debug route renders its own chrome
+  // and no site nav, and the built page contains ZERO input elements — checked
+  // against `client/dist/.../debug/index.html`, which has none, while
+  // `dist/index.html` has two. The claim was wrong and would have sent the next
+  // person looking for a box that is not there.
+  //
+  // The guard is kept, and on narrower grounds that are true:
+  //
+  //   * the listener is on `document`, so it sees every keystroke on the page
+  //     regardless of what rendered the focused element;
+  //   * the shortcuts dialog itself renders `input type="radio"` — so this
+  //     route DOES have focusable inputs, and a letter pressed while the
+  //     preset picker has focus must not step the session behind the dialog.
+  //     That is the case journey 20 asserts, because it is the one that exists;
+  //   * a product that grows a filter box later must not thereby acquire a
+  //     debugger that steps while you type in it.
+  //
+  // So the guard is written against the DOM's own answer rather than against a
+  // list of this page's inputs, and `isContentEditable` is included because a
+  // contenteditable div reports `tagName` "DIV" and would otherwise pass.
+  var t = e.target;
+  if (!t) return false;
+  if (t.isContentEditable) return true;
+  var n = t.tagName;
+  return n === "INPUT" || n === "TEXTAREA" || n === "SELECT";
+})(#)
+""".}
 
 proc capturePointer(e: Element; id: int) {.importjs: """
 (function(el, id){ try { el.setPointerCapture(id); } catch (_) {} })(#, #)
@@ -297,14 +361,22 @@ proc setRail(ui: Ui; view: DebugSessionView) =
   else:
     rail.replaceWith(html.cstring)
 
-proc setControls(ui: Ui; view: DebugSessionView) =
+proc setControls(ui: Ui; view: DebugSessionView; km: Keymap) =
   ## The toolbar itself, replaced from a view that HAS buttons.
   ##
   ## Only ever called with a projection off the live ViewModels, which is the
   ## only kind of view that can populate all eight.
+  ##
+  ## `km` IS REQUIRED AND HAS NO DEFAULT HERE, deliberately, although
+  ## `renderControls` gives it one. The renderer's default is `kmNone` because
+  ## its other callers are the script-less page; this proc has exactly one
+  ## caller family — hydration — and hydration always knows the answer. A
+  ## default here would let a future call site silently re-render the toolbar
+  ## with the chords stripped out of every tooltip, which presents as
+  ## shortcuts that stop being documented after the first step.
   let dc = ui.controls.querySelector(".dc")
   if dc == nil: return
-  dc.replaceWith(panes.renderControls(view.controls).cstring)
+  dc.replaceWith(panes.renderControls(view.controls, km).cstring)
   setRail(ui, view)
 
 proc markRailNavigable(ui: Ui) =
@@ -734,7 +806,8 @@ proc writePane(target: Element; html: string; hasContent: bool;
   pane.written = html
   target.innerHTML = html.cstring
 
-proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch) =
+proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch;
+                 km: Keymap) =
   ## The four replay panes and the controls, from the renderers the static
   ## export used.
   ##
@@ -865,7 +938,7 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch) =
             view.state.values.len > 0 or view.state.note.len > 0, latch.state)
   writePane(ui.eventLog, panes.renderEventLog(view.eventLog),
             view.eventLog.rows.len > 0, latch.eventLog)
-  setControls(ui, view)
+  setControls(ui, view, km)
   # The selection panel, from the SAME `view` the panes were just drawn from.
   #
   # In this proc and not in the stepper, for the reason `data-step` is written
@@ -1094,6 +1167,29 @@ type
       ## put a live-looking toolbar and a live projection back over the
       ## sentence that says the engine is gone, which is §7.0's guarantee
       ## broken by the code that was added to keep it.
+    prefs: PreferenceStore
+      ## Where this visitor's choices are kept. The anonymous tier — the
+      ## browser's own `localStorage` — and the ONLY thing on this page that
+      ## touches it.
+      ##
+      ## Held as the store rather than as its contents so that the account
+      ## tier is a different constructor here and no change anywhere else:
+      ## configuration lives in the account when signed in and in local
+      ## storage when anonymous, and the code below cannot tell which it has.
+    keymap: Keymap
+      ## The chords in force. ONE value, and the reason it is one:
+      ##
+      ##   * `bindShortcuts` matches key presses against it,
+      ##   * `setControls` passes it to the renderer, which composes each
+      ##     chord into the tooltip it labels the button with,
+      ##   * `renderShortcutsDialog` lists it.
+      ##
+      ## Three readers, one table. A chord a visitor can SEE is therefore a
+      ## chord the dispatcher will match, not because anything checks that but
+      ## because there is no second place for either to be written down.
+      ## `Debugger-Integration.md` §10.5 is the requirement ("the text is
+      ## derived from the binding in force, not written beside the control as
+      ## a label") and this field is where "in force" lives.
     latch: PaneLatch         ## which panes the live session has ever filled
     landing: LinkLanding     ## where §6.0a said this link puts the session
     breakpoints: BreakpointSet
@@ -1244,7 +1340,7 @@ proc paint(h: Hydration) =
     for li in 0 ..< view.editor.documents[di].lines.len:
       view.editor.documents[di].lines[li].breakpoint =
         h.breakpoints.contains(path, view.editor.documents[di].lines[li].number)
-  renderPanes(h.ui, view, h.latch)
+  renderPanes(h.ui, view, h.latch, h.keymap)
   # A DRAG OWNS THE HANDLE UNTIL IT IS RELEASED.
   #
   # `renderPanes` has just drawn the handle where the ENGINE is, which during a
@@ -1785,6 +1881,206 @@ proc toggleBreakpoint(h: Hydration; path: string; line: int) =
   h.render()
   h.sendBreakpoints(path)
 
+proc onMac(): bool {.importjs: """
+(function(){
+  // Whether the function row is a media row by default.
+  //
+  // `navigator.platform` is deprecated and `userAgentData` is Chromium-only,
+  // so both are consulted and either answer is accepted. Getting this wrong is
+  // cheap in one direction and not the other: a false positive prints a
+  // hazard sentence about a Mac to somebody who is not on one, and a false
+  // negative hides it from somebody who is. So the test is deliberately
+  // GENEROUS — it is used only to decide whether to warn.
+  try {
+    var d = navigator.userAgentData;
+    if (d && d.platform) return /mac/i.test(d.platform);
+  } catch (_) {}
+  return /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent || "");
+})()
+""".}
+
+proc chordOf(ev: Event): Chord =
+  ## The key press, as the table spells one.
+  ##
+  ## `$keyName(ev)` and not `keyName(ev)` — see `keyName`'s note. The `$` is
+  ## the whole difference between a working keyboard and a silently dead one
+  ## on this backend, and it is written here rather than inside `keyName`
+  ## because the scrubber's handler converts at its own call site too.
+  ##
+  ## SHIFT IS DROPPED FOR SINGLE CHARACTERS, which is the other half of the
+  ## rule `Chord` documents. The browser reports Shift+n as `key == "N"`, so
+  ## the shift bit is already IN the key and recording it again would make the
+  ## event match nothing — `Chord(key: "N", shift: true)` is not in any table.
+  ## Function keys carry a `key` that Shift does not change, so there the bit
+  ## is the only thing distinguishing forward from backward and is kept.
+  let k = $keyName(ev)
+  let singleChar = k.len == 1
+  Chord(key: k,
+        shift: (if singleChar: false else: shiftHeld(ev)),
+        ctrl: ctrlHeld(ev), alt: altHeld(ev), meta: metaHeld(ev))
+
+proc canAct(h: Hydration; action: DebugAction): bool =
+  ## Is this move offered right now?
+  ##
+  ## READ OFF THE RENDERED BUTTON, not off the ViewModel, and deliberately.
+  ## The pointer path already decides this by asking the DOM — the click
+  ## handler's `if btn.classList.contains("off"): return` — and a keyboard path
+  ## that consulted `canDo(vm, a)` instead would be a SECOND opinion about
+  ## whether a control is live. Two opinions is how a key comes to fire a move
+  ## the toolbar is showing as inert, which reads as the toolbar lying.
+  ##
+  ## So both gestures ask the same question of the same element, and a control
+  ## that is grey to the eye is dead to the key by the same fact.
+  let btn = h.ui.controls.querySelector(
+    (".dcbtn[data-action=\"" & $action & "\"]").cstring)
+  btn != nil and not btn.classList.contains("off")
+
+proc shortcutsDialog(h: Hydration): Element =
+  h.ui.root.querySelector("#dbg-shortcuts")
+
+proc paintShortcuts(h: Hydration) =
+  ## Redraw the dialog's contents from the keymap in force.
+  ##
+  ## Called when the preset changes and NOT on every step. The dialog is
+  ## outside `.dc`, which `setControls` replaces on every stop — so an open
+  ## dialog survives stepping, and a visitor can press a key and watch the
+  ## session move without the thing that told them the key closing itself.
+  let dlg = h.shortcutsDialog()
+  if dlg == nil: return
+  let open = not dlg.hasAttribute("hidden")
+  dlg.outerHTML = panes.renderShortcutsDialog(h.keymap, onMac()).cstring
+  if open:
+    let again = h.shortcutsDialog()
+    if again != nil: again.removeAttribute("hidden")
+
+proc applyKeymap(h: Hydration; id: KeymapId) =
+  ## Adopt a preset: in the table, on the page, and in storage.
+  ##
+  ## THE ORDER IS THE POINT. The keymap is set first, so that everything
+  ## redrawn afterwards is redrawn from it — the tooltips through
+  ## `renderControls`, the rows through `renderShortcutsDialog`. A save that
+  ## failed would leave the visitor with the preset they asked for for the rest
+  ## of the visit, which is the right failure: the store is best-effort by
+  ## construction (`live_preferences`) and the session is not.
+  h.keymap = keymapOf(id)
+  var p = h.prefs.load()
+  p.keymap = id
+  h.prefs.save(p)
+  # The toolbar, so the tooltips name the new keys immediately rather than at
+  # the next step. `renderControls` reads the keymap it is handed, so this is
+  # the same re-render a step performs and not a special path.
+  let dc = h.ui.controls.querySelector(".dc")
+  if dc != nil:
+    dc.replaceWith(panes.renderControls(
+      projectReplayPanes(h.session, h.base, h.ui.island).controls,
+      h.keymap).cstring)
+  h.paintShortcuts()
+
+proc setShortcutsOpen(h: Hydration; open: bool) =
+  let dlg = h.shortcutsDialog()
+  if dlg == nil: return
+  if open: dlg.removeAttribute("hidden") else: dlg.setAttribute("hidden", "hidden")
+  let opener = h.ui.root.querySelector("#dbg-shortcuts-open")
+  if opener != nil:
+    opener.setAttribute("aria-expanded",
+                        (if open: cstring"true" else: cstring"false"))
+    # Focus returns to the control that opened the dialog when it closes.
+    # Without this a keyboard visitor who closes the dialog is returned to the
+    # top of the document, which on this page means scrolling back past four
+    # panes to reach the toolbar they were using.
+    if not open: opener.focus()
+
+proc bindShortcuts(h: Hydration) =
+  ## The chords, the gear, and the dialog that says what is bound.
+  ##
+  ## ## THE GEAR IS INSERTED HERE, which is what keeps the promise
+  ##
+  ## `pages/debug.nim` renders `.dbgacts` with Share and Download. This adds a
+  ## third control to that group, from the bundle, at the moment the bundle
+  ## also binds its behaviour. The served page therefore has no gear — because
+  ## it has no dialog, no `localStorage` write and no chords, and a settings
+  ## control on it would be a control that cannot succeed.
+  ##
+  ## ## AND THE KEY LISTENER IS ON `document`, which is new ground here
+  ##
+  ## Every other listener in this file is delegated on a container, because
+  ## `renderPanes` replaces pane bodies. A stepping chord is not a gesture ON
+  ## anything — a visitor reading the call trace and pressing `n` is asking the
+  ## session to step, not asking the call trace for something — so it is bound
+  ## once on `document` and survives every re-render for free.
+  ##
+  ## That is only safe because of two guards, and both are refusals rather
+  ## than filters:
+  ##
+  ##   * `isTypingTarget` — the site-wide search box is on this page.
+  ##   * a modifier the chord does not ask for is a MISMATCH, not an
+  ##     approximation. `Ctrl+n` opens a window; it must not also step. This
+  ##     falls out of `Chord`'s `==` comparing all four bits, so it needs no
+  ##     code here — but it is the reason `==` is total rather than a subset
+  ##     test, and a later "be lenient about modifiers" would break it.
+  let acts = h.ui.root.querySelector(".dbgacts")
+  if acts != nil and h.ui.root.querySelector("#dbg-shortcuts-open") == nil:
+    acts.insertAdjacentHTML("beforeend", panes.renderShortcutsButton().cstring)
+  if h.shortcutsDialog() == nil:
+    h.ui.root.insertAdjacentHTML(
+      "beforeend", panes.renderShortcutsDialog(h.keymap, onMac()).cstring)
+
+  # Delegated on the root, so the dialog can be replaced wholesale by
+  # `paintShortcuts` without the handlers going with it.
+  h.ui.root.addEventListener("click", proc(ev: Event) =
+    let hit = closestFrom(ev, "[data-kb]")
+    if hit == nil: return
+    case attr(hit, "data-kb")
+    # TOGGLE, AND THE SENSE OF IT IS THE BUG THIS LINE ONCE HAD.
+    #
+    # `hidden` is present when the dialog is CLOSED, so "should it now be
+    # open?" is `hasAttribute("hidden")` and not its negation. The negated
+    # form — which is what shipped first — asked "is it already open?" and
+    # answered `false` on a closed dialog, so the gear closed an already
+    # closed dialog and the shortcuts surface could not be opened at all.
+    #
+    # It is worth naming because nothing else could see it: the dialog was
+    # rendered, correct, and complete in the DOM the whole time, so every
+    # assertion about its CONTENTS passed over a dialog no visitor could
+    # reach. Journey 20 is what caught it, by asserting the state of the
+    # element after the click rather than the markup inside it.
+    of "open": h.setShortcutsOpen(h.shortcutsDialog().hasAttribute("hidden"))
+    of "close": h.setShortcutsOpen(false)
+    else: discard)
+
+  # `change` and not `click`, so that a preset selected with the arrow keys —
+  # which is how a radio group is operated from the keyboard, and this is a
+  # dialog about the keyboard — takes effect the same way a click does.
+  h.ui.root.addEventListener("change", proc(ev: Event) =
+    let hit = closestFrom(ev, "input[data-kb=\"preset\"]")
+    if hit == nil: return
+    h.applyKeymap(parseKeymapId(attr(hit, "value"))))
+
+  document.addEventListener("keydown", proc(ev: Event) =
+    # Escape closes the dialog before anything else looks at the key, because
+    # a visitor who has opened a dialog and pressed Escape is asking for the
+    # dialog to go away and not for the session to do anything.
+    if $keyName(ev) == "Escape":
+      if h.shortcutsDialog() != nil and
+         not h.shortcutsDialog().hasAttribute("hidden"):
+        ev.preventDefault()
+        h.setShortcutsOpen(false)
+      return
+    if isTypingTarget(ev): return
+    # A held key is one gesture, not forty. See `isRepeat`.
+    if isRepeat(ev): return
+    let (found, action) = h.keymap.actionFor(chordOf(ev))
+    if not found: return
+    # THE ENABLED CHECK IS BEFORE `preventDefault`, deliberately. A chord for a
+    # move this session cannot make is not this page's key: the visitor gets
+    # whatever their browser does with it, rather than a keystroke that
+    # vanishes into a handler which then declines to act. A key that silently
+    # does nothing is the exact experience §10.5 says teaches a visitor that
+    # the shortcuts do not work.
+    if not h.canAct(action): return
+    ev.preventDefault()
+    h.invoke(action))
+
 proc bindGestures(h: Hydration) =
   ## The controls and the navigation rows become real, once.
   ##
@@ -2075,6 +2371,11 @@ proc goLive(h: Hydration) =
   ## makes that true.
   h.live = true
   h.bindGestures()
+  # The chords, and the gear that configures them. AFTER `bindGestures`, in
+  # the same "once the engine has answered" moment and for the same reason: a
+  # chord bound before there is a session to step would be a key that does
+  # nothing, which is the failure this whole change exists to end.
+  h.bindShortcuts()
   # The engine is new; the breakpoints are not. Re-arming here — and not at
   # construction — is what makes a reload keep working rather than merely
   # keep LOOKING like it works: `restoreBreakpoints` is the only thing
@@ -2187,7 +2488,8 @@ proc goLive(h: Hydration) =
   #
   # The panes arrive on the first `ct/complete-move`, which is a real frame.
   setControls(h.ui,
-              projectReplayPanes(h.session, h.base, h.ui.island))
+              projectReplayPanes(h.session, h.base, h.ui.island),
+              h.keymap)
 
 proc handshake(h: Hydration) =
   ## DAP: initialize → launch → configurationDone, then the first position.
@@ -2378,7 +2680,13 @@ proc hydrate() =
   let traceUrl = attr(ui.root, "data-trace")
   if traceUrl.len == 0: return
 
-  let h = Hydration(ui: ui, base: servedFrame(ui), landing: landing)
+  # The store first, then the preset it holds, then everything that reads it.
+  # This is before the first render on purpose: `renderControls` composes each
+  # chord into the tooltip it labels a button with, so a keymap adopted after
+  # the first paint would show one frame of buttons whose tooltips name no key.
+  let prefs = localPreferenceStore()
+  let h = Hydration(ui: ui, base: servedFrame(ui), landing: landing,
+                    prefs: prefs, keymap: keymapOf(prefs.load().keymap))
   # Restored BEFORE the engine is started, so the first live render already
   # carries the marks and the visitor never sees the gutter empty and then
   # populated. The engine is told separately, in `goLive` — it is a fresh
