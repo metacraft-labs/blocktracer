@@ -400,7 +400,7 @@ Exact `client/Justfile` targets (run from `client/`; verified):
 
 | Command | What it does |
 |---------|--------------|
-| `cd client && just test` | `test-export` + `test-viewmodels` + `test-debug-route` + `test-explorer-breadth` |
+| `cd client && just test` | every `test-*` target in `client/Justfile` — read the `test:` line there rather than this cell, which listed four of the ten |
 | `cd client && just test-instruction-listing` | `tests/test_instruction_listing.nim` — the Code pane's honest floor, over the COMMITTED captures through the real producers. A recording no source resolved for renders the program counters it carries; the mnemonics are earned per recording (the opcode table must reproduce that recording's own program counters or the rows show numbers); exactly one row is marked and it is the step the toolbar counts; no branch glyph and no lexer reaches a listing; a source-level session is untouched; and the island a hydrated session re-renders from carries the whole listing rather than the served window |
 | `cd client && just test-explorer-breadth` | `tests/test_explorer_breadth.nim` — M9's three verifications (renders from published files only, pointer objects are not cached across navigations, address history pages with constant per-page cost) plus the two product rules over EVERY rendered page. Built `-d:release`: one case walks a synthetic address of 100,000 transactions from its first page to its last |
 | `cd client && just test-debug-route` | `tests/test_debug_route.nim` — M8a/M8b: the route, the arrangement against `LayoutNode`, the source renderer's stable line ids, §7.0's availability-decides-the-landing rule, and the stored crawl-surface baseline. No debugger on the Nim path |
@@ -422,7 +422,7 @@ end-to-end claim.
 | `just journeys-engine` | once: fetch the replay engine into `client/.replay-engine-cache` (NOT into `dist/`, which the exporter removes) |
 | `just journeys-build` | `export-hydrated`, then run every journey |
 | `just journeys-deployed` | the same over `nix build .#default` — byte-for-byte what the deploy uploads |
-| `just journeys-selftest` | four mutations in real product source, each aimed at one named assertion |
+| `just journeys-selftest` | one mutation per ARM in real product source, each aimed at one named assertion — `ARMS` in `tools/journeys/selftest.mjs` is the set (this cell said "four" while there were dozens) |
 
 CI: the **`journeys`** job in `.github/workflows/ci.yml`.
 
