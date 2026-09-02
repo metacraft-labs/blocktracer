@@ -68,13 +68,199 @@ if [ ! -f "${ct}/src/frontend/viewmodel/backend/worker_backend.nim" ]; then
 	exit 1
 fi
 
+# ---------------------------------------------------------------------------
+# WHICH BYTES THIS BUNDLE IS BUILT AGAINST, AND A REFUSAL TO GUESS
+# ---------------------------------------------------------------------------
+#
+# `find_src` falls back to a sibling checkout when its environment variable is
+# unset, for ALL THREE of the sources this bundle compiles against, and until
+# this check existed it did so SILENTLY. That made every verdict measured
+# against the bundle unreproducible: the siblings are working checkouts other
+# people are on, at whatever branch and commit they happen to be.
+#
+# MEASURED, on 2026-09-02, from ONE unchanged commit of this repository
+# (`b53b76b`), three builds differing only in which trees were resolved:
+#
+#   A  flake inputs, all three pinned      1,453,850 bytes  c7d9bdd084bb514b…
+#   B  Embed SDK pinned, IsoNim and
+#      nim-everywhere from siblings        1,398,000 bytes  2f7c5d54b37fb196…
+#   C  all three from siblings             1,367,706 bytes  45e1d2d883b2c652…
+#
+# A AND B USE THE SAME EMBED SDK REVISION AND `src/frontend` IS BYTE-IDENTICAL
+# BETWEEN THEM — `diff -rq` reports no difference — yet the bundles differ by
+# 55,850 bytes. That is the finding worth keeping: pinning the Embed SDK alone
+# is NOT enough, because IsoNim and nim-everywhere are on the Nim path too and
+# were 18 and 12 commits off their own pins in the same file. A check that
+# verified only `CODETRACER_SRC` would have printed a reassuring "revision
+# matches the pin" over build B and been wrong about the bytes.
+#
+# On a bundle built this way, journey 13 was RED twice in a row,
+# deterministically, with a clean tree and no mutation anywhere — the source
+# pane never scrolled and the position never moved down the box — and GREEN
+# against the pinned build with byte-identical numbers. Two agents could run one
+# journey on one commit and honestly reach opposite verdicts, with nothing in
+# either transcript to tell them apart.
+#
+# `ci/embed-sdk-pin.env` already states the rule this script was breaking, in
+# its own words: "validate against the PIN, not against whatever a sibling
+# `../codetracer` happens to be sitting on", and "a green build here has to be
+# able to name the bytes it was green against". It pins all three. So all three
+# are now READ from it and verified, and a tree that is not the pin is refused.
+#
+# IDENTITY COMES FROM WHEREVER IT IS ACTUALLY GUARANTEED:
+#
+#   * a NIX STORE PATH — `flake.nix` sets these from flake inputs, and
+#     `packages.default` and every CI job build that way. A store path has no
+#     git metadata, so its revision is the flake's; for the Embed SDK the flake
+#     names it with an explicit `rev=` and that is checked against the pin
+#     below, an equality previously asserted only in a COMMENT in
+#     `.github/workflows/ci.yml` ("required to be equal and are") and enforced
+#     by nothing.
+#   * a GIT CHECKOUT — its revision is `HEAD`, and its `src/` must be clean,
+#     because a revision does not name the bytes if the bytes were edited after
+#     it.
+#
+# A SIBLING AT EXACTLY THE PIN IS ACCEPTED, and that is not a loophole: the test
+# is identity, not provenance. If that sibling later moves, the next build fails
+# loudly instead of quietly measuring something else.
+#
+# `CODETRACER_ALLOW_UNPINNED=1` overrides, because moving the pins forward is a
+# real workflow that `ci/embed-sdk-pin.env` documents under "HOW TO MOVE IT". It
+# is deliberately not a flag: it must be typed into the environment, and it
+# prints a banner naming what was used instead.
+
+sha256_of() {
+	if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1
+	elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | cut -d' ' -f1
+	else printf 'unavailable'; fi
+}
+
+pin_file="${repo_root}/ci/embed-sdk-pin.env"
+pin_of() {
+	sed -n "s/^$1=\([0-9a-f]\{40\}\).*/\1/p" "${pin_file}" 2>/dev/null | head -1
+}
+
+pin_ct="$(pin_of CODETRACER_REF)"
+pin_isonim="$(pin_of ISONIM_REF)"
+pin_ne="$(pin_of NIM_EVERYWHERE_REF)"
+if [ -z "${pin_ct}" ] || [ -z "${pin_isonim}" ] || [ -z "${pin_ne}" ]; then
+	echo "hydrate/build.sh: could not read all three refs from ${pin_file}." >&2
+	echo "  That file is the one place naming the bytes this repository is built" >&2
+	echo "  against. Without it this script cannot say what it built, and a" >&2
+	echo "  verdict with no artefact identity beside it is unfalsifiable." >&2
+	exit 1
+fi
+
+# The flake input and the pin are ONE fact in two files. CI's own comment says
+# they "are required to be equal"; nothing made them so until here.
+flake_rev="$(sed -n 's/.*github\.com\/metacraft-labs\/codetracer.*rev=\([0-9a-f]\{40\}\).*/\1/p' \
+	"${repo_root}/flake.nix" 2>/dev/null | head -1)"
+if [ -n "${flake_rev}" ] && [ "${flake_rev}" != "${pin_ct}" ]; then
+	echo "hydrate/build.sh: flake.nix and ci/embed-sdk-pin.env name different Embed SDKs." >&2
+	echo "  flake.nix codetracer rev : ${flake_rev}" >&2
+	echo "  ci/embed-sdk-pin.env     : ${pin_ct}" >&2
+	echo "  The bundle CI ships and the SDK CI's suites run against would be two" >&2
+	echo "  different trees. Move both, or neither." >&2
+	exit 1
+fi
+
 isonim="$(find_src ISONIM_SRC isonim src/isonim/core/signals.nim)"
 neverywhere="$(find_src NIM_EVERYWHERE_SRC nim-everywhere src)"
 
+# Per source: how it was resolved, what revision it is, and whether that is the
+# pin. Reported for all three whatever the verdict, because the transcript has
+# to name the bytes even on a green run.
+unpinned_reasons=""
+describe_and_check() {
+	local label="$1" path="$2" pin="$3" envvar="$4"
+	local how rev dirty
+	if [ -z "${path}" ]; then
+		printf '  %-15s %s\n' "${label}:" "<not found>"
+		return
+	fi
+	if [ -n "${!envvar:-}" ] && [ "${path}" = "${!envvar}" ]; then
+		how="\$${envvar}"
+	else
+		how="sibling (\$${envvar} unset)"
+	fi
+	dirty=0
+	case "${path}" in
+	/nix/store/*)
+		rev="${pin}"
+		how="${how}, nix store — revision is the flake's pin"
+		;;
+	*)
+		rev="$(git -C "${path}" rev-parse HEAD 2>/dev/null)"
+		[ -n "${rev}" ] && dirty="$(git -C "${path}" status --porcelain -- src 2>/dev/null | wc -l | tr -d ' ')"
+		;;
+	esac
+	printf '  %-15s %s\n' "${label}:" "${path}"
+	printf '  %-15s %s\n' "" "${how}"
+	printf '  %-15s %s\n' "" "rev ${rev:-<unknown>}  pin ${pin}$(
+		if [ -z "${rev}" ]; then echo "  <<< CANNOT BE IDENTIFIED"
+		elif [ "${rev}" != "${pin}" ]; then echo "  <<< NOT THE PIN"
+		elif [ "${dirty}" != "0" ]; then echo "  <<< ${dirty} EDITED FILE(S) UNDER src/"
+		else echo "  ok"; fi)"
+	if [ -z "${rev}" ]; then
+		unpinned_reasons="${unpinned_reasons}
+    ${label}: revision cannot be determined (${path})"
+	elif [ "${rev}" != "${pin}" ]; then
+		unpinned_reasons="${unpinned_reasons}
+    ${label}: at ${rev}, pin is ${pin}"
+	elif [ "${dirty}" != "0" ]; then
+		unpinned_reasons="${unpinned_reasons}
+    ${label}: at the pin but ${dirty} uncommitted file(s) under src/"
+	fi
+}
+
 echo "=== the hydration bundle ==="
-echo "  Embed SDK:      ${ct}"
-echo "  IsoNim:         ${isonim:-<not found>}"
-echo "  nim-everywhere: ${neverywhere:-<not found>}"
+describe_and_check "Embed SDK" "${ct}" "${pin_ct}" CODETRACER_SRC
+describe_and_check "IsoNim" "${isonim}" "${pin_isonim}" ISONIM_SRC
+describe_and_check "nim-everywhere" "${neverywhere}" "${pin_ne}" NIM_EVERYWHERE_SRC
+
+if [ -n "${unpinned_reasons}" ]; then
+	if [ "${CODETRACER_ALLOW_UNPINNED:-0}" = "1" ]; then
+		echo ""
+		echo "  !!! UNPINNED BUILD — CODETRACER_ALLOW_UNPINNED=1 !!!${unpinned_reasons}"
+		echo "  The bundle below is NOT the artefact CI builds. Any verdict measured"
+		echo "  against it names these bytes and no others; do not carry it between"
+		echo "  agents or into a ledger without saying so."
+		echo ""
+	else
+		# The stale bundle GOES. A LEFTOVER hydrate.js from an earlier run would
+		# be installed by the exporter as though this build had produced it,
+		# which is the stale-artefact bug this check exists to end, one layer
+		# down.
+		rm -f "${here}/hydrate.js"
+		echo "hydrate/build.sh: refusing to build against sources that are not the pin." >&2
+		echo "${unpinned_reasons}" >&2
+		echo "" >&2
+		echo "  This is not pedantry about a version. The siblings are working" >&2
+		echo "  checkouts other people are on, and building against whatever they sit" >&2
+		echo "  on made verdicts here unreproducible. From ONE unchanged commit of" >&2
+		echo "  this repository, three builds differing only in which trees resolved:" >&2
+		echo "    all three pinned                       1,453,850 bytes" >&2
+		echo "    Embed SDK pinned, other two siblings   1,398,000 bytes" >&2
+		echo "    all three siblings                     1,367,706 bytes" >&2
+		echo "  The first two use the SAME Embed SDK revision and a byte-identical" >&2
+		echo "  src/frontend. A journey was deterministically RED on one of these and" >&2
+		echo "  GREEN on the pinned build, with a clean tree and no mutation." >&2
+		echo "" >&2
+		echo "  remedy — inside the flake, nothing: nix develop / nix build set all" >&2
+		echo "  three for you, and that is what CI does. Outside it, worktrees of the" >&2
+		echo "  pins, which nobody else will move:" >&2
+		echo "    git -C <codetracer>     worktree add /tmp/ct-pin --detach ${pin_ct}" >&2
+		echo "    git -C <isonim>         worktree add /tmp/isonim-pin --detach ${pin_isonim}" >&2
+		echo "    git -C <nim-everywhere> worktree add /tmp/ne-pin --detach ${pin_ne}" >&2
+		echo "    export CODETRACER_SRC=/tmp/ct-pin ISONIM_SRC=/tmp/isonim-pin NIM_EVERYWHERE_SRC=/tmp/ne-pin" >&2
+		echo "" >&2
+		echo "  to build against something else ON PURPOSE (moving the pins forward):" >&2
+		echo "    CODETRACER_ALLOW_UNPINNED=1 ..." >&2
+		echo "  Any stale client/hydrate/hydrate.js has been REMOVED, so nothing" >&2
+		echo "  downstream can install a bundle this run did not produce." >&2
+		exit 1
+	fi
+fi
 
 paths=(
 	"--path:${ct}/src/frontend/viewmodel"
@@ -110,7 +296,22 @@ nim js \
 	"${here}/hydrate.nim" || exit 1
 
 bytes="$(wc -c <"${here}/hydrate.js" | tr -d ' ')"
-echo "--- built client/hydrate/hydrate.js (${bytes} bytes)"
+digest="$(sha256_of "${here}/hydrate.js")"
+
+# THE ARTEFACT NAMES ITSELF. A verdict measured against a bundle, with no
+# identity for that bundle beside it, cannot be checked by anyone who was not
+# there — it is the stale-artefact problem and the wrong-SDK problem in the same
+# sentence. `dev` was once green while the deployed origin served an
+# `assets/hydrate.js` 6,441 bytes older than it, and the two defects that fixed
+# reproduced verbatim on the served one; a size and a digest in the transcript
+# are what make "which bundle was that?" answerable afterwards rather than a
+# reconstruction.
+echo "--- built client/hydrate/hydrate.js"
+echo "      bytes:   ${bytes}"
+echo "      sha256:  ${digest}"
+echo "      sources: $([ -n "${unpinned_reasons}" ] \
+	&& echo "UNPINNED — see the banner above; this is not the artefact CI builds" \
+	|| echo "all three at the pins in ci/embed-sdk-pin.env")"
 
 # A bundle that compiled but lost its entry point would install cleanly, run
 # nothing, and look exactly like a browser that cannot hydrate — the one
