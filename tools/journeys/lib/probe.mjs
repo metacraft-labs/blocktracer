@@ -180,7 +180,12 @@ export const readFacts = (page) =>
  * as a product failure — Verification-Harness-Traps.md §3: "a timeout is a
  * symptom, not a diagnosis".
  */
-export async function visit(browser, origin, path, { settle = null, timeoutMs = 45000 } = {}) {
+export async function visit(
+  browser,
+  origin,
+  path,
+  { settle = null, timeoutMs = 45000, initScript = null } = {},
+) {
   const page = await browser.newPage();
   const pageErrors = [];
   const consoleErrors = [];
@@ -188,6 +193,20 @@ export async function visit(browser, origin, path, { settle = null, timeoutMs = 
   page.on("console", (m) => {
     if (m.type() === "error") consoleErrors.push(m.text().slice(0, 300));
   });
+
+  // INSTALLED BEFORE ANY PAGE SCRIPT RUNS, which is the only moment that is any
+  // use: the hydration bundle constructs its worker during its own startup, so
+  // a wrapper added after navigation would be installed around a `Worker` that
+  // had already been built and would observe nothing.
+  //
+  // It exists because some claims are not visible in the DOM at all. "The click
+  // painted a mark" and "the click painted a mark AND told the engine" render
+  // identically, and the second is the one a breakpoint journey depends on —
+  // the build this repository shipped for months painted nothing and sent
+  // nothing, and a DOM-only instrument would have called a mark-only
+  // implementation correct. Journeys that need no such reading pass nothing
+  // and are byte-for-byte unaffected.
+  if (initScript) await page.addInitScript(initScript);
 
   await page.goto(origin + path, { waitUntil: "load", timeout: timeoutMs });
 

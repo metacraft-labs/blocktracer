@@ -619,12 +619,6 @@ type
       ## only that nothing was hit — it does not say which way the session was
       ## going, and "ahead of here" and "before here" are the two different
       ## things a visitor needs told apart.
-    restoringPosition: bool
-      ## A seek is in flight to undo such a continue. Read by `applyStop` for
-      ## one reason: the restoring seek is itself a move, and the move handler
-      ## clears `continueOutcome` — so without this flag the sentence explaining
-      ## why the session did not move would be erased by the seek that keeps it
-      ## where it was.
 
 proc render(h: Hydration) =
   var view = projectReplayPanes(h.session, h.base, h.ui.island)
@@ -686,16 +680,19 @@ proc applyStop(h: Hydration; ticks: uint64; file: string; line: int) =
   ## the same entry point `MockBackendService` drives in `tests/tdebugpanes
   ## .nim`, which is why that suite is evidence about this path.
   #
-  # A MOVE CLEARS §10.8's SENTENCE — except the one move that exists to undo a
-  # continue. "There is no breakpoint ahead of here" is true of the position
-  # the visitor was at, so it survives the seek that puts them back and is
-  # erased by the next real move, whatever that is. Clearing it on EVERY stop
-  # would erase it with the restoring seek itself; clearing it on none would
-  # leave it standing over a session that has since stepped away.
-  if h.restoringPosition:
-    h.restoringPosition = false
-  else:
-    h.continueOutcome = ""
+  # §10.8'S SENTENCE IS NOT CLEARED HERE, and that is a correction rather than
+  # an omission. It was, once, guarded by a "this stop is the restoring seek"
+  # flag — and the flag was consumed by the WRONG stop: a fruitless continue
+  # produces two stops (the engine's jump to the end, then the seek back), the
+  # `ct/notification` that sets the sentence races the `stackTrace` that
+  # reports the first of them, and when the notification won, the flag was
+  # spent on the jump and the sentence was erased by the seek that restored the
+  # position it was explaining. Measured: the position came back to step 7
+  # correctly and the message was gone.
+  #
+  # An outcome belongs to a GESTURE, so it is cleared by the next gesture —
+  # `invoke` and the navigation rows — and never by a stop, of which one
+  # gesture can produce several in an order this file does not control.
   h.session.applyPosition(ticks, file, line)
   # §6.3: "`t` updates on **every** navigation via `history.replaceState`".
   # The COORDINATE, so a share link from a hydrated session lands where the
@@ -824,7 +821,6 @@ proc onDapEvent(h: Hydration; event: JsonNode) =
     # §10.8: "rather than running to the end of the recording and stopping
     # there, which reads as a jump the visitor did not ask for". The engine has
     # already jumped, so being unchanged means going back.
-    h.restoringPosition = true
     h.gotoTicks(int(h.continueFrom))
   else:
     discard
@@ -844,6 +840,19 @@ proc invoke(h: Hydration; action: DebugAction) =
   ## end of the recording and then reports that it hit nothing. So the two
   ## continue actions are bracketed here — where they start is remembered, and
   ## `onDapEvent`'s `ct/notification` branch undoes the jump if there was one.
+  # A new gesture retires the last one's outcome. Done for EVERY action, and
+  # first, so the two continue branches below can set it without racing their
+  # own clear — see `applyStop` for why this cannot live on the stop instead.
+  #
+  # AND IT IS REPAINTED IMMEDIATELY. Clearing the field alone left the sentence
+  # on screen until the next stop arrived, which for a move that takes a round
+  # trip is hundreds of milliseconds of a banner saying the session did not
+  # move while it is moving. Worse, a move that ends in the SAME outcome would
+  # never repaint at all, so "no breakpoint ahead" would sit unchanged across a
+  # gesture and read as stale rather than as freshly true.
+  if h.continueOutcome.len > 0:
+    h.continueOutcome = ""
+    h.render()
   if action in {daContinue, daReverseContinue}:
     let forward = action == daContinue
     # THE EMPTY SET IS SHORT-CIRCUITED AND NEVER SENT. Not an optimisation:
@@ -994,6 +1003,11 @@ proc bindGestures(h: Hydration) =
       # visitor asked for the navigation rather than for the seek.
       if not isPlainActivation(ev): return
       ev.preventDefault()
+      # A row click is a gesture, so it retires the last continue's outcome —
+      # see `invoke`. Without this the sentence would sit over a session the
+      # visitor had since navigated somewhere else entirely.
+      h.continueOutcome = ""
+      h.continueAwaiting = false
       try: h.gotoTicks(parseInt(step)) except CatchableError: discard)
 
   h.ui.controls.addEventListener("click", proc(ev: Event) =
