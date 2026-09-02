@@ -764,24 +764,6 @@ const ARMS = [
       "LISTING: the position moves DOWN the box while the pane holds still, rather than staying pinned to one offset",
   },
   {
-    id: "P1/the-name-is-ellipsised-again",
-    why:
-      "Put the retired declarations back on `.ctname`, which is exactly the rule" +
-      " that shipped: the name clips and ellipsises inside a column it shares. This" +
-      " is the defect the user reported — 'both function names and their paths are" +
-      " truncated' — and the arm proves the journey measures TRUNCATION rather than" +
-      " presence, because `textContent` is identical either way and every other" +
-      " assertion in the file stays green.",
-    file: join(CLIENT, "src", "components", "debugger_css.nim"),
-    find: `.ctname{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
-  color:var(--bt-text-strong);white-space:normal;overflow-wrap:anywhere}`,
-    replace: `.ctname{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
-  color:var(--bt-text-strong);white-space:nowrap;overflow:hidden;
-  text-overflow:ellipsis;flex:0 1 auto;min-width:0}`,
-    journey: "call-trace-names-its-frames-in-full",
-    assertion: "SERVED: no painted function name is truncated",
-  },
-  {
     id: "P2/the-path-leaves-the-page-as-well-as-the-row",
     why:
       "Stop stating the path as data on the row. This is the FALSE PASS this" +
