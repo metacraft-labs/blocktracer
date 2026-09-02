@@ -649,6 +649,84 @@ const ARMS = [
     assertion:
       "the first reverse continue lands on the stop NEAREST BEFORE it, not the first in the file",
   },
+
+  // ── The three halves of the reveal policy, one arm each ─────────────────
+  //
+  // A visitor reported that stepping scrolled the pane on every step and pinned
+  // the position to its top edge. The fix has three separable parts — WHEN the
+  // pane moves, WHERE the position lands when it does, and whether the document
+  // underneath it is stable enough for either question to mean anything — and a
+  // single arm that reverted the lot would prove only that journey 12 notices
+  // SOMETHING. Each of these reverts exactly one part and names the assertion
+  // that must go red, and R and S are written so that the assertion Q targets
+  // stays GREEN under them: if it did not, the three would be one arm wearing
+  // three hats.
+  {
+    id: "Q/the-pane-scrolls-on-every-step",
+    why:
+      "Remove the early return that holds the pane still, so the reveal runs on every" +
+      " step whether or not the position is already on screen. This is the first half" +
+      " of the reported defect — 'the editor should auto-scroll only when the caret" +
+      " leaves the visible area' — and it is the half NO other journey can see: the" +
+      " position is still marked, still on screen and still correct, so journeys 03," +
+      " 06 and 09 stay green throughout. The only thing that changes is a number" +
+      " nothing else in this directory reads.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `  if (sameDoc && scrollers.every(inside)) return;`,
+    replace: `  if (false) return;`,
+    journey: "source-pane-holds-still-while-the-position-is-visible",
+    assertion: "SOURCE: a step to a position already on screen leaves `scrollTop` UNCHANGED",
+  },
+  {
+    id: "R/the-revealed-position-is-anchored-to-the-top",
+    why:
+      "Anchor the reveal to the TOP of the box instead of centring it — the" +
+      " `revealLineNearTop` behaviour the product had, via `scrollIntoView()`'s" +
+      " no-argument form. The gate stays: the pane still moves only when the position" +
+      " has left the box, so Q's assertion stays green and this arm is judged on the" +
+      " destination alone. That separation is the point. It is also the second" +
+      " sentence of the report — 'I would scroll with half a screen perhaps to allow" +
+      " further movement without auto-scroll' — which is a claim about where the line" +
+      " lands and not about whether it moved.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `    var centred = lineTop - (s.clientHeight - cr.height) / 2;`,
+    replace: `    var centred = lineTop;`,
+    journey: "source-pane-holds-still-while-the-position-is-visible",
+    assertion: "SOURCE: the revealed position is NOT the first line on screen",
+  },
+  {
+    id: "S/the-document-is-re-windowed-under-the-position",
+    why:
+      "Restore the windowing `renderPanes` used to do — drop every line above" +
+      " `currentLine - 6` on every stop — while leaving the reveal policy entirely" +
+      " alone. This is the SECOND mechanism of the reported defect and the reason" +
+      " journey 12 does not judge `scrollTop` alone: with the document rebuilt" +
+      " beneath the position on every step, the position sits at row 7 by" +
+      " construction and `scrollTop` is 0 before and 0 after. Q's assertion stays" +
+      " GREEN under this arm — nothing scrolls, because nothing needs to — and so" +
+      " does every assertion in journeys 03, 06 and 09, which is precisely how this" +
+      " half shipped. The pane moves under the reader and no reading of the scroll" +
+      " offset can see it; only the position's distance from the top of the box can." +
+      " The windowing is written out inline rather than restored as a call, because" +
+      " an arm is one edit in one file and `source_document` is no longer imported —" +
+      " which is itself part of the fix.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `  noteRevealAnchor(ui.editor)`,
+    replace: `  noteRevealAnchor(ui.editor)
+  var view = view
+  block:
+    let ai = view.editor.activeIndex
+    if ai >= 0 and ai < view.editor.documents.len:
+      let all = view.editor.documents[ai].lines
+      var keep = all
+      keep.setLen(0)
+      for ln in all:
+        if ln.number >= view.editor.currentLine - 6: keep.add ln
+      if keep.len > 0: view.editor.documents[ai].lines = keep`,
+    journey: "source-pane-holds-still-while-the-position-is-visible",
+    assertion:
+      "LISTING: the position moves DOWN the box while the pane holds still, rather than staying pinned to one offset",
+  },
 ];
 
 const log = (s = "") => console.log(s);

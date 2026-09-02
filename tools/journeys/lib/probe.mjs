@@ -130,6 +130,69 @@ export const readFacts = (page) =>
         [...document.querySelectorAll(".srcline")].filter(shown)[0]?.querySelector(".t")
           ?.textContent?.trim() ?? null,
 
+      // ---- WHERE THE SOURCE PANE IS SCROLLED TO ------------------------------
+      //
+      // A visitor reported that stepping scrolled the pane on every step and
+      // pinned the position to its top edge, and the assertion that would have
+      // caught it is a reading of `scrollTop` — NOT "the marked line is
+      // visible", which is true of the defect and true of the fix and therefore
+      // certifies neither. Journey 12 owns the judgement; this reports the
+      // numbers.
+      //
+      // THE SCROLLER IS FOUND, NOT NAMED. `#pane-editor .panebody` is the
+      // element the hydration bundle holds and it is NOT where the lines
+      // overflow: `.src` is, and on the demo pane `.panebody` has a scroll range
+      // of ZERO (539 == 539) while `.src` has 886 against a 512 box. A probe
+      // that read `.panebody.scrollTop` would have reported 0 before the fix and
+      // 0 after it — a constant, from which any assertion at all can be written
+      // green. So this walks out from the marked line and takes the first
+      // ancestor that actually scrolls, which is the element the visitor's
+      // wheel turns.
+      //
+      // `sourceInView` is reported and is deliberately NOT the verdict, for the
+      // reason above: it is the assertion that passes under both behaviours.
+      sourceScroll: (() => {
+        const pane = document.querySelector("#pane-editor .panebody");
+        if (!pane || !cur) return null;
+        const scrollers = [];
+        for (let e = cur; e; e = e.parentElement) {
+          const oy = getComputedStyle(e).overflowY;
+          if ((oy === "auto" || oy === "scroll") && e.scrollHeight > e.clientHeight + 1) scrollers.push(e);
+          if (e === pane) break;
+        }
+        if (scrollers.length === 0) return { scrollable: false, top: 0, range: 0 };
+        const s = scrollers[0];
+        const r = s.getBoundingClientRect();
+        const top = r.top + s.clientTop;
+        const bottom = top + s.clientHeight;
+        const cr = cur.getBoundingClientRect();
+
+        // The lines ON SCREEN in this scroller, in document order, so the
+        // position's place among them can be stated as an index rather than as
+        // a pixel count that means nothing without the line pitch.
+        const band = [...document.querySelectorAll(".srcline")].filter((l) => {
+          const lr = l.getBoundingClientRect();
+          return lr.top >= top - 0.5 && lr.bottom <= bottom + 0.5;
+        });
+        const numberOf = (e) => e?.querySelector(".n")?.textContent?.trim() ?? null;
+        return {
+          scrollable: true,
+          top: Math.round(s.scrollTop),
+          range: Math.round(s.scrollHeight - s.clientHeight),
+          boxHeight: Math.round(s.clientHeight),
+          lineHeight: Math.round(cr.height),
+          // The position's distance from the top and bottom of the box. "Not
+          // flush against either edge" is a claim about these two numbers.
+          fromTop: Math.round(cr.top - top),
+          fromBottom: Math.round(bottom - cr.bottom),
+          inView: cr.top >= top && cr.bottom <= bottom,
+          onScreen: band.length,
+          indexOnScreen: band.indexOf(cur),
+          firstOnScreen: numberOf(band[0]),
+          lastOnScreen: numberOf(band[band.length - 1]),
+        };
+      })(),
+
       // ---- the Values pane ---------------------------------------------------
       // Scoped to `#pane-state`, not to `.strow` document-wide. The transaction
       // page renders the same rows outside the debugger, and a journey that

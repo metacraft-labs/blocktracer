@@ -433,10 +433,18 @@ proc revealCurrentLine(pane: Element) {.importjs: """
     return cr.top >= b.top && cr.bottom <= b.bottom;
   };
 
-  // ALREADY VISIBLE IN EVERY SCROLLER: return WITHOUT writing `scrollTop`.
-  // Writing back the value it already holds would be invisible here and is not
-  // invisible to the visitor — an assignment fires a `scroll` event, and the
-  // journey guarding this counts those events against the number of steps.
+  // ALREADY VISIBLE IN EVERY SCROLLER: return, having moved nothing.
+  //
+  // THE PANE HOLDS ITS POSITION; IT DOES NOT FIRE NO EVENTS, and the difference
+  // is worth stating because it decides what a test may measure. `writePane`
+  // assigns `innerHTML`, so every scroller here is a NEW element that starts at
+  // 0, and the restore above moves it — one `scroll` event per render, whatever
+  // this policy then decides. Nothing is painted between the two: `renderPanes`
+  // is one synchronous task, so the visitor sees the restored offset and never
+  // the zero. So `scroll` events cannot tell a restore from a policy scroll and
+  // are the wrong instrument; the journey guarding this counts CHANGES IN THE
+  // PAINTED `scrollTop` from one step to the next, which is what the visitor's
+  // complaint was actually counting.
   if (sameDoc && scrollers.every(inside)) return;
 
   // OUTSIDE: centre it, innermost scroller first so the outer one is judged
