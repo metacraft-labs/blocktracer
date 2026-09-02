@@ -158,7 +158,6 @@ const install = (page) =>
     return Object.keys(bodies).length;
   }, PANES);
 
-const readInstrument = (page, what) => page.evaluate((w) => window.__repaint[w](), what);
 const call = (page, fn) => page.evaluate((f) => window.__repaint[f](), fn);
 const writeCount = (page) => page.evaluate(() => window.__repaint.writes.length);
 const writesSince = (page, from) =>

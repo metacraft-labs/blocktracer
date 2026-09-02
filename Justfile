@@ -270,7 +270,7 @@ capture-gate:
 #
 # These are NOT `just test`: that recipe is the Nim suites over rendered markup,
 # which run in seconds and need no browser. These need a built site, a browser
-# and — for the two stepping journeys — the 18 MB replay engine.
+# and — for the journeys that drive a live session — the 18 MB replay engine.
 
 # NOT into client/dist: the exporter removes that directory and writes it again,
 # so an engine staged inside it is destroyed by the next export.
