@@ -8,15 +8,57 @@
 // Page-Descriptions.md in the codetracer-specs repo, which is not vendored
 // here. `SPEC_SOURCE` records exactly which revision of that document this
 // list was transcribed from — when Page-Descriptions.md's "Last updated"
-// moves, this file has to be re-read against it, and the coverage check
-// prints the recorded revision on every run so the drift is visible rather
-// than silent.
+// moves, this file has to be re-read against it.
+//
+// THAT DRIFT WAS BEING PRINTED AS A FACT rather than checked. The line
+// `check-coverage.mjs` prints — "spec source: … (last updated <date>)" — is a
+// readback of the constant below, so a stale transcription printed a confident
+// date on every run and the header above claimed the drift was therefore
+// "visible rather than silent". It was not: nothing compared the two. It is
+// compared now, by `readSpecLastUpdated` below, and reported as MATCHES,
+// DRIFTED or NOT CHECKED.
+//
+// `lastUpdated` is DELIBERATELY NOT bumped to whatever the spec says today.
+// Editing it without re-reading Page-Descriptions.md against this list would
+// assert a transcription that has not happened, which is the failure the
+// comparison exists to surface.
 
 export const SPEC_SOURCE = {
   document: "codetracer-specs/BlockTracer/Page-Descriptions.md",
   lastUpdated: "2026-08-29",
   transcribedOn: "2026-08-29",
 };
+
+/**
+ * The `Last updated:` line of the real Page-Descriptions.md, when a checkout of
+ * codetracer-specs is reachable.
+ *
+ * NOT VENDORED, so this can legitimately find nothing — a build machine with no
+ * specs checkout is not a drifted transcription and must not be reported as one.
+ * The three outcomes are distinct: the date, `null` for "no checkout", and a
+ * thrown-away parse failure reported as `null` too, which is why the caller
+ * prints the path it looked at.
+ *
+ * Looked for at `$CODETRACER_SPECS_SRC` first, then at the sibling checkout
+ * `<repoRoot>/../codetracer-specs`, which is the layout every relative link in
+ * `tools/capture/README.md` already assumes.
+ */
+export async function readSpecLastUpdated(repoRoot) {
+  const { readFile } = await import("node:fs/promises");
+  const { join, resolve } = await import("node:path");
+  const roots = [
+    process.env.CODETRACER_SPECS_SRC,
+    resolve(repoRoot, "..", "codetracer-specs"),
+  ].filter(Boolean);
+  for (const root of roots) {
+    const path = join(root, "BlockTracer", "Page-Descriptions.md");
+    const text = await readFile(path, "utf8").catch(() => null);
+    if (text === null) continue;
+    const m = text.match(/Last updated:\*{0,2}\s*([0-9]{4}-[0-9]{2}-[0-9]{2})/i);
+    return { path, lastUpdated: m ? m[1] : null };
+  }
+  return { path: roots.join(" or "), lastUpdated: null };
+}
 
 // ── Pages (Page-Descriptions §1 route map, expanded by §2–§13) ──────────────
 //

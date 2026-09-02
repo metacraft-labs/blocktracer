@@ -10,8 +10,13 @@
 ## — the same shape as `ReplayDataStore.requestLocals`, and the same
 ## consequence: the VM issues the request and nothing reads the answer, so
 ## `activeChain` stays `none` for the life of the session. `applyChainResponse`
-## exists for a caller that has the decoded chain, and in the pinned SDK the
-## only such caller is the desktop app's `ui/state.nim`.
+## exists for a caller that has the decoded chain, and at the pin
+## (`CODETRACER_REF` in `ci/embed-sdk-pin.env`, `8d1c84a8`) the only non-test
+## callers are two DAP subscriptions in the desktop app's
+## `src/frontend/ui_js.nim` — one on `ct/updated-origin-chain`, one on the
+## `ct/originChain` response — each of which then opens the side panel.
+## `ui/state.nim` holds the `OriginChainVM` instance and reads `activeChain`
+## off it; it never applies a response.
 ##
 ## So the reply is picked up where `live_locals` and `live_navigation` pick
 ## theirs up: on the `BackendService` the store is built on, which every

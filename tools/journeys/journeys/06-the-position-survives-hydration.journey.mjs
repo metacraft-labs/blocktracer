@@ -218,8 +218,12 @@ export async function run({ browser, site, j }) {
  * frame.
  *
  * The arm name is hyphenated (`HYDRATED-REAL`) for the reason journey 02's is:
- * no assertion's text may CONTAIN another's, or `selftest.mjs` resolves arm C
- * to two records and never runs it.
+ * no assertion's text may CONTAIN another's, or `selftest.mjs` resolves the arm
+ * to two records and never runs it. The arms that would be lost are this
+ * journey's own — grep `journey: "position-survives-hydration"` in
+ * `selftest.mjs`; today they are `E`, `PH1` and `PH2`, and `PH1`/`PH2` differ
+ * only in their arm prefix, which is exactly the collision the hyphen prevents.
+ * (Arm `C` was named here and targets journey 04.)
  */
 async function hydratedArm(browser, site, j, subject, arm) {
   j.note(`${arm}: driving ${subject.debugPath} (phase=${subject.phase})`);
