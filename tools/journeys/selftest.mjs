@@ -956,10 +956,9 @@ proc noteFor*`,
       " verdict.",
     file: join(CLIENT, "hydrate", "hydrate.nim"),
     find: `  if step <= 0: return
-  if h.scrubInFlight:`,
-    replace: `  if step <= 0: return
-  if true: return
-  if h.scrubInFlight:`,
+  h.gotoTicks(step, onSettled = proc() =`,
+    replace: `  if step <= 0 or true: return
+  h.gotoTicks(step, onSettled = proc() =`,
     journey: "the-timeline-can-be-dragged",
     assertion: "every drop moved the marked source position, not only the readout",
   },
