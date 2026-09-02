@@ -54,8 +54,8 @@ const DEFAULT_OUT = join(REPO_ROOT, "screenshots");
 // ── The hydrated build, and why it is a SECOND tree ────────────────────────
 //
 // `runExporter` below compiles `static_export.nim` with no `-d:hydrationBundle`
-// on purpose, and that has to stay true: it is what makes the 38 ready views a
-// capture of the page this site serves — no script, panes rendered from
+// on purpose, and that has to stay true: it is what makes every ready view that
+// is not `hydrated: true` a capture of the page this site serves — no script, panes rendered from
 // published data, stepping controls visibly inert. Flipping the flag globally
 // would move every debugger image in the corpus and would file a live session
 // under the names of the pre-hydration ones.

@@ -3596,8 +3596,13 @@ Everything in G1–G5 is a property of the review ledger and does not depend on
 tier 1, so those five are enforceable anywhere. What a darwin session still may
 **not** conclude is anything of the form "this page did not change".
 
-**G7 is not reachable yet.** 54 of the 62 named views are `pending` because the
-client does not serve their route or model their state. The gate runs over
+**G7 is not reachable yet.** Named views are still `pending` because the client
+does not serve their route or model their state, and G7 asks for the whole list.
+**Run `just check-coverage` for the ready/pending split** — this paragraph used
+to assert "54 of the 62 named views are `pending`", which is now wrong in both
+figures and, worse, in its shape: the pending views are the MINORITY. The
+conclusion is unchanged — a list with any pending view in it cannot satisfy G7 —
+but the size of the gap is not what this sentence said. The gate runs over
 `gateScope` — the views actually captured — and reports the pending remainder
 rather than counting them as passes.
 

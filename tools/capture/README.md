@@ -57,10 +57,12 @@ demo seed does not silently rename every image and re-point every baseline.
 The list is complete with respect to
 [Page-Descriptions.md](../../../codetracer-specs/BlockTracer/Page-Descriptions.md) —
 every route in its §1 map and every row of its §14 degraded-state catalogue.
-The client currently renders five route types, so most views are `pending` with
-a stated `pendingReason`. They are listed, counted and reported as unmet
-captures, never silently dropped and never photographed against a 404 that a
-reviewer would mistake for a styled page. When a route lands, flipping
+A view whose route the client does not yet serve is `pending` with a stated
+`pendingReason`. **`just check-coverage` prints the ready/pending split**; this
+paragraph used to say "most views are `pending`", and they are the minority.
+They are listed, counted and reported as unmet captures, never silently dropped
+and never photographed against a 404 that a reviewer would mistake for a styled
+page. When a route lands, flipping
 `status` is the whole change.
 
 `spec-inventory.mjs` is the machine-readable transcription of that spec, and
@@ -72,12 +74,12 @@ Two families of user-visible sentence are drawn by the hydration bundle and by
 nothing else, so they can appear on no statically exported page: §6.0a's landing
 notice (the payload is in the query, and a static route serves one file per
 path) and `hydrate.markUnavailable`'s three engine-failure sentences. Until VD.7
-none of the eight had ever been rendered by anything.
+none of them had ever been rendered by anything.
 
 A view carrying `hydrated: true` is served from **`client/dist-hydrated`** — the
 same exporter over the same fixture, compiled with `-d:hydrationBundle` after
-`hydrate/build.sh` has produced the bundle. `client/dist` and the 63 views over
-it are untouched, deliberately: they are the capture of the page this site
+`hydrate/build.sh` has produced the bundle. `client/dist` and every view that is
+not `hydrated: true` are untouched, deliberately: they are the capture of the page this site
 serves, and `tools/design/check-tokens.mjs`'s D1 reads that build. Both trees'
 digests go in the manifest and `capture.mjs` refuses to run if they were built
 from different fixtures.
@@ -244,7 +246,7 @@ summaries.
 
 [`tools/visual-review-brief.md`](../visual-review-brief.md) is what every
 reviewer reads: product context, the reference direction, an expected-elements
-block for **every one of the 62 named views**, two rubrics (explorer register
+block for **every one of the named views in `views.mjs`**, two rubrics (explorer register
 and debugger register), five reviewer lenses, the adversarial reviewer role,
 the P1/P2/P3 severity definitions, and the gate.
 
