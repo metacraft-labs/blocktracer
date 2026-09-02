@@ -66,6 +66,51 @@
 // quantified over it, and the agreement is `countIs` — not "at least one row
 // shows a hand", which one row in fourteen satisfies.
 //
+// THE RULE IS BIDIRECTIONAL, AND THAT IS WHAT MAKES IT CHECKABLE
+// ---------------------------------------------------------------
+// Page-Descriptions §13: "A pointer cursor is a promise, and it is kept in both
+// directions. Everything that responds to a click shows a pointer cursor, and
+// nothing that does not, shows one." Both halves have failed in this product —
+// the visitor's report is the first, and the copy controls hydration adds are
+// the second, acting without saying so.
+//
+// The spec makes it "checkable as a set equality read straight off the page:
+// the elements whose computed cursor is `pointer` are exactly the elements that
+// are anchors, buttons, or carry an interactive role", and notes that the
+// reading is only COMPLETE because Front-End-Architecture §7 forbids
+// hand-rolling an interactive element out of a `div`. Without that rule there
+// could be a clickable thing outside the set and the inverse direction would be
+// unenforceable; with it, `closest(CLICKABLE)` is a total answer. The two rules
+// hold each other up, which is worth knowing before either is weakened.
+//
+// Inheritance is why the inverse is phrased as `closest` and not as equality of
+// two `querySelectorAll` results. `cursor` is an INHERITED property, so every
+// descendant of an anchor also computes `pointer`; asking "is this element a
+// clickable" of each would report a working page as covered in violations. The
+// question that means what the spec means is whether the hand ORIGINATES
+// outside a clickable — which is exactly "does this element have no clickable
+// ancestor".
+//
+// WHAT THIS CANNOT CATCH, STATED SO NOBODY RELIES ON IT
+// -----------------------------------------------------
+// Page-Descriptions §13 again: "an anchor whose handler is dead is still an
+// anchor, so it keeps its pointer and passes." A control that looks live and
+// does nothing is journey 09's claim — the position moves THERE — and not this
+// one's. This file is about the promise, never about whether it is honoured,
+// and it should not be extended to try.
+//
+// THE INSTRUMENT IS NEW, SO IT IS PROVED BEFORE IT IS BELIEVED
+// ------------------------------------------------------------
+// Computed style is one of four readings this suite had never taken (with
+// scroll offset, hover and drag). A reading that never happens returns nothing
+// and quantifies over nothing, and the standing failure mode is that this looks
+// exactly like a pass. So the counts are asserted at three points — the
+// population is non-empty, the hit-test LANDED on it, and the sweep found hands
+// at all — and one control asserts the probe DISCRIMINATES: it must read at
+// least two distinct cursor values on a page. A probe that had silently
+// returned a constant, or run against a detached document, satisfies none of
+// those.
+//
 // THE LOOP RAIL IS DELIBERATELY NOT JUDGED HERE
 // ----------------------------------------------
 // It was, in the first draft, and the population was EMPTY. `.frseg` renders on
@@ -102,7 +147,7 @@ export const id = "a-clickable-surface-shows-the-hand";
 export const claim =
   "A visitor whose pointer rests on something clickable sees the hand that means it.";
 export const spec = "Page-Descriptions §7.0, Debugger-Integration §4.2 — BlockTracer";
-export const assertions = 30;
+export const assertions = 40;
 export const needsEngine = true;
 
 /**
@@ -187,6 +232,62 @@ const cursorsAtCentre = (page, sel) =>
     }
     return out;
   }, sel);
+
+/**
+ * The two halves of §13's set equality, read over the WHOLE page.
+ *
+ * `CLICKABLE` is the spec's set — anchors, buttons, and elements carrying an
+ * interactive role — and it is total only because Front-End-Architecture §7
+ * forbids interactive `div`s. A disabled `button` is excluded: §13 puts an
+ * inert control in the second set and not the first, so it must NOT offer a
+ * hand, and this repository already gives it `cursor:not-allowed`.
+ *
+ *   examined  — rendered elements the sweep actually read a cursor from
+ *   pointer   — of those, how many compute `pointer` (the sweep FOUND hands)
+ *   orphan    — of those, how many have no clickable ancestor: the violation
+ *   distinct  — how many different cursor values the page produced, which is
+ *               what proves the reading discriminates rather than returning a
+ *               constant
+ */
+const CLICKABLE =
+  'a[href],button:not([disabled]),[role="button"],[role="link"],[role="tab"],[role="menuitem"]';
+
+const pointerAudit = (page, clickableSel) =>
+  page.evaluate((sel) => {
+    const shown = (e) =>
+      !!e &&
+      typeof e.checkVisibility === "function" &&
+      e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+    const name = (e) =>
+      e.tagName.toLowerCase() +
+      (e.className ? "." + String(e.className).trim().split(/\s+/).join(".") : "");
+
+    const seen = new Set();
+    let examined = 0;
+    let pointer = 0;
+    const orphans = [];
+    for (const el of document.querySelectorAll("*")) {
+      if (!shown(el)) continue;
+      examined += 1;
+      const c = getComputedStyle(el).cursor;
+      seen.add(c);
+      if (c !== "pointer") continue;
+      pointer += 1;
+      // INHERITANCE, HANDLED HERE AND NOT BY THE SELECTOR. A `span` inside an
+      // anchor computes `pointer` because `cursor` inherits; it is not a
+      // violation, it is the anchor's own promise reaching its own text. What
+      // would be a violation is a hand ORIGINATING outside anything clickable.
+      if (!el.closest(sel)) orphans.push(name(el));
+    }
+    return {
+      examined,
+      pointer,
+      orphan: orphans.length,
+      orphanNames: orphans.slice(0, 6),
+      distinct: seen.size,
+      values: [...seen].sort(),
+    };
+  }, clickableSel);
 
 /** The cursors that render as a plus, which is what the report named. */
 const PLUS = ["copy", "cell", "crosshair"];
@@ -299,6 +400,40 @@ export async function run({ browser, site, j }) {
     j.note(`event log rows: ${shape(ev)}`);
     judge(j, ev, "event-log rows", "pointer");
 
+    // ── §13'S SET EQUALITY, BOTH DIRECTIONS, OVER THE WHOLE PAGE ───────
+    //
+    // The populations above are the surfaces the report named. This is the rule
+    // itself, and it is what catches the next one — a cursor defect on a pane
+    // nobody thought to list here reddens without this file being edited.
+
+    // FORWARD: everything that responds to a click shows the hand.
+    const clickable = await cursorsAtCentre(page, CLICKABLE);
+    j.note(`every clickable: ${shape(clickable)}`);
+    judge(j, clickable, "every anchor, button and interactive role on the page", "pointer");
+
+    // INVERSE: and nothing that does not, shows one.
+    const audit = await pointerAudit(page, CLICKABLE);
+    j.note(
+      `audit: examined ${audit.examined}, pointer ${audit.pointer}, orphan ${audit.orphan}, ` +
+        `cursors ${JSON.stringify(audit.values)}` +
+        (audit.orphanNames.length ? ` | ${audit.orphanNames.join(", ")}` : ""),
+    );
+    j.atLeast(audit.examined, 1, "SUBJECTS: rendered elements the cursor sweep read a value from");
+    // THE READING HAPPENED, AND IT DISCRIMINATES. Asserted separately from the
+    // verdict because a probe that never ran, or that returned one constant for
+    // everything, produces an `orphan` of 0 and would otherwise score a pass.
+    j.atLeast(audit.pointer, 1, "CONTROL: the sweep actually found hands on this page");
+    j.atLeast(
+      audit.distinct,
+      2,
+      "CONTROL: the sweep reads more than one cursor value, so it is discriminating",
+    );
+    j.countIs(
+      audit.orphan,
+      0,
+      "nothing that is not an anchor, a button or an interactive role shows the hand",
+    );
+
     // THE REPORT, RESTATED AS ONE NUMBER OVER EVERYTHING MEASURED. `copy`,
     // `cell` and `crosshair` all render as a plus; this is the assertion whose
     // text is the visitor's sentence, and it is a count so that one surviving
@@ -394,6 +529,27 @@ async function noScriptArm(browser, site, j, url) {
       inertRows.byCursor["pointer"] ?? 0,
       0,
       "NO-SCRIPT: no row that cannot be clicked offers the hand that says it can",
+    );
+
+    // §13'S INVERSE ON THE SERVED PAGE, which is where the inert population is
+    // largest — every navigation row is a `div` here, so a rule that leaked a
+    // hand onto something unclickable has the most room to show itself.
+    const audit = await pointerAudit(page, CLICKABLE);
+    j.note(
+      `no-script audit: examined ${audit.examined}, pointer ${audit.pointer}, ` +
+        `orphan ${audit.orphan}, cursors ${JSON.stringify(audit.values)}` +
+        (audit.orphanNames.length ? ` | ${audit.orphanNames.join(", ")}` : ""),
+    );
+    j.atLeast(audit.pointer, 1, "NO-SCRIPT: CONTROL — the sweep found hands on the served page");
+    j.atLeast(
+      audit.distinct,
+      2,
+      "NO-SCRIPT: CONTROL — the served page produces more than one cursor value",
+    );
+    j.countIs(
+      audit.orphan,
+      0,
+      "NO-SCRIPT: nothing unclickable shows the hand on the page served without script",
     );
 
     const copyable = await cursorsAtCentre(page, ".copyable");

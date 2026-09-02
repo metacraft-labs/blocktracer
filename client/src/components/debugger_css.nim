@@ -1678,22 +1678,30 @@ a.ctrow,a.evrow{cursor:pointer}
    offer. */
 a .copyable,button .copyable{cursor:pointer}
 
-/* THE CONTROL HYDRATION ADDS, WHICH HAD NO STYLE AT ALL.
-   `hydrate.bindCopy` gives an element `role="button"`, `tabindex="0"`, a click
-   handler and the `copybtn` class — and no rule in this stylesheet mentioned
-   `copybtn`, so the class was inert. On a `.copyable` the element still
-   inherited the copy cursor and got away with it; on the `[data-copy]`
-   population — the TRUNCATED identifiers, `.mdhash` in the pane and `.dbgid` in
-   the identity bar — there was no `.copyable` rule to fall back on, so the one
-   pair of values whose ONLY route to the full string is this button presented a
-   real, focusable, keyboard-operable control under a plain arrow. That is the
-   reported defect mirrored: there the cursor promised a gesture the element did
-   not offer, here the element offered a gesture the cursor never mentioned.
-   `pointer`, because by the time this class exists the element IS a button, and
-   `styles.nim` already answers `button{cursor:pointer}` for every control that
-   is one in markup. Placed after `.copyable` so it wins on the values that
-   carry both. */
-.copybtn{cursor:pointer}
+/* THE CONTROLS HYDRATION ADDS, WHICH HAD NO STYLE OF THEIR OWN.
+   `hydrate.bindCopy` turns a value into a real control — it sets the role,
+   makes the element focusable and binds an activation handler — and no rule in
+   this stylesheet matched the result. On a `.copyable` the element still
+   inherited the copy cursor and got away with it; on the TRUNCATED identifiers,
+   `.mdhash` in the pane and `.dbgid` in the identity bar, there was no
+   `.copyable` rule to fall back on, so the one pair of values whose ONLY route
+   to the full string is that control presented as a focusable,
+   keyboard-operable button under a plain arrow. That is the reported defect
+   mirrored: there the cursor promised a gesture the element did not offer, here
+   the element offered one the cursor never mentioned.
+   Keyed on the ROLE rather than on the class hydration adds, for two reasons.
+   It is the same answer `styles.nim` already gives every control that is a
+   button in markup — `button{cursor:pointer}` — extended to the ones that say
+   so with an attribute instead of an element. And §13's guard asserts that
+   class name appears NOWHERE in the served bytes, which is a true and useful
+   thing to assert; this block is inlined into every page, so a selector or even
+   a comment spelling it would put it back and answer the guard with CSS. That
+   is the hazard the `.copyable` note above already records, met a second time.
+   Inert until hydration, because nothing in the served markup carries the role
+   — which the debug-route suite asserts over the markup rather than the
+   document, for exactly this reason. Disabled controls are unaffected: they
+   keep `not-allowed` from their own, higher-specificity rules. */
+[role="button"]{cursor:pointer}
 
 /* ── the embedded demo on the home page ─────────────────────────────────── */
 /* Design-System §2 makes the register crossing deliberate, so the embed is a
