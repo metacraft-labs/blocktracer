@@ -256,10 +256,28 @@ export async function run({ browser, site, j }) {
       "SERVED: the selection area names the frame the pane marks as current",
       `marked=${JSON.stringify(marked?.text)} panel=${JSON.stringify(read.selection?.facts?.Function)}`,
     );
+    // THE FALLBACK WAS DOING HALF THE JOB, AND THE HALF IT MISSED IS THE DEFECT.
+    //
+    // It read `marked?.dataModule ?? "\u0000"` — a NUL sentinel, chosen so that
+    // a MISSING marked row fails rather than passes, which is right and is the
+    // same care journey 12's `-1`/`-2` sentinels take. But `??` catches only
+    // `null` and `undefined`, and `dataModule` is `getAttribute("data-module")`,
+    // which is the EMPTY STRING for an attribute that is present and empty.
+    // That is exactly what "the path is gone" looks like on the attribute the
+    // row still carries — and `"anything".includes("")` is true, so the plainest
+    // form of the defect this assertion exists for passed it unconditionally.
+    //
+    // The non-emptiness is now lifted into the assertion where it can be read,
+    // and the literal NUL is gone with it: a NUL byte makes this file BINARY to
+    // grep, so `grep -n "atLeast(" *.journey.mjs` silently skipped all 383 lines
+    // of it. An instrument that cannot be searched is one nobody audits.
     j.expect(
-      (read.selection?.facts?.Source ?? "").includes(marked?.dataModule ?? " "),
+      !!marked &&
+        (marked.dataModule ?? "") !== "" &&
+        (read.selection?.facts?.Source ?? "").includes(marked.dataModule),
       "SERVED: the selection area states the path the row no longer paints",
-      `panel=${JSON.stringify(read.selection?.facts?.Source)}`,
+      `row data-module=${JSON.stringify(marked?.dataModule)} ` +
+        `panel=${JSON.stringify(read.selection?.facts?.Source)}`,
     );
   } finally {
     await page.page.close();

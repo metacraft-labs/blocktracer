@@ -69,7 +69,7 @@ export const id = "a-source-file-is-shown-whole";
 export const claim =
   "A visitor reading a session's Code pane can read the whole file the session is stopped in — every line of it, not a window onto the position.";
 export const spec = "Page-Descriptions.md §7.0, §13 — BlockTracer";
-export const assertions = 11;
+export const assertions = 13;
 
 /**
  * How many lines the old lead-in would have removed from a document of `lines`
@@ -382,12 +382,37 @@ export async function run({ browser, site, j }) {
             .join("; ")}`),
   );
 
-  for (const s of seen) {
-    if (s.m.tabLabel && s.m.activePath && s.m.tabLabel !== s.m.activePath) {
-      j.note(
-        `${s.t.debugPath}: the tab strip marks "${s.m.tabLabel}" and the island's active` +
-          ` document is "${s.m.activePath}"`,
-      );
-    }
+  // THE CROSS-CHECK IS ASSERTED, NOT NOTED.
+  //
+  // This block used to be a `j.note` per disagreement and nothing else, which is
+  // the shape journey 07's header names: "every reading of it was printed as a
+  // note and asserted by nothing". The declared-assertion count cannot see it —
+  // notes are not records, so the count held whether the loop reported zero
+  // disagreements or fifteen, and a run in which every pane's tab strip named a
+  // different document from the one it was showing would have printed fifteen
+  // lines of evidence above a green verdict.
+  //
+  // The reading exists for a stated reason (this file's header: so that "the
+  // island's activeIndex" and "the document a visitor is looking at" are not
+  // taken on trust from one another), and a reading taken for a reason is a
+  // claim. `atLeast` first, because the two fields are read from different
+  // places and a page that carried neither would otherwise agree vacuously.
+  const withBoth = seen.filter((s) => s.m.tabLabel && s.m.activePath);
+  const disagreeing = withBoth.filter((s) => s.m.tabLabel !== s.m.activePath);
+  for (const s of disagreeing) {
+    j.note(
+      `${s.t.debugPath}: the tab strip marks "${s.m.tabLabel}" and the island's active` +
+        ` document is "${s.m.activePath}"`,
+    );
   }
+  j.atLeast(
+    withBoth.length,
+    1,
+    "SUBJECTS: panes that name both the tab they mark and the document their island calls active",
+  );
+  j.countIs(
+    disagreeing.length,
+    0,
+    "the tab a pane marks is the document its own source island calls active",
+  );
 }

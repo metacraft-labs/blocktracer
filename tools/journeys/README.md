@@ -63,6 +63,53 @@ visitor sees, and it fails whichever layer broke.
    repository's mount gate blocked a deploy over a byte-perfect page because its
    runner's Chromium had no fonts.
 
+## A guard must be a fact the defect cannot reach
+
+Rule 3 says a test whose subject can be empty passes vacuously. There is a
+sharper version of it, and it cost this directory an assertion that ran green and
+empty for the whole life of the journey that made it.
+
+Journey 06 asserted *"a session that reports a position also shows one"* as an
+implication guarded by `Number(live.facts.step) > 0`. The defect it existed to
+catch was a session that landed at step 0 with **no playhead on 48 ticks** — so
+the antecedent was false exactly when the defect was present. Worse, it was not
+a historical accident: with the product correct, both of that journey's arms
+still land at step 0, because the engine's `run-to-entry` parks there and says
+so. `step > 0` was false on every subject, on every run.
+
+**An implication is only as strong as its antecedent, and an antecedent nobody
+asserts is one product change away from being false everywhere.** Three ways out,
+in order of preference:
+
+1. **Delete the implication.** Assert both halves unconditionally. Journey 06 now
+   states that the served frame marks its position and draws its playhead on the
+   tick its own step names, and that the live frame does too; "no state renders
+   less than the pre-hydration page" is the conjunction, and there is no
+   antecedent left to hide behind.
+2. **Guard on a different artefact.** The served frame (`visitWithoutScript`), the
+   export re-parsed with `DOMParser`, the worker wire read by an `addInitScript`
+   instrument, or the manifest on disk — a hydration defect cannot move any of
+   them. Journeys 07, 09, 11, 12, 13, 15, 17, 18 and 19 all use this and it is
+   the pattern to copy.
+3. **Lift the guard out and assert it as its own record.** Journey 13's
+   `INSTRUMENT: the source pane has a scroller, so "it did not move" is a fact and
+   not a vacuity`, and journey 12's `CONTROL: the sweep reads more than one cursor
+   value`, are what this looks like.
+
+Two smaller rules from the same sweep:
+
+- **Put the subject count above the assertion, not elsewhere in the file.** The
+  breakpoint journey's `countIs(gutterButtons, rows)` was `0 === 0` over a pane
+  that had rendered nothing; the guard that caught it was thirty-five lines
+  further down, so the journey went red while *that record* went green — and a
+  mutation arm aimed at its text would have scored SURVIVED.
+- **Choose a fallback so the degenerate case FAILS.** `markedNumber ?? 0` (falls
+  out of the population), `-1` against `-2` (sentinels picked to be unequal), and
+  `functionFirst ?? 0` (counted as a violation) are all correct. `?? ""` fed to
+  `.includes()` is not, because `s.includes("")` is true of every string — which
+  is how the call-trace journey's path check passed unconditionally against a
+  `data-module=""`, the exact shape of the defect it was written for.
+
 ## Rendered, not present
 
 The source pane holds every file in the bundle at once and hides all but one

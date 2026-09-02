@@ -129,6 +129,42 @@
 // browser gives `cursor:pointer` to `a[href]` and to nothing else, so it will
 // need a rule and this comment is where the next reader will find that out.
 //
+// WHAT THE SWEEP DID NOT SWEEP, AND HOW IT IS KEPT FROM HAPPENING AGAIN
+// ---------------------------------------------------------------------
+// The interactive selector was written when every interactive thing on this page
+// was clicked, and it was never revisited. Two surfaces had drifted out from
+// under it, and neither was visible in any verdict:
+//
+//   * `role="slider"` — the trace scrubber. NOT in the selector, so the one
+//     control on the page whose correct cursor is something other than `pointer`
+//     was the one control nothing measured. The page said so on every run: the
+//     hydrated audit's own note lists cursors `["auto","copy","grab","pointer"]`,
+//     and `grab` appeared in no assertion in this file. `grabbing` — the half of
+//     the promise that only exists while the pointer is down — had never been
+//     read by anything at all.
+//
+//   * `button:not([disabled])` — this file's spelling of "an inert control is
+//     excluded", which is not the product's. `renderControls` emits
+//     `button.dcbtn.off` with `aria-disabled="true"` and no `disabled`
+//     attribute, so all eight inert stepping buttons MATCHED the clickable set
+//     and were required to compute `pointer` while the stylesheet gives them
+//     `not-allowed`. It stayed green because it had no subject: the hydrated arm
+//     settles on `controlsLive > 0` and by then every button is live — measured,
+//     zero inert on both hydrated subjects.
+//
+// The slider's fix could not be "add it to the selector". The forward claim is
+// `each computes pointer`, and a slider that computed `pointer` would be lying —
+// a range is dragged to a value, not clicked to one. One expectation across both
+// roles would have had to either force the wrong cursor onto the scrubber or be
+// weakened to "something interactive", and a weakened assertion is the vacuous
+// test this file exists to refuse. So the expectation is PER ROLE.
+//
+// AND THE LIST IS NOW CHECKED AGAINST THE PAGE. A person's audit is good until
+// the next role lands; `ROLES_WITH_A_CURSOR_EXPECTATION` is compared against
+// every `[role]` in the markup on every run, and a role in neither that list nor
+// the not-actuated one is a RED. That assertion is what would have caught this,
+// on the day `role="slider"` was stamped on the track.
+//
 // THE NO-SCRIPT ARM IS THE SCOPE CONTROL
 // --------------------------------------
 // The fix must not be "delete the copy cursor". `.copyable` is right where it
@@ -147,7 +183,7 @@ export const id = "a-clickable-surface-shows-the-hand";
 export const claim =
   "A visitor whose pointer rests on something clickable sees the hand that means it.";
 export const spec = "Page-Descriptions §7.0, Debugger-Integration §4.2 — BlockTracer";
-export const assertions = 40;
+export const assertions = 52;
 export const needsEngine = true;
 
 /**
@@ -250,7 +286,95 @@ const cursorsAtCentre = (page, sel) =>
  *               constant
  */
 const CLICKABLE =
-  'a[href],button:not([disabled]),[role="button"],[role="link"],[role="tab"],[role="menuitem"]';
+  'a[href],button:not([disabled]):not([aria-disabled="true"]),' +
+  '[role="button"],[role="link"],[role="tab"],[role="menuitem"]';
+
+/**
+ * THE CONTROLS THAT ARE OPERATED BY A DRAG, WHICH IS NOT A CLICK.
+ *
+ * `.dctl` — the trace scrubber — carries `role="slider"`, and this sweep did not
+ * look at it. The selector above was written before the control existed and was
+ * never revisited, so the one interactive surface on the page with a cursor
+ * OTHER than `pointer` was the one surface nothing measured. The page's own
+ * cursor inventory said so out loud the whole time: the hydrated audit reports
+ * `["auto","copy","grab","pointer"]`, and `grab` appeared in no assertion.
+ *
+ * ADDING IT TO `CLICKABLE` WOULD HAVE BEEN THE WRONG FIX, and it is worth being
+ * explicit about why, because it is the same mistake in a new place. The forward
+ * claim is `each computes pointer`; a slider that computed `pointer` would be
+ * lying — you cannot click a range to a value — so the sweep would have had to
+ * either force the wrong cursor onto the control or be weakened to "computes
+ * something interactive", and a weakened assertion is the vacuous test this
+ * whole layer is written against.
+ *
+ * So the expectation is PER ROLE. `grab` offered, `grabbing` while the pointer
+ * is down — which is what `debugger_css` already ships and what nothing checked.
+ *
+ * `pointerAudit` is still given `CLICKABLE` and NOT this set, deliberately: a
+ * slider that started showing the hand would then have no clickable ancestor and
+ * would be reported as an ORPHAN by §13's inverse. The two directions cross-
+ * check each other, and folding the slider into the clickable set would remove
+ * that.
+ */
+const DRAGGABLE = '[role="slider"]';
+
+/**
+ * The controls that are RENDERED and DELIBERATELY DEAD.
+ *
+ * `button:not([disabled])` was this file's own spelling of "an inert control is
+ * excluded", and the product does not spell it that way: `renderControls` emits
+ * `button.dcbtn.off` with `aria-disabled="true"` and no `disabled` attribute, so
+ * every inert stepping control MATCHED the clickable set and was required to
+ * compute `pointer`, while the stylesheet gives it `not-allowed`.
+ *
+ * It never reddened because it was never exercised: the hydrated arm settles on
+ * `controlsLive > 0`, and by then all eight buttons are live — measured, 0 inert
+ * on both hydrated subjects. The assertion had the defect and no subject.
+ *
+ * Both spellings are excluded above, and the inert population is now judged in
+ * its own right on the arm that HAS one: with scripting off all eight are dead,
+ * which is §13's second half at its strongest — a control that cannot be
+ * operated must not say it can.
+ */
+const INERT_CONTROL = 'button[disabled],button[aria-disabled="true"]';
+
+/**
+ * The roles this sweep has a cursor expectation for, and the roles that are not
+ * actuated at all.
+ *
+ * THIS EXISTS SO THE SELECTOR LIST CANNOT SILENTLY FALL BEHIND THE PRODUCT
+ * AGAIN. `role="slider"` was added to `.dctl` by a change that had no reason to
+ * think about this file, and nothing here noticed for as long as the control
+ * existed. An audit performed by a person is good until the next role lands; the
+ * assertion below is the same audit performed on every run.
+ *
+ * A role goes in the first list when it has an expectation above, and in the
+ * second when it announces rather than acts — `status`, `alert` and `img` are
+ * live regions and a graphic, and a cursor claim about them would be a claim
+ * about nothing. Anything in NEITHER list is a role the product uses and this
+ * sweep is silent about, and that is the failure.
+ */
+const ROLES_WITH_A_CURSOR_EXPECTATION = ["button", "link", "tab", "menuitem", "slider"];
+const ROLES_THAT_ARE_NOT_ACTUATED = [
+  "status",
+  "alert",
+  "img",
+  "presentation",
+  "none",
+  "note",
+  "group",
+  "region",
+  "list",
+  "listitem",
+  "heading",
+  "banner",
+  "navigation",
+  "contentinfo",
+  "main",
+  "complementary",
+  "separator",
+  "tooltip",
+];
 
 const pointerAudit = (page, clickableSel) =>
   page.evaluate((sel) => {
@@ -288,6 +412,70 @@ const pointerAudit = (page, clickableSel) =>
       values: [...seen].sort(),
     };
   }, clickableSel);
+
+/** Every ARIA role in the document, whether on screen or not. */
+const rolesInMarkup = (page) =>
+  page.evaluate(() =>
+    [
+      ...new Set([...document.querySelectorAll("[role]")].map((e) => e.getAttribute("role"))),
+    ].sort(),
+  );
+
+/**
+ * The cursor a control shows WHILE IT IS ACTUALLY BEING OPERATED.
+ *
+ * Every other reading in this file is of a control at rest — what it OFFERS.
+ * `grabbing` is the other half of the scrubber's promise and it exists for one
+ * moment only, so it cannot be read at rest and cannot be read after release:
+ * `debugger_css` spells it `.dctl.seekable:active,.dctl.scrubbing`, and the
+ * second selector is there because the pointer is CAPTURED for the duration —
+ * `:active` alone drops the moment the visitor's hand strays a pixel above the
+ * bar. Reading it needs a real press, a real move, and a reading taken before
+ * the release.
+ *
+ * The BEFORE reading is returned too, and it is not decoration: `grabbing` on an
+ * element that already said `grabbing` at rest proves nothing, and a control
+ * stuck in the pressed state is a real way to be wrong.
+ *
+ * This moves the session — a press on the track seeks. It is therefore done LAST
+ * in its arm, after every at-rest population has been measured.
+ */
+async function cursorWhileDragging(page, sel) {
+  const box = await page.evaluate((s) => {
+    const el = document.querySelector(s);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 ? { x: r.left, y: r.top, w: r.width, h: r.height } : null;
+  }, sel);
+  if (!box) return { pressed: false, why: `no rendered ${sel} on this page to drag` };
+
+  const read = (x, y) =>
+    page.evaluate(
+      ([px, py, s]) => {
+        const subject = document.querySelector(s);
+        const top = document.elementFromPoint(px, py);
+        return {
+          cursor: top ? getComputedStyle(top).cursor : null,
+          // The same subtree rule the at-rest sweep uses: a descendant is not a
+          // cover, because `cursor` inherits and the descendant is reporting the
+          // control's own answer.
+          onSubject: !!top && !!subject && (top === subject || subject.contains(top)),
+        };
+      },
+      [x, y, sel],
+    );
+
+  const y = box.y + box.h / 2;
+  const from = box.x + box.w * 0.2;
+  const to = box.x + box.w * 0.4;
+  await page.mouse.move(from, y);
+  const before = await read(from, y);
+  await page.mouse.down();
+  await page.mouse.move(to, y);
+  const during = await read(to, y);
+  await page.mouse.up();
+  return { pressed: true, before, during };
+}
 
 /** The cursors that render as a plus, which is what the report named. */
 const PLUS = ["copy", "cell", "crosshair"];
@@ -444,6 +632,58 @@ export async function run({ browser, site, j }) {
       0,
       "no clickable surface measured on the hydrated page computes a plus-rendering cursor",
     );
+
+    // ── THE ROLE INVENTORY, WHICH IS WHAT KEEPS THE SWEEP HONEST ─────────
+    //
+    // The selectors above are a list, and a list cannot notice a control nobody
+    // added it to — `tools/capture/check-coverage.mjs` learned that about chains
+    // and this file has now learned it about roles. `role="slider"` arrived on
+    // the scrubber and this sweep went on reporting a clean pass over a set that
+    // no longer covered the page.
+    //
+    // So the list is checked against the page instead of trusted. Every role in
+    // the markup must either have a cursor expectation here or be one that is
+    // not actuated at all; a role in neither list is a surface this file claims
+    // to judge and does not.
+    const roles = await rolesInMarkup(page);
+    j.note(`roles in the markup: ${JSON.stringify(roles)}`);
+    j.atLeast(roles.length, 1, "SUBJECTS: ARIA roles the hydrated page puts in its markup");
+    const unclassified = roles.filter(
+      (r) =>
+        !ROLES_WITH_A_CURSOR_EXPECTATION.includes(r) && !ROLES_THAT_ARE_NOT_ACTUATED.includes(r),
+    );
+    j.countIs(
+      unclassified.length,
+      0,
+      `every role the page uses is one this sweep either expects a cursor for or knows is not actuated${
+        unclassified.length ? `: ${unclassified.join(", ")}` : ""
+      }`,
+    );
+
+    // ── THE SCRUBBER, WHICH IS DRAGGED AND THEREFORE NOT A `pointer` ─────
+    const slider = await cursorsAtCentre(page, DRAGGABLE);
+    j.note(`slider: ${shape(slider)}`);
+    judge(j, slider, "the timeline scrubber, which is dragged and not clicked", "grab");
+
+    // AND THE OTHER HALF OF ITS PROMISE. `grab` says it CAN be dragged;
+    // `grabbing` says it IS being. The stylesheet has shipped both since the
+    // gesture landed and nothing has ever read either. Last in the arm, because
+    // the press seeks the session.
+    const dragged = await cursorWhileDragging(page, DRAGGABLE);
+    j.note(`while dragging: ${JSON.stringify(dragged)}`);
+    j.expect(
+      dragged.pressed && dragged.before.onSubject && dragged.during.onSubject,
+      "CONTROL: the press and the move both landed on the scrubber itself",
+      JSON.stringify(dragged),
+    );
+    j.expect(
+      dragged.pressed &&
+        dragged.before.cursor === "grab" &&
+        dragged.during.cursor === "grabbing",
+      "the scrubber closes the hand while it is being dragged, and offers it open at rest",
+      `at rest ${dragged.pressed ? dragged.before.cursor : "not pressed"}, ` +
+        `mid-drag ${dragged.pressed ? dragged.during.cursor : "not pressed"}`,
+    );
   } finally {
     await page.close();
   }
@@ -550,6 +790,45 @@ async function noScriptArm(browser, site, j, url) {
       audit.orphan,
       0,
       "NO-SCRIPT: nothing unclickable shows the hand on the page served without script",
+    );
+
+    // ── THE INERT CONTROLS, ON THE ONE ARM THAT HAS ANY ─────────────────
+    //
+    // §13's second half at full strength: eight stepping buttons that cannot be
+    // operated, rendered, on screen, saying so. This is the population the
+    // hydrated arm cannot supply — it settles on `controlsLive > 0`, and by then
+    // every button is live — which is exactly why `button:not([disabled])` could
+    // carry the wrong spelling of "disabled" for as long as it liked. Judged
+    // here, the exclusion in `CLICKABLE` is a claim with a subject.
+    const inert = await cursorsAtCentre(page, INERT_CONTROL);
+    j.note(`no-script inert controls: ${shape(inert)}`);
+    judge(j, inert, "NO-SCRIPT: inert stepping controls, which cannot be operated", "not-allowed");
+
+    // ── THE TIMELINE, SERVED WITHOUT ITS GESTURE ─────────────────────────
+    //
+    // The scope control for the slider rule, and the mirror of the copy-cursor
+    // one below: the fix for "the scrubber never showed `grab`" must not be a
+    // blanket `.dctl{cursor:grab}`. This build has no bundle, nothing here can
+    // honour a drag, and a track that offered the open hand would be this
+    // repository's house defect wearing its newest control.
+    //
+    // Both hands are counted, not just `grab`: `pointer` on an unmovable track
+    // is the same lie told with a different glyph. The ROLE's absence is journey
+    // 17's assertion and is deliberately not restated here — this file judges
+    // what the cursor says.
+    const servedTrack = await cursorsAtCentre(page, ".dctl");
+    j.note(`no-script timeline: ${shape(servedTrack)}`);
+    j.atLeast(
+      servedTrack.hit,
+      1,
+      "NO-SCRIPT: SUBJECTS — the timeline is served, and a pointer can rest on it",
+    );
+    j.countIs(
+      (servedTrack.byCursor["grab"] ?? 0) +
+        (servedTrack.byCursor["grabbing"] ?? 0) +
+        (servedTrack.byCursor["pointer"] ?? 0),
+      0,
+      "NO-SCRIPT: the served timeline offers no hand at all, open or pointing, because nothing can move it",
     );
 
     const copyable = await cursorsAtCentre(page, ".copyable");

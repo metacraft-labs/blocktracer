@@ -64,7 +64,7 @@ export const id = "a-step-repaints-only-what-it-changed";
 export const claim =
   "A visitor who steps sees the panes that changed change, and nothing else move.";
 export const spec = "Page-Descriptions.md §7.0, §8 — BlockTracer";
-export const assertions = 20;
+export const assertions = 21;
 export const needsEngine = true;
 
 /** How many steps the session is walked. */
@@ -215,6 +215,20 @@ export async function run({ browser, site, j }) {
 
     const found = await install(page);
     j.note(`instrument attached to ${found} pane bodies`);
+    // AND THAT NUMBER IS NOW ASSERTED, NOT MERELY PRINTED.
+    //
+    // It was a `j.note` and nothing else — a measurement taken and dropped,
+    // which the declared-assertion count cannot see because notes are not
+    // records. Arm 0 below proves the observer works, but it proves it on ONE
+    // pane (`PROBE_PANE`); if the other three never attached, every verdict
+    // silently ran over a quarter of the surface and verdict 2's
+    // `if (!s.survivors[pane] …) continue` absorbed the rest without a word.
+    //
+    // `PANES` is a literal in this file, so the `want` is outside every failure
+    // mode the journey judges. This is the file's own rule from its header — "a
+    // new instrument is a new way to be wrong; a gesture that never fires goes
+    // green" — applied to the attachment as well as to the observation.
+    j.countIs(found, PANES.length, "INSTRUMENT: the observer attached to every replay pane body");
 
     // ── ARM 0: PROVE THE INSTRUMENT ─────────────────────────────────────────
     // Let the landing finish before anything is measured, so a write from the

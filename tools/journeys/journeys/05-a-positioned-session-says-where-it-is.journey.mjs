@@ -46,7 +46,7 @@ export const id = "a-positioned-session-says-where-it-is";
 export const claim =
   "A visitor who opens a positioned session is told where it is stopped — including on a chain transaction, where there is no line to mark.";
 export const spec = "Page-Descriptions.md §7.0, §14.1a — BlockTracer";
-export const assertions = 6;
+export const assertions = 7;
 
 export async function run({ browser, site, j }) {
   const all = await transactions(site.root);
@@ -101,10 +101,34 @@ export async function run({ browser, site, j }) {
   const positioned = seen.filter(
     (s) => Number(s.facts.step) > 0 && Number(s.facts.totalSteps) > 0,
   );
+  // THE SUBJECT COUNTS, AND WHY `atLeast(…, 1)` WAS NOT ENOUGH HERE.
+  //
+  // `Number(step) > 0` is the same predicate journey 06 was just corrected for,
+  // and it fails the same way: a session the engine parks on tick 0 drops out of
+  // `positioned` silently, taking itself out of BOTH the numerator and the
+  // denominator of every count below. `atLeast(positioned.length, 1)` over a
+  // corpus of 23 was satisfied by one survivor, so a change that put every chain
+  // capture at step 0 would have left this file green over eight fewer subjects
+  // than it believed it had — §4b's "one member of five", applied to the guard
+  // rather than to the claim.
+  //
+  // The no-source branch is now counted against the CORPUS instead. `hasSource`
+  // is read from the served markup by `corpus.mjs`, before any page is opened,
+  // so it is a fact this journey's failure mode cannot reach — and "every chain
+  // recording reports a position" is a claim worth making in its own right, not
+  // merely a guard. It is the branch the seed defect is filed against, and it is
+  // the one that must not be allowed to empty.
+  const noSourcePositioned = positioned.filter((s) => !s.t.hasSource);
+  const withSourcePositioned = positioned.filter((s) => s.t.hasSource);
+  j.countIs(
+    noSourcePositioned.length,
+    withoutSource.length,
+    "SUBJECTS: every session with NO source reports a position, so the branch below has all of its members",
+  );
   j.atLeast(
-    positioned.length,
+    withSourcePositioned.length,
     1,
-    "some session reports a position, so the rule below has a subject",
+    "SUBJECTS: sessions WITH source that report a position",
   );
 
   const saysWhere = positioned.filter((s) => {
@@ -129,8 +153,9 @@ export async function run({ browser, site, j }) {
 
   // BOTH BRANCHES, SEPARATELY. Asserting only the total lets a corpus in which
   // every session has a listing satisfy the rule with the branch that hid the
-  // defect. This is the assertion the seed defect is filed against.
-  const noSourcePositioned = positioned.filter((s) => !s.t.hasSource);
+  // defect. This is the assertion the seed defect is filed against — and its
+  // population is pinned to the corpus above, so `0 of 0` is a red rather than
+  // the pass it used to print.
   const noSourceSaysWhere = noSourcePositioned.filter((s) => saysWhere.includes(s));
   j.countIs(
     noSourceSaysWhere.length,

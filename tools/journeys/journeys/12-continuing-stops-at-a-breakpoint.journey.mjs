@@ -64,7 +64,7 @@ export const id = "continuing-stops-at-a-breakpoint";
 export const claim =
   "A visitor who marks lines can continue to them, forwards and backwards.";
 export const spec = "Debugger-Integration.md §10.8 — BlockTracer";
-export const assertions = 28;
+export const assertions = 29;
 export const needsEngine = true;
 
 /** Wrap the worker before any page script runs, and count DAP frames by name. */
@@ -253,6 +253,17 @@ export async function run({ browser, site, j }) {
 
     // ── THE CONTROL IS OFFERED WHERE IT CAN BE HONOURED ───────────────────
     const gutter0 = await readGutter(page);
+    // THE SUBJECT COUNT COMES FIRST, AND IT USED NOT TO EXIST HERE.
+    //
+    // `readGutter` returns `rows: []` when no `.srcdoc` is on screen, so the
+    // assertion below was `countIs(0, 0)` — a pass — over a source pane that had
+    // rendered nothing at all. The condition WAS caught, thirty-five lines
+    // further down by `atLeast(executed.length, 3)`, so the journey went red;
+    // but this record went GREEN in the same run, and a `selftest.mjs` arm aimed
+    // at its text over a defect that empties the pane would have scored
+    // SURVIVED. An assertion's own guard has to sit above it, not somewhere in
+    // the same file.
+    j.atLeast(gutter0.rows, 1, "SUBJECTS: rendered lines in the document the session opened");
     j.countIs(
       gutter0.gutterButtons,
       gutter0.rows,

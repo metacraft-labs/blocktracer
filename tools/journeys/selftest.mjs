@@ -1095,6 +1095,141 @@ proc noteFor*`,
     assertion: "the slider answers the keyboard it puts itself in the tab order for",
   },
 
+  // ── THE PLAYHEAD, AS A FACT JOURNEY 06 CAN NOW SEE (journey 06) ──────────
+  //
+  // Both arms exist because that journey's one conditional assertion could not
+  // fail. It read
+  //
+  //     const reportsPosition = Number(live.facts.step) > 0 && …;
+  //     j.expect(!reportsPosition || (live.facts.marked === 1 && …), …)
+  //
+  // and BOTH of its subjects land on step 0 — the engine's `run-to-entry` parks
+  // at tick 0 and says so — so the antecedent was false on every run, and the
+  // assertion asserted nothing on a journey that was green throughout.
+  //
+  // The replacement asserts the tick UNCONDITIONALLY, on both the served frame
+  // and the live one, as a PAIR: which tick carries `.at` and how many carry
+  // `.on`. These two arms are aimed one at each, and they are aimed at different
+  // halves on purpose — PH1 moves the playhead without changing whether there is
+  // one, PH2 removes it without moving anything else. A single arm could not
+  // tell those apart, and the second is the defect this journey missed.
+  {
+    id: "PH1/the-playhead-drifts-back-a-tick",
+    why:
+      "Truncate instead of rounding when the step is turned into a tick, which is" +
+      " the exact regression `markedTick`'s header records: every position in the" +
+      " trace is drawn EARLIER than it is, by up to a whole tick, in one direction." +
+      " The playhead is still there, still moves, still leads a correct elapsed run" +
+      " — only its ARITHMETIC is wrong, which is why nothing that asks whether a" +
+      " playhead exists can see it. Aimed at the SERVED frame: at step 128 of 1315" +
+      " the tick goes 5 -> 4, while the live frame sits at step 0 where truncation" +
+      " and rounding agree, so this arm reddens the served assertion and leaves the" +
+      " live one green.",
+    file: join(CLIENT, "src", "debugger", "session_view.nim"),
+    find: `  else: clamp(int(p.fraction * float(TimelineTicks) + 0.5),`,
+    replace: `  else: clamp(int(p.fraction * float(TimelineTicks) + 0.0),`,
+    journey: "position-survives-hydration",
+    assertion: "HYDRATED-SERVED: the playhead is on the tick the session's own step names",
+  },
+  {
+    id: "PH2/a-session-at-tick-zero-has-no-position-again",
+    why:
+      "Restore `positioned = step > 0` in `projectControls` — the defect this" +
+      " journey's header describes and could not assert. `ReplayDataStore`" +
+      " initialises `rrTicks` to 0, so a session the engine has PARKED on the first" +
+      " step and a session that has heard nothing hold the same number; reading the" +
+      " number instead of the arrival makes 48 ticks with not one marked, on a page" +
+      " whose served frame had just drawn the playhead on tick 18. Nothing else" +
+      " changes: the source mark stays, `data-step` stays, every other assertion in" +
+      " the journey stays green. That is what made it invisible, and it is why the" +
+      " tick had to become a fact `probe.mjs` collects.",
+    file: join(CLIENT, "hydrate", "session_project.nim"),
+    find: `  result.positioned = engineReported or served.positioned`,
+    replace: `  result.positioned = step > 0`,
+    journey: "position-survives-hydration",
+    assertion: "HYDRATED: the playhead is on the tick the session's own step names",
+  },
+
+  // ── THE CURSOR SWEEP'S NEW ROLES (journey 12) ────────────────────────────
+  //
+  // The sweep's interactive selector had fallen behind the product: it named no
+  // `[role="slider"]`, so the scrubber — the one control whose correct cursor is
+  // not `pointer` — was never measured, and it spelled "inert" as `[disabled]`
+  // while `renderControls` spells it `aria-disabled`, so eight dead buttons were
+  // required to show the hand and never had a subject to prove it on.
+  {
+    id: "CU1/the-scrubber-offers-the-wrong-hand",
+    why:
+      "Give the track `cursor:pointer`. This is the fix a sweep with ONE expectation" +
+      " across all roles would have forced: a range is dragged to a value, not" +
+      " clicked to one, and a pointing hand on a continuous control says the wrong" +
+      " thing about the gesture. It is also the shape of the sibling repository's" +
+      " `build-clickable` defect, where a class kept `cursor:pointer` with a spec" +
+      " pinned to the class name. Note that §13's INVERSE catches it too — the" +
+      " slider is deliberately not in `CLICKABLE`, so a hand there has no clickable" +
+      " ancestor and is reported as an orphan. The two directions cross-check.",
+    file: join(CLIENT, "src", "components", "debugger_css.nim"),
+    find: `.dctl.seekable{cursor:grab}`,
+    replace: `.dctl.seekable{cursor:pointer}`,
+    journey: "a-clickable-surface-shows-the-hand",
+    assertion: "the timeline scrubber, which is dragged and not clicked — each computes `grab`",
+  },
+  {
+    id: "CU2/the-hand-never-closes",
+    why:
+      "Leave the offer and remove the operation: the track keeps `grab` at rest and" +
+      " stops going to `grabbing` under the pointer. Every at-rest reading in the" +
+      " file stays green, because at rest nothing changed — this is only visible to" +
+      " a reading taken with the button still down, which is the one reading a" +
+      " cursor sweep has no reason to take unless somebody wrote it. `.scrubbing`" +
+      " and `:active` are removed together, since the pointer is captured for the" +
+      " duration and either alone would leave the other answering.",
+    file: join(CLIENT, "src", "components", "debugger_css.nim"),
+    find: `.dctl.seekable:active,.dctl.scrubbing{cursor:grabbing}`,
+    replace: `.dctl.seekable:active,.dctl.scrubbing{cursor:grab}`,
+    journey: "a-clickable-surface-shows-the-hand",
+    assertion: "the scrubber closes the hand while it is being dragged, and offers it open at rest",
+  },
+  {
+    id: "CU3/a-dead-control-offers-the-hand",
+    why:
+      "Give the inert stepping buttons `cursor:pointer`. §13's second half, broken" +
+      " as plainly as it can be — eight controls that cannot be operated, saying" +
+      " they can. This arm is the reason the inert population is judged on the" +
+      " NO-SCRIPT frame at all: the hydrated arm settles on `controlsLive > 0` and" +
+      " has zero inert buttons, so the same mutation there reddens nothing. An" +
+      " assertion whose subject set is empty on every arm that runs it is the" +
+      " failure this whole directory is written against.",
+    file: join(CLIENT, "src", "components", "debugger_css.nim"),
+    find: `.dcbtn.off{background:var(--bt-surface-raised);
+  color:var(--bt-text-subtle);border-color:var(--bt-border-subtle);
+  cursor:not-allowed}`,
+    replace: `.dcbtn.off{background:var(--bt-surface-raised);
+  color:var(--bt-text-subtle);border-color:var(--bt-border-subtle);
+  cursor:pointer}`,
+    journey: "a-clickable-surface-shows-the-hand",
+    assertion:
+      "NO-SCRIPT: inert stepping controls, which cannot be operated — each computes `not-allowed`",
+  },
+  {
+    id: "CU4/a-role-the-sweep-has-never-heard-of",
+    why:
+      "Relabel the scrubber `role=\"progressbar\"` — which is precisely what" +
+      " `tickClass`'s header says this control must not be mistaken for, and a" +
+      " plausible edit for someone who has only seen the elapsed run. The point of" +
+      " the arm is not the role: it is that ADDING A ROLE IS HOW THIS SWEEP WENT" +
+      " STALE. `role=\"slider\"` arrived on the track from a change with no reason to" +
+      " think about the cursor journey, and nothing here noticed for as long as the" +
+      " control existed. The inventory assertion is that omission mechanised, and" +
+      " this proves it fires.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `  track.setAttribute("role", "slider")`,
+    replace: `  track.setAttribute("role", "progressbar")`,
+    journey: "a-clickable-surface-shows-the-hand",
+    assertion:
+      "every role the page uses is one this sweep either expects a cursor for or knows is not actuated",
+  },
+
   // ── the omniscience overlay (journey 18) ─────────────────────────────────
   //
   // Two arms, aimed at two things the overlay claims — and NOT at "the overlay

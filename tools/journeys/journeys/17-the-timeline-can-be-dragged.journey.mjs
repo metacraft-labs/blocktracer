@@ -72,7 +72,7 @@ export const id = "the-timeline-can-be-dragged";
 export const claim =
   "A visitor who drags the timeline at the top of a session moves the session to where they dropped it.";
 export const spec = "Debugger-Integration.md §3, §4.2 — BlockTracer";
-export const assertions = 28;
+export const assertions = 30;
 export const needsEngine = true;
 
 /** The three fractions every arm drags to. Named once so both arms drag the same. */
@@ -342,16 +342,43 @@ async function demoArm(browser, site, j, subject) {
     );
 
     // ── the handle's truthfulness, with nobody dragging ────────────────────
+    // THE CONTROL BELOW USED TO CONTAIN ITS OWN ESCAPE HATCH, and it is the
+    // vacuity family in its purest form. It read
+    //
+    //     new Set(readings.map(r => r.handleTick)).size > 1 ||
+    //       new Set(readings.map(r => r.step)).size === 1
+    //
+    // — "a frozen handle is fine if the session never moved". But a session that
+    // never moves is precisely the state in which "the handle sits on the tick
+    // the session's step names" is untestable: `tickFor` is a pure function of
+    // the step, so four readings of one step agree four times for free. The
+    // escape disjunct WAS the failure mode.
+    //
+    // And it was reachable, not theoretical. `steppingReadings` clicks with
+    // `.catch(() => {})` and nothing asserted that any click landed, so a dead
+    // toolbar produced four identical readings, four free agreements, and a
+    // CONTROL that passed by its second disjunct — the whole block green over a
+    // session that did not move.
+    //
+    // So the movement is asserted first, as its own record, read from
+    // `data-step` — the session's own account, the field journeys 03 and 09 take
+    // their verdicts from, and a fact about the engine rather than about the
+    // control being judged. With it in place the agreement below has a subject
+    // that is guaranteed to vary, and the disjunct is gone.
     const readings = await steppingReadings(page, total);
     j.countIs(readings.length, 4, "four toolbar steps were taken to read the handle against");
+    j.atLeast(
+      new Set(readings.map((r) => r.step)).size,
+      2,
+      "CONTROL: those toolbar steps actually moved the session, so the agreement below is not free",
+    );
     j.countIs(
       readings.filter((r) => r.agrees).length,
       readings.length,
       "after every toolbar step the handle sits on the tick the session's own step names",
       );
     j.expect(
-      new Set(readings.map((r) => r.handleTick)).size > 1 ||
-        new Set(readings.map((r) => r.step)).size === 1,
+      new Set(readings.map((r) => r.handleTick)).size > 1,
       "CONTROL: the readings above are not all one frozen value",
       `steps ${readings.map((r) => r.step).join(",")} ticks ${readings.map((r) => r.handleTick).join(",")}`,
     );
@@ -478,11 +505,26 @@ async function chainArm(browser, site, j, subject) {
         drags.map((d) => `f=${d.fraction} want ${d.wanted} got ${d.landed}`).join("; "),
     );
 
+    // THIS ARM HAD NO DISCRIMINATION CONTROL AT ALL — not even the broken one
+    // the demo arm carried. Three swallowed clicks give three identical
+    // readings, and `agrees` is a pure function of the step, so three identical
+    // readings agree three times and the assertion below passes over a session
+    // that never moved. The same guard, on the arm the header calls the
+    // interesting one.
     const readings = await steppingReadings(page, total, 3);
+    j.atLeast(
+      new Set(readings.map((r) => r.step)).size,
+      2,
+      "REAL: CONTROL — the chain session's toolbar steps reached more than one position",
+    );
     j.countIs(
       readings.filter((r) => r.agrees).length,
       readings.length,
       "REAL: the chain capture's handle tracks its session across three toolbar steps",
+    );
+    j.note(
+      `REAL stepping: steps ${readings.map((r) => r.step).join(",")} ` +
+        `ticks ${readings.map((r) => r.handleTick).join(",")}`,
     );
   } finally {
     await page.close();

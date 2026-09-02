@@ -58,7 +58,7 @@ export const spec = "Debugger-Integration.md §4.2, Page-Descriptions.md §7.0 �
 // 3 subject counts, 7 per arm over two arms, and 7 taken across both walks
 // together — the mixed step, the name that arrived, and the everything-marked
 // reading are each rarer than one walk can be relied on to produce.
-export const assertions = 3 + 2 * 7 + 7;
+export const assertions = 3 + 2 * 7 + 6;
 export const needsEngine = true;
 
 const WALK = 8;
@@ -260,10 +260,14 @@ export async function run({ browser, site, j }) {
   // highlight and by a feature that does nothing respectively. The claim has to
   // be taken somewhere both answers are on screen at once.
   const mixed = verdicts.filter((v) => v.mixed);
+  // THE FLOOR IS 2 AND NOT 1. §4b: an existential control is satisfied by one
+  // member of five, and the mixed step is the ONLY shape that discriminates
+  // here, so a walk that produced exactly one of them is a claim resting on a
+  // single transition. Measured across both arms this walk finds seven.
   j.atLeast(
     mixed.length,
-    1,
-    "CONTROL: the walks included a step on which SOME values changed and some did not",
+    2,
+    "CONTROL: the walks included steps on which SOME values changed and some did not",
   );
   const mixedWrong = mixed.filter(
     (v) => v.overMarked.length || v.underMarked.length || v.markedUnchanged.length,
@@ -278,11 +282,25 @@ export async function run({ browser, site, j }) {
           ` ${sample.expectUnmarked.size} unchanged and unmarked, of ${sample.rows} rows)`
         : ""),
   );
-  j.countIs(
-    mixed.reduce((a, v) => a + v.expectUnmarked.size, 0) === 0 ? 1 : 0,
-    0,
-    "CONTROL: those mixed steps had unmarked rows for the marks to be absent from",
-  );
+  // A CONTROL THAT WAS TRUE BY CONSTRUCTION HAS BEEN REMOVED FROM HERE.
+  //
+  // It read
+  //
+  //     j.countIs(mixed.reduce((a, v) => a + v.expectUnmarked.size, 0) === 0 ? 1 : 0,
+  //               0, "CONTROL: those mixed steps had unmarked rows …");
+  //
+  // and `v.mixed` is DEFINED as `expectChanged.size > 0 && expectUnmarked.size >
+  // 0`. Every member of `mixed` therefore has unmarked rows by definition, the
+  // sum over a non-empty `mixed` is always positive, the ternary always yields
+  // 0, and `countIs(0, 0)` always passes. When `mixed` was empty it failed — but
+  // that state is already caught one assertion earlier. It could never fail for
+  // the reason its own text gave, and it could never be the only thing failing.
+  //
+  // It is not re-worded because there is nothing to re-word: ANY control derived
+  // from `mixed` is entailed by `mixed`'s definition. What the control was
+  // reaching for — "there were enough of these steps for the claim to mean
+  // something" — is a statement about how many, and that is the floor raised
+  // from 1 to 2 above. One assertion fewer, and the one that remains can fail.
 
   // ── A NAME THAT WAS NOT IN SCOPE READS AS ITS OWN THING ─────────────────
   const appearedRows = verdicts.reduce((a, v) => a + v.expectAppeared.size, 0);

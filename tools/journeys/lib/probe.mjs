@@ -342,6 +342,66 @@ export const readFacts = (page) =>
       controlsInert: count(".dcbtn.off"),
       buttons: count("button"),
 
+      // ---- THE TIMELINE'S PLAYHEAD -------------------------------------------
+      //
+      // WHY THIS FACT EXISTS AT ALL. It did not, and the cost is on the record:
+      // `projectControls` read the store's `rrTicks` as a position and
+      // `positioned` as `step > 0`, so a session the engine had parked on tick 0
+      // drew 48 ticks with NOT ONE of them marked — no playhead, on a page whose
+      // served frame had just drawn one on its correct tick. Nothing in this
+      // directory could see it, because nothing in this directory read a tick.
+      // Journey 06's header recorded the landing as an observation it chose not
+      // to assert, and its one implication was guarded by `step > 0` — false
+      // exactly when the defect was present.
+      //
+      // THREE NUMBERS, NOT ONE, AND THE POINT IS THE RELATION BETWEEN THEM.
+      //
+      //   ticks  how many the control drew. 48 is `session_view.TimelineTicks`
+      //          and is a fixed number by design (a filled bar would need a
+      //          per-render `style`, which `tools/design/check-tokens.mjs` A5
+      //          refuses), so a count that is not 48 is a control that is not
+      //          this control.
+      //   at     WHICH tick carries the playhead — 1-based, matching
+      //          `markedTick`'s own numbering, and 0 for "no playhead drawn".
+      //   on     how many carry the elapsed run BEHIND the playhead.
+      //
+      // Either of the last two alone is forgeable. A renderer that marked tick 1
+      // always satisfies "a playhead exists"; a progress bar with no playhead at
+      // all satisfies "the elapsed run grows". Together with the session's own
+      // `step`/`totalSteps` they are not: `at` must be the tick that step names
+      // and `on` must be exactly the ticks before it, so a step of 128 in a
+      // 1315-step trace has to put `.at` on tick 5 of 48 with 4 ticks elapsed,
+      // and there is no single wrong answer that satisfies both.
+      //
+      // `atCount` is separate from `at` deliberately. `at` is a `findIndex` and
+      // would report the FIRST of several marked ticks as though it were the
+      // only one — resolving a control that had drawn two playheads into a
+      // reading that looks correct. The judgement "exactly one" belongs to a
+      // journey; this reports what is there.
+      //
+      // `null` when there is no track, never a zero-filled record: a page with
+      // no timeline and a timeline with no playhead are different statements,
+      // and a consumer that could not tell them apart would assert over the
+      // first believing it was judging the second.
+      timeline: (() => {
+        const track = document.querySelector(".dctl");
+        if (!track) return null;
+        const ticks = [...track.querySelectorAll(".tick")];
+        return {
+          ticks: ticks.length,
+          at: ticks.findIndex((t) => t.classList.contains("at")) + 1,
+          atCount: ticks.filter((t) => t.classList.contains("at")).length,
+          on: ticks.filter((t) => t.classList.contains("on")).length,
+          // The affordance, beside the readout, because the two are stamped by
+          // different builds: `components/debugger` renders the track on every
+          // build and `hydrate.markScrubberSeekable` adds the gesture on the one
+          // that can honour it. A journey comparing the served frame with the
+          // hydrated one needs both halves from one reading.
+          seekable: track.classList.contains("seekable"),
+          role: track.getAttribute("role"),
+        };
+      })(),
+
       // ---- the frame at large -----------------------------------------------
       paneTitles: [...document.querySelectorAll(".panetitle")].map((e) => e.textContent.trim()),
       reasonText: text(".reason"),
