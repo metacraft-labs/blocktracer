@@ -704,6 +704,7 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
           tdiv(class = "srcline" &
                        (if ln.current: " cur" else: "") &
                        (if ln.executed: " hit" else: "") &
+                       (if ln.breakpoint: " bp" else: "") &
                        notTakenClasses(ln.notTaken, p.flow.selected) &
                        ranClasses(ln.ran, p.flow.selected),
                id = ln.anchor, `data-line` = $ln.number,
@@ -782,7 +783,40 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
             # a worse artefact than one with no marker. It is also why the width
             # cannot be widened on `.cur` alone.
             span(class = "p"): text (if ln.current: "▶" else: " ")
-            span(class = "n"): text $ln.number
+            # THE BREAKPOINT GUTTER. The line number is the target, because it
+            # is the gutter a reader already points at and the conventional
+            # place the gesture lives in every debugger that has one.
+            #
+            # The interactive attributes are emitted ONLY on a live pane
+            # (`breakpointsEnabled`). On the static export this stays exactly
+            # the span it has always been: a served page has no engine, so a
+            # focusable `aria-pressed` control there would announce itself to a
+            # screen reader as a toggle and then do nothing.
+            #
+            # `aria-pressed` and not `aria-checked`: this is a toggle button,
+            # and it is valued on EVERY interactive line rather than emitted on
+            # the marked ones, for the reason `aria-current` above is — so a
+            # suite can count the `true`s AND the `false`s, which an absent
+            # attribute cannot distinguish from a renderer that stopped
+            # emitting it.
+            #
+            # Keyboard operation is NOT free here and is not assumed. This is a
+            # `span`, so neither Enter nor Space fires a click on it — the
+            # lesson `bindGestures` records against `role="button"` rows. The
+            # role and the tabindex make it reachable and announced; the
+            # `keydown` handler in `hydrate.bindBreakpointGutter` is what makes
+            # it operable, and the two are a pair.
+            if p.breakpointsEnabled:
+              span(class = "n",
+                   role = "button",
+                   tabindex = "0",
+                   `aria-pressed` = (if ln.breakpoint: "true" else: "false"),
+                   `aria-label` =
+                     (if ln.breakpoint: "Remove breakpoint on line "
+                      else: "Set breakpoint on line ") & $ln.number):
+                text $ln.number
+            else:
+              span(class = "n"): text $ln.number
             # The gutter marker, and — on a line inside a branch that was
             # evaluated and not taken — the SECOND glyph that replaces it in the
             # passes where that is true.
@@ -869,12 +903,21 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
   for d in p.documents:
     if d.path == doc.path: continue
     let alt = ui:
-      tdiv(class = "srcdoc alt", id = docAnchor(d.path)):
+      tdiv(class = "srcdoc alt", id = docAnchor(d.path), `data-path` = d.path):
         raw tabStrip(d.path)
         raw body(d)
     panels.add alt
   let def = ui:
-    tdiv(class = "srcdoc def", id = docAnchor(doc.path)):
+    # `data-path` carries the document's REAL path beside the anchor id.
+    #
+    # The id is `docAnchor(path)` — a mangled, URL-safe spelling (`src/main.nr`
+    # becomes `D-src-main-nr`) chosen so it can be a fragment target. That
+    # mangling is not invertible: `src/main.nr` and `src-main.nr` produce the
+    # same anchor. A breakpoint has to name the file to the engine EXACTLY as
+    # the trace interned it (see `live_breakpoints`'s header on the relative
+    # path), so the unmangled path has to travel with the markup rather than be
+    # reconstructed from the id.
+    tdiv(class = "srcdoc def", id = docAnchor(doc.path), `data-path` = doc.path):
       raw tabStrip(doc.path)
       raw body(doc)
   panels.add def
@@ -1352,6 +1395,20 @@ proc renderControls*(p: DebugControlsPane): string =
                         elif i <= filled: " on" else: ""))
       tdiv(class = "dcstatus"):
         span(class = "dcphase"): text p.statusText
+        # §10.8's "the control says so". Rendered only when there is something
+        # to say, and carrying the outcome as `data-outcome` so a check can
+        # read the STATE without matching the sentence — the same separation
+        # `renderPositionNotice` makes with `data-landing`, and for the same
+        # reason: a suite that asserted the prose would be a suite that has to
+        # be edited to reword a message.
+        #
+        # `role="status"` and not `role="alert"`: reaching the end of the
+        # breakpoints is an ordinary outcome of an ordinary gesture, not a
+        # fault, and it must not interrupt what a screen-reader user is doing.
+        if p.outcome.len > 0:
+          span(class = "dcoutcome", role = "status",
+               `data-outcome` = "no-breakpoint"):
+            text p.outcome
         if p.totalSteps > 0:
           span(class = "dcsteps num"):
             # GROUPED because `dcsteps` carries no `.copyable` and `totalSteps`

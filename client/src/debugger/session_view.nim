@@ -463,6 +463,19 @@ type
     anchor*: string
     executed*: bool       ## the trace visited this line at least once
     current*: bool        ## the session's position is on this line
+    breakpoint*: bool
+      ## The visitor has marked this line, and Continue stops here.
+      ##
+      ## Part of the RENDERED view rather than a class hydration stamps onto
+      ## the DOM, because `renderPanes` replaces the editor pane's `innerHTML`
+      ## on every stop: a mark painted directly onto the row would survive
+      ## until the visitor's next step and then vanish, which is the one
+      ## failure mode a breakpoint must not have. Carrying it here means the
+      ## re-render that moves the position also repaints the marks.
+      ##
+      ## Always `false` on a statically exported page. Breakpoints are a live
+      ## session's state — the served frame has no engine to stop — so the
+      ## export renders no marks and the field costs it one `false` per line.
     annotations*: seq[LineAnnotation]
     elisions*: seq[LineElision]
       ## The `+N` pills for this line — one per (pass, width regime) that has
@@ -576,6 +589,20 @@ type
       ## outside the loop carries no rail. `flow_view.applyFlow` is the only
       ## producer, and it refuses to produce one at all below source-level
       ## fidelity — see its header.
+    breakpointsEnabled*: bool
+      ## May the gutter be clicked to set a breakpoint?
+      ##
+      ## False on every statically exported page, and that is the point. A
+      ## breakpoint is a request to an ENGINE — it is `setBreakpoints` on the
+      ## wire, and Continue stopping at it — so a served frame with no engine
+      ## can host the gutter but not the gesture. Emitting the `role`,
+      ## `tabindex` and `aria-pressed` of a control there would put a
+      ## focusable, announced button on the page that does nothing when
+      ## pressed, which is the failure `toolbarActionId` and `projectControls`
+      ## both go out of their way to make impossible on the toolbar.
+      ##
+      ## Only hydration sets it, and only once the session is live — the same
+      ## rule and the same moment as `projectControls(live = true)`.
 
 const ListingPath* = "avm"
   ## The document path an INSTRUCTION LISTING is filed under, and therefore the
@@ -984,6 +1011,24 @@ type
   DebugControlsPane* = object
     buttons*: seq[ControlButton]
     statusText*: string
+    outcome*: string
+      ## What the LAST continue did, when what it did was nothing.
+      ##
+      ## `Debugger-Integration.md` §10.8: "Where there is no breakpoint to
+      ## reach in a direction, the control says so — rather than running to the
+      ## end of the recording and stopping there, which reads as a jump the
+      ## visitor did not ask for."
+      ##
+      ## Separate from `statusText`, which is the ViewModel's account of the
+      ## session's PHASE and is overwritten on every stop. This is the outcome
+      ## of one gesture, it is set only by that gesture, and it is cleared by
+      ## the next move — so a stale "no breakpoint ahead" cannot sit over a
+      ## session that has since stepped somewhere.
+      ##
+      ## Empty on every statically exported page and on every ordinary move:
+      ## a continue that DID reach a breakpoint says so by arriving there, and
+      ## a banner repeating it would be the noise that trains a reader to
+      ## ignore the one that matters.
     step*: int            ## the current time coordinate
     totalSteps*: int      ## from the manifest's execution summary
     positioned*: bool     ## whether `step` means anything yet
