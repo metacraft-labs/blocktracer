@@ -219,7 +219,13 @@ function runHydratedExporter(outRoot) {
     "nim",
     [
       "c", "-r", "--mm:orc", "-d:isServer", "-d:release", "--hints:off",
-      // Same reason as `runExporter`: the eight hydrated views are all fixture-driven.
+      // A NO-OP, KEPT ONLY UNTIL SOMEONE DELETES IT, and the comment that used to
+      // stand here — "Same reason as `runExporter`: the eight hydrated views are all
+      // fixture-driven" — was wrong twice over. `runExporter` passes NO define and
+      // its own comment says that is the point; and `static_export.nim` publishes the
+      // synthetic chain under `when not defined(noDemoChain)`, so nothing reads
+      // `publishDemoChain` anywhere in the tree. See the note in `check-coverage.mjs`
+      // beside the chain-mismatch detection, which records the same flip.
       "-d:publishDemoChain",
       "-d:hydrationBundle=/assets/hydrate.js",
       `--nimcache:${join(clientDir, "nimcache-hydrated")}`,

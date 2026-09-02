@@ -327,11 +327,17 @@ that is the signal to close the defect and move the program into the tour.
 
 | where | what carries it |
 |---|---|
-| Nim | `client/tests/known_failures.nim` — `knownFailure(id, defect, owner)` |
-| shell | `fixtures/trace/tour/check-toolchain.sh` — `expect.knownFailure` in the manifest |
+| the manifest | `fixtures/trace/tour/manifest.json` — `programs[].knownFailures` for a recording that omits something it should show, and `toolchainPrograms[].expect.knownFailure` for a program the toolchain cannot record at all |
+| the checker | `fixtures/trace/tour/check-corpus.sh` — reads both, and `--selftest` proves it decides in BOTH directions |
 
-Both report `NOW PASSING` and exit non-zero when the world stops matching the
-entry. Good news that cannot go unnoticed.
+There is currently **no Nim carrier**. This table used to name
+`client/tests/known_failures.nim` with a `knownFailure(id, defect, owner)` helper
+and a `fixtures/trace/tour/check-toolchain.sh`; neither file exists in this tree
+and no Nim file carries a known failure. If a Nim-side defect needs one, it has
+to be built, not looked up.
+
+`check-corpus.sh` reports `NOW PASSING` and exits non-zero when the world stops
+matching an entry. Good news that cannot go unnoticed.
 
 ## Reporting upstream
 

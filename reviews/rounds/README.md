@@ -19,7 +19,10 @@ gate by hand-writing precisely that kind of entry.
 
 ## Rounds
 
-VD.5 ran three rounds on the debugger register, each against a different build.
+VD.5 ran several rounds on the debugger register, each against a different
+build. **The directories in this tree are the record — `ls reviews/rounds/`
+rather than trusting a count in this sentence**, which said "three" while four
+were described below and a fifth sat on disk undescribed.
 
 - **Round 1** — six lenses on `debugger` at `wide`/`dark` and `laptop`/`light`,
   against the build the milestone unblocked on. Not in this tree: it predates
@@ -59,6 +62,20 @@ VD.5 ran three rounds on the debugger register, each against a different build.
   reasoned about.
 
 - `vd5-round4/` — **12/12**, six lenses on each of the two images, against the
-  build this milestone lands, and the round the ledger holds. Every report was
-  written against the capture whose sha256 the ledger records, and `gate.mjs`
-  re-checks that against the file rather than taking the ledger's word.
+  build this milestone lands. Every report was written against the capture whose
+  sha256 the ledger records, and `gate.mjs` re-checks that against the file
+  rather than taking the ledger's word. It is no longer the only VD.5 round on
+  disk — see below.
+
+- `vd5-round5/` — **NOT DESCRIBED HERE, and that is the finding rather than an
+  omission being filled in.** 26 reports plus a `notes/` directory: six lenses
+  over `debugger` at all four size/theme combinations, and two over
+  `debugger--call-trace`/`wide`/`dark`. Neither this string nor `vd5-round4`
+  appears anywhere in `reviews/ledger.json`, so which round the ledger currently
+  holds cannot be settled from this file. Whoever ran round 5 should write its
+  entry here and say what it supersedes; until then, read the reports.
+
+**No VD.5 round is the current one.** `reviews/ledger.json` names `vd8`,
+`vd9-r1`, `vd9-r2`, `vd10-r1`, `vd10-r2`, `vd11-r1` and `vd11-r2` and no `vd5`
+round at all, so everything above is history. The round `gate.mjs` decides over
+is whatever the ledger says today — ask it, not this file.

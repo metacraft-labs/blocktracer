@@ -82,7 +82,14 @@ import {
   THEMES,
   CANARY,
 } from "./views.mjs";
-import { INVENTORY, INVENTORY_IDS, SPEC_SOURCE, PAGES, DEGRADED_STATES } from "./spec-inventory.mjs";
+import {
+  INVENTORY,
+  INVENTORY_IDS,
+  SPEC_SOURCE,
+  PAGES,
+  DEGRADED_STATES,
+  readSpecLastUpdated,
+} from "./spec-inventory.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolvePath(HERE, "..", "..");
@@ -462,7 +469,19 @@ async function main() {
   if (opts.json) {
     console.log(JSON.stringify(report, null, 2));
   } else {
-    console.log(`spec source:      ${SPEC_SOURCE.document} (last updated ${SPEC_SOURCE.lastUpdated})`);
+    // The recorded revision, CHECKED against the document rather than restated.
+    // See spec-inventory.mjs on why this comparison exists and why the constant
+    // is not simply bumped when it disagrees.
+    const live = await readSpecLastUpdated(REPO_ROOT);
+    const drift =
+      live.lastUpdated === null
+        ? `NOT CHECKED — no codetracer-specs checkout at ${live.path} (set $CODETRACER_SPECS_SRC)`
+        : live.lastUpdated === SPEC_SOURCE.lastUpdated
+          ? "matches the document"
+          : `DRIFTED — the document now reads ${live.lastUpdated}; this inventory has not been ` +
+            `re-read against it (${live.path})`;
+    console.log(`spec source:      ${SPEC_SOURCE.document}`);
+    console.log(`                  transcribed from revision ${SPEC_SOURCE.lastUpdated} — ${drift}`);
     console.log(`inventory:        ${report.inventory.covered}/${report.inventory.total} entries covered by a named view`);
     console.log(`                  (${PAGES.length} pages + ${DEGRADED_STATES.length} degraded states)`);
     console.log(`named views:      ${report.views.total} (${report.views.ready} ready, ${report.views.pending} pending)`);

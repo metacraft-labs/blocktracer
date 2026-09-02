@@ -365,7 +365,7 @@ review-prompt args="":
 # determinism gate, and the ledger is the gate's evidence. Each report is the
 # ```json block brief §10 Part 2 defines.
 #
-#   just review-ingest "--dir reviews/rounds/vd5-r3 --gate-scope debugger/wide/dark"
+#   just review-ingest "--dir reviews/rounds/vd5-round3 --gate-scope debugger/wide/dark"
 #
 # It also establishes the one thing gate.mjs cannot: that all six reviewers of
 # a triple looked at the SAME bytes (G2's "the exact image"), by recording each

@@ -172,7 +172,8 @@ async function loadSnapshot() {
   const p = join(snapDir, 'snapshot.json');
   if (existsSync(p)) return JSON.parse(await readFile(p, 'utf8'));
   // `@1`, deliberately, for a snapshot this tool STARTS as well as one it grows.
-  // `ingest.nim:103-106` refuses any other format string outright, and everything this
+  // `ingest.nim`'s `ingestSnapshot` refuses any other format string outright (grep
+  // `blocktracer/chain-snapshot@1` there), and everything this
   // tool adds — `captures[]`, `transactions[].capturedAt`, `transactions[].capturedWindow`
   // — is ADDITIVE: every key the ingest reads is still where it was and still means what
   // it meant. Bumping the format here would be a second change, to another module's
@@ -383,8 +384,9 @@ async function main() {
         l1ChainId: nodeInfo.l1ChainId,
         rollupVersion: nodeInfo.rollupVersion,
         rollupAddress: nodeInfo.l1ContractAddresses?.rollupAddress ?? '',
-        // `runtimeCommit` is REQUIRED by `ingest.nim:123`, which derives the published
-        // `recorderVersion` from it. A follower that grew a snapshot without it would
+        // `runtimeCommit` is REQUIRED by `ingest.nim`'s `ingestSnapshot`, which derives the
+        // published `recorderVersion` from it (grep `recorderVersion = "l3-"` there).
+        // A follower that grew a snapshot without it would
         // write a fixture the exporter cannot read.
         runtimeCommit,
         tool: 'tools/chain/follow-chain.mjs',
