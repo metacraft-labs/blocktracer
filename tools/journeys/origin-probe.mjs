@@ -484,9 +484,17 @@ async function main() {
       // reads of `src/main.nr` and answers "source unavailable".
       //
       // So the recording's source is written under both spellings.
+      // `--relative-only` writes ONLY the classifier's spelling. It is the arm
+      // that proves which of the two paths the classification actually needed:
+      // if the hops still classify with the absolute path absent, then the
+      // relative one is sufficient — and the relative one is exactly what the
+      // page's own source island already carries, so BlockTracer needs no new
+      // knowledge of the recording machine's directory layout.
+      const relativeOnly = args.includes("--relative-only");
       const placed = {};
       for (const [rel, text] of Object.entries(sources)) {
         placed[rel] = text; // what the classifier actually probes
+        if (relativeOnly) continue;
         if (recorded.endsWith("/" + rel)) {
           placed[recorded.slice(0, recorded.length - rel.length) + rel] = text;
         } else {

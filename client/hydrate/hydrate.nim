@@ -56,6 +56,7 @@ import ../src/debugger/source_island
 import ../src/components/debugger as panes
 
 import ./engine_transport
+import ./live_source
 import ./session_project
 
 # ---------------------------------------------------------------------------
@@ -492,6 +493,14 @@ type
     base: DebugSessionView   ## the served frame's non-engine facts
     started: bool            ## the DAP handshake has been issued
     live: bool               ## the engine has answered and the panes are live
+    sourceFilesGiven: int    ## files of the recording's source put in the VFS
+      ## Zero is a legitimate answer and a load-bearing one. A chain capture
+      ## publishes no source (`sourceBundles` empty, `execution.sourceLevel`
+      ## false on all eight in the corpus), so its island is empty and the
+      ## origin classifier necessarily has nothing to parse. Recording the
+      ## count keeps "the chain found nothing" distinguishable from "the engine
+      ## was never given a line", which are different sentences to put in front
+      ## of a visitor and were previously the same one.
     engineLoaded: bool       ## the worker compiled the wasm and said so
       ## Recorded for ONE reason: so the deadline below can name which of two
       ## unrelated failures it is reporting. An engine that never arrived (a
@@ -952,6 +961,16 @@ proc onControl(h: Hydration; message: JsonNode) =
     var opening = h.base
     opening.phase = spOpening
     setRail(h.ui, opening)
+    # THE RECORDING'S SOURCE, BEFORE `start` AND NOT AFTER.
+    #
+    # `vfs-write` is handled by the worker's PRE-START dispatcher; once
+    # `wasm_start()` has swapped in the DAP handler the message has no handler
+    # and is dropped in silence. This is the only window.
+    #
+    # Without it the value-origin classifier has no line to parse and answers
+    # every query "source unavailable" — see `live_source`'s header for why the
+    # path it writes is the island's own, and for the measurement.
+    h.sourceFilesGiven = writeSourceToEngine(h.ui.island)
     postJson("""{"type":"start"}""")
   of "trace-load-error":
     h.fail("The trace container could not be opened: " &

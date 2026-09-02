@@ -181,6 +181,38 @@ proc postJson*(json: string) =
   ## response, and a session that hangs in `opening` forever.
   postJsonImpl(json.cstring)
 
+proc postVfsWriteImpl(path: cstring; text: cstring) {.importjs: """
+(function(p, t){
+  var w = globalThis.__btReplayWorker;
+  if (!w) return;
+  try {
+    w.postMessage({ type: 'vfs-write', path: p,
+                    data: new TextEncoder().encode(t) });
+  } catch (e) { /* the ack never arrives and the caller reports it */ }
+})(#, #)
+""".}
+
+proc postVfsWrite*(path, text: string) =
+  ## Put one file of the recording's own source into the engine's VFS.
+  ##
+  ## ## Why this cannot go through `postJson`
+  ##
+  ## `vfs-write` carries BYTES: the worker hands `msg.data` straight to
+  ## `vfs_write_file`, whose wasm-bindgen signature takes a `&[u8]`, so the
+  ## payload has to be a `Uint8Array` and JSON has no way to spell one.
+  ## `postJson` is `JSON.parse`-then-`postMessage` by construction, so the
+  ## array would arrive as an object with numeric keys and the write would
+  ## either throw or store something that is not the file.
+  ##
+  ## ## Why it must be sent BEFORE `start`
+  ##
+  ## `vfs-write` is handled by the worker's PRE-START dispatcher; `wasm_start()`
+  ## replaces `self.onmessage` with the DAP one, after which this message has no
+  ## handler at all and is dropped in silence. Ordering is safe without waiting
+  ## for the acks: `postMessage` delivery is ordered and the worker's write arm
+  ## has no `await` ahead of the write itself.
+  postVfsWriteImpl(path.cstring, text.cstring)
+
 proc terminateWorkerImpl() {.importjs: """
 (function(){
   var w = globalThis.__btReplayWorker;
