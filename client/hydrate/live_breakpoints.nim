@@ -123,6 +123,48 @@ proc toggle*(s: var BreakpointSet; path: string; line: int): bool =
     s.byPath[path].incl(line)
     true
 
+proc setAt*(s: var BreakpointSet; path: string; line: int): bool =
+  ## Ensure a breakpoint EXISTS here. Returns whether that changed anything.
+  ##
+  ## ## Why this is not `toggle`, and why it exists before anything calls it
+  ##
+  ## "Go to the next time this line ran" is expressible in terms of what this
+  ## module already does — set a breakpoint on the line, continue, remove it —
+  ## and that composition is the reason a source-line navigation gesture does
+  ## not need a protocol of its own. But it cannot be built on `toggle`.
+  ##
+  ## `toggle` is right for a gutter click, where the visitor's intent IS to
+  ## invert the current state. It is wrong for a caller that needs the line
+  ## marked regardless: on a line the visitor had ALREADY marked, a toggling
+  ## "go to next" would silently delete their breakpoint, and the paired
+  ## "remove it afterwards" would then delete it a second time — leaving the
+  ## gesture's own cleanup to destroy state the gesture never owned.
+  ##
+  ## So the idempotent pair exists, and both report whether they changed the
+  ## set — which is exactly what such a caller needs in order to know whether
+  ## its cleanup should restore the line or leave it alone.
+  ##
+  ## ONE THING A TEMPORARY BREAKPOINT STILL COSTS, and it is not solved here:
+  ## this is a single set and the gutter is rendered from all of it, so a
+  ## breakpoint set for the duration of one seek is PAINTED for that duration.
+  ## Whether that flash is acceptable, or whether the set needs a second,
+  ## unpainted tier, is a question for the gesture that wants it — it is a
+  ## decision about what the visitor sees, not about this data structure, and
+  ## guessing it here would be the same mistake as guessing persistence.
+  if path notin s.byPath:
+    s.byPath[path] = initHashSet[int]()
+  if line in s.byPath[path]: return false
+  s.byPath[path].incl(line)
+  true
+
+proc clearAt*(s: var BreakpointSet; path: string; line: int): bool =
+  ## Ensure a breakpoint does NOT exist here. Returns whether that changed
+  ## anything. The other half of the pair `setAt` documents.
+  if path notin s.byPath: return false
+  if line notin s.byPath[path]: return false
+  s.byPath[path].excl(line)
+  true
+
 proc requestFor*(s: BreakpointSet; path: string): JsonNode =
   ## The `setBreakpoints` arguments for one file.
   ##
