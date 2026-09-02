@@ -13,9 +13,20 @@
 // So the journey keeps the id and inverts the first half. It now asserts that
 // the false claim is GONE (a regression guard on the copy, in the one place a
 // visitor and a search engine actually read it) and still asserts the
-// capability, unconditionally. It is RED today on the capability half, and it
-// goes green when the surface lands. That is the same signal, without the
-// escape hatch.
+// capability, unconditionally. That is the same signal, without the escape
+// hatch.
+//
+// WHAT COLOUR IT IS — READ THE LEDGER, NOT THIS SENTENCE. This header used to
+// say "It is RED today on the capability half, and it goes green when the
+// surface lands." Both halves have expired. The surface HAS landed:
+// `hydrate/session_project.nim` builds the `OriginChainVM`,
+// `components/debugger.nim` renders the `.storigin` control, `hydrate.nim` wires
+// the click to `onShowOrigin`, and `hydrate/live_origin.nim` reads the reply
+// back. And this journey appears in NEITHER `known_red` NOR `_closed` in
+// `tools/journeys/ledger.json` — that file's own prose records the entry being
+// removed when the journey went green on real functionality, naming 2 of 6
+// classified hops on the Noir demo capture. A journey with no ledger entry
+// asserts nothing about its own colour; run it and read the verdict.
 //
 // THE PREVIOUS DIAGNOSIS IN THIS FILE WAS WRONG, AND SO WAS ITS CONTROL ARM
 // ------------------------------------------------------------------------
@@ -31,15 +42,22 @@
 //   says why: "The actual JSON→Variable parsing will be added when the locals
 //   panel is converted; for now we just update loading state."
 //
-//   The only writer of `store.locals.locals` is `updateLocals` (:795). Nothing
-//   under `client/hydrate/` calls it — only `tests/tdebugpanes.nim` does, which
-//   is why that suite is green about a data path the shipping bundle lacks.
+//   The only writer of `store.locals.locals` is `updateLocals`.
 //
-// So `StateVM.currentVariables` is empty for the life of every hydrated
-// session, `projectState` yields no values, and `hydrate.nim`'s PaneLatch —
-// which only writes the State pane when `values.len > 0` — never fires. The
-// visitor keeps looking at the STATICALLY EXPORTED State pane for as long as
-// the tab is open.
+// AND THAT DIAGNOSIS HAS ITSELF BEEN OVERTAKEN — it is kept because it is the
+// reason the code below is shaped as it is, not because it still describes the
+// product. It went on: "Nothing under `client/hydrate/` calls `updateLocals`, so
+// `StateVM.currentVariables` is empty for the life of every hydrated session and
+// `hydrate.nim`'s PaneLatch — which only writes the State pane when
+// `values.len > 0` — never fires."
+//
+// Two of those are now false in this tree. `client/hydrate/live_locals.nim` is
+// the decorator that reads the discarded reply off the shared `BackendService`
+// and calls `feed.store.updateLocals(...)`; `session_project.nim` calls it too.
+// And the latch is `view.state.values.len > 0 or view.state.note.len > 0`, so it
+// also fires for a pane that has only a sentence to print. What remains true of
+// the PIN is the first paragraph: the SDK's own `requestLocals` still discards
+// its reply, which is why the decorator exists at all.
 //
 // That is also what was wrong with the old control arm. It asserted
 // `valuesShown >= 1` as its non-vacuity guard and concluded "there is something
@@ -542,14 +560,24 @@ export async function run({ browser, site, j }) {
       `CONTROL: the live page has ${probe.interactive} interactive controls and reached phase=ready, so the bundle ran`,
     );
 
-    // THE DEFECT. `ct/load-locals` is sent and its reply discarded upstream, so
-    // the pane the visitor ends up reading is byte-for-byte the one the
-    // exporter wrote. A pane that is the engine's would differ.
+    // THE CLAIM. The pane a live session shows must be the ENGINE's answer for
+    // the position it is at, and not the markup the exporter wrote. Byte
+    // equality with the served frame is the shape the failure takes: a pane full
+    // of the right-looking rows for the wrong frame.
+    //
+    // THE FAILURE MESSAGE NAMES NO CAUSE ANY MORE, deliberately. It used to
+    // assert one — "the SDK discards the ct/load-locals reply, so
+    // StateVM.currentVariables is empty and the PaneLatch never fires" — and two
+    // thirds of that stopped being true: `client/hydrate/live_locals.nim` reads
+    // that reply and calls `store.updateLocals`, and the latch fires on
+    // `values.len > 0 or note.len > 0`. A verdict that hands the reader a stale
+    // diagnosis is worse than one that hands them the measurement and lets them
+    // go and look.
     j.expect(
       hydrated.text !== served.text,
       "the Values pane a live session shows is the ENGINE's, not the served frame's",
       hydrated.text === served.text
-        ? `identical to the served frame (${hydrated.rows} rows) — the SDK discards the ct/load-locals reply, so StateVM.currentVariables is empty and the PaneLatch never fires`
+        ? `identical to the served frame (${hydrated.rows} rows) — the live pane is byte-for-byte the exported one; the cause is NOT diagnosed here, start at client/hydrate/live_locals.nim and hydrate.nim's PaneLatch`
         : `served ${served.rows} rows, live ${hydrated.rows} rows`,
     );
 
