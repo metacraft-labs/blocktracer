@@ -1094,6 +1094,69 @@ proc noteFor*`,
     journey: "the-timeline-can-be-dragged",
     assertion: "the slider answers the keyboard it puts itself in the tab order for",
   },
+
+  // ── the omniscience overlay (journey 12) ─────────────────────────────────
+  //
+  // Three arms, aimed at three things the overlay claims — and NOT at "the
+  // overlay is present", which was TRUE throughout the defect on the served
+  // frame and is the false pass journey 12 is written against.
+  //
+  // ONE ARM WAS TRIED AND WITHDRAWN, and it is worth the lines. "Keep the first
+  // flow window and drop every later one" should be a kill and cannot be:
+  // measured on the wire, the engine ALREADY answers every `ct/load-flow` with
+  // one window computed for tick 0 whatever position was asked about, so
+  // freezing it changes nothing observable. That is journey 13's defect, and
+  // the arm that would have proved journey 12 could see it is exactly the arm
+  // that proves journey 12 cannot. Journey 13 exists because of it.
+
+  {
+    id: "F1/an-overlay-of-names-with-no-values",
+    why:
+      "Render every recorded value as the empty string. The overlay keeps its shape" +
+      " — the right labels, in the right places, on the right lines — and says" +
+      " nothing. This is not hypothetical: `live_locals`' own header records that" +
+      " the pinned SDK's `extractValueText` has the wrong ordinal for seven of" +
+      " eleven kinds and renders every string, bool, char, array and tuple as the" +
+      " empty string, which is why the ordinals here were derived against the" +
+      " engine rather than borrowed. A count cannot see it.",
+    file: join(CLIENT, "hydrate", "live_locals.nim"),
+    find: `  of tkInt: node{"i"}.getStr("")`,
+    replace: `  of tkInt: ""`,
+    journey: "a-stepped-session-shows-the-flow-of-the-function-it-is-in",
+    assertion: "every value label carries a value and not just a name",
+  },
+
+  {
+    id: "F2/the-engine-window-never-reaches-the-pane",
+    why:
+      "Refuse every parsed window at the staleness gate. The session still asks, the" +
+      " engine still answers, the answer is still parsed — and the pane falls back" +
+      " to the loop rail with no values, which is EXACTLY the state `dev` was in" +
+      " before this work and exactly the state a visitor reported. The arm proves" +
+      " the overlay on screen is the live one and not the exporter's, which is the" +
+      " one thing a presence check cannot establish.",
+    file: join(CLIENT, "hydrate", "live_flow.nim"),
+    find: `  feed != nil and feed.phase == ffLive and feed.forTicks == ticks`,
+    replace: `  feed != nil and feed.phase == ffLive and feed.forTicks == ticks and false`,
+    journey: "a-stepped-session-shows-the-flow-of-the-function-it-is-in",
+    assertion: "a live session is given a values overlay at all",
+  },
+
+  // A THIRD ARM WAS TRIED AND WITHDRAWN TOO — `flow_view.applyFlow`'s rule 1,
+  // `if pane.availability != srcSourceLevel: return`, aimed at the journey's
+  // "REAL: an instruction-level session is given no values overlay". It
+  // SURVIVES, and for a reason worth writing down rather than working around:
+  // the gate is doubled. `session_project.projectReplayPanes` only calls
+  // `applyLiveFlow` inside `if result.editor.availability == srcSourceLevel`,
+  // so removing rule 1 leaves the outer gate holding, and removing the outer
+  // gate leaves rule 1 holding. No single edit reaches it, which is what
+  // "belt and braces" means when it is true rather than claimed — and it is
+  // deliberate on both sides: one producer is the static export's and one is
+  // hydration's, and `applyFlow`'s header states the rule for both.
+  //
+  // The assertion is kept unarmed rather than weakened. An arm that mutated
+  // both sites at once would be testing that two `if`s can both be deleted,
+  // which nothing needs to know.
 ];
 
 const log = (s = "") => console.log(s);

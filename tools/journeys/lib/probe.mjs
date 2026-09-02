@@ -221,6 +221,122 @@ export const readFacts = (page) =>
         })),
       stateNote: document.querySelector("#pane-state .panenote")?.textContent?.trim() ?? "",
 
+      // THE FUNCTION HEADERS THIS PAGE RENDERED, per document, as raw rows.
+      //
+      // A FACT ABOUT THE FILE and not about the session, which is why it is
+      // reported per document rather than resolved here: `source_document
+      // .openAtCurrent` narrows the ACTIVE document to start six lines above
+      // the position and leaves the others whole, so which headers a page
+      // renders depends on where its session is standing. One reading of one
+      // page therefore cannot see every header — at the demo session's later
+      // positions `fn main` has scrolled out of the window entirely — and a
+      // consumer that resolved "the enclosing function" from a single reading
+      // would get `null` for a position plainly inside one.
+      //
+      // So the rows are handed over and the journey merges what several
+      // readings saw. That is also what keeps this the probe's job: headers are
+      // observations, "which function is the session in" is a judgement.
+      //
+      // Noir functions are top-level and do not nest, so a header list plus a
+      // line number is enough to answer it. A brace matcher would be more
+      // general and would also be a second, subtler thing to be wrong about
+      // inside a function that is supposed to assert nothing.
+      fnHeaders: Object.fromEntries(
+        [...document.querySelectorAll(".srcdoc")].map((d) => [
+          d.id,
+          [...d.querySelectorAll(".srcline")]
+            .map((ln) => ({
+              n: Number(ln.querySelector(".n")?.textContent?.trim() ?? -1),
+              t: ln.querySelector(".t")?.textContent ?? "",
+            }))
+            .filter((r) => /^\s*(pub\s+)?(unconstrained\s+)?fn\s+[A-Za-z_]/.test(r.t))
+            .map((r) => ({
+              n: r.n,
+              name: (r.t.match(/fn\s+([A-Za-z_]\w*)/) ?? [null, null])[1],
+            })),
+        ]),
+      ),
+
+      // The last row each document rendered, so a consumer can bound the final
+      // function without inventing an end for it.
+      docLastLine: Object.fromEntries(
+        [...document.querySelectorAll(".srcdoc")].map((d) => {
+          const rows = [...d.querySelectorAll(".srcline")];
+          return [
+            d.id,
+            rows.length
+              ? Number(rows[rows.length - 1].querySelector(".n")?.textContent?.trim() ?? -1)
+              : -1,
+          ];
+        }),
+      ),
+
+      // ---- the omniscience overlay -------------------------------------------
+      // Read out of the SHOWN document only, and per line. The source pane holds
+      // every document in the bundle at once and hides all but one, so a
+      // document-wide count would report the values of a file the visitor is not
+      // looking at — the same trap `shownDocs` above exists for.
+      //
+      // Reported as (line number, label texts), never as an expected value. The
+      // question a journey asks of this is whether it CHANGES with the position
+      // and whether the lines it lands on are the lines of the function the
+      // session is in; both are relations between two readings of the page, and
+      // neither is a number written in a test.
+      //
+      // `.fv` and not `.ann`: one `.ann` span holds a line's whole run of
+      // labels, so reading its `textContent` would concatenate them and make
+      // "three labels" and "one label spelling all three" indistinguishable.
+      // `.fv` is one chip — and it is also the `+N` elision pill (`.fv.fvmore`),
+      // deliberately: at a given pane width the overlay a reader sees IS the
+      // labels that fit plus the counts of the ones that did not, and a reading
+      // that took only the labels would be measuring the width regime rather
+      // than the product (`flow_view` rule 5).
+      //
+      // Filtered by `shown`, which is load-bearing here rather than tidy: every
+      // pass the window carries is in the markup at once and the stylesheet
+      // shows one, and every width regime's answer is in the markup at once and
+      // a container query shows one. Reading the DOM instead of the render
+      // would report eight passes of values on screen simultaneously.
+      flowLines: shownDocs.length === 1
+        ? [...shownDocs[0].querySelectorAll(".srcline")]
+            .map((ln) => ({
+              n: Number(ln.querySelector(".n")?.textContent?.trim() ?? -1),
+              // A LABEL and a COUNT are different things and are reported
+              // separately. `.fv.fvmore` is the `+N` elision pill — the count of
+              // the values that did NOT fit beside this line at this pane width
+              // — and it has no name, no separator and no value by design. A
+              // reading that folded it in with the labels would make "every
+              // label carries a value" false on a correct page, for the one
+              // element on the line that is not a label.
+              labels: [...ln.querySelectorAll(".fv:not(.fvmore)")]
+                .filter(shown)
+                .map((a) => a.textContent.trim())
+                .filter(Boolean),
+              // The VALUE half of each label, read from the `.fvv` spans rather
+              // than by splitting the label's text on a separator.
+              //
+              // Structural because the split is not reliable and the failure it
+              // has to catch is exactly the one a split misses: a renderer that
+              // produced the empty string for a kind it did not recognise emits
+              // `x=` for a scalar — which any split notices — and `x=[, , ]` for
+              // an array of them, which has a non-empty right-hand side and
+              // reads as a value. `renderAnnotations` puts the value, and only
+              // the value, in `.fvv`, so this is the same string the stylesheet
+              // draws at full strength.
+              values: [...ln.querySelectorAll(".fv:not(.fvmore)")]
+                .filter(shown)
+                .map((a) =>
+                  [...a.querySelectorAll(".fvv")].map((v) => v.textContent).join(""),
+                ),
+              pills: [...ln.querySelectorAll(".fv.fvmore")]
+                .filter(shown)
+                .map((a) => a.textContent.trim())
+                .filter(Boolean),
+            }))
+            .filter((r) => r.labels.length > 0 || r.pills.length > 0)
+        : [],
+      flowRails: count(".flowrail"),
+
       // ---- the stepping controls --------------------------------------------
       controlsLive: count(".dcbtn:not(.off)"),
       controlsInert: count(".dcbtn.off"),
@@ -285,9 +401,18 @@ export async function visit(
   browser,
   origin,
   path,
-  { settle = null, timeoutMs = 45000, initScript = null } = {},
+  { settle = null, timeoutMs = 45000, initScript = null, viewport = null } = {},
 ) {
-  const page = await browser.newPage();
+  // A VIEWPORT ONLY WHEN THE CALLER NAMES ONE, and then it is a fact about the
+  // run rather than the launcher's default. It matters for anything read out of
+  // a container query: the inline values overlay publishes every pane width's
+  // answer at once and the stylesheet picks one, so "how many values are on
+  // screen" is a question about a width, and a journey that did not state its
+  // width would be measuring whichever one Playwright shipped with. Journeys
+  // that name none are byte-for-byte unaffected.
+  const page = viewport
+    ? await (await browser.newContext({ viewport })).newPage()
+    : await browser.newPage();
   const pageErrors = [];
   const consoleErrors = [];
   page.on("pageerror", (e) => pageErrors.push(String(e && e.message ? e.message : e)));

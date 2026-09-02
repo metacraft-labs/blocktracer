@@ -22,7 +22,14 @@
     "",
     "It is fixed rather than ledgered. A ledger entry is for a defect that is stated and open; a one-token restore is not one, and an entry written instead of that restore is the entry this file's own rules refuse. Run the selftest from a THROWAWAY checkout: it edits real product source, and this is what a run that dies before step 4 costs."
   ],
-  "known_red": {},
+  "known_red": {
+    "the-flow-window-follows-the-position": {
+      "reason": "The engine answers every ct/load-flow with ONE window, computed for tick 0, whatever position was asked about. Measured on the wire over the built site with the published engine staged: 8 distinct request ticks (0,1,5,8,671,672,673,674,675,676,677 reached by four step-forward and six step-in), 16 answers, all with location.rrTicks=0, none matching a requested tick, and all reporting functionFirst=0 for `main`, whose body begins on line 12.",
+      "cause": "expr_loader.rs `find_function_location` — which sets FlowUpdate.location.function_name/first/last — is gated on `processed_files.contains_key(&location.path)`, where location.path is the JOINED spelling `workdir().join(recorded)` (trace_reader.rs). client/hydrate/live_source.nim writes the BARE relative spelling, deliberately: its header records that the origin classifier probes the relative path and that Path::exists() is hardwired false on wasm32, so writing the absolute path alone left the classifier saying 'source unavailable' on a recording that HAD published source. The work-around that made the origin chain resolve is what starves the flow window. Two features, one key, opposite spellings.",
+      "closed_by": "Write BOTH spellings into the VFS, as codetracer's own host helper `vfsKeysFor(recordedPath, workdir)` does — 'writing both spellings costs one extra map entry per source file and makes the probe order stop mattering'. That needs the recording's workdir, which the CTFS container carries and which this repository does not yet surface: nothing under client/ or src/ reads it, so the publisher must carry it into the source island before live_source.nim can join it. The engine-side fix on codetracer's `fix/wasm-source-probe` (67a51b19) makes source_probe_path consult the filesystem THEN the VFS, which removes the need for the work-around entirely; writing both keys is correct before and after it lands.",
+      "evidence": "tools/journeys/journeys/13-the-flow-window-follows-the-position.journey.mjs reads the answer off the wire rather than off the page, because a window computed for the wrong tick and one computed for the right tick render identically whenever the session has not left the function. Journey 12 is GREEN over the same sessions — the values ARE on screen, they carry the engine's real numbers, and they are on lines of the function the session is in. That is what makes this a separate sentence: every check short of this one passes over the reported symptom."
+    }
+  },
   "_closed": {
     "_comment": [
       "Not machine-read. Kept because the both-directions rule paid for itself three times in",
