@@ -240,7 +240,9 @@ suite "2 — the pane renders instructions, with the current one marked":
       ck occurrences(body, "<div class=\"srcline cur hit\"") == 1
       ck occurrences(body, "id=\"L-avm-" & $s.step & "\" data-line=\"" &
                      $s.step & "\" aria-current=\"true\"") == 1
-      ck occurrences(body, "<span class=\"p\">▶</span>") == 1
+      ck occurrences(body, "<span class=\"p\" tabindex=\"-1\" " &
+                     "autofocus=\"autofocus\" aria-label=\"the session is " &
+                     "stopped on line " & $s.step & "\">▶</span>") == 1
       # The position is on the ACCESSIBILITY TREE and countable in both
       # directions: one `true`, and every other row explicitly `false`.
       ck occurrences(body, "aria-current=\"false\"") ==
@@ -260,6 +262,7 @@ suite "2 — the pane renders instructions, with the current one marked":
     # names — which is the claim "the program counters the recording carries,
     # positioned" reduces to.
     var rows = 0
+    var want = 0
     for s in subjects:
       let body = debugBody(s)
       let l = decodeInstructionListing(s.listing)
@@ -273,8 +276,15 @@ suite "2 — the pane renders instructions, with the current one marked":
         ck body.contains(">" & ln.text & "</code>")
         inc onPage
       ck onPage > 0
+      # EVERY row of the recording is on the page, not merely some of them. This
+      # used to be `onPage > 0` plus a total of 1314, which held while the pane
+      # was served windowed; the eight containers hold 2269 steps between them
+      # and 955 of those rows were never in the DOM.
+      ck onPage == s.steps
       rows += onPage
-    ck rows == 1314
+      want += s.steps
+    ck rows == want
+    ck want == 2269
 
   test "MUTATION BITE: an unpositioned session marks no row":
     # The listing is still rendered — "here is the whole recording and this page
@@ -293,30 +303,46 @@ suite "2 — the pane renders instructions, with the current one marked":
     let html = dbgc.renderSource(pane)
     ck occurrences(html, "class=\"srcline") == l.stepCount
     ck occurrences(html, "aria-current=\"true\"") == 0
-    ck occurrences(html, "<span class=\"p\">▶</span>") == 0
+    ck occurrences(html, ">▶</span>") == 0
+    # An unpositioned listing autofocuses nothing, because there is nothing to
+    # open it at — the attribute travels with the position and not with the pane.
+    ck occurrences(html, "autofocus") == 0
     # …and the control: the same pane WITH a position marks exactly one.
     pane.documents = @[listingDocument(l, 42)]
     pane.currentLine = 42
     let marked = dbgc.renderSource(pane)
     ck occurrences(marked, "aria-current=\"true\"") == 1
-    ck occurrences(marked, "<span class=\"p\">▶</span>") == 1
+    ck occurrences(marked, ">▶</span>") == 1
+    ck occurrences(marked, "autofocus=\"autofocus\"") == 1
 
-  test "the window announces itself in STEPS, not in lines":
-    # `openAtCurrent` drops the rows above the lead-in, and a reduction is
-    # announced rather than silent. "Showing from line 122" over rows that are
-    # steps would be the window reporting in the one coordinate this pane has
-    # spent four paragraphs saying it does not have.
-    var windowed = 0
+  test "the listing is served WHOLE, so it announces no reduction at all":
+    # This used to read "the window announces itself in STEPS, not in lines".
+    # `openAtCurrent` dropped the rows above a six-row lead-in and `renderSource`
+    # said "Showing from step 122" over what was left, which was the right
+    # sentence about the wrong behaviour: the same lead-in that hid 70 of an
+    # 83-line Noir file hid 122 of a 338-step listing, and a reader looking for
+    # the instruction before the one they are on had to hydrate to see it.
+    #
+    # The reduction is gone, so the notice is silent. THE COUNT IS WHAT MAKES
+    # THIS AN ASSERTION: a listing SHORTER than the old lead-in carried no
+    # `srcfrom` either, so "no banner" on its own would pass over a pane that
+    # rendered six rows. Every listing here is compared against its own recorded
+    # step count.
+    var judged = 0
     for s in subjects:
       let body = debugBody(s)
-      if "srcfrom" notin body: continue
-      ck body.contains("Showing from step ")
+      ck occurrences(body, "class=\"srcline") == s.steps
+      # The SENTENCE and not the class name: `.srcfrom` is a rule in the
+      # stylesheet this page inlines, so `"srcfrom" notin body` would be
+      # answered by the CSS and never by the markup.
+      ck occurrences(body, "<div class=\"srcfrom\">") == 0
+      ck not body.contains("Showing from step ")
       ck not body.contains("Showing from line ")
-      inc windowed
-    ck windowed == 8
+      inc judged
+    ck judged == 8
 
   test "assertion count":
-    expectCount(1435)
+    expectCount(2417)
 
 suite "3 — it composes with the marks the pane already draws":
   asserted = 0
@@ -331,12 +357,22 @@ suite "3 — it composes with the marks the pane already draws":
     # Reintroducing that would look exactly like a listing with no marker.
     for s in subjects:
       let body = debugBody(s)
-      ck occurrences(body, "<span class=\"p\">▶</span>") == 1
+      # The row's cell, spelled EXACTLY, because this page carries a second `.p`
+      # that also holds `▶`: `.srcpos`, the position head, which states the same
+      # coordinate in words above the rows. A loose `">▶</span>"` match counts
+      # both and would go on passing if the listing lost its own marker.
+      ck occurrences(body, "<span class=\"p\" tabindex=\"-1\" " &
+                     "autofocus=\"autofocus\" aria-label=\"the session is " &
+                     "stopped on line " & $s.step & "\">▶</span>") == 1
       ck occurrences(body, "<span class=\"m\">▶</span>") == 0
       # every row has a `.p` cell, current or not, so the current row's text
-      # cannot be the one row that does not align
+      # cannot be the one row that does not align. The un-attributed spelling
+      # counts the non-current rows — the current one carries the
+      # `tabindex`/`autofocus` pair that opens the pane at the position with no
+      # script on the page — and `.srcpos` is not among them, because that cell
+      # carries `aria-hidden`.
       ck occurrences(body, "<span class=\"p\">") ==
-         occurrences(body, "class=\"srcline")
+         occurrences(body, "class=\"srcline") - 1
 
   test "no branch claim is made, on either channel":
     # `notTaken`/`ran` are the source pane's claim about a branch ARM, drawn as
@@ -608,17 +644,23 @@ suite "6 — the listing survives hydration, in the artefact a visitor loads":
   ## the renderer draws the result. Driven through the SAME functions the bundle
   ## calls, so it is the shipping path and not a lookalike.
 
-  test "the island carries the WHOLE listing, not the served window":
-    # The served DOM holds a window (`openAtCurrent`); the first backward step
-    # out of it asks for a row the DOM does not have. That is what the island is
-    # for, and a listing that inlined only the window would fail on the first
-    # reverse step and on nothing else.
+  test "the island carries the WHOLE listing, and so does the served DOM":
+    # The served DOM used to hold a WINDOW (`openAtCurrent`), so the first
+    # backward step out of it asked for a row the DOM did not have, and this arm
+    # asserted `occurrences(body, "class=\"srcline") < s.steps` — "it IS
+    # windowed" — as the justification for inlining the island at all.
+    #
+    # The window is gone and the island is not, because it was never only about
+    # the window: hydration re-derives the pane from data on every stop rather
+    # than reading rows back out of markup it wrote, which is what keeps ONE
+    # producer of the position. So both are asserted whole, against the same
+    # recorded step count, and neither number is written here by hand.
     for s in subjects:
       let body = debugBody(s)
       let full = debugSessionFor(root, s.chain, s.tx).editor
       ck full.documents[0].lines.len == s.steps
       ck occurrences(body, "id=\"bt-session-source\"") == 1
-      ck occurrences(body, "class=\"srcline") < s.steps   # it IS windowed
+      ck occurrences(body, "class=\"srcline") == s.steps
       ck body.contains("\"listingCaption\":\"" & $s.steps & " recorded steps")
 
   test "a step re-marks the listing at the tick, through the shipping decoder":
@@ -643,7 +685,7 @@ suite "6 — the listing survives hydration, in the artefact a visitor loads":
         # that says what its columns are
         ck pane.listingCaption.contains("recorded steps")
         # and re-rendering marks exactly one row, as the served page did
-        let html = dbgc.renderSource(openAtCurrent(pane, SourceLeadIn))
+        let html = dbgc.renderSource(pane)
         ck occurrences(html, "aria-current=\"true\"") == 1
 
   test "the engine's LANDING tick marks a row, because row n IS tick n":

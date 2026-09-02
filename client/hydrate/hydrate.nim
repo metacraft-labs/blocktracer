@@ -51,7 +51,6 @@ import codetracer_embed
 
 import ../src/debugger/replay_engine
 import ../src/debugger/session_view
-import ../src/debugger/source_document
 import ../src/debugger/source_island
 import ../src/components/debugger as panes
 
@@ -221,11 +220,18 @@ proc markRailNavigable(ui: Ui) =
 proc scrollToCurrentLine(ui: Ui) =
   ## Bring the session's line into view after the source pane is rewritten.
   ##
-  ## `pages/debug.nim` solves this at export time by opening the document AT
-  ## the position, because "there is no JavaScript on this page to scroll it
-  ## with". There is now, so the window can stay generous and the pane can be
+  ## `pages/debug.nim` used to solve this at export time by DELETING the lines
+  ## above the position, because "there is no JavaScript on this page to scroll
+  ## it with". There is now, so the window is gone entirely and the pane is
   ## moved instead — which is the better behaviour for a reader who has
-  ## scrolled away and then stepped.
+  ## scrolled away and then stepped, and it is the only one of the two that
+  ## leaves the rest of the program readable.
+  ##
+  ## This is also the reason the served frame's `autofocus` is not enough on its
+  ## own and is not a duplicate of this call. `autofocus` fires once, at parse
+  ## time, on the row the EXPORTER marked; every stop after that rewrites the
+  ## pane and needs the pane moved again, and re-focusing a row on every stop
+  ## would take focus away from the stepping control the reader is using.
   let cur = ui.editor.querySelector(".srcline.cur")
   if cur != nil: cur.scrollIntoView()
 
@@ -261,12 +267,19 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch) =
   ## The four replay panes and the controls, from the renderers the static
   ## export used.
   ##
-  ## The source pane is windowed with the same lead-in the served page used, so
+  ## The source pane renders the WHOLE file, exactly as the served page does, so
   ## a hydrated frame and a served frame at the same position are the same
   ## markup. That equality is not decoration: it is what makes "hydrate over
   ## it" true rather than "replace it with something similar".
+  ##
+  ## `view.editor = openAtCurrent(view.editor, SourceLeadIn)` used to stand here,
+  ## matching the identical call in `pages/debug.nim`. Both are gone — see
+  ## `source_document.nim` for the reason the lead-in was there and what was
+  ## measured about it — and the equality above is preserved by the same argument
+  ## it always rested on: one decision, made in one place, for both builds. The
+  ## place is now "no reduction", and `scrollToCurrentLine` below is what puts the
+  ## reader at the position instead.
   var view = view
-  view.editor = openAtCurrent(view.editor, SourceLeadIn)
 
   # THE SESSION'S POSITION, WRITTEN WHERE THE SESSION PUBLISHES IT.
   #

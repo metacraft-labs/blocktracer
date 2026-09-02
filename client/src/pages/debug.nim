@@ -297,20 +297,26 @@ proc noSession(s: DebugSessionView): string =
 proc debugPage*(s: DebugSessionView): string =
   ## The whole route.
   var s = s
-  # The WHOLE bundle, before the window is taken. `openAtCurrent` below reduces
-  # each document to the lines around the position, which is right for a page
-  # that cannot scroll and wrong for a session that can move: the first step
-  # out of that window needs a line the served DOM does not hold. So the island
-  # is encoded from the complete documents, here, and the window is taken
-  # after. See `source_island.nim`.
+  # The whole bundle. There is no longer a second, narrower thing for this to be
+  # "the whole" of: `s.editor` goes to the island and to the renderer as the same
+  # complete documents, and the sentence that used to stand here — "the island is
+  # encoded from the complete documents, and the window is taken after" — has no
+  # window left to be taken after.
+  #
+  # THE PANE SHOWS THE WHOLE FILE. `openAtCurrent(s.editor, SourceLeadIn)` used to
+  # run on the next line and reduce the active document to six lines of lead-in
+  # plus everything below the position, with `renderSource` announcing the
+  # reduction. It was there because "a document rendered from line 1 leaves the
+  # current line wherever the file puts it — at `laptop` the fixture's line 32
+  # falls below the fold". `source_document.nim` carries the full account of why
+  # that reason no longer decides anything and what was measured about it.
+  #
+  # The position is still what this page opens at, by the means that actually
+  # move a pane rather than by deleting its rows: `renderSource` gives the current
+  # row `tabindex="-1"` and `autofocus`, which opens the pane at the position on a
+  # page with no script at all, and `hydrate.scrollToCurrentLine` does it again on
+  # every stop once the bundle is running.
   let sourceIsland = (if s.hasFrame: encodeSourceIsland(s.editor) else: "")
-  # The session is POSITIONED, which means the pane opens on the position. A
-  # document rendered from line 1 leaves the current line wherever the file
-  # puts it — at `laptop` the fixture's line 32 falls below the fold, so the
-  # toolbar claims a step and no pane shows it. That is a presence failure
-  # against this view's own "must show", and it is invisible at `wide`, which
-  # is why deliverable 1 reviews both viewports rather than the widest.
-  s.editor = openAtCurrent(s.editor, SourceLeadIn)
   let replay =
     if s.hasFrame: renderLayout(blockTracerReplayLayout(), s)
     else: noSession(s)

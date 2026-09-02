@@ -590,6 +590,30 @@ html[data-register="debugger"],
    `.n` and `.m` — one declaration for everything on the band, at the 7.14:1
    (dark) / 7.30:1 (light) pair that rule already measures. */
 .srcline .p{flex:0 0 var(--bt-space-sm);text-align:center;user-select:none}
+/* THE LEAD-IN, AS A SCROLL OFFSET RATHER THAN AS DELETED LINES.
+   `source_document.SourceLeadIn = 6` used to open the pane six lines above the
+   position by DROPPING everything above that — the reader got six lines of
+   context and lost the rest of the program, and `.srcfrom` announced the loss.
+   The six lines were the right instinct and the mechanism was the wrong one.
+   `scroll-margin-block-start` gets the same six rows of context out of the same
+   number, from whichever of the two scrolls arrives first — `autofocus` on `.p`
+   on a page with no script, or `hydrate.scrollToCurrentLine` on every stop once
+   the bundle is running — and it costs nothing above the window because there is
+   no longer a window. Six times the code row pitch, computed from the two tokens
+   that DEFINE that pitch rather than from a px number that would drift away from
+   them the first time either moved.
+   BOTH SELECTORS, because the two scrolls name two different elements: focus
+   scrolls `.p` into view, `scrollIntoView` is called on `.srcline.cur`, and
+   `scroll-margin` is read off the element being scrolled to. One value, so they
+   cannot land two rows apart.
+   `outline:none` ONLY on `.p`. It is `tabindex="-1"`, so it is unreachable by
+   Tab and the ring can never be the "where am I" a keyboard reader needs — it
+   would only be a box drawn around a 12px glyph at page load, on a row that is
+   already filled, railed and inked as the position. Nothing else on this page
+   loses its focus ring. */
+.srcline.cur,.srcline .p{
+  scroll-margin-block-start:calc(6 * var(--bt-type-code-size) * var(--bt-type-code-line))}
+.srcline .p:focus{outline:none}
 .srcline .n{flex:0 0 var(--bt-space-2xl);text-align:right;
   color:var(--bt-text-subtle);font-variant-numeric:var(--bt-numeric-features);
   user-select:none}

@@ -687,6 +687,22 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
     let first = (if d.lines.len > 0: d.lines[0].number else: 1)
     ui:
       tdiv(class = "src" & (if listing: " instr" else: "")):
+        # THE NOTICE, AND THE ONE REDUCTION LEFT TO ANNOUNCE.
+        #
+        # The session pane no longer takes a window: `source_document
+        # .openAtCurrent` is gone and `pages/debug.nim` and `hydrate/hydrate.nim`
+        # both render every line of every document. So on the debug route this
+        # branch is now silent, which is the whole of the change a reader asked
+        # for — "Showing from line 71" over an 83-line file whose first 70 lines
+        # were dropped.
+        #
+        # It is NOT deleted, because there is still a caller that genuinely
+        # narrows: `ssr.featuredSession` calls `windowAround(radius = 12)` for the
+        # home page's embedded session, which is a fixed-height box with no
+        # scrollbar to reach the position with. That reduction is real, so it is
+        # announced — §13's rule that a reduction is announced rather than silent
+        # — and the honest banner is the part this pane always got right. What was
+        # wrong was the reduction underneath it, not the sentence about it.
         if first > 1:
           tdiv(class = "srcfrom"):
             # The same reduction, named in the unit the rows are actually in.
@@ -781,7 +797,44 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
             # listing whose current line is the one line that does not align is
             # a worse artefact than one with no marker. It is also why the width
             # cannot be widened on `.cur` alone.
-            span(class = "p"): text (if ln.current: "▶" else: " ")
+            #
+            # ## AND IT IS WHAT OPENS THE PANE AT THE POSITION ON A PAGE WITH NO
+            # ## SCRIPT
+            #
+            # `source_document.openAtCurrent` used to do that by DELETING every
+            # line above the position and having `.srcfrom` announce the loss —
+            # "Showing from line 71 …" — because "the pane has no JavaScript to
+            # scroll with". A browser will scroll a focused element into view
+            # before it paints, and it needs no script to do it, so the position
+            # cell takes `tabindex="-1"` and `autofocus` and the whole file
+            # stays. `source_document.nim` carries the full account.
+            #
+            # ON THE POSITION CELL AND NOT ON THE ROW because the DSL emits a
+            # named attribute unconditionally, and `autofocus` is an HTML boolean:
+            # `autofocus="false"` is TRUE, so a row-level attribute would autofocus
+            # every row and the browser would honour the FIRST — line 1, which is
+            # the defect inverted. `.p` is already the only cell whose CONTENT is
+            # conditional on `ln.current`, so the branch exists here and costs
+            # nothing. It is also the correct target on its own terms: `.p` is the
+            # position marker, leftmost in the row, so scrolling it into view
+            # scrolls the row into view.
+            #
+            # `tabindex="-1"` and NOT `0`, for the reason `renderControls` gives
+            # for preferring `aria-disabled` to `disabled`: the tab order belongs
+            # to the controls a reader operates, and a source row is not one. `-1`
+            # is focusable programmatically and by `autofocus`, and unreachable by
+            # Tab, which is exactly the pair wanted.
+            #
+            # `aria-label` because the accessible name of this cell would otherwise
+            # be the glyph `▶`, and `autofocus` means a screen reader lands on it
+            # at page load. The row's own `aria-current="true"` states the fact for
+            # a reader walking the DOM; this states it for the reader dropped here.
+            if ln.current:
+              span(class = "p", tabindex = "-1", autofocus = "autofocus",
+                   `aria-label` = "the session is stopped on line " & $ln.number):
+                text "▶"
+            else:
+              span(class = "p"): text " "
             span(class = "n"): text $ln.number
             # The gutter marker, and — on a line inside a branch that was
             # evaluated and not taken — the SECOND glyph that replaces it in the

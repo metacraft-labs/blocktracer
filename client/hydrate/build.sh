@@ -151,18 +151,34 @@ echo "--- the bundle reaches both the document and the worker"
 # matches four incidental digit runs in a minified bundle and would have been
 # green over a bundle that drew no position at all. The glyph is three UTF-8
 # bytes, `226,150,182`, and it legitimately appears three times: the stepping
-# toolbar's Step-forward button, the head, and the gutter column. Only the
-# third is a bare assignment (`= [226,150,182];`, the `if ln.current` arm), so
-# that is what is counted — a substring check would have been answered by the
-# button, which has been on this page since M8a.
+# toolbar's Step-forward button, the head, and the gutter column.
+#
+# THE GLYPH IS NO LONGER HOW THE GUTTER COLUMN IS FOUND. The needle used to be
+# `= [226,150,182];` — the bare assignment `nim js` emits for the `if
+# ln.current: "▶" else: " "` expression — and that expression is gone: the cell
+# is now written as two whole branches, because the current row's `.p` carries
+# `tabindex="-1"` and `autofocus`, which is what opens the pane AT the position
+# on a page with no script (see `source_document.nim` for why there is no longer
+# a window doing that job). The assignment form vanished and this check went red
+# over a bundle that draws the column correctly — which is the check working, and
+# is why it is rewritten rather than loosened.
+#
+# The replacement is the cell's `aria-label` copy. It is a static literal that
+# exists in exactly one place in the source, it is unambiguous in the bundle
+# (the glyph is not), and it names the thing being checked.
 #
 #   srcposlabel      the head's sentence — 1, and it exists nowhere else
 #   aria-current     the row state and the head's — 2, and no more
-#   = [▶];           the gutter's position column — 1, distinct from the button
+#   the session…line the gutter's position column (.p) — 1
+#   autofocus        the attribute NAME and its value, on that same cell — 2.
+#                    It is what opens the pane at the position with no script,
+#                    and the served page and the hydrated pane have to be the
+#                    same markup, so it has to be in both renderers.
 declare -a marks=(
 	"115,114,99,112,111,115,108,97,98,101,108:1:the position head (.srcposlabel)"
 	"97,114,105,97,45,99,117,114,114,101,110,116:2:the current-row state (aria-current)"
-	"= \[226,150,182\];:1:the gutter's position column (.p)"
+	"116,104,101,32,115,101,115,115,105,111,110,32,105,115,32,115,116,111,112,112,101,100,32,111,110,32,108,105,110,101,32:1:the gutter's position column (.p)"
+	"97,117,116,111,102,111,99,117,115:2:the position cell's autofocus"
 )
 for mark in "${marks[@]}"; do
 	codes="${mark%%:*}"

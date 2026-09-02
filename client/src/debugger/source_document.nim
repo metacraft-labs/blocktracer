@@ -145,93 +145,70 @@ proc focus*(pane: var EditorPane; path: string; line: int) =
       pane.documents[d].lines[i].current =
         d == idx and pane.documents[d].lines[i].number == line
 
-const SourceLeadIn* = 6
-  ## How many lines of context the source pane opens ABOVE the current line.
-  ##
-  ## Enough to see the statement in its block, few enough that the current line
-  ## is on screen at the shortest viewport this route is served at. See
-  ## `openAtCurrent` below for why a lead-in and not a centred window.
-  ##
-  ## It lives HERE, beside `openAtCurrent`, because it is read by two
-  ## compilations that must agree: `pages/debug.nim` windows the served pane
-  ## with it, and `hydrate/hydrate.nim` re-windows the hydrated pane with it on
-  ## every stop. Those two are the same pane at the same position, and the
-  ## whole claim that hydration renders the markup the export rendered rests on
-  ## them windowing identically.
-  ##
-  ## It was briefly a private `const` restated in both files. That is a drift
-  ## surface with no guard — the renderers are shared by import, so they cannot
-  ## diverge, but a windowing PARAMETER copied into two modules can, and a
-  ## served page and a hydrated pane that disagree by two lines would be a
-  ## silent difference in exactly the thing this route promises is the same.
-  ## One definition removes the possibility rather than testing for it.
-
-proc openAtCurrent*(pane: EditorPane; lead: int = SourceLeadIn): EditorPane =
-  ## The active document narrowed to start `lead` lines ABOVE the current line
-  ## and run to the end of the file. Other documents are kept, untouched.
-  ##
-  ## This is what makes the full session *positioned* rather than merely
-  ## loaded, and it is a correctness fix rather than a nicety. The pane has no
-  ## JavaScript to scroll with: a document rendered from line 1 puts the
-  ## current line wherever the file happens to put it, and at the `laptop`
-  ## viewport the fixture's line 32 falls below the fold entirely — the pane
-  ## renders a file, the toolbar claims a step, and nothing on screen connects
-  ## them. Four of six reviewers in VD.5's first round independently reported
-  ## the missing indicator as a presence failure, at `laptop` and not at
-  ## `wide`, which is exactly the signature of a position that is rendered but
-  ## off-screen.
-  ##
-  ## A LEAD-IN rather than a centred window: `lead` lines of context above
-  ## guarantees the current line lands in row `lead + 1` at every viewport,
-  ## however short the pane is, where a centred window only guarantees it for
-  ## panes taller than the window. Opening on the current statement with a few
-  ## lines above it is also what the desktop app does, so the continuity is
-  ## with CodeTracer rather than with a file viewer.
-  ##
-  ## The lines above the lead-in are DROPPED, not hidden, and `renderSource`
-  ## says so on the pane — Page-Descriptions §13's rule that a reduction is
-  ## announced rather than silent applies to a reduction in a pane just as it
-  ## does to one at a viewport.
-  ## ## It windows an INSTRUCTION LISTING for the same reason
-  ##
-  ## The gate used to be `availability != srcSourceLevel`, which was a
-  ## restatement of "this pane has documents" back when only a source-level pane
-  ## did. A `srcUnverified` pane now carries a listing — one row per recorded
-  ## step, a few hundred of them — and every word above applies to it unchanged:
-  ## the page has no JavaScript to scroll with, so a listing rendered from step 1
-  ## puts step 128 below the fold and the pane shows a wall of program counters
-  ## with the current one nowhere on screen. That is the exact failure four
-  ## reviewers reported against source, on a pane with more rows.
-  ##
-  ## `srcAbsent` is excluded because no execution ran, so anything it is holding
-  ## is not a window onto a position. Everything else is decided by whether there
-  ## are documents and a position, which is what the rule was always about.
-  result = pane
-  if pane.availability == srcAbsent or pane.documents.len == 0: return
-  if pane.currentLine <= 0: return
-  let idx = (if pane.activeIndex >= 0 and pane.activeIndex < pane.documents.len:
-               pane.activeIndex else: 0)
-  let first = max(1, pane.currentLine - lead)
-  if first == 1: return
-  var window = SourceDocument(path: pane.documents[idx].path,
-                              language: pane.documents[idx].language)
-  for ln in pane.documents[idx].lines:
-    if ln.number >= first: window.lines.add ln
-  # A window that keeps NO lines is never an improvement on the whole document,
-  # and it is the shape a caller's mistake takes here rather than an input worth
-  # honouring: `currentLine` belongs to some other file, so `first` is past this
-  # document's last line. Returning the document unwindowed shows the file the
-  # pane selected instead of showing nothing at all.
-  #
-  # This is a guard and not the fix — the callers that could produce the
-  # mismatch have been corrected (`demo_session.withPublishedSources`,
-  # `source_island.decodeSourceIsland`, both of which now clear `currentLine`
-  # when they cannot locate it). It stays because the failure it prevents is
-  # invisible: a pane rendering zero lines satisfies every assertion written
-  # about the lines it renders, so the next caller to get this wrong would not
-  # be caught by any test that walks them.
-  if window.lines.len == 0: return
-  result.documents[idx] = window
+## ## THE SESSION PANE SHOWS THE WHOLE FILE — the lead-in window is GONE
+##
+## `SourceLeadIn = 6` and `openAtCurrent` used to stand here. They narrowed the
+## active document to start six lines above the current line and run to the end
+## of the file, and `renderSource` announced the reduction: *"Showing from line
+## 71 — the session's position is below, and the lines above it are not in this
+## window."* Both `pages/debug.nim` and `hydrate/hydrate.nim` applied it, so a
+## visitor on `loops and iteration` — an 83-line program whose `main` is at line
+## 77 — was shown thirteen lines and none of the four functions `main` calls.
+##
+## THE REASON IT WAS THERE, in its own words:
+##
+##   "The pane has no JavaScript to scroll with: a document rendered from line 1
+##   puts the current line wherever the file happens to put it, and at the
+##   `laptop` viewport the fixture's line 32 falls below the fold entirely — the
+##   pane renders a file, the toolbar claims a step, and nothing on screen
+##   connects them."
+##
+## That was true, and it is worth being clear that it was never about size or
+## memory. It is a claim about SCROLLING, and it is a claim about A BUILD — the
+## exact species of reasoning `AGENTS.md` §1b already warns about ("an
+## explanation naming a mechanism is a claim about an artefact"), and it went
+## wrong here in the same way it went wrong for the `Supply sources` copy:
+##
+##   * `just export` writes `client/dist` with zero JavaScript. That IS the tree
+##     the capture harness photographs, and on it the premise held.
+##   * `flake.nix packages.default` — what CI builds and deploys, and therefore
+##     what a visitor loads — exports with `-d:hydrationBundle=/assets/hydrate.js`,
+##     and every debugger route carries it. `hydrate.scrollToCurrentLine` has
+##     moved the pane to the position on every render since hydration landed;
+##     its own comment says so: "There is now, so the window can stay generous
+##     and the pane can be moved instead."
+##
+## And the no-JavaScript build does not need the window either, because a pane
+## can be opened at a row with no script at all: the current row carries
+## `tabindex="-1"` and `autofocus`, and the browser scrolls a focused element
+## into view before it paints. See `components/debugger.renderSource`. That is
+## strictly better than dropping lines — the reader lands on the position AND
+## can scroll up to the rest of the program.
+##
+## WHAT THE WINDOW WAS SAVING, measured rather than assumed. Nothing:
+##
+##   * the whole file is ALREADY in the served bytes. `pages/debug.nim` encodes
+##     `#bt-session-source` from the COMPLETE documents, deliberately and before
+##     the window was taken, so hydration can step outside it. On the demo
+##     session that island is 5.6 KB and carries every one of `shield.nr`'s 67
+##     lines. The window removed rows from the paint and not one byte from the
+##     download.
+##   * the corpus it would have to protect against does not exist. All 24 Noir
+##     files in `fixtures/` total 49.7 KB; the largest single file is
+##     `tour/mutation/src/main.nr` at 132 lines / 5.4 KB. Against a ~140 KB
+##     container, a 1.3 MB hydration bundle and an 18 MB replay engine, a whole
+##     source file is not a quantity this page can notice.
+##   * the widest listing in the eight published chain captures is 338 rows.
+##
+## A LARGER LEAD-IN WOULD HAVE BEEN THE SAME DEFECT WITH A HIGHER THRESHOLD, so
+## the bound is removed rather than widened: any number picked here is a number
+## some file is longer than, and the reader who hits it gets exactly the report
+## that produced this comment.
+##
+## `windowAround` below is NOT this and stays. It serves the home page's
+## embedded session, which is a fixed-height box with no scrollbar to reach the
+## position with, and it keeps the banner that says what it did — an honest
+## announced reduction, which is the part this pane got right.
 
 proc windowAround*(pane: EditorPane; radius: int): EditorPane =
   ## The active document narrowed to `radius` lines either side of the current

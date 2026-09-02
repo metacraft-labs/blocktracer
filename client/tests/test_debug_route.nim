@@ -662,15 +662,15 @@ suite "M8a — the source pane renders real source, with stable line identity":
     let html = debugHtml(readyTx)
     # Lines of the real `zk_shields` program, not a placeholder.
     #
-    # Taken from the window the pane actually opens on rather than from the top
-    # of the file: the pane opens ON the session's position, so line 1 is not
-    # on the page. Asserting over the rendered window keeps this a check that
-    # the REAL program is rendered — the strings below are still `shield.nr`'s
-    # own source, read out of the document rather than written in by hand, so a
-    # placeholder renderer still fails it.
-    let rendered = activeDocument(openAtCurrent(s.editor, lead = 6))
+    # Taken from the WHOLE document, because the whole document is what the pane
+    # renders. This used to read `activeDocument(openAtCurrent(s.editor, lead = 6))`
+    # and assert `rendered.lines[0].number > 1` — "the window is a real window" —
+    # which is precisely the behaviour that was removed. The strings below are
+    # still `shield.nr`'s own source, read out of the document rather than
+    # written in by hand, so a placeholder renderer still fails it.
+    let rendered = activeDocument(s.editor)
     check rendered.lines.len > 20
-    check rendered.lines[0].number > 1     # the window is a real window
+    check rendered.lines[0].number == 1    # the file starts where the file starts
     # The served bytes, with the tokenisation undone — see `codeLines`. Every
     # line is compared WHOLE and in full, including the ones carrying HTML
     # -special characters, which are the ones most likely to be mangled.
@@ -699,32 +699,46 @@ suite "M8a — the source pane renders real source, with stable line identity":
       check ln.anchor notin seen
       seen.incl ln.anchor
     check seen.len == doc.lines.len
-    # The page opens the pane ON the position (see the next test), so the lines
-    # it renders are the window's, not the whole file's. The identity property
-    # is asserted over exactly the lines the page emits — and, because the
-    # anchors are derived from `(path, line)` and not from render order, the
-    # windowed ids are the same ids the full document produced above.
+    # The page renders every line of the file (see the next test), so the lines
+    # it emits ARE the document's. The identity property is asserted over
+    # exactly the lines the page emits — and, because the anchors are derived
+    # from `(path, line)` and not from render order, they are the same ids the
+    # document produced above.
     let html = debugHtml(readyTx)
-    let rendered = activeDocument(openAtCurrent(s.editor, lead = 6))
+    let rendered = activeDocument(s.editor)
     check rendered.lines.len > 0
     for ln in rendered.lines:
       check ln.anchor == lineAnchor(doc.path, ln.number)
       check ("id=\"" & ln.anchor & "\"") in html
 
-  test "the source pane OPENS on the position, at every viewport":
-    ## The regression this test exists for shipped, and four of six reviewers
-    ## in VD.5's first round found it on the rendered page: the pane rendered
-    ## the file from line 1, so at the `laptop` viewport the current line fell
-    ## below the fold. The toolbar claimed a step and no pane showed one.
+  test "the source pane renders the WHOLE file and opens on the position":
+    ## This test used to assert the opposite of half of what it asserts now, and
+    ## the history is the point.
     ##
-    ## "Visible" cannot be asserted from markup, so the property asserted is
-    ## the one that CAUSES it and does not depend on a viewport: the current
-    ## line is among the first few lines the pane emits. A pane that opens on
-    ## its position is visible in any pane tall enough to show a handful of
-    ## rows; a pane that opens at line 1 is not.
+    ## The regression it was written for shipped, and four of six reviewers in
+    ## VD.5's first round found it on the rendered page: the pane rendered the
+    ## file from line 1, so at the `laptop` viewport the current line fell below
+    ## the fold. The toolbar claimed a step and no pane showed one. The fix was
+    ## `openAtCurrent`, which DELETED every line above the position, and this
+    ## test then asserted `ids.find(cur) <= 8` plus `"Showing from line" in html`
+    ## — the current line near the top, and the loss announced.
+    ##
+    ## That bought the position at the price of the program: on `loops and
+    ## iteration`, an 83-line file whose `main` is at line 77, it showed thirteen
+    ## lines and none of the four functions `main` calls. The window is gone.
+    ##
+    ## BOTH HALVES ARE STILL ASSERTED, because the position was never the wrong
+    ## requirement — only the mechanism was. "Visible" cannot be asserted from
+    ## markup, so what is asserted is what CAUSES it and does not depend on a
+    ## viewport: the current row carries `autofocus`, and a browser scrolls a
+    ## focused element into view before it paints, with or without a script on
+    ## the page. The browser half of this claim is journey 12's, in a real
+    ## browser, hit-testing painted pixels; this half is that the markup a
+    ## browser would need is the markup that is served.
     let s = sessionFor(readyTx)
     let full = activeDocument(s.editor)
-    # The fixture has to be able to fail this, or the test is decoration.
+    # The fixture has to be able to fail this, or the test is decoration: a file
+    # whose position is at line 3 would render whole under either behaviour.
     check s.editor.currentLine > 8
     check full.lines.len > s.editor.currentLine
 
@@ -733,16 +747,34 @@ suite "M8a — the source pane renders real source, with stable line identity":
     # ACTIVE document's own file before position within it is asserted.
     let prefix = "L-" & pathSlug(full.path) & "-"
     let ids = idsInOrder(html, "L-").filterIt(it.startsWith(prefix))
-    check ids.len > 0
+    # EVERY LINE, counted, and the count asserted against the file's own length
+    # rather than against a number written here. `>= 1` would pass over a
+    # one-line render; `== full.lines.len` is the only relation that separates
+    # "whole file" from "some of it", and it is the assertion the old window
+    # would have reddened.
+    check ids.len == full.lines.len
+    check ids[0] == lineAnchor(full.path, 1)
+    check ids[^1] == lineAnchor(full.path, full.lines.len)
+
     let cur = lineAnchor(full.path, s.editor.currentLine)
     check cur in ids
-    # Within the first handful of rendered rows, not merely present somewhere.
-    check ids.find(cur) <= 8
+    # …and it is NOT near the top any more, which is what makes the autofocus
+    # below load-bearing rather than redundant. If the fixture's position ever
+    # migrates into the first few rows this assertion fails loudly instead of
+    # letting the next one pass for the wrong reason.
+    check ids.find(cur) > 8
 
-    # And the lines that were dropped to get there are ANNOUNCED, not silently
-    # missing — Page-Descriptions §13's rule applies to a reduction in a pane
-    # exactly as it does to one at a viewport.
-    check "Showing from line" in html
+    # THE ROW THE BROWSER OPENS AT. One `autofocus` in the whole page — a second
+    # would mean the browser honoured whichever came first, which on a document
+    # rendered from line 1 is the defect inverted — and it is on the position
+    # cell of the row whose number is the session's.
+    check occurrences(html, "autofocus=\"autofocus\"") == 1
+    check ("aria-label=\"the session is stopped on line " &
+           $s.editor.currentLine & "\"") in html
+    # Nothing was dropped, so nothing is announced. Asserted AFTER the count
+    # above and never instead of it: a file SHORTER than the old window carried
+    # no banner either, so an absent banner on its own proves nothing.
+    check "Showing from line" notin html
 
   test "every file the tab strip names is reachable":
     ## The strip listed the published bundle's four files and exactly one of
@@ -975,19 +1007,30 @@ suite "M8a — the source pane renders real source, with stable line identity":
       check "panedismiss" notin html
       check "pane-metadata" in html
 
-  test "a document whose position is near the top is NOT windowed":
-    ## The negative. `openAtCurrent` must be a no-op when the current line is
-    ## already within the lead-in, or every session would claim a reduction it
-    ## did not make.
-    var e = sessionFor(readyTx).editor
-    e.currentLine = 3
-    for i in 0 ..< e.documents.len:
-      for j in 0 ..< e.documents[i].lines.len:
-        e.documents[i].lines[j].current =
-          e.documents[i].lines[j].number == 3 and i == e.activeIndex
-    let opened = openAtCurrent(e, lead = 6)
-    check activeDocument(opened).lines.len == activeDocument(e).lines.len
-    check activeDocument(opened).lines[0].number == 1
+  test "no position anywhere in a file narrows what the pane renders":
+    ## The negative, generalised. It used to say "a document whose position is
+    ## near the top is NOT windowed" and drive `openAtCurrent` with
+    ## `currentLine = 3` — the one case where the old lead-in happened to be a
+    ## no-op. Every OTHER position was a reduction, which is the defect.
+    ##
+    ## So it is asked of every line in the file, not of the one that used to be
+    ## safe: wherever the session stands, the pane emits the same rows.
+    let base = sessionFor(readyTx).editor
+    let want = activeDocument(base).lines.len
+    check want > 20          # or this quantifies over nothing worth quantifying
+    var asked = 0
+    for line in 1 .. want:
+      var e = base
+      e.currentLine = line
+      for i in 0 ..< e.documents.len:
+        for j in 0 ..< e.documents[i].lines.len:
+          e.documents[i].lines[j].current =
+            e.documents[i].lines[j].number == line and i == e.activeIndex
+      check activeDocument(e).lines.len == want
+      check activeDocument(e).lines[0].number == 1
+      check dbgc.renderSource(e).contains("Showing from line") == false
+      inc asked
+    check asked == want
 
   test "narrowing the document to a window does not move a line's identity":
     # The property the anchors exist for. The home page's embed renders a
@@ -1966,18 +2009,21 @@ suite "Omniscience — the recorded values, against the real zk_shields trace":
     for i in 1 ..< rail.iterations.len:
       check rail.iterations[i].ticks > rail.iterations[i - 1].ticks
 
-  test "the rail is rendered even though the loop's header is off-window":
+  test "the rail is rendered even though the loop's header is far off screen":
     # The reason the rail is on the PANE rather than on the loop's own line.
-    # `openAtCurrent` opens the served pane six lines above line 32, so line 4
-    # is twenty-two lines above the first line served — a control drawn only at
-    # the header would be missing exactly when the reader is inside the loop.
+    # It used to be off-WINDOW — `openAtCurrent` served the pane from six lines
+    # above line 32, so line 4 was not in the DOM at all. It is in the DOM now,
+    # and twenty-eight rows above the position, which is well off screen at
+    # every viewport this route is served at. A control drawn only at the header
+    # would still be missing exactly when the reader is inside the loop.
     let s = sessionFor(readyTx)
-    let windowed = openAtCurrent(s.editor, SourceLeadIn)
+    let windowed = s.editor
+    check s.editor.currentLine - 4 > 20
     var first = 0
     for ln in activeDocument(windowed).lines:
       first = ln.number
       break
-    check first > 4
+    check first == 1
     let html = dbgc.renderSource(windowed)
     check "class=\"flowrail\"" in html
     check "Iteration 3 of 8" in html
@@ -2562,15 +2608,25 @@ suite "Omniscience — the branch that was taken, and the ones that were not":
     check "<span class=\"ntbar\">" in html
     check "<span class=\"rnbar\">" in html
     # A line with no claim is unchanged — no pair, no rail, no extra spans.
-    # Counting is what makes that checkable. Three lines in the window carry a
-    # NOT-taken claim (29, 32, 44) and the same three carry a taken one, for
-    # different passes — so every channel is emitted exactly three times, and
-    # `.mg` once per claimed line rather than once per claim.
+    # Counting is what makes that checkable.
+    #
+    # THE TAKEN AND NOT-TAKEN COUNTS ARE NO LONGER THE SAME NUMBER, and that
+    # is a result rather than a nuisance. They used to both be 3 because the
+    # pane was WINDOWED from line 26 and only lines 29, 32 and 44 were on the
+    # page. The file renders whole now, and lines 11 and 12 — `rn-i0 rn-i1`,
+    # the loop body that ran on the first two passes and carries no not-taken
+    # claim at all — were being dropped along with everything above line 26.
+    # Five affirmative claims and three negative ones is what this recording
+    # always said; the window was hiding two of them.
     check occurrences(html, "<span class=\"mn\">") == 3
-    check occurrences(html, "<span class=\"mt\">") == 3
-    check occurrences(html, "<span class=\"mg\">") == 3
     check occurrences(html, "<span class=\"ntbar\">") == 3
-    check occurrences(html, "<span class=\"rnbar\">") == 3
+    check occurrences(html, "<span class=\"mt\">") == 5
+    check occurrences(html, "<span class=\"rnbar\">") == 5
+    # `.mg` once per claimed LINE rather than once per claim: five lines carry
+    # at least one claim (11, 12, 29, 32, 44).
+    check occurrences(html, "<span class=\"mg\">") == 5
+    for n in [11, 12, 29, 32, 44]:
+      check ("id=\"L-src-shield-nr-" & $n & "\"") in html
     # Still no script. The whole control is links and CSS.
     check executableScripts(html) == 0
 
@@ -2678,19 +2734,31 @@ suite "the current line is marked, and a branch claim cannot take the mark":
     # Nothing below is worth checking over a page with no listing or no
     # position, and both have been true of this route for a whole class of
     # transaction. The counts are asserted, not sampled.
-    check occurrences(html, "class=\"srcline") == 108
+    # 133 and not 108. The 25 are `shield.nr`'s lines 1–25, which the pane used
+    # to drop and announce as "Showing from line 26"; the file is 67 lines and
+    # all 67 are here. See "the source pane renders the WHOLE file …" above.
+    check occurrences(html, "class=\"srcline") == 133
     check occurrences(html, "class=\"srcline cur") == 1
     check "id=\"L-src-shield-nr-32\"" in html
+    check "id=\"L-src-shield-nr-1\"" in html
 
   test "the position has a gutter cell of its own, on EVERY row":
     # One `.p` per rendered line and not one per page. A cell that appeared
     # only where the session stands would shift that row's code text right by
     # its own width relative to every other row, so the current line would be
     # the one line that does not align — a worse artefact than no marker.
-    check occurrences(html, "<span class=\"p\">") == 108
-    # …and exactly one of them is inked. The other 107 hold a space.
-    check occurrences(html, "<span class=\"p\">▶</span>") == 1
-    check occurrences(html, "<span class=\"p\"> </span>") == 107
+    #
+    # Counted on the OPEN TAG and not on `<span class="p">`, because the current
+    # row's cell now carries the `tabindex`/`autofocus`/`aria-label` triple that
+    # opens the pane at the position on a page with no script. The total is the
+    # invariant; the split below is what changed.
+    check occurrences(html, "<span class=\"p\"") == 133
+    # …and exactly one of them is inked, and it is the one that is focusable.
+    # The other 132 hold a space and carry no attribute at all.
+    check occurrences(html, "<span class=\"p\" tabindex=\"-1\" " &
+                            "autofocus=\"autofocus\"") == 1
+    check occurrences(html, "<span class=\"p\">▶</span>") == 0
+    check occurrences(html, "<span class=\"p\"> </span>") == 132
 
   test "the OVERLAP row states both facts, in the order the renderer emits":
     # The whole composition question, as one exact string. `shield.nr:32` is
@@ -2704,21 +2772,26 @@ suite "the current line is marked, and a branch claim cannot take the mark":
     check ("<div class=\"srcline cur hit nt-i0 nt-i1 rn-i2 rnnow\" " &
            "id=\"L-src-shield-nr-32\" data-line=\"32\" aria-current=\"true\">" &
            "<span class=\"ntbar\"></span><span class=\"rnbar\"></span>" &
-           "<span class=\"p\">▶</span><span class=\"n\">32</span>" &
+           "<span class=\"p\" tabindex=\"-1\" autofocus=\"autofocus\" " &
+           "aria-label=\"the session is stopped on line 32\">▶</span>" &
+           "<span class=\"n\">32</span>" &
            "<span class=\"m\"><span class=\"mg\">·</span>" &
            "<span class=\"mn\">⊘</span><span class=\"mt\">⊙</span></span>") in html
 
   test "the branch glyphs are untouched, in count and in spelling":
     # The fix may not be "drop the branch mark". Both facts are real, and the
-    # three claimed lines (29, 32, 44) still carry every channel they carried.
+    # five claimed lines (11, 12, 29, 32, 44) still carry every channel they
+    # carried. See the count note in "the markup carries both channels" above
+    # for why 11 and 12 joined the set: they were never unclaimed, they were
+    # above the window.
     check occurrences(html, "<span class=\"mn\">⊘</span>") == 3
-    check occurrences(html, "<span class=\"mt\">⊙</span>") == 3
     check occurrences(html, "<span class=\"ntbar\">") == 3
-    check occurrences(html, "<span class=\"rnbar\">") == 3
+    check occurrences(html, "<span class=\"mt\">⊙</span>") == 5
+    check occurrences(html, "<span class=\"rnbar\">") == 5
     # `.mg` sheds `▶` and keeps `·`: the cell now answers ONE question, so a
     # steppable line the session is standing on says both things at once
-    # instead of choosing. All three claimed lines are executed.
-    check occurrences(html, "<span class=\"mg\">·</span>") == 3
+    # instead of choosing. All five claimed lines are executed.
+    check occurrences(html, "<span class=\"mg\">·</span>") == 5
     check "<span class=\"mg\">▶</span>" notin html
 
   test "NO branch rule can reach the position cell, in the whole stylesheet":
@@ -2753,7 +2826,8 @@ suite "the current line is marked, and a branch claim cannot take the mark":
     # distinguishes "one row is marked current" from "the renderer stopped
     # emitting the attribute and one row happens to match".
     check occurrences(html, "aria-current=\"true\"") == 1
-    check occurrences(html, "aria-current=\"false\"") == 107
+    # 132, up from 107, for the same reason `class="srcline"` went 108 -> 133.
+    check occurrences(html, "aria-current=\"false\"") == 132
     check ("id=\"L-src-shield-nr-32\" data-line=\"32\" " &
            "aria-current=\"true\"") in html
 
@@ -2763,7 +2837,7 @@ suite "the current line is marked, and a branch claim cannot take the mark":
     # has no session and no source, and it draws no `.p`, no `aria-current` on
     # a row, and no `▶` in a gutter.
     check "class=\"srcline" notin onDemandHtml
-    check "<span class=\"p\">" notin onDemandHtml
+    check "<span class=\"p\"" notin onDemandHtml
     check "aria-current=\"false\"" notin onDemandHtml
 
   test "MUTATION BITE: the position moves when the SESSION does, not by luck":
@@ -2777,7 +2851,9 @@ suite "the current line is marked, and a branch claim cannot take the mark":
         readFile(clientRoot / "fixtures" / "demo-session" / "src" / "shield.nr"))])
     focus(moved, "src/shield.nr", 29)
     let movedHtml = dbgc.renderSource(moved)
-    check occurrences(movedHtml, "<span class=\"p\">▶</span>") == 1
+    check occurrences(movedHtml, "<span class=\"p\" tabindex=\"-1\" " &
+                                 "autofocus=\"autofocus\" aria-label=\"the session " &
+                                 "is stopped on line 29\">▶</span>") == 1
     check occurrences(movedHtml, "aria-current=\"true\"") == 1
     check "id=\"L-src-shield-nr-29\" data-line=\"29\" aria-current=\"true\"" in
           movedHtml
@@ -2808,8 +2884,10 @@ suite "the current line is marked, and a branch claim cannot take the mark":
     check "class=\"srcline cur rn-any rnnow\"" in claimed
     check "rn-any" notin bare
     # …and the position glyph survives it, exactly once, in both renders.
-    check occurrences(claimed, "<span class=\"p\">▶</span>") == 1
-    check occurrences(bare, "<span class=\"p\">▶</span>") == 1
+    check occurrences(claimed, "<span class=\"p\" tabindex=\"-1\"") == 1
+    check occurrences(bare, "<span class=\"p\" tabindex=\"-1\"") == 1
+    check occurrences(claimed, ">▶</span>") == 1
+    check occurrences(bare, ">▶</span>") == 1
     # The branch glyph is there too, in the cell it has always been in. Two
     # marks, two facts, one row.
     check "<span class=\"mt\">⊙</span>" in claimed
@@ -2899,7 +2977,8 @@ suite "the pane with no line to mark still says where the session is":
     let html = dbgc.renderSource(pane, positioned(128, 208))
     check "srcpos" notin html
     check occurrences(html, "aria-current=\"true\"") == 1
-    check occurrences(html, "<span class=\"p\">▶</span>") == 1
+    check occurrences(html, "<span class=\"p\" tabindex=\"-1\"") == 1
+    check occurrences(html, ">▶</span>") == 1
     # The twin, through the same call: strip the documents and the SAME
     # controls now produce the head. So "no head" above is about the pane's
     # availability and not about the controls being ignored.
@@ -3564,7 +3643,18 @@ suite "hydration — the seams the bundle reads, and the honesty they preserve":
     # Matched over the markup, not the document: the inlined stylesheet names
     # `[tabindex]` in its focus rule, so a whole-document match would answer
     # itself with CSS.
-    check "tabindex" notin markup
+    #
+    # `tabindex="0"` and not `tabindex`. The claim is about the TAB ORDER —
+    # "a served row is not a control" — and `0` is the spelling that puts an
+    # element in it. The source pane's position cell carries `-1`, which is
+    # the opposite: focusable programmatically and by `autofocus`, so the
+    # pane opens at the position on a page with no script, and unreachable
+    # by Tab. Counted rather than merely excluded, so that a future row that
+    # DID take a `-1` would have to change this number and say why.
+    check "tabindex=\"0\"" notin markup
+    check occurrences(markup, "tabindex=") == 1
+    check occurrences(markup, "tabindex=\"-1\"") == 1
+    check "<span class=\"p\" tabindex=\"-1\"" in markup
     check "role=\"button\"" notin markup
     check "data-rows-navigable" notin markup
 
@@ -3637,10 +3727,17 @@ suite "hydration — the seams the bundle reads, and the honesty they preserve":
       of evCall, evOutput: check r.anchor == ""
 
   test "the source bundle is inlined as DATA, and it is the WHOLE file":
-    ## The pane is served WINDOWED (`openAtCurrent`), so the served DOM does not
-    ## contain the lines a backward step needs. The island does, which is what
-    ## lets hydration render a line the served page never had — without a
-    ## second fetch and without a second producer of the markup.
+    ## The served pane used to be WINDOWED (`openAtCurrent`), so the served DOM
+    ## did not contain the lines a backward step needed, and the island was what
+    ## let hydration render a line the served page never had.
+    ##
+    ## THE ISLAND IS NOT THERE FOR THE WINDOW, and removing the window is what
+    ## makes that visible rather than what threatens it. The served pane now
+    ## holds every line of the ACTIVE document — but the island holds every line
+    ## of every document in the bundle, and the active document is one of four.
+    ## A step into `src/main.nr` needs a file the rendered pane paints on a
+    ## different panel and the hydrated pane rebuilds from here; the counts below
+    ## are asserted over the whole bundle for exactly that reason.
     let s = sessionFor(readyTx)
     let html = debugHtml(readyTx)
     check ("id=\"" & SourceIslandId & "\"") in html
@@ -3649,10 +3746,10 @@ suite "hydration — the seams the bundle reads, and the honesty they preserve":
     check executableScripts(html) == 0
 
     # The island round-trips through the SHIPPING encoder and decoder, and what
-    # comes back is the whole bundle — not the window the page rendered.
+    # comes back is the whole bundle — every document, not just the one the
+    # pane opened on.
     let active = activeDocument(s.editor)
     let island = encodeSourceIsland(s.editor)
-    let windowed = openAtCurrent(s.editor, 6)
     let restored = decodeSourceIsland(island, active.path, s.editor.currentLine)
     check restored.documents.len == s.editor.documents.len
     check restored.documents.len > 1        # the bundle really has several
@@ -3665,10 +3762,12 @@ suite "hydration — the seams the bundle reads, and the honesty they preserve":
           if ln.executed: inc result
 
     check totalLines(restored) == totalLines(s.editor)
-    # The window really is smaller — or this test proves nothing about why the
-    # island exists at all. This is the whole justification for inlining it:
-    # the served DOM does not contain the lines a backward step needs.
-    check totalLines(windowed) < totalLines(restored)
+    # The island really is bigger than the ACTIVE document — or this test
+    # proves nothing about why it is inlined at all. This is the whole
+    # justification: the pane paints the file the session is in, and a step
+    # into another file of the bundle needs a document the pane is not
+    # currently drawing.
+    check active.lines.len < totalLines(restored)
     check totalExecuted(s.editor) > 0
     check totalExecuted(restored) == totalExecuted(s.editor)
     # Text survives verbatim, and the pane opens on the file the session is IN

@@ -31,13 +31,20 @@
 ##
 ## `Testing/Verification-Harness-Traps.md` trap 4: *universal quantification
 ## over an empty set is a pass*. That is not a hypothetical here, it is the
-## defect's second symptom. `openAtCurrent` windows the ACTIVE document to lines
-## at or after `currentLine - lead`; point `activeIndex` at a 12-line
-## `Nargo.toml` while `currentLine` is 32 and the window keeps **no lines at
-## all**. A pane rendering zero lines satisfies every `for ln in doc.lines`
-## assertion ever written about it. Hence `check doc.lines.len > 0` before any
-## claim about what those lines contain, and hence the counts below are asserted
-## as numbers rather than walked.
+## defect's second symptom. `source_document.openAtCurrent` used to window the
+## ACTIVE document to lines at or after `currentLine - lead`; point `activeIndex`
+## at a 12-line `Nargo.toml` while `currentLine` is 32 and the window kept **no
+## lines at all**. A pane rendering zero lines satisfies every `for ln in
+## doc.lines` assertion ever written about it.
+##
+## That windower is GONE — the session pane renders every line of every document
+## it holds, and `source_document.nim` says why — so the emptying it could
+## produce is now structurally impossible rather than guarded against. The trap
+## is not: `decodeSourceIsland` and `withPublishedSources` still choose which
+## document the pane opens on, and either can still choose one with no lines in
+## it. Hence `check doc.lines.len > 0` before any claim about what those lines
+## contain, and hence the counts below are asserted as numbers rather than
+## walked.
 
 import std/[unittest, os, json, strutils, algorithm]
 
@@ -47,7 +54,19 @@ import ../src/debugger/session_view
 import ../src/debugger/source_document
 import ../src/debugger/source_island
 import ../src/debugger/demo_session
+# The renderer, because one arm below asserts what the RENDERER is handed rather
+# than what the pane holds — the two used to differ by a window, and the arm
+# exists to keep them from differing again.
+import ../src/components/debugger as dbgc
 import blocktracer/demo/generator
+
+proc occurrences(hay, needle: string): int =
+  var i = 0
+  while true:
+    let at = hay.find(needle, i)
+    if at < 0: break
+    inc result
+    i = at + needle.len
 
 # ── a real tree, generated in-process ──────────────────────────────────────
 
@@ -79,17 +98,17 @@ type Entry = object
 
 proc collectEntries(): seq[Entry] =
   ## Every transaction whose debug route renders a frame, with the pane the
-  ## page actually renders — i.e. AFTER `openAtCurrent`, which is what
-  ## `pages/debug.nim` does before handing the pane to the renderers. Testing
-  ## the pane before the window would miss the emptying entirely.
+  ## page actually renders. `pages/debug.nim` now hands `s.editor` to the
+  ## renderers unchanged — it used to take a window first — so "the pane the
+  ## page renders" and "the pane the session holds" are the same object, and
+  ## this collection is that fact rather than a copy of it.
   for chain in chains(root):
     let info = chainInfo(root, chain)
     for h in blockHashes(root, info):
       for txh in readBlockDetail(root, info, h).transactions:
         let s = debugSessionFor(root, chain, txh)
         if not s.hasFrame: continue
-        result.add Entry(chain: chain, hash: txh,
-                         pane: openAtCurrent(s.editor, SourceLeadIn))
+        result.add Entry(chain: chain, hash: txh, pane: s.editor)
 
 let entries = collectEntries()
 
@@ -156,20 +175,28 @@ suite "entry state — the session positions itself from its trace":
       check marks[0].line == e.pane.currentLine
     check checked == 6
 
-  test "the current line survives the window the page takes":
-    ## `openAtCurrent` drops the lines above the lead-in. If it drops the
-    ## current line as well, the toolbar claims a step and no pane shows it —
-    ## which is the presence failure the proc's own header says it exists to
-    ## prevent.
+  test "the pane the page renders holds the current line, and the whole file":
+    ## This used to read "the current line survives the window the page takes",
+    ## and it guarded `openAtCurrent` against dropping the very line it existed
+    ## to reveal. There is no window to survive: the assertion is now that the
+    ## active document runs from its own line 1 to its own last line, with the
+    ## position somewhere inside it.
+    ##
+    ## The line-1 clause is what discriminates. "The current line is present" is
+    ## true of a six-line lead-in window too, so on its own it would have passed
+    ## against the behaviour this suite is now asserting is gone.
     var checked = 0
     for e in entries:
       if e.pane.availability != srcSourceLevel: continue
       inc checked
       let doc = e.pane.documents[e.pane.activeIndex]
+      check doc.lines.len > 0
       var found = 0
       for ln in doc.lines:
         if ln.number == e.pane.currentLine: inc found
       check found == 1
+      check doc.lines[0].number == 1
+      check doc.lines[^1].number == doc.lines.len
     check checked == 6
 
 # ---------------------------------------------------------------------------
@@ -210,8 +237,7 @@ suite "entry state — a position the fixture constant does not describe":
     ## distinguish "the lookup is broken" from "the test builds a broken island".
     let island = islandOf(@["Nargo.toml", "src/prog.nr"],
                           @[ManifestText, ProgramText])
-    let pane = openAtCurrent(
-      decodeSourceIsland(island, "src/prog.nr", 32), SourceLeadIn)
+    let pane = decodeSourceIsland(island, "src/prog.nr", 32)
     check pane.documents.len == 2
     check activePath(pane) == "src/prog.nr"
     check pane.documents[pane.activeIndex].lines.len > 0
@@ -233,8 +259,7 @@ suite "entry state — a position the fixture constant does not describe":
     ## show nothing at all.
     let island = islandOf(@["Nargo.toml", "src/prog.nr"],
                           @[ManifestText, ProgramText])
-    let pane = openAtCurrent(
-      decodeSourceIsland(island, "src/other.nr", 32), SourceLeadIn)
+    let pane = decodeSourceIsland(island, "src/other.nr", 32)
     # Whatever the pane decides to show, it must not be a document with no lines.
     check pane.documents[pane.activeIndex].lines.len > 0
     # And it must not claim a position that the document it is showing does not
@@ -256,26 +281,30 @@ suite "entry state — a position the fixture constant does not describe":
     let marks = markedCurrent(pane)
     check marks.len == 0
 
-  test "openAtCurrent never hands the renderer an empty document":
-    ## The guard, driven directly, because the two callers above have both been
-    ## fixed to clear `currentLine` when they cannot locate it — so no route
-    ## through the product reaches this any more, and a case that went through
-    ## one of them would be asserting the caller's fix a second time rather than
-    ## this one.
+  test "a foreign currentLine cannot empty the document the renderer gets":
+    ## This used to be "openAtCurrent never hands the renderer an empty
+    ## document", and it drove the windower directly: a `currentLine` of 32 over
+    ## a three-line manifest put the window's `first` past the last line, and
+    ## without its guard the pane rendered nothing at all. A pane rendering zero
+    ## lines satisfies every `for ln in doc.lines` assertion ever written about
+    ## it (trap 4), which is why the guard needed a test and not a comment.
     ##
-    ## It is worth keeping as a unit precisely because it is now unreachable:
-    ## the next caller to pass a foreign `currentLine` gets a visible pane rather
-    ## than a blank one, and no test that walks `doc.lines` could have told the
-    ## difference (trap 4).
+    ## The windower is gone, so the emptying is gone with it — and this arm is
+    ## kept, aimed one layer out, because the CONDITION it was built from is
+    ## still constructible: nothing stops a caller putting a foreign line number
+    ## on a pane. What is asserted now is that no stage between the pane and the
+    ## renderer reacts to that by dropping rows. It is the regression test for
+    ## re-introducing a window, in the shape the old one would have taken.
     var pane = EditorPane(availability: srcSourceLevel, activeIndex: 0,
                           currentLine: 32,
                           documents: @[newSourceDocument(
                             "Nargo.toml", "toml", ManifestText)])
     check pane.documents[0].lines.len == 3      # the subject exists
-    check pane.currentLine > pane.documents[0].lines.len + SourceLeadIn
-    let opened = openAtCurrent(pane, SourceLeadIn)
-    check opened.documents.len == 1
-    check opened.documents[0].lines.len == 3
+    check pane.currentLine > pane.documents[0].lines.len   # …and is foreign
+    let html = dbgc.renderSource(pane)
+    check occurrences(html, "class=\"srcline") == 3
+    # …and it says nothing about a reduction, because it made none.
+    check "Showing from line" notin html
 
   test "stepping across files carries the pane with the position":
     ## Ported in spirit from desktop's `test_formatted_view_step_in_vm.nim` /
@@ -297,13 +326,12 @@ suite "entry state — a position the fixture constant does not describe":
     var seen = 0
     for (path, line) in walk:
       inc seen
-      let pane = openAtCurrent(decodeSourceIsland(island, path, line),
-                               SourceLeadIn)
+      let pane = decodeSourceIsland(island, path, line)
       # The pane is on the file the position names …
       check activePath(pane) == path
       # … it is showing something …
       check pane.documents[pane.activeIndex].lines.len > 0
-      # … the position's line is in the window that was taken …
+      # … the position's line is among the lines it holds …
       var present = 0
       for ln in pane.documents[pane.activeIndex].lines:
         if ln.number == line: inc present
@@ -338,7 +366,7 @@ suite "entry state — a position the fixture constant does not describe":
       "sources": {
         "Nargo.toml": {"content": ManifestText},
         posPath: {"content": ProgramText}}})
-    let pane = openAtCurrent(session.editor, SourceLeadIn)
+    let pane = session.editor
     check pane.documents.len == 2
     check pane.documents[pane.activeIndex].lines.len > 0
     let marks = markedCurrent(pane)
@@ -383,7 +411,7 @@ suite "entry state — a position the fixture constant does not describe":
         "Nargo.toml": {"content": ManifestText},
         fixturePath: {"content": ProgramText},
         otherPath: {"content": ProgramText}}})
-    let pane = openAtCurrent(session.editor, SourceLeadIn)
+    let pane = session.editor
     check pane.documents.len == 3
     check pane.documents[pane.activeIndex].lines.len > 0
     check activePath(pane) == otherPath
