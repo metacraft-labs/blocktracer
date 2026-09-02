@@ -197,10 +197,26 @@ proc isTypingTarget(ev: Event): bool {.importjs: """
   // Is the visitor typing into something?
   //
   // The stepping chords are UNMODIFIED LETTERS, which is only safe while no
-  // focused element wants letters. Today the debug route has no text field of
-  // its own — but `components/nav.nim` renders a site-wide search box on every
-  // page including this one, and a product that grows a filter box later must
-  // not thereby acquire a debugger that steps while you type in it.
+  // focused element wants letters.
+  //
+  // WHAT IS ACTUALLY ON THIS ROUTE, measured rather than assumed. This comment
+  // used to say `components/nav.nim` puts a site-wide search box "on every page
+  // including this one". IT DOES NOT: the debug route renders its own chrome
+  // and no site nav, and the built page contains ZERO input elements — checked
+  // against `client/dist/.../debug/index.html`, which has none, while
+  // `dist/index.html` has two. The claim was wrong and would have sent the next
+  // person looking for a box that is not there.
+  //
+  // The guard is kept, and on narrower grounds that are true:
+  //
+  //   * the listener is on `document`, so it sees every keystroke on the page
+  //     regardless of what rendered the focused element;
+  //   * the shortcuts dialog itself renders `input type="radio"` — so this
+  //     route DOES have focusable inputs, and a letter pressed while the
+  //     preset picker has focus must not step the session behind the dialog.
+  //     That is the case journey 20 asserts, because it is the one that exists;
+  //   * a product that grows a filter box later must not thereby acquire a
+  //     debugger that steps while you type in it.
   //
   // So the guard is written against the DOM's own answer rather than against a
   // list of this page's inputs, and `isContentEditable` is included because a
@@ -2015,7 +2031,20 @@ proc bindShortcuts(h: Hydration) =
     let hit = closestFrom(ev, "[data-kb]")
     if hit == nil: return
     case attr(hit, "data-kb")
-    of "open": h.setShortcutsOpen(not h.shortcutsDialog().hasAttribute("hidden"))
+    # TOGGLE, AND THE SENSE OF IT IS THE BUG THIS LINE ONCE HAD.
+    #
+    # `hidden` is present when the dialog is CLOSED, so "should it now be
+    # open?" is `hasAttribute("hidden")` and not its negation. The negated
+    # form — which is what shipped first — asked "is it already open?" and
+    # answered `false` on a closed dialog, so the gear closed an already
+    # closed dialog and the shortcuts surface could not be opened at all.
+    #
+    # It is worth naming because nothing else could see it: the dialog was
+    # rendered, correct, and complete in the DOM the whole time, so every
+    # assertion about its CONTENTS passed over a dialog no visitor could
+    # reach. Journey 20 is what caught it, by asserting the state of the
+    # element after the click rather than the markup inside it.
+    of "open": h.setShortcutsOpen(h.shortcutsDialog().hasAttribute("hidden"))
     of "close": h.setShortcutsOpen(false)
     else: discard)
 
