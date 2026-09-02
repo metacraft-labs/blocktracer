@@ -83,7 +83,12 @@ async function serve(root) {
  * is same-origin, which §5.1 requires.
  */
 const DRIVE = async ({ tracePath, writeSource, sources }) => {
+  // One self-contained function: `page.evaluate` serialises THIS function and
+  // nothing else, so a helper declared beside it in this module is not defined
+  // inside the page. Everything the drive needs lives in here.
   const log = [];
+  try {
+    return await (async () => {
   const worker = new Worker("/replay-engine/worker.js", { type: "module" });
   let seq = 1;
   const pending = new Map();
@@ -92,7 +97,23 @@ const DRIVE = async ({ tracePath, writeSource, sources }) => {
   const waiters = [];
 
   worker.onmessage = (e) => {
-    const m = e.data;
+    // THREE INBOUND SHAPES, and only one of them is an object.
+    // `worker_backend.nim:222` (`deliver`) is explicit: the worker produces
+    // "a DAP JSON string, a bootstrap control object, and the bare `ready`
+    // token". So DAP responses and events arrive as TEXT and must be parsed
+    // here; a probe that only inspected `e.data.type` sees `undefined` on
+    // every response and waits out its timeout against a working engine.
+    let m = e.data;
+    if (typeof m === "string") {
+      const t = m.trim();
+      if (t.startsWith("{") || t.startsWith("[")) {
+        try {
+          m = JSON.parse(t);
+        } catch {
+          // leave as the string; it is control traffic
+        }
+      }
+    }
     if (m && m.type === "response") {
       const r = pending.get(m.request_seq);
       if (r) {
@@ -113,7 +134,12 @@ const DRIVE = async ({ tracePath, writeSource, sources }) => {
       }
     }
   };
-  worker.onerror = (e) => log.push(`worker error: ${e.message ?? e}`);
+  worker.onerror = (e) =>
+    log.push(
+      `WORKER ERROR: ${e.message ?? e} @ ${e.filename ?? "?"}:${e.lineno ?? "?"} — ` +
+        `a module worker whose script or wasm 404s reports here and nowhere else`,
+    );
+  worker.onmessageerror = (e) => log.push(`worker message error: ${String(e)}`);
 
   const awaitControl = (match, ms = 60000) =>
     new Promise((resolve, reject) => {
@@ -121,7 +147,17 @@ const DRIVE = async ({ tracePath, writeSource, sources }) => {
       if (hit) return resolve(hit);
       const w = { match, resolve };
       waiters.push(w);
-      setTimeout(() => reject(new Error(`timeout waiting for control`)), ms);
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              `timeout waiting for a control message; saw ${JSON.stringify(
+                control.map((c) => (c && c.type) || String(c)),
+              )}; log=${JSON.stringify(log)}`,
+            ),
+          ),
+        ms,
+      );
     });
 
   const send = (command, args_) =>
@@ -164,9 +200,19 @@ const DRIVE = async ({ tracePath, writeSource, sources }) => {
     log.push(`vfs-write: ${wrote}/${Object.keys(sources).length} source files accepted`);
   }
 
-  worker.postMessage({ type: "start" });
-  await awaitControl((m) => m && m.type === "worker-status" && m.status === "ready");
-  log.push("worker ready");
+      worker.postMessage({ type: "start" });
+      // The RAW worker posts the BARE STRING "ready" — not an object, and not
+      // `{type: "worker-status"}`, which is the SDK's own re-spelling of it
+      // (`worker_backend.nim:233` wraps a trimmed string message). A probe
+      // that speaks to the worker directly has to match the string, and this
+      // is worth a comment because both wrong guesses fail identically: the
+      // worker is up and answering, and the wait never returns.
+      await awaitControl(
+        (m) =>
+          m === "ready" ||
+          (m && (m.type === "ready" || (m.type === "worker-status" && m.status === "ready"))),
+      );
+      log.push("worker ready");
 
   // ── DAP handshake: hydrate.nim's order ──
   const init = await send("initialize", {
@@ -191,18 +237,61 @@ const DRIVE = async ({ tracePath, writeSource, sources }) => {
   // an origin chain for a value that has not been written is legitimately
   // empty — which would be an absence caused by the position, not by the
   // engine, and would read as the same "0 classified" verdict.
+  // The tick is NOT on a DAP stack frame — `ct/complete-move` is where the
+  // engine states it (`hydrate.nim:581-584` records that inventing a zero here
+  // was a real defect). So track it off the event stream and ask AT it.
+  // The tick is on the event's `location`, NOT at the body's top level:
+  // `ct/complete-move`'s body is `{location: {..., rrTicks}, cLocation: {...}}`
+  // and `cLocation.rrTicks` is a zero placeholder. Reading the top level finds
+  // nothing, silently yields 0, and every question then gets asked at the
+  // start of the recording — where the honest answer is `recordingStart` with
+  // no hops, which reads exactly like "the engine cannot classify".
+  const tickNow = () => {
+    for (let k = events.length - 1; k >= 0; k--) {
+      const b = events[k]?.body ?? {};
+      const t = b.location?.rrTicks ?? b.rrTicks ?? b.ticks;
+      if (typeof t === "number" && t > 0) return t;
+    }
+    return 0;
+  };
+
+  // STEP PAST THE PARAMETERS.
+  //
+  // The first position that has any locals at all has only `main`'s
+  // PARAMETERS, and a parameter has no assignment whose right-hand side the
+  // §6.1 classifier could parse — "unknown" is very nearly the correct answer
+  // for one. Stopping there and reporting "0 classified" would blame the
+  // engine for a property of the subject. So the walk continues past the
+  // signature to the `let` bindings (`did_survive_positive` at main.nr:15,
+  // `did_survive_negative` at :27, each assigned from a call) and asks about
+  // whatever is live at the deepest position reached.
+  // 14 steps: `main` is 38 lines and the walk reaches its last statement in
+  // about a dozen `next`es. Past that the cursor wraps back to line 1 and the
+  // positions stop being new, so a longer walk only adds duplicates.
   const positions = [];
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 14; i++) {
     const st = await send("stackTrace", { threadId: 1 });
     const f = st?.body?.stackFrames?.[0];
+    // THE FULL `CtLoadLocalsArguments` SET. `requestLocals`
+    // (`store/replay_data_store.nim:628-663`) defaults countBudget=3000,
+    // minCountLimit=50, depthLimit=7, lang=0, and the engine reads them.
+    // Asking with the budgets absent is asking for a budget of zero, which
+    // answers `success: true` with an EMPTY locals array — a false "there are
+    // no values here" indistinguishable from a position with nothing live.
     const locals = await send("ct/load-locals", {
-      rrTicks: i,
-      threadId: 1,
-      frameId: f?.id ?? 0,
+      rrTicks: tickNow(),
+      countBudget: 3000,
+      minCountLimit: 50,
+      depthLimit: 7,
+      watchExpressions: [],
+      lang: 0,
     });
     const rows = locals?.body?.locals ?? [];
     positions.push({
       i,
+      tick: tickNow(),
+      ok: locals?.success ?? null,
+      msg: locals?.message ?? null,
       line: f?.line ?? null,
       path: f?.source?.path ?? null,
       localCount: rows.length,
@@ -212,11 +301,25 @@ const DRIVE = async ({ tracePath, writeSource, sources }) => {
         .filter((r) => r.originSummary)
         .map((r) => ({ name: r.expression, s: r.originSummary })),
     });
-    if (rows.length > 0) break;
     await send("next", { threadId: 1 });
   }
 
-  const best = positions.find((p) => p.localCount > 0) ?? positions[positions.length - 1];
+  // The RICHEST position, not the first non-empty one: more names live means
+  // the `let` bindings are in scope alongside the parameters.
+  const best = positions.reduce(
+    (a, b) => (b.localCount > (a?.localCount ?? -1) ? b : a),
+    positions[0],
+  );
+  // Ask where the names came from at THAT position, not wherever the walk
+  // happened to stop.
+  await send("ct/load-locals", {
+    rrTicks: best?.tick ?? 0,
+    countBudget: 3000,
+    minCountLimit: 50,
+    depthLimit: 7,
+    watchExpressions: [],
+    lang: 0,
+  });
 
   // ── THE MEASUREMENT ──
   const chains = [];
@@ -227,7 +330,9 @@ const DRIVE = async ({ tracePath, writeSource, sources }) => {
       variableName: name,
       variablePath: [],
       frameId: f?.id ?? -1,
-      stepId: -1,
+      // The step the name was READ at, so the engine resolves the origin from
+      // that position rather than from wherever the walk left the cursor.
+      stepId: best?.tick ?? -1,
       threadId: 1,
       maxHops: 32,
       lazy: false,
@@ -237,16 +342,23 @@ const DRIVE = async ({ tracePath, writeSource, sources }) => {
     chains.push({ name, success: r.success, message: r.message ?? null, body: r.body ?? null });
   }
 
-  return {
-    ok: true,
-    log,
-    wrote,
-    top,
-    positions,
-    best,
-    chains,
-    events: events.map((e) => e.event).slice(0, 40),
-  };
+      return {
+        ok: true,
+        log,
+        wrote,
+        top,
+        positions,
+        best,
+        chains,
+        events: events.map((e) => e.event).slice(0, 40),
+      };
+    })();
+  } catch (e) {
+    // Never throw across the evaluate boundary: the bootstrap log is the whole
+    // diagnosis when the worker does not come up, and a thrown error discards
+    // it. A returned failure keeps what was observed up to the failure.
+    return { ok: false, error: String(e && e.message ? e.message : e), log };
+  }
 };
 
 const CLASSIFIED = (hop) =>
@@ -261,54 +373,130 @@ async function main() {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
-    page.on("console", (m) => {
-      if (m.type() === "error") console.log(`  [page error] ${m.text()}`);
+    page.on("console", (m) => console.log(`  [page:${m.type()}] ${m.text()}`));
+    page.on("pageerror", (e) => console.log(`  [pageerror] ${e.message}`));
+    page.on("requestfailed", (r) =>
+      console.log(`  [requestfailed] ${r.url()} — ${r.failure()?.errorText}`),
+    );
+    page.on("response", (r) => {
+      if (r.status() >= 400) console.log(`  [http ${r.status()}] ${r.url()}`);
     });
 
     const pagePath =
       pageArg >= 0
         ? args[pageArg + 1]
         : "/demo/tx/0x5c678710e188fd30a879f764212f0977fb7ef8df/debug/";
-    await page.goto(origin + pagePath, { waitUntil: "domcontentloaded" });
 
-    const tracePath = await page.evaluate(
-      () => document.querySelector("[data-trace]")?.getAttribute("data-trace") ?? "",
-    );
+    // Read the page's own data WITHOUT running its bundle: the served frame is
+    // the exporter's, and the hydration bundle would otherwise open a SECOND
+    // engine worker on the same page and compete with this probe's for the
+    // container. `javaScriptEnabled: false` is a context option in Playwright.
+    const readCtx = await browser.newContext({ javaScriptEnabled: false });
+    const readPage = await readCtx.newPage();
+    await readPage.goto(origin + pagePath, { waitUntil: "domcontentloaded" });
+    const served = await readPage.content();
+    await readCtx.close();
+
+    const tracePath = (/data-trace="([^"]*)"/.exec(served) ?? [])[1] ?? "";
     console.log(`page:  ${pagePath}`);
     console.log(`trace: ${tracePath}`);
     if (!tracePath) throw new Error("this page carries no data-trace");
 
-    // The published source island, which is the source BlockTracer already has
-    // on the page and could hand the engine.
-    const island = await page.evaluate(() => {
-      const el = document.querySelector("#source-island, [data-source-island]");
-      if (!el) return null;
-      try {
-        return JSON.parse(el.textContent ?? "null");
-      } catch {
-        return { raw: (el.textContent ?? "").slice(0, 400) };
-      }
+    // A BARE same-origin document. The worker must be same-origin (§5.1), but
+    // it need not be the product's page — and on the product's page the
+    // hydration bundle opens its own worker against the same container, so a
+    // measurement taken there would be racing a second engine.
+    await page.goto(origin + "/robots.txt", { waitUntil: "domcontentloaded" }).catch(async () => {
+      await page.goto(origin + "/", { waitUntil: "domcontentloaded" });
     });
-    console.log(`island: ${island ? JSON.stringify(island).slice(0, 300) : "NONE"}`);
 
-    let sources = {};
-    if (WRITE_SOURCE && island) {
-      // Best effort: map whatever shape the island has into {path: text}.
-      const files = island.files ?? island.sources ?? island;
-      if (files && typeof files === "object") {
-        for (const [k, v] of Object.entries(files)) {
-          if (typeof v === "string") sources[k] = v;
-          else if (v && typeof v.text === "string") sources[k] = v.text;
-          else if (v && typeof v.content === "string") sources[k] = v.content;
-        }
+    // The published source island — the source BlockTracer ALREADY has on the
+    // page (`source_island.nim`, element id `bt-session-source`,
+    // `{documents: [{path, language, firstLine, text, executed}]}`) and could
+    // hand to the engine. That it is already here is the point: no new
+    // publishing step is needed to give the classifier a line to parse.
+    const islandRaw = (
+      /<script[^>]*id="bt-session-source"[^>]*>([\s\S]*?)<\/script>/.exec(served) ?? []
+    )[1];
+    let island = null;
+    if (islandRaw) {
+      try {
+        island = JSON.parse(islandRaw);
+      } catch (e) {
+        island = { parseError: String(e), raw: islandRaw.slice(0, 200) };
+      }
+    }
+    console.log(
+      `island: ${
+        island
+          ? `availability=${island.availability} documents=${(island.documents ?? []).length} ` +
+            JSON.stringify((island.documents ?? []).map((d) => ({ path: d.path, bytes: (d.text ?? "").length })))
+          : "NONE"
+      }`,
+    );
+
+    const sources = {};
+    if (WRITE_SOURCE && island?.documents) {
+      for (const d of island.documents) {
+        if (typeof d.path === "string" && typeof d.text === "string") sources[d.path] = d.text;
       }
     }
 
-    const out = await page.evaluate(DRIVE, {
-      tracePath,
-      writeSource: WRITE_SOURCE,
-      sources,
-    });
+    // TWO PASSES, because the write has to happen before the read and the
+    // address is only knowable after it.
+    //
+    // The engine keys source on the path the RECORDING carries — here
+    // `/private/tmp/blocktracer-fixture-rec/noir_space_ship/src/main.nr`, an
+    // absolute path on the machine that recorded, which exists on no visitor's
+    // computer. The island's paths are project-relative (`src/main.nr`). The
+    // two have to be joined, and the joining root is only legible from a stack
+    // frame — which needs a launched engine. But `vfs-write` is only accepted
+    // by the worker's PRE-START dispatcher (`worker.js:280`, before
+    // `wasm_start()` replaces the handler), so it cannot be issued after the
+    // handshake that reveals the root.
+    //
+    // So: pass one launches and reports the recorded path, pass two starts a
+    // fresh worker, writes the source at the derived absolute paths, and only
+    // then asks. A single-pass probe would have to guess the root.
+    let out = await page.evaluate(DRIVE, { tracePath, writeSource: false, sources: {} });
+
+    if (WRITE_SOURCE) {
+      const recorded = out?.positions?.[0]?.path ?? out?.top?.source?.path ?? "";
+      console.log(`\nrecorded source path (pass 1): ${recorded}`);
+      // BOTH SPELLINGS OF THE SAME FILE, and the relative one is the one that
+      // matters.
+      //
+      // Position resolution and the origin classifier do NOT probe the same
+      // path. `Location.missing_path` is computed from the ABSOLUTE recorded
+      // path, but the classifier's probe is
+      // `db.rs:3186-3192`:
+      //
+      //     let path_str = self.reader.path(step_record.path_id)...;   // "src/main.nr"
+      //     let workdir_path = self.reader.workdir().join(&path_str);  // absolute
+      //     let probe_path = if workdir_path.exists() { workdir_path }
+      //                      else { PathBuf::from(&path_str) };        // RELATIVE
+      //
+      // `Path::exists()` is hardwired `false` on wasm32 — the very defect the
+      // VFS work fixed for `missing_path` — so in a browser the classifier
+      // always takes the else-branch and looks for the bare `src/main.nr`.
+      // Measured: with only the absolute path in the VFS, `missing_path` goes
+      // false (the editor pane resolves) while the classifier logs 105 failed
+      // reads of `src/main.nr` and answers "source unavailable".
+      //
+      // So the recording's source is written under both spellings.
+      const placed = {};
+      for (const [rel, text] of Object.entries(sources)) {
+        placed[rel] = text; // what the classifier actually probes
+        if (recorded.endsWith("/" + rel)) {
+          placed[recorded.slice(0, recorded.length - rel.length) + rel] = text;
+        } else {
+          const root = recorded.slice(0, recorded.lastIndexOf("/src/") + 1);
+          if (root) placed[root + rel] = text;
+        }
+      }
+      console.log(`placing source at: ${JSON.stringify(Object.keys(placed))}`);
+      out = await page.evaluate(DRIVE, { tracePath, writeSource: true, sources: placed });
+    }
 
     console.log("\n--- bootstrap ---");
     for (const l of out.log) console.log("  " + l);
@@ -318,11 +506,14 @@ async function main() {
       return;
     }
 
+    console.log(`\n--- events seen: ${JSON.stringify(out.events)}`);
+
     console.log("\n--- positions probed ---");
     for (const p of out.positions)
       console.log(
-        `  tick ${p.i}: line=${p.line} path=${p.path} locals=${p.localCount} withOriginSummary=${p.withSummary} ${JSON.stringify(p.names)}`,
+        `  step ${p.i} @tick=${p.tick}: success=${p.ok}${p.msg ? ` msg=${p.msg}` : ""} line=${p.line} locals=${p.localCount} withOriginSummary=${p.withSummary} ${JSON.stringify(p.names)}`,
       );
+    console.log(`  (engine source path: ${out.positions[0]?.path})`);
 
     console.log("\n--- originSummary already on the load-locals reply ---");
     for (const s of out.best?.summaries ?? []) console.log(`  ${s.name}: ${JSON.stringify(s.s)}`);
@@ -353,11 +544,29 @@ async function main() {
     console.log(
       `  source written to VFS: ${WRITE_SOURCE ? out.wrote + " file(s)" : "no (control arm)"}`,
     );
-    console.log(
-      classified > 0
-        ? "  => the engine CAN classify a hop here."
-        : "  => every hop is unclassified. A control built on this would answer 'unknown'.",
-    );
+    // ASSERTED, not merely printed. Every call in this probe answers
+    // `success: true` whether or not anything was classified, so a run that
+    // only reported would go green on the exact failure it exists to catch.
+    // The threshold is a COUNT and the count is printed beside it.
+    const expectIdx = args.indexOf("--expect-classified");
+    const expect = expectIdx >= 0 ? Number(args[expectIdx + 1]) : 0;
+    if (classified >= expect && classified > 0) {
+      console.log(`  => PASS: ${classified} classified hop(s), expected at least ${expect}.`);
+    } else if (expect > 0) {
+      console.log(
+        `  => FAIL: ${classified} classified hop(s), expected at least ${expect}. ` +
+          `Hops that answer "unknown"/"source unavailable" are the false pass this probe excludes.`,
+      );
+      process.exitCode = 1;
+    } else {
+      console.log("  => every hop is unclassified. A control built on this would answer 'unknown'.");
+    }
+
+    // NON-VACUITY: a classified count means nothing if nothing was asked.
+    if (out.chains.length === 0) {
+      console.log("  => VACUOUS: no variable was asked about; the count above is not a measurement.");
+      process.exitCode = 1;
+    }
   } finally {
     await browser.close();
     server.close();
