@@ -43,6 +43,14 @@ const BREAK_OUT = join(REPO_ROOT, "screenshots", "break");
 // Each break removes ONE required element named in that view's expectation
 // block. `expects` records which `mustShow` item the reviewers ought to name;
 // it is the answer key, and it is deliberately not shown to them.
+//
+// `removeBetween` names two SECTION HEADER COMMENTS in the product source, and
+// that coupling is the harness's weak point: when `client/src/pages/tx.nim`
+// renamed its headers in 809e99c, both breaks began throwing "start/end marker
+// not found" before mutating anything, so `verify_deliberate_break_is_detected`
+// could not run at all and said nothing about why. If a marker below stops
+// matching, the fix is to re-read the headers in that file — grep `# ── ` in it
+// — not to delete the break.
 
 export const BREAKS = {
   "debug-affordance": {
@@ -53,13 +61,13 @@ export const BREAKS = {
     // Delete the whole Debug affordance card: the button, its availability
     // badge, the note explaining the state, and the per-execution list.
     removeBetween: [
-      "# ── Debug affordance (follows trace.availability) ─────",
+      "# ── The trace's state, and the only action it licenses ─",
       "# ── Overview grid ─────────────────────────────────────",
     ],
     description:
-      "Remove the Debug affordance from the transaction page — the button, its availability badge and its explanatory note.",
+      "Remove the whole trace card from the transaction page — the Generate trace button, its availability badge, its explanatory note and the per-execution list.",
     why:
-      "Page-Descriptions rule 1: 'the debug affordance is the primary action wherever a transaction appears'. It is the first `mustShow` item of the `tx-detail` block and the single most load-bearing element in the product.",
+      "Page-Descriptions rule 1: 'the debug affordance is the primary action wherever a transaction appears'. The button lives in this card, so the break takes out the PRIMARY button named in `mustShow[0]` — the single most load-bearing element in the product — and, with it, the whole of `mustShow[1]` (the trace's state and the note explaining it). The key below names the first, because that is what the keywords grade on.",
     expects: {
       mustShowItemIndex: 0,
       keywords: ["debug", "primary action", "primary button"],
@@ -74,14 +82,14 @@ export const BREAKS = {
     file: "client/src/pages/tx.nim",
     removeBetween: [
       "# ── Overview grid ─────────────────────────────────────",
-      "# ── Decoded input ─────────────────────────────────────",
+      "# ── §7.2's remaining sections ─────────────────────────",
     ],
     description:
-      "Remove the overview grid from the transaction page — block, canonicality, finality, roles and cost.",
+      "Remove the Overview heading and its whole metadata grid from the transaction page — provenance, block and index, transaction type, age, canonicality, finality and the rest of `txMetadataRows`.",
     why:
-      "§7.2.2. A second, structurally different break: a whole labelled data region rather than a single control, to check the block does not only work for the one element it names first.",
+      "§7.2.2. A second, structurally different break: a whole labelled data region rather than a single control, to check the block does not only work for the one element it names first. Note that the AGE row (`mustShow[2]`) sits inside this grid, so it disappears with it; the key below names the grid, which is what the keywords grade on.",
     expects: {
-      mustShowItemIndex: 2,
+      mustShowItemIndex: 3,
       keywords: ["overview", "grid", "from", "value", "fee", "nonce"],
       maxRating: 4,
     },
