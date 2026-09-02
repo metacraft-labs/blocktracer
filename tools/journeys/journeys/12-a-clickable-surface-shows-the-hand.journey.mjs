@@ -1,0 +1,416 @@
+// "A visitor whose pointer rests on something clickable sees the hand that
+//  means it."
+//
+// Page-Descriptions §7.0 (an affordance may not promise what the element does
+// not do) and Debugger-Integration §4.2, which calls the row jump "the single
+// most valuable interaction in the product".
+//
+// THE REPORT THIS FILE COMES FROM
+// -------------------------------
+// "Why is the cursor over the clickable elements showing as a plus sign (e.g.
+// in the call trace). I expect a hand or something more familiar."
+//
+// The plus was `cursor:copy` — an arrow with a plus badge — and it was reaching
+// the rows through a DESCENDANT. `a.ctrow,a.evrow{cursor:pointer}` had been
+// correct since the rows became anchors, but `.copyable{cursor:copy}` sits on
+// `.ctname` and `.evlabel`, which are the widest cell of each row and therefore
+// the part of it a pointer actually rests on. `cursor` is resolved at the
+// element under the pointer and not at the element that handles the click, so
+// the child won across the row's whole reading surface while the rule the row
+// carried looked right in the stylesheet and right in every test.
+//
+// The semantics are the argument, not the aesthetics. A `copy` cursor says
+// "this gesture copies"; the row's gesture SEEKS — `hydrate.rowHandler` sends
+// `ct/goto-ticks` for a click anywhere inside it. The plus named the one thing
+// the row does not primarily do.
+//
+// WHY THIS IS A JOURNEY AND NOT A UNIT TEST ON THE STYLESHEET
+// -----------------------------------------------------------
+// Because the defect is INVISIBLE to every cheaper check, and provably so.
+// Nothing in this repository asserted a cursor value before this file: `grep -r
+// cursor client/tests tools` returns prose and nothing else. A test that read
+// the stylesheet would have found `a.ctrow{cursor:pointer}` present and passed
+// — the rule WAS there, it was overridden 480 lines further down by a selector
+// that names neither row.
+//
+// And a test that asserted the CLASS would have been worse than useless. That
+// is the sibling repository's `build-clickable` defect exactly: a class kept
+// `cursor:pointer` after its click handler was deleted, and a Playwright spec
+// asserted the class BY NAME (`ctPage.locator("#build .build-clickable")`), so
+// the affordance went on lying with a green test pinned to it. A class is not
+// an appearance. The only thing that answers "what does the visitor's cursor
+// look like" is the computed value, in a browser, on the element the pointer is
+// actually over.
+//
+// HIT-TESTED AT THE CENTRE, AND COVERAGE IS A FAILURE AND NOT A SKIP
+// ------------------------------------------------------------------
+// `getComputedStyle(row).cursor` is the wrong question: it reports what the ROW
+// resolves, which was `pointer` throughout the defect. The right question is
+// what the element UNDER THE POINTER resolves, so every measurement here goes
+// through `document.elementFromPoint` at the element's own centre.
+//
+// An element is counted as reached when the hit lands on it OR on one of its
+// descendants — a row is not "covered" by its own `.ctname`, and `cursor` is an
+// inherited property, so a child with no rule of its own is reporting the row's
+// answer. Anything else under the centre is a COVER, and covers are counted and
+// asserted to be zero rather than quietly dropped from the denominator. This
+// campaign has already had painted content wrongly rejected as covered by a
+// check that assumed the reverse, so the two outcomes are separated and both
+// are named.
+//
+// EMPTY SETS
+// ----------
+// "Every clickable row shows a hand" is vacuously true of a page with no rows,
+// which is exactly how a selector that stopped matching would go green. Every
+// population below is asserted NON-EMPTY with `atLeast` before anything is
+// quantified over it, and the agreement is `countIs` — not "at least one row
+// shows a hand", which one row in fourteen satisfies.
+//
+// THE LOOP RAIL IS DELIBERATELY NOT JUDGED HERE
+// ----------------------------------------------
+// It was, in the first draft, and the population was EMPTY. `.frseg` renders on
+// the served page — eight segments, all `.out` — and after hydration there are
+// ZERO on any position reachable from the demo chain: measured across eight
+// call-trace jumps and twelve toolbar steps, `document.querySelectorAll(".frseg")`
+// is 0 every time. `renderEditor`'s `rail.navigable` branch, and the
+// `role="button"` that `hydrate.markRailNavigable` would stamp on it, are dead
+// in the deployed build.
+//
+// So a cursor assertion on the rail would quantify over nothing and pass, which
+// is the one outcome this file exists to refuse — and a cursor RULE for it would
+// be a rule no test could reach. Both were written and both were removed. The
+// gap is real and is reported as a finding rather than papered over: whenever the
+// navigable rail comes back it will arrive as a `span` with no `href`, and a
+// browser gives `cursor:pointer` to `a[href]` and to nothing else, so it will
+// need a rule and this comment is where the next reader will find that out.
+//
+// THE NO-SCRIPT ARM IS THE SCOPE CONTROL
+// --------------------------------------
+// The fix must not be "delete the copy cursor". `.copyable` is right where it
+// is the ONLY affordance: on the served page the rows are `div.ctrow` with no
+// `href`, they jump nowhere, and `user-select:all` plus a copy cursor is an
+// honest description of the only gesture available. So the second arm loads the
+// same page with JavaScript DISABLED — the artefact a visitor with scripting
+// off is served — and asserts the rows are inert AND that the copy cursor
+// survived there. A fix that had blanket-removed `cursor:copy` passes the first
+// arm and reddens this one.
+
+import { visit } from "../lib/probe.mjs";
+import { transactions, landingOf } from "../lib/corpus.mjs";
+
+export const id = "a-clickable-surface-shows-the-hand";
+export const claim =
+  "A visitor whose pointer rests on something clickable sees the hand that means it.";
+export const spec = "Page-Descriptions §7.0, Debugger-Integration §4.2 — BlockTracer";
+export const assertions = 30;
+export const needsEngine = true;
+
+/**
+ * The cursor every element matching `sel` computes AT ITS OWN CENTRE, read off
+ * whatever the browser says is under the pointer there.
+ *
+ * Returns counts, never a boolean, because every assertion built on this is a
+ * `countIs` against a population whose size is separately asserted.
+ *
+ *   total     — matched the selector
+ *   shown     — and are rendered (`checkVisibility`, the rule probe.mjs states
+ *               for `.srcline`: the panes hold elements that exist and are
+ *               `display:none`, and a journey that counted the DOM would
+ *               quantify over things no pointer can reach)
+ *   reachable — and their centre lies inside the viewport, which is the
+ *               precondition for `elementFromPoint` to mean anything at all
+ *   hit       — and the element under that point is the element itself or one
+ *               of its descendants
+ *   covered   — reachable, but something outside the subtree is on top
+ *   byCursor  — of the hit ones, how many computed each cursor value
+ */
+const cursorsAtCentre = (page, sel) =>
+  page.evaluate((selector) => {
+    const shown = (e) =>
+      !!e &&
+      typeof e.checkVisibility === "function" &&
+      e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+
+    const name = (e) =>
+      !e ? "(nothing)" : e.tagName.toLowerCase() + (e.className ? "." + String(e.className).trim().split(/\s+/).join(".") : "");
+
+    const out = {
+      total: 0,
+      shown: 0,
+      reachable: 0,
+      hit: 0,
+      covered: 0,
+      byCursor: {},
+      samples: [],
+      covers: [],
+    };
+
+    for (const el of document.querySelectorAll(selector)) {
+      out.total += 1;
+      if (!shown(el)) continue;
+      out.shown += 1;
+
+      // SCROLLED TO FIRST, WHICH IS WHAT THE VISITOR DOES. The panes are
+      // independently scrollable and carry a sticky `.panehead`; a row resting
+      // under that header is genuinely not hoverable where it is, and counting
+      // it as a cover would report a working product as broken. Bringing each
+      // element to the centre of its own scroller reproduces the state in which
+      // a visitor actually points at it, and the rect is re-read AFTERWARDS
+      // because scrolling is precisely what moves it.
+      el.scrollIntoView({ block: "center", inline: "center" });
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      // Off the viewport there is nothing to hit-test against. After the scroll
+      // above this is a pane that cannot bring the element into view at all, so
+      // it is not a subject rather than a failure.
+      if (cx < 0 || cy < 0 || cx > window.innerWidth || cy > window.innerHeight) continue;
+      out.reachable += 1;
+
+      const top = document.elementFromPoint(cx, cy);
+      // The element's OWN descendants are not covers. `cursor` inherits, so a
+      // child with no rule is reporting the ancestor's answer, and that is the
+      // answer the visitor's pointer gets.
+      if (!top || !(top === el || el.contains(top))) {
+        out.covered += 1;
+        if (out.covers.length < 4) out.covers.push(`${name(el)} covered by ${name(top)}`);
+        continue;
+      }
+      out.hit += 1;
+
+      const cursor = getComputedStyle(top).cursor;
+      out.byCursor[cursor] = (out.byCursor[cursor] ?? 0) + 1;
+      if (out.samples.length < 3) {
+        out.samples.push(`"${(el.textContent ?? "").trim().slice(0, 20)}" -> ${cursor} on ${name(top)}`);
+      }
+    }
+    return out;
+  }, sel);
+
+/** The cursors that render as a plus, which is what the report named. */
+const PLUS = ["copy", "cell", "crosshair"];
+const plusCount = (m) => PLUS.reduce((n, c) => n + (m.byCursor[c] ?? 0), 0);
+const shape = (m) =>
+  `total ${m.total}, shown ${m.shown}, reachable ${m.reachable}, hit ${m.hit}, ` +
+  `covered ${m.covered}, cursors ${JSON.stringify(m.byCursor)}` +
+  (m.covers.length ? ` | covers: ${m.covers.join("; ")}` : "") +
+  (m.samples.length ? ` | ${m.samples.join(" ; ")}` : "");
+
+/**
+ * One population, three counted assertions, in the order that makes a red one
+ * readable: is there anything to judge, was it actually under the pointer, and
+ * did it compute the value claimed.
+ */
+function judge(j, m, what, want) {
+  j.atLeast(m.reachable, 1, `SUBJECTS: ${what}`);
+  j.countIs(m.hit, m.reachable, `${what} — each is the element under the pointer at its own centre`);
+  j.countIs(m.byCursor[want] ?? 0, m.hit, `${what} — each computes \`${want}\``);
+}
+
+export async function run({ browser, site, j }) {
+  const all = await transactions(site.root);
+  const withSession = all.filter((t) => landingOf(t.phase) === "session" && t.hasListing);
+  j.subjects(withSession, 1, "transactions whose landing is a session with rows in its Code pane");
+
+  // TWO SUBJECT KINDS, EACH ASSERTED NON-EMPTY, AND NO FALLBACK BETWEEN THEM.
+  // `find(…) ?? withSession[0]` is what let six journeys judge only the demo
+  // chain for their whole lives: the fallback makes "no real capture was
+  // available" and "a real capture passed" the same green. The stylesheet is
+  // inlined identically into every page, so a chain-specific cursor defect is
+  // not the risk here — a chain-specific ROW STRUCTURE is, and that is what the
+  // real arm below measures.
+  const synthetic = withSession.filter((t) => !t.real);
+  const realCaptures = withSession.filter((t) => t.real);
+  j.atLeast(synthetic.length, 1, "SUBJECTS: synthetic sessions, so the demo arm has a subject");
+  j.atLeast(realCaptures.length, 1, "SUBJECTS: REAL-capture sessions, so the chain arm has a subject");
+
+  const subject = synthetic[0];
+  const url = subject.debugPath;
+  j.note(`driving ${url}`);
+
+  // ── ARM 1: the hydrated page, which is where the report came from ──────
+  const live = await visit(browser, site.origin, url, {
+    settle: (f) => f.phase === "ready" && f.controlsLive > 0,
+  });
+  const page = live.page;
+  try {
+    j.expect(
+      live.settled && !live.timedOut,
+      "the session reached `ready` with live controls, so the rows on screen are the engine's",
+      `phase=${live.facts.phase} live=${live.facts.controlsLive}`,
+    );
+    j.countIs(live.pageErrors.length, 0, "no uncaught page errors while the cursor surfaces were measured");
+
+    // THE PRECONDITION FOR THE WHOLE ARM. If hydration did not turn the rows
+    // into anchors then they are not clickable, and "a clickable row shows a
+    // hand" would be a claim about nothing — passing here while the product
+    // had lost its navigation entirely.
+    const rowKinds = await page.evaluate(() => ({
+      rows: document.querySelectorAll(".ctrow,.evrow").length,
+      anchors: document.querySelectorAll("a.ctrow,a.evrow").length,
+    }));
+    // NOT `anchors === rows`. The aggregate `Self cost` view renders
+    // `div.ctrow.d0.flat` rows on purpose — a function is not a frame, those
+    // rows jump nowhere, and they are correctly not anchors. What has to hold is
+    // that hydration produced SOME anchors, because otherwise there is no click
+    // for this journey to describe and every assertion below is about nothing.
+    j.atLeast(
+      rowKinds.anchors,
+      1,
+      "CONTROL: hydration turned navigation rows into anchors, so there is a click to describe",
+    );
+
+    // ── the call trace, the surface the visitor named ────────────────────
+    const ct = await cursorsAtCentre(page, "a.ctrow");
+    j.note(`call trace: ${shape(ct)}`);
+    judge(j, ct, "call-trace rows", "pointer");
+
+    // THE EXACT ELEMENT THE REPORT WAS ABOUT — the function name, which is the
+    // widest cell in the row and the one carrying `.copyable`. Measured as its
+    // own population because a row whose centre happened to fall in the gutter
+    // would pass the row assertion above while the name still showed the plus.
+    const ctName = await cursorsAtCentre(page, "a.ctrow .copyable");
+    j.note(`copyable cells inside rows: ${shape(ctName)}`);
+    judge(j, ctName, "copyable value cells sitting inside a navigable row", "pointer");
+
+    // ── the copy controls hydration adds, which had no rule at all ───────
+    const copybtn = await cursorsAtCentre(page, ".copybtn");
+    j.note(`copy controls: ${shape(copybtn)}`);
+    judge(j, copybtn, "copy controls hydration added to this page", "pointer");
+
+    // ── the event log, which is not on screen until it is chosen ─────────
+    //
+    // The tab is found by PROPERTY and never by name, for journey 09's reason:
+    // the pane that holds the event rows, and the control whose fragment points
+    // at it. A renamed pane moves this on its own.
+    const opened = await page.evaluate(() => {
+      const pane = document.querySelector(".evrow")?.closest(".pane");
+      if (!pane || !pane.id) return { ok: false, why: "the event rows are in no identified pane" };
+      const tab = document.querySelector(`a[href="#${CSS.escape(pane.id)}"]`);
+      if (!tab) return { ok: false, why: `no control targets #${pane.id}` };
+      tab.click();
+      return { ok: true, pane: pane.id };
+    });
+    await page.waitForTimeout(400);
+    j.note(`event log: ${opened.ok ? `opened ${opened.pane}` : opened.why}`);
+
+    const ev = await cursorsAtCentre(page, "a.evrow");
+    j.note(`event log rows: ${shape(ev)}`);
+    judge(j, ev, "event-log rows", "pointer");
+
+    // THE REPORT, RESTATED AS ONE NUMBER OVER EVERYTHING MEASURED. `copy`,
+    // `cell` and `crosshair` all render as a plus; this is the assertion whose
+    // text is the visitor's sentence, and it is a count so that one surviving
+    // surface out of five cannot hide behind four fixed ones.
+    const plus = plusCount(ct) + plusCount(ctName) + plusCount(copybtn) + plusCount(ev);
+    j.countIs(
+      plus,
+      0,
+      "no clickable surface measured on the hydrated page computes a plus-rendering cursor",
+    );
+  } finally {
+    await page.close();
+  }
+
+  // ── ARM 2: a REAL capture, which is a different row population ────────
+  await realArm(browser, site, j, realCaptures[0]);
+
+  // ── ARM 3: the same page with scripting off ───────────────────────────
+  await noScriptArm(browser, site, j, url);
+}
+
+/**
+ * The same claim on a chain capture.
+ *
+ * Not a duplicate of arm 1. The cursor RULE is chain-independent — one inlined
+ * stylesheet serves every page — but the DOM it lands on is not: a real
+ * recording's rows are built by the engine from resolved source positions,
+ * where the demo chain's are built by the exporter from a fixture. A row that
+ * arrived without its `.copyable` name cell, or as a `div` because the producer
+ * withheld the `href`, is a real-capture-only shape, and this arm is what would
+ * see it. Rows only — a real capture need not render a loop rail, and asserting
+ * an absent one would be the vacuous claim this file exists to avoid.
+ */
+async function realArm(browser, site, j, subject) {
+  j.note(`driving REAL capture ${subject.debugPath}`);
+  const live = await visit(browser, site.origin, subject.debugPath, {
+    settle: (f) => f.phase === "ready" && f.controlsLive > 0,
+  });
+  const page = live.page;
+  try {
+    j.expect(
+      live.settled && !live.timedOut,
+      "REAL: the chain session reached `ready` with live controls",
+      `phase=${live.facts.phase} live=${live.facts.controlsLive}`,
+    );
+    const rows = await cursorsAtCentre(page, ".ctrow,.evrow");
+    j.note(`REAL rows: ${shape(rows)}`);
+    judge(j, rows, "REAL: navigation rows on a chain capture", "pointer");
+  } finally {
+    await page.close();
+  }
+}
+
+/**
+ * The served artefact, and the control on the SCOPE of the fix.
+ *
+ * With no script the rows are `div.ctrow` carrying no `href`: they jump
+ * nowhere, and `.copyable`'s `user-select:all` plus its copy cursor is a true
+ * description of the only gesture on offer. Removing `cursor:copy` outright
+ * would have satisfied every assertion in arm 1 and taken the affordance with
+ * it, so the fix has to be shown to be a SUBORDINATION — the copy cursor yields
+ * where a click means something else, and holds where nothing encloses it.
+ */
+async function noScriptArm(browser, site, j, url) {
+  const ctx = await browser.newContext({ javaScriptEnabled: false });
+  const page = await ctx.newPage();
+  try {
+    await page.goto(site.origin + url, { waitUntil: "load", timeout: 45000 });
+
+    const kinds = await page.evaluate(() => ({
+      rows: document.querySelectorAll(".ctrow,.evrow").length,
+      anchors: document.querySelectorAll("a.ctrow,a.evrow").length,
+    }));
+    j.atLeast(kinds.rows, 1, "NO-SCRIPT: SUBJECTS — rows served to a visitor with scripting off");
+    j.countIs(
+      kinds.anchors,
+      0,
+      "NO-SCRIPT: the served rows carry no anchor, so nothing there promises a jump",
+    );
+
+    // THE DEFECT MIRRORED, AND IT IS ASSERTED HERE BECAUSE HERE IT IS NOT
+    // VACUOUS. A `pointer` on something that does not respond to a click is the
+    // same lie told backwards, and this repository has form: the sibling's
+    // `build-clickable` kept `cursor:pointer` after its handler was deleted and
+    // a spec asserted the CLASS, so the dead affordance stayed green. With no
+    // script these rows are `div.ctrow` — inert, by design, and on screen in
+    // numbers — which makes them the one population on which "nothing that
+    // cannot be clicked shows the hand" is a real claim rather than a shrug.
+    const inertRows = await cursorsAtCentre(page, ".ctrow,.evrow");
+    j.note(`no-script inert rows: ${shape(inertRows)}`);
+    j.atLeast(inertRows.hit, 1, "NO-SCRIPT: SUBJECTS — inert rows a pointer can rest on");
+    j.countIs(
+      inertRows.byCursor["pointer"] ?? 0,
+      0,
+      "NO-SCRIPT: no row that cannot be clicked offers the hand that says it can",
+    );
+
+    const copyable = await cursorsAtCentre(page, ".copyable");
+    j.note(`no-script copyable: ${shape(copyable)}`);
+    j.atLeast(copyable.reachable, 1, "NO-SCRIPT: SUBJECTS — copyable values on the served page");
+    j.countIs(
+      copyable.hit,
+      copyable.reachable,
+      "NO-SCRIPT: each copyable value is the element under the pointer at its own centre",
+    );
+    j.countIs(
+      copyable.byCursor["copy"] ?? 0,
+      copyable.hit,
+      "NO-SCRIPT: the copy affordance survives where nothing encloses it",
+    );
+  } finally {
+    await page.close();
+    await ctx.close();
+  }
+}
