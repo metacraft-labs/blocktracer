@@ -224,14 +224,18 @@ export const readFacts = (page) =>
       // THE FUNCTION HEADERS THIS PAGE RENDERED, per document, as raw rows.
       //
       // A FACT ABOUT THE FILE and not about the session, which is why it is
-      // reported per document rather than resolved here: `source_document
-      // .openAtCurrent` narrows the ACTIVE document to start six lines above
-      // the position and leaves the others whole, so which headers a page
-      // renders depends on where its session is standing. One reading of one
-      // page therefore cannot see every header — at the demo session's later
-      // positions `fn main` has scrolled out of the window entirely — and a
-      // consumer that resolved "the enclosing function" from a single reading
-      // would get `null` for a position plainly inside one.
+      // reported per document rather than resolved here.
+      //
+      // The justification this comment used to give — `source_document
+      // .openAtCurrent` narrows the ACTIVE document to six lines above the
+      // position, so at the demo session's later positions `fn main` has
+      // scrolled out of the window entirely — NO LONGER HOLDS: that proc is gone
+      // and `renderSource` emits every line of every document, so a debug page
+      // read once now carries every header. What survives is the weaker and
+      // still-true version: which headers a page renders is a property of the
+      // PAGE, `windowAround` still narrows the home page's embed, and a probe
+      // that resolved "the enclosing function" here would be deciding on one
+      // page's behalf.
       //
       // So the rows are handed over and the journey merges what several
       // readings saw. That is also what keeps this the probe's job: headers are

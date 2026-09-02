@@ -880,13 +880,22 @@ proc applyFlow*(pane: var EditorPane; input: FlowWindowInput) =
     take(r.line, returnAnnotation(r))
 
   # Rule 4. The conditionals come from the WINDOW's `sourceLines`, which is the
-  # whole file, and not from `pane.documents[index].lines`, which is a window of
-  # it opened at the session's position (`source_document.openAtCurrent`). A
-  # brace matcher fed a file that starts at line 26 sees an unbalanced file and
-  # would either refuse everything or — far worse — match an `else`'s `}` to
-  # some later block's. The pane's line NUMBERS are what the two are joined on,
-  # and they are the file's own, which is exactly the property `lineAnchor`
-  # exists to guarantee.
+  # whole file, and not from `pane.documents[index].lines`. A brace matcher fed
+  # a file that starts at line 26 sees an unbalanced file and would either refuse
+  # everything or — far worse — match an `else`'s `}` to some later block's. The
+  # pane's line NUMBERS are what the two are joined on, and they are the file's
+  # own, which is exactly the property `lineAnchor` exists to guarantee.
+  #
+  # THE HAZARD IS LATENT, NOT ACTIVE, AND THAT IS WHY THIS IS NOT SIMPLIFIED.
+  # This comment used to name `source_document.openAtCurrent` as the thing that
+  # made the pane's lines a window; that proc is gone from the repository and the
+  # debug route now renders whole documents. The remaining narrower is
+  # `source_document.windowAround`, which `ssr.featuredSession` applies to the
+  # home page's embed — and it runs AFTER `applyFlow` (see
+  # `demo_session.withDemoFlow`), so no call path reaches here with narrowed
+  # lines today. Reading the pane instead would work, and would go wrong the
+  # first time an order changed or a second narrowing arrived. The pane is not
+  # the authority on the file's text; the window is.
   let branches = branchPasses(
     input.window,
     findConditionals(

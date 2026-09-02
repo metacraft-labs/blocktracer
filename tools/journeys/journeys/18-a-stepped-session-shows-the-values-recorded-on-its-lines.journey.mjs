@@ -98,14 +98,20 @@ const VIEWPORT = { width: 1920, height: 1080 };
 /**
  * Merge the function headers several readings saw into one map per document.
  *
- * Necessary rather than tidy. `openAtCurrent` narrows the ACTIVE document to
- * six lines above the position, so a page whose session has stepped past a
- * function's header no longer renders it — at the demo session's later
- * positions `fn main` is not in the DOM at all, and a single reading would
- * report "no enclosing function" for a line plainly inside one. The headers are
- * a fact about the FILE and do not move, so accumulating them across the walk
- * (and across the served reading, whose window is at a different position and
- * therefore shows different ones) recovers the file's own list.
+ * THE REASON THIS WAS NECESSARY IS GONE; THE MERGE IS KEPT AS A DEFENCE. It
+ * read: `openAtCurrent` narrows the ACTIVE document to six lines above the
+ * position, so a page whose session has stepped past a function's header no
+ * longer renders it — at the demo session's later positions `fn main` is not in
+ * the DOM at all, and a single reading would report "no enclosing function" for
+ * a line plainly inside one.
+ *
+ * `openAtCurrent` no longer exists (`client/src/debugger/source_document.nim`
+ * carries the account) and `renderSource` emits every line of every document, so
+ * one reading of a debug page now sees every header and the merge is redundant
+ * there. It is not removed: `source_document.windowAround` still narrows a pane
+ * for the home page's embed, and the headers are a fact about the FILE that does
+ * not move, so accumulating them across readings is correct whether or not any
+ * single reading was complete.
  */
 function mergeHeaders(into, facts) {
   for (const [doc, heads] of Object.entries(facts.fnHeaders ?? {})) {

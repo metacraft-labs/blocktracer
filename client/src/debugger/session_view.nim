@@ -402,14 +402,25 @@ type
     ##
     ## It is carried by the PANE rather than attached to the loop's header line,
     ## and that is a departure from the spec's "a slider appears above loop
-    ## constructs" with a concrete cause: the served pane is a WINDOW of the
-    ## file opened at the session's position (`source_document.openAtCurrent`),
-    ## and the loop the session is inside is very often above that window — the
-    ## demo session sits at `src/shield.nr:32` in a body whose `for` header is
-    ## on line 4, twenty-two lines above the first line served. A control drawn
-    ## only at the header would be a control that is absent exactly when the
-    ## reader is inside the loop. `line`/`anchor` name where the loop is, and
-    ## the rail links to it.
+    ## constructs".
+    ##
+    ## THE CAUSE RECORDED HERE HAS PARTLY COLLAPSED. It read: the served pane is
+    ## a WINDOW of the file opened at the session's position
+    ## (`source_document.openAtCurrent`), so the loop header is very often above
+    ## that window — the demo session sits at `src/shield.nr:32` in a body whose
+    ## `for` header is on line 4 — and a control drawn only at the header would
+    ## be absent exactly when the reader is inside the loop.
+    ##
+    ## `openAtCurrent` is gone (see `source_document.nim`) and the debug route
+    ## renders every line of the file, so on THAT surface the header is on screen
+    ## and the argument no longer applies. It still applies to the home page's
+    ## embed, which `ssr.featuredSession` narrows with `windowAround(radius = 12)`
+    ## — lines 20..44 around the demo's line 32, with the `for` header at line 4
+    ## outside it. So the departure is now justified by one surface rather than
+    ## by every one, and it has NOT been re-argued for the debug route; it is
+    ## kept because one placement serving both surfaces is the property the rail
+    ## was built for, not because the header is unreachable. `line`/`anchor` name
+    ## where the loop is, and the rail links to it.
     loopIndex*: int       ## 0 when there is no loop; the rail renders nothing
     line*: int            ## the loop header's source line
     anchor*: string       ## that line's stable id, so the rail can link to it
@@ -533,9 +544,11 @@ type
       ##
       ## Computed once, at static-export time, by `newSourceDocument` — the page
       ## ships no JavaScript, so there is nowhere else it could happen. It
-      ## travels WITH the line so that `openAtCurrent` and `windowAround`, which
-      ## copy `SourceLine`s into a narrower document, keep the highlighting
-      ## without re-lexing and without knowing the language.
+      ## travels WITH the line so that `windowAround`, which copies
+      ## `SourceLine`s into a narrower document, keeps the highlighting without
+      ## re-lexing and without knowing the language. (`openAtCurrent` was named
+      ## here too and no longer exists; the property is the same for any future
+      ## narrower.)
 
   SourceDocument* = object
     ## One file in the editor pane.
