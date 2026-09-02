@@ -305,22 +305,18 @@ proc fixtureControls(positioned, live: bool; steps: int): DebugControlsPane =
   ## the second is false, and the toolbar's enablement follows the second —
   ## an enabled button with no engine behind it is an affordance that lies on
   ## click, which is the single most likely wrong thing to ship here.
-  proc btn(a: DebugAction; label, glyph: string): ControlButton =
-    ControlButton(action: a, label: label, glyph: glyph, enabled: live)
-  # Four pairs, reverse then forward, in the desktop app's own toolbar order.
-  # Every glyph is distinct: `daReverseStepOut` and `daStepOut` both used to
-  # render `⤴`, so two different moves carried one mark on a toolbar whose
-  # entire point is that each move has a direction.
-  result.buttons = @[
-    btn(daStepBackward, "Step backward", "◀"),
-    btn(daStepForward, "Step forward", "▶"),
-    btn(daReverseStepIn, "Reverse step in", "⇱"),
-    btn(daStepIn, "Step in", "⇲"),
-    btn(daReverseStepOut, "Reverse step out", "⇤"),
-    btn(daStepOut, "Step out", "⇥"),
-    btn(daReverseContinue, "Reverse continue", "⏮"),
-    btn(daContinue, "Continue", "⏭"),
-  ]
+  # Four pairs, reverse then forward, in the desktop app's own toolbar order —
+  # which is `DebugAction`'s declaration order, so iterating the enum IS the
+  # toolbar. The name and the mark are the action's (`controlLabel`,
+  # `components/icons`); this producer states only what the served page knows,
+  # which is that nothing can move until the engine is live.
+  #
+  # It used to hold its own copy of the eight labels and glyphs, as did
+  # `session_project.projectControls`, and the served toolbar and the hydrated
+  # one were therefore two independent claims about one control strip.
+  result.buttons = @[]
+  for a in DebugAction:
+    result.buttons.add ControlButton(action: a, enabled: live)
   result.positioned = positioned
   result.totalSteps = steps
   result.step = (if positioned: entryStepWithin(steps) else: 0)

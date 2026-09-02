@@ -766,19 +766,13 @@ proc projectControls*(vm: DebugControlsVM; step, total: int;
   ## records observing ("its hydrated session lands at step 0 of 345") without
   ## asserting, its own implication being guarded by `step > 0` and so passing
   ## VACUOUSLY in exactly the state that was broken.
-  proc btn(a: DebugAction; label, glyph: string): ControlButton =
-    ControlButton(action: a, label: label, glyph: glyph,
-                  enabled: live and canDo(vm, a))
-  result.buttons = @[
-    btn(daStepBackward, "Step backward", "◀"),
-    btn(daStepForward, "Step forward", "▶"),
-    btn(daReverseStepIn, "Reverse step in", "⇱"),
-    btn(daStepIn, "Step in", "⇲"),
-    btn(daReverseStepOut, "Reverse step out", "⇤"),
-    btn(daStepOut, "Step out", "⇥"),
-    btn(daReverseContinue, "Reverse continue", "⏮"),
-    btn(daContinue, "Continue", "⏭"),
-  ]
+  # Every action, in declaration order, which is the toolbar's order. The name
+  # and the mark come from the action (`controlLabel`, `components/icons`), so
+  # this producer and `demo_session.fixtureControls` cannot disagree about
+  # either — they used to hold a copy each, and the copies drifted.
+  result.buttons = @[]
+  for a in DebugAction:
+    result.buttons.add ControlButton(action: a, enabled: live and canDo(vm, a))
   result.statusText = vm.statusText.val
   # The engine's tick when it has stated one — INCLUDING 0 — and the served
   # page's when it has not. Neither line asks anything of the step's value.

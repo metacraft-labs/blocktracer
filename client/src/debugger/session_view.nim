@@ -1083,9 +1083,20 @@ type
     daContinue = "continue"
 
   ControlButton* = object
+    ## A control is an ACTION and whether it can act. Its label and its mark are
+    ## derived from the action by `controlLabel` and by
+    ## `components/icons`, and are not carried here.
+    ##
+    ## It used to carry both as data, and two producers — `projectControls` for
+    ## the live session and `fixtureControls` for the served page — each held
+    ## their own copy of the eight-row table. That is a shape in which the two
+    ## renderings of one toolbar can disagree without any check noticing, and
+    ## they DID: the copies drifted to the point where `daStepForward`, which
+    ## `toolbarActionId` maps to DAP's `next` (Step Over), was labelled "Step
+    ## forward" and wore `▶` — the universal Resume mark — while Continue wore
+    ## `⏭`, the media "next track" mark a visitor reported as looking like a
+    ## music player. Deriving both from the action leaves one place to be wrong.
     action*: DebugAction
-    label*: string
-    glyph*: string
     enabled*: bool
 
   DebugControlsPane* = object
@@ -1112,6 +1123,50 @@ type
     step*: int            ## the current time coordinate
     totalSteps*: int      ## from the manifest's execution summary
     positioned*: bool     ## whether `step` means anything yet
+
+func controlLabel*(a: DebugAction): string =
+  ## What the control is CALLED — its `title`, its `aria-label`, and the name a
+  ## reader checks a mark against. One total `case`, so a control added to the
+  ## toolbar is a compile error here rather than an unnamed button.
+  ##
+  ## These are DAP's names for the requests behind them, which is what
+  ## `toolbarActionId` dispatches and what CodeTracer's desktop toolbar calls
+  ## them. Two of them did not used to be. `daStepForward` sends `next` and
+  ## `daStepBackward` sends `reverse-next` — Step Over and its reverse — but
+  ## they were labelled "Step forward" and "Step backward", which names a
+  ## granularity this product does not have a control for and reads, next to a
+  ## Step In button, as though the two were alternatives. A visitor who trusted
+  ## the label would expect a single-step move and get a whole line.
+  ##
+  ## ## No chords, and why the tooltips do not name any
+  ##
+  ## They are absent rather than pending. A visitor asked why the shortcuts are
+  ## not in these tooltips, and the answer is that this surface has none to
+  ## show: the only `keydown` handler on the controls is the scrubber's
+  ## arrow-key seek (`hydrate.bindGestures`), and no stepping command is bound
+  ## to a key anywhere in the bundle.
+  ##
+  ## The desktop app's set cannot simply be adopted. It is F8 / F10 / F11 / F12
+  ## with Shift for the reverse of each (`Debugger-Controls.md`), and this is a
+  ## page in somebody else's browser: F12 opens the developer tools and a page
+  ## cannot prevent it, F11 is fullscreen, and on macOS — where the report came
+  ## from — F8/F10/F11/F12 are system media keys unless the visitor has changed
+  ## a global setting. A tooltip naming a chord that does not fire is worse than
+  ## a tooltip naming none, so this states the name only.
+  ##
+  ## Choosing a keymap that is honest in a browser is a product decision and is
+  ## recorded as open in `Debugger-Controls.md`. When one exists it composes
+  ## HERE, into the one string the toolbar already reads, so it cannot be added
+  ## to the tooltip without also being bound.
+  case a
+  of daStepBackward: "Reverse step over"
+  of daStepForward: "Step over"
+  of daReverseStepIn: "Reverse step in"
+  of daStepIn: "Step in"
+  of daReverseStepOut: "Reverse step out"
+  of daStepOut: "Step out"
+  of daReverseContinue: "Reverse continue"
+  of daContinue: "Continue"
 
 const TimelineTicks* = 48
   ## The scrubber is a fixed number of discrete ticks rather than a filled bar,

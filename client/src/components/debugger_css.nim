@@ -1521,7 +1521,28 @@ a.ctrow,a.evrow{cursor:pointer}
   color:var(--bt-text-subtle);border-color:var(--bt-border-subtle)}
 .btn.disabled:hover{background:transparent;
   border-color:var(--bt-border-subtle)}
-.dcglyph{font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line)}
+/* The stepping mark. An SVG since the toolbar stopped using text glyphs, so
+   this sizes a box rather than a font — see `components/icons` for why the
+   glyphs went (Continue was U+23ED, the media "next track" mark, and it
+   rendered as a colour emoji on three platforms).
+
+   The codepoint is NAMED rather than written, here and nowhere else for show:
+   this comment is inlined verbatim into every page's stylesheet, so spelling
+   the character would put the very glyph the toolbar was cured of back into
+   the document — and would answer a page-wide check for it.
+
+   `currentColor` inside the mark is what preserves the enabled/inert treatment
+   the register above measured: the mark takes `.dcbtn`'s own `color`, so it is
+   `--bt-text-strong` on a live control and `--bt-text-subtle` on an inert one,
+   in both themes, with no second rule to keep in step. A mark with its own
+   fill would have been a third way of saying "disabled" beside the two that
+   comment defends.
+
+   `display:block` so the span is the mark's box exactly — an inline SVG sits
+   on the text baseline and would have left the descender's worth of space
+   inside a 32px button that has none to give. */
+.dcglyph{display:block}
+.dcglyph .dcmark{display:block;width:var(--bt-space-md);height:var(--bt-space-md)}
 /* A TRACK, not forty tick marks. `gap:0` is the whole difference: at one
    hairline between ticks the control read as ~40 low-contrast dashes with no
    track, no handle and no endpoints — a decorative equaliser rather than the

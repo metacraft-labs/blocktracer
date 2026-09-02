@@ -58,6 +58,7 @@
 import std/strutils
 import isonim/ssr/escape
 import isonim/dsl/ui
+import ./icons
 import ../debugger/flow_view
 import ../debugger/layout_model
 import ../debugger/replay_engine
@@ -1431,6 +1432,24 @@ proc renderPhaseRail*(s: DebugSessionView): string =
       if s.engineCrossOrigin:
         span(class = "engineorigin"): text "Engine: " & s.engineBase
 
+func controlMark(a: DebugAction): string =
+  ## The action's mark. A total `case` over the enum and not a table, for the
+  ## reason `toolbarActionId` is one: a control added to the toolbar has to be
+  ## given a mark here or it does not compile, rather than rendering as an
+  ## empty button.
+  ##
+  ## The marks and the survey behind them are in `components/icons`; the
+  ## per-command reasoning is `Debugger-Controls.md` §"Control Actions".
+  case a
+  of daStepBackward: reverseStepOverMark()
+  of daStepForward: stepOverMark()
+  of daReverseStepIn: reverseStepInMark()
+  of daStepIn: stepInMark()
+  of daReverseStepOut: reverseStepOutMark()
+  of daStepOut: stepOutMark()
+  of daReverseContinue: reverseContinueMark()
+  of daContinue: continueMark()
+
 proc renderControls*(p: DebugControlsPane): string =
   ## The stepping toolbar, the scrubber and the status — rendered into the
   ## identity bar (`pages/debug.nim`), not into a pane of its own.
@@ -1480,8 +1499,9 @@ proc renderControls*(p: DebugControlsPane): string =
     tdiv(class = "dc"):
       tdiv(class = "dcbtns"):
         for b in p.buttons:
-          let why = (if b.enabled: b.label
-                     else: b.label & " — inert until the replay engine loads")
+          let label = controlLabel(b.action)
+          let why = (if b.enabled: label
+                     else: label & " — inert until the replay engine loads")
           # `data-action` names the MOVE, in the wire spelling of
           # `DebugAction`, so hydration can bind a button to the command it
           # already claims to be. It is inert data and not an affordance — the
@@ -1494,7 +1514,14 @@ proc renderControls*(p: DebugControlsPane): string =
                  `data-action` = $b.action,
                  title = why, `aria-label` = why,
                  `aria-disabled` = (if b.enabled: "false" else: "true")):
-            span(class = "dcglyph"): text b.glyph
+            # The mark is an SVG and not a text glyph, and `raw` because
+            # `components/icons` builds it through the DSL and hands back a
+            # string — the same path `footer` takes for the provenance marks.
+            #
+            # It is `aria-hidden` inside that module, so the button's accessible
+            # name stays the one `aria-label` gives it. A mark that announced
+            # itself would be a control named twice.
+            span(class = "dcglyph"): raw controlMark(b.action)
       tdiv(class = "dctl"):
         for i in 1 .. TimelineTicks:
           # `tickClass` is `session_view`'s, for `markedTick`'s reason: the

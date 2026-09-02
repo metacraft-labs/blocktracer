@@ -492,7 +492,7 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     check "class=\"dcsteps num\"" in bar   # …and the position readout
     # Every control the model names is in the bar, by its own label.
     for b in s.controls.buttons:
-      check b.label in bar
+      check controlLabel(b.action) in bar
 
     # And nowhere else: not a pane, not a second copy in the grid.
     let grid = html[barEnd .. ^1]
@@ -3267,7 +3267,8 @@ suite "M8b — the metadata pane and the page cannot diverge":
           s.controls.buttons.len
     check "aria-disabled=\"false\"" notin controlsHtml
     for b in s.controls.buttons:
-      check (b.label & " — inert until the replay engine loads") in html
+      check (controlLabel(b.action) &
+             " — inert until the replay engine loads") in html
 
     # The phase is NAMED, the sequence is shown, and the wait is quantified.
     check "class=\"phaserail\"" in html
@@ -3602,6 +3603,84 @@ suite "hydration — the seams the bundle reads, and the honesty they preserve":
     # match would answer itself with CSS.
     check "onclick" notin markup
     check "role=\"button\"" notin markup
+
+  test "every control wears its OWN mark, and no media transport glyph":
+    ## The defect this pins: Continue rendered `⏭` U+23ED — the media "next
+    ## track / skip to end" mark — and Reverse Continue `⏮`, while `▶`, the
+    ## universal Resume mark, sat on Step Over. A visitor identified the
+    ## toolbar as a music player's, correctly.
+    ##
+    ## `components/icons` carries the survey; the rule it enforces is that a
+    ## reverse mark is its forward partner reflected about the vertical axis,
+    ## and that all eight are DISTINCT — the failure mode being Midas, an rr
+    ## front-end that gives reverse-finish the forward step-out glyph verbatim,
+    ## so two controls wear one mark and only the tooltip separates them.
+    ##
+    ## Signatures rather than whole paths: enough to tell all eight apart and
+    ## to catch a swap, without pinning coordinates a redraw may legitimately
+    ## move. That the marks are PAINTED, sized and coloured by the button is a
+    ## claim markup cannot make and is asserted in a browser instead.
+    let html = debugHtml(readyTx)
+    let s = sessionFor(readyTx)
+    check s.controls.buttons.len == 8
+    const sigs = {
+      daStepBackward:    "M8 11C6.897 11 6 11.897",   # codicon debug-step-back
+      daStepForward:     "M9.99993 13C9.99993",       # codicon debug-step-over
+      daReverseStepIn:   "M11.4 3.6L5.6 9.4",         # drawn, head bottom-left
+      daStepIn:          "M4.6 3.6L10.4 9.4",         # drawn, head bottom-right
+      daReverseStepOut:  "M10.4 9.4L4.6 3.6",         # drawn, head top-left
+      daStepOut:         "M5.6 9.4L11.4 3.6",         # drawn, head top-right
+      daReverseContinue: "M8.99688 2C8.80188",        # codicon debug-reverse-continue
+      daContinue:        "M14.578 7.149L7.578",       # codicon debug-continue
+    }.toTable
+    var marks: HashSet[string]
+    for b in s.controls.buttons:
+      check sigs[b.action] in html
+      marks.incl sigs[b.action]
+    check marks.len == 8
+
+    # The mirror rule, as arithmetic a reader can check: each drawn reverse
+    # mark is its forward partner under x -> 16-x.
+    check sigs[daReverseStepIn] == "M11.4 3.6L5.6 9.4"    # 4.6->11.4, 10.4->5.6
+    check sigs[daReverseStepOut] == "M10.4 9.4L4.6 3.6"   # 5.6->10.4, 11.4->4.6
+
+    # Not one of the eight old glyphs survives IN THE STRIP. Scoped to the
+    # renderer's own output rather than the page, because `▶`/`◀` are ordinary
+    # marks elsewhere on this page and a page-wide match would be answered by
+    # something that is not this toolbar.
+    let controlsHtml = dbgc.renderControls(s.controls)
+    for glyph in ["⏭", "⏮", "▶", "◀", "⇱", "⇲", "⇤", "⇥"]:
+      check glyph notin controlsHtml
+    # `⏭` and `⏮` are the two the report was about and they belong to nothing
+    # else here, so those two are held to the WHOLE page.
+    check "⏭" notin html
+    check "⏮" notin html
+
+    # The marks are decoration beside a name the button already carries, so
+    # they must not be announced. One accessible name per control, and none on
+    # the marks themselves.
+    check occurrences(controlsHtml, "aria-label=\"") == s.controls.buttons.len
+    check occurrences(controlsHtml, "aria-hidden=\"true\"") ==
+          s.controls.buttons.len
+    for b in s.controls.buttons:
+      check ("aria-label=\"" & controlLabel(b.action)) in controlsHtml
+
+  test "the two controls that send `next` are named for what they send":
+    ## `daStepForward` dispatches DAP `next` and `daStepBackward` `reverse-next`
+    ## (`toolbarActionId`) — Step Over and its reverse. They were labelled "Step
+    ## forward" and "Step backward", which names a granularity this product has
+    ## no control for, and which reads next to Step In as though the two were
+    ## alternatives rather than different-sized moves.
+    ##
+    ## The mapping itself is `hydrate/session_project.toolbarActionId`, which
+    ## this hermetic suite cannot import — it reaches the Embed SDK — so what
+    ## is pinned here is the NAME. `just debug-panes` compiles against the real
+    ## SDK and is where the dispatch is exercised.
+    check controlLabel(daStepForward) == "Step over"
+    check controlLabel(daStepBackward) == "Reverse step over"
+    let html = debugHtml(readyTx)
+    check "Step forward" notin html
+    check "Step backward" notin html
 
   test "every navigation row carries its coordinate AND its anchor as data":
     ## §3's deferred item, staged. `EventRow.step` and a frame's step are the
