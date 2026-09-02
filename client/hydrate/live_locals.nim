@@ -195,7 +195,7 @@ proc valueText*(node: JsonNode; depth: int = ValueDepthLimit): string =
     open & parts.join(", ") & close
 
   case kind
-  of tkInt: ""
+  of tkInt: node{"i"}.getStr("")
   of tkFloat: node{"f"}.getStr("")
   of tkBool: (if node{"b"}.getBool(false): "true" else: "false")
   of tkString: "\"" & node{"text"}.getStr("") & "\""
