@@ -126,7 +126,7 @@ export const id = "source-pane-holds-still-while-the-position-is-visible";
 export const claim =
   "A visitor stepping a session sees the source pane hold still while the position is on screen.";
 export const spec = "Page-Descriptions.md §7.0; Debugger-Integration.md §7 — BlockTracer";
-export const assertions = 39;
+export const assertions = 41;
 export const needsEngine = true;
 
 // The walk stops at `MAX_STEPS` or when the trace ends, whichever comes first,
@@ -337,14 +337,47 @@ async function arm(browser, site, j, subject, rendering) {
     const wouldShow =
       sameDoc && destinationWasOnScreen(ss.top, served.markedDoc, live.facts) === true;
     const held = !!hs && !!ss && hs.top === ss.top;
+
+    // THE ESCAPE DISJUNCT IS GONE, AND THE CONDITION IT ABSORBED IS ASSERTED.
+    //
+    // Both "MUST move" branches read `ok = !held || ss.top === 0`. The reasoning
+    // behind the disjunct was sound — at a served offset of 0, "the pane held"
+    // and "the pane moved to the top" are the SAME reading, so `!held` would be
+    // a false red — but the shape is the one this directory has been correcting
+    // all day: a verdict that excuses its own blind spot instead of naming it.
+    //
+    // It was defensible for a second reason too, and that reason is the problem.
+    // In a MUST-move branch with `ss.top === 0` the destination is by definition
+    // not visible at offset 0, so a pane that held there fails `COMPOSE: and the
+    // hydrated landing puts the position on screen too` — a DIFFERENT record, a
+    // few lines above. The journey would go red; THIS record would go green, and
+    // a `selftest.mjs` arm aimed at its text would score SURVIVED. That is
+    // exactly what the breakpoint journey's `countIs(0, 0)` did, and an
+    // assertion's own guard has to sit with it rather than somewhere else in the
+    // file.
+    //
+    // So the discriminating precondition is now its own record, unconditional on
+    // which of the three cases the landing takes: the served frame stands at a
+    // non-zero offset, so "held" and "moved to the top" are distinguishable
+    // readings. Measured 491px on the source arm and 2637px on the listing arm,
+    // and both subjects are `[0]` of a corpus-ordered filter, so it is stable. A
+    // future subject whose position sits at the top of its file reddens this and
+    // says why — "this recording can no longer support the claim" — instead of
+    // passing over a comparison it cannot make.
+    j.expect(
+      !!ss && ss.top > 0,
+      `${tag}CONTROL: the served frame stands off the top, so holding and moving-to-the-top are different readings`,
+      `served scrollTop ${ss?.top} over a ${ss?.range}px range`,
+    );
+
     let why;
     let ok;
     if (!sameDoc) {
       why = `the session landed in a different document (${served.markedDoc} -> ${live.facts.markedDoc}), so the served offset means nothing and the pane MUST move`;
-      ok = !held || ss.top === 0;
+      ok = !held;
     } else if (!wouldShow) {
       why = `same document, but the landing position is not visible at the served offset ${ss.top}, so the pane MUST move`;
-      ok = !held || ss.top === 0;
+      ok = !held;
     } else {
       why = `same document and the landing position is visible at the served offset ${ss.top}, so the pane MUST NOT move`;
       ok = held;

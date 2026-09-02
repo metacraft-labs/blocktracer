@@ -80,6 +80,11 @@
 // "counted 0" its ledger entry is written from. The claim above names no
 // chain, so a corpus-wide absence was being inferred from one recording.
 //
+// (That "counted 0" was recorded in `ledger.json` at the time. THE ENTRY IS
+// GONE — this journey appears in neither `known_red` nor `_closed` today — and
+// three places in this file still spoke of it in the present tense. Corrected
+// below; see the note beside `READ_CONTROLS`, which was resting on it.)
+//
 // The fix is the one 03 and 09 took: TWO SUBJECT LISTS SELECTED BY FILTER, each
 // asserted non-empty with its count printed, both driven, and NO `??` between
 // them. The fallback is what made "no real capture was available" and "a real
@@ -212,13 +217,34 @@ const READ_ROWS = () => {
  * that page offers to trace anything; the word was in the data.
  *
  * That number is the whole verdict of this journey. `atLeast(…, 1)` asserts
- * PRESENCE, so a match that is not a control is a FALSE GREEN — and because
- * this journey is ledgered known-red, a false green here does not merely
- * mis-measure, it FAILS THE RUN with "this journey is in ledger.json as
- * known-red and it is GREEN" and invites someone to delete a ledger entry over
- * an event-log string. The generosity was written when this assertion claimed
- * an ABSENCE, where erring wide is the safe direction; it is the unsafe
- * direction for the presence claim the file now makes.
+ * PRESENCE, so a match that is not a control is a FALSE GREEN. The generosity
+ * was written when this assertion claimed an ABSENCE, where erring wide is the
+ * safe direction; it is the unsafe direction for the presence claim the file
+ * now makes.
+ *
+ * WHAT THIS PARAGRAPH USED TO SAY, AND WHY THE CORRECTION MATTERS MORE THAN THE
+ * SENTENCE. It read: "because this journey is ledgered known-red, a false green
+ * here does not merely mis-measure, it FAILS THE RUN with 'this journey is in
+ * ledger.json as known-red and it is GREEN'". That is not true and has not been
+ * for some time — this journey is in neither `known_red` nor `_closed`. The
+ * ledger's bidirectionality is real, and it was a genuine safety net while the
+ * entry existed; with the entry gone, a false green here is simply a green.
+ *
+ * The argument was LOAD-BEARING, so it is replaced rather than deleted. Two
+ * things defend this assertion now, and neither involves the ledger:
+ *
+ *   * the narrowing itself — the regex is applied to what an author WROTE as a
+ *     label, so the event-log row that produced the historical false match
+ *     cannot match again, and the wide count is still returned and printed so
+ *     the narrowing stays auditable from the transcript;
+ *   * and, decisively, the CLASSIFIED-hop assertion further down. Presence is
+ *     not the capability: `ct/originChain` answers `success: true` for a value
+ *     it cannot attribute at all, so the journey asks the engine and counts the
+ *     hops that came back classified. A control matched out of an event-log
+ *     string has no engine behind it and reddens there.
+ *
+ * A presence check whose only backstop was a ledger entry would have been
+ * resting on a file nobody had to keep in step with this one.
  *
  * So the regex is applied to what an AUTHOR wrote as a label:
  *
@@ -286,7 +312,8 @@ const READ_CONTROLS = () => {
  * `ct/originChain` replies `success: true` in BOTH states — a chain of
  * successful calls every one of which says `kind: "unknown"`,
  * `confidence: 0`, `classificationProvenance: "built-in: source unavailable"`
- * is exactly what this journey's ledger entry was written from.
+ * is exactly the state this journey was written after measuring. (It was
+ * carried in `ledger.json` then; the entry no longer exists.)
  *
  * `globalThis.__btReplayWorker` is where `engine_transport.nim` parks the
  * worker. Nothing is added to the page for this: a session that never reached

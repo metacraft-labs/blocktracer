@@ -63,7 +63,7 @@ export const id = "a-transaction-list-says-what-can-be-debugged";
 export const claim =
   "A visitor reading a transaction list can tell which transactions can be debugged against source, and the badge never claims more than the recording carries.";
 export const spec = "Page-Descriptions.md §6, §7.1, §9 — BlockTracer";
-export const assertions = 13;
+export const assertions = 16;
 
 /** Read every row of every transactions table on the page in front of us. */
 const readRows = (page) =>
@@ -146,6 +146,22 @@ export async function run({ browser, site, j }) {
   // ---- 2. a stated row states it VISIBLY, in the first column --------------
   const stated = rows.filter((r) => r.state !== null);
   const unstated = rows.filter((r) => r.state === null);
+  // BOTH BRANCHES NEED A SUBJECT, AND NEITHER HAD ONE.
+  //
+  // Nine of this journey's thirteen assertions are `countIs(…, 0)` over a subset
+  // of `rows`, and `rows` itself is asserted (123 of them). But the SUBSETS were
+  // not: a renderer that stopped emitting the badge entirely empties `stated`,
+  // and the two assertions below become `countIs(0, 0)` — a clean pass over a
+  // list that has stopped saying anything at all, which is the exact defect §6
+  // is about. The mirror holds for `unstated` and claim 3.
+  //
+  // Measured: 123 rows over 54 lists, 24 stated and 99 not. The floors are
+  // existential rather than counted because the split is a property of whichever
+  // recordings the chain has published, not a number this file may pin — but an
+  // existential floor on a set that CAN empty is the difference between a
+  // vacuous pass and a red, which is what these are for.
+  j.atLeast(stated.length, 1, "SUBJECTS: rows whose recording states a source resolution");
+  j.atLeast(unstated.length, 1, "SUBJECTS: rows that say nothing about source");
   j.countIs(
     stated.filter((r) => !r.visible || !r.text).length,
     0,
@@ -207,6 +223,14 @@ export async function run({ browser, site, j }) {
   // act. A list that promised source and a page that did not mention it would
   // be the divergence §7.1 exists to forbid.
   const pageDisagrees = [];
+  // THE `continue` SKIPS THE ONLY THING THIS BLOCK DOES, so how many times it
+  // did NOT skip is the whole question. A corpus in which every row is silent
+  // takes the `continue` on all 54 lists, opens no page, compares nothing, and
+  // `countIs(pageDisagrees.length, 0)` prints a pass — the §7.1 divergence check
+  // reporting green having loaded not one transaction page. Counted here and
+  // asserted below, which is `run.mjs`'s declared-assertion rule applied inside
+  // a loop the declared count cannot see into.
+  let pagesCompared = 0;
   for (const [key, states] of byTx) {
     const state = [...states][0];
     if (state === "null") continue;
@@ -228,10 +252,16 @@ export async function run({ browser, site, j }) {
       if (said === null || want === null || !said.startsWith(want.split(" ").slice(0, 2).join(" "))) {
         pageDisagrees.push(`${key} list=${want} page=${said}`);
       }
+      pagesCompared += 1;
     } finally {
       await v.page.close();
     }
   }
+  j.atLeast(
+    pagesCompared,
+    1,
+    "SUBJECTS: transaction pages opened and compared against the row that promised them",
+  );
   j.countIs(
     pageDisagrees.length,
     0,

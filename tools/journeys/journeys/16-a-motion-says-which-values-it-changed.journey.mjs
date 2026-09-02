@@ -58,7 +58,7 @@ export const spec = "Debugger-Integration.md §4.2, Page-Descriptions.md §7.0 �
 // 3 subject counts, 7 per arm over two arms, and 7 taken across both walks
 // together — the mixed step, the name that arrived, and the everything-marked
 // reading are each rarer than one walk can be relied on to produce.
-export const assertions = 3 + 2 * 7 + 6;
+export const assertions = 3 + 2 * 7 + 7;
 export const needsEngine = true;
 
 const WALK = 8;
@@ -216,10 +216,19 @@ async function arm(browser, site, j, subject, tag) {
       0,
       `${tag}: no row is marked whose value did not differ from the previous position`,
     );
+    // THE SIZE OF WHAT THIS QUANTIFIES OVER IS IN THE TEXT, because on one arm
+    // it is zero. `differed` is 0 on the source-level walk — every mark it
+    // produces is a name ARRIVING, not a value changing in place — so this
+    // record is vacuously true there, a mutation arm aimed at it SURVIVED, and
+    // the file said so twenty lines above while the transcript line itself read
+    // like a measurement. It now reads `(over 0 such rows)`, which is what it
+    // is. The claim's non-vacuity is established across BOTH walks by the
+    // control in the combined section below.
     j.countIs(
       under.length,
       0,
-      `${tag}: every row whose value differs from the previous position carries a mark`,
+      `${tag}: every row whose value differs from the previous position carries a mark` +
+        ` (over ${differed} such rows)`,
     );
     j.countIs(
       verdicts.flatMap((v) => v.both).length,
@@ -259,6 +268,24 @@ export async function run({ browser, site, j }) {
   // A step on which everything changed, or nothing did, is passed by a blanket
   // highlight and by a feature that does nothing respectively. The claim has to
   // be taken somewhere both answers are on screen at once.
+  // THE UNDER-MARKING CLAIM HAS A SUBJECT SOMEWHERE, ASSERTED ONCE.
+  //
+  // Neither arm can carry this on its own: the source-level walk changes no
+  // value in place (`differed` 0, so its copy of "every changed row carries a
+  // mark" is vacuous), and the chain walk is one recording. What has to hold is
+  // that the pair of walks reached a value that CHANGED — otherwise both copies
+  // are vacuous at once and nothing in this file would say so, which is the
+  // state the per-arm records cannot detect by construction.
+  //
+  // Written across the union rather than per arm precisely because it is a claim
+  // about the union. If a future corpus change makes the chain walk stop
+  // changing values in place too, this reddens and names the condition.
+  j.atLeast(
+    verdicts.reduce((a, v) => a + v.expectChanged.size, 0),
+    1,
+    "CONTROL: some position in the two walks changed a value IN PLACE, so the under-marking claim has a subject",
+  );
+
   const mixed = verdicts.filter((v) => v.mixed);
   // THE FLOOR IS 2 AND NOT 1. §4b: an existential control is satisfied by one
   // member of five, and the mixed step is the ONLY shape that discriminates

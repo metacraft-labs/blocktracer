@@ -71,7 +71,7 @@ export const id = "a-stepped-session-shows-the-values-recorded-on-its-lines";
 export const claim =
   "A visitor who steps sees the engine's recorded values, placed on the source lines they were recorded on.";
 export const spec = "Omniscience-Flow.md; Page-Descriptions.md §7.0 — BlockTracer";
-export const assertions = 2 + 6 + 4; // 12
+export const assertions = 2 + 6 + 5; // 13
 export const needsEngine = true;
 
 /** How many times each session is stepped. See journey 11 on why it is a walk. */
@@ -346,6 +346,25 @@ export async function run({ browser, site, j }) {
       readings.some((r) => r.step !== readings[0].step),
       "REAL: CONTROL — the walk moved the position",
       `steps ${readings.map((r) => r.step).join(" -> ")}`,
+    );
+    // THE PRECONDITION FOR AN ABSENCE TO BE A MEASUREMENT.
+    //
+    // Both assertions below are `countIs(…, 0)` over `flowLines`, and
+    // `probe.mjs` returns `flowLines: []` for ANY page where `shownDocs.length
+    // !== 1` — deliberately, because the source pane holds every document at
+    // once and a document-wide read would report the overlay of a file nobody is
+    // looking at. The consequence here is that a session showing zero documents,
+    // or four, produces an empty overlay reading and satisfies "there is no
+    // overlay" for a reason that has nothing to do with the claim.
+    //
+    // The source arm has a positive backstop — it asserts labels are PRESENT, so
+    // an empty read reddens there. This arm asserts only absences, so it has
+    // none, and the precondition has to be stated. `docsShown` comes from the
+    // same reading and is exactly the condition `flowLines` gates on.
+    j.countIs(
+      readings.filter((r) => r.facts.docsShown === 1).length,
+      readings.length,
+      "REAL: CONTROL — every reading had one document on screen, so an empty overlay is a measurement",
     );
     j.countIs(
       readings.filter((r) => r.labels > 0).length,

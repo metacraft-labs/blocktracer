@@ -60,7 +60,7 @@ export const id = "the-flow-window-follows-the-position";
 export const claim =
   "The flow window the engine answers with is the window for the position the session is at.";
 export const spec = "Omniscience-Flow.md — BlockTracer";
-export const assertions = 1 + 8; // 9
+export const assertions = 1 + 9; // 10
 export const needsEngine = true;
 
 const WALK = 8;
@@ -277,6 +277,25 @@ export async function run({ browser, site, j }) {
   const framed = screen
     .map((r) => ({ ...r, fn: enclosing(headers, r.doc, r.marked) }))
     .filter((r) => r.fn !== null);
+  // THE SUBJECT COUNT, WHICH MATTERS MOST ON THE DAY THIS JOURNEY'S FIX LANDS.
+  //
+  // `filter((r) => r.fn !== null)` drops every reading whose enclosing function
+  // could not be resolved, and the assertion below then quantifies over what is
+  // left — so a state in which NO function resolves anywhere is `countIs(0, 0)`,
+  // a pass. That is not a remote hypothetical here: the ledgered defect this
+  // journey exists for is the engine reporting `functionFirst=0` for `main`,
+  // whose body begins on line 12, and the shape of a bad fix is exactly one that
+  // stops resolving rather than one that resolves correctly.
+  //
+  // While the ledger entry stands this record is red and the vacuity is masked
+  // by a failure. When the fix lands it goes green, and this is the assertion
+  // that decides whether it went green for the right reason. Measured today:
+  // eight readings resolve their function, and all eight violate the extent.
+  j.atLeast(
+    framed.length,
+    3,
+    "SUBJECTS: readings whose enclosing function could be resolved at all",
+  );
   j.countIs(
     framed.filter((r) => r.lines.some((n) => n < r.fn.first || n > r.fn.last)).length,
     0,

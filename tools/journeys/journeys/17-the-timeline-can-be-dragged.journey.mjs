@@ -366,7 +366,18 @@ async function demoArm(browser, site, j, subject) {
     // control being judged. With it in place the agreement below has a subject
     // that is guaranteed to vary, and the disjunct is gone.
     const readings = await steppingReadings(page, total);
-    j.countIs(readings.length, 4, "four toolbar steps were taken to read the handle against");
+    // NOT `countIs(readings.length, 4)`, WHICH COULD NOT FAIL. `steppingReadings`
+    // pushes once per iteration of a `for` bounded by its own argument, so the
+    // length is 4 by construction and the only way it is not is an exception,
+    // which leaves `run()` entirely. A count asserted as the length of the loop
+    // that built it is not a test. The number is still pinned — a shortened walk
+    // must fail — but it is pinned to readings that FOUND A HANDLE, which is a
+    // fact about the page rather than about the iteration.
+    j.countIs(
+      readings.filter((r) => r.handleTick > 0).length,
+      4,
+      "four toolbar steps were taken, and each found a handle drawn on the track",
+    );
     j.atLeast(
       new Set(readings.map((r) => r.step)).size,
       2,
@@ -386,7 +397,20 @@ async function demoArm(browser, site, j, subject) {
     // ── the drags ──────────────────────────────────────────────────────────
     const drags = [];
     for (const f of DROPS) drags.push(await drag(page, f, total));
-    j.countIs(drags.length, DROPS.length, "three drags were performed, each across most of the track");
+    // THE DENOMINATOR IS PINNED TO THE GESTURES, NOT TO THE LOOP.
+    //
+    // `drags.length === DROPS.length` is true by construction — the loop pushes
+    // once per fraction — so it could never fail, while reading as though it
+    // had checked something. What is worth checking is that the three gestures
+    // were three DIFFERENT gestures: `wanted` is computed from the release
+    // coordinate against the laid-out box, so a track with no width, a rect read
+    // before layout, or three drops that collapsed onto one point all redden
+    // here. Measured 986 / 395 / 723.
+    j.countIs(
+      new Set(drags.map((d) => d.wanted)).size,
+      DROPS.length,
+      "three drags were performed, each releasing at a different point on the track",
+    );
     j.countIs(
       drags.filter((d) => d.settled).length,
       drags.length,
@@ -484,7 +508,11 @@ async function chainArm(browser, site, j, subject) {
 
     const drags = [];
     for (const f of DROPS) drags.push(await drag(page, f, total));
-    j.countIs(drags.length, DROPS.length, "REAL: three drags were performed on the chain capture");
+    j.countIs(
+      new Set(drags.map((d) => d.wanted)).size,
+      DROPS.length,
+      "REAL: three drags were performed on the chain capture, each releasing somewhere else",
+    );
     j.countIs(
       drags.filter((d) => d.handleFollowed).length,
       drags.length,
