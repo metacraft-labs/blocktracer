@@ -383,6 +383,72 @@ const ARMS = [
     assertion: "NO-SOURCE: and it offers no origin control, because none could answer",
   },
   {
+    id: "Q1/the-lead-in-window-comes-back",
+    why:
+      "Re-introduce the six-line lead-in the Code pane used to take, in the" +
+      " renderer this time. This IS the reported defect: on `loops and iteration`" +
+      " the pane showed thirteen lines of an 83-line file under a banner reading" +
+      " 'Showing from line 71'. It is aimed at the COUNT and not at the banner," +
+      " because the banner is the false pass this journey is built to exclude — a" +
+      " file shorter than the lead-in carries no banner either, so only an" +
+      " equality against the file's own published length can tell 'the whole file'" +
+      " from 'some of it'.",
+    file: join(CLIENT, "src", "components", "debugger.nim"),
+    find: `    let first = (if d.lines.len > 0: d.lines[0].number else: 1)`,
+    replace: `    var d = d
+    if p.currentLine > 7:
+      var keep: seq[SourceLine]
+      for ln in d.lines:
+        if ln.number >= p.currentLine - 6: keep.add ln
+      if keep.len > 0: d.lines = keep
+    let first = (if d.lines.len > 0: d.lines[0].number else: 1)`,
+    journey: "a-source-file-is-shown-whole",
+    assertion: "every Code pane holds one row per line of the file its page publishes",
+  },
+  {
+    id: "Q2/a-reduction-announced-that-nobody-made",
+    why:
+      "Emit the `Showing from line N` notice unconditionally, WITHOUT dropping a" +
+      " single row. The pane then renders the whole file and tells the reader it" +
+      " is a window onto it — an announcement of a reduction that was not made," +
+      " which §13 rules out in the same breath as a silent one. The arm is the" +
+      " orthogonal half of Q1 and is surgical on purpose: every count in the" +
+      " journey must stay green, or it would be proving the banner assertion with" +
+      " a mutation that had already broken the file.",
+    file: join(CLIENT, "src", "components", "debugger.nim"),
+    find: `        if first > 1:`,
+    replace: `        if first >= 1:`,
+    journey: "a-source-file-is-shown-whole",
+    assertion: "no Code pane announces a window onto the file",
+  },
+  {
+    id: "Q3/the-files-last-line-is-dropped",
+    why:
+      "Drop the last line of every file at the splitter: `setLen(len - 1)` becomes" +
+      " `setLen(len - 2)`, so the trailing-newline guard eats a real line along" +
+      " with the phantom one. That off-by-one is the most ordinary way a" +
+      " whole-file pane stops being one, and it is invisible to a reader who never" +
+      " scrolls — the pane opens on the position, the position is marked, and the" +
+      " file simply ends one line early. It reaches the RENDERED rows and not the" +
+      " island (`#bt-session-source` carries the file's TEXT, which this does not" +
+      " touch), so what the page publishes and what the page paints disagree by" +
+      " exactly one line, which is the comparison this journey makes." +
+      " NOT SURGICAL, deliberately: a lost line also reddens the count and the" +
+      " unbroken-range assertions, which is honest, because a product that lost" +
+      " its last line HAS lost a line. The claim is only that the assertion NAMED" +
+      " here flips; the surgical arm of the set is Q2." +
+      " THE OBVIOUS ARM DOES NOT WORK, and that is worth recording: setting" +
+      " `.src` to `overflow:hidden` was tried first and SURVIVED, because an" +
+      " `overflow:hidden` box is still scrollable PROGRAMMATICALLY — `scrollTop`" +
+      " moves it and only the reader cannot. A probe that drives the container" +
+      " reports such a pane as reachable, and it is not.",
+    file: join(CLIENT, "src", "debugger", "source_document.nim"),
+    find: `    result.setLen(result.len - 1)`,
+    replace: `    result.setLen(result.len - 2)`,
+    journey: "a-source-file-is-shown-whole",
+    assertion: "scrolling a Code pane to its end paints the file's last line",
+  },
+  {
     id: "O3/an-unexplained-absence",
     why:
       "Drop the sentence that says why a value in a source-less recording cannot be" +
