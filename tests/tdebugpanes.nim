@@ -45,7 +45,7 @@
 ## Build:
 ##   just debug-panes                 # resolves CODETRACER_SRC / ../codetracer
 
-import std/[json, strutils, unittest]
+import std/[json, strutils, tables, unittest]
 
 import codetracer_embed
 
@@ -666,5 +666,313 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       check asserted == 24
 
       fresh.close()
+      s.close()
+      dispose()
+
+# ---------------------------------------------------------------------------
+# The captured window: a real `ct/updated-flow`, from the pinned Embed SDK
+# ---------------------------------------------------------------------------
+#
+# `projectFlowRail`'s header records why the VALUES did not cross before this
+# suite grew the block below:
+#
+#     neither the parse nor the rendering can be checked against anything here:
+#     a test written against a payload this repository invented would pass
+#     whatever the engine actually sends
+#
+# The objection is answered by not inventing one. `capture_zk_shields_flow.nim`
+# in the pinned SDK recorded `viewUpdates[0]` of a real `ct/updated-flow`
+# event, verbatim, from the engine replaying `noir_space_ship` — the same
+# program `fixtures/trace/noir_space_ship/zk_shields.ct` in THIS repository was
+# recorded from — and ships it beside its own tests. So the parse below is
+# checked against bytes the engine wrote, at the commit `ci/embed-sdk-pin.env`
+# names, and a drift in the wire format fails this suite rather than passing it.
+#
+# THE EXPECTATIONS ARE RELATIONS, NOT CONSTANTS. Every value asserted below is
+# recomputed from the capture by a second, deliberately naive reader in this
+# file and compared against what the projection produced. A constant copied out
+# of the capture would be satisfied by a projection that had copied the same
+# constant; the two readers agreeing is the evidence. The SIZES are constants,
+# and they are asserted, because a relation that quantifies over an empty set
+# is a pass (`Verification-Harness-Traps.md` §4).
+
+const CodetracerSrc* {.strdefine.} = ""
+  ## The Embed SDK checkout `ci/test/debug-panes-test.sh` resolved, passed in
+  ## rather than re-derived here — the script already finds it three ways
+  ## (`$CODETRACER_SRC`, the sibling checkout, the Nix input) and two resolvers
+  ## is how the tree this suite compiles against and the tree it reads fixtures
+  ## from come to differ.
+
+const CapturedWindowPath =
+  "src/frontend/viewmodel/tests/fixtures/flow/zk_shields_flow_window.json"
+
+proc capturedWindow(): JsonNode =
+  ## The capture, or a raise. NOT an empty object and not a `skip`: a suite that
+  ## quietly passed when it could not find the one artefact it is written
+  ## against is the false green this block exists to be.
+  parseJson(readFile(CodetracerSrc & "/" & CapturedWindowPath))
+
+proc recordedPairs(view: JsonNode): seq[(int, string, int)] =
+  ## Every (line, expression, pass) the engine recorded a value for, read
+  ## straight out of the capture.
+  ##
+  ## The naive reader. It knows three things — a step's `position` is a source
+  ## line, its `loop`/`iteration` name the pass, and `beforeValues`/`afterValues`
+  ## are keyed by expression name — and nothing else. `return` is excluded
+  ## because it is not an expression and does not travel as one
+  ## (`live_flow.ReturnExpression`); a step outside every real loop is
+  ## `flow_view.NoIteration`, which is the same rule `toAnnotation` applies.
+  var seen = initTable[string, bool]()
+  for step in view{"steps"}:
+    let line = step{"position"}.getInt(0)
+    let loop = step{"loop"}.getInt(0)
+    let pass = if loop > 0: step{"iteration"}.getInt(0) else: NoIteration
+    for field in ["beforeValues", "afterValues"]:
+      let map = step{field}
+      if map == nil or map.kind != JObject: continue
+      for name, _ in map:
+        if name == ReturnExpression: continue
+        let key = $line & "\x1f" & name & "\x1f" & $pass
+        if seen.hasKeyOrPut(key, true): continue
+        result.add (line, name, pass)
+
+proc paneLabels(pane: EditorPane; path: string): seq[(int, string, int)] =
+  ## The same triple, read off the pane the renderers draw.
+  for doc in pane.documents:
+    if doc.path != path: continue
+    for line in doc.lines:
+      for ann in line.annotations:
+        if ann.label.len == 0: continue
+        result.add (line.number, ann.label, ann.iteration)
+
+proc labelTextFor(pane: EditorPane; path: string; line: int;
+                  expression: string): string =
+  for doc in pane.documents:
+    if doc.path != path: continue
+    for row in doc.lines:
+      if row.number != line: continue
+      for ann in row.annotations:
+        if ann.label == expression:
+          return (if ann.afterValue.len > 0: ann.afterValue else: ann.beforeValue)
+  ""
+
+suite "M8b — omniscience follows a live session":
+
+  test "a REAL ct/updated-flow window puts its values on the lines it recorded them on":
+    createRoot proc(dispose: proc()) =
+      # The capture first, and its own size asserted, so nothing below can
+      # quantify over an empty set and pass.
+      check CodetracerSrc.len > 0
+      let capture = capturedWindow()
+      let view = capture{"viewUpdate"}
+      let position = capture{"position"}
+      check view != nil and view.kind == JObject
+      check view{"steps"}.len == 76        # the window the engine sent
+      check view{"loops"}.len == 2         # the placeholder, and one real loop
+      check capture{"sourceLines"}.len == 68
+
+      # The file, from the capture's own `sourceLines`. Not a copy of
+      # `shield.nr` kept here: the placement rules ask where an expression
+      # occurs in a line, so the text the values were recorded against has to be
+      # the text they are placed against, and the capture carries both.
+      var shieldNr = ""
+      for line in capture{"sourceLines"}:
+        shieldNr.add line.getStr("") & "\n"
+
+      let (s, mock) = openSessionWith()
+      s.store.setSourceAvailability(savVerified)
+      s.store.setSessionMode(completedReplay)
+
+      let ticks = uint64(position{"rrTicks"}.getInt(0))
+      check ticks == 121'u64               # the position the capture was taken at
+      s.store.updateDebuggerPosition(
+        ticks, file = "src/shield.nr", line = position{"line"}.getInt(0))
+
+      # ── the negative first ────────────────────────────────────────────────
+      # Before the window arrives there are no values, so nothing after it can
+      # be satisfied by a pane that annotates unconditionally.
+      let blank = projectSession(s, "src/shield.nr", shieldNr,
+                                 int(ticks), 1315)
+      check paneLabels(blank.editor, "src/shield.nr").len == 0
+      check not s.flowWindow.hasWindowFor(ticks)
+
+      # …and the move DID make the session ask. A window that appeared without
+      # the request having gone out would be reading something else.
+      var asked = 0
+      for received in mock.receivedCommands:
+        if received.command == "ct/load-flow": inc asked
+      check asked >= 1
+
+      # ── the window, delivered as the engine delivers it ───────────────────
+      # `viewUpdates[0]` verbatim, under the envelope location the event
+      # carries. The EVENT path and not a setter: `ct/load-flow`'s real answer
+      # is a queued `ct/updated-flow`, and a consumer that read only the reply
+      # would be empty against the real engine while this suite passed.
+      mock.emitEvent(%*{
+        "event": UpdatedFlowEvent,
+        "body": {"location": position, "viewUpdates": [view]}})
+
+      check s.flowWindow.hasWindowFor(ticks)
+      check s.flowWindow.functionLabel == "iterate_asteroids"
+
+      let live = projectSession(s, "src/shield.nr", shieldNr, int(ticks), 1315)
+      let shown = paneLabels(live.editor, "src/shield.nr")
+      let recorded = recordedPairs(view)
+
+      # The two readers, and the size of the set the comparison is over.
+      check recorded.len == 179
+      check shown.len == recorded.len
+
+      var missing = 0
+      for pair in recorded:
+        if pair notin shown: inc missing
+      check missing == 0
+
+      # Nothing INVENTED, either. The pane may not carry a label the engine did
+      # not record — the direction a projection that fell back to "some
+      # plausible value" would fail on, and the one a coverage check alone
+      # cannot see.
+      var invented = 0
+      for pair in shown:
+        if pair notin recorded: inc invented
+      check invented == 0
+
+      # ── the VALUE, not just the name ──────────────────────────────────────
+      # `live_locals.valueText` renders the engine's `Value`; the capture holds
+      # the same value as raw JSON. Both are read here and compared, so a
+      # renderer that produced an empty string for every kind — the exact defect
+      # `live_locals`' ordinal table was derived to avoid — fails.
+      var wireValue = ""
+      var wireLine = 0
+      for step in view{"steps"}:
+        let value = step{"afterValues"}{"initial_shield"}
+        if value != nil and value.kind == JObject and
+           value{"kind"}.getInt(-1) == 7:
+          wireValue = value{"i"}.getStr("")
+          wireLine = step{"position"}.getInt(0)
+          break
+      check wireValue.len > 0
+      check wireLine > 0
+      check labelTextFor(live.editor, "src/shield.nr", wireLine,
+                         "initial_shield") == wireValue
+
+      # ── the pass a label belongs to (rule 2) ──────────────────────────────
+      # Every pass writes the SAME nine lines, so a projection that dropped the
+      # pass would collapse them into one line's worth of labels and show pass
+      # 7's numbers while the session is in pass 1. Counted, and the count is
+      # cross-checked against the capture rather than stated: the two readers
+      # have to agree about how many passes recorded anything.
+      var passes: seq[int] = @[]
+      for (_, _, pass) in shown:
+        if pass >= 0 and pass notin passes: passes.add pass
+      var wirePasses: seq[int] = @[]
+      for (_, _, pass) in recorded:
+        if pass >= 0 and pass notin wirePasses: wirePasses.add pass
+      check passes.len == 8
+      check wirePasses.len == passes.len
+
+      # EIGHT PASSES OF VALUES AND NINE ITERATIONS ON THE RAIL, and the two
+      # numbers are different because the ninth pass is the loop header's last
+      # evaluation — the one that ended the loop. The engine records a step for
+      # it (`exprOrder: ["i"]`, on line 4) and no values, so it is a pass the
+      # rail can reach and a pass with nothing to show. Asserting one number for
+      # both would have forced whichever is wrong onto the other.
+      check live.editor.flow.iterations.len == 9
+
+      # And the rail opens on the pass the POSITION is in, derived from the
+      # tick and not defaulted to 0 (issue #593). 121 falls between the second
+      # and third iteration headers, which is pass 1.
+      check live.editor.flow.loopIndex == 1
+      check live.editor.flow.line == 4
+      check live.editor.flow.selected == 1
+
+      # ── and it goes STALE the moment the session moves ────────────────────
+      # The window is a statement about tick 121. A step away from it must
+      # remove the overlay, not carry it to the new position — a value from the
+      # frame you WERE at, shown as the frame you are in, is the confident wrong
+      # answer this whole route refuses.
+      s.store.updateDebuggerPosition(203'u64, file = "src/shield.nr", line = 9)
+      check not s.flowWindow.hasWindowFor(203'u64)
+      let moved = projectSession(s, "src/shield.nr", shieldNr, 203, 1315)
+      check paneLabels(moved.editor, "src/shield.nr").len == 0
+
+      s.close()
+      dispose()
+
+  test "instruction level gets no overlay, however full the window is":
+    ## Rule 1, over the same real window. Below source-level fidelity there is
+    ## nothing to place a value against, and the failure mode is not an empty
+    ## pane — it is a complete, confident, entirely fictional one. The window
+    ## here is the same 76 real steps; the only thing that changes is what the
+    ## page published.
+    createRoot proc(dispose: proc()) =
+      let capture = capturedWindow()
+      let view = capture{"viewUpdate"}
+      let position = capture{"position"}
+      var shieldNr = ""
+      for line in capture{"sourceLines"}:
+        shieldNr.add line.getStr("") & "\n"
+
+      let (s, mock) = openSessionWith()
+      s.store.setSessionMode(completedReplay)
+      let ticks = uint64(position{"rrTicks"}.getInt(0))
+      s.store.setSourceAvailability(savVerified)
+      s.store.updateDebuggerPosition(ticks, file = "src/shield.nr", line = 7)
+      mock.emitEvent(%*{
+        "event": UpdatedFlowEvent,
+        "body": {"location": position, "viewUpdates": [view]}})
+
+      # The control: at source level this window DOES annotate. Without it the
+      # assertion below would be satisfied by a window that never applied.
+      check s.flowWindow.hasWindowFor(ticks)
+      let verified = projectSession(s, "src/shield.nr", shieldNr,
+                                    int(ticks), 1315)
+      check paneLabels(verified.editor, "src/shield.nr").len == 179
+
+      s.store.setSourceAvailability(savUnverified)
+      let degraded = projectSession(s, "src/shield.nr", shieldNr,
+                                    int(ticks), 1315)
+      var labels = 0
+      for doc in degraded.editor.documents:
+        for line in doc.lines: labels += line.annotations.len
+      check labels == 0
+      check degraded.editor.flow.loopIndex == 0
+
+      s.close()
+      dispose()
+
+  test "a window for another FILE annotates nothing on this one":
+    ## The path is resolved, not compared — the engine sends an absolute path on
+    ## the recording machine and the pane's documents carry the interned one, so
+    ## a `==` would be false for every real session. Resolving it must not
+    ## become resolving it to WHATEVER is open: a window loaded for `main.nr`
+    ## has nothing to say about `shield.nr`, and putting its values there would
+    ## be values on lines they were never recorded on.
+    createRoot proc(dispose: proc()) =
+      let capture = capturedWindow()
+      let view = capture{"viewUpdate"}
+      var shieldNr = ""
+      for line in capture{"sourceLines"}:
+        shieldNr.add line.getStr("") & "\n"
+
+      let (s, mock) = openSessionWith()
+      s.store.setSourceAvailability(savVerified)
+      s.store.setSessionMode(completedReplay)
+      s.store.updateDebuggerPosition(121'u64, file = "src/shield.nr", line = 7)
+
+      # The same window, relabelled as another file's. Everything else about it
+      # is the engine's.
+      mock.emitEvent(%*{
+        "event": UpdatedFlowEvent,
+        "body": {
+          "location": {
+            "path": "/somewhere/noir_space_ship/src/main.nr",
+            "line": 12, "rrTicks": 121},
+          "viewUpdates": [view]}})
+
+      check s.flowWindow.hasWindowFor(121'u64)
+      let view2 = projectSession(s, "src/shield.nr", shieldNr, 121, 1315)
+      check paneLabels(view2.editor, "src/shield.nr").len == 0
+
       s.close()
       dispose()

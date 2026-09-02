@@ -280,6 +280,23 @@ proc parseFlowWindow*(payload: JsonNode;
   if location.isNil or location.kind != JObject: location = view{"location"}
   if location.isNil or location.kind != JObject: location = newJObject()
 
+  # WHICH file and WHICH function are asked of both locations, and the tick is
+  # not. They are different questions about the same envelope: the tick is the
+  # POSITION the window belongs to and the envelope's is the authoritative one —
+  # the view's is the window's own start and is a different number, 9 against
+  # 121 in the captured window this parse is tested against, so preferring the
+  # wrong one would open the loop rail on the wrong pass. The path and the
+  # function name are properties of the WINDOW and are the same on both, so the
+  # one that is populated is taken; an envelope carrying a bare
+  # `{path, line, rrTicks}` is a real shape and would otherwise lose the
+  # function label the rail is named for.
+  let viewLocation =
+    if view{"location"}.isNil or view{"location"}.kind != JObject: newJObject()
+    else: view{"location"}
+  proc firstNonEmpty(field: string): string =
+    result = location{field}.getStr("")
+    if result.len == 0: result = viewLocation{field}.getStr("")
+
   var built = vendored.FlowLayoutWindow(tabSize: 4)
 
   let passesByLoop = view{"loopIterationSteps"}
@@ -331,8 +348,8 @@ proc parseFlowWindow*(payload: JsonNode;
 
   window = built
   returns = recordedReturns
-  path = location{"path"}.getStr("")
-  functionLabel = location{"functionName"}.getStr("")
+  path = firstNonEmpty("path")
+  functionLabel = firstNonEmpty("functionName")
   ticks = jsonInt(location{"rrTicks"}, 0)
   true
 

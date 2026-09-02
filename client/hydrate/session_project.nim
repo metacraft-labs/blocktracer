@@ -55,6 +55,11 @@ import ./live_locals
 import ./live_navigation
 import ./live_origin
 export deeplink_landing
+# `flow_view` is in this module's PUBLIC surface — `projectFlowWindow` returns
+# its `FlowWindowInput` and `applyLiveFlow` takes its `EditorPane` — so a
+# consumer that could call them but not name their types would have to reach
+# past this facade to use it.
+export flow_view
 export live_flow
 export live_locals
 export live_navigation
@@ -421,6 +426,13 @@ proc projectFlowWindow*(feed: FlowFeed; pane: EditorPane): FlowWindowInput =
   ## `applyFlow` refuses — the honest reading of "no window has been loaded for
   ## any file this page is showing".
   if feed == nil: return
+  # A window that named no file resolves to NOTHING, explicitly. The suffix rule
+  # is written for two spellings of one real path and says nothing useful about
+  # the empty string; letting it decide would make "the engine did not say which
+  # file" indistinguishable from "the engine said this one", and the values
+  # would land on whichever document sorted first. That is the invented-overlay
+  # failure with no wrong data in it at all.
+  if feed.enginePath.len == 0: return
   var paths: seq[string]
   for doc in pane.documents: paths.add doc.path
   let index = positionDocumentIndex(paths, feed.enginePath)

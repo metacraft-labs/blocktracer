@@ -147,5 +147,11 @@ paths=(
 [ -n "${isonim}" ] && paths+=("--path:${isonim}/src")
 [ -n "${neverywhere}" ] && paths+=("--path:${neverywhere}/src")
 
+# `-d:codetracerSrc` is the SAME `${ct}` the --path flags above are built from,
+# handed to the suite so it can read the Embed SDK's own captured
+# `ct/updated-flow` window. One resolver: a suite that found the checkout its
+# own way could compile against one tree and read fixtures from another, which
+# is a green run about two different versions of the wire format.
 echo "--- the five ViewModels drive the five panes"
-nim c -r --hints:off -d:nimOldCaseObjects "${paths[@]}" "${suite}"
+nim c -r --hints:off -d:nimOldCaseObjects "-d:codetracerSrc=${ct}" \
+	"${paths[@]}" "${suite}"
