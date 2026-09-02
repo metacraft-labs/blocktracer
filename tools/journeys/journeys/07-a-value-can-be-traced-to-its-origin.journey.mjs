@@ -80,7 +80,7 @@
 // a live but nameless pane, and an origin chain over it would terminate at
 // `UnknownVariable` on every hop.
 //
-// Where it WOULD be meaningful is the demo tour: eight real Noir programs
+// Where it WOULD be meaningful is the demo tour: the real Noir programs
 // recorded by `nargo trace`, each with a `sources/` tree and `varnames` in its
 // trace. That — not the real chain — is the subject the surface should first be
 // demonstrated on.

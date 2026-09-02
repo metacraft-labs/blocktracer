@@ -112,8 +112,8 @@ const
     ##
     ## `tools/capture/lib/entities.mjs` walks transactions newest block first and
     ## every debugger view pins its subject by what the trace IS — "the first
-    ## transaction whose trace is ready", "…divergent", "…on-demand". Eight new
-    ## ready transactions ABOVE 102 would become `readyTx` and silently re-point
+    ## transaction whose trace is ready", "…divergent", "…on-demand". A new
+    ## ready transaction ABOVE 102 would become `readyTx` and silently re-point
     ## the flagship `debugger` view and five pane views onto a different session,
     ## superseding every review recorded against them.
     ##
@@ -431,9 +431,10 @@ proc mkPublicFacts(seed, txHash, blockHash: string, height, index: int;
   ## what the M5c tree has always used and is why its four fee payers are
   ## `feepayer 0..3`.
   ##
-  ## The capability tour passes its own, and has to. Its eight transactions sit
-  ## at indices 0..7 of block 90, so the default would have put four of them on
-  ## the M5c tree's existing fee payers — silently extending four published
+  ## The capability tour passes its own, and has to. Its transactions sit at
+  ## indices 0..n-1 of block 90 — one per program in `fixtures/trace/tour/
+  ## manifest.json` — so the default would have put the first four of them on the
+  ## M5c tree's existing fee payers `feepayer 0..3` — silently extending four published
   ## address histories with a second segment. `tools/capture/lib/entities.mjs`
   ## selects `pagedAddress` as "the address whose history spans more than one
   ## block-range segment", and that is currently ONE address; four more would
@@ -843,7 +844,7 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
   # The contract index is `500 + i`, disjoint from the M5c tree's 0..6 and from
   # the `extraBlocks` range, so each program gets its own address and its own
   # code hash — which is what makes its source bundle its own rather than one
-  # bundle shared by eight programs claiming to be eight different ones.
+  # bundle shared by every program while each claimed to be a different one.
   let tour = readTour(cfg.tourDir)
   for i, prog in tour:
     let n = 500 + i

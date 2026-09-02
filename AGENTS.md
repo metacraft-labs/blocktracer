@@ -166,8 +166,9 @@ and then rendered no instructions.
 interpretation of a number against a version of the instruction set. The table
 predicts something falsifiable instead: for two consecutive steps that did not
 branch, `pc[i+1] - pc[i]` must equal the first instruction's encoded length. All
-2026 non-branching transitions across the eight published containers match, with
-zero mismatches — and a recording the table cannot explain renders `opcode 39`
+2026 non-branching transitions across the eight chain containers published when
+this was measured match, with zero mismatches — re-run it rather than reading the
+figure as current — and a recording the table cannot explain renders `opcode 39`
 rather than a guess, and says why.
 
 **A snapshot with no `instructions/` is a valid tree.** The pane falls back to
@@ -189,9 +190,11 @@ answering "what can this debugger show me?", and until 2026-09-01 it answered
 badly: one recording (`noir_space_ship` / `zk_shields`) stood behind all ten of
 its transactions, so opening any of them opened the same program.
 
-The corpus is **`fixtures/trace/tour/`** — eight small Noir programs, each with
-its own `.ct` container recorded by `nargo trace`, and a `manifest.json` saying
-what each demonstrates and what its recording must contain. Read its
+The corpus is **`fixtures/trace/tour/`** — one small Noir program per
+capability, each with its own `.ct` container recorded by `nargo trace`, and a
+`manifest.json` saying what each demonstrates and what its recording must
+contain. **`manifest.json`'s `programs[]` is the set** — read it there rather
+than from a count in prose; it grew from eight to nine when `limits` landed. Read its
 [README](./fixtures/trace/tour/README.md) before touching it.
 
 | | |
@@ -205,7 +208,7 @@ Three rules that are load-bearing rather than stylistic:
 
 - **Block 90, below the M5c tree's 100–102.** `tools/capture/lib/entities.mjs`
   walks newest block first and pins every debugger view by what the trace IS.
-  Eight new `ready` transactions above 102 would take `readyTx` from the
+  A `ready` transaction above 102 would take `readyTx` from the
   transaction the review corpus is recorded against. The tour ADDS subjects; it
   moves none. Same argument that put txF–txJ at the end of block 100.
 - **The tour's fee payers and contracts are keyed `500 + i`**, disjoint from

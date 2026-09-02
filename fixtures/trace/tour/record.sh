@@ -55,9 +55,43 @@ if [ "$have" != "$PIN" ]; then
   echo "         README.md deliberately, or use the pinned binary." >&2
 fi
 
+# THE DEFAULT SET IS READ FROM THE MANIFEST, NOT LISTED HERE.
+#
+# It used to be a hard-coded list, and the list silently went stale: `limits`
+# landed in `d837515` as a full ninth program — `sources/Nargo.toml`, a `src`
+# tree and `tour_limits.ct` — and this line was not updated. So "re-record every
+# container" re-recorded eight of nine and said nothing, which is precisely what
+# README.md's own rule forbids: "One pin for the whole corpus: a corpus recorded
+# by two tracers is two corpora." A pin bump run through the old default
+# produced exactly that, silently.
+#
+# `programs` in the manifest IS the recordable set — the same key
+# `check-corpus.sh` and the E2E layer's `programsWith` select on — so reading it
+# here means the three agree by construction. `python3` rather than `jq` for
+# `check-corpus.sh`'s reason: it is already a dependency of this repository's
+# tooling and `jq` is not.
 programs=("$@")
 if [ ${#programs[@]} -eq 0 ]; then
-  programs=(values loops branches calls generics events constraints mutation)
+  # Captured into a variable and then split, rather than `mapfile` from a
+  # process substitution: `mapfile` is bash 4 and this runs under macOS's
+  # bash 3.2 too, and the substitution would also throw away python's exit
+  # status — a manifest that failed to parse would read as "no programs".
+  program_list="$(python3 - "$HERE/manifest.json" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    m = json.load(f)
+for p in m.get("programs", []):
+    print(p["id"])
+PY
+  )" || { echo "could not read the recordable set from $HERE/manifest.json" >&2; exit 2; }
+  while IFS= read -r line; do
+    [ -n "$line" ] && programs+=("$line")
+  done <<< "$program_list"
+  if [ ${#programs[@]} -eq 0 ]; then
+    echo "$HERE/manifest.json names no programs; refusing to record nothing" >&2
+    exit 2
+  fi
+  echo "recording all ${#programs[@]} program(s) named by manifest.json: ${programs[*]}"
 fi
 
 rc=0
