@@ -944,7 +944,7 @@ proc noteFor*`,
     assertion: "LIVE: selecting a repeated frame makes the panel name that function",
   },
   {
-    id: "Q/the-scrubber-is-only-an-animation",
+    id: "SC1/the-scrubber-is-only-an-animation",
     why:
       "Make every scrub seek a no-op while leaving the painting alone. This is THE" +
       " defect journey 12 was written against and the cheapest way to build the" +
@@ -964,7 +964,7 @@ proc noteFor*`,
     assertion: "every drop moved the marked source position, not only the readout",
   },
   {
-    id: "R/the-handle-waits-for-the-engine",
+    id: "SC2/the-handle-waits-for-the-engine",
     why:
       "Stop painting the handle under the pointer, so it only moves when a seek is" +
       " answered. The session still ends up exactly where it was dropped — every" +
@@ -984,35 +984,43 @@ proc noteFor*`,
     journey: "the-timeline-can-be-dragged",
     assertion: "REAL: the handle stayed under the pointer even while the engine lagged behind it",
   },
+  // ── THE ARM THAT IS NOT HERE, AND WHERE ITS DEFECT IS COVERED INSTEAD ──
+  //
+  // There was an arm `SC-stale/the-drop-point-loses-to-a-stale-target`, restoring the
+  // coalescing regression that shipped in the drag's first draft: a target
+  // decided when an earlier seek settled, issued after a newer one had already
+  // gone out, so the gesture finished on a step the visitor merely dragged
+  // THROUGH (released at 1052, ended at 707).
+  //
+  // IT SURVIVED, AND THE HONEST READING IS THAT THIS LAYER CANNOT JUDGE IT.
+  // Reproducing the defect needs a pointer move to arrive after the in-flight
+  // slot is released and before the deferred send — a window one microtask
+  // drain wide. Across roughly two dozen chances in a full journey run, no real
+  // pointer move landed there. Forcing it with injected pointer events from
+  // deep in the microtask queue did produce the stale REQUEST, and still not
+  // the stale resting place, because the engine's own latency varies by a
+  // factor of forty-five between the demo recording (46 ms median) and a real
+  // chain capture (~2.1 s) and the staging depends on which one answers when.
+  //
+  // An arm that reproduces its own defect only sometimes is a coin, not
+  // evidence, and a green run containing one is worse than no arm at all.
+  //
+  // So the rule moved out of the browser instead: `client/src/debugger/
+  // scrub_queue.nim` is the coalescing decision as ordinary data, and
+  // `client/tests/test_scrub_queue.nim` states that exact ordering as six
+  // lines with no clock in it, plus a MUTATION BITE case writing out the
+  // defective variant and showing it lands on the dragged-through step. Two
+  // deliberate mutations of the shipping module were checked by hand: removing
+  // the pending-clear reddens suite 1 case 2 and nothing else, and removing
+  // `drain`'s `nxt != sent` guard reddened NOTHING — which is how that guard
+  // was found to be unreachable and deleted, with the invariant it claimed
+  // asserted across a sixty-move drag instead.
+  //
+  // What journey 12 still owns is the end-to-end claim: the handle tracks the
+  // pointer while the button is down, and the session's own `data-step`
+  // afterwards is the step the release point names.
   {
-    id: "S/the-drop-point-loses-to-a-stale-target",
-    why:
-      "Hand the chained seek its target instead of letting it re-read the pending" +
-      " one. THIS ARM IS A REGRESSION THAT ACTUALLY SHIPPED IN THE FIRST DRAFT of" +
-      " the drag, which is why it is worth a whole arm: the continuation closed" +
-      " over the target that was pending when the previous seek settled, faster" +
-      " pointer moves then found the slot free and sent themselves, and the stale" +
-      " continuation overwrote the newer target. Measured on the demo chain, a drag" +
-      " released at step 1052 put 1052 on the wire and then 707, and the session" +
-      " finished at 707 — a position the visitor dragged THROUGH. Every other" +
-      " symptom is that of a working scrubber: the handle tracked, the mark moved," +
-      " the session settled. Only an equality against the release point sees it.",
-    file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `    h.scrubInFlight = false
-    # DEFERRED, and carrying nothing. \`deferTick\` says why the send waits for
-    # the next turn; \`scrubDrain\` says why it must re-read the target rather
-    # than be handed one.
-    deferTick(proc() = h.scrubDrain()))`,
-    replace: `    h.scrubInFlight = false
-    let nxt = h.scrubPending
-    h.scrubPending = 0
-    if nxt > 0 and nxt != h.scrubSent:
-      deferTick(proc() = h.scrubSeek(nxt)))`,
-    journey: "the-timeline-can-be-dragged",
-    assertion: "the step the session reports is the step the release point names",
-  },
-  {
-    id: "T/the-affordance-ships-without-the-gesture",
+    id: "SC3/the-affordance-ships-without-the-gesture",
     why:
       "Put the seekable class on the track in the RENDERER, so the scriptless build" +
       " carries it too. That build has no bundle, so nothing there can honour it —" +
@@ -1029,7 +1037,7 @@ proc noteFor*`,
     assertion: "the scriptless build promises no gesture: no role, no tab stop, no range, no cursor class",
   },
   {
-    id: "U/the-handle-stops-telling-the-truth",
+    id: "SC4/the-handle-stops-telling-the-truth",
     why:
       "Freeze the drawn playhead at the first tick, leaving the drag untouched." +
       " This is the QUIETER member of the same defect family — not a control that" +
@@ -1047,7 +1055,7 @@ proc noteFor*`,
     assertion: "after every toolbar step the handle sits on the tick the session's own step names",
   },
   {
-    id: "V/only-a-drag-counts-as-a-gesture",
+    id: "SC5/only-a-drag-counts-as-a-gesture",
     why:
       "Stop seeking on the press, so the control answers a drag and ignores a" +
       " click. A visitor who has just learnt the track is draggable will click it," +
@@ -1066,7 +1074,7 @@ proc noteFor*`,
     assertion: "a click on the track, with no drag at all, takes the session to that point",
   },
   {
-    id: "W/the-keyboard-goes-dead-again",
+    id: "SC6/the-keyboard-goes-dead-again",
     why:
       "Return from the keydown handler before it reads a key. The slider keeps" +
       " `role=\"slider\"` and its tab stop, so it is still announced as a range" +

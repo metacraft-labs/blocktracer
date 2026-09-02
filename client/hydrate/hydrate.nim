@@ -51,6 +51,7 @@ import codetracer_embed
 
 import ../src/debugger/replay_engine
 import ../src/debugger/session_view
+import ../src/debugger/scrub_queue
 import ../src/debugger/source_island
 import ../src/components/debugger as panes
 
@@ -1174,6 +1175,15 @@ type
     #    The handle itself never waits for any of it (`paintScrubber`), so the
     #    gesture is immediate even in that tail.
     #
+    #    THE RULE ITSELF IS NOT HERE. It is `debugger/scrub_queue.nim`, which
+    #    is ordinary data with no browser, no worker and no clock in front of
+    #    it, so `tests/test_scrub_queue.nim` can state the orderings directly.
+    #    That module's header records why: the one failure this rule has is a
+    #    drag that ends where the visitor merely dragged THROUGH, it shipped
+    #    once, and the browser-level gate written for it could not reproduce it
+    #    reliably — the window is a single microtask drain wide. This file owns
+    #    the DOM and the transport and none of the decision.
+    #
     # 2. A CLICK ON THE TRACK SEEKS TO THAT POINT, and it falls out of the same
     #    code rather than being a case beside it: a click is a `pointerdown`
     #    and a `pointerup` at one place, so the press seeks and the release
@@ -1184,16 +1194,7 @@ type
     #    which is a smaller version of the defect being fixed.
     scrubbing: bool          ## a pointer is down and owns the handle
     scrubTarget: int         ## the step under the pointer, painted, maybe unsent
-    scrubInFlight: bool      ## a scrub `ct/goto-ticks` is awaiting its answer
-    scrubSent: int           ## the step that in-flight request asked for
-    scrubPending: int
-      ## The newest step the pointer has reached that has not been asked for.
-      ##
-      ## ONE slot and not a queue, deliberately: every position between the
-      ## last request and the newest one is a place the visitor has already
-      ## dragged past, and seeking to each in turn would replay the drag at the
-      ## engine's speed after the hand had stopped. Superseding is the whole
-      ## point — what a scrub asks for is where the pointer IS.
+    scrubQ: ScrubQueue       ## which seek to send, and when
 
 const PositionSettleFrames = 6
   ## How long a paint may wait for the position's values before going ahead
@@ -1676,65 +1677,43 @@ proc gotoTicks(h: Hydration; ticks: int; onRefused: proc() = nil;
       if onSettled != nil: onSettled()
       h.fail("The replay engine stopped answering: " & message))
 
-proc scrubSeek(h: Hydration; step: int)
+proc scrubSend(h: Hydration; step: int)
 
 proc scrubDrain(h: Hydration) =
-  ## Issue whatever the pointer is asking for NOW, if the slot is free.
+  ## Fill the slot again, now that it is free.
   ##
-  ## READS `scrubPending` AT THE MOMENT IT RUNS, and takes no target of its own.
-  ## That is the whole content of this proc and it is worth the file it costs,
-  ## because the version that passed the target in was wrong in a way a
-  ## single-drag test would not have shown.
+  ## The decision is `scrub_queue.drain`'s and not this proc's — see that
+  ## module for why it re-reads the pending target instead of being handed one,
+  ## and for the drag that ended at step 707 when it was handed one. All this
+  ## does is turn its answer into a request.
+  h.scrubSend(h.scrubQ.drain())
+
+proc scrubSend(h: Hydration; step: int) =
+  ## Put `step` on the wire, if the queue said to.
   ##
-  ## It closed over the pending target at the time the previous seek settled and
-  ## re-sent it later. In between, faster pointer moves found the slot free,
-  ## sent themselves, and left a NEWER target pending — so the stale
-  ## continuation then overwrote it. Measured on the demo chain: a drag released
-  ## at step 1052 put 1052 on the wire and then, 138 ms later, put 707 on it,
-  ## and the session finished at 707. That is a scrubber that ends the gesture
-  ## at a position the visitor dragged THROUGH, which is worse than one that
-  ## does not move at all: it looks like it worked.
-  ##
-  ## A drain that asks "what is wanted now" cannot do that, because a stale
-  ## answer is not one of the things it can give.
-  if h.scrubInFlight: return
-  let nxt = h.scrubPending
-  h.scrubPending = 0
-  if nxt > 0 and nxt != h.scrubSent: h.scrubSeek(nxt)
+  ## `0` is the queue's "nothing to send" and is the common answer: during a
+  ## fast drag most pointer positions are superseded before they are ever
+  ## asked for, which is the entire point of the coalescing.
+  if step <= 0: return
+  h.gotoTicks(step, onSettled = proc() =
+    h.scrubQ.settled()
+    # DEFERRED, and carrying nothing. `deferTick` says why the send waits for
+    # the next turn of the loop; `scrub_queue.drain` says why what it sends is
+    # decided then rather than now.
+    deferTick(proc() = h.scrubDrain()))
 
 proc scrubSeek(h: Hydration; step: int) =
-  ## Ask for `step`, with at most one scrub request outstanding.
+  ## The visitor is asking for `step`; send it now, or supersede what waits.
   ##
-  ## The throttle, and it is clocked by the engine rather than by a number. If
-  ## nothing is in flight the request goes now; if something is, `step`
-  ## SUPERSEDES whatever was waiting and is issued the moment the answer lands.
-  ## See the `scrubPending` field for why superseding rather than queueing, and
-  ## the block above it for the measurements that made a live scrub the choice
-  ## over seek-on-release.
-  ##
-  ## Because the pending slot is overwritten rather than appended to, the
-  ## release path needs no special case: committing the drop point is just one
-  ## more `scrubSeek`, which either goes out immediately or replaces the last
-  ## intermediate target. The gesture therefore always ENDS at the step the
-  ## visitor let go on, whatever the engine was doing at the time — and that is
-  ## the property the journey asserts, because "the handle stopped there" would
-  ## be true of a decoration.
-  if step <= 0: return
-  if h.scrubInFlight:
-    # Cleared rather than set when the ask MATCHES what is already on its way:
-    # there is nothing left to do, and leaving `step` pending would send the
-    # same seek twice for a drag that paused on a tick it had already reached.
-    h.scrubPending = (if step == h.scrubSent: 0 else: step)
-    return
-  h.scrubInFlight = true
-  h.scrubSent = step
-  h.scrubPending = 0
-  h.gotoTicks(step, onSettled = proc() =
-    h.scrubInFlight = false
-    # DEFERRED, and carrying nothing. `deferTick` says why the send waits for
-    # the next turn; `scrubDrain` says why it must re-read the target rather
-    # than be handed one.
-    deferTick(proc() = h.scrubDrain()))
+  ## The throttle is clocked by the engine rather than by a number, and the
+  ## rule lives in `debugger/scrub_queue.nim`. Because the pending slot is
+  ## overwritten rather than appended to, the release path needs no special
+  ## case: committing the drop point is just one more `scrubSeek`, which either
+  ## goes out immediately or replaces the last intermediate target. The gesture
+  ## therefore ENDS at the step the visitor let go on, whatever the engine was
+  ## doing at the time — which is the property the journey asserts, because
+  ## "the handle stopped there" would be true of a decoration.
+  h.scrubSend(h.scrubQ.request(step))
 
 proc sendBreakpoints(h: Hydration; path: string) =
   ## Tell the engine the breakpoints for ONE file.

@@ -56,7 +56,7 @@ preview-live: export-hydrated replay-engine
 
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
-test: test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-capability-tour test-instruction-listing
+test: test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-capability-tour test-instruction-listing test-scrub-queue
 
 # The static-export round-trip test: compile + run the real exporter into a
 # temp dir, then assert the three view types render for the demo entities and
@@ -79,6 +79,15 @@ test-viewmodels:
 # `just debug-panes` in the repository root's Justfile.
 test-debug-route:
     nim c -r --mm:orc --hints:off tests/test_debug_route.nim
+
+# The scrubber's coalescing rule, as orderings rather than as a race.
+#
+# The one failure this rule has is a drag that ends where the visitor merely
+# dragged THROUGH, it shipped once, and a browser-level mutation arm aimed at it
+# SURVIVED — the window is a single microtask drain wide. `scrub_queue.nim` is
+# pure data so the ordering can be stated directly. See its header.
+test-scrub-queue:
+    nim c -r --mm:orc --hints:off tests/test_scrub_queue.nim
 
 # How a session BECOMES positioned, as opposed to how a positioned one renders.
 #
