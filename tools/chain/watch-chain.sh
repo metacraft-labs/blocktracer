@@ -24,18 +24,26 @@
 # saying they had stopped, and the second is worse for being scheduled: it looks deliberate.
 #
 # So there is no wall-clock budget. The loop re-arms for as long as the chain is being
-# watched, and there are exactly three ways out, all of them loud:
+# watched, and every way out is loud — each one logs a `supervisor-done` (or, for the
+# worktree case, its own reason) before it exits, so the log always says WHY the watch
+# stopped. Grep `exit ` in the loop below for the authoritative set; today it is five:
 #
-#   * the stop file appears        — an operator ended it on purpose
-#   * $MAX_ARMS is reached         — only when explicitly set; unset means unbounded
+#   * the stop file appears        — an operator ended it on purpose                (0)
+#   * $MAX_ARMS is reached         — only when explicitly set; unset means unbounded (0)
+#   * $WT cannot be entered        — the worktree is gone; re-arming cannot fix it   (1)
 #   * the follower exits 2         — a preflight or configuration refusal, which re-arming
 #                                    cannot fix and which would otherwise fill the log with
-#                                    the same refusal forever
+#                                    the same refusal forever                        (2)
+#   * the capture TARGET is met    — only with `--until-complete-blocks N` set, where rc 0
+#                                    means the snapshot reached N complete blocks; see the
+#                                    comment at that exit                            (0)
 #
-# A NORMAL EXIT IS NOT A REASON TO STOP. With `--until 0` the follower runs its whole
-# deadline and returns 0 if it caught anything and 1 if it did not, so its exit code says
-# what that arm found, NOT whether the watch is over. Breaking on 0 is what ended the last
-# one at its moment of success.
+# A NORMAL EXIT IS NOT A REASON TO STOP — WITH ONE NAMED EXCEPTION, THE ONE ABOVE. With
+# `--until 0` and no completion target the follower runs its whole deadline and returns 0
+# if it caught anything and 1 if it did not, so its exit code says what that arm found, NOT
+# whether the watch is over. Breaking on 0 unconditionally is what ended the last one at
+# its moment of success. When UNTIL_COMPLETE > 0 the operator has asked for a finish line,
+# and rc 0 is that finish line rather than an arm ending.
 #
 # ── WHY --until 0 ─────────────────────────────────────────────────────────────────────
 #
