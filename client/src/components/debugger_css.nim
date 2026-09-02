@@ -1009,23 +1009,6 @@ html[data-register="debugger"],
 .frnum{font-variant-numeric:var(--bt-numeric-features);
   font-size:var(--bt-type-caption-size)}
 a.frseg:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
-/* THE SEGMENT THAT SEEKS, WHICH SAID NOTHING ABOUT BEING A CONTROL.
-   The `rail.navigable` branch renders a `span` and deliberately no `href` —
-   "a live session SEEKS", and the target mechanism would switch which pass is
-   DISPLAYED rather than move the debugger to it. Correct, and it cost the
-   segment the one thing `href` was also buying: a browser gives `a[href]`
-   `cursor:pointer` for free, and nothing gives it to a `span`. So on a live
-   session — the only state in which the rail can be used at all — every
-   segment was a `role="button"`, `tabindex="0"`, `ct/goto-ticks`-sending
-   control under a plain arrow, while the INERT pre-hydration `a.frseg` beside
-   it in the static export had the hand. The affordance was inverted by
-   hydration: the rail got more capable and less legible at the same moment.
-   Keyed on `role="button"`, which `hydrate.markRailNavigable` stamps at
-   exactly the moment the segment becomes live, so the cursor and the capability
-   arrive together and neither can be forgotten without the other. `.out` keeps
-   `not-allowed` below: a pass the session has not reached is still refused, and
-   a rule that painted a hand on it would re-lie in the other direction. */
-.frseg[role="button"]:not(.out){cursor:pointer}
 /* A pass the session has NOT reached at this position. It is not a link and it
    does not look like one: the still frame has no values for it, and offering it
    would be an affordance that cannot act. Hydration makes it live.
