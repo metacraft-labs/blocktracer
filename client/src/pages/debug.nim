@@ -345,6 +345,12 @@ proc debugPage*(s: DebugSessionView): string =
          # what §7.0's `onDemand` row says: no engine, and no pretence of one.
          `data-trace` = (if s.canShare: "/" & s.containerPath else: ""),
          `data-step` = $s.controls.step,
+         # WHETHER THE STEP MEANS ANYTHING, stated rather than inferred.
+         # Hydration used to recover this by testing `data-step > 0`, which is
+         # the same sentinel that broke the jump on the live side: step 0 is a
+         # real position, so "0" cannot also spell "no position". The page knows
+         # which it is and now says so.
+         `data-positioned` = (if s.controls.positioned: "1" else: "0"),
          `data-total-steps` = $s.controls.totalSteps,
          # §6.0's content witness needs something to be a witness OF. The
          # comparison happens in a browser, before the engine has opened

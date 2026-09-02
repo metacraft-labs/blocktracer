@@ -113,9 +113,14 @@ proc sourceIsland(path, language, text: string): string =
   pane.documents = @[newSourceDocument(path, language, text)]
   encodeSourceIsland(pane)
 
-proc servedFrame(step, total: int): DebugSessionView =
+proc servedFrame(step, total: int; positioned = true): DebugSessionView =
   ## What the static route rendered before hydration: identity, metadata, and
   ## the step count from the manifest. Everything else comes from the engine.
+  ##
+  ## `positioned` is a PARAMETER and not `step > 0`, mirroring the `data-positioned`
+  ## attribute the served page now writes. Deriving it here would rebuild, inside
+  ## the test harness, the exact sentinel the code under test was changed to
+  ## remove — and a harness that shares the defect cannot witness it.
   result.chain = "aztec"
   result.txHash = "0xabc1230000000000000000000000000000000000"
   result.hasFrame = true
@@ -123,15 +128,16 @@ proc servedFrame(step, total: int): DebugSessionView =
   result.integrity = siValidated
   result.controls.step = step
   result.controls.totalSteps = total
+  result.controls.positioned = positioned
   result.metadata = MetadataPane(
     chain: "aztec", hash: result.txHash, outcome: "Succeeded",
     outcomeBadge: "ok",
     rows: @[MetaRow(label: "Block", value: "102:0", identifier: true)])
 
-proc projectSession(s: Session; path, text: string; step, total: int):
-    DebugSessionView =
+proc projectSession(s: Session; path, text: string; step, total: int;
+                    positioned = true): DebugSessionView =
   ## The shipping projection, over the shipping island encoder.
-  projectReplayPanes(s, servedFrame(step, total),
+  projectReplayPanes(s, servedFrame(step, total, positioned),
                      sourceIsland(path, "noir", text))
 
 proc writeRow(index: int; kind, file: string; line: int;
@@ -495,7 +501,7 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       s.close()
       dispose()
 
-  test "the timeline's playhead SURVIVES hydration, on its own tick":
+  test "the timeline's playhead SURVIVES hydration, on its own tick — step 0 included":
     ## Page-Descriptions §7.0: "No state renders less than the pre-hydration
     ## page." Journey 06 asserts the marked SOURCE LINE survives; nothing
     ## asserted the PLAYHEAD did, and it did not.
@@ -506,6 +512,14 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
     ## the store says 0, `positioned` was `step > 0`, and `renderControls`'s
     ## `filled` collapsed to 0 — not one of the 48 ticks carried `.at` or `.on`,
     ## on a page whose served frame had drawn the playhead moments before.
+    ##
+    ## THE FIRST FIX FOR THAT INTRODUCED A WORSE BUG, and arm D is the memorial.
+    ## It distinguished "the engine has reported" from "there is a position" by
+    ## testing `step > 0`, which is the same conflation one level up: tick 0 is a
+    ## REAL position, so a session the engine parked there looked silent, the
+    ## served frame won, and the jump stopped working. Presence is now carried by
+    ## `LiveSession.reported`, and no assertion here may be satisfiable by a
+    ## session that merely has a large step.
     ##
     ## THE PLAYHEAD'S TICK IS ASSERTED, NOT ITS EXISTENCE. "Something is marked"
     ## is satisfied by a playhead parked anywhere, including the wrong end of the
@@ -553,7 +567,14 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       # ARM B — THE ENGINE OVERRIDES IT. The fallback must yield the moment a
       # real frame arrives, or it is a hardcode that would pin every session to
       # the served step forever.
-      s.store.updateDebuggerPosition(700'u64, file = "src/shield.nr", line = 5)
+      #
+      # `applyPosition` and NOT `store.updateDebuggerPosition`: the first is the
+      # shipping path a stop takes (`applyStop` calls it) and the one that
+      # records that the engine has reported. Writing the store directly would
+      # move the number while leaving the session saying it had heard nothing,
+      # which is a state the product cannot be in and would make this arm
+      # evidence about a fiction.
+      s.applyPosition(700'u64, file = "src/shield.nr", line = 5)
       check s.store.debugger.val.rrTicks == 700'u64  # the arm really mutated
       inc asserted
       let moved = projectSession(s, "src/shield.nr", ShieldNr, 128, 1315)
@@ -580,7 +601,8 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       check fresh.store.debugger.val.rrTicks == 0'u64
       inc asserted
       let unpositioned =
-        projectSession(fresh, "src/shield.nr", ShieldNr, 0, 1315)
+        projectSession(fresh, "src/shield.nr", ShieldNr, 0, 1315,
+                       positioned = false)
       let c = scrubber(unpositioned)
       check not unpositioned.controls.positioned
       inc asserted
@@ -593,11 +615,55 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       check c.total == 48        # the ticks are drawn; none of them is marked
       inc asserted
 
-      # THE COUNT ITSELF. Seventeen `check`s ran — an arm deleted, an arm that
+      # ARM D — STEP 0 IS A POSITION. THIS IS THE ARM THE OTHERS DID NOT COVER.
+      #
+      # The first version of this fix read `step > 0` as "the engine has
+      # reported", which collides with the engine reporting tick 0 — the first
+      # step of the trace, where `run-to-entry` lands and what the FIRST ROW of
+      # the call trace and event log carries. So clicking the first row produced
+      # a report indistinguishable from silence, the served frame won, the
+      # session did not move, and `09-a-jump-moves-the-position` went red on
+      # `dev` while arms A, B and C above all stayed green — none of them
+      # exercises 0. When a fix turns on a comparison against a constant, that
+      # constant is the value the test must include.
+      #
+      # THE PAIR IS ASSERTED, because either half alone is forgeable: "positioned
+      # at step 0" is satisfied by a session that reports a position it does not
+      # draw, and "a playhead exists" is satisfied by one parked on the served
+      # frame's tick. Together they say the session is AT step 0 and SHOWS it.
+      let atZero = openSession()
+      atZero.store.setSourceAvailability(savVerified)
+      # The served page stood at 128 and was positioned, so a fallback that
+      # ignored the engine would be VISIBLE here as tick 5 rather than tick 1.
+      # That is what makes this arm able to fail.
+      atZero.applyPosition(0'u64, file = "src/shield.nr", line = 2)
+      check atZero.store.debugger.val.rrTicks == 0'u64
+      inc asserted
+      let zeroView = projectSession(atZero, "src/shield.nr", ShieldNr, 128, 1315)
+      let d = scrubber(zeroView)
+      check zeroView.controls.step == 0        # the ENGINE's 0, not the served 128
+      inc asserted
+      check zeroView.controls.positioned       # …and 0 is a POSITION
+      inc asserted
+      # fraction is 0.0 at step 0, and `filled` is clamped to a minimum of 1, so
+      # the playhead is the FIRST tick and nothing is filled behind it.
+      check d.at == 1
+      inc asserted
+      check d.before == 0
+      inc asserted
+      check d.total == 48
+      inc asserted
+      # And it is distinguishable from the served frame's tick, which is the
+      # whole content of "the session moved THERE rather than somewhere".
+      check d.before != a.before
+      inc asserted
+      atZero.close()
+
+      # THE COUNT ITSELF. Twenty-four `check`s ran — an arm deleted, an arm that
       # failed to compile into the block, or a `check` that never executed
       # reddens HERE, which is the one failure a suite of passing assertions
       # cannot otherwise report.
-      check asserted == 17
+      check asserted == 24
 
       fresh.close()
       s.close()

@@ -601,6 +601,14 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch) =
   # half a coordinate, and the served value is only correct until the engine has
   # its own opinion.
   ui.root.setAttribute("data-step", ($view.controls.step).cstring)
+  # Rewritten beside the step for the reason the step is rewritten here: the
+  # attribute and the panes are the same call over the same `view`, so they
+  # cannot drift into two facts that happen to be updated together. A hydrated
+  # session that has become positioned must say so, or the next reader of the
+  # DOM — a journey, a share link, a person with the inspector open — is told the
+  # served page's answer forever.
+  ui.root.setAttribute("data-positioned",
+                       (if view.controls.positioned: "1" else: "0").cstring)
   ui.root.setAttribute("data-total-steps", ($view.controls.totalSteps).cstring)
   # "Content" for the source pane is not "documents" — a pane that has resolved
   # to `srcUnverified` has no documents and IS the honest §14 row, so it counts
@@ -1646,6 +1654,13 @@ proc servedFrame(ui: Ui): DebugSessionView =
   result.phase = spFetching
   result.controls.totalSteps = intAttr(ui.root, "data-total-steps")
   result.controls.step = intAttr(ui.root, "data-step")
+  # STATED BY THE PAGE, not inferred from the step. `data-step="0"` is a real
+  # position (the first step of the trace) as well as the value an unpositioned
+  # page publishes, so the two cases are only distinguishable because the page
+  # writes this attribute. Absent — a page served before it existed — reads as
+  # false, which is the conservative answer: the served frame then contributes no
+  # position and the engine's own report is the only one that can.
+  result.controls.positioned = attr(ui.root, "data-positioned") == "1"
   # §6.0's witness needs the hash of the artifact this page recommends, and the
   # page is the only thing that knows it — the engine can hash the bytes it was
   # given but has no opinion about which artifact was recommended. It is read

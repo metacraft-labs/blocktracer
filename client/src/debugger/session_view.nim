@@ -1425,7 +1425,14 @@ func selectionDetail*(v: DebugSessionView): SelectionDetail =
     if f.current:
       chosen = i
       break
-  if chosen < 0 and v.controls.positioned and v.controls.step > 0:
+  # `positioned` alone. The `and v.controls.step > 0` that used to stand here
+  # asked the STEP whether the session had a position, and 0 is a real position
+  # — the first step of the trace — so it was a sentinel colliding with a valid
+  # value, the same family as the one that broke the jump in
+  # `hydrate/session_project.nim`. `positioned` is the fact and is already to
+  # hand. (`f.step > 0` below is a different question and stays: it asks whether
+  # a FRAME states a starting step at all, and frames begin at 1.)
+  if chosen < 0 and v.controls.positioned:
     for i, f in v.calltrace.frames:
       if f.step > 0 and f.step <= v.controls.step: chosen = i
 
@@ -1477,7 +1484,10 @@ func selectionDetail*(v: DebugSessionView): SelectionDetail =
     result.subject = doc.path & ":" & $v.editor.currentLine
     result.facts.add selectionFact("File", doc.path, identifier = true)
     result.facts.add selectionFact("Line", $v.editor.currentLine)
-    if v.controls.positioned and v.controls.step > 0:
+    # `positioned` alone, for the reason above: a session standing on step 0 is
+    # standing somewhere, and suppressing its readout told the visitor it had no
+    # position when it had the first one.
+    if v.controls.positioned:
       result.facts.add selectionFact("Step", groupDigits(v.controls.step))
     # The row's own text. On a source-level session that is the line of code;
     # on a rung-3 session it is the instruction listing's row, which is where

@@ -62,6 +62,32 @@ export live_origin
 # ---------------------------------------------------------------------------
 
 type
+  PositionReport* = ref object
+    ## WHETHER THE ENGINE HAS STATED A POSITION FOR THIS SESSION — the fact
+    ## itself, carried explicitly, because every attempt to infer it from the
+    ## step has been wrong.
+    ##
+    ## `ReplayDataStore` initialises `debugger.rrTicks` to `0`, so a session that
+    ## has heard nothing and a session the engine has parked on the FIRST STEP OF
+    ## THE TRACE hold the same number. Reading `step > 0` as "the engine has
+    ## reported" therefore silently misclassifies tick 0, which is not a
+    ## degenerate case: it is where `run-to-entry` lands, and it is the
+    ## `data-step` of the first row of the call trace and the event log, so
+    ## "click the first row" is the ordinary gesture that produces it.
+    ##
+    ## That sentinel shipped, and it broke the jump: a click on a row whose step
+    ## is 0 produced an engine report indistinguishable from silence, the served
+    ## frame won, and the session did not move
+    ## (`09-a-jump-moves-the-position`). The flag exists so that no site has to
+    ## ask "is this step real" of a number that cannot answer.
+    ##
+    ## A `ref` so that it survives being copied. `LiveSession` is an object of
+    ## handles passed BY VALUE into the projection, and a plain `bool` field
+    ## would be copied at that boundary — the projection would read one session's
+    ## answer off another session's copy. One cell, shared by every copy, has one
+    ## answer.
+    arrived*: bool
+
   LiveSession* = object
     ## The five ViewModels of one session, plus the store they all read.
     ##
@@ -69,6 +95,9 @@ type
     ## pure function of these, and giving it a lifecycle would create a second
     ## place where "what the panes show" is decided.
     store*: ReplayDataStore
+    reported*: PositionReport
+      ## Set the moment a stop is written through `applyPosition`, whatever tick
+      ## it names. Read by `projectReplayPanes` and by nothing else.
     editor*: EditorVM
     calltrace*: CalltraceVM
     state*: StateVM
@@ -198,6 +227,11 @@ proc openLiveSession*(backend: BackendService; sourceIsPublished: bool):
     if sourceIsPublished: savVerified else: savUnverified)
   result = LiveSession(
     store: store,
+    # Constructed here and never left nil, so `projectReplayPanes` reads a fact
+    # rather than testing a handle. A session that has not heard from the engine
+    # says so with `arrived == false`, which is a different sentence from "there
+    # is no cell to ask".
+    reported: PositionReport(arrived: false),
     locals: feed,
     navigation: nav,
     editor: createEditorVM(store),
@@ -238,6 +272,13 @@ proc applyPosition*(s: LiveSession; ticks: uint64; file: string; line: int) =
   ## store's own setters give: on the JS backend `var x = signal.val` is a
   ## reference, so writing back a mutated copy compares equal to itself and the
   ## signal never fires.
+  # THE ENGINE HAS SPOKEN, whatever it said. Set unconditionally and never
+  # cleared: `ticks` is the position the engine reported, and `0` is as real an
+  # answer as any other — it is the first step of the trace, where run-to-entry
+  # lands and what the first navigable row of every region carries. Anything
+  # that gates this on the value would rebuild the sentinel this flag exists to
+  # remove.
+  if s.reported != nil: s.reported.arrived = true
   s.store.updateDebuggerPosition(ticks, file = file, line = line)
   let current = s.store.debugger.val
   s.store.debugger.val = DebuggerState(
@@ -549,7 +590,7 @@ proc canDo*(vm: DebugControlsVM; a: DebugAction): bool =
   of daReverseContinue: vm.canReverseContinue.val
 
 proc projectControls*(vm: DebugControlsVM; step, total: int;
-                      live: bool;
+                      live: bool; engineReported: bool;
                       served = DebugControlsPane()): DebugControlsPane =
   ## The toolbar, in the order `session_view.DebugAction` declares — which is
   ## CodeTracer's desktop order, backward first in each pair.
@@ -559,34 +600,41 @@ proc projectControls*(vm: DebugControlsVM; step, total: int;
   ## say, because those memos have a value from the moment the store exists and
   ## it is not yet a statement about a running engine.
   ##
-  ## `served` is the SERVED page's own controls, and it exists because
-  ## `rrTicks == 0` is ambiguous in exactly the window this projection runs in.
+  ## `engineReported` is whether `step` MEANS anything, and `served` is what to
+  ## show while it does not. They are two parameters and not one derived
+  ## quantity, which is the correction this proc exists in its current shape to
+  ## record.
   ##
-  ## `ReplayDataStore` initialises `debugger.rrTicks` to `0`, and `goLive`
-  ## renders the ready page BEFORE the `ct/goto-ticks` it issues has come back —
-  ## and on a session with no `?t=` it issues no seek at all, so `requestPosition`
-  ## writes the store's own `0` straight back and it stands until the visitor
-  ## steps. Between those moments the `0` is the store's initial value, not a
-  ## frame the engine reported. Reading it as a position published
-  ## `data-step="0"` and — because `positioned` was `step > 0` — drew NO PLAYHEAD
-  ## AT ALL, on a page whose served frame had just drawn one on its correct tick
-  ## (`renderControls`'s `filled` is `0` when `positioned` is false, so not one
-  ## of the 48 ticks carries `.at` or `.on`).
+  ## ## Why not `step > 0`
   ##
-  ## That is precisely what Page-Descriptions §7.0 forbids — "**No state renders
-  ## less than the pre-hydration page**" — and it is the loss journey 06's header
-  ## records observing ("its hydrated session lands at step 0 of 345") and
-  ## deliberately does not assert, because its own implication
-  ## (`step > 0 && totalSteps > 0` guarding the marked-line check) passes
-  ## VACUOUSLY at step 0.
+  ## `ReplayDataStore` initialises `debugger.rrTicks` to `0`, so a session that
+  ## has heard nothing from the engine and a session the engine has parked on the
+  ## first step of the trace hold the same number. This proc previously read
+  ## `step > 0` as "the engine has reported a frame" — and said so in a comment,
+  ## which is how a reviewer, an author and an approver all read past it.
   ##
-  ## So the served frame stands until the engine states otherwise, which makes
-  ## the position monotonic across hydration by construction: a page that showed
-  ## a position cannot stop showing one because a second compilation took over
-  ## drawing it. The served page publishes a non-zero `data-step` exactly when it
-  ## was positioned (`demo_session.entryStepWithin` returns `0` only for a trace
-  ## with no steps), so `served.step` needs no separate positioned flag to be
-  ## read honestly.
+  ## It is wrong, and not at a boundary nobody visits: tick 0 is where
+  ## `run-to-entry` lands, and it is the `data-step` of the FIRST ROW of the call
+  ## trace and the event log. So "click the first row" produced an engine report
+  ## indistinguishable from silence, the served frame won, the session did not
+  ## move, and `09-a-jump-moves-the-position` went red on `dev` — while a
+  ## measured before/after at step 128, three mutation arms, and a suite of nine
+  ## all stayed green, because not one of them exercised 0.
+  ##
+  ## The lesson generalises past this proc: when a fix turns on a comparison
+  ## against a constant, that constant is the value the tests must include. It is
+  ## pinned here by "a session AT step 0 is positioned, and its playhead is on
+  ## the first tick" in `tests/tdebugpanes.nim`.
+  ##
+  ## ## What the two parameters buy
+  ##
+  ## The engine's answer wins whenever there is one, at tick 0 as at any other.
+  ## Until there is one the served frame stands, which keeps the position
+  ## monotonic across hydration — Page-Descriptions §7.0's "**No state renders
+  ## less than the pre-hydration page**" — and is the loss journey 06's header
+  ## records observing ("its hydrated session lands at step 0 of 345") without
+  ## asserting, its own implication being guarded by `step > 0` and so passing
+  ## VACUOUSLY in exactly the state that was broken.
   proc btn(a: DebugAction; label, glyph: string): ControlButton =
     ControlButton(action: a, label: label, glyph: glyph,
                   enabled: live and canDo(vm, a))
@@ -601,13 +649,11 @@ proc projectControls*(vm: DebugControlsVM; step, total: int;
     btn(daContinue, "Continue", "⏭"),
   ]
   result.statusText = vm.statusText.val
-  # The engine's tick when it has stated one, the served page's when it has not.
-  # `step > 0` is read here as "the engine has reported a frame" and NOT as
-  # "there is a position to draw" — the second is what it used to mean, and the
-  # difference is the whole defect above.
-  result.step = if step > 0: step else: served.step
+  # The engine's tick when it has stated one — INCLUDING 0 — and the served
+  # page's when it has not. Neither line asks anything of the step's value.
+  result.step = if engineReported: step else: served.step
   result.totalSteps = total
-  result.positioned = result.step > 0
+  result.positioned = engineReported or served.positioned
 
 proc projectReplayPanes*(s: LiveSession; base: DebugSessionView;
                          island: string): DebugSessionView =
@@ -646,9 +692,15 @@ proc projectReplayPanes*(s: LiveSession; base: DebugSessionView;
   # `base.controls` and not `base.controls.totalSteps` alone: the served frame's
   # STEP is inherited for the same reason its total is, and for the window in
   # which the engine has not yet stated one. See `projectControls`.
+  #
+  # `engineReported` comes off the session's own cell and NOT off the step, which
+  # is the whole of the fix: `s.reported.arrived` is set by `applyPosition` when
+  # a frame arrives, so tick 0 reports as loudly as tick 128.
   result.controls = projectControls(
     s.controls, int(s.store.debugger.val.rrTicks), base.controls.totalSteps,
-    live = true, served = base.controls)
+    live = true,
+    engineReported = (s.reported != nil and s.reported.arrived),
+    served = base.controls)
   result.integrity =
     if s.controls.divergenceDetected.val: siDivergent
     elif s.controls.traceTruncated.val: siTruncated
