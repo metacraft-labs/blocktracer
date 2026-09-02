@@ -1095,19 +1095,19 @@ proc noteFor*`,
     assertion: "the slider answers the keyboard it puts itself in the tab order for",
   },
 
-  // ── the omniscience overlay (journey 14) ─────────────────────────────────
+  // ── the omniscience overlay (journey 17) ─────────────────────────────────
   //
   // Two arms, aimed at two things the overlay claims — and NOT at "the overlay
   // is present", which was TRUE throughout the defect on the served frame and is
-  // the false pass journey 14 is written against.
+  // the false pass journey 17 is written against.
   //
   // ONE ARM WAS TRIED AND WITHDRAWN, and it is worth the lines. "Keep the first
   // flow window and drop every later one" should be a kill and cannot be:
   // measured on the wire, the engine ALREADY answers every `ct/load-flow` with
   // one window computed for tick 0 whatever position was asked about, so
-  // freezing it changes nothing observable. That is journey 15's defect, and
-  // the arm that would have proved journey 14 could see it is exactly the arm
-  // that proves journey 14 cannot. Journey 15 exists because of it.
+  // freezing it changes nothing observable. That is journey 18's defect, and
+  // the arm that would have proved journey 17 could see it is exactly the arm
+  // that proves journey 17 cannot. Journey 18 exists because of it.
 
   {
     id: "F1/an-overlay-of-names-with-no-values",

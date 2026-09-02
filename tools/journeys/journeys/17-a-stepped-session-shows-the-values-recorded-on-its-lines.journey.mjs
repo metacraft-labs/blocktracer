@@ -2,7 +2,7 @@
 //  lines they were recorded on."
 //
 // The narrower half of the report. The other half — that the overlay FOLLOWS the
-// position and belongs to the function the session is in — is journey 15, which
+// position and belongs to the function the session is in — is journey 18, which
 // is RED and ledgered with the cause. Splitting them is not bookkeeping: they
 // close on different fixes, and one entry in the ledger has to be able to close
 // on one of them.
@@ -316,7 +316,7 @@ export async function run({ browser, site, j }) {
     //
     // "The overlay changes as the position moves" and "every annotated line is
     // inside the function the session is in" are the OTHER half of the report,
-    // and both are RED. They are journey 15's, with one ledger entry naming one
+    // and both are RED. They are journey 18's, with one ledger entry naming one
     // cause: the engine answers every `ct/load-flow` with the same file-wide
     // window, computed for tick 0, so the labels do not move and some of them
     // sit on lines outside the enclosing function.
