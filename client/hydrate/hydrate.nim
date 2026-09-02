@@ -475,9 +475,38 @@ proc markScrubberSeekable(ui: Ui; p: DebugControlsPane) =
   track.classList.add("seekable")
   track.setAttribute("role", "slider")
   track.setAttribute("tabindex", "0")
-  track.setAttribute("aria-label", "Position in the trace")
+  track.setAttribute("aria-label", ScrubName.cstring)
+  # THE KEYS THIS CONTROL ANSWERS TO, NAMED ON THE CONTROL.
+  #
+  # The line above gave the slider a tab stop and a name, and the `keydown`
+  # handler in `bindGestures` has answered the arrows, `Page Up`/`Page Down`
+  # and `Home`/`End` on it ever since — and until now nothing on the page said
+  # so. A visitor reported exactly this about the stepping buttons beside it
+  # ("I still don't see the keyboard shortcuts being displayed in the
+  # tooltips"), and the buttons were fixed while the one control on the strip
+  # whose keys were already bound kept them secret.
+  #
+  # BOTH STRINGS COME FROM `keymap.ScrubKeys`, which is the table
+  # `scrubMoveFor` dispatches from. That is the same structural guarantee
+  # `controlLabel(a, km)` gives the buttons: the tooltip cannot name a key the
+  # handler does not answer, because there is no literal here to go stale.
+  #
+  # STAMPED HERE, and not rendered by `components/debugger`, for the reason
+  # every other line of this proc is: the served page has no bundle and
+  # therefore no handler, and a `title` naming keys on that artefact would be
+  # the "control that announces a range it cannot be moved along" this proc's
+  # header is written against — in a different attribute.
+  track.setAttribute("title", scrubLabel().cstring)
+  # `aria-keyshortcuts` is WAI-ARIA 1.2's own attribute for this, so assistive
+  # technology gets the list as data rather than as prose it would have to
+  # parse out of the name. Same table, different projection of it.
+  track.setAttribute("aria-keyshortcuts", scrubKeyShortcuts().cstring)
   track.setAttribute("aria-valuemin", "1")
-  track.setAttribute("aria-valuemax", ($p.totalSteps).cstring)
+  # `lastStep` AND NOT `totalSteps`: a slider announces the range it can be
+  # moved along, and the count is one past the last coordinate the recording
+  # has. Announcing it would have been this control telling a screen-reader
+  # user that the value it traps the engine on is a value it can be set to.
+  track.setAttribute("aria-valuemax", ($lastStep(p.totalSteps)).cstring)
   if p.positioned:
     track.setAttribute("aria-valuenow", ($p.step).cstring)
     track.setAttribute("aria-valuetext",
@@ -2295,6 +2324,21 @@ proc bindGestures(h: Hydration) =
   # An arrow moves ONE TICK, not one step. The tick is the resolution the
   # control is drawn at, so a key press that moved a single step would move the
   # session visibly and the handle not at all, which reads as a broken key.
+  #
+  # WHICH KEYS MEAN WHAT IS `keymap.ScrubKeys`, AND NOT THIS `case`. It used to
+  # be this `case`, and the keys were then documented nowhere a visitor could
+  # reach — `markScrubberSeekable` gave the track a name and a tab stop and
+  # said nothing about how to move it. Deriving the tooltip from a list spelled
+  # here would have been the second copy, and §10.5's lesson is that the second
+  # copy is the one that goes stale and the one a visitor believes. So the
+  # table is the source, `scrubMoveFor` is this handler's read of it, and
+  # `scrubLabel` is the tooltip's — the same split `actionFor`/`chordFor` gives
+  # the stepping buttons.
+  #
+  # The ARITHMETIC stays here, because it needs `total` and the drawn tick
+  # width, which are properties of this session and not of the keymap. What
+  # moved out is the naming of the keys, which is the only part that had two
+  # readers.
   h.ui.controls.addEventListener("keydown", proc(ev: Event) =
     let track = closestFrom(ev, ".dctl.seekable")
     if track == nil: return
@@ -2302,16 +2346,33 @@ proc bindGestures(h: Hydration) =
     if total <= 0: return
     let now = intAttr(h.ui.root, "data-step")
     let tick = max(1, total div TimelineTicks)
+    let (isScrub, move) = scrubMoveFor($keyName(ev))
+    if not isScrub: return
     let step =
-      case $keyName(ev)
-      of "ArrowLeft", "ArrowDown": now - tick
-      of "ArrowRight", "ArrowUp": now + tick
-      of "PageDown": now - tick * 5
-      of "PageUp": now + tick * 5
-      of "Home": 1
-      of "End": total
-      else: 0
-    if step == 0: return
+      case move
+      of smBackTick: now - tick
+      of smForwardTick: now + tick
+      of smBackPage: now - tick * 5
+      of smForwardPage: now + tick * 5
+      of smStart: 1
+      # `lastStep(total)` AND NOT `total`, which is what this asked for and
+      # what killed the session. `totalSteps` is a count and the coordinates
+      # are zero-based, so `total` is one past the end — and the engine does
+      # not refuse it, it panics (`load_local_calltrace: invalid step_id`) and
+      # answers nothing for the rest of the visit. See `session_view.lastStep`
+      # for the measurement. One keystroke on a focused scrubber ended the
+      # session, and nothing anywhere had ever pressed it.
+      of smEnd: lastStep(total)
+    # AND THE `if step == 0: return` THAT USED TO BE HERE IS GONE, because it
+    # no longer means what it says. It was the `case`'s `else` arm reaching
+    # this line — "the key was not one of ours" — and `scrubMoveFor` now
+    # answers that question above, in the one place it is asked.
+    #
+    # Left in place it would have kept swallowing a REAL move: `now - tick` is
+    # exactly 0 when the session sits one tick in, so a visitor pressing ← at
+    # that position would have been the one press in the trace that did
+    # nothing. `clamp` below already resolves it to step 1, which is where ←
+    # from the first tick should land.
     ev.preventDefault()
     let want = clamp(step, 1, total)
     h.scrubTarget = want

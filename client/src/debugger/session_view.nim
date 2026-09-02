@@ -1061,11 +1061,53 @@ const TimelineTicks* = 48
   ## "which tick is the pointer over". Two spellings of 48 would be two
   ## controls: one the renderer draws and one the drag moves.
 
+func lastStep*(totalSteps: int): int =
+  ## The LAST TIME COORDINATE A SEEK MAY NAME, given a recording of that length.
+  ##
+  ## `totalSteps` is a COUNT and the coordinates are ZERO-BASED — `run-to-entry`
+  ## parks at 0 and `session_project` records that 0 is a real position — so the
+  ## coordinates are `0 .. totalSteps-1` and `totalSteps` itself is one past the
+  ## end.
+  ##
+  ## THAT IS MEASURED, NOT INFERRED, AND WHAT IT COST IS WHY THIS FUNCTION
+  ## EXISTS. Driving `ct/goto-ticks` against the published engine over the
+  ## deployed build, on a 345-step recording: ticks 343 and 344 answered
+  ## normally; tick 345 killed the session with
+  ##
+  ##     panicked at src/dap_handler.rs:1126:14:
+  ##     load_local_calltrace: invalid step_id
+  ##     RuntimeError: unreachable
+  ##
+  ## — a WASM trap, after which the engine answers nothing for the rest of the
+  ## visit. A `Home` pressed afterwards did nothing at all.
+  ##
+  ## Two gestures could request it and both were reachable by a visitor: `End`
+  ## on the focused scrubber asked for `totalSteps` outright, and a drag or
+  ## click at the extreme right of the track resolved to the same number through
+  ## `stepAtFraction`. Nothing in the repository had ever asked for it — the
+  ## journeys' drags release at 0.9 and the suites step, so the one coordinate
+  ## that traps the engine sat exactly where no check looked.
+  max(0, totalSteps - 1)
+
 func fraction*(p: DebugControlsPane): float =
   ## Where the scrubber sits, 0.0 .. 1.0. A float, because the renderer turns
   ## it into a percentage width and nothing else may.
+  ##
+  ## THE END IS `lastStep`, NOT `totalSteps`. It used to be the count, which
+  ## was a comparison against a coordinate the recording does not have: the
+  ## fraction could then only reach 1.0 at a step no session can be at, so with
+  ## the seek correctly clamped the playhead would stop one tick short of the
+  ## end of a trace that had ended. `markedTick` reserves the final tick for
+  ## `fraction == 1.0` precisely to make "the trace has ended" a claim rather
+  ## than a rounding, and this is the step at which that claim is true.
+  ##
+  ## The DIVISOR is deliberately still `totalSteps`, and only the terminal
+  ## comparison moved. Dividing by `lastStep` would shift every intermediate
+  ## position by a fraction of a tick for no reason but tidiness, and the
+  ## handle's arithmetic is mirrored by checks that would then disagree with it
+  ## everywhere rather than at the one coordinate that was wrong.
   if p.totalSteps <= 0 or p.step <= 0: 0.0
-  elif p.step >= p.totalSteps: 1.0
+  elif p.step >= lastStep(p.totalSteps): 1.0
   else: p.step.float / p.totalSteps.float
 
 func markedTick*(p: DebugControlsPane): int =
@@ -1124,9 +1166,18 @@ func stepAtFraction*(p: DebugControlsPane; f: float): int =
   ## Clamped to 1, never 0: `positioned` is `step > 0`, so a seek to step 0
   ## would ask the session to report that it has no position — a state the
   ## engine cannot be in and the scrubber must not request.
+  ##
+  ## AND CLAMPED ABOVE TO `lastStep`, WHICH IS NOT `totalSteps`. It was, and a
+  ## drag or click at the extreme right of the track therefore asked for a
+  ## coordinate one past the end of the recording — which does not fail, it
+  ## TRAPS the WASM engine and ends the session. See `lastStep` for the
+  ## measurement. The upper bound belongs here as well as at the sender,
+  ## because the number this returns is also the number the handle is painted
+  ## at: clamping only when sending would leave the playhead drawn at a
+  ## position the session was never taken to.
   if p.totalSteps <= 0: 0
   else: clamp(int(clamp(f, 0.0, 1.0) * float(p.totalSteps) + 0.5),
-              1, p.totalSteps)
+              1, lastStep(p.totalSteps))
 
 # ---------------------------------------------------------------------------
 # The transaction metadata pane (Page-Descriptions §7.1)

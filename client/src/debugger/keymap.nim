@@ -404,6 +404,153 @@ func describe*(c: Chord): string =
   parts.add c.key
   parts.join("+")
 
+# ---------------------------------------------------------------------------
+# THE SCRUBBER'S KEYS
+# ---------------------------------------------------------------------------
+#
+# The stepping toolbar is not the only control on the strip with keys bound to
+# it, and it was the only one that said so. `hydrate.bindGestures` has answered
+# the arrows, `PageUp`/`PageDown` and `Home`/`End` on `.dctl.seekable` since the
+# scrubber became draggable — a `role="slider"` with a tab stop, which is a
+# promise that a keyboard can move it — and NOTHING NAMED THOSE KEYS ANYWHERE.
+# Not in the track's `aria-label` ("Position in the trace"), not in a `title`,
+# not in the shortcuts dialog. A visitor learned them by guessing.
+#
+# That is the same complaint the stepping tooltips were fixed for, on the
+# control next to them, and it is fixed the same way and for the same reason:
+# there is ONE table, the dispatcher reads it to decide what a key press means,
+# and the tooltip reads it to say so. A key cannot be documented here without
+# being answered, and cannot be answered without being documented.
+#
+# It is a SEPARATE table from the stepping presets, and deliberately so. These
+# keys are not a preset and are not offered as a choice: `ArrowLeft` on a
+# focused slider is what the platform's own slider does, and `Home`/`End` are
+# the ARIA authoring practices' range keys verbatim. Rebinding them would break
+# the convention that makes the control legible without being read about. So
+# there is no `KeymapId` for them, no `localStorage` key, and no dialog radio —
+# only the one table, and the sentence derived from it.
+
+const ScrubName* = "Position in the trace"
+  ## What the scrubber IS, in one phrase.
+  ##
+  ## Here rather than inline at the one call site, because it is now read
+  ## twice — the accessible name and the first clause of the tooltip — and two
+  ## spellings of a control's name is the drift `ControlButton` was flattened
+  ## to avoid on the buttons beside it.
+
+type
+  ScrubMove* = enum
+    ## What a key press on the scrubber asks for.
+    ##
+    ## The string values are the words a reader gets, so the sentence and the
+    ## `case` in the handler cannot name different things — there is no second
+    ## spelling of "back one tick" for one of them to drift from.
+    ##
+    ## A TICK AND NOT A STEP, in the words as in the arithmetic. The scrubber is
+    ## drawn as `TimelineTicks` discrete marks, so a key that moved one step
+    ## would move the session and leave the handle where it was, which reads as
+    ## a broken key. `bindGestures` says the same thing beside the arithmetic;
+    ## these words are what a visitor is told about it.
+    smBackTick = "back one tick"
+    smForwardTick = "forward one tick"
+    smBackPage = "back five ticks"
+    smForwardPage = "forward five ticks"
+    smStart = "to the first step"
+    smEnd = "to the last step"
+
+  ScrubBinding* = object
+    move*: ScrubMove
+    keys*: seq[string]
+      ## Every `KeyboardEvent.key` that means this move — verbatim, for
+      ## `Chord.key`'s reason: it is what the browser reports, and matching on
+      ## anything else is matching on a guess about the visitor's layout.
+
+const ScrubKeys = [
+  # BOTH AXES ANSWER, which is why these are `seq`s and not single keys. A
+  # slider drawn horizontally is dragged left and right, but a visitor who has
+  # arrived on it with Tab reaches for Up and Down as often — the ARIA
+  # authoring practices bind all four on a one-dimensional slider for exactly
+  # that reason, and this control already did. The pair is documented as a pair
+  # rather than as two rows, because "← or ↓" is one move.
+  (smBackTick, @["ArrowLeft", "ArrowDown"]),
+  (smForwardTick, @["ArrowRight", "ArrowUp"]),
+  (smBackPage, @["PageDown"]),
+  (smForwardPage, @["PageUp"]),
+  (smStart, @["Home"]),
+  (smEnd, @["End"]),
+]
+
+func scrubBindings*(): seq[ScrubBinding] =
+  ## The table, as data. One producer, three readers: the dispatcher, the
+  ## tooltip and the tests.
+  for (m, keys) in ScrubKeys: result.add ScrubBinding(move: m, keys: keys)
+
+func scrubMoveFor*(key: string): (bool, ScrubMove) =
+  ## Which move this key press is, if it is one.
+  ##
+  ## The dispatcher's half of the table, and the counterpart of `actionFor`.
+  ## Returns a found-flag rather than an `Option` for that proc's reason: this
+  ## is on the JS target's key path.
+  for (m, keys) in ScrubKeys:
+    for k in keys:
+      if k == key: return (true, m)
+  (false, smBackTick)
+
+func keyLabel*(key: string): string =
+  ## A `KeyboardEvent.key` as a reader sees it printed on their keyboard.
+  ##
+  ## A RENDERING OF THE SAME STRING, not a second table of what is bound. The
+  ## keys come from `ScrubKeys`; this only decides how each is spelled, and an
+  ## unrecognised one is printed verbatim — so a key added to the table is
+  ## documented the moment it is bound, rather than silently omitted from the
+  ## sentence by a lookup that had no entry for it.
+  ##
+  ## The arrows are drawn as arrows because that is what is on the key. "Page
+  ## Up" is spaced because that is how the key is engraved, and because
+  ## "PageUp" beside "Home" reads as a word this product invented.
+  case key
+  of "ArrowLeft": "←"
+  of "ArrowRight": "→"
+  of "ArrowUp": "↑"
+  of "ArrowDown": "↓"
+  of "PageUp": "Page Up"
+  of "PageDown": "Page Down"
+  else: key
+
+func describeScrub*(b: ScrubBinding): string =
+  ## One row of the table as a phrase: the keys that mean it, then what it does.
+  var keys: seq[string]
+  for k in b.keys: keys.add keyLabel(k)
+  keys.join("/") & " " & $b.move
+
+func scrubLabel*(): string =
+  ## The scrubber's `title`: what the control is, then every key it answers to.
+  ##
+  ## DERIVED, in full, from the same table the handler dispatches from — so a
+  ## key that stops being answered stops being named, and one that starts being
+  ## answered starts being named, without anyone editing a sentence.
+  ##
+  ## The name first and the keys after it, which is the order
+  ## `controlLabel(a, km)` uses for the stepping buttons: a reader who wanted to
+  ## know what the thing is has their answer before the list they did not ask
+  ## for.
+  var parts: seq[string]
+  for b in scrubBindings(): parts.add describeScrub(b)
+  ScrubName & " — " & parts.join(", ")
+
+func scrubKeyShortcuts*(): string =
+  ## The same table in `aria-keyshortcuts` form: a space-delimited list of key
+  ## values, which is what WAI-ARIA 1.2 defines the attribute to carry.
+  ##
+  ## Assistive technology gets the machine-readable list and a pointer user
+  ## gets `scrubLabel`'s sentence, from ONE table — rather than the situation
+  ## this replaces, where the keys were in the handler and in no channel a
+  ## visitor could reach at all.
+  var keys: seq[string]
+  for b in scrubBindings():
+    for k in b.keys: keys.add k
+  keys.join(" ")
+
 func hazardOf*(c: Chord; mac: bool): Hazard =
   ## What the platform does to this chord before the page can see it.
   ##

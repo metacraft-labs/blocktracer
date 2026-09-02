@@ -1098,6 +1098,43 @@ proc noteFor*`,
     journey: "the-timeline-can-be-dragged",
     assertion: "the slider answers the keyboard it puts itself in the tab order for",
   },
+  {
+    id: "SC7/End-asks-for-a-coordinate-past-the-end",
+    why:
+      "Put back the number `End` used to ask for. This is not a synthetic" +
+      " mutation — it is the defect as it shipped, and it was found by the" +
+      " assertion it is aimed at. `totalSteps` is a COUNT and the time" +
+      " coordinates are zero-based, so `total` is one past the last step the" +
+      " recording has; the engine does not refuse it, it PANICS" +
+      " (`load_local_calltrace: invalid step_id`) and traps the WASM module, and" +
+      " the session answers nothing for the rest of the visit. Measured on a" +
+      " 345-step recording: ticks 343 and 344 answered, 345 killed it, and a" +
+      " `Home` pressed afterwards did nothing at all. Nothing in the repository" +
+      " had ever asked for that coordinate — the drags release at 0.9 — so the" +
+      " one value that ends the session sat exactly where no check looked.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `      of smEnd: lastStep(total)`,
+    replace: `      of smEnd: total`,
+    journey: "the-timeline-can-be-dragged",
+    assertion: "every key the scrubber advertises moves the session",
+  },
+  {
+    id: "SC8/the-scrubber-stops-naming-its-keys",
+    why:
+      "Reduce the scrubber's tooltip to the control's name, which is what it" +
+      " said for the whole life of the control: `role=\"slider\"`, a tab stop," +
+      " eight keys answered, and not one of them named anywhere a visitor could" +
+      " read. That is the same complaint a visitor made about the stepping" +
+      " buttons beside it, and the arm exists because a sentence derived from a" +
+      " table is exactly the kind of thing a later edit replaces with a literal" +
+      " that then stops tracking the table.",
+    file: join(CLIENT, "src", "debugger", "keymap.nim"),
+    find: `  ScrubName & " — " & parts.join(", ")`,
+    replace: `  ScrubName`,
+    journey: "the-timeline-can-be-dragged",
+    assertion: "the tooltip names every key the control advertises",
+  },
+
 
   // ── THE PLAYHEAD, AS A FACT JOURNEY 06 CAN NOW SEE (journey 06) ──────────
   //

@@ -988,7 +988,20 @@ suite "M8a — the source pane renders real source, with stable line identity":
     check atTick(1, 96) == 1           # 0.52 of a tick, rounds to the floor 1
     check atTick(3, 96) == 2           # 1.5 ticks exactly, rounds up
     # Never past the end, and never AT the end unless the trace is at the end.
-    check atTick(1314, 1315) == 47
+    #
+    # WHICH STEP *IS* THE END WAS WRONG HERE, and the correction is the whole
+    # of the change to this case. It read 1314 as mid-trace and 1315 as the
+    # end — but `totalSteps` is a COUNT over zero-based coordinates, so a
+    # 1315-step recording's last coordinate is 1314 and 1315 is one past the
+    # end. It is not merely absent: asking the engine for it PANICS the WASM
+    # module and ends the session (`session_view.lastStep`). So the step this
+    # case pinned as "the end" is a step no session can be at, and the step it
+    # pinned as mid-trace is the end.
+    check atTick(1313, 1315) == 47     # one before the last coordinate
+    check atTick(1314, 1315) == 48     # …which IS the end of this recording
+    # Past the end still clamps rather than drawing off the track — kept
+    # because `data-step` is read from the DOM and a stale or hand-edited
+    # value must not produce a 49th tick.
     check atTick(1315, 1315) == 48
     check atTick(9_999, 1315) == 48    # `fraction` clamps, and so does this
     # A positioned session always shows a mark, however early it is.
@@ -4430,6 +4443,161 @@ suite "the stepping chords — one table, and every surface reads it":
     check "Shift+" notin html
     # …while the preset that has real modifier bits does.
     check "Shift+" in renderShortcutsDialog(keymapOf(kmDesktop), mac = false)
+
+suite "the scrubber names the keys it answers to":
+  ## The stepping buttons were given their chords and the control BESIDE them
+  ## was not, though its keys had been bound for longer. `markScrubberSeekable`
+  ## puts `role="slider"` and `tabindex="0"` on `.dctl` — which is a promise
+  ## that a keyboard can move it — and named `aria-label="Position in the
+  ## trace"` and nothing else. The arrows, `Page Up`/`Page Down` and
+  ## `Home`/`End` were discoverable only by trying them.
+  ##
+  ## The rule that fixed the buttons applies unchanged: the sentence is derived
+  ## from the table the dispatcher matches against. These tests are about the
+  ## table and the derivation; that the keys MOVE the session is journey 17's,
+  ## because only a browser can press one.
+
+  test "a key that is DOCUMENTED is a key that DISPATCHES — the round trip":
+    ## `scrubMoveFor` is the handler's read of the table and `scrubLabel` is
+    ## the tooltip's, exactly as `actionFor`/`chordFor` split the stepping one.
+    let bindings = scrubBindings()
+    check bindings.len > 0            # nothing below quantifies over nothing
+    var keyCount = 0
+    for b in bindings:
+      check b.keys.len > 0
+      for k in b.keys:
+        inc keyCount
+        let (found, move) = scrubMoveFor(k)
+        check found
+        check move == b.move
+        # …and the key a reader is shown is in the sentence the control carries.
+        check keyLabel(k) in scrubLabel()
+    check keyCount > 0
+    # THE NEGATIVE: a key nothing binds is neither dispatched nor named.
+    let (stray, _) = scrubMoveFor("Backspace")
+    check not stray
+    check "Backspace" notin scrubLabel()
+
+  test "every move the table names is named in the sentence, in its own words":
+    ## The words are `ScrubMove`'s own string values, so the handler's `case`
+    ## and the tooltip cannot describe different sets of keys.
+    let label = scrubLabel()
+    check label.startsWith(ScrubName)
+    for b in scrubBindings():
+      check ($b.move) in label
+      check describeScrub(b) in label
+    # A count, not a "contains" — six moves, six phrases, and a sentence that
+    # dropped one fails here rather than passing on the five it kept.
+    check occurrences(label, ", ") == scrubBindings().len - 1
+
+  test "no key means two moves, and no move is left without a key":
+    ## A duplicate would make `scrubMoveFor` depend on table order.
+    var keys: HashSet[string]
+    var moves: HashSet[string]
+    var total = 0
+    for b in scrubBindings():
+      moves.incl $b.move
+      for k in b.keys:
+        keys.incl k
+        inc total
+    check keys.len == total
+    check moves.len == scrubBindings().len
+    # And the table covers the enum: a move added without a key would be a
+    # `ScrubMove` the handler can never be asked for.
+    var declared = 0
+    for m in ScrubMove: inc declared
+    check moves.len == declared
+
+  test "`aria-keyshortcuts` carries the same keys, in the attribute's own form":
+    ## WAI-ARIA 1.2 defines the value as a space-delimited list of key values,
+    ## so this is the machine-readable projection of the table and the tooltip
+    ## is the human one. Both from `scrubBindings`, so neither can list a key
+    ## the other does not.
+    let attr = scrubKeyShortcuts()
+    let listed = attr.split(' ')
+    var expected = 0
+    for b in scrubBindings():
+      for k in b.keys:
+        inc expected
+        check k in listed
+    check listed.len == expected
+    check expected > 0
+    # The RAW key values, not the printed ones: assistive technology matches
+    # `KeyboardEvent.key`, and "←" is not a value any event carries.
+    check "ArrowLeft" in listed
+    check "←" notin attr
+
+  test "the keys ARE the ARIA slider set — pinned as a value, not as a relation":
+    ## THE OTHER FOUR TESTS IN THIS SUITE CANNOT SEE A MISSING KEY, and that
+    ## was measured rather than reasoned: deleting `"ArrowDown"` from
+    ## `ScrubKeys` left all of them green. Every one of them is a relation over
+    ## `scrubBindings()` — "the sentence names what the table binds" — and a
+    ## table with one fewer key satisfies it exactly as well. A slider that
+    ## stopped answering ↓ would have shipped with a suite that agreed the
+    ## tooltip was correct, because it would have stopped naming ↓ too.
+    ##
+    ## So the set is pinned against an authority OUTSIDE this repository: the
+    ## WAI-ARIA Authoring Practices' Slider pattern, whose keyboard interaction
+    ## is Left/Down to decrease, Right/Up to increase, Page Down/Page Up for a
+    ## larger amount, Home for the minimum and End for the maximum. Eight keys.
+    ## A `role="slider"` that answers fewer is a control the platform's own
+    ## convention has already told the visitor how to use, failing to do what
+    ## it was told.
+    check scrubKeyShortcuts() ==
+      "ArrowLeft ArrowDown ArrowRight ArrowUp PageDown PageUp Home End"
+    # And two phrases of the sentence, so a key removed from the table is
+    # caught in the channel a reader actually sees as well as in the attribute.
+    check "←/↓ back one tick" in scrubLabel()
+    check "→/↑ forward one tick" in scrubLabel()
+
+  test "the last coordinate a seek may name is one BEFORE the count":
+    ## THE DEFECT THE `End` KEY MADE REACHABLE, pinned where it is cheap to
+    ## check. `totalSteps` is a count and the coordinates are zero-based, so
+    ## `totalSteps` itself is one past the end — and the engine does not refuse
+    ## it. It PANICS (`load_local_calltrace: invalid step_id`), traps the WASM
+    ## module, and answers nothing for the rest of the visit.
+    ##
+    ## Measured against the published engine over the deployed build on a
+    ## 345-step recording: 343 and 344 answered, 345 killed the session, and a
+    ## `Home` pressed afterwards did nothing. 345 is written below as a literal
+    ## for that reason — it is the number that was driven, not an example.
+    check lastStep(345) == 344
+    check lastStep(1) == 0        # a one-step recording's only coordinate is 0
+    check lastStep(0) == 0        # and an empty one names nothing at all
+
+    # A DRAG OR CLICK AT THE EXTREME RIGHT asks for the last coordinate and
+    # never the count. This is the second gesture that could reach it, and the
+    # one a visitor is more likely to perform.
+    var p = DebugControlsPane(totalSteps: 345, positioned: true, step: 1)
+    check p.stepAtFraction(1.0) == 344
+    check p.stepAtFraction(1.0) != p.totalSteps
+    # …and the clamp has not swallowed the range: a drop halfway along still
+    # names a step halfway along, so the line above is a bound and not a stub.
+    check p.stepAtFraction(0.5) == 173
+
+    # AND THE HANDLE STILL REACHES THE END. `markedTick` reserves the final
+    # tick for `fraction == 1.0` so that "the trace has ended" is a claim
+    # rather than a rounding; with the seek correctly clamped, the step at
+    # which that claim is true is `lastStep`, and a `fraction` still measured
+    # against the count would have left the playhead one tick short forever.
+    p.step = lastStep(p.totalSteps)
+    check p.fraction == 1.0
+    check p.markedTick == TimelineTicks
+    # One step earlier is emphatically NOT the end — otherwise the check above
+    # would be satisfied by a control that marks the last tick from anywhere.
+    p.step = lastStep(p.totalSteps) - 1
+    check p.fraction < 1.0
+    check p.markedTick < TimelineTicks
+
+  test "the printed key is a rendering of the bound key, and never a second list":
+    ## `keyLabel` decides SPELLING only. An unrecognised key prints verbatim,
+    ## so a key added to the table is documented the moment it is bound rather
+    ## than silently dropped from the sentence by a lookup with no entry.
+    check keyLabel("ArrowLeft") == "←"
+    check keyLabel("ArrowRight") == "→"
+    check keyLabel("Home") == "Home"
+    check keyLabel("Enter") == "Enter"          # nothing binds it; it is itself
+    check keyLabel("zzz-not-a-key") == "zzz-not-a-key"
 
 removeDir(workDir)
 removeDir(degradedDir)

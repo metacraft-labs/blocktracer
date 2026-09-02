@@ -72,7 +72,7 @@ export const id = "the-timeline-can-be-dragged";
 export const claim =
   "A visitor who drags the timeline at the top of a session moves the session to where they dropped it.";
 export const spec = "Debugger-Integration.md §3, §4.2 — BlockTracer";
-export const assertions = 30;
+export const assertions = 33;
 export const needsEngine = true;
 
 /** The three fractions every arm drags to. Named once so both arms drag the same. */
@@ -92,13 +92,26 @@ const DROPS = [0.75, 0.3, 0.55];
 const TICKS = 48;
 const tickFor = (step, total) => {
   if (!(total > 0) || step <= 0) return 0;
-  if (step >= total) return TICKS;
+  // `lastStep`, not `total`: the final tick is the claim that the trace has
+  // ended, and the last coordinate a 345-step recording has is 344.
+  if (step >= lastStep(total)) return TICKS;
   return Math.min(TICKS - 1, Math.max(1, Math.round((step / total) * TICKS)));
 };
 
+/**
+ * The LAST coordinate a seek may name, mirroring `session_view.lastStep`.
+ *
+ * `total` is a COUNT and the coordinates are zero-based, so `total` is one past
+ * the end — and asking for it does not fail, it TRAPS the WASM engine
+ * (`load_local_calltrace: invalid step_id`) and the session answers nothing for
+ * the rest of the visit. Measured against the published engine; the arm at the
+ * end of this file is what presses the key that used to ask for it.
+ */
+const lastStep = (total) => Math.max(0, total - 1);
+
 /** The step a pointer `f` of the way along the track is asking for. */
 const stepFor = (f, total) =>
-  Math.min(total, Math.max(1, Math.floor(Math.min(1, Math.max(0, f)) * total + 0.5)));
+  Math.min(lastStep(total), Math.max(1, Math.floor(Math.min(1, Math.max(0, f)) * total + 0.5)));
 
 /**
  * The control, as the page presents it — geometry, affordance and handle.
@@ -129,6 +142,13 @@ const readTrack = (page) =>
       tabindex: track.getAttribute("tabindex"),
       valueMax: track.getAttribute("aria-valuemax"),
       valueNow: track.getAttribute("aria-valuenow"),
+      // WHAT THE CONTROL SAYS ABOUT ITS OWN KEYS. The track has answered the
+      // arrows, Page Up/Down and Home/End since it became seekable, and named
+      // none of them anywhere a visitor could read — the same complaint that
+      // was made about the stepping buttons beside it, on the control that had
+      // its keys bound first.
+      title: track.getAttribute("title") ?? "",
+      keyShortcuts: track.getAttribute("aria-keyshortcuts") ?? "",
       hitAtCentre: !!hit && (hit === track || track.contains(hit)),
     };
   });
@@ -321,9 +341,13 @@ async function demoArm(browser, site, j, subject) {
     );
     j.countIs(t.ticks, TICKS, "the track is drawn as the 48 ticks the control is specified as");
     j.expect(
-      t.seekable && t.role === "slider" && t.tabindex === "0" && t.valueMax === String(total),
-      "the track is offered as a slider over the whole trace",
-      `seekable=${t.seekable} role=${t.role} tabindex=${t.tabindex} max=${t.valueMax} of ${total}`,
+      t.seekable &&
+        t.role === "slider" &&
+        t.tabindex === "0" &&
+        t.valueMax === String(lastStep(total)),
+      "the track is offered as a slider over the whole trace, and no further",
+      `seekable=${t.seekable} role=${t.role} tabindex=${t.tabindex} max=${t.valueMax}` +
+        ` of ${total} (last coordinate ${lastStep(total)})`,
     );
 
     // THE DEFECT-FAMILY GUARD. The crawled build must carry the timeline and
@@ -456,6 +480,59 @@ async function demoArm(browser, site, j, subject) {
       Number(keyed.facts.step) < Number(beforeKey.step) && Number(keyed.facts.step) >= 1,
       "the slider answers the keyboard it puts itself in the tab order for",
       `Home: ${beforeKey.step} -> ${keyed.facts.step}`,
+    );
+
+    // ── EVERY KEY THE CONTROL ADVERTISES IS A KEY IT ANSWERS ────────────
+    //
+    // The arm above proves ONE key works. This proves the control's own claim
+    // about its keys, which is a different statement and the one that goes
+    // stale: `aria-keyshortcuts` and the tooltip are derived from
+    // `keymap.ScrubKeys`, and a key removed from the dispatcher's `case` while
+    // the table kept it would leave the page advertising a key that does
+    // nothing. That is exactly what a visitor reported about the buttons — a
+    // tooltip naming a key that does not fire is worse than naming none.
+    //
+    // THE ADVERTISED LIST IS THE SUBJECT SET, read off the page rather than
+    // written here, so a build that advertised fewer keys would be judged on
+    // fewer and the count assertion below is what catches that.
+    const advertised = (await readTrack(page)).keyShortcuts.split(" ").filter(Boolean);
+    j.atLeast(advertised.length, 1, "SUBJECTS: keys the scrubber advertises in aria-keyshortcuts");
+    const answered = [];
+    const inert = [];
+    for (const key of advertised) {
+      // Re-centred before each key, so a key that moves backwards is not
+      // judged from step 1 and a key that moves forwards is not judged from
+      // the end — at a boundary a working key and a dead one look identical.
+      await page.mouse.click(r.x + r.w * 0.5, r.y + r.h / 2);
+      const centred = await settlePosition(page);
+      await page.focus(".dctl");
+      await page.keyboard.press(key);
+      const moved = await settlePosition(page);
+      if (Number(moved.facts.step) !== Number(centred.facts.step)) {
+        answered.push(`${key}:${centred.facts.step}->${moved.facts.step}`);
+      } else {
+        inert.push(`${key}@${centred.facts.step}`);
+      }
+    }
+    j.countIs(
+      answered.length,
+      advertised.length,
+      `every key the scrubber advertises moves the session` +
+        ` — answered ${answered.join(" ")}${inert.length ? `; INERT ${inert.join(" ")}` : ""}`,
+    );
+
+    // …and the tooltip a pointer user reads names them too, so the list is not
+    // only in an attribute assistive technology can see. Checked against the
+    // ADVERTISED keys via the printed forms the page itself chose: the arrows
+    // are drawn as arrows, so the raw `ArrowLeft` is not what a reader gets.
+    const t2 = await readTrack(page);
+    const printed = { ArrowLeft: "←", ArrowRight: "→", ArrowUp: "↑", ArrowDown: "↓" };
+    const missing = advertised.filter((k) => !t2.title.includes(printed[k] ?? k.replace(/^Page/, "Page ")));
+    j.countIs(
+      missing.length,
+      0,
+      `the tooltip names every key the control advertises — "${t2.title}"` +
+        `${missing.length ? `; MISSING ${missing.join(" ")}` : ""}`,
     );
 
     j.countIs(
