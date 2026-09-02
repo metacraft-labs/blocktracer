@@ -63,10 +63,17 @@
 //     the exporter is expected to hand such URLs to script through a DATA
 //     ATTRIBUTE — which is exactly what `data-replay-engine` and `data-trace`
 //     are, and why they are scanned here alongside `src` and `href`.
-//   * `url(…)` inside a `<style>` block or a `style=` attribute is not scanned.
-//     Nothing in this product loads an asset that way today (the design lint
-//     forbids inline styles outright), and adding it would need a CSS parse
-//     rather than a larger regex.
+//   * `url(…)` inside a `<style>` block or a `style=` attribute is not scanned,
+//     and THIS IS A REAL GAP, not a theoretical one. The `style=` half is
+//     defensible — `tools/design/check-tokens.mjs` A5 forbids inline style
+//     attributes outright. The `<style>` half is NOT: every page inlines
+//     `components/styles.nim`'s `fontFaceCss` (via `components/layout.nim`),
+//     whose `@font-face` rules are the only reference to the brand faces under
+//     `client/src/assets/fonts/`. Those font files are shipped assets that this
+//     guard does not check — grep `src:url(` in `client/src/components/styles.nim`
+//     for the current set. Closing it needs a CSS parse rather than a larger
+//     regex, which is why it is still open; until then the summary's counts do
+//     not speak for anything loaded from a stylesheet.
 //   * `srcset` (a comma-separated candidate list) is not scanned; this product
 //     emits none. If one appears, it will be silently unchecked, which is why
 //     the summary prints the attribute names it DID scan.

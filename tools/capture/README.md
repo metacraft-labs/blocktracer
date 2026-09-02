@@ -276,10 +276,21 @@ ledger schema; `just review-gate-selftest` proves each condition independently
 turns a passing ledger into a failing one, and that a missing or unparseable
 ledger fails closed rather than going green for lack of anything to check.
 
-**G6 — the tier-1 determinism precondition — is not enforced**, because VD.0's
-pinned container has never been built. `gate.mjs` says so on every run rather
-than leaving it to be discovered. G1–G5 are properties of the ledger and do not
-depend on it.
+**G6 — the tier-1 determinism precondition — is enforced exactly when a usable
+tier-1 verdict exists.** `gate.mjs` computes `enforced` from
+`require-deterministic.mjs`'s verdict on `screenshots/canary/status.json`, and
+prints `ENFORCED` or `NOT ENFORCED (<code>)` with the reason on every run rather
+than leaving it to be discovered — run the gate to see which. The five refusal
+codes (`no-verdict`, `stale-verdict`, `advisory-verdict`, `canary-failed`,
+`incoherent-verdict`) are enumerated in `require-deterministic.mjs`'s header.
+
+An earlier version of this paragraph said G6 was *never* enforced "because VD.0's
+pinned container has never been built". Both halves were wrong: the pinned
+capture environment is a Nix derivation (`tools/capture/capture-env.nix`, run as
+`nix run .#capture-env -- …`, which `just capture-canary-pinned` does), not a
+container, and this repository contains no Dockerfile at all.
+
+G1–G5 are properties of the ledger and do not depend on G6.
 
 ### The per-view expectation blocks
 

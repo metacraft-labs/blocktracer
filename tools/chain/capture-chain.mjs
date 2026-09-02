@@ -72,10 +72,15 @@ const arg = (name, fallback) => {
 const runtime = arg('runtime');
 const url = arg('url', 'https://aztec-testnet.drpc.org');
 // THE SLUG IS AN ARGUMENT, because a second real chain has to be a capture, not
-// a second producer. It defaults off the endpoint rather than off nothing, and
-// `ingest.nim` refuses `aztec` outright — that slug belongs to the synthetic
-// demo, and a real chain landing on it would overwrite the demo's blocks and
-// make generated and real data indistinguishable in a URL.
+// a second producer. It defaults off the endpoint rather than off nothing.
+//
+// `ingest.nim` no longer refuses `aztec` outright, and the reason the old note
+// gave for the refusal has been inverted: `aztec` is now the MAINNET slug, and
+// the synthetic demo is the fixture that has to move. What guards the tree is
+// `assertSlugAvailable` (see `src/blocktracer/chain/ingest.nim`), which refuses
+// a collision in EITHER direction — one slug, one producer — because two chains
+// at one slug would overwrite each other's blocks and make generated and real
+// data indistinguishable in a URL.
 const chain = arg('chain', url.includes('testnet') ? 'aztec-testnet' : 'aztec-mainnet');
 const label = arg('label', chain === 'aztec-mainnet' ? 'Real Aztec mainnet data'
   : chain === 'aztec-testnet' ? 'Real Aztec testnet data' : 'Real chain data');
