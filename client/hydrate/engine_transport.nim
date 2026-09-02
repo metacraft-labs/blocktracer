@@ -333,9 +333,17 @@ proc afterMsImpl(ms: int; cb: proc()) {.importjs:
 proc afterMs*(ms: int; cb: proc()) =
   ## Run `cb` once, `ms` from now.
   ##
-  ## Exists for one caller — the watchdog that decides the engine is not
-  ## coming. Nothing else here waits on a clock: every other transition is
-  ## driven by a message the worker actually sent, which is the right way round.
+  ## Three callers today, all in `hydrate.nim`, and all of them DEADLINES
+  ## rather than polling: the watchdog that decides the engine is not coming
+  ## (`EngineDeadlineMs`), and the `scheduleTimeout` injections for the locals
+  ## feed and the flow window, which turn a request the engine silently drops
+  ## into a settled unavailable state instead of a promise that never resolves.
+  ## Grep `afterMs(` for the current set.
+  ##
+  ## What still holds is the rule those three are the exceptions to: NO forward
+  ## progress is driven by a clock. Every transition into a new position is
+  ## driven by a message the worker actually sent; a timer here only ever
+  ## decides that an answer is not coming.
   afterMsImpl(ms, cb)
 
 proc onNextFrameImpl(cb: proc()) {.importjs:

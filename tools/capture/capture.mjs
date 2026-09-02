@@ -719,7 +719,7 @@ function themeAxisSummary(results) {
     identicalPairs: identical,
     note:
       identical.length > 0
-        ? "identical light/dark pairs mean the product does not yet vary with the theme; the design-system bridge emits a dark-only token set (client/src/design_system/tokens.nim). VD.2 resolves the colour roles, VD.7 gates parity."
+        ? "identical light/dark pairs mean the two captures produced the same bytes, and THE CAUSE IS NOT ESTABLISHED — investigate rather than filing it as known. This note used to name one: 'the design-system bridge emits a dark-only token set'. It does not. `client/src/design_system/tokens.nim` builds `:root{base + explorer + LIGHT}` and then emits [data-theme=\"light\"] and [data-theme=\"dark\"] overrides in both directions, and `client/tests/test_static_export.nim` asserts both themes exist and differ. An identical pair is therefore evidence about the capture path or the theme switch, not about the token layer."
         : null,
   };
 }
