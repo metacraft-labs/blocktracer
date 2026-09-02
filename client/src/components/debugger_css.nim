@@ -985,6 +985,23 @@ html[data-register="debugger"],
 .frnum{font-variant-numeric:var(--bt-numeric-features);
   font-size:var(--bt-type-caption-size)}
 a.frseg:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
+/* THE SEGMENT THAT SEEKS, WHICH SAID NOTHING ABOUT BEING A CONTROL.
+   The `rail.navigable` branch renders a `span` and deliberately no `href` —
+   "a live session SEEKS", and the target mechanism would switch which pass is
+   DISPLAYED rather than move the debugger to it. Correct, and it cost the
+   segment the one thing `href` was also buying: a browser gives `a[href]`
+   `cursor:pointer` for free, and nothing gives it to a `span`. So on a live
+   session — the only state in which the rail can be used at all — every
+   segment was a `role="button"`, `tabindex="0"`, `ct/goto-ticks`-sending
+   control under a plain arrow, while the INERT pre-hydration `a.frseg` beside
+   it in the static export had the hand. The affordance was inverted by
+   hydration: the rail got more capable and less legible at the same moment.
+   Keyed on `role="button"`, which `hydrate.markRailNavigable` stamps at
+   exactly the moment the segment becomes live, so the cursor and the capability
+   arrive together and neither can be forgotten without the other. `.out` keeps
+   `not-allowed` below: a pass the session has not reached is still refused, and
+   a rule that painted a hand on it would re-lie in the other direction. */
+.frseg[role="button"]:not(.out){cursor:pointer}
 /* A pass the session has NOT reached at this position. It is not a link and it
    does not look like one: the still frame has no values for it, and offering it
    would be an affordance that cannot act. Hydration makes it live.
@@ -1628,6 +1645,48 @@ a.ctrow,a.evrow{cursor:pointer}
   box-shadow:0 0 0 var(--bt-stroke-hairline) var(--bt-border-default)}
 .copyable::selection{background:var(--bt-surface-selected);
   color:var(--bt-text-strong)}
+
+/* A COPYABLE VALUE INSIDE A CLICKABLE ROW: THE ROW'S AFFORDANCE WINS.
+   This is the defect a visitor reported as "the cursor over the clickable
+   elements shows as a plus sign (e.g. in the call trace) — I expect a hand".
+   `cursor:copy` renders as an arrow with a plus badge, and the two elements it
+   landed on are `.ctname` and `.evlabel` — the function name and the event
+   label, which are the WIDEST cell of the row and therefore the part of it a
+   pointer is actually resting on. The row is `a.ctrow`/`a.evrow` and carries
+   `cursor:pointer` above, but `cursor` is resolved at the element under the
+   pointer, not at the row, so a descendant rule quietly overrode the row's
+   affordance across its whole reading surface. Every navigable row in both
+   navigation regions was affected; the aggregate (`Self cost`) view was not,
+   because those rows are `tdiv` and jump nowhere — which is the tell that this
+   was one rule crossing a boundary rather than a per-pane mistake.
+   The promise the plus made was also the wrong one. A `copy` cursor says "this
+   gesture copies"; the row's gesture SEEKS — `hydrate.rowHandler` sends
+   `ct/goto-ticks` for a click anywhere inside it, and §4.2 calls that "the
+   single most valuable interaction in the product". A visitor reading the plus
+   sees the one thing the row does not primarily do.
+   Scoped to `a`/`button` ancestors rather than named per pane, so a copyable
+   value dropped into any future clickable row inherits the answer instead of
+   reintroducing the bug. Standalone copyable values are untouched: nothing
+   encloses them, so `cursor:copy` there still describes the only gesture on
+   offer. */
+a .copyable,button .copyable{cursor:pointer}
+
+/* THE CONTROL HYDRATION ADDS, WHICH HAD NO STYLE AT ALL.
+   `hydrate.bindCopy` gives an element `role="button"`, `tabindex="0"`, a click
+   handler and the `copybtn` class — and no rule in this stylesheet mentioned
+   `copybtn`, so the class was inert. On a `.copyable` the element still
+   inherited the copy cursor and got away with it; on the `[data-copy]`
+   population — the TRUNCATED identifiers, `.mdhash` in the pane and `.dbgid` in
+   the identity bar — there was no `.copyable` rule to fall back on, so the one
+   pair of values whose ONLY route to the full string is this button presented a
+   real, focusable, keyboard-operable control under a plain arrow. That is the
+   reported defect mirrored: there the cursor promised a gesture the element did
+   not offer, here the element offered a gesture the cursor never mentioned.
+   `pointer`, because by the time this class exists the element IS a button, and
+   `styles.nim` already answers `button{cursor:pointer}` for every control that
+   is one in markup. Placed after `.copyable` so it wins on the values that
+   carry both. */
+.copybtn{cursor:pointer}
 
 /* ── the embedded demo on the home page ─────────────────────────────────── */
 /* Design-System §2 makes the register crossing deliberate, so the embed is a
