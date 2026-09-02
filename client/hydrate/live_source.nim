@@ -64,6 +64,38 @@
 ## else. It needs no knowledge of the recording machine's directory layout,
 ## which it could not have anyway: the island is written by the exporter and
 ## the absolute path exists only inside the container.
+##
+## ## WHAT THIS COSTS, MEASURED — the flow window pays for it
+##
+## The relative-only write is what makes the origin chain classify, and it is
+## also what starves the omniscience flow window. `find_function_location`
+## (`db-backend/src/expr_loader.rs`), which fills `FlowUpdate.location`'s
+## `function_name`, `first` and `last`, is gated on
+## `processed_files.contains_key(&location.path)` — and `location.path` is the
+## JOINED spelling, `workdir().join(recorded)` (`trace_reader.rs`). The key is
+## absent, the body is skipped, and the incoming location passes through
+## unchanged.
+##
+## Measured on the wire over the built site with the published engine staged
+## (`tools/journeys/journeys/13-the-flow-window-follows-the-position.journey
+## .mjs`, which is RED and ledgered with this reason): eight distinct request
+## ticks, sixteen answers, EVERY one carrying `location.rrTicks = 0` and
+## `functionFirst = 0` for a function whose body begins on line 12. The engine
+## answers every position with the same window, so the values overlay shows one
+## function's window for the life of the session — the second half of the
+## user report this pair of defects was found from.
+##
+## Two features, one key, opposite spellings. The fix is to write BOTH, which
+## is what CodeTracer's own host helper does — `vfsKeysFor(recordedPath,
+## workdir)` in `platform/replay_engine_vfs.nim`: "writing both spellings costs
+## one extra map entry per source file and makes the probe order stop
+## mattering". It is not done here because the second key needs the recording's
+## workdir, which lives inside the container and which nothing in this
+## repository reads; surfacing it is a change to the PUBLISHER, not to this
+## module. The engine-side fix on codetracer's `fix/wasm-source-probe` makes
+## `source_probe_path` consult the filesystem and THEN the VFS, which removes
+## the need for the work-around entirely — and writing both keys is correct
+## either side of it, which is why the ledger entry names both.
 
 import std/[json, strutils]
 
