@@ -952,8 +952,28 @@ type
       ## only that nothing was hit — it does not say which way the session was
       ## going, and "ahead of here" and "before here" are the two different
       ## things a visitor needs told apart.
+    framePending: bool       ## a paint is already scheduled
+    framesWaited: int        ## frames this paint has held for the values
 
-proc render(h: Hydration) =
+const PositionSettleFrames = 6
+  ## How long a paint may wait for the position's values before going ahead
+  ## without them. Six frames is about 100 ms at 60 Hz — the same order as
+  ## Debugger-Integration §7's whole-navigation budget, and two orders below
+  ## `live_locals.LocalsDeadlineMs`, which is the bound on the WAIT rather than
+  ## on the paint.
+  ##
+  ## A bound and not a promise. Past it the panes are painted with whatever the
+  ## session knows, which is the position plus "Reading the values at this
+  ## position…" — because a wait this long is a wait a visitor is entitled to
+  ## see, and §8 forbids hiding one.
+
+proc paintWhenSettled(h: Hydration)
+
+proc paint(h: Hydration) =
+  ## The panes, drawn from the live projection with everything this page
+  ## owns stamped onto it. Split out of `render` when `render` became the
+  ## SCHEDULING half: the decoration below has to happen on the pass that
+  ## actually draws, not on the one that asks for a draw.
   var view = projectReplayPanes(h.session, h.base, h.ui.island)
   # THE MARKS GO ON HERE, INSIDE THE RENDER, and that placement is the whole
   # reason they survive.
@@ -978,6 +998,85 @@ proc render(h: Hydration) =
       view.editor.documents[di].lines[li].breakpoint =
         h.breakpoints.contains(path, view.editor.documents[di].lines[li].number)
   renderPanes(h.ui, view, h.latch)
+
+proc render(h: Hydration) =
+  ## Draw the panes — at most once per animation frame, and never mid-move.
+  ##
+  ## ## WHY THIS IS COALESCED, AND WHY IT IS NOT A TIMING HACK
+  ##
+  ## One stop is not one event. `applyStop` knows the POSITION; the values for
+  ## it have to be asked for and arrive about 13 ms later; the call trace and
+  ## the event log arrive on their own. Each of those calls this proc, and each
+  ## is right to.
+  ##
+  ## So between the stop and the reply there is a real, correct, unavoidable
+  ## state: the session is at the new position and does not yet know its values,
+  ## and `live_locals.noteFor` renders it as "Reading the values at this
+  ## position…". Measured on the published engine, that state lasted 13 ms — and
+  ## a frame is 16.7 ms, so it straddled a frame boundary roughly four times in
+  ## five and WAS PAINTED. The Values pane visibly emptied to a sentence and
+  ## refilled on almost every step. That is the flicker a visitor reported.
+  ##
+  ## The state is not wrong, so it must not be removed; the pane genuinely does
+  ## not have those values yet, and showing the previous position's under the new
+  ## one is the confident wrong answer this route exists to not give. What is
+  ## wrong is PAINTING a state that a newer one replaces before anyone could
+  ## read it. Coalescing to the frame says exactly that and nothing more: writes
+  ## that arrive within one frame produce one paint, and the last one wins.
+  ##
+  ## ## AND WHY ONE FRAME IS NOT ENOUGH
+  ##
+  ## Coalescing alone took the flash from one-to-three frames down to exactly
+  ## one, and no further: 13 ms and 16.7 ms are close enough that the position
+  ## lands in frame N and its values in frame N+1, every time. One painted frame
+  ## of a pane emptying and refilling is still a flicker — it is the definition
+  ## of one.
+  ##
+  ## So the paint also waits, briefly and with a bound, for the move to settle.
+  ## `PositionSettleFrames` is that bound and `live_locals.settlingPosition` is
+  ## the question.
+  ##
+  ## THIS MAKES THE PAGE MORE HONEST RATHER THAN LESS, which is worth being
+  ## precise about, because deferring a paint sounds like hiding something.
+  ## What was painted in that one frame was a MIXED state: the new position's
+  ## line marked, the new step in the toolbar, and no values, because the values
+  ## had not arrived. The page was internally inconsistent for a frame. Waiting
+  ## means every painted frame is a whole position — either all of A or all of
+  ## B, never the head of one and the body of the other. Nothing is shown that
+  ## is not true, and nothing true is withheld: `applyStop` writes the URL
+  ## before this is scheduled, so §6.3's "`t` updates on every navigation" is
+  ## unaffected by how the panes are timed.
+  ##
+  ## And it hides no wait. Past the bound the panes are painted exactly as they
+  ## always were, "Reading the values at this position…" and all, because a wait
+  ## that long is one a visitor is entitled to see. The rule is "do not paint
+  ## what you are about to overwrite" — the same rule `writePane` applies one
+  ## level down, there across frames and here within a move.
+  ##
+  ## `stopped` is re-checked INSIDE the callback and not only at the call sites.
+  ## A scheduled paint outlives the moment it was asked for, so a session that
+  ## fails between the request and the frame would otherwise repaint a live
+  ## toolbar over the sentence saying the engine is gone — the same hazard
+  ## `goLive`'s `onApplied` guards against, arriving one frame later.
+  if h.framePending: return
+  h.framePending = true
+  h.framesWaited = 0
+  h.paintWhenSettled()
+
+proc paintWhenSettled(h: Hydration) =
+  ## The scheduled half of `render`. Re-arms itself while the move is still
+  ## settling, up to `PositionSettleFrames`, then paints.
+  onNextFrame(proc() =
+    if h.stopped:
+      h.framePending = false
+      return
+    if h.session.locals.settlingPosition() and
+       h.framesWaited < PositionSettleFrames:
+      inc h.framesWaited
+      h.paintWhenSettled()
+      return
+    h.framePending = false
+    h.paint())
 
 proc fail(h: Hydration; reason: string) =
   ## Give up, and say so on the controls.

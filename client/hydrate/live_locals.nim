@@ -547,6 +547,15 @@ proc knows(feed: LocalsFeed; ticks: uint64): bool =
   ## Whether a COMPLETED reply put this exact position's values in the store.
   feed.hasLive and feed.liveTicks == ticks
 
+proc settlingPosition*(feed: LocalsFeed): bool =
+  ## A move has been made and this position's values have not arrived yet.
+  ##
+  ## Read by the host to decide whether a paint is worth making. It is
+  ## deliberately NOT "a request is in flight": a second request for a position
+  ## whose reply already landed leaves the pane with a complete, correct answer
+  ## on screen and nothing to wait for, which is `knows`' whole job.
+  feed != nil and feed.phase == lpPending and not feed.knows(feed.forTicks)
+
 proc diffFor*(feed: LocalsFeed; name, value: string): ValueDiff =
   ## How this row relates to the position the session came from.
   ##

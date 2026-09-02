@@ -338,6 +338,23 @@ proc afterMs*(ms: int; cb: proc()) =
   ## driven by a message the worker actually sent, which is the right way round.
   afterMsImpl(ms, cb)
 
+proc onNextFrameImpl(cb: proc()) {.importjs:
+  "(function(f){ return requestAnimationFrame(f); })(#)".}
+  ## Wrapped for `afterMsImpl`'s reason, and read that comment before changing
+  ## the spelling: a bare `requestAnimationFrame(#)` emits a call against a Nim
+  ## parameter name that does not exist in the output.
+
+proc onNextFrame*(cb: proc()) =
+  ## Run `cb` before the browser's next paint.
+  ##
+  ## The one clock in this file that is not a watchdog, and it is deliberately
+  ## the browser's own rather than a millisecond count. What it buys is that
+  ## several writes arriving inside one frame produce ONE paint: the last one
+  ## wins and the intermediate states are never shown, because they are gone
+  ## before the compositor looks. A `setTimeout(0)` would coalesce the same
+  ## callbacks and would still be a guess about when the frame is.
+  onNextFrameImpl(cb)
+
 proc replaceQueryImpl(query: cstring) {.importjs: """
 (function(q){
   try { history.replaceState(history.state, '', q); } catch (e) {}
