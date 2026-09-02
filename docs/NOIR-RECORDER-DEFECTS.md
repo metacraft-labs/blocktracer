@@ -31,7 +31,7 @@ expectation — never by asserting the wrong behaviour. See
 | **NR-03a** | `nargo trace` has no `--oracle-resolver` / `--oracle-file`, so no oracle program can be recorded | **ours** | major | `toolchain/oracles` |
 | **NR-03b** | The debug instrumenter skips `#[oracle]` bodies, so an oracle call has no frame | **upstream** | minor | `toolchain/oracles` |
 | **NR-04** | Writes through a `&mut` parameter are not captured at all | **upstream** | major | `tour/mutation` |
-| **NR-05** | In the BROWSER engine, source text is unreachable, so every value-origin query answers `UnknownSource` at confidence 0.0 | **engine** (CodeTracer's db-backend) | major | none yet — it is why BlockTracer has no origin surface |
+| **NR-05** | In the BROWSER engine, source text is unreachable, so every value-origin query answers `UnknownSource` at confidence 0.0 | **engine** (CodeTracer's db-backend) | major | none yet — it bounds what BlockTracer's shipped origin surface can answer |
 
 ---
 
@@ -273,15 +273,24 @@ reads them.
 
 **Why this blocks the product surface.** BlockTracer's home page and its
 `<meta name="description">` both promise a visitor can *"trace any value to its
-origin"* (`client/src/pages/home.nim`, `client/src/ssr.nim`), and no control
-anywhere offers it — the journeys ledger carries this as
-`a-value-can-be-traced-to-its-origin`. `OriginChainVM` and `origin_chain_types`
-ARE exported from the Embed SDK facade (`codetracer_embed.nim`), and BlockTracer's
-`LiveSession` builds six ViewModels and not that one, so the wiring is genuinely
-small. **But wiring it today would ship a control that answers
-"unknown source" on every value of every transaction** — a confident-looking
-affordance that resolves nothing, on the exact promise the product is already
-over-claiming. That is worse than the absence.
+origin"* (`client/src/pages/home.nim`, `client/src/ssr.nim`). `OriginChainVM` and
+`origin_chain_types` are exported from the Embed SDK facade
+(`codetracer_embed.nim`).
+
+**THE CONTROL SHIPS. This paragraph used to argue against building it.** It said
+no control anywhere offers the query, that `LiveSession` "builds six ViewModels
+and not that one", and that wiring it "would ship a control that answers
+'unknown source' on every value of every transaction… worse than the absence".
+All three are out of date: `client/hydrate/session_project.nim:266` constructs
+`originChain: createOriginChainVM(store)` among seven, and
+`client/src/components/debugger.nim:1271` renders the control
+(`button(class="storigin", data-action="origin")`).
+
+So NR-05 is no longer a reason not to wire the surface; it is a statement about
+what the wired surface can answer. What NR-05 still governs is the QUALITY of
+the answer in the browser engine — where source text is unreachable, the query
+resolves to `UnknownSource` at confidence 0.0. Do not cite this section as an
+argument for absence.
 
 **The fix, and its size.** Roughly 60–100 lines in the engine, localised:
 either extract bundled sources into `crate::vfs` from `setup_from_vfs` instead of
