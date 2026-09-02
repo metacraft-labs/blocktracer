@@ -397,6 +397,89 @@ const ARMS = [
     journey: "a-value-can-be-traced-to-its-origin",
     assertion: "NO-SOURCE: the pane says why a value here cannot be traced",
   },
+  {
+    id: "P/the-plus-comes-back",
+    why:
+      "Put the reported defect back exactly as it was. `.ctname` and `.evlabel` carry" +
+      " `.copyable`, so restoring `cursor:copy` on a copyable inside a clickable row" +
+      " returns the plus to the widest cell of every navigable row — which is the" +
+      " part of the row a pointer actually rests on, and is what the visitor saw. The" +
+      " row's own `a.ctrow{cursor:pointer}` is untouched by this arm, which is the" +
+      " point: the rule that looks correct in the stylesheet stays correct, and the" +
+      " surface still lies.",
+    file: join(CLIENT, "src", "components", "debugger_css.nim"),
+    find: `a .copyable,button .copyable{cursor:pointer}`,
+    replace: `a .copyable,button .copyable{cursor:copy}`,
+    journey: "a-clickable-surface-shows-the-hand",
+    assertion:
+      "copyable value cells sitting inside a navigable row — each computes `pointer`",
+  },
+  {
+    id: "Q/the-copy-control-loses-its-cursor",
+    why:
+      "Return the controls hydration adds to having no cursor of their own, the state" +
+      " in which they shipped: a focusable, click-bound control on the truncated" +
+      " identifiers — the one population whose ONLY route to the full value is that" +
+      " control — presenting under a plain arrow. `auto` rather than deleting the rule," +
+      " so the mutation is one token and cannot be confused with a file that failed to" +
+      " save.",
+    file: join(CLIENT, "src", "components", "debugger_css.nim"),
+    find: `[role="button"]{cursor:pointer}`,
+    replace: `[role="button"]{cursor:auto}`,
+    journey: "a-clickable-surface-shows-the-hand",
+    assertion: "copy controls hydration added to this page — each computes `pointer`",
+  },
+  {
+    id: "R/the-blanket-fix",
+    why:
+      "THE WRONG FIX, WHICH PASSES EVERY ASSERTION ON THE HYDRATED PAGE. Change" +
+      " `.copyable` itself to `pointer` instead of subordinating it where a click means" +
+      " something else. Arm 1 of the journey goes green — the rows show the hand — and" +
+      " the copy affordance is gone from the served page, where the rows are inert" +
+      " `div.ctrow` and `user-select:all` plus a copy cursor was the only true thing" +
+      " that surface said. This is the arm the NO-SCRIPT scope control exists for, and" +
+      " without it the journey could not tell a scoped fix from a deletion.",
+    file: join(CLIENT, "src", "components", "debugger_css.nim"),
+    find: `.copyable{user-select:all;cursor:copy;border-radius:var(--bt-radius-xs);`,
+    replace: `.copyable{user-select:all;cursor:pointer;border-radius:var(--bt-radius-xs);`,
+    journey: "a-clickable-surface-shows-the-hand",
+    assertion: "NO-SCRIPT: the copy affordance survives where nothing encloses it",
+  },
+  {
+    id: "S/a-hand-on-something-inert",
+    why:
+      "THE DEFECT MIRRORED. Widen the row rule from `a.ctrow,a.evrow` to `.ctrow,.evrow`" +
+      " so it also paints the served page's rows, which carry no `href` and jump" +
+      " nowhere. Every assertion about the hydrated page stays green — those rows are" +
+      " anchors and were already `pointer` — and what reddens is the inverse claim on" +
+      " the one population where it is not vacuous. This is the sibling repository's" +
+      " `build-clickable` shape: a cursor promising a click the element cannot deliver," +
+      " which a spec asserting the CLASS would have gone on passing.",
+    file: join(CLIENT, "src", "components", "debugger_css.nim"),
+    find: `a.ctrow,a.evrow{cursor:pointer}`,
+    replace: `.ctrow,.evrow{cursor:pointer}`,
+    journey: "a-clickable-surface-shows-the-hand",
+    assertion:
+      "NO-SCRIPT: no row that cannot be clicked offers the hand that says it can",
+  },
+  {
+    id: "T/a-hand-on-a-heading",
+    why:
+      "THE INVERSE DIRECTION OF §13, AIMED AT THE PAGE-WIDE RULE RATHER THAN AT ONE" +
+      " PANE. Leak `cursor:pointer` onto `.panetitle` — a heading, inside no anchor and" +
+      " carrying no role, which Front-End-Architecture §7 guarantees cannot be a" +
+      " hand-rolled control either. Every surface this journey names stays green," +
+      " because none of them is a pane title; what reddens is the set-equality sweep," +
+      " which is the assertion that has to catch a cursor defect on a pane nobody" +
+      " thought to enumerate. Without this arm the sweep could be reading a constant" +
+      " and reporting zero violations forever.",
+    file: join(CLIENT, "src", "components", "styles.nim"),
+    find: `button{cursor:pointer}`,
+    replace: `button,.panetitle{cursor:pointer}`,
+    journey: "a-clickable-surface-shows-the-hand",
+    assertion:
+      "nothing that is not an anchor, a button or an interactive role shows the hand",
+  },
 ];
 
 const log = (s = "") => console.log(s);
