@@ -3625,11 +3625,19 @@ page's primary button is unreadable** — a near-white `Generate trace` label on
 near-white fill, on a near-black canvas. Three independent reviewers across two
 rounds saw it. It is in `reviews/ledger.json` as `tx-detail/wide/light/ADV/1`.
 
-**Theme parity is currently a known product gap, not a review finding.** The
-token layer emits a dark-only `:root` block, so 24 of 32 light/dark image pairs
-are byte-identical. Until VD.2 lands the colour roles, a reviewer noting "this
-light capture is dark" is re-reporting a known defect. Note it once and move on;
-VD.7 gates parity.
+**Theme parity: report it, do not assume it is known.** This paragraph used to
+say the token layer emits a "dark-only `:root` block", and told reviewers that a
+light capture rendering dark was a known gap to note once and move past. That
+mechanism is not real. `client/src/design_system/tokens.nim` builds the block as
+`":root{" & base & explorer & light & "}"` — `:root` carries the **light**
+tokens — and it then emits explicit `[data-theme="light"]` and
+`[data-theme="dark"]` overrides in both directions.
+
+So a light capture that renders dark is a FINDING, not a duplicate, and this
+brief is read by every review sub-agent — the instruction to move on was
+suppressing genuine reports. If light/dark pairs do come back identical, that
+is evidence about the capture path or the theme switch, and the cause has to be
+established rather than assumed from this paragraph.
 
 ---
 

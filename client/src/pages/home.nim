@@ -108,19 +108,24 @@ proc homePage*(infos: seq[ChainInfo];
         # measurement, against the pinned Embed SDK
         # (`ci/embed-sdk-pin.env`, 8d1c84a8):
         #
-        #   `ReplayDataStore.requestLocals` (replay_data_store.nim:664-680)
-        #   SENDS `ct/load-locals` and DISCARDS the reply — its `onSuccess`
+        #   `ReplayDataStore.requestLocals` (replay_data_store.nim:628 at the
+        #   pin) SENDS `ct/load-locals` and DISCARDS the reply — its `onSuccess`
         #   sets `loadingState` and `loadedForRRTicks` and nothing else. Its
         #   own comment says so: "The actual JSON→Variable parsing will be
         #   added when the locals panel is converted". The only writer of
-        #   `store.locals.locals` is `updateLocals` (:795), and nothing under
-        #   `client/hydrate/` calls it.
+        #   `store.locals.locals` is `updateLocals` (:788 at the pin).
         #
-        # So `StateVM.currentVariables` — which `projectState` iterates — is
-        # EMPTY for the life of every hydrated session. There is no live value
-        # in this product to ask the origin OF, and an origin affordance would
-        # have been drawn over the statically exported fixture rows the visitor
-        # is still looking at.
+        # THAT MEASUREMENT NO LONGER SUPPORTS THE CONCLUSION IT ONCE DID. This
+        # comment used to add "and nothing under `client/hydrate/` calls it",
+        # and concluded `StateVM.currentVariables` is EMPTY for the life of
+        # every hydrated session. Two callers exist —
+        # `client/hydrate/live_locals.nim:445` and
+        # `client/hydrate/session_project.nim:590` — both feeding
+        # `store.updateLocals`, which is the bridge the SDK documents for a host
+        # that parses the reply itself. So the client fills locals around the
+        # SDK's gap, and "there is no live value to ask the origin OF" is not a
+        # reason that holds. (The line numbers above were wrong too: :664-680
+        # and :795, against :628 and :788 at the pin.)
         #
         # The second reason is fidelity, and it survives the first being fixed:
         # every real transaction this explorer publishes is declared rung 3,
