@@ -1555,6 +1555,26 @@ a.ctrow,a.evrow{cursor:pointer}
 .dctl .tick.at{background:var(--bt-mark-position);height:100%;
   min-width:var(--bt-stroke-thick);border-radius:var(--bt-radius-xs);
   flex:0 0 auto}
+/* THE GESTURE, SAID AS A CURSOR — and only where the gesture exists.
+   `.seekable` is stamped by `hydrate.markScrubberSeekable`, which is in the
+   one compilation that also binds the drag, so this rule cannot take effect on
+   a page that cannot honour it. That arrangement is not fussiness: this route
+   shipped a `cursor: pointer` that outlived the click handler it belonged to,
+   with a Playwright spec asserting the class by name, and a visitor reported
+   this very track as something they expected to drag and could not. An
+   affordance and its behaviour written in two files is how those happen.
+   `grab` rather than `pointer`, because the track is a continuous range a
+   handle is dragged along and not a target that is clicked — and `grabbing`
+   while it is being dragged, which is the one moment the control is being
+   operated rather than merely offered. `.scrubbing` and not only `:active`
+   because the pointer is CAPTURED for the duration: a drag that leaves the
+   track still owns it, and `:active` alone would drop the cursor the moment
+   the visitor's hand strayed a pixel above the bar.
+   No focus rule is added — `styles.nim`'s single `:focus-visible` treatment
+   already covers `[tabindex]`, and the tab stop arrives with the same stamp,
+   so the keyboard affordance and the pointer one cannot get out of step. */
+.dctl.seekable{cursor:grab}
+.dctl.seekable:active,.dctl.scrubbing{cursor:grabbing}
 .dcstatus{flex:0 0 auto;display:flex;align-items:baseline;gap:var(--bt-space-sm)}
 /* One short phrase, not a sentence: it shares a bar with the identity now, and
    the step counter is its right-hand neighbour, so it says only what the

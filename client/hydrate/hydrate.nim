@@ -134,6 +134,74 @@ proc isPlainActivation(ev: Event): bool {.importjs: """
 })(#)
 """.}
 
+# ── the scrubber drag's five questions of the platform ─────────────────────
+#
+# Each is one expression wrapped in a function, rather than a bare `#.field`,
+# for the reason `isPlainActivation` is written that way: an `importjs` pattern
+# consumes one argument per `#`, so a multi-clause test spelled inline silently
+# becomes a call with the wrong arity. Wrapping keeps the arity at one.
+
+proc isPrimaryDrag(ev: Event): bool {.importjs: """
+(function(e){
+  // The left button, unmodified. A right-click opens a menu, a middle-click is
+  // the platform's, and a modified drag is a selection — none of them is
+  // "take me to this point in the trace", and a handler that swallowed them
+  // would be a control taking gestures it was not offered.
+  return e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
+})(#)
+""".}
+
+proc pointerX(ev: Event): float {.importjs: "(function(e){ return e.clientX; })(#)".}
+proc pointerIdOf(ev: Event): int {.importjs: "(function(e){ return e.pointerId; })(#)".}
+proc keyName(ev: Event): string {.importjs: "(function(e){ return e.key || ''; })(#)".}
+
+proc capturePointer(e: Element; id: int) {.importjs: """
+(function(el, id){ try { el.setPointerCapture(id); } catch (_) {} })(#, #)
+""".}
+  ## Every pointer event for this gesture is delivered to `el` until release.
+  ##
+  ## `try` because a capture can be refused — a pointer that was already
+  ## released, a browser that has taken it for a scroll — and a throw here
+  ## would abort `pointerdown` and leave the drag half-armed, which is worse
+  ## than a drag that simply stops tracking outside the element.
+
+proc releasePointer(e: Element; id: int) {.importjs: """
+(function(el, id){
+  try { if (el.hasPointerCapture(id)) el.releasePointerCapture(id); } catch (_) {}
+})(#, #)
+""".}
+
+proc deferTick(fn: proc()) {.importjs: "setTimeout(#, 0)".}
+  ## Run `fn` after the current turn of the event loop.
+  ##
+  ## The scrub's next seek is issued through this rather than from inside the
+  ## previous one's completion callback, so the transport is never asked to
+  ## accept a request while it is still settling one. Nothing here is a
+  ## workaround for a diagnosed drop — it is the ordering every OTHER caller of
+  ## `gotoTicks` already has for free, since a row click and a deep link both
+  ## arrive from an event of their own. Chaining is the one path that would not,
+  ## and one task per answered seek is a negligible price beside the round trip
+  ## it is sequencing.
+  ##
+  ## The deferral is also what makes `scrubDrain` take no argument, and that is
+  ## not incidental: a gap between deciding to send and sending is exactly the
+  ## window in which a target goes stale. Read that proc before changing this
+  ## one.
+
+proc trackLeft(e: Element): float {.importjs:
+  "(function(el){ return el.getBoundingClientRect().left; })(#)".}
+proc trackWidth(e: Element): float {.importjs:
+  "(function(el){ return el.getBoundingClientRect().width; })(#)".}
+  ## MEASURED PER MOVE, not once at `pointerdown`.
+  ##
+  ## The identity bar reflows: `.dcstatus` holds `step / totalSteps` and its
+  ## width changes as the step counter gains digits, which a scrub does
+  ## continuously. A rect cached at the press would be stale by the middle of
+  ## the very drag it was taken for, and the handle would drift away from the
+  ## pointer over the gesture — a defect that is invisible on a short drag and
+  ## obvious on a long one. Two reads of a laid-out box per move is nothing
+  ## beside the pane rebuild each answered seek already does.
+
 proc paneBody(root: Element; id: cstring): Element =
   let pane = root.querySelector(id)
   if pane == nil: nil else: pane.querySelector(".panebody")
@@ -240,6 +308,107 @@ proc markRailNavigable(ui: Ui) =
   for seg in ui.editor.querySelectorAll(".frseg"):
     seg.setAttribute("role", "button")
     seg.setAttribute("tabindex", "0")
+
+proc paintScrubber(ui: Ui; step, totalSteps: int) =
+  ## Move the handle to `step`, without asking the engine anything.
+  ##
+  ## THE HALF OF THE GESTURE THAT MUST NOT WAIT. A seek answers in a median of
+  ## 46 ms and occasionally in 446, and a handle that only moved when the engine
+  ## replied would feel like a control being dragged through treacle at exactly
+  ## the moments the engine is busiest. So the handle follows the pointer at
+  ## pointer speed and the session follows the handle.
+  ##
+  ## It repaints THE SAME CLASSES `renderControls` emits, through the same
+  ## `tickClass`, so this is the renderer's own answer reached without a
+  ## re-render — not a lookalike that a later edit to the renderer would leave
+  ## behind. Nothing here is a style: a handle moved by a `style` attribute
+  ## would be the inline value `check-tokens.mjs` A5 forbids, arriving on the
+  ## one build the linter does not read.
+  let track = ui.controls.querySelector(".dctl")
+  if track == nil: return
+  let p = DebugControlsPane(step: step, totalSteps: totalSteps, positioned: step > 0)
+  let marked = p.markedTick
+  var i = 0
+  for t in track.querySelectorAll(".tick"):
+    inc i
+    t.setAttribute("class", tickClass(p, i, marked).cstring)
+  # The accessibility tree is a readout of the same position, so it moves with
+  # the handle rather than with the engine's answer. A slider that announced a
+  # value one round trip behind the one it is showing would be telling a screen
+  # reader user something different from what it is telling everyone else.
+  if track.classList.contains("seekable"):
+    track.setAttribute("aria-valuenow", ($step).cstring)
+    track.setAttribute("aria-valuetext",
+                       ("step " & groupDigits(step) & " of " &
+                        groupDigits(totalSteps)).cstring)
+
+proc markScrubberSeekable(ui: Ui; p: DebugControlsPane) =
+  ## The trace scrubber becomes a control once there is an engine to seek with.
+  ##
+  ## A visitor reported the track as something they expected to be able to drag
+  ## and could not, and the report was right about the shape: `.dctl` is a
+  ## timeline with a distinct playhead, which is a scrubber in every tool this
+  ## product is measured against. What was missing was the gesture — the
+  ## capability had been there since `ct/goto-ticks` landed, driving row clicks
+  ## and deep links.
+  ##
+  ## Stamped HERE rather than rendered by `components/debugger`, and the choice
+  ## is the same one `markRailNavigable` makes for the loop rail, plus one this
+  ## control has of its own. The debug route is served TWICE: `just export`
+  ## writes pages with no script at all, and that artefact is what a crawler and
+  ## every capture review sees. A `role="slider"` on those pages would announce
+  ## a range along which nothing can be moved — which is precisely the defect
+  ## being fixed, reintroduced by the fix, on the one build where it would be
+  ## hardest to notice. Affordance and behaviour are emitted by the same
+  ## compilation, so they cannot ship apart.
+  ##
+  ## Re-applied after EVERY render, because `setControls` replaces `.dc`
+  ## wholesale and an attribute set on the old element goes with it. The
+  ## listener is delegated instead and survives — the same split
+  ## `markRailNavigable` documents, for the same reason.
+  ##
+  ## The values are a live readout, not decoration: `aria-valuenow` moves with
+  ## the session on every stop, and `aria-valuetext` carries the sentence,
+  ## because "128" alone is not the quantity — "step 128 of 1,315" is.
+  ## `aria-valuemin` is 1 and not 0: step 0 is `positioned = false`, the
+  ## ABSENCE of a position rather than the first one, and a range that included
+  ## it would offer a seek to nowhere.
+  let track = ui.controls.querySelector(".dctl")
+  if track == nil: return
+  # THE GATE IS THE TRACE'S LENGTH, AND NOT `positioned`. A scrubber over a
+  # trace whose length is unknown cannot map a pointer to a step, so there is
+  # no gesture for the affordance to promise and none is offered.
+  #
+  # `positioned` was the first spelling of this line and it was wrong in the
+  # worst available way. A session reports `rrTicks = 0` from the moment the
+  # engine goes live until something moves it, so gating on a position made
+  # the scrubber inert for exactly as long as the visitor had not yet used
+  # anything else — which is to say, on arrival, which is when someone who
+  # wants to jump into the middle of a trace reaches for a timeline. It was
+  # measured: six clicks at six points on a freshly-live session, and all six
+  # did nothing. Having no position is a REASON to offer the seek, not a
+  # reason to withhold it; dragging is how a session that is nowhere gets
+  # somewhere.
+  if p.totalSteps <= 0: return
+  track.classList.add("seekable")
+  track.setAttribute("role", "slider")
+  track.setAttribute("tabindex", "0")
+  track.setAttribute("aria-label", "Position in the trace")
+  track.setAttribute("aria-valuemin", "1")
+  track.setAttribute("aria-valuemax", ($p.totalSteps).cstring)
+  if p.positioned:
+    track.setAttribute("aria-valuenow", ($p.step).cstring)
+    track.setAttribute("aria-valuetext",
+                       ("step " & groupDigits(p.step) & " of " &
+                        groupDigits(p.totalSteps)).cstring)
+  else:
+    # No `aria-valuenow`, because there is no value. A slider that reported 1
+    # here would be announcing a position the session is not at, which is the
+    # untruthful handle in the one channel where it cannot be checked against
+    # the screen. The element is rebuilt by `setControls` on every render, so
+    # there is no stale value from an earlier stop to clear.
+    track.setAttribute("aria-valuetext",
+                       "no position yet — drag to seek into the trace")
 
 # ---------------------------------------------------------------------------
 # Revealing the position: WHEN the pane moves, and WHERE the line lands
@@ -701,6 +870,7 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch) =
   if sel != nil:
     sel.outerHTML = panes.renderSelection(selectionDetail(view)).cstring
   markRailNavigable(ui)
+  markScrubberSeekable(ui, view.controls)
   revealCurrentLine(ui.editor)
 
 proc markUnavailable(ui: Ui; reason: string) =
@@ -970,6 +1140,52 @@ type
       ## about when: the query is composed at the stop, where the stack frame's
       ## path and line are in hand, and published by the paint that shows it.
 
+    # ---- the scrubber drag ---------------------------------------------
+    #
+    # THE TWO DESIGN DECISIONS, HELD AS FOUR FIELDS.
+    #
+    # 1. THE SEEK IS LIVE, AND IT IS COALESCED RATHER THAN TIMED. Seeking on
+    #    every pointermove floods the engine: a pointer reports at 60–120 Hz,
+    #    and `ct/goto-ticks` answers this trace in a median of 46 ms over 127
+    #    measured seeks (min 11, max 446) — every one of which also rebuilds
+    #    five panes. Unthrottled, the requests would outrun the answers by
+    #    three to eight times and the queue would put the handle seconds
+    #    behind the hand by the end of a drag.
+    #
+    #    The conventional alternative is to move the handle live and seek only
+    #    on release. A live scrub is genuinely nicer IF the engine can keep up,
+    #    and 46 ms is ~21 seeks a second, so it can — which is why this is
+    #    measured rather than assumed. So the seek stays live, with AT MOST ONE
+    #    REQUEST IN FLIGHT: newer pointer positions overwrite `scrubPending`
+    #    instead of queueing, and the pending one is issued when the in-flight
+    #    one settles. That is a throttle clocked by the ENGINE rather than by
+    #    an interval this file would have to guess and would be wrong about on
+    #    a longer trace, a slower machine, or the 446 ms tail.
+    #
+    #    The handle itself never waits for any of it (`paintScrubber`), so the
+    #    gesture is immediate even in that tail.
+    #
+    # 2. A CLICK ON THE TRACK SEEKS TO THAT POINT, and it falls out of the same
+    #    code rather than being a case beside it: a click is a `pointerdown`
+    #    and a `pointerup` at one place, so the press seeks and the release
+    #    commits the same step. Most scrubbers behave this way and a visitor
+    #    who has just learnt the track is draggable will try it. The rejected
+    #    alternative — drag-only, with a click doing nothing — would leave a
+    #    control that answers one gesture and silently ignores the cheaper one,
+    #    which is a smaller version of the defect being fixed.
+    scrubbing: bool          ## a pointer is down and owns the handle
+    scrubTarget: int         ## the step under the pointer, painted, maybe unsent
+    scrubInFlight: bool      ## a scrub `ct/goto-ticks` is awaiting its answer
+    scrubSent: int           ## the step that in-flight request asked for
+    scrubPending: int
+      ## The newest step the pointer has reached that has not been asked for.
+      ##
+      ## ONE slot and not a queue, deliberately: every position between the
+      ## last request and the newest one is a place the visitor has already
+      ## dragged past, and seeking to each in turn would replay the drag at the
+      ## engine's speed after the hand had stopped. Superseding is the whole
+      ## point — what a scrub asks for is where the pointer IS.
+
 const PositionSettleFrames = 6
   ## How long a paint may wait for the position's values before going ahead
   ## without them. Six frames is about 100 ms at 60 Hz — the same order as
@@ -1019,6 +1235,28 @@ proc paint(h: Hydration) =
       view.editor.documents[di].lines[li].breakpoint =
         h.breakpoints.contains(path, view.editor.documents[di].lines[li].number)
   renderPanes(h.ui, view, h.latch)
+  # A DRAG OWNS THE HANDLE UNTIL IT IS RELEASED.
+  #
+  # `renderPanes` has just drawn the handle where the ENGINE is, which during a
+  # scrub is one coalesced seek behind the pointer. Leaving it there would snap
+  # the handle backwards on every answer — roughly twenty times a second — and
+  # read as the control fighting the hand holding it.
+  #
+  # So the pointer's target is restored, and ONLY the handle: every other pane
+  # keeps the engine's answer, because the engine's answer is what those panes
+  # are about. The two are different claims. "Where the visitor is pointing" is
+  # the handle's; "what the trace looks like there" is everything else's, and
+  # the second may lag the first by a round trip without either being wrong.
+  if h.scrubbing and h.scrubTarget > 0:
+    paintScrubber(h.ui, h.scrubTarget, intAttr(h.ui.root, "data-total-steps"))
+    # And the `grabbing` cursor with it. The class was added to the `.dctl`
+    # that existed at `pointerdown`, and that element is gone — so without this
+    # the cursor reverted to `grab` the first time the engine answered, roughly
+    # 46 ms into a drag that was still very much under way. A cursor that stops
+    # saying "you are dragging this" while the visitor is dragging it is a
+    # small lie, but it is the same kind as the one being fixed.
+    let track = h.ui.controls.querySelector(".dctl")
+    if track != nil: track.classList.add("scrubbing")
   # After the panes and never before them, so a reader who copies the address
   # bar copies the position they are looking at.
   if h.pendingQuery.len > 0:
@@ -1391,7 +1629,8 @@ proc invoke(h: Hydration; action: DebugAction) =
     h.continueAwaiting = false
   h.session.controls.invokeToolbarStep(toolbarActionId(action))
 
-proc gotoTicks(h: Hydration; ticks: int; onRefused: proc() = nil) =
+proc gotoTicks(h: Hydration; ticks: int; onRefused: proc() = nil;
+               onSettled: proc() = nil) =
   ## A row in the navigation region, clicked — or the coordinate a deep link
   ## resolved to.
   ##
@@ -1407,15 +1646,86 @@ proc gotoTicks(h: Hydration; ticks: int; onRefused: proc() = nil) =
   ## correct and needs no fallback; a REFUSED deep-link seek would otherwise
   ## leave the panes frozen at the served frame with no live position at all,
   ## because the seek replaces the `stackTrace` that would have fetched one.
+  ##
+  ## `onSettled` exists for the scrubber, and it fires on BOTH outcomes —
+  ## answered and errored — because it is what releases the drag's one in-flight
+  ## slot. A hook that only ran on success would wedge the slot closed on the
+  ## first refusal and leave the rest of the drag painting a handle the session
+  ## never followed: the handle would keep moving, the session would not, and
+  ## the control would be back to being an animation. This is the ONE sender of
+  ## `ct/goto-ticks` in the bundle and it stays that way — the drag is a new
+  ## gesture on the existing capability, not a second path to it.
   h.service.send("ct/goto-ticks", %*{"threadId": 1, "ticks": ticks}).onComplete(
     onSuccess = proc(response: JsonNode) =
+      if onSettled != nil: onSettled()
       if not response{"success"}.getBool(true):
         # The engine refused the jump. Nothing moves and nothing pretends to;
         # the row stays a row and the session stays where it was.
         if onRefused != nil: onRefused()
         return,
-    onError = proc(message: string) = h.fail(
-      "The replay engine stopped answering: " & message))
+    onError = proc(message: string) =
+      if onSettled != nil: onSettled()
+      h.fail("The replay engine stopped answering: " & message))
+
+proc scrubSeek(h: Hydration; step: int)
+
+proc scrubDrain(h: Hydration) =
+  ## Issue whatever the pointer is asking for NOW, if the slot is free.
+  ##
+  ## READS `scrubPending` AT THE MOMENT IT RUNS, and takes no target of its own.
+  ## That is the whole content of this proc and it is worth the file it costs,
+  ## because the version that passed the target in was wrong in a way a
+  ## single-drag test would not have shown.
+  ##
+  ## It closed over the pending target at the time the previous seek settled and
+  ## re-sent it later. In between, faster pointer moves found the slot free,
+  ## sent themselves, and left a NEWER target pending — so the stale
+  ## continuation then overwrote it. Measured on the demo chain: a drag released
+  ## at step 1052 put 1052 on the wire and then, 138 ms later, put 707 on it,
+  ## and the session finished at 707. That is a scrubber that ends the gesture
+  ## at a position the visitor dragged THROUGH, which is worse than one that
+  ## does not move at all: it looks like it worked.
+  ##
+  ## A drain that asks "what is wanted now" cannot do that, because a stale
+  ## answer is not one of the things it can give.
+  if h.scrubInFlight: return
+  let nxt = h.scrubPending
+  h.scrubPending = 0
+  if nxt > 0 and nxt != h.scrubSent: h.scrubSeek(nxt)
+
+proc scrubSeek(h: Hydration; step: int) =
+  ## Ask for `step`, with at most one scrub request outstanding.
+  ##
+  ## The throttle, and it is clocked by the engine rather than by a number. If
+  ## nothing is in flight the request goes now; if something is, `step`
+  ## SUPERSEDES whatever was waiting and is issued the moment the answer lands.
+  ## See the `scrubPending` field for why superseding rather than queueing, and
+  ## the block above it for the measurements that made a live scrub the choice
+  ## over seek-on-release.
+  ##
+  ## Because the pending slot is overwritten rather than appended to, the
+  ## release path needs no special case: committing the drop point is just one
+  ## more `scrubSeek`, which either goes out immediately or replaces the last
+  ## intermediate target. The gesture therefore always ENDS at the step the
+  ## visitor let go on, whatever the engine was doing at the time — and that is
+  ## the property the journey asserts, because "the handle stopped there" would
+  ## be true of a decoration.
+  if step <= 0: return
+  if h.scrubInFlight:
+    # Cleared rather than set when the ask MATCHES what is already on its way:
+    # there is nothing left to do, and leaving `step` pending would send the
+    # same seek twice for a drag that paused on a tick it had already reached.
+    h.scrubPending = (if step == h.scrubSent: 0 else: step)
+    return
+  h.scrubInFlight = true
+  h.scrubSent = step
+  h.scrubPending = 0
+  h.gotoTicks(step, onSettled = proc() =
+    h.scrubInFlight = false
+    # DEFERRED, and carrying nothing. `deferTick` says why the send waits for
+    # the next turn; `scrubDrain` says why it must re-read the target rather
+    # than be handed one.
+    deferTick(proc() = h.scrubDrain()))
 
 proc sendBreakpoints(h: Hydration; path: string) =
   ## Tell the engine the breakpoints for ONE file.
@@ -1592,6 +1902,129 @@ proc bindGestures(h: Hydration) =
     if line == 0: return
     ev.preventDefault()
     h.toggleBreakpoint(path, line))
+
+  # ── THE SCRUBBER ───────────────────────────────────────────────────────
+  #
+  # "The slider in the very top can be slidable." It is a scrubber, it always
+  # looked like one, and the seek it needs has existed since `ct/goto-ticks`
+  # landed — so this binds a gesture to a capability rather than building one.
+  # It goes through `scrubSeek` -> `gotoTicks`, the same sender a row click and
+  # a deep link use, for the reason `invoke` refuses to hand-build a DAP
+  # request: a second path to one move is the arrangement where the two drift
+  # and only one of them is ever tested.
+
+  proc trackNow(): Element = h.ui.controls.querySelector(".dctl.seekable")
+    ## Re-queried per event, never held. `setControls` replaces `.dc` wholesale
+    ## on every stop, so the `.dctl` a drag started on is destroyed by the first
+    ## seek that drag issues. A cached handle would be a stale node from the
+    ## first answered move onward — the gesture would go on running and stop
+    ## reaching anything, which is exactly the failure this whole file's
+    ## delegation rule exists to prevent, in the one place where it happens
+    ## mid-gesture instead of between them.
+
+  proc totalNow(): int = intAttr(h.ui.root, "data-total-steps")
+    ## The denominator, read from where the SESSION publishes it. `renderPanes`
+    ## writes it on every render, so the gesture and the page cannot disagree
+    ## about how long the trace is — and a scrubber that mapped a pointer
+    ## against its own copy of that number is how a handle comes to be at 40%
+    ## of one thing and the session at 40% of another.
+
+  proc stepUnderPointer(track: Element; x: float): int =
+    let w = trackWidth(track)
+    if w <= 0.0: return 0
+    let p = DebugControlsPane(totalSteps: totalNow(), positioned: true)
+    p.stepAtFraction((x - trackLeft(track)) / w)
+
+  proc scrubTo(step: int) =
+    ## Paint now, ask the engine as fast as it will answer.
+    if step <= 0: return
+    h.scrubTarget = step
+    paintScrubber(h.ui, step, totalNow())
+    h.scrubSeek(step)
+
+  h.ui.controls.addEventListener("pointerdown", proc(ev: Event) =
+    let track = closestFrom(ev, ".dctl.seekable")
+    if track == nil: return
+    if not isPrimaryDrag(ev): return
+    # Cancelled so the press does not begin a text selection across the bar —
+    # a drag that selects the step counter on its way past is the browser and
+    # the control both acting on one gesture.
+    ev.preventDefault()
+    h.scrubbing = true
+    track.classList.add("scrubbing")
+    # CAPTURED ON `.dbgctl`, NOT ON THE TRACK, and this is the load-bearing
+    # line of the drag. `setControls` replaces `.dc` — and `.dctl` inside it —
+    # on every stop, so a capture taken on the track is released by the browser
+    # the instant the first seek is answered, roughly 46 ms into the gesture.
+    # The drag would end there, having moved once, which is very close to the
+    # defect being fixed and would have been reported as "it only jumps".
+    # `.dbgctl` is the served element hydration writes INTO and never replaces.
+    capturePointer(h.ui.controls, pointerIdOf(ev))
+    # THE PRESS SEEKS. See the `scrubbing` field block: a click on the track is
+    # a press and a release at one point, so making the press act is what makes
+    # a bare click seek there, with no second code path to keep in agreement.
+    scrubTo(stepUnderPointer(track, pointerX(ev))))
+
+  h.ui.controls.addEventListener("pointermove", proc(ev: Event) =
+    if not h.scrubbing: return
+    let track = trackNow()
+    if track == nil: return
+    ev.preventDefault()
+    scrubTo(stepUnderPointer(track, pointerX(ev))))
+
+  proc endScrub(ev: Event) =
+    if not h.scrubbing: return
+    h.scrubbing = false
+    releasePointer(h.ui.controls, pointerIdOf(ev))
+    let track = trackNow()
+    if track != nil: track.classList.remove("scrubbing")
+    # THE COMMIT. `scrubSeek` supersedes rather than queues, so re-asking for
+    # the drop point either goes out now or replaces whatever intermediate
+    # target was still waiting — and the session therefore lands where the
+    # visitor let go, not where the engine happened to have got to. Without
+    # this the drag would settle at the last coalesced position, which on a
+    # fast flick is not where the hand stopped.
+    if h.scrubTarget > 0: h.scrubSeek(h.scrubTarget)
+
+  h.ui.controls.addEventListener("pointerup", endScrub)
+  # A cancelled pointer is the platform taking the gesture back — a touch that
+  # became a scroll, a window that lost focus mid-drag. The state is unwound
+  # the same way, because a `scrubbing` flag left set would leave the handle
+  # pinned away from the session for the rest of the visit, which is the
+  # untruthful-handle defect produced by the fix for the inert one.
+  h.ui.controls.addEventListener("pointercancel", endScrub)
+
+  # THE KEYBOARD, because `markScrubberSeekable` puts `role="slider"` and a tab
+  # stop on this element. A slider a keyboard can focus and cannot move is the
+  # same defect as a track a mouse can see and cannot drag — this route has
+  # already shipped a `role="button"` neither Enter nor Space activated — so
+  # the two arrive together or not at all.
+  #
+  # An arrow moves ONE TICK, not one step. The tick is the resolution the
+  # control is drawn at, so a key press that moved a single step would move the
+  # session visibly and the handle not at all, which reads as a broken key.
+  h.ui.controls.addEventListener("keydown", proc(ev: Event) =
+    let track = closestFrom(ev, ".dctl.seekable")
+    if track == nil: return
+    let total = totalNow()
+    if total <= 0: return
+    let now = intAttr(h.ui.root, "data-step")
+    let tick = max(1, total div TimelineTicks)
+    let step =
+      case keyName(ev)
+      of "ArrowLeft", "ArrowDown": now - tick
+      of "ArrowRight", "ArrowUp": now + tick
+      of "PageDown": now - tick * 5
+      of "PageUp": now + tick * 5
+      of "Home": 1
+      of "End": total
+      else: 0
+    if step == 0: return
+    ev.preventDefault()
+    let want = clamp(step, 1, total)
+    h.scrubTarget = want
+    paintScrubber(h.ui, want, total)
+    h.scrubSeek(want))
 
   rowHandler(h.ui.calltrace, ".ctrow")
   rowHandler(h.ui.eventLog, ".evrow")

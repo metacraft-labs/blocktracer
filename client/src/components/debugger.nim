@@ -1431,12 +1431,6 @@ proc renderPhaseRail*(s: DebugSessionView): string =
       if s.engineCrossOrigin:
         span(class = "engineorigin"): text "Engine: " & s.engineBase
 
-const TimelineTicks = 48
-  ## The scrubber is a fixed number of discrete ticks rather than a filled bar,
-  ## because a filled bar needs a per-render width and an inline `style`
-  ## attribute — which `tools/design/check-tokens.mjs` A5 rejects, correctly:
-  ## an inline style is a design value no token layer can reach.
-
 proc renderControls*(p: DebugControlsPane): string =
   ## The stepping toolbar, the scrubber and the status — rendered into the
   ## identity bar (`pages/debug.nim`), not into a pane of its own.
@@ -1458,20 +1452,30 @@ proc renderControls*(p: DebugControlsPane): string =
   ## would be unreachable exactly for the users who most need it. The button
   ## cannot act either way; this page has no script and no form behind it.
 
-  # NEAREST tick, not the one below it. `int()` truncates, and truncation is a
-  # systematic bias in one direction: the fixture sits at step 128 of 1315 =
-  # 9.7%, which truncated to tick 4 of 48 and read as 8.3%. Every position the
-  # scrubber can show was reported as EARLIER in the trace than it is, by up
-  # to a whole tick; rounding halves the worst case and removes the bias.
-  #
-  # The LAST tick is reserved for `fraction == 1.0`. Rounding would otherwise
-  # let step 1314 of 1315 land on it, and the final tick is not a measurement
-  # — it is the claim that the trace has ended, which is a different kind of
-  # statement from "roughly here" and must not be made by rounding error.
-  let filled =
-    if not p.positioned: 0
-    else: clamp(int(p.fraction * float(TimelineTicks) + 0.5),
-                1, (if p.fraction >= 1.0: TimelineTicks else: TimelineTicks - 1))
+  ## ## The scrubber is a control, and this is not where it says so
+  ##
+  ## A visitor reported the track as something they expected to be able to
+  ## drag, and they were right to: it is a timeline with a distinct playhead,
+  ## which is the shape of a scrubber in every tool this product is measured
+  ## against. `hydrate.bindGestures` now binds that drag to `ct/goto-ticks` —
+  ## the same primitive a row click and a deep link use.
+  ##
+  ## But NOTHING is added here. No `role`, no `tabindex`, no `cursor`. The
+  ## affordance is stamped by `markScrubberSeekable`, in the one compilation
+  ## that also implements the gesture, for `markRailNavigable`'s reason and one
+  ## more of its own: this page is ALSO served without a bundle, and a
+  ## `role="slider"` on the crawled artefact would be a control that announces
+  ## a range it cannot be moved along. That is the defect family this change
+  ## exists to close — after a plus-cursor on rows that were not clickable, and
+  ## a `cursor: pointer` that outlived the click handler it belonged to — and
+  ## reintroducing it in the fix would be an unpleasant irony. The affordance
+  ## and the behaviour are emitted by the same file, so they cannot ship apart.
+  ##
+  ## `markedTick` is `session_view`'s, not this proc's. Hydration needs the
+  ## same answer to paint the handle under a pointer that is still down, and
+  ## two roundings of one quantity is two controls: the one drawn and the one
+  ## dragged.
+  let filled = p.markedTick
   ui:
     tdiv(class = "dc"):
       tdiv(class = "dcbtns"):
@@ -1493,16 +1497,11 @@ proc renderControls*(p: DebugControlsPane): string =
             span(class = "dcglyph"): text b.glyph
       tdiv(class = "dctl"):
         for i in 1 .. TimelineTicks:
-          # The tick AT the position is marked separately from the ticks
-          # before it. Without it the control is a progress bar, and a
-          # progress bar at 10% on a page that is loading an 18 MB engine
-          # reads as the engine's load progress rather than as position in
-          # the trace — which is how five of six VD.5 round-1 reviewers
-          # described it. The elapsed run says how far; the marker says
-          # WHERE, and the scrubber's only job is the second one.
-          span(class = "tick" &
-                       (if p.positioned and i == filled: " at"
-                        elif i <= filled: " on" else: ""))
+          # `tickClass` is `session_view`'s, for `markedTick`'s reason: the
+          # handle hydration paints under a live pointer and the handle drawn
+          # when the engine answers are the same mark, and two spellings of
+          # this expression would be two marks that agree until one is edited.
+          span(class = tickClass(p, i, filled))
       tdiv(class = "dcstatus"):
         span(class = "dcphase"): text p.statusText
         # §10.8's "the control says so". Rendered only when there is something

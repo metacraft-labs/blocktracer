@@ -1113,12 +1113,83 @@ type
     totalSteps*: int      ## from the manifest's execution summary
     positioned*: bool     ## whether `step` means anything yet
 
+const TimelineTicks* = 48
+  ## The scrubber is a fixed number of discrete ticks rather than a filled bar,
+  ## because a filled bar needs a per-render width and an inline `style`
+  ## attribute — which `tools/design/check-tokens.mjs` A5 rejects, correctly:
+  ## an inline style is a design value no token layer can reach.
+  ##
+  ## It lives HERE, beside the arithmetic, rather than in the renderer that
+  ## used to own it, because hydration now needs the same number to answer
+  ## "which tick is the pointer over". Two spellings of 48 would be two
+  ## controls: one the renderer draws and one the drag moves.
+
 func fraction*(p: DebugControlsPane): float =
   ## Where the scrubber sits, 0.0 .. 1.0. A float, because the renderer turns
   ## it into a percentage width and nothing else may.
   if p.totalSteps <= 0 or p.step <= 0: 0.0
   elif p.step >= p.totalSteps: 1.0
   else: p.step.float / p.totalSteps.float
+
+func markedTick*(p: DebugControlsPane): int =
+  ## Which tick carries the playhead, 1 .. `TimelineTicks`, or 0 for none.
+  ##
+  ## Extracted from `renderControls`, unchanged, because the drag needs the
+  ## renderer's OWN answer and not a second implementation of it. The handle
+  ## painted while the pointer is down and the handle drawn when the engine
+  ## answers are then the same tick by construction, rather than two roundings
+  ## that agree until one of them is edited.
+  ##
+  ## NEAREST tick, not the one below it. `int()` truncates, and truncation is a
+  ## systematic bias in one direction: the fixture sits at step 128 of 1315 =
+  ## 9.7%, which truncated to tick 4 of 48 and read as 8.3%. Every position the
+  ## scrubber can show was reported as EARLIER in the trace than it is, by up
+  ## to a whole tick; rounding halves the worst case and removes the bias.
+  ##
+  ## The LAST tick is reserved for `fraction == 1.0`. Rounding would otherwise
+  ## let step 1314 of 1315 land on it, and the final tick is not a measurement
+  ## — it is the claim that the trace has ended, which is a different kind of
+  ## statement from "roughly here" and must not be made by rounding error.
+  if not p.positioned: 0
+  else: clamp(int(p.fraction * float(TimelineTicks) + 0.5),
+              1, (if p.fraction >= 1.0: TimelineTicks else: TimelineTicks - 1))
+
+func tickClass*(p: DebugControlsPane; i, marked: int): string =
+  ## The class on tick `i` when the playhead is on tick `marked`.
+  ##
+  ## The tick AT the position is marked separately from the ticks before it.
+  ## Without it the control is a progress bar, and a progress bar at 10% on a
+  ## page that is loading an 18 MB engine reads as the engine's load progress
+  ## rather than as position in the trace — which is how five of six VD.5
+  ## round-1 reviewers described it. The elapsed run says how far; the marker
+  ## says WHERE, and the scrubber's only job is the second one.
+  ##
+  ## A `func` because the renderer is no longer the only caller: hydration
+  ## repaints the handle from under a pointer that is still down, and a second
+  ## spelling of this expression would be a handle that moves one way while
+  ## being dragged and another way when the engine answers.
+  "tick" & (if p.positioned and i == marked: " at"
+            elif i <= marked: " on" else: "")
+
+func stepAtFraction*(p: DebugControlsPane; f: float): int =
+  ## The step a pointer `f` of the way along the track is asking for.
+  ##
+  ## THE INVERSE OF `fraction`, and it is deliberately continuous rather than
+  ## snapped to a tick. The 48 ticks are how the position is DRAWN — a
+  ## consequence of A5 forbidding a per-render width — and making them the
+  ## resolution of the gesture as well would throw away 27 steps of precision
+  ## per tick on this recording for no reason but the renderer's constraint.
+  ##
+  ## Rounded rather than truncated, for `markedTick`'s reason: truncation would
+  ## make every drop land at or before the point the visitor released, never
+  ## after, which is a bias and not a rounding.
+  ##
+  ## Clamped to 1, never 0: `positioned` is `step > 0`, so a seek to step 0
+  ## would ask the session to report that it has no position — a state the
+  ## engine cannot be in and the scrubber must not request.
+  if p.totalSteps <= 0: 0
+  else: clamp(int(clamp(f, 0.0, 1.0) * float(p.totalSteps) + 0.5),
+              1, p.totalSteps)
 
 # ---------------------------------------------------------------------------
 # The transaction metadata pane (Page-Descriptions §7.1)
