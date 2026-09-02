@@ -241,23 +241,223 @@ proc markRailNavigable(ui: Ui) =
     seg.setAttribute("role", "button")
     seg.setAttribute("tabindex", "0")
 
-proc scrollToCurrentLine(ui: Ui) =
-  ## Bring the session's line into view after the source pane is rewritten.
+# ---------------------------------------------------------------------------
+# Revealing the position: WHEN the pane moves, and WHERE the line lands
+# ---------------------------------------------------------------------------
+#
+# A VISITOR REPORTED THIS PANE AND IT IS WORTH QUOTING, BECAUSE THE COMPLAINT IS
+# ABOUT MOVEMENT AND NOT ABOUT VISIBILITY
+#
+#     "When I step in through the instructions listing, the editor scrolls in a
+#      way that the caret/cursor/current-line stay as the top line. No other
+#      debugger that I know of behaves this way. My expectation is that the
+#      editor should auto-scroll only when the caret leaves the visible area."
+#
+# Both halves of that were true here, and they came from two separate decisions
+# that reinforced each other:
+#
+#   1. `renderPanes` re-windowed the pane through `openAtCurrent` on EVERY stop.
+#      That function drops every line above `currentLine - SourceLeadIn` and runs
+#      to the end of the file, so the current line is at row 7 of the rendered
+#      document by construction. Measured on a real `aztec-testnet` capture
+#      before this change, six consecutive steps left the mark at 65.7, 65.8,
+#      65.9, 66.0, 66.1 and 66.2 pixels from the top of the pane while its number
+#      went 1, 2, 3, 4, 5, 6. On a demo session the same six steps shortened the
+#      document from 38 rendered lines to 21: the context above the position was
+#      not scrolled past, it was DELETED.
+#
+#   2. `scrollToCurrentLine` then called `cur.scrollIntoView()` — the no-argument
+#      form, which is `block: "start"` — unconditionally. Top-anchored, on every
+#      render, whether or not the line had moved and whether or not it was
+#      already on screen.
+#
+# MECHANISM 1 IS GONE FROM THE WHOLE REPOSITORY AND IT WAS NOT THIS BRANCH THAT
+# FINISHED IT. `openAtCurrent`'s header gave the reason it existed — "The pane
+# has no JavaScript to scroll with" — which was a fact about `pages/debug.nim`,
+# the served frame, and never about this file. A sibling change arriving from the
+# OTHER symptom (a reader who reported "Showing from line 71" over thirteen lines
+# of an 83-line file) established that the premise had stopped holding for the
+# served frame too, and removed the constant, the proc and both call sites. The
+# no-script path is now `autofocus` plus `scroll-margin-block-start`, which buys
+# the same six rows of context without deleting the rest of the program. See
+# `renderPanes` for how that composes with this policy.
+#
+# MECHANISM 2 IS THIS BRANCH'S, AND REMOVING THE WINDOW DID NOT FIX IT. That is
+# the thing to hold on to: with the document whole, `scrollIntoView()` still
+# top-anchors the position on every render. `scroll-margin-block-start` shifts
+# where "top" is, from row 1 to row 7, and a constant offset re-established on
+# every step is exactly the sentence the visitor wrote. The window was the whole
+# of "the line stays at the top" and only half of "it scrolls on every step".
+#
+# WHAT REPLACES IT, AND WHY THIS POLICY
+#
+# The hydrated pane renders the WHOLE active document, so there is a scroll
+# surface with context on both sides of the position, and this reveal decides
+# when to use it:
+#
+#   * the line is already inside the pane's box -> NOTHING MOVES. Not "scrolled
+#     minimally", not "scrolled by a line": `scrollTop` is not written, and a
+#     reader who has scrolled to read a helper above the position keeps their
+#     place across the step.
+#   * the line is outside the box -> it is CENTRED, clamped to the scrollable
+#     range.
+#   * the pane is showing a different DOCUMENT than it was -> centred
+#     unconditionally, because the offset the reader was at is an offset into a
+#     file they are no longer looking at.
+#
+# This is `revealLineInCenterIfOutsideViewport`, which is what CodeTracer's
+# editor calls at all three of its stepping sites (`ui/editor.nim`,
+# `ui/trace.nim`) and what VS Code, IntelliJ and GDB's TUI all do. It is also
+# what the visitor asked for: leaving the box at the bottom edge and centring is
+# a correction of half a pane, which is the "scroll with half a screen perhaps"
+# in the report, and it buys the same further movement before the next scroll.
+#
+# ONE POLICY, NOT A SETTING. Alternative reveal policies are a desktop-product
+# concern; this route picks the debugger norm and implements it.
+#
+# STEP AND JUMP ARE NOT DISTINGUISHABLE HERE, AND THAT IS A FINDING
+#
+# A toolbar step (`invoke` -> `invokeToolbarStep`) and a row click (`gotoTicks`)
+# are two different requests, but they converge before anything renders: against
+# the engine actually published at `/replay-engine/` the `ct/complete-move`
+# branch of `onDapEvent` never fires (see its header), so BOTH arrive as a bare
+# DAP `stopped`, go through `requestPosition` -> `stackTrace` -> `applyStop`, and
+# reach `render` carrying no record of which gesture caused them. `applyStop` has
+# no parameter for it and the `stopped` event's `reason` is not read.
+#
+# So there is one call site and it is tuned for STEPPING, which is what the
+# report was about. A deliberate teleport is not left uncatered for by accident,
+# though: a jump to another file changes the document and is centred by the third
+# rule above, and a jump far down the same file is outside the box and is centred
+# by the second. The two behaviours the distinction would have bought are what
+# this policy already does — what it cannot do is centre a jump that lands
+# somewhere already on screen, and holding still for that is the right failure.
+
+#
+# WHICH ELEMENT ACTUALLY SCROLLS, AND WHY IT IS NOT THE ONE THIS FILE HOLDS
+#
+# `Ui.editor` is `#pane-editor .panebody` and it is NOT the source pane's
+# scroller. Measured in the browser on both renderings:
+#
+#   .srcline.cur                      23px
+#   .src            overflow-y:auto   client 512 / scroll 886   (demo source)
+#   .src.instr      overflow-y:auto   client 549 / scroll 7975  (chain listing)
+#   .srcdoc         visible           client 539 / scroll 539
+#   .srcwrap        visible           client 539 / scroll 539
+#   .panebody       overflow-y:auto   client 614 / scroll 838
+#
+# `.src` is where the lines live and where the overflow is; `.panebody` scrolls
+# only the tab strip or the listing caption above it, and on the demo pane it
+# does not scroll at all (539 == 539). A reveal written against `.panebody`
+# would have set `scrollTop` on an element with a scroll range of ZERO and moved
+# nothing — which is a fix that measures as applied and is not.
+#
+# So the scroller is FOUND, from the line outward, rather than assumed. Both are
+# then honoured: the inner one is where the line is placed, and the outer one is
+# corrected afterwards if the inner scroller's own box is not fully on screen
+# inside it. Two levels, because that is how many the measurement found, and the
+# loop would be the same for three.
+
+proc noteRevealAnchor(pane: Element) {.importjs: """
+(function(pane){
+  // Stashed ON the pane element, which SURVIVES the rewrite — `writePane`
+  // assigns `pane.innerHTML`, so the pane is the same node and everything
+  // inside it is new. That is why this is a property on `pane` and not a
+  // `var` in this file: it needs to outlive exactly one innerHTML assignment
+  // and nothing longer, and it is thrown away by a page load like the pane is.
+  var cur = pane.querySelector(".srcline.cur");
+  var doc = cur ? cur.closest(".srcdoc") : null;
+  var inner = null;
+  for (var e = cur; e && e !== pane; e = e.parentElement) {
+    var oy = getComputedStyle(e).overflowY;
+    if ((oy === "auto" || oy === "scroll") && e.scrollHeight > e.clientHeight + 1) {
+      inner = e; break;
+    }
+  }
+  pane.__btReveal = {
+    doc: doc && doc.id ? doc.id : "",
+    inner: inner ? inner.scrollTop : 0,
+    outer: pane.scrollTop
+  };
+})(#)
+""".}
+  ## Where the reader had the source pane, read BEFORE `writePane` discards it.
   ##
-  ## `pages/debug.nim` used to solve this at export time by DELETING the lines
-  ## above the position, because "there is no JavaScript on this page to scroll
-  ## it with". There is now, so the window is gone entirely and the pane is
-  ## moved instead — which is the better behaviour for a reader who has
-  ## scrolled away and then stepped, and it is the only one of the two that
-  ## leaves the rest of the program readable.
-  ##
-  ## This is also the reason the served frame's `autofocus` is not enough on its
-  ## own and is not a duplicate of this call. `autofocus` fires once, at parse
-  ## time, on the row the EXPORTER marked; every stop after that rewrites the
-  ## pane and needs the pane moved again, and re-focusing a row on every stop
-  ## would take focus away from the stepping control the reader is using.
-  let cur = ui.editor.querySelector(".srcline.cur")
-  if cur != nil: cur.scrollIntoView()
+  ## The `.srcdoc` id is taken with the offsets and compared with the id after,
+  ## because "the reader's scroll offset still means something" is exactly the
+  ## question "is this the same document". `docAnchor(path)` derives that id from
+  ## the file path, so it is stable across renders of one file and differs across
+  ## files — which is what makes this readable off the DOM with no state carried
+  ## between renders.
+
+proc revealCurrentLine(pane: Element) {.importjs: """
+(function(pane){
+  var a = pane.__btReveal || { doc: "", inner: 0, outer: 0 };
+  var cur = pane.querySelector(".srcline.cur");
+  if (!cur) return;
+  var docEl = cur.closest(".srcdoc");
+  var docId = docEl && docEl.id ? docEl.id : "";
+  var sameDoc = a.doc !== "" && docId === a.doc;
+
+  // Every scroller between the line and the pane, nearest first, plus the pane.
+  var scrollers = [];
+  for (var e = cur; e; e = e.parentElement) {
+    var oy = getComputedStyle(e).overflowY;
+    if ((oy === "auto" || oy === "scroll") && e.scrollHeight > e.clientHeight + 1)
+      scrollers.push(e);
+    if (e === pane) break;
+  }
+  if (scrollers.length === 0) return;
+
+  // THE READER'S POSITION IS RESTORED FIRST, and this is load-bearing rather
+  // than tidy. `writePane` assigns `innerHTML`, which resets every offset to 0,
+  // so a policy that asked "is the line visible?" of the pane as it stands
+  // would be asking about the top of a freshly-written document on every step
+  // and would answer "no" every time — the reported defect, rebuilt out of the
+  // fix. The question is about where the reader WAS.
+  if (sameDoc) {
+    scrollers[0].scrollTop = a.inner;
+    if (scrollers[scrollers.length - 1] === pane) pane.scrollTop = a.outer;
+  }
+
+  // The CLIENT box of each scroller, not its border box: a line under a border
+  // is not on screen. `clientTop` is that border's width and `clientHeight`
+  // excludes it on both edges.
+  var box = function(s){
+    var r = s.getBoundingClientRect();
+    var top = r.top + s.clientTop;
+    return { top: top, bottom: top + s.clientHeight };
+  };
+  var inside = function(s){
+    var b = box(s), cr = cur.getBoundingClientRect();
+    return cr.top >= b.top && cr.bottom <= b.bottom;
+  };
+
+  // ALREADY VISIBLE IN EVERY SCROLLER: return WITHOUT writing `scrollTop`.
+  // Writing back the value it already holds would be invisible here and is not
+  // invisible to the visitor — an assignment fires a `scroll` event, and the
+  // journey guarding this counts those events against the number of steps.
+  if (sameDoc && scrollers.every(inside)) return;
+
+  // OUTSIDE: centre it, innermost scroller first so the outer one is judged
+  // against where the line has actually landed. `lineTop` is the line's offset
+  // into the scrolled content, recovered from the two rects rather than from
+  // `offsetTop`, which is relative to the nearest POSITIONED ancestor and not
+  // necessarily this scroller.
+  for (var i = 0; i < scrollers.length; i++) {
+    var s = scrollers[i];
+    if (sameDoc && inside(s)) continue;
+    var b = box(s), cr = cur.getBoundingClientRect();
+    var lineTop = s.scrollTop + (cr.top - b.top);
+    var centred = lineTop - (s.clientHeight - cr.height) / 2;
+    s.scrollTop = Math.max(0, Math.min(s.scrollHeight - s.clientHeight, centred));
+  }
+})(#)
+""".}
+  ## Move the source pane only if the position is not already in it, and centre
+  ## the position when it moves. The policy and its provenance are the block
+  ## comment above; this is `revealLineInCenterIfOutsideViewport` over a DOM that
+  ## has no Monaco to ask for it.
 
 type
   PaneLatch = object
@@ -301,7 +501,7 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch) =
   ## `source_document.nim` for the reason the lead-in was there and what was
   ## measured about it — and the equality above is preserved by the same argument
   ## it always rested on: one decision, made in one place, for both builds. The
-  ## place is now "no reduction", and `scrollToCurrentLine` below is what puts the
+  ## place is now "no reduction", and `revealCurrentLine` below is what puts the
   ## reader at the position instead.
   ##
   ## ## ONE CAUSE, TWO REPORTS — and the second one is why BOTH calls had to go
@@ -328,6 +528,40 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch) =
   ## line/step N" notices across the exported tree, on the exact artefact the
   ## design-review campaign photographs. That is why the constant and the proc
   ## are gone rather than one of their two callers.
+  ##
+  ## ## AND THE SECOND REPORT NEEDED A SECOND FIX, WHICH IS THE REVEAL POLICY
+  ##
+  ## Removing the window was necessary for the top-pinning report and it is not
+  ## sufficient, which is worth being exact about because the two changes look
+  ## like one. With the window gone the pane finally HAS somewhere to put the
+  ## position — but `scrollToCurrentLine` still called `cur.scrollIntoView()`
+  ## unconditionally, on every render, and that is `block: "start"`. Measured on
+  ## a whole file, that pins the position to the top of the pane on every step
+  ## just as the window did; `scroll-margin-block-start` moves the constant from
+  ## row 1 to row 7 and it is still a constant.
+  ##
+  ## So the call is now `revealCurrentLine`, which moves the pane ONLY when the
+  ## position is not already in it. The visitor's sentence was two claims — "it
+  ## scrolls on every step" and "the current line stays as the top line" — and
+  ## the window was the whole of the second and only half of the first.
+  ##
+  ## THE SERVED FRAME'S `autofocus` IS NOT A DUPLICATE OF THIS AND THE TWO
+  ## COMPOSE. `autofocus` fires once, at parse time, on the row the EXPORTER
+  ## marked, and `scroll-margin-block-start` gives it the six rows of context the
+  ## lead-in used to give by deletion. That is the no-script path and it is the
+  ## only path on a `just export` build. Once the bundle runs, every stop
+  ## rewrites the pane and the offset has to be re-established — and re-focusing
+  ## a row on every stop would take focus away from the stepping control the
+  ## reader is holding.
+  ##
+  ## The composition is: `autofocus` places the landing, `noteRevealAnchor` reads
+  ## that offset off the served DOM before the first rewrite, and the guard in
+  ## `revealCurrentLine` finds the position already inside the box and leaves it
+  ## exactly where the browser put it. The two do not fight because only one of
+  ## them ever moves the pane, and journey 13 asserts that rather than assuming
+  ## it — a hydrated landing whose offset differs from the served one would mean
+  ## they do.
+  noteRevealAnchor(ui.editor)
   var view = view
 
   # THE SESSION'S POSITION, WRITTEN WHERE THE SESSION PUBLISHES IT.
@@ -378,7 +612,7 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch) =
             view.eventLog.rows.len > 0, latch.eventLog)
   setControls(ui, view)
   markRailNavigable(ui)
-  scrollToCurrentLine(ui)
+  revealCurrentLine(ui.editor)
 
 proc markUnavailable(ui: Ui; reason: string) =
   ## The engine will not load, and the controls stop implying it might.
