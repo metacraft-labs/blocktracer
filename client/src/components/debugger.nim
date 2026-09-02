@@ -1675,6 +1675,44 @@ proc renderMetadata*(m: MetadataPane): string =
           span(class = "mdexectitle"): text "Raw (chain-native)"
           pre(class = "raw"): text m.native
 
+const SelectionSlotId* = "dbg-selection"
+  ## The selection section's id. Named here, beside the other two slots, for
+  ## the reason `SelfCostViewId` is: the page emits it, the hydration bundle
+  ## re-renders into it and a test addresses it, and a third spelling is a
+  ## panel that exists and never updates.
+
+proc renderSelection*(d: SelectionDetail): string =
+  ## The current selection, as a section of the transaction pane.
+  ##
+  ## ## It SUPPLEMENTS the transaction's facts and displaces none of them
+  ##
+  ## Appended below them, not folded into them and not put above them. Three
+  ## reasons, in the order they bind:
+  ##
+  ## 1. `pages/debug.nim` states this pane's own contract — it "is present in
+  ##    every state ... because a visitor deep-linked into a stepping session
+  ##    still needs to know what they are looking at". The transaction's
+  ##    identity is the thing that must not be displaced by a transient
+  ##    selection, so replacing part of it is ruled out before taste enters.
+  ## 2. The transaction is the STABLE subject and the selection is the moving
+  ##    one. A block that re-renders on every step, placed above a block that
+  ##    never changes, makes the fixed facts jump on each step.
+  ## 3. It costs no new layout. The pane is already a scrolling stack of
+  ##    `.mdsec` blocks (`Decoded input`, `Raw (chain-native)`); this is a
+  ##    third one, built from the same three elements, so it inherits the
+  ##    pane's scrolling and adds no CSS. The design lint (A5/A7) exists to
+  ##    stop a view inventing presentation, and reusing the section idiom is
+  ##    how this one avoids doing so.
+  ui:
+    tdiv(class = "mdsec", id = SelectionSlotId):
+      span(class = "mdexectitle"): text d.heading
+      if d.kind == selNone:
+        # A stated absence, in the voice the replay panes already use. An
+        # empty section would be indistinguishable from a broken one.
+        p(class = "panenote"): text d.note
+      else:
+        raw metaRows(d.facts, "mddl")
+
 # ── walking the layout ─────────────────────────────────────────────────────
 
 proc paneBody(kind: PaneKind; s: DebugSessionView): string =

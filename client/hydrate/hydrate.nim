@@ -630,6 +630,19 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch) =
   writePane(ui.eventLog, panes.renderEventLog(view.eventLog),
             view.eventLog.rows.len > 0, latch.eventLog)
   setControls(ui, view)
+  # The selection panel, from the SAME `view` the panes were just drawn from.
+  #
+  # In this proc and not in the stepper, for the reason `data-step` is written
+  # here: the panel describes the row the panes are showing as current, and
+  # deriving it from a second read of anything is how two facts that are
+  # updated together become two facts that drift. One call, one view.
+  #
+  # No latch. Unlike a pane, this section is never blank-when-empty — it always
+  # renders, and `selNone` is a sentence rather than an absence — so there is
+  # no served content for an empty projection to wrongly replace.
+  let sel = document.getElementById(panes.SelectionSlotId.cstring)
+  if sel != nil:
+    sel.outerHTML = panes.renderSelection(selectionDetail(view)).cstring
   markRailNavigable(ui)
   revealCurrentLine(ui.editor)
 

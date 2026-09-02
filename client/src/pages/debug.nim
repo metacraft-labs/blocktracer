@@ -411,6 +411,16 @@ proc debugPage*(s: DebugSessionView): string =
             # merely unimplemented.
           tdiv(class = "panebody"):
             raw renderMetadata(s.metadata)
+            # BELOW the transaction's facts, in the pane the visitor already
+            # reads to learn what they are looking at. The panes on the other
+            # side of `.dbgmain` are the ones with no room — the call trace
+            # truncated a name and a path at once, the event log clips its
+            # detail column and drops it entirely at 720px, and the
+            # instruction listing packs a program counter, an opcode and a gas
+            # reading into one text cell. This is the one place any of them can
+            # be read at full width, and it is one place rather than four
+            # escape hatches. See `session_view.selectionDetail`.
+            raw renderSelection(selectionDetail(s))
       # The source bundle, as DATA (§7.0's "data-inlined HTML").
       #
       # `type="application/json"` is not an executable script type: a browser

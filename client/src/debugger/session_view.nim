@@ -1331,6 +1331,151 @@ func canShare*(v: DebugSessionView): bool =
   ## while the engine is still arriving.
   v.hasFrame and v.containerPath.len > 0
 
+# ---------------------------------------------------------------------------
+# The selection panel — one place for the detail no pane has room for
+# ---------------------------------------------------------------------------
+#
+# ## Why this exists, and why it is not a call-trace feature
+#
+# The call trace truncated its rows. So does the event log (`.evdetail` is the
+# flexible column and it clips; at 720px it is `display:none`). So does the
+# source pane's listing, whose rows carry a program counter, an opcode and a
+# gas reading in one text cell. Every one of those is the SAME shortage —
+# there is nowhere to put detail — and every one of them was on its way to
+# inventing its own escape hatch.
+#
+# One area showing the full context of the current selection serves all of
+# them, and serves the next pane too. A pane's job here is to contribute a
+# `SelectionDetail`; the panel renders whatever it is given and never learns
+# what a call frame is.
+
+type
+  SelectionKind* = enum
+    ## What the selection IS. The renderer switches on nothing else.
+    selNone = "none"
+    selFrame = "frame"
+    selEvent = "event"
+    selLine = "line"
+
+  SelectionDetail* = object
+    kind*: SelectionKind
+    heading*: string
+      ## What the section calls itself, and it says WHICH of the two questions
+      ## it is answering — "Selected frame" or "Current frame". A panel that
+      ## showed the position under the word "Selected" would report a click
+      ## that never happened.
+    subject*: string    ## the one identifier the section leads with
+    facts*: seq[MetaRow]
+      ## Rendered by the SAME `metaRows` the transaction's own facts use, so a
+      ## fact cannot acquire a second presentation by being about a frame
+      ## instead of about a transaction — the rule §7.1 already imposes on the
+      ## metadata pane, extended to the pane it now sits in.
+    note*: string       ## why there is nothing, when `kind == selNone`
+
+func selectionFact(label, value: string; identifier = false;
+                   suffix = ""): MetaRow =
+  MetaRow(label: label, value: value, identifier: identifier, suffix: suffix)
+
+func selectionDetail*(v: DebugSessionView): SelectionDetail =
+  ## The current selection, as facts.
+  ##
+  ## ## It tracks the selection, and falls back to the POSITION
+  ##
+  ## Not a taste call — the architecture decides it. A statically exported page
+  ## ships zero JavaScript, so it has no click-selection at all; a
+  ## selection-only panel would be blank on every served page, which is exactly
+  ## the artefact §7.0 calls "the session's first frame rendered from published
+  ## data". And in the hydrated build the two collapse into one thing anyway:
+  ## `hydrate.rowHandler` turns a click on a row into `ct/goto-ticks`, so
+  ## clicking a row MOVES the session, and `CallFrame.current` — which is
+  ## `CalltraceVM.selectedEntry` — is what a click produced. There is no third
+  ## state to track.
+  ##
+  ## ## Precedence
+  ##
+  ## Frame, then event, then line. A frame answers "where am I in the program"
+  ## most specifically, and on a positioned session all three are true at once;
+  ## the event log becomes the subject on a session that has events and no
+  ## frames, and the line on one that has neither. Every branch is reachable —
+  ## `srcUnverified` sessions with an instruction listing have lines and no
+  ## frames, which is the rung-3 case this route serves the most of.
+  let unit = (if v.calltrace.costUnit.len > 0: v.calltrace.costUnit
+              elif v.calltrace.frames.len > 0: v.calltrace.frames[0].costUnit
+              else: "")
+  for f in v.calltrace.frames:
+    if not f.current: continue
+    result.kind = selFrame
+    result.heading = "Current frame"
+    result.subject = f.fn
+    result.facts.add selectionFact("Function", f.fn, identifier = true)
+    let where = frameWhere(f)
+    if where.len > 0:
+      result.facts.add selectionFact("Source", where, identifier = true)
+    result.facts.add selectionFact("Depth", $f.depth)
+    # LEADS the coordinates, and is the reason the panel earns its place in a
+    # recursion trace: it is the one fact that differs between two frames of
+    # the same function. The line does not — see `CallFrame.line`.
+    if f.step > 0:
+      result.facts.add selectionFact("Starts at step", groupDigits(f.step))
+    if f.cost.len > 0:
+      result.facts.add selectionFact("Cost", f.cost, suffix = unit)
+    if f.anchor.len > 0:
+      result.facts.add selectionFact("Share anchor", f.anchor,
+                                     identifier = true)
+    return
+
+  for r in v.eventLog.rows:
+    if not r.current: continue
+    result.kind = selEvent
+    result.heading = "Current event"
+    result.subject = r.label
+    result.facts.add selectionFact("Kind", eventKindLabel(r.kind))
+    if r.label.len > 0:
+      result.facts.add selectionFact("Where", r.label, identifier = true)
+    # The column the event log clips, and the one the 720px breakpoint drops
+    # outright. This is where it becomes readable again.
+    if r.detail.len > 0:
+      result.facts.add selectionFact("Detail", r.detail, identifier = true)
+    if r.step > 0:
+      result.facts.add selectionFact("Step", groupDigits(r.step))
+    if r.anchor.len > 0:
+      result.facts.add selectionFact("Share anchor", r.anchor,
+                                     identifier = true)
+    return
+
+  if v.editor.documents.len > 0 and v.editor.currentLine > 0:
+    let doc = activeDocument(v.editor)
+    result.kind = selLine
+    result.heading = "Current line"
+    result.subject = doc.path & ":" & $v.editor.currentLine
+    result.facts.add selectionFact("File", doc.path, identifier = true)
+    result.facts.add selectionFact("Line", $v.editor.currentLine)
+    if v.controls.positioned and v.controls.step > 0:
+      result.facts.add selectionFact("Step", groupDigits(v.controls.step))
+    # The row's own text. On a source-level session that is the line of code;
+    # on a rung-3 session it is the instruction listing's row, which is where
+    # the program counter, the opcode and the gas reading live — three facts
+    # that have never had anywhere to be read at full width.
+    for ln in doc.lines:
+      if ln.number == v.editor.currentLine and ln.text.len > 0:
+        result.facts.add selectionFact(
+          (if v.editor.listingCaption.len > 0: "Instruction" else: "Source"),
+          ln.text.strip(), identifier = true)
+        break
+    return
+
+  result.kind = selNone
+  result.heading = "Selection"
+  # The same voice the three replay panes use when they have no frame, and for
+  # the same reason: a panel that renders empty is indistinguishable from one
+  # that is broken.
+  result.note =
+    if not v.hasFrame:
+      "This session has no position yet, so there is nothing to describe. " &
+      "Selecting a row in the Call Trace or the Event Log will fill this in."
+    else:
+      "No row is selected."
+
 func canHeadline*(v: DebugSessionView): bool =
   ## Whether this session may be the HOME PAGE's featured exhibit.
   ##
