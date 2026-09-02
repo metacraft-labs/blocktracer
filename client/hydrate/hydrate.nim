@@ -1423,7 +1423,8 @@ proc fail(h: Hydration; reason: string) =
     return
   markUnavailable(h.ui, reason)
 
-proc gotoTicks(h: Hydration; ticks: int; onRefused: proc() = nil)
+proc gotoTicks(h: Hydration; ticks: int; onRefused: proc() = nil;
+               onSettled: proc() = nil)
   ## Forward-declared for ONE caller: the `ct/notification` branch of
   ## `onDapEvent`, which has to seek the session back to where a fruitless
   ## continue started. The event handler is necessarily defined before the
