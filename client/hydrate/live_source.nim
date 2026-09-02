@@ -122,5 +122,33 @@ proc writeSourceToEngine*(island: string): int =
   ## `engine_transport.postVfsWrite`.
   let files = sourceFilesOf(island)
   for f in files:
+    # `f.path` IS THE ISLAND'S PATH, WHICH IS RELATIVE, AND THAT IS THE POINT.
+    #
+    # Do not "correct" this to an absolute path. It looks wrong — the engine
+    # reports positions at `/private/tmp/blocktracer-fixture-rec/…/src/main.nr`
+    # and this writes `src/main.nr` — and making the two agree is exactly the
+    # change that silently removes the feature.
+    #
+    # The classifier does not probe the path the engine REPORTS. It builds its
+    # own, at `db.rs:3186-3192`:
+    #
+    #     let path_str = self.reader.path(step_record.path_id)...;  // relative
+    #     let workdir_path = self.reader.workdir().join(&path_str); // absolute
+    #     let probe_path = if workdir_path.exists() { workdir_path }
+    #                      else { PathBuf::from(&path_str) };       // RELATIVE
+    #
+    # `Path::exists()` is hardwired `false` on `wasm32-unknown-unknown`, so in
+    # a browser that `if` can only ever take the else-branch. Measured: with
+    # only the absolute path in the VFS, `Location.missing_path` flips to false
+    # — proving the VFS read works — while the engine logs 105 failed reads of
+    # `src/main.nr` and every hop still answers "built-in: source unavailable".
+    # `tools/journeys/origin-probe.mjs --write-source --relative-only`
+    # reproduces both halves.
+    #
+    # This is a WORK-AROUND for an engine defect and is deliberately shaped to
+    # outlive its fix: if that `exists()` probe is later made VFS-aware
+    # upstream, the absolute path starts resolving too and this write stays
+    # correct either way, because the relative path is what the recording
+    # interned and the engine keeps reconstructing it from the same table.
     postVfsWrite(f.path, f.text)
   files.len
