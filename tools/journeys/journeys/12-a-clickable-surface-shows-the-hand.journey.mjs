@@ -374,6 +374,27 @@ const ROLES_THAT_ARE_NOT_ACTUATED = [
   "complementary",
   "separator",
   "tooltip",
+  // THE SHORTCUTS DIALOG, and this arm did its job on the day it landed. The
+  // keymap change stamped `role="dialog"` and `role="radiogroup"` on markup
+  // hydration injects, nothing in that change had any reason to read this
+  // file, and this journey went red naming both roles — which is precisely
+  // what the comment above predicted would happen "on the day `role='slider'`
+  // was stamped on the track", happening again for a different role.
+  //
+  // Both belong in THIS list rather than the one above, because each is a
+  // CONTAINER and neither is actuated: `dialog` groups the surface,
+  // `radiogroup` groups the preset choices. What a pointer actuates inside
+  // them is the close `<button>` and the `<label class="kbpreset">` around
+  // each native radio — elements, not these boxes.
+  //
+  // AND THIS LIST IS THE ONLY ARM THAT SEES THEM AT ALL. `pointerAudit` walks
+  // only what `checkVisibility` calls shown, and the dialog carries `hidden`
+  // until the gear is pressed, so its contents are outside every cursor claim
+  // this file makes. Saying so here rather than leaving it implied: the entry
+  // below records that the roles are classified, not that anything measured a
+  // cursor on them.
+  "dialog",
+  "radiogroup",
 ];
 
 const pointerAudit = (page, clickableSel) =>
