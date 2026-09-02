@@ -188,7 +188,21 @@ const ASK = async () => {
 };
 
 async function main() {
-  const { server, origin } = await serve(DIST);
+  // `--origin https://…` drives a DEPLOYED hostname instead of a local build.
+  //
+  // Worth the branch: the engine is fetched at deploy time from a publishing
+  // origin this repo does not pin, so the bytes a deploy ships are not
+  // necessarily the bytes any local run tested against — measured on
+  // 2026-09-02, a local fetch got 18,282,731 and the deploy forty minutes
+  // later got 18,282,793. "It passed locally" is therefore not a statement
+  // about what a visitor is running, and this is how to make one.
+  const originArgIdx = process.argv.indexOf("--origin");
+  const remote = originArgIdx >= 0 ? process.argv[originArgIdx + 1].replace(/\/$/, "") : null;
+
+  const served = remote ? null : await serve(DIST);
+  const origin = remote ?? served.origin;
+  const server = served?.server ?? { close() {} };
+  if (remote) console.log(`driving DEPLOYED origin: ${origin}`);
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
