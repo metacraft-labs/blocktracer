@@ -3,8 +3,10 @@
 //
 // `Omniscience-Flow.md`. This is the second half of the user's report — "I
 // expect it will track the current function (like in the desktop CodeTracer)" —
-// and it is a SEPARATE sentence from journey 12's for the reason journeys 03 and
-// 11 are separate: 12 asks whether the recorded values reach the pane at all,
+// and it is a SEPARATE sentence from the values-overlay journey's
+// (`a-stepped-session-shows-the-values-recorded-on-its-lines`, numbered 18 today
+// and 12 before the renumber in 415c20b) for the reason journeys 03 and 11 are
+// separate: that one asks whether the recorded values reach the pane at all,
 // and every assertion in it can be green while the window behind them never
 // moves.
 //
@@ -42,12 +44,20 @@
 //
 // WHY THE JOURNEY EXISTS RATHER THAN A NOTE
 // -----------------------------------------
-// Because the pane looks healthy. Journey 12 is GREEN: values are on screen,
-// they carry real numbers, they are on lines of the function the session is in,
-// and the set of them changes at every step — the pane opens six lines above
-// the position, so what a visitor SEES is a function of the position even when
-// the window behind it is a constant. Every check short of this one passes over
-// exactly the symptom that was reported.
+// Because the pane looks healthy. Journey 18 is GREEN: values are on screen,
+// they carry real numbers, and they are on lines of the function the session is
+// in. Every check short of this one passes over exactly the symptom that was
+// reported.
+//
+// ONE LEG OF THAT ARGUMENT HAS SINCE BEEN REMOVED, and the removal is recorded
+// beside the on-screen assertions below rather than papered over here. The leg
+// was: "the set of values changes at every step, because the pane opens six
+// lines above the position, so what a visitor SEES is a function of the position
+// even when the window behind it is a constant." That cut is gone —
+// `source_document.openAtCurrent` no longer exists and the pane renders the
+// whole file — so it is no longer supplying the illusion of movement. What
+// remains standing is the wire half: the engine's answer is a constant window,
+// and no reading of the rendered page alone establishes that.
 //
 // `ledger.json` carries this journey with that reason, and the ledger fails in
 // BOTH directions: whoever lands the fix is told, by name, to delete the entry.
@@ -254,11 +264,11 @@ export async function run({ browser, site, j }) {
   // ── AND THE HALF A VISITOR CAN SEE ──────────────────────────────────────
   //
   // The same defect, read off the page rather than off the wire, because that
-  // is the form it was reported in. Both are here rather than in journey 12
+  // is the form it was reported in. Both are here rather than in journey 18
   // because they close on the same fix: a window computed for the position
   // would move with it and would carry that position's function.
   //
-  // They lived in journey 12 briefly and were GREEN, and the reason is the
+  // They lived in the values-overlay journey briefly and were GREEN, and the reason is the
   // trap this whole layer keeps finding. The pane used to open six lines above
   // the position, so the SET OF LABELS ON SCREEN changed at every step even
   // though the window behind it never did, and the labels that fell outside

@@ -1,19 +1,30 @@
 ## The source bundle, carried in the page as **data**, so hydration can render
 ## a line the served window does not contain.
 ##
-## ## The problem this exists for
+## ## THE PROBLEM THIS WAS WRITTEN FOR NO LONGER EXISTS
 ##
-## `pages/debug.nim` opens the editor pane at the session's position
-## (`openAtCurrent`), which means the served DOM holds a WINDOW of each file and
-## not the file. That is right for a page with no script: a complete 400-line
-## listing whose current line is at 380 puts the one line that matters below the
-## fold, and there is nothing to scroll it with.
+## This section used to read: `pages/debug.nim` opens the editor pane at the
+## session's position (`openAtCurrent`), so the served DOM holds a WINDOW of each
+## file and not the file; the first backward step out of that window asks for a
+## line the document does not contain, and a hydration that could only rearrange
+## the DOM it was given would have to render the wrong line or stop.
 ##
-## It is wrong the moment the session can move. The first backward step out of
-## the served window asks for a line that is not in the document, and a
-## hydration that could only rearrange the DOM it was given would have to either
-## render the wrong line or stop — and stopping is exactly the "renders less
-## than the pre-hydration page" §7.0 forbids.
+## `SourceLeadIn` and `openAtCurrent` are GONE from the whole repository —
+## `source_document.nim` carries the full account of why and what was measured —
+## and `components/debugger.renderSource` emits every line of EVERY document,
+## the active one and each alternate. There is no window for a step to fall out
+## of, so the argument above is dead and is not being restated in a weaker form.
+##
+## ## WHAT IS STILL TRUE, AND IT IS A SMALLER CLAIM
+##
+## The island carries the source as DATA — raw text, the executed-line set and
+## the pane's declared availability — which `decodeSourceIsland` feeds to
+## `newSourceDocument`, the SAME producer the static export calls. Hydration
+## therefore rebuilds documents rather than reconstructing them from rendered
+## markup, and `session_project`'s live branch and `islandAvailability` both read
+## it. That is a real property; it is NOT the same argument as the one above, and
+## whether it alone justifies inlining the whole corpus of a session's files has
+## not been re-argued since the window was removed.
 ##
 ## ## Why data and not a fetch
 ##
@@ -256,10 +267,13 @@ proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
     #
     # And `currentLine` is CLEARED. It is a coordinate in a file that is not on
     # screen; carried onto a document it does not describe it marks the wrong
-    # line, and — because `openAtCurrent` windows from `currentLine - lead` —
-    # against a short manifest it keeps no lines at all and the pane renders
-    # empty. A pane that cannot show the position says so by not marking one,
-    # which is what an unpositioned pane already means everywhere else.
+    # line. (The stronger consequence this comment used to name — that
+    # `openAtCurrent` windowing from `currentLine - lead` would keep no lines at
+    # all against a short manifest and render the pane EMPTY — can no longer
+    # happen: that proc is gone and the pane renders whole documents. What is
+    # left is the wrong-line marking, which is reason enough.) A pane that cannot
+    # show the position says so by not marking one, which is what an
+    # unpositioned pane already means everywhere else.
     result.activeIndex = payload{"activeIndex"}.getInt(0)
     result.currentLine = 0
 
