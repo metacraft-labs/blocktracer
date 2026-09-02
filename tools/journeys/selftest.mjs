@@ -547,7 +547,7 @@ const ARMS = [
       "nothing that is not an anchor, a button or an interactive role shows the hand",
   },
   {
-    id: "P/the-mark-is-painted-and-nothing-is-sent",
+    id: "U/the-mark-is-painted-and-nothing-is-sent",
     why:
       "Paint the breakpoint and tell the engine nothing. This is not a" +
       " hypothetical shape — it is what the product did until this feature" +
@@ -566,7 +566,7 @@ const ARMS = [
     assertion: "CONTROL: three `setBreakpoints` frames reached the engine, one per click",
   },
   {
-    id: "Q/only-the-clicked-line-is-sent",
+    id: "V/only-the-clicked-line-is-sent",
     why:
       "Send just the line that was clicked instead of the file's whole set." +
       " DAP `setBreakpoints` REPLACES a source's breakpoints —" +
@@ -586,7 +586,7 @@ const ARMS = [
     assertion: "the forward walk reaches all three marked lines, not just the first",
   },
   {
-    id: "R/the-absolute-path-the-engine-reports",
+    id: "W/the-absolute-path-the-engine-reports",
     why:
       "Send the path the engine REPORTS instead of the one the document" +
       " carries. The engine names positions at the recording machine's" +
@@ -603,7 +603,7 @@ const ARMS = [
     assertion: "continuing forward stops at least three times",
   },
   {
-    id: "S/an-empty-set-still-reaches-the-engine",
+    id: "X/an-empty-set-still-reaches-the-engine",
     why:
       "Remove the short-circuit that answers a continue with no breakpoints" +
       " without a round trip. §10.8 requires the control to SAY there was" +
@@ -620,7 +620,7 @@ const ARMS = [
     assertion: "no `continue` reached the engine at all, so there was no jump to undo",
   },
   {
-    id: "T/reversing-rewinds-to-the-first-breakpoint",
+    id: "Y/reversing-rewinds-to-the-first-breakpoint",
     why:
       "Make reverse continue seek to the earliest breakpoint hit instead of" +
       " asking the engine to find the nearest preceding one. THE ERROR A" +
