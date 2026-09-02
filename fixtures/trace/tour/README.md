@@ -51,7 +51,7 @@ servable recording at all belong in the other set.
 
 ```
 manifest.json              the two sets: what each program demonstrates, and what its recording must contain
-record.sh                  re-record every container, from a pinned workdir
+record.sh                  re-record every container manifest.json names, from a pinned workdir
 check-corpus.sh            both sets, checked against what the toolchain actually does (+ --selftest)
 <id>/<package>.ct          the recording — VENDORED, see below
 <id>/sources/              the package: Nargo.toml, Prover.toml, src/**.nr
@@ -78,6 +78,12 @@ neither is vacuous. (The journeys ledger has no such arm; this one does.)
 
 ## The recordable set — the tour
 
+**`manifest.json` is the authority for this table**, not the other way round:
+the rows are transcribed from `programs[]` and the three numbers from each
+program's `trace` object. Two of them had already gone stale here — `limits` was
+missing from the table entirely, and `mutation`'s counts read 91/7/0 against the
+manifest's 118/8/0 — so read the manifest when they matter.
+
 | id | demonstrates | steps | calls | events |
 |---|---|---|---|---|
 | `values` | every value kind the language has, one line at a time | 34 | 1 | 0 |
@@ -87,7 +93,8 @@ neither is vacuous. (The journeys ledger has no such arm; this one does.)
 | `generics` | one body, many instantiations; one name, many bodies | 99 | 8 | 0 |
 | `events` | what the execution said, as distinct from what it held | 124 | 6 | 14 |
 | `constraints` | an execution that STOPS on a constraint that cannot hold | 71 | 4 | 4 |
-| `mutation` | a binding whose value moves — and one form that is not recorded | 91 | 7 | 0 |
+| `limits` | the EDGES of a type — saturating, wrapping and shifting arithmetic | 101 | 5 | 0 |
+| `mutation` | a binding whose value moves — and one form that is not recorded | 118 | 8 | 0 |
 
 ## Why the containers are vendored rather than built
 
@@ -116,8 +123,9 @@ One pin for the whole corpus: a corpus recorded by two tracers is two corpora.
 
 ## What this recorder cannot do, and what the programs do about it
 
-Four limits were found by writing these programs, not read out of a document.
-Each one is either designed around or demonstrated on purpose.
+The limits below were found by writing these programs, not read out of a
+document. Each one is either designed around or demonstrated on purpose. (This
+line said "Four" over a five-row table; count the rows, not the sentence.)
 
 | limit | consequence here |
 |---|---|
@@ -143,14 +151,20 @@ Named so a partial tour is not mistaken for a complete one:
 - **`std::hash`, `std::embedded_curve_ops` and the other cryptographic
   primitives.** Their inputs and outputs are full-width field elements, which
   the `i64` truncation above renders as noise.
-- **Value origin.** BlockTracer has no origin-chain surface at all, so there is
-  nothing for a program to demonstrate against. See the report accompanying
-  this corpus.
+- **Value origin.** This entry read "BlockTracer has no origin-chain surface at
+  all, so there is nothing for a program to demonstrate against." **That is no
+  longer true** — `client/hydrate/session_project.nim` builds the
+  `OriginChainVM`, `client/src/components/debugger.nim` renders the `.storigin`
+  control and `client/hydrate/live_origin.nim` reads the reply back — so a
+  program COULD now be written against it, and none has been. What the report
+  accompanying this corpus still describes correctly is the fidelity limit: the
+  classifier splits the right-hand side of a source assignment, so it has
+  nothing to work with on a recording that published no source.
 
 ## Re-recording
 
 ```sh
-fixtures/trace/tour/record.sh            # all eight
+fixtures/trace/tour/record.sh            # every program manifest.json names
 fixtures/trace/tour/record.sh loops      # one
 ```
 

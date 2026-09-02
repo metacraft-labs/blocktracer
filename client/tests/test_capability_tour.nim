@@ -7,8 +7,10 @@
 ## became indefensible the moment the chain was asked to answer "what can this
 ## debugger show me?" — the answer was the same program, ten times.
 ##
-## The tour replaces it with eight programs, each with its own container. Every
-## way that can go quietly wrong is a case below:
+## The tour replaces it with one program per capability — the set is
+## `fixtures/trace/tour/manifest.json`'s `programs[]`, and this suite reads it
+## rather than restating its size — each with its own container. Every way that
+## can go quietly wrong is a case below:
 ##
 ##   1. **Two programs on one screen.** The Code pane reads a published bundle
 ##      and the replay panes are fixture data describing `zk_shields`. Before
@@ -17,7 +19,7 @@
 ##      it named `iterate_asteroids` and the Values pane showed
 ##      `remaining_shield`. Two programs, presented as one session.
 ##
-##   2. **One container behind eight transactions.** `writeArtifact` used to read
+##   2. **One container behind every transaction.** `writeArtifact` used to read
 ##      `cfg.traceFixturePath` unconditionally. A tour that published eight
 ##      manifests over the same bytes would look exactly like a working one from
 ##      every page, and differ only in the thing it exists for.

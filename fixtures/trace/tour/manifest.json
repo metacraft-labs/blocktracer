@@ -1,7 +1,7 @@
 {
   "schema": "blocktracer/demo-tour/v2",
   "corpus": "noir-capability-tour",
-  "note": "Eight small Noir programs, each recorded by `nargo trace` into the container beside its sources. The corpus has three consumers and one reason to stay correct: it is what BlockTracer's `demo` chain publishes, it is a fixture the shared CodeTracer ViewModels can be driven from, and it is what desktop CodeTracer can open. Regenerate with `fixtures/trace/tour/record.sh`.",
+  "note": "One small Noir program per capability \u2014 `programs` below is the set, and its length is the count \u2014 each recorded by `nargo trace` into the container beside its sources. The corpus has three consumers and one reason to stay correct: it is what BlockTracer's `demo` chain publishes, it is a fixture the shared CodeTracer ViewModels can be driven from, and it is what desktop CodeTracer can open. Regenerate with `fixtures/trace/tour/record.sh`.",
   "recorder": {
     "tool": "nargo trace",
     "nargo": "1.0.0-beta.26",

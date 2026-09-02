@@ -333,7 +333,7 @@ export async function run({ browser, site, j }) {
   //
   //    QUANTIFIED OVER THE PANES THAT MARK ONE, and the size of that set is
   //    asserted first. Not every subject has a served position: `/demo`'s
-  //    capability tour publishes eight programs whose containers the static
+  //    capability tour publishes a program per capability whose containers the static
   //    export cannot replay, so those panes show the program's own source and
   //    report no position until hydration runs (AGENTS.md §1c, "the tour's
   //    known gap on the static route"). Demanding a mark there would be
