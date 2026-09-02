@@ -101,10 +101,22 @@ export const id = "source-pane-holds-still-while-the-position-is-visible";
 export const claim =
   "A visitor stepping a session sees the source pane hold still while the position is on screen.";
 export const spec = "Page-Descriptions.md §7.0; Debugger-Integration.md §7 — BlockTracer";
-export const assertions = 27;
+export const assertions = 33;
 export const needsEngine = true;
 
-const STEPS = 8;
+// The walk stops at `MAX_STEPS` or when the trace ends, whichever comes first,
+// and `MIN_STEPS` is the floor below which there is not enough of a walk to
+// judge. The demo recording offers about thirteen steps past its landing and the
+// chain captures offer hundreds; one cap and one floor cover both, and neither
+// number is an expectation about a recording — every verdict below is a relation
+// between two things the walk measured.
+//
+// The cap is what makes the listing arm reach a reveal at all: its box holds 23
+// rows and the position starts one row into it, so it takes twenty-odd steps to
+// walk out of the bottom. An eight-step walk left that arm — the rendering the
+// report was about — judging the hold-still half and nothing else.
+const MAX_STEPS = 30;
+const MIN_STEPS = 10;
 
 /**
  * Step once and wait for the session to actually move.
@@ -118,17 +130,20 @@ const STEPS = 8;
 async function stepOnce(page, before) {
   await page.click('[data-action="step-forward"]');
   const deadline = Date.now() + 15000;
-  let after = before;
+  let moved = false;
   while (Date.now() < deadline) {
-    after = await readFacts(page);
-    if (after.step !== before.step || after.markedNumber !== before.markedNumber) break;
+    const after = await readFacts(page);
+    if (after.step !== before.step || after.markedNumber !== before.markedNumber) {
+      moved = true;
+      break;
+    }
     await page.waitForTimeout(150);
   }
   // One more settle: the reveal runs inside the same task as the pane write, but
   // the READING is a separate round trip and the layout it reports must be the
   // one the visitor ends up looking at.
   await page.waitForTimeout(120);
-  return await readFacts(page);
+  return { moved, facts: await readFacts(page) };
 }
 
 /**
@@ -168,14 +183,28 @@ function destinationWasOnScreen(topBefore, docBefore, after) {
  * the pane actually moved — the two numbers every verdict below is a relation
  * between.
  */
-async function walk(page, steps) {
+async function walk(page, maxSteps) {
   const trail = [];
   let prev = await readFacts(page);
-  for (let i = 0; i < steps; i++) {
+  for (let i = 0; i < maxSteps; i++) {
     const topBefore = prev.sourceScroll?.top ?? null;
     const fromTopBefore = prev.sourceScroll?.fromTop ?? null;
     const docBefore = prev.markedDoc ?? null;
-    const after = await stepOnce(page, prev);
+    const { moved: sessionMoved, facts: after } = await stepOnce(page, prev);
+
+    // THE WALK STOPS WHEN THE SESSION DOES, and this is a correctness fix
+    // rather than a speed one. The demo recording has about thirteen steps
+    // ahead of its landing; a fixed thirty clicked seventeen times at a trace
+    // that had ended, and every one of those non-steps entered the trail as a
+    // step during which the pane did not move and the position did not advance.
+    // The count assertions then read a product that was working perfectly as
+    // one that had stopped moving the position — a false RED, which is the
+    // direction that gets a gate switched off.
+    //
+    // A run that ends early is not silently shorter, either: the number of
+    // steps actually taken is asserted against a floor below.
+    if (!sessionMoved) break;
+
     trail.push({
       needsNoReveal: destinationWasOnScreen(topBefore, docBefore, after),
       topBefore,
@@ -250,16 +279,23 @@ async function arm(browser, site, j, subject, rendering) {
       `${tag}INSTRUMENT: that scroller has somewhere to go`,
     );
 
-    const trail = await walk(page, STEPS);
+    const trail = await walk(page, MAX_STEPS);
 
-    // CONTROL ON THE GESTURE. Not the verdict — the proof that the clicks
-    // reached the engine, so a "the pane did not move" reading below is a
-    // statement about the policy and not about a session that never stepped.
+    // CONTROL ON THE GESTURE, IN TWO PARTS. Neither is the verdict — together
+    // they are the proof that the clicks reached the engine, so that a "the pane
+    // did not move" reading below is a statement about the policy and not about
+    // a session that never stepped. `moves < walked` and "no step scrolled" are
+    // both trivially true of a walk of length zero.
+    j.atLeast(
+      trail.length,
+      MIN_STEPS,
+      `${tag}CONTROL: the session stepped far enough to judge (the walk stops when the trace does)`,
+    );
     const advanced = trail.filter((t) => t.markedAfter !== t.markedBefore).length;
     j.countIs(
       advanced,
-      STEPS,
-      `${tag}CONTROL: every one of the ${STEPS} clicks moved the position`,
+      trail.length,
+      `${tag}CONTROL: every step of that walk moved the position`,
     );
 
     // ── VERDICT 1 — THE ONE THAT CATCHES THE REPORTED DEFECT ──────────────
@@ -332,92 +368,87 @@ async function arm(browser, site, j, subject, rendering) {
     // inequality against the step count as the verdict.
     const moves = trail.filter((t) => t.moved).length;
     j.note(
-      `${tag}${STEPS} steps, ${moves} of them moved the pane; tops ` +
+      `${tag}${trail.length} steps, ${moves} of them moved the pane; tops ` +
         trail.map((t) => t.topAfter).join(" "),
     );
     j.expect(
-      moves < STEPS,
-      `${tag}over ${STEPS} steps the pane moved FEWER than ${STEPS} times`,
+      moves < trail.length,
+      `${tag}over ${trail.length} steps the pane moved FEWER than ${trail.length} times`,
       `it moved ${moves} times`,
     );
 
     // ── VERDICT 2 — WHERE THE POSITION LANDS WHEN THE PANE DOES MOVE ──────
     //
-    // The steps that began OFF screen are the ones with a reveal to judge. This
-    // arm may legitimately produce none — a short walk down a long listing never
-    // leaves the box — so the count is REPORTED and the judgement is quantified
-    // over whatever it found, with the emptiness handled explicitly below rather
-    // than passing silently.
+    // BOTH ARMS MUST REACH A REVEAL, which is why `STEPS` is what it is. An
+    // earlier draft walked eight steps and branched on whether a departure had
+    // happened, recording four "nothing to judge" assertions when it had not.
+    // That kept the declared count constant and judged nothing: the listing arm
+    // — the rendering the visitor actually reported — never left its box in
+    // eight steps and so never judged the reveal at all. A branch whose empty
+    // side records passes is trap 3 with extra steps. The subject list is
+    // asserted non-empty instead, and the walk is long enough to produce one.
     const departures = trail.filter((t) => t.needsNoReveal === false);
-    j.note(`${tag}steps whose destination was off screen: ${departures.length}`);
+    j.atLeast(departures.length, 1, `${tag}SUBJECTS: steps whose destination was off screen`);
 
-    if (departures.length > 0) {
-      const revealed = departures.filter((t) => t.moved);
-      j.countIs(
-        revealed.length,
-        departures.length,
-        `${tag}a step to a position off screen MOVES the pane`,
-      );
+    const revealed = departures.filter((t) => t.moved);
+    j.countIs(
+      revealed.length,
+      departures.length,
+      `${tag}a step to a position off screen MOVES the pane`,
+    );
 
-      // "Not the first visible line" is the defect stated exactly: under the
-      // reported behaviour the destination was ALWAYS index 0.
-      const atTop = departures.filter((t) => t.scroll?.indexOnScreen === 0);
-      j.countIs(
-        atTop.length,
-        0,
-        `${tag}the revealed position is NOT the first line on screen`,
-      );
-      const atBottom = departures.filter(
-        (t) => t.scroll && t.scroll.indexOnScreen === t.scroll.onScreen - 1,
-      );
-      j.countIs(atBottom.length, 0, `${tag}nor is it the last line on screen`);
+    // WHERE THE CONTEXT CLAIMS MAY BE MADE, AND WHERE THEY MAY NOT.
+    //
+    // "A line of context on both sides" is not a claim any policy can honour at
+    // the ends of a document: the first line of a file has nothing above it and
+    // the last has nothing below, and a scroller clamped to 0 or to its maximum
+    // is at exactly that. Asserting it there would be demanding a scroll that
+    // does not exist, and the journey would be reporting a correct product as
+    // broken — the failure direction that gets a gate switched off.
+    //
+    // So the context claims are scoped to reveals that landed with the scroller
+    // strictly inside its range, and THAT set is asserted non-empty in its own
+    // right. Without the second half this scoping would be the vacuity it is
+    // guarding against.
+    const unclamped = departures.filter(
+      (t) => t.scroll && t.scroll.top > 0 && t.scroll.top < t.scroll.range,
+    );
+    j.atLeast(
+      unclamped.length,
+      1,
+      `${tag}SUBJECTS: reveals that landed away from both ends of the document`,
+    );
 
-      // "Not flush against either edge", in pixels rather than in indices, so a
-      // pane that put the line one pitch inside the top could not pass by
-      // arithmetic on line counts. One line of clearance on both sides is the
-      // floor; the policy centres, so this is a floor and not the claim.
-      const flush = departures.filter(
-        (t) => !t.scroll || t.scroll.fromTop < t.scroll.lineHeight || t.scroll.fromBottom < t.scroll.lineHeight,
-      );
-      j.countIs(
-        flush.length,
-        0,
-        `${tag}the revealed position has at least a line of context on both sides`,
-      );
-      j.note(
-        `${tag}reveals: ` +
-          departures
-            .map(
-              (t) =>
-                `line ${t.markedAfter} at index ${t.scroll?.indexOnScreen}/${t.scroll?.onScreen}` +
-                ` (${t.scroll?.fromTop}px from the top, ${t.scroll?.fromBottom}px from the bottom)`,
-            )
-            .join("; "),
-      );
-    } else {
-      // NOT A SKIP AND NOT A PASS. The run stayed inside the box for all eight
-      // steps, which is itself the correct behaviour and is already asserted
-      // above — but the reveal half of the claim went unjudged on this subject,
-      // and a transcript that did not say so would read as if it had been. Four
-      // assertions are recorded either way so the declared count is a constant;
-      // these state what was true instead.
-      j.countIs(
-        noRevealNeeded.length,
-        STEPS,
-        `${tag}NO REVEAL TO JUDGE: the position stayed inside the box for all ${STEPS} steps`,
-      );
-      j.countIs(moves, 0, `${tag}NO REVEAL TO JUDGE: and so the pane never moved`);
-      j.expect(
-        true,
-        `${tag}NO REVEAL TO JUDGE: the off-screen landing is judged by the other arm`,
-        "reported, not skipped",
-      );
-      j.expect(
-        true,
-        `${tag}NO REVEAL TO JUDGE: no claim about context is made from this subject`,
-        "reported, not skipped",
-      );
-    }
+    // "Not the first line on screen" is the report stated exactly: under the
+    // reported behaviour the destination was ALWAYS the top line.
+    const atTop = unclamped.filter((t) => t.scroll.indexOnScreen === 0);
+    j.countIs(atTop.length, 0, `${tag}the revealed position is NOT the first line on screen`);
+    const atBottom = unclamped.filter((t) => t.scroll.indexOnScreen === t.scroll.onScreen - 1);
+    j.countIs(atBottom.length, 0, `${tag}nor is it the last line on screen`);
+
+    // The same claim in pixels rather than in indices, so a pane that put the
+    // line one pitch inside the edge could not pass by arithmetic on line
+    // counts. One line of clearance is a FLOOR — the policy centres — and it is
+    // stated as a floor so that a future policy of "a third of a screen" would
+    // still satisfy the claim this journey is making.
+    const flush = unclamped.filter(
+      (t) => t.scroll.fromTop < t.scroll.lineHeight || t.scroll.fromBottom < t.scroll.lineHeight,
+    );
+    j.countIs(
+      flush.length,
+      0,
+      `${tag}the revealed position has at least a line of context on both sides`,
+    );
+    j.note(
+      `${tag}${departures.length} reveal(s), ${unclamped.length} of them clear of both ends: ` +
+        unclamped
+          .map(
+            (t) =>
+              `line ${t.markedAfter} at index ${t.scroll.indexOnScreen}/${t.scroll.onScreen}` +
+              ` (${t.scroll.fromTop}px from the top, ${t.scroll.fromBottom}px from the bottom)`,
+          )
+          .join("; "),
+    );
   } finally {
     await page.close();
   }

@@ -664,16 +664,21 @@ const ARMS = [
   {
     id: "Q/the-pane-scrolls-on-every-step",
     why:
-      "Remove the early return that holds the pane still, so the reveal runs on every" +
-      " step whether or not the position is already on screen. This is the first half" +
-      " of the reported defect — 'the editor should auto-scroll only when the caret" +
-      " leaves the visible area' — and it is the half NO other journey can see: the" +
-      " position is still marked, still on screen and still correct, so journeys 03," +
-      " 06 and 09 stay green throughout. The only thing that changes is a number" +
-      " nothing else in this directory reads.",
+      "Remove the guard that leaves an already-correct scroller alone, so the reveal" +
+      " centres on every step whether or not the position is on screen. This is the" +
+      " first half of the reported defect — 'the editor should auto-scroll only when" +
+      " the caret leaves the visible area' — and it is the half NO other journey can" +
+      " see: the position is still marked, still on screen and still correct, so" +
+      " journeys 03, 06 and 09 stay green throughout. The only thing that changes is a" +
+      " number nothing else in this directory reads." +
+      " THIS ARM ALREADY EARNED ITS KEEP ONCE. Aimed at an earlier fast path above" +
+      " the loop it SURVIVED, because that path could only fire when this guard would" +
+      " have fired anyway — two places that agreed, one of them dead. The fast path" +
+      " is gone and the policy has one home, which is the difference between a" +
+      " mutation that measures something and one that measures a duplicate.",
     file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `  if (sameDoc && scrollers.every(inside)) return;`,
-    replace: `  if (false) return;`,
+    find: `    if (sameDoc && inside(s)) continue;`,
+    replace: `    if (false) continue;`,
     journey: "source-pane-holds-still-while-the-position-is-visible",
     assertion: "SOURCE: a step to a position already on screen leaves `scrollTop` UNCHANGED",
   },
@@ -687,12 +692,20 @@ const ARMS = [
       " destination alone. That separation is the point. It is also the second" +
       " sentence of the report — 'I would scroll with half a screen perhaps to allow" +
       " further movement without auto-scroll' — which is a claim about where the line" +
-      " lands and not about whether it moved.",
+      " lands and not about whether it moved." +
+      " IT IS AIMED AT THE LISTING ARM, and the first draft aimed at the source arm" +
+      " and SURVIVED. The demo document is 886px against a 512px box, so its only" +
+      " reveal is 138px from the end and a top-anchored scroll CLAMPS — the line lands" +
+      " six rows down, satisfying every context assertion, because the scroller ran" +
+      " out of document before it could put the line at the top. The chain listing is" +
+      " 7975px and its reveal is nowhere near either end, so the defect is expressible" +
+      " there. Which arm can express a defect is a property of the subject, not of the" +
+      " assertion, and the journey states the same claim about both.",
     file: join(CLIENT, "hydrate", "hydrate.nim"),
     find: `    var centred = lineTop - (s.clientHeight - cr.height) / 2;`,
     replace: `    var centred = lineTop;`,
     journey: "source-pane-holds-still-while-the-position-is-visible",
-    assertion: "SOURCE: the revealed position is NOT the first line on screen",
+    assertion: "LISTING: the revealed position is NOT the first line on screen",
   },
   {
     id: "S/the-document-is-re-windowed-under-the-position",

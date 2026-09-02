@@ -433,28 +433,39 @@ proc revealCurrentLine(pane: Element) {.importjs: """
     return cr.top >= b.top && cr.bottom <= b.bottom;
   };
 
-  // ALREADY VISIBLE IN EVERY SCROLLER: return, having moved nothing.
+  // Innermost scroller first, so an outer one is judged against where the line
+  // has actually landed rather than against where it started.
   //
-  // THE PANE HOLDS ITS POSITION; IT DOES NOT FIRE NO EVENTS, and the difference
-  // is worth stating because it decides what a test may measure. `writePane`
-  // assigns `innerHTML`, so every scroller here is a NEW element that starts at
-  // 0, and the restore above moves it — one `scroll` event per render, whatever
-  // this policy then decides. Nothing is painted between the two: `renderPanes`
-  // is one synchronous task, so the visitor sees the restored offset and never
-  // the zero. So `scroll` events cannot tell a restore from a policy scroll and
-  // are the wrong instrument; the journey guarding this counts CHANGES IN THE
-  // PAINTED `scrollTop` from one step to the next, which is what the visitor's
-  // complaint was actually counting.
-  if (sameDoc && scrollers.every(inside)) return;
-
-  // OUTSIDE: centre it, innermost scroller first so the outer one is judged
-  // against where the line has actually landed. `lineTop` is the line's offset
-  // into the scrolled content, recovered from the two rects rather than from
-  // `offsetTop`, which is relative to the nearest POSITIONED ancestor and not
-  // necessarily this scroller.
+  // THE WHOLE POLICY IS THE `continue` BELOW, and it is the only place that
+  // decides. There was briefly a fast path above this loop — `if (sameDoc &&
+  // scrollers.every(inside)) return;` — which read as the policy and was not:
+  // it could only fire when every `continue` would have fired anyway. A
+  // selftest arm aimed at it SURVIVED, correctly, and that is the useful
+  // property of one decision point over two that agree. It is gone; the guard
+  // here is load-bearing and mutating it is measurable.
+  //
+  // NOTE WHAT "HOLDS STILL" MEANS AND WHAT IT DOES NOT. The pane keeps its
+  // offset; it does not fire no events. `writePane` assigns `innerHTML`, so
+  // every scroller here is a NEW element starting at 0 and the restore above
+  // moves it — one `scroll` event per render, whatever this decides. Nothing is
+  // painted between the two, `renderPanes` being one synchronous task, so the
+  // visitor sees the restored offset and never the zero. `scroll` events
+  // therefore cannot tell a restore from a policy scroll and are the wrong
+  // instrument; journey 12 counts changes in the PAINTED `scrollTop` from one
+  // step to the next, which is what the visitor's complaint was counting.
   for (var i = 0; i < scrollers.length; i++) {
     var s = scrollers[i];
+
+    // ALREADY VISIBLE HERE: leave this scroller exactly as it is. Not
+    // "scrolled minimally", not "nudged by a line" — untouched, so a reader who
+    // scrolled up to read a helper above the position keeps their place across
+    // the step.
     if (sameDoc && inside(s)) continue;
+
+    // OUTSIDE: centre it. `lineTop` is the line's offset into the scrolled
+    // content, recovered from the two rects rather than from `offsetTop`, which
+    // is relative to the nearest POSITIONED ancestor and not necessarily this
+    // scroller.
     var b = box(s), cr = cur.getBoundingClientRect();
     var lineTop = s.scrollTop + (cr.top - b.top);
     var centred = lineTop - (s.clientHeight - cr.height) / 2;
