@@ -86,9 +86,12 @@
 //
 //   * `--origin` verifies the NAMED CRITICAL SET, not all ~690 files. Fetching
 //     the whole tree over the network on every deploy would cost more than it
-//     is worth, so the set is explicit, listed in the manifest, and its size is
-//     asserted — a critical set that silently shrank to one entry fails F6b
-//     rather than passing with a smaller number nobody compared.
+//     is worth, so the set is explicit and listed in the manifest. F6b then
+//     asserts its MEMBERSHIP, not its size: the artefacts named in `MUST` must
+//     be in it, so a set that silently shrank past them fails rather than
+//     passing as "all 1 of 1 match". A set that loses only its frozen container
+//     or its debug shell does NOT fail — both are added conditionally in
+//     `record`, and nothing here asserts the tree produced them.
 //   * A CDN that serves the correct bytes to this runner and stale bytes to a
 //     visitor in another region is out of reach of any single-origin fetch.
 //   * The BUILT class is identity with `result/`. If `nix build` itself
@@ -540,8 +543,11 @@ export async function verify({ manifest, target }) {
         ? `the critical set (${critical.length} entries) is missing ${absent.length} artefact(s) ` +
           `that must always be in it: ${absent.map((r) => "/" + r).join(", ")}. F6 above passed ` +
           `over a set that does not include them, which is a green verdict about nothing.`
-        : `${critical.length} artefact(s), covering the entry point, the built bundle, the ` +
-          `vendored engine and a frozen container: ${critical.map((r) => "/" + r).join(", ")}`);
+        : `${critical.length} artefact(s), including all ${MUST.length} this check requires ` +
+          `(${MUST.map((r) => "/" + r).join(", ")}). The others — the engine's worker and JS ` +
+          `glue, the first debug shell, the first frozen container — are added by rule when ` +
+          `the tree produced them, and F6b does NOT require them: ` +
+          `${critical.map((r) => "/" + r).join(", ")}`);
   }
 
   return checks;

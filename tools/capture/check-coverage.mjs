@@ -30,8 +30,11 @@
 //      what failed: three chains shipped, all 280 images were of one of them,
 //      and A said 67/67. NOT RUN without a build, never passed.
 //
-//   F. CORPUS SUBJECT DRIFT — every image ON DISK was captured against the
-//      subject its view resolves to NOW. E's content-shaped twin, and it exists
+//   F. CORPUS SUBJECT DRIFT — every image THE MANIFEST RECORDS was captured
+//      against the subject its view resolves to NOW. It walks
+//      `manifest.images`, not the directory: an image on disk with no manifest
+//      row is invisible here, and is D's business rather than F's.
+//      E's content-shaped twin, and it exists
 //      because E cannot see this: E re-resolves the VIEW LIST against the tree
 //      and is satisfied when every chain has a view pointing at it. It says
 //      nothing about the PNGs, so a corpus photographed before a chain was
