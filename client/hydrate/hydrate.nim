@@ -479,8 +479,21 @@ proc revealCurrentLine(pane: Element) {.importjs: """
   ## has no Monaco to ask for it.
 
 type
+  PaneWrite = object
+    ## One pane's write history: whether it has ever gone live, and the exact
+    ## markup it currently holds.
+    ##
+    ## `written` is what makes the second field of this object a *cache* rather
+    ## than bookkeeping. `writePane` compares against it instead of reading
+    ## `target.innerHTML` back, because reading innerHTML serialises the whole
+    ## subtree — 42 KB for the source pane — and the comparison happens on every
+    ## pane on every render.
+    latched: bool
+    written: string
+
   PaneLatch = object
-    ## Which panes the live session has ever had content for.
+    ## Which panes the live session has ever had content for, and what each one
+    ## currently says.
     ##
     ## This is §7.0's guarantee reduced to four bits, and it exists because the
     ## obvious implementation violates the guarantee within a second of going
@@ -497,13 +510,49 @@ type
     ## empty — a step to a frame with no locals is a true empty Values pane,
     ## and freezing the previous frame's values there would be the worse lie.
     ## So this latches once and never resets.
-    editor, calltrace, state, eventLog: bool
+    editor, calltrace, state, eventLog: PaneWrite
 
 proc writePane(target: Element; html: string; hasContent: bool;
-               latch: var bool) =
-  ## Write a pane if it has content, or if it has had content before.
-  if not hasContent and not latch: return
-  latch = true
+               pane: var PaneWrite) =
+  ## Write a pane if it has content, or if it has had content before — and only
+  ## if the markup it would write is not the markup already on screen.
+  ##
+  ## ## THE FLICKER, AND WHY IT IS FIXED HERE
+  ##
+  ## `render` is not called once per stop. It is called by `applyStop`, by the
+  ## locals feed's `onApplied`, and by the navigation feed's `onApplied` — each
+  ## of them a real event that *could* change a pane. Measured against the
+  ## published engine, one forward step produced SEVEN calls, and each call
+  ## rewrote all four panes: 28 `innerHTML` assignments, of which 21 wrote
+  ## byte-identical markup. The Call Trace's 24 KB and the Event Log's 7.5 KB
+  ## were rebuilt seven times each to say exactly what they already said.
+  ##
+  ## An `innerHTML` assignment is a teardown. Every node in the pane is
+  ## destroyed and replaced, which drops the visitor's scroll position inside
+  ## it, drops any selection, restarts every transition, and — through
+  ## `scrollToCurrentLine` at the end of `renderPanes` — moves the source pane
+  ## seven times per step. A visitor sees that as flicker, and reported it as
+  ## flicker.
+  ##
+  ## The fix is not to render less often. The events are real and a pane that
+  ## refused to repaint on one of them would be stale. It is to make the pane's
+  ## DOM a function of the pane's CONTENT rather than of how many times
+  ## something asked for a repaint: identical markup is not written, so a pane
+  ## whose data did not change keeps its nodes across the step. That is the
+  ## no-virtual-DOM discipline the rest of this site is built on, applied at the
+  ## one seam that had skipped it.
+  ##
+  ## NOT A CHEAPER `innerHTML`. The comparison is against `pane.written` — what
+  ## this proc last wrote — and never against a value read back out of the DOM.
+  ## Reading `target.innerHTML` would re-serialise the subtree on every pane on
+  ## every render, which is more work than the assignment it is trying to avoid,
+  ## and it would also compare against the browser's normalisation of the markup
+  ## rather than against the markup, so the first write of every render would
+  ## look like a change.
+  if not hasContent and not pane.latched: return
+  if pane.latched and html == pane.written: return
+  pane.latched = true
+  pane.written = html
   target.innerHTML = html.cstring
 
 proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch) =

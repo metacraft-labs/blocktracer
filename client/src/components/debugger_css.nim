@@ -1345,6 +1345,29 @@ a.ctrow,a.evrow{cursor:pointer}
    6.85:1 (light), with a weight step so the delta survives a squint without
    relying on hue at all. */
 .strow.chg{border-left-color:var(--bt-mark-changed)}
+/* "APPEARED" IS THE SAME HUE AND A DIFFERENT MARK, deliberately.
+   A name that was not in scope at the position the session came from has no
+   previous value to differ from, so it is not "changed" — but it IS part of
+   the same answer to the same question ("what did that motion do?"), and
+   giving it a second colour would put two swatches in a pane whose whole
+   argument above is that one indigo carrying four meanings was the most
+   expensive collision in the review record. So the hue says "the last motion
+   touched this" and the GLYPH says which of the two ways.
+
+   The glyph goes on the name for the reason `.deeper` puts its ellipsis there:
+   it is a statement about the identifier, not about the number, and the value
+   column has to stay a column of numbers that can be scanned. It is `+ `
+   rather than a word so that it costs no horizontal space in a pane that is
+   already three columns wide at the narrowest register.
+
+   NEUTRAL BY CONSTRUCTION, and this is the decision the feature turns on. The
+   marks say changed-vs-unchanged and never up-vs-down: every motion in this
+   product has a reverse, and a green/red encoding would invert its meaning on
+   the backward half of them. A value that "increased" on the way in decreased
+   on the way out, and it is the same value. */
+.strow.new{border-left-color:var(--bt-mark-changed)}
+.strow.new .stname::before{content:"+ ";color:var(--bt-mark-changed);
+  font-weight:var(--bt-type-h3-weight)}
 /* `overflow-wrap:anywhere` and not `word-break:break-all`: a long identifier
    has to be able to break, but break-all also breaks SHORT ones that would
    have fitted on the next line, which is what shattered names across rows. */

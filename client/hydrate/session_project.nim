@@ -501,18 +501,29 @@ proc projectState*(vm: StateVM; feed: LocalsFeed; ticks: uint64): StatePane =
     result.originNote = NoSourceOriginNote
   for v in vm.currentVariables.val:
     let summary = vm.originSummaryFor(v.name)
+    # WHAT THE LAST MOTION CHANGED, from the position the session came from.
+    #
+    # A time-travel session needs no extra recording for this: the prior
+    # position is still queryable, and `LocalsFeed` has already held its values
+    # on the way past. `diffFor` answers for one row; the feed decides whether
+    # the question is answerable at all (`baselineValid`) and says "unchanged"
+    # for every row when it is not — a marker on a guess would be worse than no
+    # marker.
+    #
+    # `changed` used to be `vm.selectedPath.val == v.name`, which is a different
+    # fact wearing this one's name: it lit the "changed at this step" hue on
+    # whichever row the VM had selected, so the pane's only colour said
+    # "selected" while its stylesheet said "changed".
+    let diff = feed.diffFor(v.name, v.value)
     result.values.add StateValue(
       name: v.name, typ: v.typeName, value: v.value,
+      changed: diff == dvChanged,
+      appeared: diff == dvAppeared,
       # The control is offered for a CLASSIFIED origin and for nothing else —
       # see `classifiedOriginOf`. A summary is present on essentially every
       # local (6 of 6, measured), so "has a summary" would put a control
       # everywhere; what varies is whether the summary says anything.
-      origin: (if summary.isSome: classifiedOriginOf(summary.get) else: ""),
-      # `changed` is the pane's "written at this step" marker. The StateVM does
-      # not model that yet, so the projection maps it to the VM's own selection
-      # rather than inventing a value — a marker that lit up on nothing would
-      # be indistinguishable from a correct one.
-      changed: vm.selectedPath.val == v.name)
+      origin: (if summary.isSome: classifiedOriginOf(summary.get) else: ""))
 
 proc kindOf*(row: EventLogRow): EventKind =
   ## The chain reading of an ordinary event row. CodeTracer-Embed-SDK §3.2

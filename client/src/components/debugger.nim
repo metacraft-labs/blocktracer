@@ -1236,8 +1236,16 @@ proc renderState*(p: StatePane): string =
       for v in p.values:
         # Same clamped, linear ladder as the call trace: a value nested deeper
         # than the ladder is marked, never silently drawn at the wrong depth.
+        # WHAT THE LAST MOTION DID TO THIS ROW, in two mutually exclusive
+        # classes and never in three. `chg` is "differs from the position you
+        # came from"; `new` is "was not in scope there". A row that is neither
+        # carries no marker at all, which is what makes the marked ones legible
+        # — a `continue` over a long stretch may mark every row, and that reads
+        # correctly as "everything here is different" precisely because the
+        # unmarked state is the pane's ordinary appearance rather than a third
+        # decoration.
         tdiv(class = "strow " & depthClass(v.depth) &
-                     (if v.changed: " chg" else: "")):
+                     (if v.changed: " chg" elif v.appeared: " new" else: "")):
           # name → value → type, which is the desktop app's reading order
           # (`isonim_state_view.nim`). It was name → type → value here, so the
           # one pane a CodeTracer user reads fastest put its columns in an

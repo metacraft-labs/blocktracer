@@ -945,7 +945,31 @@ type
     name*: string
     typ*: string
     value*: string
-    changed*: bool        ## written at the current step
+    changed*: bool
+      ## This value DIFFERS from the one the same name held at the position the
+      ## session came from.
+      ##
+      ## Not "increased", not "written by this line", and not directional. Every
+      ## motion this product offers has a reverse — step, step in, step out and
+      ## continue all run backwards — so "changed" is a relation between two
+      ## positions and carries no arrow. A backward step from B to A marks
+      ## exactly the rows a forward step from A to B marks, which is the
+      ## property that makes the marking readable at all when the visitor is
+      ## moving both ways.
+      ##
+      ## Meaningless on a statically exported page and false there: a served
+      ## frame is a landing, and there is no position it was reached from.
+    appeared*: bool
+      ## This NAME was not in scope at the position the session came from.
+      ##
+      ## Distinct from `changed` because there is no previous value to have
+      ## changed from, and a reader told "changed" would go looking for one. It
+      ## is the ordinary case on a step INTO a call, where every local of the new
+      ## frame is new — so it has to read as its own thing rather than as a frame
+      ## in which everything changed at once.
+      ##
+      ## The two are mutually exclusive by construction (`live_locals.ValueDiff`
+      ## is one enum), and the renderer relies on that rather than restating it.
     origin*: string
       ## What tracing this value to its origin would SHOW, in one line — the
       ## classified terminator expression. Empty means no control is offered

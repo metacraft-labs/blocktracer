@@ -300,6 +300,38 @@ type
     lpLive          ## `forTicks`' values are in the store
     lpUnavailable   ## `forTicks` was asked and the answer cannot be shown
 
+  ValueDiff* = enum
+    ## How one value at this position relates to the same name at the position
+    ## the session CAME FROM.
+    ##
+    ## ## "Changed" is not directional, and the enum is why
+    ##
+    ## A time-travel session moves both ways, and every motion — step in, step
+    ## over, step out, continue, and each of their reverses — is a move from one
+    ## position to another. So "changed" here means *differs from the position
+    ## you came from*, full stop. It is deliberately NOT "increased" or
+    ## "decreased" and not "written at this step": a backward step reverses the
+    ## sense of any directional reading, so a red/green encoding would be
+    ## actively misleading on exactly half the motions the product offers. The
+    ## renderer colours changed-vs-unchanged and nothing else.
+    ##
+    ## ## Why "appeared" is not "changed"
+    ##
+    ## A name that was not in scope at the previous position has no previous
+    ## value to differ from. Calling that "changed" would invite the reader to
+    ## look for a before-value that never existed — and it is the common case on
+    ## a step INTO a function, where every local of the new frame is new. It
+    ## reads as its own thing.
+    dvUnchanged     ## the same name held the same value at the previous position
+    dvChanged       ## the same name held a DIFFERENT value at the previous position
+    dvAppeared      ## the name was not in scope at the previous position
+
+  PriorValue* = tuple[name, value: string]
+    ## One row of the baseline: what the previous position called it and what it
+    ## said. The type is not `Variable` because the diff reads exactly these two
+    ## fields, and a baseline that carried more would invite a comparison on
+    ## something the pane does not show.
+
   LocalsFeed* = ref object
     ## One session's `ct/load-locals` traffic, and the state the State pane is
     ## drawn from.
@@ -342,6 +374,31 @@ type
       ## for an answer that was still on its way.
     reason*: string
       ## Why `lpUnavailable`, in the words the pane uses.
+    hasLive*: bool
+    liveTicks*: uint64
+      ## The position whose values a COMPLETED reply put in the store, and
+      ## whether there has been one.
+      ##
+      ## Separate from `phase`/`forTicks`, which are about the request that is
+      ## currently outstanding, because those two answer "what did I last ask
+      ## about" and this answers "what do I actually know". They come apart
+      ## whenever a second request is issued for a position whose values are
+      ## already in, and keeping them as one field is what made the Values pane
+      ## flicker — see `noteFor`.
+    baseline*: seq[PriorValue]
+    baselineTicks*: uint64
+    baselineValid*: bool
+      ## The values at the position the session came from, for the diff.
+      ##
+      ## `baselineValid` is the whole safety of the feature. It is true only
+      ## when this feed actually HELD the values of the position the current
+      ## move started from — not merely "the last values it ever held". A
+      ## session that steps A → B → C while B's request is refused knows nothing
+      ## about what B→C changed, and marking C's values against A's would be a
+      ## confident wrong answer about a motion that never happened. When it is
+      ## false the pane marks nothing, which is the honest reading of "this
+      ## cannot be known" and is indistinguishable, correctly, from a motion
+      ## that changed nothing.
     onApplied*: proc()
       ## The host's re-render, called once per settled reply. `applyStop`
       ## writes the position, the URL and the panes in one call; this is the
@@ -393,12 +450,25 @@ proc apply*(feed: LocalsFeed; epoch: int; response: JsonNode) =
   # control on a row whose value is no longer the value it described.
   if feed.state != nil:
     feed.state.updateOriginSummaries(originSummariesOf(body))
+  # WHAT THIS SESSION KNOWS, as opposed to what it last asked. Written here and
+  # only here, on the one path that has put a position's values in the store.
+  feed.hasLive = true
+  feed.liveTicks = feed.forTicks
   feed.settle(epoch, lpLive)
 
 proc refuse*(feed: LocalsFeed; epoch: int; message: string) =
   ## The request failed rather than answered.
   feed.settle(epoch, lpUnavailable, RefusedNotePrefix &
     (if message.len > 0: message else: "no reason given") & ".")
+
+proc currentValues(feed: LocalsFeed): seq[PriorValue] =
+  ## What the pane is showing right now, reduced to the two fields the diff
+  ## compares. Read off the StateVM's own memo — the thing `projectState`
+  ## renders — rather than off the store, so the baseline is by construction
+  ## the values a visitor actually just had on screen.
+  if feed.state == nil: return
+  for v in feed.state.currentVariables.val:
+    result.add (name: v.name, value: v.value)
 
 proc awaiting(feed: LocalsFeed; ticks: uint64): int =
   ## A request has gone out for `ticks`. Returns its epoch.
@@ -408,6 +478,24 @@ proc awaiting(feed: LocalsFeed; ticks: uint64): int =
   ## show them while `phase` is `lpPending`, which keeps "what the store holds"
   ## and "what the pane may say" as one decision in one place instead of a
   ## clearing that some other reader could race.
+  ##
+  ## ## THE BASELINE IS CAPTURED HERE, AND ONLY ON A MOVE
+  ##
+  ## A time-travel debugger needs no extra recording to say what a motion
+  ## changed: the prior position is still queryable. But it does need to know
+  ## WHICH position it came from, and this is the one moment that is knowable
+  ## without asking anything — the request for the new position is going out
+  ## while `forTicks` still names the old one and `phase` still says whether its
+  ## answer ever arrived.
+  ##
+  ## Guarded on the position actually differing, because a second request for
+  ## the position the session is already at is not a move. Without that guard
+  ## the baseline would be overwritten with the current position's own values
+  ## between the two replies, and every row would report itself unchanged.
+  if ticks != feed.forTicks:
+    feed.baselineValid = feed.hasLive and feed.liveTicks == feed.forTicks
+    feed.baselineTicks = feed.forTicks
+    feed.baseline = if feed.baselineValid: feed.currentValues() else: @[]
   inc feed.epoch
   feed.phase = lpPending
   feed.forTicks = ticks
@@ -451,26 +539,66 @@ proc adopt*(feed: LocalsFeed; ticks: uint64) =
   ## permanently `lpUnasked`, which is not the state it is asserting about.
   feed.phase = lpLive
   feed.forTicks = ticks
+  feed.hasLive = true
+  feed.liveTicks = ticks
   feed.reason = ""
+
+proc knows(feed: LocalsFeed; ticks: uint64): bool =
+  ## Whether a COMPLETED reply put this exact position's values in the store.
+  feed.hasLive and feed.liveTicks == ticks
+
+proc diffFor*(feed: LocalsFeed; name, value: string): ValueDiff =
+  ## How this row relates to the position the session came from.
+  ##
+  ## Answered lazily, per row, rather than materialised into a table when the
+  ## reply lands. There is no second copy of the verdict to fall out of step
+  ## with the values, and a frame's locals are a handful of rows, so the linear
+  ## scan is not worth removing.
+  ##
+  ## `dvUnchanged` when the baseline is not valid. That is not a fallback that
+  ## hides an error: "I cannot know what this motion changed" and "this motion
+  ## changed nothing" both mean the pane must not mark the row, and marking it
+  ## on a guess is the one outcome that would make the feature worse than not
+  ## having it.
+  if feed == nil or not feed.baselineValid: return dvUnchanged
+  for prior in feed.baseline:
+    if prior.name == name:
+      return if prior.value == value: dvUnchanged else: dvChanged
+  dvAppeared
 
 proc noteFor*(feed: LocalsFeed; ticks: uint64; values: int): string =
   ## The sentence the State pane shows instead of values, or `""` when the
   ## values it has are this position's.
   ##
-  ## THE SERVED FRAME IS NEVER THE ANSWER. Every branch that is not `lpLive`
-  ## at this exact position produces a sentence, and a pane with a sentence in
-  ## it is a pane `renderPanes` will write — so the statically exported values
-  ## are replaced the first time a live session takes a position, whether or
-  ## not the engine answered. Values from the frame the page was served at,
-  ## presented as the values where the visitor now stands, is the confident
-  ## wrong answer this route exists to not give.
+  ## THE SERVED FRAME IS NEVER THE ANSWER. Every branch that does not have a
+  ## COMPLETED reply for this exact position produces a sentence, and a pane
+  ## with a sentence in it is a pane `renderPanes` will write — so the
+  ## statically exported values are replaced the first time a live session takes
+  ## a position, whether or not the engine answered. Values from the frame the
+  ## page was served at, presented as the values where the visitor now stands,
+  ## is the confident wrong answer this route exists to not give.
+  ##
+  ## ## THE FLICKER: `phase` IS NOT THE QUESTION THIS PROC ASKS
+  ##
+  ## Every branch used to key off `phase`, so a request going out threw the pane
+  ## back to "Reading the values at this position…" — including a request for
+  ## the position the pane was ALREADY showing verified values for. `StateVM`'s
+  ## auto-load effect issues more than one `ct/load-locals` per move, and the
+  ## measured result on the published engine was the Values pane oscillating
+  ## values → sentence → values *within a single step*, on every step. That is
+  ## the flicker a visitor reported.
+  ##
+  ## The question is not "is a request outstanding" but "do I hold this
+  ## position's values", and `knows` is that question. A second request for a
+  ## position whose reply already landed cannot make those values less true, so
+  ## the pane keeps showing them while it is in flight. The guarantee above is
+  ## untouched, because `knows` requires a completed reply for THIS position:
+  ## the served frame can never satisfy it, and neither can the previous
+  ## position's values.
   if feed == nil: return ReadingNote
+  if feed.knows(ticks):
+    return if values == 0: NoValuesNote else: ""
   case feed.phase
-  of lpUnasked: ReadingNote
-  of lpPending: ReadingNote
+  of lpUnasked, lpPending, lpLive: ReadingNote
   of lpUnavailable:
     if feed.forTicks == ticks: feed.reason else: ReadingNote
-  of lpLive:
-    if feed.forTicks != ticks: ReadingNote
-    elif values == 0: NoValuesNote
-    else: ""
