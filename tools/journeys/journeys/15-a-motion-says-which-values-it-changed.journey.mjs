@@ -178,15 +178,31 @@ async function arm(browser, site, j, subject, tag) {
       if (v) verdicts.push(v);
     }
     const judged = verdicts.reduce((a, v) => a + v.rows, 0);
+    const differed = verdicts.reduce((a, v) => a + v.expectChanged.size, 0);
+    const arrived = verdicts.reduce((a, v) => a + v.expectAppeared.size, 0);
+    const held = verdicts.reduce((a, v) => a + v.expectUnmarked.size, 0);
     j.atLeast(
       verdicts.length,
       1,
       `${tag}: CONTROL — transitions with values on both sides, so there is something to judge`,
     );
+    // THE BREAKDOWN IS IN THE MESSAGE BECAUSE ONE OF THESE SETS CAN BE EMPTY,
+    // and an empty set makes the verdict below it pass over nothing. It is not
+    // hypothetical: this walk's source-level arm changes no value IN PLACE —
+    // every mark it produces is a name arriving — so `differed` is 0 there and
+    // "every row whose value differs carries a mark" is vacuously true on that
+    // arm. A mutation arm aimed at it SURVIVED, correctly, and said so.
+    //
+    // The claim is not weakened by that, because the non-vacuity control for it
+    // is taken across BOTH walks below (the mixed step, which requires a
+    // non-empty changed set by construction). What would be wrong is leaving a
+    // reader to assume this arm's zero was a measurement. It prints the size of
+    // what it quantified over.
     j.atLeast(
       judged,
       1,
-      `${tag}: CONTROL — rows judged across the walk (${verdicts.length} transitions)`,
+      `${tag}: CONTROL — rows judged across the walk (${verdicts.length} transitions:` +
+        ` ${differed} differed, ${arrived} arrived, ${held} held their value)`,
     );
 
     // THE TWO DIRECTIONS, SEPARATELY. Over-marking and under-marking are

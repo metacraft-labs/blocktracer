@@ -536,7 +536,15 @@ const ARMS = [
     find: `      changed: diff == dvChanged,`,
     replace: `      changed: vm.selectedPath.val == v.name,`,
     journey: "a-motion-says-which-values-it-changed",
-    assertion: "SOURCE-LEVEL: every row whose value differs from the previous position carries a mark",
+    // AIMED AT THE CHAIN ARM, and that is a finding rather than a preference.
+    // The source-level walk changes no value in place — every mark it produces
+    // is a name arriving — so the identical SOURCE-LEVEL assertion quantifies
+    // over an empty set and this mutation SURVIVED it. It did so correctly, and
+    // the journey now prints the size of the set each arm judged so the zero is
+    // legible. A rung-3 capture reports the machine's own state, whose rows
+    // persist and change a few at a time, so it is the arm where "a changed
+    // value must be marked" has subjects.
+    assertion: "CHAIN: every row whose value differs from the previous position carries a mark",
   },
   {
     id: "VD2/every-value-is-marked-changed",
