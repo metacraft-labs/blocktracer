@@ -55,6 +55,7 @@ import ../src/debugger/source_island
 import ../src/components/debugger as panes
 
 import ./engine_transport
+import ./live_breakpoints
 import ./live_origin
 import ./live_source
 import ./session_project
@@ -161,6 +162,29 @@ proc readUi(): Ui =
 proc attr(e: Element; name: cstring): string =
   let v = e.getAttribute(name)
   if v == nil: "" else: $v
+
+proc closestOf(e: Element; selector: cstring): Element {.importjs: """
+(function(el, s){ return el ? el.closest(s) : null; })(#, #)
+""".}
+  ## The element's nearest ancestor matching `selector`, or `nil`.
+  ##
+  ## The `Event`-rooted `closestFrom` above cannot answer this: a gutter click
+  ## needs TWO ancestors of one target — the row, for the line number, and the
+  ## document, for the path — and walking from the event twice would re-derive
+  ## the same start node rather than continue from the row it already found.
+
+proc activationKey(ev: Event): bool {.importjs: """
+(function(e){ return e.key === "Enter" || e.key === " " || e.key === "Spacebar"; })(#)
+""".}
+  ## Is this the keystroke that presses a button?
+  ##
+  ## Needed because the breakpoint gutter is a `span`, and a `span` with
+  ## `role="button"` receives neither a synthetic click from Enter nor one from
+  ## Space — the exact trap `bindGestures` records against `role="button"`
+  ## rows, which were fixed by making them real anchors. A breakpoint has no
+  ## honest URL to be an anchor to, so the keyboard half is supplied here
+  ## instead, and the role and this handler are a pair: neither is correct
+  ## without the other. `"Spacebar"` is the legacy spelling older engines emit.
 
 proc intAttr(e: Element; name: cstring): int =
   try: parseInt(attr(e, name).strip()) except CatchableError: 0
@@ -559,9 +583,74 @@ type
       ## broken by the code that was added to keep it.
     latch: PaneLatch         ## which panes the live session has ever filled
     landing: LinkLanding     ## where §6.0a said this link puts the session
+    breakpoints: BreakpointSet
+      ## The lines the visitor has marked, and the ONLY copy of them on this
+      ## page that anything reads.
+      ##
+      ## The engine has its own registry and it is deliberately not consulted:
+      ## `setBreakpoints` REPLACES a source's breakpoints, so the engine can
+      ## answer "which lines are set" only for the last request it was sent,
+      ## and asking it would make the gutter's marks depend on a round trip
+      ## that a step could interleave with. This set is authoritative, the
+      ## engine is told about every change to it, and the gutter is rendered
+      ## from it — one producer, which is the rule §7.1 states for facts and
+      ## which the toolbar's `toolbarActionId` follows for commands.
+    continueOutcome: string
+      ## §10.8's sentence for a continue that had nothing to reach. Empty
+      ## whenever the last move went somewhere, which is the usual case.
+    continueFrom: uint64
+      ## Where a continue started, so a continue that reached no breakpoint can
+      ## be undone. The engine moves to the end of the recording BEFORE it says
+      ## it hit nothing (`dap_handler.step_continue` sends the notification
+      ## after the jump), so "the position is unchanged" has to be restored
+      ## rather than prevented.
+    continueAwaiting: bool
+      ## A continue is in flight and its outcome is not yet known.
+      ##
+      ## Gates the notification handler so that `ct/notification` is read as
+      ## "this continue reached nothing" only for a continue this page issued.
+      ## The engine emits notifications for other reasons, and a handler that
+      ## treated any of them as a continue outcome would rewind the session
+      ## from under an unrelated gesture.
+    continueMissMessage: string
+      ## The sentence for the continue in flight, chosen when it is ISSUED.
+      ##
+      ## Held here rather than derived on arrival because the notification says
+      ## only that nothing was hit — it does not say which way the session was
+      ## going, and "ahead of here" and "before here" are the two different
+      ## things a visitor needs told apart.
+    restoringPosition: bool
+      ## A seek is in flight to undo such a continue. Read by `applyStop` for
+      ## one reason: the restoring seek is itself a move, and the move handler
+      ## clears `continueOutcome` — so without this flag the sentence explaining
+      ## why the session did not move would be erased by the seek that keeps it
+      ## where it was.
 
 proc render(h: Hydration) =
-  renderPanes(h.ui, projectReplayPanes(h.session, h.base, h.ui.island), h.latch)
+  var view = projectReplayPanes(h.session, h.base, h.ui.island)
+  # THE MARKS GO ON HERE, INSIDE THE RENDER, and that placement is the whole
+  # reason they survive.
+  #
+  # `renderPanes` replaces the editor pane's `innerHTML` on every stop. A
+  # breakpoint mark stamped onto the DOM by the click handler would therefore
+  # last exactly until the visitor's next step — visible, correct, and then
+  # silently gone, while the engine still stopped there. Projecting the set
+  # into the view on every render means the same pass that moves the position
+  # repaints the marks, and there is no path that renders one without the
+  # other.
+  #
+  # The gesture is offered only where it can be honoured: `breakpointsEnabled`
+  # is set here, in the live projection, and nowhere else — so the static
+  # export renders the same gutter with no control on it.
+  view.editor.breakpointsEnabled = true
+  # §10.8's "the control says so", carried on the pane that owns the control.
+  view.controls.outcome = h.continueOutcome
+  for di in 0 ..< view.editor.documents.len:
+    let path = view.editor.documents[di].path
+    for li in 0 ..< view.editor.documents[di].lines.len:
+      view.editor.documents[di].lines[li].breakpoint =
+        h.breakpoints.contains(path, view.editor.documents[di].lines[li].number)
+  renderPanes(h.ui, view, h.latch)
 
 proc fail(h: Hydration; reason: string) =
   ## Give up, and say so on the controls.
@@ -581,6 +670,13 @@ proc fail(h: Hydration; reason: string) =
     return
   markUnavailable(h.ui, reason)
 
+proc gotoTicks(h: Hydration; ticks: int; onRefused: proc() = nil)
+  ## Forward-declared for ONE caller: the `ct/notification` branch of
+  ## `onDapEvent`, which has to seek the session back to where a fruitless
+  ## continue started. The event handler is necessarily defined before the
+  ## commands it reacts to, and moving `gotoTicks` above it would put the
+  ## seek primitive above `applyStop`, which it uses.
+
 proc applyStop(h: Hydration; ticks: uint64; file: string; line: int) =
   ## One stop: the store's position, the URL's coordinate, and the panes.
   ##
@@ -589,6 +685,17 @@ proc applyStop(h: Hydration; ticks: uint64; file: string; line: int) =
   ## call trace's auto-loaded section and the values, in that one call. This is
   ## the same entry point `MockBackendService` drives in `tests/tdebugpanes
   ## .nim`, which is why that suite is evidence about this path.
+  #
+  # A MOVE CLEARS §10.8's SENTENCE — except the one move that exists to undo a
+  # continue. "There is no breakpoint ahead of here" is true of the position
+  # the visitor was at, so it survives the seek that puts them back and is
+  # erased by the next real move, whatever that is. Clearing it on EVERY stop
+  # would erase it with the restoring seek itself; clearing it on none would
+  # leave it standing over a session that has since stepped away.
+  if h.restoringPosition:
+    h.restoringPosition = false
+  else:
+    h.continueOutcome = ""
   h.session.applyPosition(ticks, file, line)
   # §6.3: "`t` updates on **every** navigation via `history.replaceState`".
   # The COORDINATE, so a share link from a hydrated session lands where the
@@ -686,6 +793,39 @@ proc onDapEvent(h: Hydration; event: JsonNode) =
     # branch above for why that is deliberate and what breaks if it is
     # "corrected".
     h.requestPosition()
+  of "ct/notification":
+    # THE ENGINE SAYING A CONTINUE REACHED NOTHING.
+    #
+    # `dap_handler.step_continue` sends exactly this when its traversal ran off
+    # the end of the recording without matching a breakpoint:
+    #
+    #     if !hit_breakpoint {
+    #         self.send_notification(NotificationKind::Info,
+    #                                "No breakpoints were hit!", false, sender)?;
+    #     }
+    #
+    # It is matched on a SUBSTRING of the engine's own wording, which is a real
+    # coupling and is the narrowest one available: the reply carries no
+    # structured "hit a breakpoint" field, so the alternative is to infer it
+    # from the position landing on the last step — which is indistinguishable
+    # from a breakpoint that genuinely sits on the last step.
+    #
+    # A wording change upstream therefore turns this branch off. It fails in
+    # the SAFE direction — the session runs to the end, exactly as it did
+    # before this feature — and `07-continuing-stops-at-a-breakpoint`'s
+    # no-breakpoint arm is what notices, because it asserts the position is
+    # unchanged rather than that a sentence appeared.
+    if not h.continueAwaiting: return
+    h.continueAwaiting = false
+    let body = (if event.hasKey("body"): event["body"] else: event)
+    let message = body{"message"}.getStr("") & body{"text"}.getStr("")
+    if not message.contains("No breakpoints were hit"): return
+    h.continueOutcome = h.continueMissMessage
+    # §10.8: "rather than running to the end of the recording and stopping
+    # there, which reads as a jump the visitor did not ask for". The engine has
+    # already jumped, so being unchanged means going back.
+    h.restoringPosition = true
+    h.gotoTicks(int(h.continueFrom))
   else:
     discard
 
@@ -697,6 +837,34 @@ proc invoke(h: Hydration; action: DebugAction) =
   ## `tests/tdebugpanes.nim` exercises. A second mapping in this file would be
   ## the "two producers" failure applied to the one surface where being wrong
   ## means stepping the wrong way.
+  ##
+  ## CONTINUE IS THE ONE ACTION WITH AN OUTCOME OF ITS OWN. §10.8 requires that
+  ## a continue with nothing to reach says so and leaves the position alone,
+  ## which is not what the engine does on its own: `step_continue` runs to the
+  ## end of the recording and then reports that it hit nothing. So the two
+  ## continue actions are bracketed here — where they start is remembered, and
+  ## `onDapEvent`'s `ct/notification` branch undoes the jump if there was one.
+  if action in {daContinue, daReverseContinue}:
+    let forward = action == daContinue
+    # THE EMPTY SET IS SHORT-CIRCUITED AND NEVER SENT. Not an optimisation:
+    # with no breakpoints at all the engine would run the whole recording and
+    # then be seeked back, so the visitor would SEE the jump this section
+    # exists to prevent. Answering here costs no round trip and cannot flicker.
+    if h.breakpoints.isEmpty():
+      h.continueOutcome =
+        if forward: "No breakpoints are set, so there is nothing ahead to continue to."
+        else: "No breakpoints are set, so there is nothing before here to continue back to."
+      h.render()
+      return
+    h.continueFrom = h.session.store.debugger.val.rrTicks
+    h.continueAwaiting = true
+    h.continueMissMessage =
+      if forward: "No breakpoint ahead of here — the session has not moved."
+      else: "No breakpoint before here — the session has not moved."
+  else:
+    # Any other move settles a pending continue's bookkeeping: its outcome is
+    # about a position the session is leaving.
+    h.continueAwaiting = false
   h.session.controls.invokeToolbarStep(toolbarActionId(action))
 
 proc gotoTicks(h: Hydration; ticks: int; onRefused: proc() = nil) =
@@ -724,6 +892,75 @@ proc gotoTicks(h: Hydration; ticks: int; onRefused: proc() = nil) =
         return,
     onError = proc(message: string) = h.fail(
       "The replay engine stopped answering: " & message))
+
+proc sendBreakpoints(h: Hydration; path: string) =
+  ## Tell the engine the breakpoints for ONE file.
+  ##
+  ## The whole per-path set goes every time, because that is what the command
+  ## means: `dap_handler.set_breakpoints` clears the source's breakpoints
+  ## before registering the request's lines, so a request naming one line makes
+  ## that line the only breakpoint in the file. Sending a delta would delete
+  ## every other mark in the gutter and leave them painted.
+  ##
+  ## The reply is read only to notice a refusal. A breakpoint the engine
+  ## declined is not a breakpoint, and leaving its mark in the gutter would
+  ## promise a stop that will never happen — so a refusal drops the lines the
+  ## engine did not verify and repaints.
+  h.service.send("setBreakpoints", h.breakpoints.requestFor(path)).onComplete(
+    onSuccess = proc(response: JsonNode) =
+      if not response{"success"}.getBool(true): return
+      let verified = response{"body"}{"breakpoints"}
+      if verified == nil or verified.kind != JArray: return
+      # `verified: false` is the engine saying "there is no code at that line".
+      # Measured on the `noir_space_ship` fixture the engine verifies every
+      # line of a file it knows — including lines with no steps — so this arm
+      # is defensive rather than routine, and it is written to be total: a
+      # reply that carries no `verified` key at all leaves the set untouched
+      # rather than clearing the gutter on a shape it did not recognise.
+      var refused: seq[int] = @[]
+      for b in verified:
+        if b.kind != JObject: continue
+        if b.hasKey("verified") and not b{"verified"}.getBool(true):
+          let line = b{"line"}.getInt(0)
+          if line > 0: refused.add line
+      if refused.len == 0: return
+      for line in refused:
+        if h.breakpoints.contains(path, line):
+          discard h.breakpoints.toggle(path, line)
+      h.render(),
+    onError = proc(message: string) = h.fail(
+      "The replay engine stopped answering: " & message))
+
+proc restoreBreakpoints(h: Hydration) =
+  ## Re-arm the engine with whatever breakpoints this page starts with.
+  ##
+  ## TODAY THIS SENDS NOTHING, and that is correct rather than unfinished:
+  ## `loadBreakpoints` returns an empty set because §10.8 leaves persistence
+  ## explicitly open, so a fresh document has no marks to re-arm.
+  ##
+  ## It is kept, and called, because the engine is a NEW worker on every load
+  ## and knows nothing about a set restored on the page side. The moment
+  ## persistence is decided, a restored gutter without this call would show
+  ## marks that Continue ignores — which is the worst of the three possible
+  ## states, because it is the only one that looks like it works. Wiring the
+  ## seam now means the decision is a change to one function rather than a
+  ## change to one function plus a defect nobody predicted.
+  for path in h.breakpoints.paths():
+    if h.breakpoints.linesFor(path).len > 0:
+      h.sendBreakpoints(path)
+
+proc toggleBreakpoint(h: Hydration; path: string; line: int) =
+  ## One gutter click, all the way through.
+  if path.len == 0 or line <= 0: return
+  discard h.breakpoints.toggle(path, line)
+  # Painted BEFORE the round trip and not after. The mark is a statement about
+  # what this page will ask the engine to do, and it is true the moment the
+  # visitor clicks; waiting for the reply would put a click's worth of latency
+  # between the gesture and its acknowledgement on the one control whose whole
+  # purpose is to be aimed precisely. `sendBreakpoints` repaints if the engine
+  # refuses.
+  h.render()
+  h.sendBreakpoints(path)
 
 proc bindGestures(h: Hydration) =
   ## The controls and the navigation rows become real, once.
@@ -790,6 +1027,43 @@ proc bindGestures(h: Hydration) =
       name, h.session.store.debugger.val.location,
       int64(h.session.store.debugger.val.rrTicks)))
 
+  # THE BREAKPOINT GUTTER. Delegated on the editor pane's body for the reason
+  # every other handler here is: `renderPanes` replaces that body on every
+  # stop, so a listener bound to a line number would be dropped by the first
+  # step the visitor took — and this is the one control where that failure
+  # would be invisible, because the marks would still be painted.
+  #
+  # The path comes from the DOCUMENT and the line from the ROW, which is why
+  # `data-path` exists on `.srcdoc` at all: the engine has to be told the file
+  # exactly as the trace interned it, and the document's `id` is a mangled,
+  # non-invertible anchor (`components/debugger.renderSource`).
+  proc gutterTarget(ev: Event): (string, int) =
+    let cell = closestFrom(ev, ".srcline .n[role='button']")
+    if cell == nil: return ("", 0)
+    let row = closestOf(cell, ".srcline")
+    let doc = closestOf(cell, ".srcdoc")
+    if row == nil or doc == nil: return ("", 0)
+    (attr(doc, "data-path"), intAttr(row, "data-line"))
+
+  h.ui.editor.addEventListener("click", proc(ev: Event) =
+    let (path, line) = gutterTarget(ev)
+    if line == 0: return
+    # A modified click is the visitor asking the BROWSER for something and is
+    # left alone, the same rule the navigation rows follow.
+    if not isPlainActivation(ev): return
+    ev.preventDefault()
+    h.toggleBreakpoint(path, line))
+
+  # The keyboard half of the same control — see `activationKey`. Space is
+  # cancelled because its default action scrolls the pane, which would move the
+  # listing out from under the line the visitor just marked.
+  h.ui.editor.addEventListener("keydown", proc(ev: Event) =
+    if not activationKey(ev): return
+    let (path, line) = gutterTarget(ev)
+    if line == 0: return
+    ev.preventDefault()
+    h.toggleBreakpoint(path, line))
+
   rowHandler(h.ui.calltrace, ".ctrow")
   rowHandler(h.ui.eventLog, ".evrow")
   # The loop rail's segments, through the SAME primitive. A segment's
@@ -843,6 +1117,11 @@ proc goLive(h: Hydration) =
   ## makes that true.
   h.live = true
   h.bindGestures()
+  # The engine is new; the breakpoints are not. Re-arming here — and not at
+  # construction — is what makes a reload keep working rather than merely
+  # keep LOOKING like it works: `restoreBreakpoints` is the only thing
+  # standing between a restored gutter and a Continue that ignores it.
+  h.restoreBreakpoints()
   # NOTHING SENT BEFORE THIS POINT REACHED THE ENGINE, and the store does not
   # know that.
   #
@@ -1119,6 +1398,11 @@ proc hydrate() =
   if traceUrl.len == 0: return
 
   let h = Hydration(ui: ui, base: servedFrame(ui), landing: landing)
+  # Restored BEFORE the engine is started, so the first live render already
+  # carries the marks and the visitor never sees the gutter empty and then
+  # populated. The engine is told separately, in `goLive` — it is a fresh
+  # worker on every load and this set means nothing to it until it is sent.
+  h.breakpoints = loadBreakpoints(h.base.traceContentHash)
   h.backend = newWorkerBackend(
     postProc = proc(messageJson: string) = postJson(messageJson),
     terminateProc = proc() = terminateWorker())

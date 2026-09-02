@@ -655,6 +655,39 @@ html[data-register="debugger"],
   border-left-color:var(--bt-mark-position)}
 .srcline.cur .n,.srcline.cur .m,.srcline.cur .p{color:var(--bt-mark-position)}
 .srcline.cur .t{color:var(--bt-text-strong)}
+/* THE BREAKPOINT, ON THE LINE NUMBER, AND WHY IT IS THERE AND NOT IN `.m`.
+   `.m` is the cell this stylesheet already spent a long comment splitting
+   apart: it was one glyph slot answering two questions ("what does the
+   recording say about this line" and "is the session standing here") and CSS
+   resolved the collision by hiding one of them, so the position glyph was
+   never painted anywhere in the corpus. Putting a third question — "will
+   Continue stop here" — into that same cell would rebuild the defect that
+   `.p` was carved out to fix.
+   The line number has no such contention. It is also the thing a reader
+   already points at to mean "this line", which is why it is the click target
+   (`components/debugger.renderSource`), and a filled number IS the
+   conventional gutter breakpoint.
+   NO NEW TOKEN. A breakpoint is a STOP, and the stop family is already
+   `--bt-mark-position` — the same family whose quieter rung `.hit .m` uses for
+   "you can stop here". This is "you WILL stop here", so it takes the family at
+   full strength, on the fill rather than on the ink, which distinguishes it
+   from the current line without a second hue. Reusing `--bt-mark-changed`
+   (amber, "this value changed at this step") was the alternative and would
+   have been a third meaning on a token that already has one. */
+.srcline.bp .n{background:var(--bt-mark-position);color:var(--bt-text-on-accent);
+  border-radius:var(--bt-radius-sm)}
+/* The current line CAN carry a breakpoint, and on that row `.srcline.cur .n`
+   above would otherwise repaint the number in the position ink — on a fill of
+   the same hue, which is the ink-on-its-own-tint failure this file records at
+   3.83:1. One extra class outranks it. */
+.srcline.cur.bp .n{background:var(--bt-mark-position);
+  color:var(--bt-text-on-accent)}
+/* The gutter says it is clickable only where it IS clickable: these attributes
+   are emitted on a live pane alone, so the static export keeps a plain,
+   non-interactive number with no pointer and no focus ring. */
+.srcline .n[role="button"]{cursor:pointer}
+.srcline .n[role="button"]:hover{background:var(--bt-surface-hover)}
+.srcline.bp .n[role="button"]:hover{background:var(--bt-mark-position)}
 /* The lexical palette (Design-System.md §7: "syntax highlighting comes from the
    product lineage's editor tokens in BOTH themes"). One rule per TokenKind that
    `debugger.tokenClass` can return; `tkPlain` has none, because it is emitted
