@@ -171,12 +171,12 @@ export function landingOf(phase) {
 // THE CAPABILITY SEAM
 // ---------------------------------------------------------------------------
 //
-// The demo chain is being rebuilt from one stand-in recording into a suite of
+// The demo chain WAS rebuilt from one stand-in recording into a suite of
 // purpose-built Noir programs, one per capability — loops and the iteration
 // rail, branch taken / not-taken, inline values, the call trace, the event log,
 // the type system — designed so that the capability a program demonstrates is
-// the capability it tests. It is meant to serve three consumers: the shared
-// ViewModels on both backends, desktop CodeTracer's GUI, and this one.
+// the capability it tests. It serves three consumers: the shared ViewModels on
+// both backends, desktop CodeTracer's GUI, and this one.
 //
 // NO JOURNEY IN THIS DIRECTORY NAMES A TRANSACTION, and that is the seam. Every
 // subject is selected by a PROPERTY read off the tree — `landingOf(phase)`,
@@ -184,14 +184,20 @@ export function landingOf(phase) {
 // journey. The suite is already exercising 62 transactions across three chains
 // that no file here lists.
 //
-// When the corpus lands with its manifest, `capabilitiesOf` below starts
-// returning real answers and a journey can say "the transaction that
-// demonstrates loops" instead of "one that has a listing". Until then it
-// returns an empty set, and — this is the important part — a journey that
-// selected on a capability would then find NO subjects and fail its
-// `j.subjects()` call rather than passing over nothing. That is the correct
-// behaviour for a claim whose fixture has not arrived, and it is why this
-// returns an empty set rather than falling back to "any transaction".
+// THE MANIFEST HAS LANDED, and the seam is `tourManifest` + `programsWith`
+// below: a journey reads `fixtures/trace/tour/manifest.json` and selects on a
+// program's declared `capabilities[]`, so it can say "the program that
+// demonstrates a failing constraint" instead of "one that has a listing".
+// Journey 08 does exactly that. The capability vocabulary is the manifest's own
+// `capabilities` list — read it there; copying it here would be a second copy
+// to keep true.
+//
+// The refusal this paragraph used to promise is what `programsWith` still does:
+// a capability no program declares yields an EMPTY array, so a journey that
+// selected on it finds NO subjects and fails its non-vacuity guard
+// (`j.subjects()` / `j.atLeast`) rather than passing over nothing. That is the
+// correct behaviour for a claim whose fixture has not arrived, and it is why
+// this never falls back to "any transaction".
 //
 // TWO ASYMMETRIES TO ASSERT RATHER THAN PAPER OVER, when parity journeys arrive:
 //
@@ -199,10 +205,18 @@ export function landingOf(phase) {
 //     source-level. Journeys 01 and 05 already split on exactly this, and the
 //     split is the finding: six real-chain sessions state that they have no text
 //     and never state which step they are on.
-//   * BlockTracer has no origin-chain surface at all, so a cross-consumer parity
-//     claim cannot be "the three agree everywhere". Where they cannot agree, the
-//     difference is the assertion; a gap left unstated reads as parity, which is
-//     the vacuous pass this layer exists to refuse.
+//   * BlockTracer's origin-chain surface SHIPS end to end — `session_project`
+//     builds the `OriginChainVM`, `debugger.nim` renders the `.storigin`
+//     control, `hydrate.nim` wires the click to `onShowOrigin`, and
+//     `live_origin.nim` reads the reply back. THE ARGUMENT THAT USED TO STAND
+//     HERE — that no origin parity claim is writable because BlockTracer has no
+//     such surface — NO LONGER HOLDS, and nothing has been written in its
+//     place: journey 07 drives the surface on this consumer alone, not across
+//     the three. The asymmetry that remains is one of FIDELITY, not of
+//     existence — see journey 07's header on what a rung-3 recording leaves the
+//     classifier nothing to split — and it is unmeasured here. Where consumers
+//     cannot agree, the difference is the assertion; a gap left unstated reads
+//     as parity, which is the vacuous pass this layer exists to refuse.
 
 import { readFile as _readFile } from "node:fs/promises";
 

@@ -187,19 +187,25 @@ name, to delete the line.
 listed by name — `tools/capture/check-coverage.mjs` already learned why: *"A
 list cannot notice a chain nobody added it to."*
 
-The demo chain is being rebuilt into a suite of purpose-built Noir programs, one
-per capability. `capabilityManifest()` / `capabilitiesOf()` are the seam: when
-the corpus ships its manifest they start returning real answers and a journey
-can select "the transaction that demonstrates loops". Until then they return an
-empty set — so a journey written against a capability finds no subjects and
-**fails its `subjects()` call** rather than passing over nothing.
+The demo chain has been rebuilt into a suite of purpose-built Noir programs, one
+per capability, and its manifest has landed. `tourManifest()` / `programsWith()`
+are the seam: a journey reads `fixtures/trace/tour/manifest.json` and selects on
+a program's declared `capabilities[]` — journey 08 selects the `failure` program
+that way. The capability vocabulary is the manifest's own `capabilities` list;
+read it there rather than from a copy. A capability no program declares yields
+an empty set, so a journey written against it finds no subjects and **fails its
+non-vacuity guard** rather than passing over nothing.
 
 Two asymmetries to assert rather than paper over when parity journeys arrive: a
 chain trace is rung 3 (no source, no names) while a demo trace is source-level —
-journeys 01 and 05 already split on exactly that, and the split is the finding;
-and BlockTracer has no origin-chain surface at all, so a cross-consumer parity
-claim cannot be "the three agree everywhere". Where they cannot agree, the
-difference is the assertion.
+journeys 01 and 05 already split on exactly that, and the split is the finding.
+The second used to read "BlockTracer has no origin-chain surface at all, so a
+cross-consumer parity claim cannot be 'the three agree everywhere'". **That
+argument no longer holds** — the surface ships (`session_project.nim` builds the
+`OriginChainVM`, `debugger.nim` renders the `.storigin` control,
+`live_origin.nim` reads the reply back) — and no cross-consumer origin claim has
+been written to replace it. What remains asymmetric is fidelity, not existence.
+Where they cannot agree, the difference is the assertion.
 
 ## What is NOT claimed
 
