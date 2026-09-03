@@ -115,7 +115,16 @@ type
     ## `ct.source-provenance` as `native.replay.artifacts` — **one entry per
     ## contract the transaction executed, resolved or not** — each carrying
     ## `resolved`, the `origin` that served the artifact, and a `corroboration`
-    ## word. The runtime accepts an artifact only when `computeArtifactHash`
+    ## word.
+    ##
+    ## OR, where the capture recorded none, the same shape measured AFTER the
+    ## fact from `artifact-resolution.json` — every frozen capture in this
+    ## repository predates off-chain resolution, and their bodies are pruned, so
+    ## the question was asked against the contract classes the node still serves
+    ## (CHAIN-CAPTURE.md §6.1a). Those entries carry `measuredPostHoc: true` and
+    ## fold identically, because the question and the resolver are the same one.
+    ## What they may NOT do is imply the recording can show what resolved — see
+    ## `positioned`, which is the field that keeps the two apart. The runtime accepts an artifact only when `computeArtifactHash`
     ## equals the class's `artifactHash`, its `public_dispatch` is byte-equal to
     ## `packedBytecode`, and the class id recomputes; the rung is then measured
     ## per contract over the executed stream and never rounded up.

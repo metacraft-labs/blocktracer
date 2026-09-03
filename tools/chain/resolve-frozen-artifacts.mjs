@@ -37,18 +37,25 @@
 // stream to have been written against that artifact's debug map, and that needs the
 // transaction body. So a `resolved: true` here means "this contract's sources are provable
 // and this capture never asked", which is a fact about the corpus. It does not turn the
-// frozen container into a source-level one, and nothing downstream may treat it as if it
-// did — `ingest.nim` reads `recording.sourceLevel` out of the snapshot and this tool writes
-// no snapshot at all.
+// frozen container into a source-level one — `ingest.nim` still reads `recording.sourceLevel`
+// out of the snapshot and out of nothing else, so no output of this tool can raise it.
 //
-// **IT WRITES NOTHING.** The freeze is opened read-only. That is the whole point: the
-// captures are irreplaceable, so the tool that interrogates them may not be able to damage
-// them even by mistake.
+// **IT NEVER WRITES A SNAPSHOT.** `snapshot.json` and the `ct/` containers are opened
+// read-only and always will be: the captures are irreplaceable — the bodies behind them are
+// pruned — so the tool that interrogates them may not be able to damage them even by mistake.
+//
+// THIS PARAGRAPH USED TO READ "IT WRITES NOTHING", AND `--write` IS THE CORRECTION.
+// Reporting the answer to a terminal and leaving the published site saying `Not checked` for
+// every transaction meant the corpus knew something the product did not. `--write` emits a
+// SIDECAR — `artifact-resolution.json`, beside the capture, never inside it — carrying its own
+// `measuredAt` and the resolver's own commit, and `ingest.nim` consumes it only where the
+// capture recorded no answer of its own and marks every entry `measuredPostHoc`. The
+// read-only guarantee above is unchanged, because the freeze is a different file.
 //
 // ── USAGE ─────────────────────────────────────────────────────────────────────────────
 //
 //   node --experimental-strip-types tools/chain/resolve-frozen-artifacts.mjs \
-//     --runtime <path-to-aztec-avm-runtime> [--snapshot <dir>]... [--json]
+//     --runtime <path-to-aztec-avm-runtime> [--snapshot <dir>]... [--json] [--write]
 //
 // `--runtime` must be a checkout whose `replay/src/artifact_resolution.ts` exists; a runtime
 // without it is refused BY NAME rather than reported as "nothing resolved", because those

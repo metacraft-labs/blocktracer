@@ -2311,8 +2311,11 @@ suite "12 — a source-level capture publishes source; a rung-3 one publishes no
 #
 # `ingest.nim` republishes the recording's own `ct.source-provenance` as
 # `native.replay.artifacts` — ONE ENTRY PER CONTRACT THE TRANSACTION EXECUTED,
-# resolved or not. `reader.sourceCoverage` folds that array and reads nothing
-# else. So every state below is a shape the published tree can distinguish, and
+# resolved or not — or, where the capture recorded none, the same shape measured
+# afterwards from `artifact-resolution.json` and marked `measuredPostHoc`
+# (CHAIN-CAPTURE.md §6.1a). `reader.sourceCoverage` folds that array and reads
+# nothing else. So every state below is a shape the published tree can
+# distinguish, and
 # each arm here builds its shape by handing the REAL INGEST a capture and
 # reading the tree it wrote:
 #

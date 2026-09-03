@@ -250,7 +250,7 @@ capture time. The freeze is opened **read-only**.
 
 ```sh
 node --experimental-strip-types tools/chain/resolve-frozen-artifacts.mjs \
-  --runtime …/aztec-avm-runtime [--snapshot <dir>]… [--json]
+  --runtime …/aztec-avm-runtime [--snapshot <dir>]… [--json] [--write]
 ```
 
 A runtime without `replay/src/artifact_resolution.ts` is refused **by name**,
@@ -269,11 +269,60 @@ recorded again. The other seven are genuine: their classes have no
 length-matching artifact on npm and Aztecscan answers 404-with-empty-body for
 each of their artifact hashes.
 
+Re-measured 2026-09-03 with runtime `29bd9cf`: **the same 1 of 8**, same
+transaction, same distributor. Two independent runs two days apart agreeing is
+what makes the seven a finding about those classes rather than about one
+afternoon's network.
+
 **It does not produce a recording and must never be read as one.** A resolution
 says an artifact is provably a class's; a rung-1 *recording* additionally needs
 the step stream written against that artifact's debug map, which needs the body.
-Nothing downstream reads this tool — `ingest.nim` takes `recording.sourceLevel`
-out of the snapshot, and this tool writes no snapshot.
+`ingest.nim` takes `recording.sourceLevel` out of the snapshot and out of
+nothing else, so no output of this tool can raise it.
+
+### 6.1a `--write`, and why the answer is published
+
+Leaving the answer in a terminal meant the corpus knew something the product did
+not: every real transaction on the deployed site read **`Not checked`** — the
+badge for `scUnchecked`, "somebody replayed it; nobody looked for source" — and
+a user reasonably objected to publishing rows whose label means nobody looked.
+That is not a finding that nothing is published, and §6.1 shows it is wrong for
+one of the eight.
+
+`--write` emits `artifact-resolution.json` **beside** each capture. It is a
+sidecar and never the snapshot: the freeze stays read-only, which is the
+guarantee above and is unchanged. It carries `measuredAt`, the resolver's own
+`runtimeCommit`, and the capture's — the gap between those two commits is the
+entire subject of §6 — and one record per transaction the run opened.
+
+`ingest.nim` reads it under three restrictions, each of which is the difference
+between reporting a measurement and inventing one:
+
+* **only where the capture recorded nothing.** A real `ct.source-provenance` is
+  the measurement taken as the transaction executed; this is an answer about the
+  class today. Where both exist the capture wins.
+* **never onto `sourceLevel`.** A resolution cannot make a container
+  source-level, so it cannot raise the flag or cause a source bundle to be
+  written.
+* **never anonymously.** Every published entry carries `measuredPostHoc`, and
+  the tree records when and by which resolver.
+
+A transaction whose run did not answer for *every* address its container
+interned is written `artifacts: null` — the same `null` that means "nobody
+looked" — rather than with the addresses that did answer. Publishing the partial
+set would shrink the denominator and let a half-answered transaction read as
+complete, which is the defect `test_chain_provenance`'s "the numerator and
+denominator are the transaction's, not the resolved set's" exists to catch.
+
+**And the badge is not allowed to over-promise.** `Sources available` is true of
+the ARTIFACT — provable against the chain's commitment to the class — and says
+nothing about whether *this* container positions its steps against it. For every
+transaction the site publishes today it does not, because the capture predates
+resolution. So `SourceCoverageView.positioned` is read from the tree's own
+`sourceLevel`, and `sourcesNote` says which of the two is the case. Without that
+sentence the transaction page would read `Sources available` inches from a
+source pane reading "Stepping continues at instruction level", and a visitor
+would be right to conclude one of them was lying.
 
 ### 6.2 The additive capture, and what it measured
 
