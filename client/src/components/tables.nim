@@ -126,9 +126,9 @@ proc sourcesBadge*(v: SourceCoverageView): string =
   ## the words above can be rewritten without any check going quiet.
   let count = sourcesCount(v)
   ui:
-    span(class = "badge srcbadge " & sourcesClass(v.state),
+    span(class = "badge srcbadge " & sourcesClass(v),
          `data-sources` = $v.state, title = sourcesNote(v)):
-      text sourcesState(v.state)
+      text sourcesState(v)
       if count.len > 0:
         # Resolved-over-executed, inside the badge, because the ratio IS the
         # state for a partial transaction and a badge that said only "partial"

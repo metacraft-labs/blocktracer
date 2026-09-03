@@ -473,11 +473,25 @@ proc sourceCoverage*(native: JsonNode): SourceCoverageView =
   if replay.isNil or replay.kind != JObject: return
   # From here on the transaction HAS a replay record, so "nobody looked" and
   # "looked and found nothing" are separable.
-  # WHETHER THE CONTAINER POSITIONS ITS STEPS, read from the tree and not inferred. This is
-  # the recording's own `sourceLevel`, which `ingest.nim` writes from the capture and from
-  # nothing else — in particular a post-hoc resolution cannot raise it, which is what keeps
-  # "the artifact is provable" and "this recording shows it" apart. See `positioned`.
-  result.positioned = replay{"sourceLevel"}.getBool
+  # WHETHER THE CONTAINER POSITIONS ITS STEPS, read from the tree and not inferred.
+  #
+  # `stepsPositioned` IS THE SIGNAL, AND `sourceLevel` IS ONLY THE FALLBACK. The two answer
+  # different questions: `sourceLevel` is true when EVERY contract reached rung 1, and the
+  # badge's question is "will this visitor see any source at all". A transaction that
+  # resolved one contract of two can position that one's steps and no others — a real
+  # `scPartial` that genuinely shows source — and reading `sourceLevel` alone would call it
+  # unpositioned and refuse to say so.
+  #
+  # Neither can be inferred from a resolution. `ingest.nim` writes both out of the capture
+  # and out of nothing else, so a post-hoc artifact answer cannot raise either, which is what
+  # keeps "the artifact is provable" and "this recording shows it" apart. See `positioned`.
+  #
+  # The fallback direction is the safe one: where the key is absent the recording is older
+  # than the field, and claiming it positions nothing understates rather than over-promises.
+  let sp = replay{"stepsPositioned"}
+  result.positioned =
+    if sp != nil and sp.kind == JInt: sp.getInt > 0
+    else: replay{"sourceLevel"}.getBool
   let artifacts = replay{"artifacts"}
   if artifacts.isNil or artifacts.kind != JArray:
     result.state = scUnchecked

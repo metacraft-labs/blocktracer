@@ -451,12 +451,41 @@ proc availabilityNote*(a: TraceAvailability): string =
 # axis rather than a stronger label, because it is a fact about how many
 # independent parties served the same symbols and not about the chain.
 
-proc sourcesState*(s: SourceCoverage): string =
+proc sourcesState*(v: SourceCoverageView): string =
   ## The badge's words. Names a STATE, like `availabilityState` beside it —
   ## never an enum spelling and never a verdict the tree cannot support.
-  case s
-  of scAll: "Sources available"
-  of scPartial: "Sources partial"
+  ##
+  ## ## IT TAKES THE VIEW AND NOT THE ENUM, AND A USER PAID FOR THAT
+  ##
+  ## It used to take `SourceCoverage` alone, so it could only report what
+  ## RESOLVED. A visitor read `Sources available` on testnet `0x12525d6d…`,
+  ## clicked it, and got bytecode: the artifact was genuinely proved, and the
+  ## recording it was proved for was captured before any runtime could write
+  ## steps against a source map. Both facts were published, and the note said so
+  ## in full — the note was right there on the page and it did not help, because
+  ## THE BADGE IS THE HEADLINE AND THE NOTE IS A PARAGRAPH UNDER IT. A visitor
+  ## decides what to expect from the badge and then stops reading.
+  ##
+  ## So the label is computed from both axes. `positioned` is the one that says
+  ## whether this recording can show what resolved, and a badge that ignored it
+  ## was a badge stating a fact about a CLASS in the row of a TRANSACTION.
+  ##
+  ## The signature changed rather than a second proc being added beside it: a
+  ## `sourcesStateOf(view)` next to a `sourcesState(enum)` is two spellings of
+  ## one question, and the surface that kept calling the old one would have gone
+  ## on over-promising with nothing to say so. Changing the type makes every
+  ## caller re-resolve.
+  case v.state
+  of scAll, scPartial:
+    if not v.positioned:
+      # WHAT THE VISITOR WILL GET, said first. The artifact resolved and the
+      # source exists; this recording cannot position a single step against it,
+      # so the pane will show instructions. Naming the recording — not the
+      # source — is what stops the badge promising a view the container has not
+      # got. `sourcesNote` carries the rest, including that the source is real.
+      "Source not recorded"
+    elif v.state == scAll: "Sources available"
+    else: "Sources partial"
   of scNone:
     # NOT "No sources". The recording steps perfectly; what it lacks is text,
     # and this is the majority state in every capture the site carries today.
@@ -473,7 +502,7 @@ proc sourcesState*(s: SourceCoverage): string =
     # says which, where there is room for a sentence.
     "Not checked"
 
-proc sourcesClass*(s: SourceCoverage): string =
+proc sourcesClass*(v: SourceCoverageView): string =
   ## The status family, so colour never carries the meaning alone (rubric A7) —
   ## the words above already do, and this only ranks them.
   ##
@@ -482,9 +511,16 @@ proc sourcesClass*(s: SourceCoverage): string =
   ## for those contracts rather than a fault in the transaction, and `bad` is
   ## the treatment `outcomeClass` gives a reverted execution. Two unrelated
   ## things in one colour is how a status vocabulary stops meaning anything.
-  case s
-  of scAll: "ok"
-  of scPartial: "warn"
+  ##
+  ## AND AN UNPOSITIONED RESOLUTION IS MUTED TOO, for the same reason its label
+  ## changed: `ok` is the affirmative treatment, it reads as a promise at a
+  ## glance, and it would have gone on making that promise in colour after the
+  ## words stopped making it.
+  case v.state
+  of scAll, scPartial:
+    if not v.positioned: "muted"
+    elif v.state == scAll: "ok"
+    else: "warn"
   of scNone, scNoCode, scUnchecked, scUnrecorded: "muted"
 
 func sourcesStated*(s: SourceCoverage): bool =
@@ -524,78 +560,67 @@ proc sourcesNote*(v: SourceCoverageView): string =
   ## and where the two "no answer" states stop sharing a label.
   case v.state
   of scAll, scPartial:
+    # THE UNPOSITIONED ARM COMES FIRST BECAUSE IT IS THE COMMON ONE, and because
+    # a reader who has just been told the source is not here does not then need
+    # a paragraph about how strongly it was proved. It answers, in order: what
+    # you will see, that the source is real, and why it is not on screen.
+    if not v.positioned:
+      var s = "You will see the contract's instructions here, not its source " &
+              "code. The source for this " &
+              (if v.contracts == 1: "contract" else: "code") &
+              " has been published and matches what ran on the chain"
+      if v.origins.len > 0: s.add " (from " & v.origins.join(", ") & ")"
+      s.add ", but this transaction was recorded before that could be checked, " &
+            "so its steps are not linked to any source lines. Nothing here can " &
+            "be re-recorded: Aztec stops serving a transaction's contents soon " &
+            "after it settles."
+      return s
     var s =
-      (if v.state == scAll: "Every one of the "
-       else: $v.resolved & " of the ") & $v.contracts &
+      (if v.state == scAll: "Source code is shown for "
+       else: "Source code is shown for " & $v.resolved & " of the ") &
+      (if v.state == scAll: "every one of the " & $v.contracts else: $v.contracts) &
       " contract" & (if v.contracts == 1: "" else: "s") &
-      " this transaction executed resolved an artifact that proves out against " &
-      "the chain's commitment: the bytecode that ran is the bytecode in the " &
-      "artifact. "
+      " this transaction ran. It matches the code that ran on the chain. "
     if v.origins.len > 0:
-      s.add "Distributed by " & v.origins.join(", ") & ". "
+      s.add "Published by " & v.origins.join(", ") & ". "
     s.add(
       case v.corroboration
       of scCorroborated:
-        "Two independent distributors served the same debug symbols and file " &
-        "map, so the source text is corroborated."
+        # KEPT, AND IN PLAIN WORDS. Two parties agreeing is the difference
+        # between a source claim a reader can lean on and one they cannot.
+        "Two separate publishers provided the same source, so it is corroborated."
       of scSingleDistributor:
-        # THE CAVEAT IS NOT OPTIONAL AND IT IS NOT A FOOTNOTE. `artifactHash`
-        # does not cover `debug_symbols` or `file_map`, so on one distributor
-        # the text a visitor reads is that party's unverified word — and a
-        # published decoy exists that a bytecode-only check accepts.
-        "The chain does not commit to an artifact's debug symbols or file map, " &
-        "so the source text itself rests on that one distributor's word."
+        # THE CAVEAT IS NOT OPTIONAL AND IT IS NOT A FOOTNOTE. The chain proves
+        # the CODE that ran; it does not prove the source text sitting beside it,
+        # and a published decoy exists that a code-only check accepts. Said in
+        # the words a reader has rather than in the words the spec has.
+        "The chain proves the code that ran, not the source text beside it — " &
+        "that comes from a single publisher."
       of scNoClaim: "")
     if v.state == scPartial:
-      s.add " Steps inside the contracts that did not resolve continue at " &
-            "instruction level."
-    # WHAT THE RECORDING CAN ACTUALLY SHOW, WHERE IT IS LESS THAN WHAT RESOLVED.
-    #
-    # THIS IS THE SENTENCE THAT KEEPS THE BADGE HONEST, and without it this whole
-    # feature would have made rows read better than they are. `Sources available`
-    # is a true statement about the ARTIFACT — it is provable against the chain's
-    # commitment to the class, and `available` was chosen over `verified` for
-    # exactly that scope. It is not a statement about THIS CONTAINER. Every real
-    # transaction the site publishes today was captured by a runtime that could
-    # not resolve artifacts, so its steps were never written against a debug map,
-    # and the resolution was measured afterwards against classes the node still
-    # serves. Those recordings step perfectly and show no text.
-    #
-    # Left unsaid, the two surfaces would have contradicted each other on one
-    # screen: this row saying `Sources available` and the debugger's source pane,
-    # inches away, saying "Stepping continues at instruction level". A visitor
-    # would be right to conclude one of them was lying. Neither is; they answer
-    # different questions, and the note is where the difference gets a sentence.
-    #
-    # The `scPartial` clause above is about OTHER CONTRACTS in this transaction;
-    # this one is about this recording, and both can be true at once.
-    if not v.positioned:
-      s.add " This recording was taken before its runtime could position steps " &
-            "against a resolved artifact" &
-            (if v.postHoc: " — the artifact was proved afterwards, against a " &
-                           "contract class the node still serves" else: "") &
-            ", so stepping continues at instruction level and the source text " &
-            "is not shown beside it."
+      s.add " The rest step as instructions."
     s
   of scNone:
-    "All " & $v.contracts & " contract" &
-    (if v.contracts == 1: "" else: "s") &
-    " this transaction executed were checked and none has an artifact anybody " &
-    "publishes, so stepping is complete and only the text is missing."
+    "You will see the contract's instructions here, not its source code. " &
+    "Nobody has published source for the " & $v.contracts & " contract" &
+    (if v.contracts == 1: "" else: "s") & " this transaction ran. Stepping " &
+    "through it works either way."
   of scNoCode:
-    "This transaction executed no contract code, so there is no source to resolve."
+    "This transaction ran no contract code, so there is no source to show."
   of scUnchecked:
-    "This transaction was replayed before the runtime could resolve artifacts " &
-    "off-chain, so its recording carries no source-provenance record. Nobody " &
-    "looked; this is not a finding that nothing is published."
+    # STILL SAYS "NOBODY LOOKED", because that is the fact and it is not a
+    # finding about what is published. Shorter, and without naming the record
+    # that is missing.
+    "Nobody has checked whether source is available for this transaction. " &
+    "That is not the same as there being none."
   of scUnrecorded:
-    "No chain replay produced this transaction, so no artifact was resolved " &
-    "against a class commitment and there is no source claim to make."
+    "This transaction was not re-run, so there is nothing here to match " &
+    "source code against."
 
 proc sourcesRow*(v: SourceCoverageView): MetaRow =
   ## §7.2's overview fact, produced ONCE for both surfaces that render it.
-  MetaRow(label: "Sources", value: sourcesState(v.state),
-          badge: sourcesClass(v.state), note: sourcesNote(v))
+  MetaRow(label: "Sources", value: sourcesState(v),
+          badge: sourcesClass(v), note: sourcesNote(v))
 
 # ── the transaction's facts, produced ONCE ─────────────────────────────────
 #

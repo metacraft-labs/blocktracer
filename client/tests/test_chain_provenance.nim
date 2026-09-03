@@ -2385,10 +2385,18 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     if origin.len > 0: result["origin"] = %origin
     if corroboration.len > 0: result["corroboration"] = %corroboration
 
-  proc covTree(name: string; artifacts: JsonNode; sourceLevel = false): string =
+  proc covTree(name: string; artifacts: JsonNode; sourceLevel = false;
+               stepsPositioned = -1): string =
     ## One capture through the REAL ingest. `artifacts = nil` writes no
     ## `artifacts` key at all, which is what every capture taken before the
     ## runtime could resolve artifacts off-chain looks like.
+    ##
+    ## `stepsPositioned` is separable from `sourceLevel` because the chain makes
+    ## them separable: `sourceLevel` is true only when EVERY contract reached
+    ## rung 1, while a transaction that resolved one contract of two positions
+    ## that one's steps and no others. `-1` means "whatever `sourceLevel`
+    ## implies", which is every existing arm; a partial recording that really
+    ## does show source is the one that has to say so itself.
     let dest = covWork / name
     removeDir(dest); createDir(dest / "ct")
     writeFile(dest / "ct" / (CovTx & ".ct"), covCt)
@@ -2401,8 +2409,12 @@ suite "13 — a transaction list says which transactions can be debugged fully":
       "effects": {"reproduced": true, "matched": 3, "mismatched": 0},
       "recording": {"bytes": covCt.len, "steps": 42, "callsOpened": 1,
                     "declaredRung": (if sourceLevel: 1 else: 3),
-                    "stepsPositioned": (if sourceLevel: 42 else: 0),
-                    "stepsUnpositioned": (if sourceLevel: 0 else: 42),
+                    "stepsPositioned":
+                      (if stepsPositioned >= 0: stepsPositioned
+                       elif sourceLevel: 42 else: 0),
+                    "stepsUnpositioned":
+                      (if stepsPositioned >= 0: 42 - stepsPositioned
+                       elif sourceLevel: 0 else: 42),
                     "sourceLevel": sourceLevel}}
     if artifacts != nil: row["artifacts"] = artifacts
     if sourceLevel:
@@ -2450,8 +2462,10 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     nil
 
   proc coverageOf(name: string; artifacts: JsonNode;
-                  sourceLevel = false): SourceCoverageView =
-    sourceCoverage(publishedNative(covTree(name, artifacts, sourceLevel)))
+                  sourceLevel = false;
+                  stepsPositioned = -1): SourceCoverageView =
+    sourceCoverage(publishedNative(
+      covTree(name, artifacts, sourceLevel, stepsPositioned)))
 
   # A row and a view carrying nothing but the coverage under test, so what the
   # renderers are graded on is that field. Everything else is held constant
@@ -2487,6 +2501,15 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     covNone = coverageOf("none", %[
       artifact(AddrResolved, ClassResolved, false),
       artifact(AddrOther, ClassOther, false)])
+    # A PARTIAL RECORDING THAT REALLY DOES SHOW SOURCE. `covPartial` above
+    # resolved one contract of two over a container that positions nothing —
+    # the shape every frozen capture has — so its badge reports what the
+    # visitor gets rather than what resolved. This one positions the resolved
+    # contract's steps, which is the state `Sources partial` exists to name.
+    covPartialShown = coverageOf("partial-shown", %[
+      artifact(AddrResolved, ClassResolved, true, OriginNpm,
+               "single-distributor"),
+      artifact(AddrOther, ClassOther, false)], stepsPositioned = 20)
     covNoCode = coverageOf("nocode", newJArray())
     covUnchecked = coverageOf("unchecked", nil)
     covCorroborated = coverageOf("corroborated", %[
@@ -2561,7 +2584,7 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     for cov in [covAll, covPartial, covNone, covNoCode, covUnchecked]:
       let cell = actCell(tableFor(cov))
       ck cell.contains("data-sources=\"" & $cov.state & "\"")
-      ck cell.contains(sourcesState(cov.state))
+      ck cell.contains(sourcesState(cov))
       states.add $cov.state
     # The count, and that the five arms were five different states — §4b: the
     # membership is knowable and it is five.
@@ -2570,7 +2593,7 @@ suite "13 — a transaction list says which transactions can be debugged fully":
 
   test "RENDERED: the badge qualifies the action and does not become one":
     # §6: "it is the only control in the table, so nothing can outrank it."
-    let html = tableFor(covPartial)
+    let html = tableFor(covPartialShown)
     let cell = actCell(html)
     ck cell.contains("class=\"btn sm primary\"")
     # The action first, the qualifier second — the order of the decision.
@@ -2615,7 +2638,7 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     for cov in [covAll, covPartial, covNone, covNoCode, covUnchecked,
                 covCorroborated]:
       inc checkedStates
-      var words = sourcesState(cov.state) & " " & sourcesNote(cov) & " " &
+      var words = sourcesState(cov) & " " & sourcesNote(cov) & " " &
                   tableFor(cov)
       for origin in cov.origins: words = words.replace(origin, "")
       ck not words.toLowerAscii.contains("verified")
@@ -2623,41 +2646,46 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     ck checkedStates == 6
     # The positive control for the negative claim: the strong state DOES make a
     # claim, and it is the one the chain can actually back.
-    ck sourcesState(scAll) == "Sources available"
-    ck sourcesNote(covAll).contains("the bytecode that ran is the bytecode in the artifact")
+    ck sourcesState(covAll) == "Sources available"
+    ck sourcesNote(covAll).contains("matches the code that ran on the chain")
 
-  test "the single-distributor caveat is stated wherever it is true":
+  test "the single-publisher caveat is stated wherever it is true":
     # The residual weakness lives on its own axis and is not rounded away: on
-    # one distributor the source text is that party's unverified word.
-    ck sourcesNote(covAll).contains("one distributor's word")
-    ck sourcesNote(covPartial).contains("one distributor's word")
+    # one publisher the source text is that party's unchecked word. It is
+    # asserted on the states that SHOW source, because that is where a reader
+    # could be misled by it — a recording that shows none makes no claim about
+    # text and says so instead.
+    ck sourcesNote(covAll).contains("a single publisher")
     ck sourcesNote(covCorroborated).contains("corroborated")
-    ck not sourcesNote(covCorroborated).contains("one distributor's word")
-    # A partial transaction says what happens in the contracts that did not
-    # resolve, because that is where a visitor's expectation breaks.
-    ck sourcesNote(covPartial).contains("instruction level")
+    ck not sourcesNote(covCorroborated).contains("a single publisher")
+    # Neither surface claims the chain proves the TEXT.
+    ck sourcesNote(covAll).contains("not the source text beside it")
 
   test "the two no-answer states share a label and are told apart in the note":
     # `availabilityNote`'s rule, applied: a badge may not name a cause it cannot
     # tell, and the cause is stated where there is room for a sentence.
-    ck sourcesState(scUnchecked) == sourcesState(scUnrecorded)
-    ck sourcesState(scUnchecked) == "Not checked"
-    ck sourcesNote(covUnchecked).contains("Nobody looked")
+    ck sourcesState(SourceCoverageView(state: scUnchecked)) ==
+       sourcesState(SourceCoverageView(state: scUnrecorded))
+    ck sourcesState(covUnchecked) == "Not checked"
+    ck sourcesNote(covUnchecked).contains("Nobody has checked")
     ck sourcesNote(SourceCoverageView(state: scUnrecorded)) !=
        sourcesNote(covUnchecked)
     # And neither reads as a finding about what is published.
-    ck not sourcesNote(covUnchecked).contains("none has an artifact")
+    ck not sourcesNote(covUnchecked).contains("nobody has published")
 
   test "the majority state does not read as a fault":
     # `scNone` is every real transaction this site publishes today. A row that
     # read as broken for the common case would teach a visitor to ignore the
     # badge, and then it is not there for the uncommon one.
-    ck sourcesState(scNone) == "Instruction level"
-    ck sourcesClass(scNone) == "muted"
-    ck sourcesClass(scNone) != outcomeClass(ooReverted)
-    ck sourcesNote(covNone).contains("stepping is complete and only the text is missing")
-    ck sourcesClass(scAll) == "ok"
-    ck sourcesClass(scPartial) == "warn"
+    ck sourcesState(covNone) == "Instruction level"
+    ck sourcesClass(covNone) == "muted"
+    ck sourcesClass(covNone) != outcomeClass(ooReverted)
+    ck sourcesNote(covNone).contains("Stepping through it works either way")
+    ck sourcesClass(covAll) == "ok"
+    # `warn` belongs to a partial recording that CAN show what it resolved. The
+    # class is built from both axes now, so the subject has to carry both.
+    ck sourcesClass(SourceCoverageView(state: scPartial, contracts: 2,
+                                       resolved: 1, positioned: true)) == "warn"
 
   test "§7.1: the page and the debugger's pane render the fact from ONE source":
     # A `Sources` block written into `pages/tx.nim` would have been a second
@@ -2666,7 +2694,7 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     let info = chainInfo(root, RealChain)
     var v = TxView(chain: CovChain, hash: CovTx, height: 100, index: 0,
                    outcome: ooSucceeded, finality: "finalized", canonical: true,
-                   sources: covPartial)
+                   sources: covPartialShown)
     let rows = txMetadataRows(CovChain, v, info)
     var found = 0
     for r in rows:
@@ -2674,7 +2702,7 @@ suite "13 — a transaction list says which transactions can be debugged fully":
         inc found
         ck r.value == "Sources partial"
         ck r.badge == "warn"
-        ck r.note == sourcesNote(covPartial)
+        ck r.note == sourcesNote(covPartialShown)
     ck found == 1
     # The debugger's metadata pane is built from the same `txMetadataRows` call
     # and rendered by the shipping renderer, so it carries the row too — that
@@ -2682,7 +2710,7 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     # rather than as a comment.
     let pane = dbgc.renderMetadata(metadataPane(CovChain, v, info))
     ck pane.contains("Sources partial")
-    ck pane.contains(sourcesNote(covPartial))
+    ck pane.contains(sourcesNote(covPartialShown))
     # …and a transaction with no replay record contributes no row to either.
     v.sources = SourceCoverageView(state: scUnrecorded)
     var absent = 0
@@ -2745,7 +2773,7 @@ suite "13 — a transaction list says which transactions can be debugged fully":
       for row in page.rows:
         inc published
         if sourcesStated(row.sources.state):
-          if sourcesState(row.sources.state) == "Not checked": inc saysNotChecked
+          if sourcesState(row.sources) == "Not checked": inc saysNotChecked
         else:
           inc silent
           # A row that states nothing must be one the capture never replayed.
@@ -2801,15 +2829,23 @@ suite "13 — a transaction list says which transactions can be debugged fully":
       if not page.hasMore: break
       fromH = page.nextFrom
     ck found > 0
-    ck sourcesState(subject.state) == "Sources available"
+    # THE BADGE, AND A USER PAID FOR THIS LINE. It used to assert
+    # `Sources available` here, with the caveat carrying the correction. A
+    # visitor read the badge on this exact transaction, clicked, and got
+    # bytecode — the note was on the page, in full, and it did not help, because
+    # the badge is the headline and the note is a paragraph under it.
+    ck sourcesState(subject) != "Sources available"
+    ck sourcesState(subject) == "Source not recorded"
+    # And it is not dressed as an affirmative outcome either: `ok` is a promise
+    # made in colour, and it would have outlived the words.
+    ck sourcesClass(subject) == "muted"
     # Measured after the capture, over a recording that positions nothing.
     ck subject.postHoc
     ck not subject.positioned
-    # And the note says so, in both halves: what the recording cannot do, and
-    # that the proof came afterwards rather than from the capture.
-    ck sourcesNote(subject).contains("instruction level")
-    ck sourcesNote(subject).contains("proved afterwards")
-    # The badge still may not claim the strong word — §9 owns `verified`.
+    # The note leads with what the reader GETS, then says the source is real.
+    ck sourcesNote(subject).contains("not its source code")
+    ck sourcesNote(subject).contains("matches what ran on the chain")
+    # No surface claims the strong word — §9 owns `verified`.
     ck not sourcesNote(subject).toLowerAscii.contains("verified")
 
   # ── mutation arms ────────────────────────────────────────────────────────
@@ -2827,7 +2863,12 @@ suite "13 — a transaction list says which transactions can be debugged fully":
                                         OriginNpm, "single-distributor")])
     ck mutated.state == scAll
     ck mutated.state != covPartial.state
-    ck sourcesState(mutated.state) == "Sources available"
+    # The FOLD is what this arm bites; the badge is unpositioned here, so the
+    # label is the honest one and the state underneath it is still wrong.
+    ck sourcesState(mutated) == "Source not recorded"
+    ck sourcesState(SourceCoverageView(state: mutated.state, contracts: 1,
+                                       resolved: 1, positioned: true)) ==
+       "Sources available"
 
   test "MUTATION BITE: a missing record collapsed to an empty one loses a state":
     # `ingest.nim` before this change. Fold the two published objects the OLD
@@ -2863,8 +2904,10 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     # Two unrelated things in one colour is how a status vocabulary stops
     # meaning anything, and `bad` is already what a reverted execution wears.
     ck outcomeClass(ooReverted) == "bad"
-    ck sourcesClass(scNone) != "bad"
-    ck sourcesClass(scPartial) != outcomeClass(ooReverted)
+    ck sourcesClass(covNone) != "bad"
+    ck sourcesClass(SourceCoverageView(state: scPartial, contracts: 2,
+                                       resolved: 1, positioned: true)) !=
+       outcomeClass(ooReverted)
 
   test "MUTATION BITE: the sidecar ignored puts every real row back on 'Not checked'":
     # The gate above asserts that nothing published reads "Not checked". This is
@@ -2875,22 +2918,27 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     # see this, so the gate is not vacuous.
     let ignored = coverageOf("mut-sidecar-ignored", nil)
     ck ignored.state == scUnchecked
-    ck sourcesState(ignored.state) == "Not checked"
-    ck sourcesNote(ignored).contains("Nobody looked")
+    ck sourcesState(ignored) == "Not checked"
+    ck sourcesNote(ignored).contains("Nobody has checked")
 
-  test "MUTATION BITE: the instruction-level caveat is conditional, not decoration":
-    # A sentence printed on every resolved transaction would say nothing and
-    # would still pass the over-promise test above. It has to appear EXACTLY
-    # when the recording cannot show what resolved — so the identical artifacts
-    # over a POSITIONED recording must not carry it, and that is the arm.
+  test "MUTATION BITE: the badge moves with the recording, not with the resolution":
+    # THE SAME RESOLVED ARTIFACTS, TWO RECORDINGS. If the label read the
+    # resolution alone — which is what it did when a visitor was misled — both
+    # of these would say `Sources available` and the arm would not move. The
+    # only difference between them is whether the container positions steps,
+    # and that is exactly what a visitor is deciding about when they read it.
     let arts = %[artifact(AddrResolved, ClassResolved, true, OriginNpm,
                           "corroborated")]
     let unpositioned = coverageOf("mut-caveat-on", arts, sourceLevel = false)
     let positioned = coverageOf("mut-caveat-off", arts, sourceLevel = true)
     ck unpositioned.state == scAll
     ck positioned.state == scAll
-    ck sourcesNote(unpositioned).contains("stepping continues at instruction level")
-    ck not sourcesNote(positioned).contains("stepping continues at instruction level")
+    ck sourcesState(unpositioned) == "Source not recorded"
+    ck sourcesState(positioned) == "Sources available"
+    ck sourcesClass(unpositioned) != sourcesClass(positioned)
+    # And the sentence about what you get is conditional too, not decoration.
+    ck sourcesNote(unpositioned).contains("not its source code")
+    ck not sourcesNote(positioned).contains("not its source code")
 
   test "assertion count":
-    expectCount(131)
+    expectCount(136)
