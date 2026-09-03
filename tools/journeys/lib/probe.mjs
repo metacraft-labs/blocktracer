@@ -465,7 +465,36 @@ export async function visit(
   browser,
   origin,
   path,
-  { settle = null, timeoutMs = 45000, initScript = null, viewport = null } = {},
+  {
+    settle = null,
+    timeoutMs = 45000,
+    // THE SETTLE BUDGET IS NOT THE NAVIGATION TIMEOUT, and it must OUTLIVE the
+    // product's own watchdog.
+    //
+    // These were one number, 45000, and that is exactly `EngineDeadlineMs` in
+    // `client/hydrate/hydrate.nim:83`. The watchdog is armed during bundle
+    // startup — before `page.goto(…, {waitUntil:"load"})` resolves — so the two
+    // countdowns start within milliseconds of each other with the SAME budget,
+    // and the product's fires first. `h.fail` then calls `markUnavailable`,
+    // which resets `data-session-phase` to `spFetching`: the phase a session
+    // that is still ARRIVING also carries. So the harness gave up at the moment
+    // the state it was reading had just been tidied, and "the engine is still
+    // coming at 45s" and "the engine failed at 45s" produced the same reading.
+    //
+    // Above it, deliberately, rather than below. Below would make the harness
+    // give up first and report a timeout of its own, which is a different way
+    // of not knowing. Outliving the watchdog means the failure has ALREADY been
+    // written by the time this loop ends, and `facts.engineNotice`
+    // (`#dbg-engine-failure`, read by `readFacts`) then carries the product's
+    // own sentence naming which of the two faults it was — the engine never
+    // loaded, or it loaded and refused the container.
+    //
+    // 60s = EngineDeadlineMs + 15s. The margin is for the watchdog's own
+    // handler to run and paint, not for more waiting.
+    settleMs = 60000,
+    initScript = null,
+    viewport = null,
+  } = {},
 ) {
   // A VIEWPORT ONLY WHEN THE CALLER NAMES ONE, and then it is a fact about the
   // run rather than the launcher's default. It matters for anything read out of
@@ -479,9 +508,34 @@ export async function visit(
     : await browser.newPage();
   const pageErrors = [];
   const consoleErrors = [];
+  const consoleLines = [];
   page.on("pageerror", (e) => pageErrors.push(String(e && e.message ? e.message : e)));
+  // EVERY LINE, not only the errors — this filter threw away the product's one
+  // diagnostic channel.
+  //
+  // It kept `type() === "error"` and dropped the rest, and the rest is not
+  // noise. Measured on one debug route, load only, no stepping: 1099 console
+  // messages, of which 23 `log`, 355 `warning`, 721 `info`, and ZERO errors.
+  // Everything this filter admitted was empty and everything it rejected was
+  // the session describing itself.
+  //
+  // Two things in there are directly useful to the settle problem this file has
+  // elsewhere. The hydration bundle emits `[PIPELINE]` lines — 12 fired in that
+  // run, including `updateDebuggerPosition: … setting rrTicks=…` — and the
+  // replay engine logs its DAP traffic, `stopped` and `stackTrace` among it. A
+  // `stopped` event is the signal a stepping journey actually wants, and it was
+  // being discarded by severity while the journeys waited on durations instead.
+  //
+  // The strings are char-array encoded in the generated `hydrate.js`, which is
+  // why a source grep for `console.log` over `client/**/*.nim` finds nothing
+  // and why "the product emits no console output" was believed and repeated.
+  // It is captured here so the next person can look rather than grep.
+  //
+  // `consoleErrors` is unchanged and still error-only: callers assert on it.
   page.on("console", (m) => {
-    if (m.type() === "error") consoleErrors.push(m.text().slice(0, 300));
+    const text = m.text().slice(0, 300);
+    consoleLines.push({ type: m.type(), text });
+    if (m.type() === "error") consoleErrors.push(text);
   });
 
   // INSTALLED BEFORE ANY PAGE SCRIPT RUNS, which is the only moment that is any
@@ -503,7 +557,7 @@ export async function visit(
   let settled = settle === null;
   let timedOut = false;
   if (settle) {
-    const deadline = Date.now() + timeoutMs;
+    const deadline = Date.now() + settleMs;
     for (;;) {
       if (settle(await readFacts(page))) {
         settled = true;
@@ -517,5 +571,13 @@ export async function visit(
     }
   }
 
-  return { page, facts: await readFacts(page), pageErrors, consoleErrors, settled, timedOut };
+  return {
+    page,
+    facts: await readFacts(page),
+    pageErrors,
+    consoleErrors,
+    consoleLines,
+    settled,
+    timedOut,
+  };
 }

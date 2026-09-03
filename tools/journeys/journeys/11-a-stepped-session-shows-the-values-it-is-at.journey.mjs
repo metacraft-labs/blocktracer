@@ -77,7 +77,9 @@ import { transactions, landingOf } from "../lib/corpus.mjs";
 export const id = "a-stepped-session-shows-the-values-it-is-at";
 export const claim = "A visitor who steps sees the values at the new position.";
 export const spec = "Page-Descriptions.md §7.0, §14 — BlockTracer";
-export const assertions = 3 + 8 + 8;
+// 3 + 8 + 8 -> and one more: the timeout note is now its own claim rather than
+// something the honesty verdict silently accepted as an answer.
+export const assertions = 3 + 8 + 8 + 1;
 export const needsEngine = true;
 
 /** How many times the session is stepped. See the header for why it is a walk. */
@@ -109,6 +111,29 @@ const reading = (facts) => ({
  * served pane is still on screen and is CORRECTLY still on screen. A journey
  * that took its first reading there would call §7.0's own guarantee a defect.
  */
+// THE PRODUCT'S OWN TIMEOUT SETTLES THIS READING TOO, and it used to count as
+// a settle.
+//
+// `LocalsDeadlineMs = 8000` (`client/hydrate/live_locals.nim:87`) gives a
+// position eight seconds to produce values; past that `feed.settle(…,
+// lpUnavailable, TimedOutNote)` writes "The replay engine did not answer with
+// values for this position." into the pane. That is a STABLE reading — rows 0,
+// note non-empty — so this helper's quiet-period loop returns it as settled,
+// and it does so at 8s against a budget of 15s, i.e. always.
+//
+// The honesty verdict below then passes on it: `mute` requires every reading to
+// be "either values or a sentence saying why there are none", and the timeout
+// note IS such a sentence. So a session whose engine answered nothing at all
+// satisfied the check written to catch a pane that says nothing — the note the
+// product writes when it gives up is indistinguishable, to that filter, from
+// the note it writes when the engine genuinely has no values here.
+//
+// The two are separated now: `timedOut` marks a reading that carries exactly
+// `TimedOutNote`, and the verdict below states its own scope rather than
+// counting them as answers.
+const TIMED_OUT_NOTE =
+  "The replay engine did not answer with values for this position.";
+
 async function settledReading(page, timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
   let facts = await readFacts(page);
@@ -121,7 +146,8 @@ async function settledReading(page, timeoutMs = 15000) {
     stable = now === seen ? stable + 1 : 0;
     seen = now;
   }
-  return reading(facts);
+  const r = reading(facts);
+  return { ...r, timedOut: r.note === TIMED_OUT_NOTE };
 }
 
 /** The served frame's Values pane: the same URL with scripting off. */
@@ -257,6 +283,18 @@ export async function run({ browser, site, j }) {
       mute.length,
       0,
       "every reading is either values or a sentence saying why there are none",
+    );
+
+    // AND THE SENTENCE IS THE ENGINE'S ANSWER, not the product giving up on it.
+    // Stated separately because the check above cannot tell them apart:
+    // `TimedOutNote` satisfies "a sentence saying why there are none" while
+    // meaning the engine said nothing at all. Without this, a build whose
+    // locals never arrive passes the honesty verdict on every reading.
+    const timedOut = readings.filter((r) => r.timedOut);
+    j.countIs(
+      timedOut.length,
+      0,
+      "and no reading is the 8s locals timeout — the engine answered each position",
     );
 
     // THE VERDICT PROPER. The values are a function of the position: a session

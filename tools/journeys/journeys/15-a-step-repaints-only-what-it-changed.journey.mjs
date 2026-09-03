@@ -237,13 +237,38 @@ export async function run({ browser, site, j }) {
     // first draft waited 2.5 s and proved the instrument against a pane holding
     // a single element, which is a valid proof of a much weaker claim: a
     // "destroyed every node" verdict over one node is close to unfalsifiable.
+    //
+    // THIS POLL IS BEST-EFFORT AND NOTHING BELOW DEPENDS ON IT, which is worth
+    // saying because it looks exactly like a wait that does. It has a bare
+    // fall-through: at 20000ms against `LocalsDeadlineMs = 8000`
+    // (`client/hydrate/live_locals.nim:87`), a session whose engine never
+    // answered leaves the Values pane holding the timeout sentence and no rows,
+    // this loop runs out, and execution continues silently.
+    //
+    // That is FINE HERE and would not be elsewhere. The four instrument
+    // assertions that follow are proved on `PROBE_PANE = "pane-editor"` — the
+    // source pane, which the EXPORTER draws and which holds hundreds of nodes
+    // from the first byte, engine or no engine. See the paragraph below on why
+    // the proof is deliberately not taken on the Values pane. So a fall-through
+    // costs the proof nothing; it only makes it weaker than intended on the
+    // pane it is not taken on.
+    //
+    // `rowsArrived` is recorded rather than asserted, so a reader of a green run
+    // can see which of the two happened instead of assuming the poll succeeded.
+    let rowsArrived = false;
     {
       const deadline = Date.now() + 20000;
       while (Date.now() < deadline) {
-        if ((await readFacts(page)).stateRows.length > 0) break;
+        if ((await readFacts(page)).stateRows.length > 0) {
+          rowsArrived = true;
+          break;
+        }
         await page.waitForTimeout(150);
       }
       await page.waitForTimeout(800);
+      j.note(
+        `values pane rows before the instrument proof: ${rowsArrived ? "arrived" : "never arrived (poll fell through)"}`,
+      );
     }
 
     // (i) The observer is on the node the product writes, and counts one write

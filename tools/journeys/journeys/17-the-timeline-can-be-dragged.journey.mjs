@@ -72,7 +72,11 @@ export const id = "the-timeline-can-be-dragged";
 export const claim =
   "A visitor who drags the timeline at the top of a session moves the session to where they dropped it.";
 export const spec = "Debugger-Integration.md §3, §4.2 — BlockTracer";
-export const assertions = 33;
+// 33 -> 34. The added one is the half "every drag left the session at a
+// position that stopped changing" was hiding: a dead session stops changing
+// too, so the liveness of the session at the moment of the reading is now its
+// own claim rather than an assumption inside the settle helper.
+export const assertions = 34;
 export const needsEngine = true;
 
 /** The three fractions every arm drags to. Named once so both arms drag the same. */
@@ -191,23 +195,46 @@ const servedControl = (page, url) =>
  * there for the real one. The window has to clear the SLOWEST seek, not the
  * typical one.
  */
+// A DEAD SESSION STOPS CHANGING TOO, and that is what this used to report as
+// settled.
+//
+// The cap was 90000 against `EngineDeadlineMs = 45000`
+// (`client/hydrate/hydrate.nim:83`), so the product's watchdog always fired
+// first; but the cap was never really the mechanism. The quiet period was: a
+// session that never went live, or that failed at 45s, holds one `step` value
+// forever, so `f.step === last` is true from the first sample and this returned
+// `settled: true` after six seconds of nothing happening.
+//
+// The verdict that rests on it — "every drag left the session at a position
+// that stopped changing" — was therefore satisfiable by a session that was
+// never running. That is not a weak assertion, it is one a broken build passes
+// more easily than a working one.
+//
+// `alive` is the correction and it is read off the product, not inferred:
+// `#dbg-engine-failure` carries the sentence `h.fail` writes, and
+// `controlsLive` counts the stepping buttons `markUnavailable` turns `.off`.
+// A settled reading now has to come from a session that is still answering.
 async function settlePosition(page, quietMs = 6000, capMs = 90000) {
   const deadline = Date.now() + capMs;
   const period = 500;
   const need = Math.ceil(quietMs / period);
   let last = null;
   let stable = 0;
+  const aliveIn = (f) => f.engineNotice === "" && f.controlsLive > 0;
   while (Date.now() < deadline) {
     const f = await readFacts(page);
     if (f.step === last) {
-      if (++stable >= need) return { facts: f, settled: true };
+      if (++stable >= need) {
+        return { facts: f, settled: aliveIn(f), alive: aliveIn(f), quiet: true };
+      }
     } else {
       stable = 0;
       last = f.step;
     }
     await page.waitForTimeout(period);
   }
-  return { facts: await readFacts(page), settled: false };
+  const f = await readFacts(page);
+  return { facts: f, settled: false, alive: aliveIn(f), quiet: false };
 }
 
 /**
@@ -248,6 +275,10 @@ async function drag(page, fraction, total) {
     mid,
     after: after.facts,
     settled: after.settled,
+    // Recorded beside `settled` so a red says WHICH half failed: a session that
+    // never stopped moving, or one that stopped because it had died.
+    alive: after.alive,
+    quiet: after.quiet,
     landed: Number(after.facts.step),
     // Did the handle follow the pointer while it was down? Compared against the
     // step the RELEASE POINT names, because the last move is at that point.
@@ -438,7 +469,15 @@ async function demoArm(browser, site, j, subject) {
     j.countIs(
       drags.filter((d) => d.settled).length,
       drags.length,
-      "every drag left the session at a position that stopped changing",
+      "every drag left a LIVE session at a position that stopped changing",
+    );
+    // The half the sentence above used to hide. A dead session stops changing
+    // too, so without this the verdict was satisfiable by a build whose engine
+    // never answered — and more easily than by a working one.
+    j.countIs(
+      drags.filter((d) => d.alive).length,
+      drags.length,
+      "and the session was still answering when that reading was taken",
     );
     j.countIs(
       drags.filter((d) => d.handleFollowed).length,
