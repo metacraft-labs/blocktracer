@@ -1890,7 +1890,10 @@ async function verdictFor(journey, assertion) {
   if (!j || !j.records) return { found: false };
   const hits = j.records.filter((r) => r.what.includes(assertion));
   if (hits.length !== 1) return { found: false, ambiguous: hits.length };
-  return { found: true, ok: hits[0].ok, detail: hits[0].detail };
+  // `vacuous` is carried through because a red that is only a poisoned
+  // zero-against-zero is NOT a kill — see the verdict block below and
+  // `harness.mjs`'s `#vacuityCheck`.
+  return { found: true, ok: hits[0].ok, vacuous: !!hits[0].vacuous, detail: hits[0].detail };
 }
 
 /**
@@ -2174,6 +2177,22 @@ async function main() {
           log(`    SURVIVED — the assertion is still GREEN with the defect in place.`);
           log(`               ${after.detail}`);
           verdict = "survived";
+        } else if (after.vacuous) {
+          // THE FOURTH WAY TO LEARN NOTHING, and it wears a kill's clothes. The
+          // assertion went red, but it went red because its own journey had
+          // ALREADY failed somewhere upstream and the harness refused to count
+          // its zero-against-zero as green (`harness.mjs`, `#vacuityCheck`).
+          // That is a fact about the run, not about the mutation: the mutation
+          // may have done nothing at all. Scoring it KILLED would certify the
+          // assertion as biting on evidence that it never saw the defect —
+          // "an assertion certified as biting when it does not", which this
+          // file's own header calls the worse of the two false verdicts.
+          log(`    NEVER RAN — the assertion went red only as a VACUITY: its journey had`);
+          log(`               already failed upstream, so its set was empty and the`);
+          log(`               harness refused the zero-against-zero. The mutation was not`);
+          log(`               judged. Fix the upstream red first, then re-run this arm.`);
+          log(`               ${after.detail}`);
+          verdict = "never";
         } else {
           log(`    KILLED   — ${after.detail}`);
           verdict = "killed";

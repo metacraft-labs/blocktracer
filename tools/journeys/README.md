@@ -283,6 +283,44 @@ the run producing them had never reached its summary. Each is now attributable:
   entry. A mutation cannot demonstrate anything about an assertion that was not
   green to begin with; this is the harness reporting the tree's state, not a
   defect in the arm.
+
+  **AND THAT RED WAS NOT IN THIS REPOSITORY.** It was measured, at `8d1efe1a`,
+  against one tree, one bundle and one corpus, with only the replay engine
+  changed:
+
+  | wasm | verdict |
+  |---|---|
+  | `cf79c4bf9854465b…` | **488 assertions, 22 green, 0 red, 1 ledgered red. `RESULT: OK`** — journey 07 green, 2 of 6 hops classified over 6 values |
+  | `3009b9892fa181cf…` | 416 assertions, 11 green, **11 red** — journey 07 red, 0 hops over 0 values |
+
+  The engine's own answer, asked on the worker's wire, was in nobody's
+  transcript:
+
+  ```
+  CTFS from_bytes failed for "trace/trace.ct": new-format container advertises
+  steps.dat but no seekable step stream could be opened; the container is
+  inconsistent
+  ```
+
+  This corpus carries containers in two formats — `C0DE72ACE2 03 0000` (16, the
+  chain captures) and `C0DE72ACE2 04 0001` (25, every Noir recording, which is
+  every recording that publishes **source**). The published engine reads the
+  first and rejects the second, so no demo session has a trace open at all, and
+  the two journeys that can judge the origin capability are both on that side of
+  the split. **Eleven journeys then reported, in the product's own vocabulary,
+  that panes were empty and values never arrived.** All eleven were true, and
+  none of them was about the product.
+
+  Nothing on screen says so, which is why it took the wire to find: the page
+  reaches `phase=ready` with twenty-four live controls and a State pane full of
+  the exporter's rows, because the failing `configurationDone` arrives *second*,
+  after a successful one. Every settle condition in this directory is satisfied
+  by a session whose engine never opened its recording.
+
+  `run.mjs` now has an **Arm II** that refuses to judge in that state, for the
+  same reason Arm I refuses to judge when the browser cannot lay out text, and
+  it exits 2 rather than 1 — a red journey is a claim about the product, and
+  this is a refusal to make one.
 * `O4` — the same journey's red, arriving as a **vacuity**. The detail reads
   `counted 0, the claim says 0`. The assertion is `countIs(naming.length,
   shownHere.originControls)`, and its own comment argues it cannot pass vacuously
@@ -290,9 +328,41 @@ the run producing them had never reached its summary. Each is now attributable:
   assertion *stops* the journey, and it does not: the earlier assertion fails, the
   run continues, `originControls` is 0, and `0 === 0` is green. **An implication is
   only as strong as its antecedent** — the rule this file already states — and here
-  the antecedent is asserted and then not relied upon. Fixing journey 07's red
-  closes this; the vacuity is worth stating separately, because a page that
-  legitimately shows no controls would reach the same `countIs(0, 0)`.
+  the antecedent is asserted and then not relied upon.
+
+  **IT IS A CLASS, NOT A LINE, AND IT WAS COUNTED RATHER THAN GUESSED.** The
+  broken-engine run above is the stress test the class needed, because it fails
+  antecedents everywhere at once. Over that one report: **34 zero-against-zero
+  verdicts stood GREEN after their own journey had already recorded a failure,
+  across 8 of the 23 journeys** — journey 07's title check is one of 34. Going
+  only to the line the arm named would have left 33.
+
+  `harness.mjs` now refuses them, in `countIs` and in `atLeast` both. The rule
+  is the one the shape gives away: a zero-against-zero verdict recorded in a
+  journey that has *already failed* measures nothing, because the failure
+  upstream is what emptied the set. It is recorded as `[VACUOUS]` — still
+  counted, still named, never green.
+
+  **Three remedies were on the table and two were rejected, which is worth
+  writing down.** *Halt the journey at its first failure* is the obvious one and
+  is actively harmful: it shortens the run, so `declared === j.total` reddens
+  every failing journey a second time for a spurious reason, and `selftest.mjs`
+  resolves an arm's target **by name in the recorded report** — so every arm
+  aimed past the first failure would score NEVER RAN. That is `O1`'s disease
+  generalised to the whole suite. *Assert a non-zero floor at each site* is
+  correct and does not scale: it is ~150 `countIs` call sites edited by hand, and
+  the sites that need it are exactly the ones nobody can spot by reading. The
+  latch is the third option — re-establish the antecedent — made structural, and
+  it needs no call-site changes at all.
+
+  **And it is tagged `vacuous`, not merely failed, because the mirror-image
+  error is manufacturing kills.** A mutation that reddens some earlier assertion
+  would otherwise redden every zero-against-zero verdict after it and score a
+  kill the arm did not earn — a false `KILLED`, which this directory already
+  calls the worse of the two. `selftest.mjs` reads the flag and scores such a
+  flip **NEVER RAN**: you cannot certify that an assertion bites using a run in
+  which something else was already broken. A real flip is untouched —
+  `countIs(0, 2)` after a red is still judged on its numbers, and still kills.
 * `H`, `Z2` — genuine survivals, reproduced in two independent runs.
 
 One arm is **flaky** and only two complete runs could show it: `FL2/the-panes-move-

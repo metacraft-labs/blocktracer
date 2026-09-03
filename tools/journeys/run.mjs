@@ -65,9 +65,10 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
 import { Journey, renderJourney, nameCollisions } from "./lib/harness.mjs";
-import { openBrowser, readFacts } from "./lib/probe.mjs";
+import { openBrowser, readFacts, visit } from "./lib/probe.mjs";
 import { openSite, serveDist } from "./lib/site.mjs";
 import { stageEngine, engineIdentity, bundleIdentity } from "./lib/engine.mjs";
+import { transactions, landingOf } from "./lib/corpus.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -230,6 +231,114 @@ async function instrumentArm(browser) {
   return results;
 }
 
+/**
+ * ARM II — PROVE THE ENGINE CAN OPEN THIS CORPUS, THEN JUDGE THE PRODUCT.
+ *
+ * Arm I refuses to judge when the BROWSER cannot render. This is the same
+ * refusal for the third artefact, and it exists because that artefact is the
+ * one nothing in this repository pins: `client/hydrate/fetch-engine.sh` takes
+ * whatever the publisher is serving, deliberately, so the engine changes under
+ * this suite without a commit.
+ *
+ * WHAT IT COST TO NOT HAVE THIS. Measured at `8d1efe1a`, one tree, one bundle,
+ * one corpus, two engines:
+ *
+ *   wasm cf79c4bf9854465b…   11 green → 21 green.  Journey 07 GREEN, 2 of 6
+ *                            hops classified over 6 values.
+ *   wasm 3009b9892fa181cf…   ELEVEN journeys RED, 416 assertions instead of
+ *                            488. Journey 07 RED, 0 hops over 0 values.
+ *
+ * The engine's own answer, asked on the wire, is unambiguous and was in nobody's
+ * transcript:
+ *
+ *   CTFS from_bytes failed for "trace/trace.ct": new-format container
+ *   advertises steps.dat but no seekable step stream could be opened;
+ *   the container is inconsistent
+ *
+ * This corpus carries containers in two formats — `C0DE72ACE2 03 0000` (16, the
+ * chain captures) and `C0DE72ACE2 04 0001` (25, every Noir recording, which is
+ * every recording that publishes SOURCE). The published engine reads the first
+ * and rejects the second, so half the corpus has no trace open at all. Eleven
+ * journeys then report, in the product's own vocabulary, that panes are empty
+ * and values never arrive — which is true, and is not a statement about the
+ * product. Two of those eleven are the only journeys that can judge whether a
+ * value can be traced to its origin.
+ *
+ * AND THE PAGE DOES NOT KNOW. `phase=ready`, twenty-four live controls, and a
+ * State pane full of the exporter's rows: every settle condition this suite
+ * uses is satisfied by a session whose engine never opened its recording. The
+ * failed `configurationDone` arrives AFTER a successful one, second, on the
+ * wire — so nothing on screen says so and only the worker traffic does.
+ *
+ * SO IT IS ASKED ON THE WIRE, AND ONE SUBJECT PER FORMAT. A gate that probed a
+ * single session would have passed on a chain capture and judged the whole
+ * suite anyway, which is this repository's signature defect — "a list cannot
+ * notice a chain nobody added it to" — wearing a gate's uniform. The formats
+ * are read off the containers the exporter actually wrote, so a corpus that
+ * gains a third one is probed on the next run with no edit here.
+ *
+ * EXIT 2, NOT 1. A red journey is a claim about the product. This is a refusal
+ * to make one, and the two must not share an exit code — the whole reason this
+ * layer reports three verdicts and not two.
+ */
+async function engineArm(browser, site) {
+  const all = await transactions(site.root);
+  const sessions = all.filter((t) => landingOf(t.phase) === "session" && t.hasListing);
+  // One subject per RECORDING KIND, selected by filter and never with a `??`:
+  // a corpus that has lost a kind must be visible here as a missing probe, not
+  // silently covered by whichever kind survived.
+  const groups = [
+    ["recordings that publish source", sessions.filter((t) => t.hasSource)],
+    ["recordings that publish none", sessions.filter((t) => !t.hasSource)],
+  ];
+  const out = [];
+  for (const [label, list] of groups) {
+    if (list.length === 0) {
+      out.push({ label, subject: null, opened: false, error: "no subject of this kind in the corpus" });
+      continue;
+    }
+    const subject = list[0];
+    const live = await visit(browser, site.origin, subject.debugPath, {
+      settle: (f) => f.phase === "ready" && f.controlsLive > 0,
+    });
+    try {
+      const answer = await live.page.evaluate(async () => {
+        const w = globalThis.__btReplayWorker;
+        if (!w) return { opened: false, error: "no replay worker on the page" };
+        const s = 990001;
+        return await new Promise((resolve) => {
+          const onMsg = (e) => {
+            let m = e.data;
+            if (typeof m === "string") {
+              const t = m.trim();
+              if (!t.startsWith("{")) return;
+              try { m = JSON.parse(t); } catch { return; }
+            }
+            if (m && m.type === "response" && m.request_seq === s) {
+              w.removeEventListener("message", onMsg);
+              resolve({ opened: !!m.success, error: String(m.message ?? "") });
+            }
+          };
+          w.addEventListener("message", onMsg);
+          setTimeout(() => {
+            w.removeEventListener("message", onMsg);
+            resolve({ opened: false, error: "the engine did not answer `threads` within 30s" });
+          }, 30000);
+          // `threads` and not `ct/load-locals`: it is the cheapest request that
+          // requires a trace to be OPEN, and its answer does not depend on the
+          // position, the language or whether anything is bound — so a failure
+          // here is about the container and nothing else.
+          w.postMessage({ seq: s, type: "request", command: "threads", arguments: {} });
+        });
+      });
+      out.push({ label, subject: subject.debugPath, ...answer });
+    } finally {
+      await live.page.close();
+    }
+  }
+  return out;
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   console.log("=== BlockTracer journey conformance ===");
@@ -311,6 +420,37 @@ async function main() {
     }
     console.log("  [OK]     the instrument distinguishes a rendered page from a blank one");
     console.log("");
+
+    // ---- ARM II --------------------------------------------------------
+    if (site.engine) {
+      console.log("Arm II: prove the engine can open this corpus, before judging the product");
+      const opened = await engineArm(browser, site);
+      for (const r of opened) {
+        console.log(
+          `         ${r.opened ? "[OK]    " : "[REFUSED]"} ${r.label}: ${r.subject ?? "—"}`,
+        );
+        if (!r.opened) console.log(`                   ${r.error}`);
+      }
+      report.engineOpensCorpus = opened;
+      if (opened.some((r) => !r.opened)) {
+        console.error("");
+        console.error("  The replay engine staged for this run cannot open part of this corpus.");
+        console.error("  Every journey that drives one of those recordings would report empty");
+        console.error("  panes and absent values — in the PRODUCT's vocabulary, for a reason");
+        console.error("  that is not the product's. Nothing is judged.");
+        console.error("");
+        console.error("  This is the one artefact this repository does not pin: fetch-engine.sh");
+        console.error("  takes what the publisher is serving. So the first question is which");
+        console.error("  engine, and the hashes are printed above.");
+        console.error("  remedy: stage an engine that reads this corpus");
+        console.error("          (node tools/journeys/run.mjs --engine-cache <dir>), or fix the");
+        console.error("          container format mismatch upstream. `just journeys-engine`");
+        console.error("          re-fetches, and may re-fetch the same broken one.");
+        process.exitCode = 2;
+        return;
+      }
+      console.log("");
+    }
 
     // ---- discovery -----------------------------------------------------
     const ledger = await loadLedger();
