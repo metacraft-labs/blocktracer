@@ -103,6 +103,7 @@ nimcache/
 # reads it to say the last one did not finish. A run's own artefact, never
 # shared, so it is not committed.
 /tools/journeys/.selftest-journal.json
+/tools/journeys/.selftest-journal.shard-*.json
 
 # `just journeys-deployed` stages `nix build .#default`'s output here, because
 # the store path is read-only and the engine has to be copied in beside it.

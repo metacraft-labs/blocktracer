@@ -341,6 +341,26 @@ journeys-deployed:
 journeys-selftest:
     node tools/journeys/selftest.mjs
 
+# One SHARD of it, for a runner with a wall-clock box. 62 arms is ~115 minutes
+# and `the-timeline-can-be-dragged` alone is ~45 of them; a run under an agent's
+# background task was killed at ~60 minutes on arm 47 of 62 with no verdict.
+# `--arm` cannot answer that — it selects by name, and a name is not a budget.
+#
+#   just journeys-selftest-shard 1 4     # …and 2 4, 3 4, 4 4, in any order
+#   just journeys-selftest-combine 4
+#
+# A SHARD IS NOT A RUN. Its verdict is about the arms it holds; `combine` is
+# where the suite's claim is made, and it refuses unless the shards cover the
+# arm list exactly.
+journeys-selftest-shard I OF:
+    node tools/journeys/selftest.mjs --shard {{I}}/{{OF}}
+
+# ONE verdict over the shard journals. Fails unless every arm was run exactly
+# once and killed; a shard that never ran is reported by name as DID NOT RUN,
+# because "three of four shards passed" is not a claim about this suite.
+journeys-selftest-combine OF:
+    node tools/journeys/selftest.mjs --combine {{OF}}
+
 # Does the selftest SAY when it did not run? It has been observed dying part-way
 # through its arm list with no RESULT line, and a stall producing no verdict
 # reads to a human exactly like a suite nobody bothered to run. Machinery that
