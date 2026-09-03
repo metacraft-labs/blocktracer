@@ -511,6 +511,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   #     and the tree records when and by which resolver, so a reader is never asked to
   #     believe a capture recorded something it did not.
   var postHoc = initTable[string, JsonNode]()
+  var postHocPositions = initTable[string, JsonNode]()
   var postHocMeasuredAt = ""
   var postHocResolver = ""
   let sidecarPath = cfg.snapshotDir / "artifact-resolution.json"
@@ -536,6 +537,15 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # which lands the row on `Not checked` — the same honest outcome as no sidecar at all.
       if h.len > 0 and arts != nil and arts.kind == JArray:
         postHoc[h] = arts
+      # POSITIONS ARE SEPARATE FROM THE RESOLUTION AND ARRIVE SEPARATELY. A resolution can
+      # succeed and position nothing (the artifact keys no pc this execution walked), and the
+      # tool writes `positions: null` or an `unavailable` reason for that. Only a column set
+      # that actually positioned a step is carried forward; the rest is not a lesser answer to
+      # the same question, it is an answer to a question with no rows in it.
+      let pos = e{"positions"}
+      if h.len > 0 and pos != nil and pos.kind == JObject and
+         pos{"positioned"}.getInt(0) > 0:
+        postHocPositions[h] = pos
   assertSlugAvailable(cfg.outDir, chain, "live-capture")
   let win = snap["window"]
   let finalizedAt = win["finalized"].getInt
@@ -936,28 +946,48 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # So both halves of the disagreement raise, in the same style as the
       # zero-byte-container refusal above.
       var bundles = newJObject()
-      if measuredSourceLevel:
+      # A BUNDLE IS PUBLISHED FOR A PARTLY-POSITIONED RECORDING TOO, AND THAT IS NEW.
+      #
+      # It used to be `if measuredSourceLevel`, which is the capture's own all-or-nothing
+      # measurement: every executed step of every contract positioned. That gate is right
+      # about what it gates — it decides whether the manifest may CLAIM source level — and
+      # it was also, by accident, the only way any source text reached the tree. So a
+      # recording that positions 86 of its 108 steps published no text at all, and its
+      # source pane showed a bytecode listing over a contract whose source is on npm.
+      #
+      # The two questions are now separate. `measuredSourceLevel` still decides the CLAIM
+      # and is still read from the capture and nowhere else. This decides whether there is
+      # TEXT to put behind the positions, and the answer is yes exactly when some step has
+      # a position to put in it.
+      let hasPostHocPositions = txHash in postHocPositions
+      if measuredSourceLevel or hasPostHocPositions:
         # The row names the file; the conventional path is the fallback, so a
         # capture written before the row carried the key still resolves.
         var srcRel = t{"sourceBundles"}.getStr
         if srcRel.len == 0: srcRel = "sources" / (txHash & ".json")
         let srcPath = cfg.snapshotDir / srcRel
+        # THE REASON IS NAMED, because there are now two ways to get here and they are
+        # different facts. A capture that MEASURED source level and shipped no bundle is a
+        # broken capture; a post-hoc positioning with no text is a tool that computed
+        # coordinates into files it did not carry. Both are refusals and neither is the
+        # other's diagnosis.
+        let why =
+          if measuredSourceLevel:
+            "the capture measured " & txHash & " as source level"
+          else:
+            "source positions were computed for " & txHash
         if not fileExists(srcPath):
           raise newException(ValueError,
-            "the capture measured " & txHash & " as source level and this " &
-            "snapshot carries no source bundle for it (looked for " & srcRel &
-            "); refusing to publish a manifest that claims source level with " &
-            "no bundle to open, which would put the debugger's source pane on " &
-            "a file it cannot fetch")
+            why & " and this snapshot carries no source bundle for it (looked for " &
+            srcRel & "); refusing to publish positions with no text to put behind " &
+            "them, which would put the debugger's source pane on a file it cannot fetch")
         let srcDoc = parseJson(readFile(srcPath))
         let bundleList = srcDoc{"bundles"}
         if bundleList == nil or bundleList.kind != JArray or bundleList.len == 0:
           raise newException(ValueError,
-            "the capture measured " & txHash & " as source level and its " &
-            "source bundle file " & srcRel & " carries no bundle; refusing to " &
-            "publish a manifest that claims source level with no bundle to " &
-            "open, which would put the debugger's source pane on a file it " &
-            "cannot fetch")
+            why & " and its source bundle file " & srcRel & " carries no bundle; " &
+            "refusing to publish positions with no text to put behind them, which " &
+            "would put the debugger's source pane on a file it cannot fetch")
         for b in bundleList:
           let codeHash = b{"codeHash"}.getStr
           if codeHash.len == 0:
@@ -1039,6 +1069,58 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
             " steps and the recording declares " & $declared &
             "; refusing to publish a listing the position cannot be located in")
         cfg.writeJson(dir / "instructions.json", ins)
+
+      # ---- POSITIONS: the source coordinate per step, where one was computed ----
+      #
+      # A SIBLING OF THE LISTING, AND FOR THE LISTING'S REASONS. `instructions.json`
+      # established the shape: a per-step parallel-array sidecar beside the container,
+      # derived offline because the site build is hermetic, absent-is-valid, and refused
+      # at publish time if its length disagrees with the recording. This is the same
+      # object with `pathId`/`line`/`column` instead of `pc`/`op`, and it exists because
+      # the coordinate it carries cannot be got any other way: the container's steps were
+      # never written against a source map, and the transaction bodies that would let one
+      # be re-recorded are pruned.
+      #
+      # WHAT IT IS NOT. It is not a claim that the recording is source level. It is the
+      # result of joining the pcs the container DID carry with a map from an artifact
+      # proved against the chain's commitment to the class — `resolve-frozen-artifacts.mjs`
+      # does the join with the recorder's own `ContractSourceMap`. `sourceLevel` is
+      # untouched by it and stays what the capture measured.
+      if txHash in postHocPositions:
+        let pos = postHocPositions[txHash]
+        let carried = pos{"steps"}.getInt(-1)
+        let declared = t["recording"]["steps"].getInt
+        # THE SAME REFUSAL THE LISTING MAKES, for the same defect: a position array of a
+        # different length puts a source line against the wrong step, and every surface
+        # involved would go on reporting success.
+        if carried != declared:
+          raise newException(ValueError,
+            "the source positions for " & txHash & " hold " & $carried &
+            " steps and the recording declares " & $declared &
+            "; refusing to publish positions the steps cannot be located in")
+        for col in ["pathId", "line", "column"]:
+          let a = pos{col}
+          if a == nil or a.kind != JArray or a.len != declared:
+            raise newException(ValueError,
+              "the source positions for " & txHash & " carry a '" & col &
+              "' column of " & (if a == nil: "nothing" else: $a.len) &
+              " against " & $declared & " steps; a partial column would mark " &
+              "rows it was never measured for")
+        cfg.writeJson(dir / "positions.json", %*{
+          "schema": "avm-source-positions/1",
+          "tx": txHash,
+          "steps": carried,
+          "positioned": pos{"positioned"},
+          # THE ARTIFACT'S RUNG BESIDE THE RECORDING'S, because they differ here and the
+          # difference is the whole finding: the artifact maps every pc it keys, and this
+          # recording walks 22 the artifact does not key.
+          "artifactRung": orNull(pos{"artifactRung"}),
+          "measuredPostHoc": true,
+          "measuredAt": (if postHocMeasuredAt.len > 0: %postHocMeasuredAt else: newJNull()),
+          "paths": pos{"paths"},
+          "pathId": pos{"pathId"},
+          "line": pos{"line"},
+          "column": pos{"column"}})
       let manifest = TraceManifest(
         schema: ContractVersion, traceArtifactId: tid,
         executionInputId: execInputId, chain: chain, tx: txHash,

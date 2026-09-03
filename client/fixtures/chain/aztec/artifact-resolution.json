@@ -2,7 +2,7 @@
  "format": "blocktracer/artifact-resolution@1",
  "note": "Off-chain artifact resolution measured AFTER the capture, against contract instances and classes the node still serves (world state survives the mempool pruning that destroyed these transaction bodies). It says whether a contract's artifact is provable, NOT that this recording positioned its steps against one — that needs the body and is permanently unavailable for these transactions.",
  "chain": "aztec",
- "measuredAt": "2026-09-03T17:09:10.854Z",
+ "measuredAt": "2026-09-03T21:49:20.949Z",
  "measuredBy": {
   "tool": "tools/chain/resolve-frozen-artifacts.mjs",
   "resolver": "replay/src/artifact_resolution.ts",
@@ -13,6 +13,9 @@
  "endpoint": "https://aztec.drpc.org",
  "counts": {
   "transactionsConsidered": 2,
+  "transactionsWithSourceBundle": 0,
+  "stepsPositioned": 0,
+  "stepsTotal": 0,
   "transactionsAnswered": 2,
   "transactionsWithheld": 0,
   "contracts": 2,
@@ -22,6 +25,7 @@
   {
    "txHash": "0x00c67f6f41a5870eb280120ccc6e9288a876bc38630aa7a36346cc47753ed18d",
    "blockNumber": 68062,
+   "positions": null,
    "artifacts": [
     {
      "address": "0x2e384847ef23aa143710e34352ada347e7cd206a53799ae5e1af26722b81b2f6",
@@ -39,6 +43,7 @@
   {
    "txHash": "0x0f191b2da9d6f4ccdb1711dd015edb8755bf551933a74b509860307ee8699dbb",
    "blockNumber": 68231,
+   "positions": null,
    "artifacts": [
     {
      "address": "0x0b6e99c4da6082a55590191da91abde2b7d5a5c0694b3fc2b12cd928c336fbb1",

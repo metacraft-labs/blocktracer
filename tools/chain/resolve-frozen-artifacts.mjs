@@ -61,7 +61,7 @@
 // without it is refused BY NAME rather than reported as "nothing resolved", because those
 // two readings are the entire subject of this file.
 
-import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -91,7 +91,8 @@ const runtime = arg('runtime', process.env.AZTEC_RUNTIME);
 if (!runtime) die('--runtime <path-to-aztec-avm-runtime> is required. This repository carries '
   + 'no resolver and will not restate one: a second spelling of the proof would be a rule that '
   + 'can disagree with the one the driver actually uses.');
-for (const f of ['replay/src/artifact_resolution.ts', 'replay/tools/artifact_sources.mjs']) {
+for (const f of ['replay/src/artifact_resolution.ts', 'replay/tools/artifact_sources.mjs',
+                 'ct-host/src/source_map.ts']) {
   if (!existsSync(join(runtime, f))) {
     die(`${runtime} has no ${f}. This runtime CANNOT resolve artifacts, which is a different `
       + 'fact from "it resolved none" and must not be reported as one. Point --runtime at a '
@@ -103,6 +104,13 @@ const { resolveContractArtifact } =
   await import(pathToFileURL(join(runtime, 'replay/src/artifact_resolution.ts')).href);
 const { artifactCrypto, liveChainProviders } =
   await import(pathToFileURL(join(runtime, 'replay/tools/artifact_sources.mjs')).href);
+// THE POSITIONING HALF, AND IT IS THE SAME CLASS THE RECORDER USES.
+//
+// `recording.ts:429` positions a step with `source.map.positionFor(step.pc)` and nothing else.
+// This imports that class rather than restating the lookup, for the reason `--runtime` exists at
+// all: a second spelling of the join is a rule that can disagree with the one the driver applies.
+const { ContractSourceMap, rungFor } =
+  await import(pathToFileURL(join(runtime, 'ct-host/src/source_map.ts')).href);
 
 /** Which Aztecscan deployment a captured chain slug names. The resolver refuses an unknown
  *  chain rather than guessing a base URL, and so does this. */
@@ -198,6 +206,13 @@ for (const dir of snapshotDirs) {
     transactions++;
     const addresses = addressesIn(ct, t.txHash);
     considered.push({ txHash: t.txHash, blockNumber: t.blockNumber, addresses });
+    // The published step stream for this transaction, if the capture derived one. It carries the
+    // AVM byte offset per step — the exact key `brillig_locations` uses — which is what makes the
+    // positioning below a join over published data rather than a re-execution.
+    const insPath = join(dir, 'instructions', `${t.txHash}.json`);
+    const listing = existsSync(insPath)
+      ? JSON.parse(readFileSync(insPath, 'utf8'))
+      : null;
     for (const address of addresses) {
       const instance = await rpc(url, 'node_getContract', [address]);
       if (!instance) {
@@ -226,6 +241,57 @@ for (const dir of snapshotDirs) {
       const res = await resolveContractArtifact(address, like, providers, artifactCrypto);
       contracts++;
       if (res.resolved) resolved++;
+
+      // ── THE POSITIONING JOIN ─────────────────────────────────────────────────────────────
+      //
+      // A resolution says the artifact is provably this class's. It does NOT say the recording
+      // shows source — that needs each step's pc carried through the artifact's map. The pcs
+      // survive (they are in the container and republished in `instructions/`), the map is in
+      // the artifact, so the join is computable now, for a transaction whose body is gone.
+      //
+      // ONE CONTRACT ONLY, and this is a refusal rather than a best effort. `instructions.json`
+      // publishes `pc` per step and NOT which contract executed it, so on a transaction that
+      // entered two contracts there is no way to say which map a pc belongs to. Positioning it
+      // against whichever artifact happens to have resolved would attribute lines from one
+      // contract's source to another's steps — a wrong answer that looks exactly like a right
+      // one. Every transaction in this corpus enters exactly one contract; a future one that
+      // does not gets `positions: null` and the reason, rather than a guess.
+      let positions = null;
+      if (res.resolved && listing !== null) {
+        if (addresses.length !== 1) {
+          positions = { unavailable: `this transaction entered ${addresses.length} contracts and `
+            + 'the published step stream does not say which contract executed each step, so a pc '
+            + 'cannot be attributed to a map' };
+        } else if (!Array.isArray(listing.pc)) {
+          positions = { unavailable: 'the published step stream carries no pc column' };
+        } else {
+          const a = res.artifact;
+          const paths = [];
+          const map = new ContractSourceMap(a.debugInfo, a.bytecode.length, a.files,
+            (p) => { paths.push(p); return paths.length - 1; });
+          const pathId = [], line = [], column = [];
+          let positioned = 0;
+          for (const pc of listing.pc) {
+            const at = map.positionFor(pc);
+            if (at === null || at === undefined) { pathId.push(null); line.push(null); column.push(null); continue; }
+            positioned += 1;
+            pathId.push(at.pathId); line.push(at.line); column.push(at.column ?? null);
+          }
+          positions = {
+            steps: listing.pc.length,
+            positioned,
+            // The artifact's own verdict beside the recording's outcome, because they differ and
+            // the difference is the finding: the ARTIFACT is rung 1, and this RECORDING is not,
+            // and neither number explains the other on its own.
+            artifactRung: rungFor(a.debugInfo, a.bytecode.length, a.files).rung,
+            paths,
+            pathId,
+            line,
+            column,
+          };
+        }
+      }
+
       rows.push({
         chain, txHash: t.txHash, blockNumber: t.blockNumber, address,
         contractClassId: like.id,
@@ -245,6 +311,14 @@ for (const dir of snapshotDirs) {
         agreeingDistributors: res.resolved ? res.agreeingDistributors : null,
         sourceFiles: res.resolved ? res.artifact.files.size : 0,
         reason: res.reason,
+        positions,
+        // The TEXT, carried on the row so `--write` can emit a bundle without resolving twice.
+        // Not printed by the human report and not put in `--json`: it is ~270 KB per artifact.
+        files: res.resolved
+          ? [...res.artifact.files.values()].map((f) => ({ path: f.path, source: f.source }))
+          : null,
+        shape: res.resolved ? res.artifact.shape : null,
+        debugDigest: res.resolved ? (res.artifact.debugDigest ?? null) : null,
       });
     }
   }
@@ -271,7 +345,7 @@ for (const dir of snapshotDirs) {
     byTx.get(r.txHash).push(r);
   }
   const txOut = [];
-  let wrote = 0, withheld = 0;
+  let wrote = 0, withheld = 0, sourcesWritten = 0;
   for (const c of considered) {
     const got = byTx.get(c.txHash) ?? [];
     const answered = got.filter((r) => !r.note);
@@ -288,9 +362,48 @@ for (const dir of snapshotDirs) {
       continue;
     }
     wrote++;
+    // ── THE SOURCE BUNDLE, WRITTEN ONLY WHERE A STEP ACTUALLY LANDS IN IT ──────────────────
+    //
+    // `sources/<txHash>.json` is the shape `ingest.nim` already reads. It is emitted only when
+    // this transaction has at least one positioned step: text with nothing pointing into it is
+    // a source pane a visitor can open onto a file no step ever reaches, which reads as source
+    // support the recording has not got.
+    //
+    // `sourceLevel` is written FALSE and it is not a placeholder. It means what the capture
+    // means by it — every executed step of every contract positioned — and 86 of 108 is not
+    // that. The field stays honest and `ingest.nim` keeps its own refusal keyed to it; what
+    // this file adds is a bundle for a recording that is PARTLY positioned, which is a state
+    // the corpus had no way to express before.
+    const positioning = answered.map((r) => r.positions).filter((p) => p && p.positioned > 0);
+    if (asWrite && positioning.length > 0) {
+      const bundles = answered
+        .filter((r) => r.resolved && r.files && r.files.length > 0)
+        .map((r) => ({
+          address: r.address,
+          codeHash: r.contractClassId,
+          artifactHash: r.artifactHash,
+          origin: r.origin,
+          shape: r.shape,
+          corroboration: r.corroboration,
+          agreeingDistributors: r.agreeingDistributors ?? [],
+          debugDigest: r.debugDigest,
+          files: Object.fromEntries(r.files.map((f) => [f.path, f.source])),
+        }));
+      const srcDir = join(dir, 'sources');
+      mkdirSync(srcDir, { recursive: true });
+      writeFileSync(join(srcDir, `${c.txHash}.json`),
+        JSON.stringify({ txHash: c.txHash, sourceLevel: false, bundles }, null, 1) + '\n');
+      sourcesWritten++;
+    }
     txOut.push({
       txHash: c.txHash,
       blockNumber: c.blockNumber,
+      // Per-step source coordinates, or `null` where none were computed. Consumed by
+      // `ingest.nim`, which republishes them beside the container as `positions.json`.
+      positions: positioning.length === 1 ? positioning[0]
+        : (positioning.length === 0 ? null
+           : { unavailable: 'more than one contract positioned steps and the published step '
+               + 'stream does not say which executed each one' }),
       artifacts: answered.map((r) => ({
         address: r.address,
         contractClassId: r.contractClassId,
@@ -332,6 +445,9 @@ for (const dir of snapshotDirs) {
     endpoint: url,
     counts: {
       transactionsConsidered: considered.length,
+      transactionsWithSourceBundle: sourcesWritten,
+      stepsPositioned: txOut.reduce((n, t) => n + (t.positions?.positioned ?? 0), 0),
+      stepsTotal: txOut.reduce((n, t) => n + (t.positions?.steps ?? 0), 0),
       transactionsAnswered: wrote,
       transactionsWithheld: withheld,
       contracts: txOut.reduce((n, t) => n + (t.artifacts?.length ?? 0), 0),
@@ -343,7 +459,9 @@ for (const dir of snapshotDirs) {
   const dest = join(dir, 'artifact-resolution.json');
   writeFileSync(dest, JSON.stringify(out, null, 1) + '\n');
   console.error(`resolve-frozen-artifacts: wrote ${dest} — ${wrote} answered, `
-    + `${withheld} withheld, ${out.counts.resolved}/${out.counts.contracts} resolved`);
+    + `${withheld} withheld, ${out.counts.resolved}/${out.counts.contracts} resolved, `
+    + `${out.counts.stepsPositioned}/${out.counts.stepsTotal} steps positioned, `
+    + `${sourcesWritten} source bundle(s)`);
 }
 
 if (asJson) {

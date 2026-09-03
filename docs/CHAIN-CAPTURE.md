@@ -329,6 +329,45 @@ sentence the transaction page would read `Sources available` inches from a
 source pane reading "Stepping continues at instruction level", and a visitor
 would be right to conclude one of them was lying.
 
+### 6.1b The positions, joined from the pcs the container did carry
+
+**The recording is not missing the coordinate.** Every frozen container records a
+program counter per step, and `instructions/<tx>.json` republishes it — the `pc`
+column. An artifact's `debug_symbols.brillig_locations` is keyed by *exactly that*
+AVM byte offset. So the join `pc -> (path, line, column)` is computable from data
+that already exists, for a transaction whose body is pruned.
+
+`--write` performs it with the recorder's own `ContractSourceMap.positionFor` —
+the same call `recording.ts` makes at capture time, imported rather than restated.
+
+**Measured over the corpus:** testnet `0x12525d6d`, **86 of 108 steps** resolve to
+a real Noir position. Steps 35–107 are unbroken source. The positioned steps land
+in 11 files; the artifact carries all 32 (270 KB), so the text is there too.
+
+    pc 130 -> fee_juice_contract/src/main.nr:203:12
+
+**The 22 that do not resolve are the ARTIFACT's limit, not the recording's**, and a
+new capture cannot improve them: 14 sit below the artifact's mapped range (the
+dispatch prologue), and 8 sit inside it but unkeyed — *"compiled procedures are
+appended after the main body"*, §2.4 hole 2. A fresh recording of the same contract
+walks the same pcs against the same map. **So `sourceLevel: true` — rung 1, every
+step positioned — is not reachable for this contract by any capture we can take.**
+It needs upstream's transpiler to key the appended procedures.
+
+What is published, per transaction that positions at least one step:
+
+* `positions.json` beside the container — a per-step sidecar in the shape
+  `instructions.json` established: parallel `pathId`/`line`/`column` columns,
+  `paths` interned once, refused at publish time if any column's length disagrees
+  with the recording's step count. Marked `measuredPostHoc` with its moment.
+* a source bundle, through the same `writeSourceBundle` a source-level capture
+  uses, so the text is reachable from the manifest's `sourceBundles`.
+
+**`execution.sourceLevel` stays FALSE**, and that pair — bundle published, claim
+withheld — is the whole design. The capture's own all-or-nothing measurement is
+untouched; what is added is text and coordinates for a recording that is *partly*
+positioned, a state the corpus previously had no way to express.
+
 ### 6.2 The additive capture, and what it measured
 
 `fixtures/chain-artifacts/aztec-testnet/` — a snapshot in the identical format,

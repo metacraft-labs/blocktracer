@@ -600,6 +600,24 @@ proc withPublishedSources*(session: var DebugSessionView; bundle: JsonNode) =
   ## layout under `src/` has to match the paths the container interns, or a
   ## step resolves to no source line at all.
   if not session.hasFrame: return
+  # ONLY ONTO A PANE THAT IS ALREADY SHOWING SOURCE, and this guard was bought by a
+  # regression the suite caught.
+  #
+  # The doc above says it exactly: "The bundle supplies TEXT, and only text. The
+  # executed-line set and the position belong to the TRACE, so they are re-applied to
+  # the new documents." A pane at `srcUnverified` has no such position to re-apply —
+  # its rows are program counters, and its `currentLine` indexes a bytecode listing.
+  # Handing it source text swapped the documents and then zeroed the coordinate,
+  # which turned a positioned instruction-level frame into an unpositioned one.
+  #
+  # Nothing published used to reach this line without being source level, so the
+  # guard was implicit in the tree rather than in the code. It stopped being implicit
+  # the moment a bundle could be published for a PARTLY positioned recording
+  # (CHAIN-CAPTURE.md §6.1a): that bundle's text is real and its positions are real,
+  # but they arrive in `positions.json` beside the container rather than on the frame,
+  # and until a pane knows how to read them the honest thing is to leave the
+  # instruction listing alone.
+  if session.editor.availability != srcSourceLevel: return
   let docs = sourceDocumentsFromBundle(bundle)
   if docs.len == 0: return
   # The position the session is ALREADY at, read off the session before its

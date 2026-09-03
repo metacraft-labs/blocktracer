@@ -2215,7 +2215,7 @@ suite "12 — a source-level capture publishes source; a rung-3 one publishes no
     ck SrcTx in msg
     ck "measured " & SrcTx & " as source level" in msg
     ck "sources/" & SrcTx & ".json" in msg
-    ck "refusing to publish a manifest that claims source level" in msg
+    ck "refusing to publish positions with no text to put behind them" in msg
     ck "put the debugger's source pane on a file it cannot fetch" in msg
 
   test "REFUSAL: source level with an EMPTY bundle list raises too":
@@ -2280,12 +2280,103 @@ suite "12 — a source-level capture publishes source; a rung-3 one publishes no
     ck replayedManifests == ing.withTrace
     ck replayedManifests > 0
     ck traceView(root, chainInfo(root, RealChain), replayedTx).sourceLevel == false
-    ck fileCount(workDir / "src" / RealChain) == 0
+    # A SOURCE BUNDLE IS NOW PUBLISHED FOR THIS CHAIN, AND `sourceLevel` IS STILL FALSE.
+    #
+    # This used to assert zero files under `src/<chain>/`, on the reasoning that a
+    # rung-3 capture has no source to publish. That reasoning held only while a bundle
+    # could arrive by one route — the capture measuring itself source level. It can now
+    # arrive by a second (CHAIN-CAPTURE.md §6.1a): an artifact proved off-chain against
+    # the chain's commitment, positioned against the pcs the container did carry, for a
+    # recording that is PARTLY positioned. 86 of this transaction's 108 steps resolve to
+    # a Noir line; the capture still measured `sourceLevel: false` and the manifest still
+    # publishes false, which is the pair this assertion now pins.
+    #
+    # The count is deliberately `> 0` and not a number: how many bundles a capture earns
+    # is data about which classes anybody publishes, and pinning it here would make this
+    # suite a fingerprint of npm.
+    ck fileCount(workDir / "src" / RealChain) > 0
+
+  test "SOURCE POSITIONS: the pcs the container carried, joined to a proved artifact":
+    # WHAT THIS GRADES. The frozen captures were recorded by a runtime that never
+    # looked for source, so their steps carry a program counter and no position —
+    # and their bodies are pruned, so no re-recording can add one. The pcs survive
+    # (`instructions.json` publishes them) and the artifact's `brillig_locations`
+    # is keyed by exactly that AVM byte offset, so the position is a JOIN over data
+    # that already exists. `resolve-frozen-artifacts.mjs --write` computes it with
+    # the recorder's own `ContractSourceMap`; this asserts the tree carries it.
+    var found = 0
+    var steps, positioned = 0
+    var doc: JsonNode = nil
+    for path in walkDirRec(workDir / "t"):
+      if path.extractFilename != "positions.json": continue
+      inc found
+      doc = parseJson(readFile(path))
+      steps = doc{"steps"}.getInt
+      positioned = doc{"positioned"}.getInt
+    # NON-VACUITY FIRST. Everything below is a statement about a file, and a run
+    # that published none would satisfy all of it by having nothing to check.
+    ck found > 0
+    ck steps > 0
+    ck positioned > 0
+    # AND IT IS A PARTIAL POSITIONING, WHICH IS THE POINT. `positioned == steps`
+    # would be rung 1 and the capture would have said so itself; this is the state
+    # the corpus previously could not express — an artifact that maps every pc it
+    # keys, over an execution that walks pcs it does not key.
+    ck positioned < steps
+    # The columns are per-step and are refused at publish time if they are not, so
+    # a marker can never land on a row it was not measured for.
+    ck doc{"pathId"}.len == steps
+    ck doc{"line"}.len == steps
+    ck doc{"column"}.len == steps
+    # Every path id indexes a real path, counted rather than asserted per row.
+    var badIds = 0
+    for i in 0 ..< steps:
+      let pid = doc["pathId"][i]
+      if pid.kind == JNull: continue
+      if pid.getInt < 0 or pid.getInt >= doc{"paths"}.len: inc badIds
+    ck badIds == 0
+    # It says it was measured after the fact, on the file itself, so a reader who
+    # opens it never has to know which tool wrote it to know what it is.
+    ck doc{"measuredPostHoc"}.getBool
+    # AND THE MANIFEST STILL DOES NOT CLAIM SOURCE LEVEL. This is the assertion
+    # that keeps the whole feature honest: positions are published, text is
+    # published, and the capture's own all-or-nothing measurement is untouched.
+    ck traceView(root, chainInfo(root, RealChain), replayedTx).sourceLevel == false
+
+  test "MUTATION BITE: positions of the wrong length are refused at publish time":
+    # The defect the length check exists to catch: a column one short marks every
+    # row after the gap with the position of its neighbour, and every surface
+    # involved goes on reporting success. Driven through the REAL ingest.
+    let md = getTempDir() / ("bt-pos-mut-" & $getCurrentProcessId())
+    removeDir(md); createDir(md)
+    copyDir(snapshotDir, md / "cap")
+    let side = md / "cap" / "artifact-resolution.json"
+    var doc = parseJson(readFile(side))
+    var mutated = 0
+    for e in doc["transactions"]:
+      let p = e{"positions"}
+      if p == nil or p.kind != JObject: continue
+      # Drop one entry from a single column — the smallest lie the file can tell.
+      p["line"].elems.setLen(p["line"].len - 1)
+      inc mutated
+    ck mutated == 1                      # the fixture really does carry one
+    writeFile(side, doc.pretty)
+    var raised = false
+    var msg = ""
+    try:
+      discard ingestSnapshot(IngestConfig(outDir: md / "tree",
+                                          snapshotDir: md / "cap"))
+    except ValueError as e:
+      raised = true
+      msg = e.msg
+    ck raised
+    ck "column of" in msg
+    removeDir(md)
 
   test "assertion count":
     # Written from a run, and deliberately independent of how many transactions
     # the frozen captures happen to hold.
-    expectCount(66)   # 6+4+6+6+10+11+2+6+3+4+3+5
+    expectCount(79)   # 6+4+6+6+10+11+2+6+3+4+3+5 + 11 + 2
 
 # ───────────────────────────────────────────────────────────────────────────
 # SUITE 13 — WHAT A TRANSACTION LIST LETS A VISITOR TELL ABOUT SOURCE
