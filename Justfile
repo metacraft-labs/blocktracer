@@ -341,6 +341,16 @@ journeys-deployed:
 journeys-selftest:
     node tools/journeys/selftest.mjs
 
+# Does the selftest SAY when it did not run? It has been observed dying part-way
+# through its arm list with no RESULT line, and a stall producing no verdict
+# reads to a human exactly like a suite nobody bothered to run. Machinery that
+# reports an ending is only exercised by an ending, so an ordinary run covers
+# none of it: this produces four real ones — an unmatched filter, SIGTERM
+# mid-arm, SIGKILL mid-arm, and a throw — and demands each name itself. It also
+# proves the SIGTERM path puts the mutated file back, which a `finally` cannot.
+journeys-selftest-verdict:
+    bash tools/journeys/selftest-verdict-test.sh
+
 # All four VD.0 verifications, end to end.
 capture-selftest:
     node tools/capture/selftest.mjs
