@@ -83,6 +83,22 @@ is now a presentation projection over the SDK, not a second reader.
 | `just noir-engine-dap-test` | its self-test: each mutation arm verified to redden the check written for it (a kill by a different check is a MISS), plus `expect-observed` — the control a suite whose deliverable is failures needs, proving every red check goes green on the engine's own values and is not stuck red |
 | `just layout-vendor` | BOTH vendored copies of CodeTracer modules — `headless_app/layout_model.nim` (the pane arrangement) and `viewmodel/viewmodels/flow_layout.nim` + `ui/flow_loop_math.nim` (the Omniscience layout arithmetic) — still hash to their manifests and still agree with upstream on every observable, plus the self-tests that drive every failure path. The flow manifest's commit must EQUAL `ci/embed-sdk-pin.env`, because those two files are inside the tree the pin names and `client/hydrate/` compiles against it |
 
+**`just noir-engine-dap` and `just noir-engine-dap-test` RUN NOWHERE IN CI, on
+purpose, and that is written down.** They are recorded in
+`ci/test/ci-coverage.known-dark.txt` with what wiring them would cost. The
+reason is in the lane's own commit — *"Ten checks are red and one request is
+never answered, so the lane exits 124. Nothing is fixed here. Every finding is
+in the engine, which is a published artifact from another repository."* A gate
+that is red by design against today's engine, wired as an ordinary step, turns a
+truthful diagnostic into a permanently-failing job, and a job that is always red
+is one everybody learns to ignore.
+
+That register is **not an exemption list** — it says these gates SHOULD run and
+nothing runs them — and `ci/test/ci-coverage.sh` fails on it in both directions:
+an entry whose gate becomes reachable, or stops existing, fails by name and
+demands the line be deleted. So when the engine findings are fixed upstream, the
+entry cannot quietly outlive them.
+
 ## 1b. `client/hydrate/` — the debug route's live session
 
 The debug route ships a **second compilation**: `nim js` over
