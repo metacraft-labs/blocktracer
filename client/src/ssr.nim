@@ -267,7 +267,7 @@ proc renderChains*(r: DataRoot): string =
 proc renderAbout*(r: DataRoot): string =
   pageLayout(
     "About BlockTracer — what it is and what it costs you",
-    "What BlockTracer does: open a transaction with a recorded trace and step through its execution, reading the values and the full call trace at every line.",
+    "A block explorer where a transaction is a debugging session — its whole execution recorded and replayed, not reduced to what went in and what came out.",
     aboutPg.aboutPage(chains(r).len),
     robots = $routeClass("/about"),
     canonical = SiteDomain & "/about")

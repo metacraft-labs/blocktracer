@@ -43,10 +43,50 @@ proc aboutPage*(chainCount: int): string =
         tdiv(class = "eyebrow"): text "About"
         h1(class = "h1"): text "What BlockTracer is"
         p(class = "lead"):
+          # THE SECOND SENTENCE WAS COMPETING WITH THE HOME PAGE AND LOSING.
+          #
+          # It read: "Open one that has a recorded trace and you land inside
+          # its execution — stepping, rewinding, and reading the values at
+          # every line." Nothing in it is untrue and none of it is engineering
+          # prose, which is why it survived the register sweep. It is simply
+          # the wrong sentence for this position, for three reasons that
+          # compound:
+          #
+          #   * It HEDGES mid-claim. "Open one that has a recorded trace"
+          #     qualifies before the reader has finished taking in what the
+          #     product is. The qualification is honest and belongs on the page
+          #     — coverage is a `What you can do` fact, and that list carries it
+          #     — but not in the sentence whose whole job is to say what this
+          #     IS.
+          #   * "recorded trace" is OUR word. A visitor has not met it yet;
+          #     they learn what a trace is by using the thing.
+          #   * It ENUMERATES, and it is the third surface in a row to
+          #     enumerate the same verbs. `pages/home`'s lead already says
+          #     "Step and rewind every instruction. See the full call trace at
+          #     a glance", and the `What you can do` list three lines below
+          #     this one says it again in more detail and better. A reader who
+          #     has reached About has read the home page; repeating its claim
+          #     more weakly is the worst thing this paragraph could do with the
+          #     attention it has.
+          #
+          # SO IT ANSWERS THE QUESTION THE HOME PAGE CANNOT. The home page
+          # asserts the depth; the reader who clicks through to About is asking
+          # how that could possibly be true. That has a real answer, it is the
+          # premise the entire product rests on, and it appears nowhere else on
+          # the site: a transaction is deterministic, so its execution is
+          # recoverable in full rather than only summarisable.
+          #
+          # The first sentence is untouched. It states the whole idea in nine
+          # words and it is the one line that separates this product from every
+          # other explorer.
+          #
+          # `does the same thing every time it runs` rather than
+          # `is deterministic`: the word would have to be glossed to be worth
+          # anything to this reader, and the gloss says it on its own.
           text "A block explorer where a transaction is a debugging session. "
-          text "Open one that has a recorded trace and you land inside its "
-          text "execution — stepping, rewinding, and reading the values at "
-          text "every line."
+          text "A transaction does the same thing every time it runs, so its "
+          text "whole execution can be recorded and replayed — not reduced to "
+          text "what went in and what came out."
 
         h2(class = "sec-title next"): text "What you can do"
         dl(class = "dl group"):
