@@ -2576,6 +2576,22 @@ proc goLive(h: Hydration) =
   # can replace.
   h.session.flowWindow.scheduleTimeout = proc(ms: int; action: proc()) =
     afterMs(ms, action)
+  # THE VALUES PANE'S HALF OF THE RE-ISSUE ABOVE, and it is deliberately DOWN
+  # HERE rather than beside `requestNavigationSections`: `LocalsFeed.awaiting`
+  # arms §8's deadline out of `scheduleTimeout`, so a locals request issued
+  # three lines earlier would be one with no deadline behind it — the pane
+  # stuck on "Reading the values at this position…" with nothing to end it,
+  # which is the state this call exists to leave rather than to enter.
+  #
+  # See `requestLandingLocals` for why the clear above is not enough on its
+  # own: the one position write that would have re-run `StateVM`'s effect is
+  # the served frame's, and it happens BEFORE that clear — so the effect's
+  # request is deduplicated against the one dropped before the worker existed,
+  # and every write after the clear names the same coordinate and changes no
+  # signal. Measured on the deployed dev channel, a visitor landing on a chain
+  # transaction got zero `ct/load-locals` at the engine and an empty Values
+  # pane until they stepped.
+  h.session.requestLandingLocals()
   # The CONTROLS only. Not the panes: at this instant the engine has answered
   # `threads` and has not yet produced a call trace, a set of locals or a
   # position, so every pane projection is empty and rendering them would blank

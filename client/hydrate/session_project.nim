@@ -852,11 +852,15 @@ proc requestNavigationSections*(s: LiveSession) =
   ## `RequestTracker` (which `goLive` does) unblocks the NEXT request; it does
   ## not re-issue the one that was thrown away.
   ##
-  ## For locals that costs nothing, because `StateVM`'s effect re-fires on every
-  ## move. For the call trace it is the difference between a pane that fills on
+  ## For the call trace it is the difference between a pane that fills on
   ## arrival and one that stays empty until the visitor happens to step — which
   ## is what a visitor landing on a transaction saw: an empty Call Trace, and no
   ## row to click.
+  ##
+  ## THIS COMMENT USED TO CONTINUE "for locals that costs nothing, because
+  ## `StateVM`'s effect re-fires on every move", and that sentence is why the
+  ## Values pane kept the defect this one fixed for a week. See
+  ## `requestLandingLocals` for what it got wrong: arriving is not a move.
   ##
   ## Issued through the store's own public request rather than by nudging a
   ## signal to make the effect re-run: a re-entry that depended on which signal
@@ -871,3 +875,70 @@ proc requestNavigationSections*(s: LiveSession) =
     rrTicks = dbg.rrTicks,
     file = dbg.location.file,
     line = dbg.location.line)
+
+proc requestLandingLocals*(s: LiveSession) =
+  ## Ask the engine for the values at the position the session LANDS on.
+  ##
+  ## ## ARRIVING IS NOT A MOVE, AND THAT IS THE WHOLE DEFECT
+  ##
+  ## `requestNavigationSections` above used to excuse the Values pane from the
+  ## same treatment on the grounds that "`StateVM`'s effect re-fires on every
+  ## move". The effect does. The first position a session takes is not reached
+  ## by moving.
+  ##
+  ## THE SEQUENCE, MEASURED IN A BROWSER by logging
+  ## `store.requestTracker.hasPending("load-locals")` at each of the three
+  ## points below on the deployed engine and a real chain container, rather
+  ## than reasoned about:
+  ##
+  ##   1. `openLiveSession` constructs the ViewModels. `StateVM`'s effect runs
+  ##      immediately and calls `requestLocals(0)`, which marks `load-locals`
+  ##      pending and sends — several hundred milliseconds before
+  ##      `startWorker`, so `postJson` finds no worker and drops the message.
+  ##      The future never settles, so `markComplete` never runs and the entry
+  ##      stays pending.
+  ##   2. `hydrate` seeds the store with the SERVED frame's position. That is
+  ##      the one write that genuinely changes `store.debugger`, so it is the
+  ##      one that re-runs the effect — and `requestLocals` finds its own key
+  ##      and arguments already pending from step 1 and SKIPS THE SEND.
+  ##      Measured at `goLive`, before its clear: `hasPending` is `true`.
+  ##   3. `goLive` clears the tracker. One moment too late: every later write
+  ##      of the position — the `stackTrace` reply, the `ct/complete-move` —
+  ##      writes the SAME coordinate the served frame already put there, the
+  ##      signal does not change, and the effect never runs again.
+  ##
+  ## So the request was issued exactly once, into nothing, and the pane waited
+  ## on a reply to a message that was never delivered. Measured against
+  ## `blocktracer-dev.pages.dev` on a real chain transaction: `ct/load-locals`
+  ## requests reaching the engine at landing, ZERO; Values rows, ZERO; the pane
+  ## reading "Reading the values at this position…" for as long as the tab was
+  ## open. One click of Step forward moved the store to a coordinate nothing
+  ## had asked about, the effect issued a request that was not a duplicate, and
+  ## the same pane filled with five rows. The values were there the whole time.
+  ##
+  ## The Call Trace escaped it by luck rather than by design: `CalltraceVM`'s
+  ## auto-load reads the viewport height as well as the position, and that
+  ## changes between construction and first paint — so its second run carried
+  ## different arguments, was not deduplicated, and went out. One pane in this
+  ## pair has been fixed twice for one cause; this is the other half.
+  ##
+  ## ## WHY IT IS SAFE TO ASK FOR A POSITION THE STOP HAS NOT ARRIVED AT
+  ##
+  ## `goLive` runs on the `threads` reply, before the first `stackTrace`, so
+  ## the coordinate read here is the store's — which for every ordinary visit
+  ## IS the entry frame the engine is about to report. A deep link that seeks
+  ## elsewhere moves the store to a coordinate this request did not name, and
+  ## `StateVM`'s effect issues that one on its own, because THAT is a move.
+  ## Neither answer can be shown under the wrong position: `live_locals.knows`
+  ## requires a completed reply for the exact `rrTicks` the pane is rendering,
+  ## so a reply for the entry frame under a sought position produces the
+  ## sentence, never the wrong values.
+  ##
+  ## ## AND IT MUST BE CALLED AFTER `locals.scheduleTimeout` IS INSTALLED
+  ##
+  ## `LocalsFeed.awaiting` arms §8's deadline from `scheduleTimeout`, and a
+  ## request issued while that hook is still nil is a request with no deadline
+  ## — which would leave the pane on "Reading…" forever in exactly the case the
+  ## deadline exists for. `goLive` orders the two, and this is the reason.
+  if s.store == nil: return
+  s.store.requestLocals(s.store.debugger.val.rrTicks)
