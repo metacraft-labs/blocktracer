@@ -59,15 +59,30 @@ proc searchPage*(chains: seq[string], named: seq[NamedEntity]): string =
 
         tdiv(class = "stub group"):
           tdiv(class = "measure"):
-            b: text "This address cannot resolve your query yet, and here is "
-            b: text "exactly what was tried. "
-            text "Resolution runs in the browser — the input's shape selects "
-            text "one of four mechanisms, and three of them compute a path "
-            text "rather than querying anything. This deployment ships no "
-            text "script, so none of them ran: nothing was looked in, which "
-            text "is a different answer from “not found”. Every identifier "
-            text "still has a stable URL, and the four mechanisms below say "
-            text "which one yours has."
+            # WHAT THIS SENTENCE HAS TO DO, which the old one did not. A reader
+            # arrives here having typed something and got no result, and needs
+            # two things: to know their query was not looked up and REJECTED —
+            # so they do not conclude their hash is absent — and a way to reach
+            # the page anyway.
+            #
+            # The old copy delivered the first as a tour of the implementation:
+            # "the input's shape selects one of four mechanisms, and three of
+            # them compute a path rather than querying anything. This deployment
+            # ships no script, so none of them ran." How many mechanisms there
+            # are, which of them compute rather than fetch, and whether the
+            # build ships script are facts about this program. The reader's
+            # version of all of it is one clause: search is not running here.
+            #
+            # "and here is exactly what was tried" is the register the report
+            # named — it answers an accusation of hand-waving that nobody made,
+            # and it was not even true, since the point of the sentence is that
+            # nothing was tried.
+            b: text "Search is not running on this deployment, so nothing was "
+            b: text "looked up. "
+            text "This is not a result — it does not mean your identifier is "
+            text "absent. Every block, transaction and address here has a "
+            text "stable address you can go to directly, and the table below "
+            text "gives the form for each kind."
 
         h2(class = "sec-title next"): text "How an identifier resolves"
         tdiv(class = "tablewrap"):
@@ -114,14 +129,19 @@ proc searchPage*(chains: seq[string], named: seq[NamedEntity]): string =
         if named.len == 0:
           tdiv(class = "stub"):
             tdiv(class = "measure"):
-              text "No chain in this tree publishes a label corpus. Names "
-              text "arrive as a labels object per chain, outside the "
-              text "generation, so one landing costs no republication."
+              # "Names arrive as a labels object per chain, outside the
+              # generation, so one landing costs no republication" explained the
+              # publishing model's cost to a reader who wanted to search by
+              # name. The fact they need is that there are no names to search.
+              text "No chain here publishes contract names or labels yet, so "
+              text "there is nothing to search by name."
         else:
           p(class = "lead"):
-            text "The whole of the name corpus this deployment publishes — "
-            text "what a text query would be matched against, browsable "
-            text "without one."
+            # "name corpus", "this deployment", "what a text query would be
+            # matched against" — three pieces of vocabulary for one idea a
+            # reader already has: these are the names you could search for, and
+            # here they all are.
+            text "Every name published here. Browse them directly."
           tdiv(class = "tablewrap"):
             table(class = "tbl"):
               thead:

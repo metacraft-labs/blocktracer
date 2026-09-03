@@ -136,10 +136,12 @@ proc addressPage*(chain: string, info: ChainInfo, v: AddressView,
         if v.indexed:
           h2(class = "sec-title next"): text "Transactions"
           p(class = "lead"):
-            text "Complete history, one block-range segment at a time. There "
-            text "is no record cap and no capability to negotiate: the "
-            text "pipeline builds this index, so every listed chain has all "
-            text "of it."
+            # "no capability to negotiate" and "the pipeline builds this index"
+            # are both this system describing itself. The reader's version is
+            # the promise underneath them: the list is complete and nothing is
+            # cut off at a row count.
+            text "Complete history, one block-range segment at a time. "
+            text "Nothing is cut off at a row limit."
           raw txTable(chain, rows,
             "This segment of the address's history resolved but listed no " &
             "transactions this generation still holds. The segment list " &
@@ -162,17 +164,31 @@ proc addressPage*(chain: string, info: ChainInfo, v: AddressView,
           h2(class = "sec-title next"): text "Events"
           tdiv(class = "stub"):
             tdiv(class = "measure"):
-              text "Logs emitted by this address come from a log index the "
-              text "published tree does not carry yet. The transactions above "
-              text "carry their own raw logs, and this section fills in when "
-              text "the pipeline publishes the per-address index — it is not "
-              text "a statement that this address emitted none."
+              # THE DISAMBIGUATION STAYS, because this one is a gap the reader
+              # can SEE: an "Events" heading over nothing reads as "this address
+              # emitted no logs", which would be false. What went is the account
+              # of which pipeline stage owes the index and when it fills in —
+              # "the published tree does not carry yet", "this section fills in
+              # when the pipeline publishes the per-address index". The reader
+              # keeps the two facts they can act on: the list is empty for a
+              # reason that is not silence, and the logs are on the
+              # transactions above.
+              text "This list is empty because BlockTracer does not index logs "
+              text "per address — not because this address emitted none. Each "
+              text "transaction above shows the logs it emitted."
 
         tdiv(class = "stub"):
           tdiv(class = "measure"):
-            b: text "Balances and token holdings are out of scope in V1, "
-            b: text "not missing. "
-            text "They are the account-explorer data model, with their own "
-            text "aggregates, their own reorg-recomputation surface and their "
-            text "own correctness problem. This page earns its place by "
-            text "listing executions."
+            # "Balances and token holdings are out of scope in V1, not missing.
+            # They are the account-explorer data model, with their own
+            # aggregates, their own reorg-recomputation surface and their own
+            # correctness problem. This page earns its place by listing
+            # executions."
+            #
+            # "V1" is this repository's word, "out of scope … not missing" is a
+            # distinction that matters to a planner and not to a reader, and the
+            # last sentence is the page defending its own right to exist. A
+            # visitor wondering where the balance is needs one thing: to know it
+            # is not here and to stop looking.
+            text "BlockTracer does not show balances or token holdings. This "
+            text "page lists what this address has executed."

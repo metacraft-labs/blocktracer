@@ -77,13 +77,21 @@ proc blockListPage*(chain: string, info: ChainInfo, page: BlockPage,
           olderHref: (if page.hasMore: blocksFromUrl(chain, page.nextFrom)
                       else: "")))
 
-        tdiv(class = "stub"):
-          tdiv(class = "measure"):
-            b: text "Three of this table's columns have no published source. "
-            text "A block's age needs a timestamp, its resource bar needs a "
-            text "per-block usage aggregate, and its producer needs a "
-            text "consensus-role field — none of the three is in the block "
-            text "object this tree publishes. Each is a pipeline field rather "
-            text "than a view, and this table reads them the moment they are "
-            text "published. Nothing here is derived from the height to stand "
-            text "in for one."
+        # THE STUB NOTE IS GONE. It read: "Three of this table's columns have no
+        # published source. A block's age needs a timestamp, its resource bar
+        # needs a per-block usage aggregate, and its producer needs a
+        # consensus-role field … this table reads them the moment they are
+        # published."
+        #
+        # A roadmap note about which pipeline fields are unpublished, addressed
+        # to whoever would add them. The three columns are not RENDERED here —
+        # the table is Height, Block hash, Txs, Finality, Parent — so a reader
+        # sees no empty cell and has nothing to reconcile. The note existed to
+        # pre-empt "why is there no age column?", which is a question about the
+        # backlog and not about these blocks.
+        #
+        # Where the absence is actually VISIBLE to a reader it is still stated,
+        # and stated on the thing it is about: a transaction's overview grid
+        # carries an Age row reading "No timestamp published". That is the
+        # pattern — say it in the cell that would have held the fact, not in a
+        # note at the bottom of the page about the schema.

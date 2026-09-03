@@ -186,27 +186,33 @@ proc codePage*(chain: string, address: string, code: seq[SourceBundleView],
 
               tdiv(class = "stub"):
                 tdiv(class = "measure"):
-                  b: text "This bundle publishes no ABI and no storage "
-                  b: text "layout. "
-                  text "§10's interface view and slot mapping are rendered "
-                  text "from the bundle's debug object, and this producer "
-                  text "writes an empty one — a circuit has no "
-                  text "contract-shaped storage layout to declare. Where a "
-                  text "bundle carries them, the interface view is also what "
-                  text "links each function to the transactions that called "
-                  text "it; with no ABI there is nothing to link from, so the "
-                  text "link is absent rather than broken."
+                  # The reader-facing half of what this note used to say. It
+                  # ran: "§10's interface view and slot mapping are rendered
+                  # from the bundle's debug object, and this producer writes an
+                  # empty one … the link is absent rather than broken." That is
+                  # a published spec reference plus an account of which producer
+                  # writes which object — the reason a MAINTAINER would give.
+                  # The reason a READER needs is one fact about the thing in
+                  # front of them: it is a circuit, so there is no interface to
+                  # list. Which producer wrote the empty debug object does not
+                  # change anything they can do next.
+                  b: text "This is a circuit, not a contract. "
+                  text "It declares no ABI and no storage layout, so there is "
+                  text "no interface list and no slot mapping to show. The "
+                  text "source above is the whole of what it publishes."
 
           tdiv(class = "group"):
             h2(class = "sec-title next"): text "Deployments"
             if deployments.len <= 1:
               tdiv(class = "stub"):
                 tdiv(class = "measure"):
-                  text "This code hash is bound to one address in this "
-                  text "generation. Source is keyed by code hash rather than "
-                  text "by address, so a second deployment of the same "
-                  text "bytecode would appear here already verified — that is "
-                  text "what keying by code hash buys."
+                  # "…that is what keying by code hash buys" was the page
+                  # admiring its own data model. The reader keeps the part that
+                  # is about their code: it is deployed once, and a second
+                  # deployment would show up here without being verified again.
+                  text "This code is deployed at one address. Any other "
+                  text "address running the same bytecode would appear here "
+                  text "too, already verified."
             else:
               ul(class = "linklist"):
                 for a2 in deployments:

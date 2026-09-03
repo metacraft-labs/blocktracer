@@ -37,14 +37,16 @@ proc settingsPage*(): string =
         tdiv(class = "eyebrow"): text "Preferences"
         h1(class = "h1"): text "Settings"
         p(class = "lead"):
+          # "…and there is nothing about data sources to configure — a visitor
+          # chooses nothing that affects where a byte comes from" went. It
+          # answers "why can't I configure the data source?", which is a
+          # question about the architecture that no visitor arrives holding.
           text "Everything here is browser state. Nothing on this page is "
-          text "sent anywhere, and there is nothing about data sources to "
-          text "configure — a visitor chooses nothing that affects where a "
-          text "byte comes from."
+          text "sent anywhere."
 
         h2(class = "sec-title next"): text "Privacy"
         p(class = "lead"):
-          text "What this deployment can observe, which is the whole of it."
+          text "What this site can see, which is all of it."
         dl(class = "dl group"):
           dt: text "Account"
           dd:
@@ -63,13 +65,14 @@ proc settingsPage*(): string =
               text "other third party."
           dt: text "Telemetry"
           dd:
-            span(class = "badge muted"): text "Off"
+            span(class = "badge muted"): text "None"
             span(class = "muted"):
-              text " Opt-in, off by default, and not yet implemented — so "
-              text "there is nothing switched on to switch off."
+              # "Opt-in, off by default, and not yet implemented" described a
+              # plan. The reader's question is whether anything reports back.
+              text " Nothing on this site reports anything back."
           dt: text "What is logged"
           dd(class = "measure"):
-            text "This deployment's own CDN logs, and nothing else. A page "
+            text "This site's own CDN logs, and nothing else. A page "
             text "load is a series of GETs against static files."
           dt: text "Record caps"
           dd:
@@ -80,33 +83,41 @@ proc settingsPage*(): string =
         p(class = "muted stack"):
           a(href = aboutUrl()): text "The full privacy summary →"
 
+        # THESE TWO SECTIONS KEEP ONLY WHAT A READER CAN ACT ON.
+        #
+        # Both used to be a promised control followed by the reason it is not
+        # here — "are both script operations, and this deployment ships none",
+        # "are stored per browser, which needs script". A visitor on a settings
+        # page wants to know what they can change; "the feature needs a
+        # technology this build does not ship" is a note to whoever will build
+        # it. What survives is the part that is TRUE AND USEFUL NOW and that
+        # was buried at the end of each: nothing is stored beyond the ordinary
+        # browser cache, and the theme and motion settings already follow the
+        # system preference — which is a real answer to "how do I change the
+        # theme?", and it was the last clause of a paragraph about script.
         h2(class = "sec-title next"): text "Storage"
         tdiv(class = "stub"):
           tdiv(class = "measure"):
-            b: text "Local trace-cache usage, its ceiling and a clear button. "
-            text "Measuring what a browser has cached, and clearing it, are "
-            text "both script operations, and this deployment ships none — so "
-            text "there is no number to show and no button that could act on "
-            text "it. Until then nothing is stored beyond the HTTP cache, "
-            text "which your browser already owns and can already clear."
+            text "BlockTracer stores nothing beyond your browser's ordinary "
+            text "cache, which your browser can clear."
 
         h2(class = "sec-title next"): text "Debugger"
         tdiv(class = "stub"):
           tdiv(class = "measure"):
-            b: text "Theme, keybinding set, pane layout and reduced motion. "
-            text "The theme already follows your system preference through "
-            text "prefers-color-scheme, and reduced motion is already "
-            text "honoured — both are stylesheet-level and work now. The "
-            text "toggle that would override the system preference, the "
-            text "keybinding set and the persisted pane layout are stored per "
-            text "browser, which needs script."
+            text "The theme and reduced motion follow your system settings — "
+            text "change them there and this site follows."
 
-        h2(class = "sec-title next"): text "Advanced"
-        tdiv(class = "stub"):
-          tdiv(class = "measure"):
-            b: text "Registry override URL, for pointing a public build at a "
-            b: text "private deployment. "
-            text "A build already reads its registry from the tree it was "
-            text "built against; overriding that at run time is the part that "
-            text "needs script. A self-hoster changes it at build time today, "
-            text "which is the same capability without the switch."
+        # THE "Advanced" SECTION IS GONE, HEADING AND ALL. Its entire content
+        # was: "Registry override URL, for pointing a public build at a private
+        # deployment. A build already reads its registry from the tree it was
+        # built against; overriding that at run time is the part that needs
+        # script. A self-hoster changes it at build time today, which is the
+        # same capability without the switch."
+        #
+        # A heading with no setting under it, describing a control for people
+        # who self-host, published to everyone who follows "Privacy & settings"
+        # out of the footer. Its audience is someone deploying this software,
+        # who reads DEPLOY.md and not a settings page; its subject is a build
+        # flag they already have. Unlike Storage and Debugger there was no
+        # residue worth keeping — no clause of it tells a visitor anything
+        # about the site they are on.

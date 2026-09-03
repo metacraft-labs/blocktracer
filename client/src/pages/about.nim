@@ -55,10 +55,23 @@ proc aboutPage*(chainCount: int): string =
         dl(class = "dl group"):
           dt: text "No account"
           dd(class = "measure"):
+            # "ASK" WAS RENDERING IN LITERAL CAPITALS TO VISITORS. This
+            # repository shouts for emphasis in commits, specs and comments,
+            # where it is a useful signal to the next reader of the source; it
+            # had leaked through a `text` literal onto a product page, where it
+            # just reads as raised voice. The distinction it was drawing — that
+            # the account is for REQUESTING work, not for reading — survives in
+            # the word "request", which carries it without shouting.
+            #
+            # The rest is kept, including "costs us compute". That looks like
+            # the register this sweep is removing but is not: "why do I need an
+            # account?" is a question a reader genuinely arrives with, and the
+            # honest answer is that generating a trace costs money. It is a
+            # reason offered to the reader, not a design decision defended.
             text "Every published trace opens anonymously. An account is "
-            text "needed only to ASK the pipeline to generate a trace that "
-            text "does not exist yet, because that costs us compute — and the "
-            text "result is then public for everyone."
+            text "needed only to request a trace that does not exist yet, "
+            text "because generating one costs us compute — and the result is "
+            text "then public for everyone."
           dt: text "No ads"
           dd(class = "measure"):
             text "There is no advertising surface, and no market-data widget "
@@ -68,14 +81,17 @@ proc aboutPage*(chainCount: int): string =
           dt: text "No tracking"
           dd(class = "measure"):
             text "No third-party requests at all, so there is nothing to "
-            text "track you with. What this deployment can observe is its own "
+            text "track you with. What this site can see is its own "
             text "CDN logs."
           dt: text "Complete history"
           dd(class = "measure"):
-            text "The pipeline builds the address index, so every listed "
-            text "chain has complete history and complete log coverage. There "
-            text "is no capability to negotiate and no degraded variant of an "
-            text "address page."
+            # "no capability to negotiate and no degraded variant of an address
+            # page" is the same internal phrase `pages/address` carried, and it
+            # describes an architecture rather than a promise. What it means for
+            # a reader is that every chain gets the same complete page.
+            text "Every listed chain has complete history and complete log "
+            text "coverage — the same full address page on all of them, with "
+            text "no reduced version anywhere."
           dt: text "No record caps"
           dd(class = "measure"):
             text "History is stored as immutable segments keyed by block "
@@ -87,13 +103,18 @@ proc aboutPage*(chainCount: int): string =
         dl(class = "dl group"):
           dt: text "Guess"
           dd(class = "measure"):
-            text "Where a fact is not published, the page says so and says "
-            text "what would make it appear. An unconditional claim about "
-            text "variable values is the one thing this product cannot afford."
+            # "An unconditional claim about variable values is the one thing
+            # this product cannot afford" states the RISK TO US of getting this
+            # wrong. The reader's version of the same commitment is a promise
+            # about what they will be shown, which is what the second sentence
+            # is now.
+            text "Where a fact is not published, the page says so instead of "
+            text "guessing at it. You are never shown a value that was not "
+            text "recorded."
           dt: text "Fall back to a node"
           dd(class = "measure"):
             text "No page falls back to a live tracing endpoint, and no page "
             text "computes anything itself. Both would reintroduce a "
             text "third-party dependency and a second source of truth."
         p(class = "muted stack"):
-          a(href = settingsUrl()): text "What this deployment can observe →"
+          a(href = settingsUrl()): text "What this site can see →"

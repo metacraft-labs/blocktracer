@@ -41,9 +41,12 @@ proc notFoundPage*(chainsChecked: seq[string]): string =
           actionHref: chainsUrl(),
           actionLabel: "Supported chains"))
         p(class = "lead"):
-          text "If this identifier is from a chain BlockTracer does not cover "
-          text "yet, it will not be here — which is a scoping answer rather "
-          text "than a dead end."
+          # "— which is a scoping answer rather than a dead end" is the page
+          # arguing with the reader's disappointment. It also tells them nothing
+          # to do next. The list of covered chains is one click away and the
+          # notice above already links it, so the sentence points there instead.
+          text "If this identifier is from a chain BlockTracer does not cover, "
+          text "it will not be here. The supported chains are listed above."
         tdiv(class = "linkrow group"):
           a(class = "btn ghost", href = "/"): text "Home"
           a(class = "btn ghost", href = searchUrl()): text "Resolve an identifier"

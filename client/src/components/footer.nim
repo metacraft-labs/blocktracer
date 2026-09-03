@@ -92,12 +92,25 @@ proc siteFooter*(): string =
           #
           # The footer cannot fix that by naming the chain, because it has no
           # chain — it is rendered by site-level pages too, which show nobody's
-          # data. So it stops making the claim and points at the element that
-          # can: the per-page provenance banner, which reads it from the
-          # generation rather than asserting it. The privacy half is unchanged
-          # because it was, and remains, true of every page here.
-          text "No account, no tracking. Each chain states on its own pages "
-          text "whether its data is synthetic ("
-          span(class = "mono"):
-            text "blocktracer-demo-gen"
-          text ") or captured from a network."
+          # data. So it stops making the claim, and only the privacy half is
+          # left, which was and remains true of every page here.
+          #
+          # ## AND IT NO LONGER POINTS AT THE MARKER EITHER
+          #
+          # The replacement for the false claim was a sentence directing the
+          # reader elsewhere — "Each chain states on its own pages whether its
+          # data is synthetic (`blocktracer-demo-gen`) or captured from a
+          # network." A reader reported it as copy written for the development
+          # team, and it is: it is a navigational instruction about where
+          # information lives, in a footer, naming a build tool by its package
+          # name. Nobody arrives at a footer to be told which other page holds
+          # the answer.
+          #
+          # It is not replaced by anything, because the thing it promised is
+          # already done and was done before this line existed.
+          # `components/provenance` puts a marker on EVERY chain-scoped page —
+          # the band for synthetic data, the chip or the metadata row for a
+          # capture — and `pages/chains` now carries a Data column that labels
+          # all of them in one table. The promise had three implementations and
+          # no reader; deleting it removes the promise, not the disclosure.
+          text "No account, no tracking."

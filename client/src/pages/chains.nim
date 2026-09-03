@@ -7,29 +7,38 @@
 ## must be generated from the registry, never hand-maintained, so it cannot
 ## drift from reality."** So there is no chain name, no VM name, no tier and no
 ## note written anywhere below. Every cell is read from a published object —
-## the registry row for the recorder pin, the sealed generation's summary for
-## coverage and counters, the pointer for the head — and a chain the registry
-## stops publishing disappears from this page by itself.
+## the sealed generation's summary for the provenance and the counters, the
+## pointer for the head — and a chain the registry stops publishing disappears
+## from this page by itself.
 ##
-## ## Two of §3's eight columns have no published source, and say so
+## ## WHAT THIS TABLE IS FOR, AND WHY IT HOLDS FIVE COLUMNS AND NOT EIGHT
 ##
-## §3 asks for eight columns. Six are in the tree. Two are not, and this page
-## states that rather than inventing them, because a capability inventory that
-## guesses at a capability is the one page in the product where a confident
-## wrong answer costs the most:
+## A reader arrives here to answer three questions: is my chain here, is its
+## data real, and how much of it is there. Those are the columns.
 ##
-##   * **Debug tier (T0–T2)** — the registry publishes a recorder pin, a profile
-##     and a trace schema, which is *what* records the chain. The tier is a
-##     grade of that, and Chain-Support-Matrix.md owns it; nothing in
-##     `/registry/chains.v{N}.json` carries it. The recorder pin is shown
-##     instead, which is the fact the tier is derived from.
-##   * **Historical reach** (`archive` / `windowed(7d)` / …) — a retention
-##     property of the ingestion, and there is no retention field in the
-##     contract yet (Trace-Artifacts.md §9 is where it lands).
+## It used to carry three more — the recorder pin, the trace schema and the
+## coverage mode — and they were removed because they are not a visitor's
+## questions. They are how this deployment is wired, and a reader who wants
+## them is one click away: `pages/chain.nim` renders all three in the chain's
+## own facts list, with room to say what each one means, which a table cell
+## does not have. Nothing was lost by dropping them; they moved to the page
+## where they can be explained.
 ##
-## Both are named in the page's own footer note, so a reader can tell the
-## difference between "BlockTracer does not know" and "this chain does not have
-## one" — which is exactly the distinction §14 exists to keep.
+## The **Data** column is the one that was added, and it is the one this page
+## was previously missing altogether. The site footer used to promise that
+## "each chain states on its own pages whether its data is synthetic or
+## captured from a network" — an instruction to go and look somewhere else,
+## published on the one page that enumerates the chains and did not say it. It
+## says it now, in the producer's own label, through the same
+## `provenanceTone` the home strip and every transaction page use, so the three
+## surfaces that rank and label these chains all read one source.
+##
+## Two columns §3 asks for are still not in the tree — a debug tier owned by
+## Chain-Support-Matrix.md, and a historical-reach field Trace-Artifacts.md §9
+## has not landed. They are absent rather than guessed at, and the page no
+## longer publishes a note to the reader about which internal document owns
+## them: that is a fact about this repository's roadmap and it belongs here, in
+## the source, not on a page a visitor reads.
 
 import isonim/ssr/escape
 import isonim/dsl/ui
@@ -56,29 +65,33 @@ proc chainsPage*(rows: seq[ChainRow]): string =
         tdiv(class = "eyebrow"): text "Capability inventory"
         h1(class = "h1"): text "Supported chains"
         p(class = "lead"):
-          text "Every chain in the published registry, with what BlockTracer "
-          text "can actually do with it. Generated from the registry, so it "
-          text "cannot claim support that is not deployed."
+          text "Every chain BlockTracer publishes. Open one to browse its "
+          text "blocks and transactions, and to step through any transaction "
+          text "that has a recorded trace."
 
         tdiv(class = "tablewrap group"):
           table(class = "tbl"):
             thead:
               tr:
                 th: text "Chain"
-                th: text "Recorder"
-                th: text "Trace schema"
-                th: text "Coverage"
+                th: text "Data"
                 th(class = "num"): text "Blocks"
                 th(class = "num"): text "Transactions"
                 th: text "Freshness"
             tbody:
               if rows.len == 0:
                 tr:
-                  td(class = "empty", colspan = "7"):
+                  td(class = "empty", colspan = "5"):
                     tdiv(class = "measure"):
-                      text "This deployment's registry publishes no chains. "
-                      text "A chain appears here when the pipeline publishes "
-                      text "its registry row and its first generation."
+                      # Over 60 characters and ending in a full stop, which
+                      # `test_explorer_breadth`'s "nothing renders as an empty
+                      # list" sweep requires of every empty cell in the corpus —
+                      # the rule that stops an empty table from being a blank
+                      # box. The old text cleared it by explaining the publishing
+                      # pipeline; this clears it by telling the reader what the
+                      # emptiness means for them.
+                      text "No chains are published here yet, so there is "
+                      text "nothing to browse or debug."
               else:
                 for row in rows:
                   tr:
@@ -90,24 +103,21 @@ proc chainsPage*(rows: seq[ChainRow]): string =
                       # resolve is a REAL row of a capability inventory, not a
                       # row to skip. Skipping it would make the page claim the
                       # registry lists one fewer chain than it does.
-                      td(colspan = "6"):
+                      td(colspan = "4"):
                         span(class = "badge bad"): text "Unreadable"
                         span(class = "reason"): text row.reason
                     else:
+                      # WHAT THE DATA IS, in the producer's own label and the
+                      # same tone every other surface gives it. Not derived from
+                      # the slug, for `provenance.provenanceBanner`'s reason: a
+                      # name is not a claim about where data came from.
                       td:
-                        if row.info.hasRecorder:
-                          span(class = "mono"):
-                            text row.info.recorderId & " " & row.info.recorderVersion
-                        else:
-                          span(class = "badge muted"): text "No recorder"
-                      td:
-                        if row.info.traceSchema.len > 0:
-                          span(class = "mono"): text row.info.traceSchema
+                        if hasProvenance(row.info):
+                          span(class = "badge " &
+                                       provenanceTone(row.info.provenanceKind)):
+                            text row.info.provenanceLabel
                         else:
                           span(class = "muted"): text "—"
-                      td:
-                        span(class = "badge coverage info"):
-                          text row.info.coverageMode
                       td(class = "num"): text $row.info.blockCount
                       td(class = "num"): text $row.info.txCount
                       td:
@@ -118,13 +128,3 @@ proc chainsPage*(rows: seq[ChainRow]): string =
                         span(class = "reason"):
                           text "head " & $row.info.headHeight &
                                " · finalized " & $row.info.finalizedHeight
-
-        tdiv(class = "stub"):
-          tdiv(class = "measure"):
-            b: text "Two of this table's columns have no published source yet. "
-            text "The debug tier is a grade of the recorder pin shown above, "
-            text "and it is owned by the chain support matrix rather than by "
-            text "the registry; historical reach is a retention property the "
-            text "trace-artifact contract does not carry yet. Both arrive as "
-            text "registry fields, and this page will read them the way it "
-            text "reads every other cell here."

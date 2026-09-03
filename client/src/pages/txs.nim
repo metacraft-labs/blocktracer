@@ -37,9 +37,22 @@ proc txsPage*(chain: string, info: ChainInfo, page: TxPage,
         tdiv(class = "eyebrow"): text "Transactions"
         h1(class = "h1"): text chain & " transactions"
         p(class = "lead"):
-          text "Newest first, walking backwards by block. Debug is the first "
-          text "column of every row, because arriving at a transaction with a "
-          text "published trace means arriving in its execution."
+          # TWO CLAUSES, JUDGED SEPARATELY.
+          #
+          # "Newest first" is kept: a sort order is not visible from the rows
+          # themselves and a reader needs it. "walking backwards by block" is
+          # the same fact again in the pager's vocabulary, and adds nothing a
+          # reader can use.
+          #
+          # "Debug is the first column of every row, BECAUSE arriving at a
+          # transaction with a published trace means arriving in its execution"
+          # is the page arguing for its own layout. It is a good sentence in a
+          # design document, where someone is deciding whether the column
+          # belongs there; on the page the column is simply there and visible,
+          # and no visitor needs persuading of its position. What they can use
+          # is what the column DOES, so that is what it now says.
+          text "Newest first. Open Debug on any transaction with a recorded "
+          text "trace to step through its execution."
 
         raw degraded.notice(degradation, notice)
 
@@ -56,13 +69,15 @@ proc txsPage*(chain: string, info: ChainInfo, page: TxPage,
           olderHref: (if page.hasMore: txsFromUrl(chain, page.nextFrom)
                       else: "")))
 
-        tdiv(class = "stub"):
-          tdiv(class = "measure"):
-            b: text "Two of this table's behaviours need script and this "
-            b: text "deployment ships none. "
-            text "§6 asks for a column picker for family-specific extras and "
-            text "for reverted rows to be sortable to the top. Reverted rows "
-            text "are already visually distinct, which is the half that works "
-            text "without script; re-ordering and choosing columns are the "
-            text "half that does not, and a control that cannot act is one "
-            text "this product does not ship. Both arrive with hydration."
+        # THE STUB NOTE IS GONE. It read: "Two of this table's behaviours need
+        # script and this deployment ships none. §6 asks for a column picker for
+        # family-specific extras and for reverted rows to be sortable to the
+        # top. … Both arrive with hydration."
+        #
+        # It published a spec section number — a literal "§6" — to visitors, and
+        # the rest was a roadmap note: which behaviours are unbuilt, why, and
+        # when they arrive. A reader of a transaction list has no use for any of
+        # it. There is no control on this page that fails to work and no cell
+        # left blank by the absence, so nothing here needs explaining; the note
+        # answered a question only someone maintaining this table would ask.
+        # What §6 asks for is tracked where requirements are tracked.

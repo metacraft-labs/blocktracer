@@ -132,13 +132,17 @@ proc blockPage*(chain: string, info: ChainInfo, detail: BlockDetail,
           "block, not a gap in the index — the block object lists its " &
           "transactions and this one lists none.")
 
-        tdiv(class = "stub"):
-          tdiv(class = "measure"):
-            b: text "Family extras have no field in the block object yet. "
-            text "§5.2's per-family zone — base fee and blob gas on an EVM "
-            text "chain, checkpoint and epoch on Move, slot and leader on "
-            text "Solana — comes from the adapter, and the published block "
-            text "object carries the chain, the hash, the height, the parent "
-            text "and the transaction list. A transaction already carries its "
-            text "chain-native payload verbatim; a block does not, and that "
-            text "is the field this zone reads when it lands."
+        # THE STUB NOTE IS GONE. It read: "Family extras have no field in the
+        # block object yet. §5.2's per-family zone — base fee and blob gas on an
+        # EVM chain, checkpoint and epoch on Move, slot and leader on Solana —
+        # comes from the adapter … that is the field this zone reads when it
+        # lands."
+        #
+        # A published spec reference and an account of which producer owes which
+        # field. It named three chain families this deployment does not carry a
+        # single block from, to explain the absence of a zone that has never
+        # been rendered — so a reader of an Aztec block was being told about
+        # blob gas and Solana leaders in order to be reassured about a gap they
+        # could not see. Every clause is addressed to whoever will implement the
+        # adapter. §5.2's zone appears when the block object carries the fields;
+        # that plan lives with the plans.

@@ -84,7 +84,19 @@ proc liveDemo(demo: DebugSessionView;
               text provenanceLabel
           # The home page's third spelling of the trace length. Grouped for the
           # reason `groupDigits` gives: prose is read, never copied.
-          text "A real session, stopped mid-execution at step " &
+          #
+          # "A REAL SESSION" WAS DROPPED, and not on register grounds — the rest
+          # of this line is concrete and stays. It was dropped because of what
+          # it sits NEXT TO: the badge emitted three lines above reads "Synthetic
+          # demo data", so the caption rendered as "Synthetic demo data · A real
+          # session". Both halves are true and they are about different things —
+          # the DATA is generated, the recorded EXECUTION is genuine — but two
+          # adjacent adjectives in direct contradiction make a reader stop and
+          # work out which one to believe, on the one element of the home page
+          # whose whole job is to be obviously alive. The evidence that it is a
+          # real session is the session: it steps, it has 1,315 of them, and the
+          # button below opens it.
+          text "Stopped mid-execution at step " &
                groupDigits(demo.controls.step) & " of " &
                groupDigits(demo.controls.totalSteps) & "."
         a(class = "btn primary", href = txUrl(demo.chain, demo.txHash) & "/debug"):

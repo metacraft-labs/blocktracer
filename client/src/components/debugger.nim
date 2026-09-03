@@ -624,18 +624,42 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
         # — and the honest banner is the part this pane always got right. What was
         # wrong was the reduction underneath it, not the sentence about it.
         if first > 1:
+          let last = d.lines[^1].number
           tdiv(class = "srcfrom"):
-            # The same reduction, named in the unit the rows are actually in.
-            # "Showing from line 122" over a listing whose rows are STEPS would
-            # be the window announcing itself in a coordinate the pane does not
-            # use — and `line` is the one word this pane has spent four
-            # paragraphs explaining it does not have.
+            # THE SENTENCE WAS REWRITTEN TWICE OVER, FOR TWO SEPARATE FAULTS.
+            #
+            # It read: "Showing from line 71 — the session's position is below,
+            # and the lines above it are not in this window." A reader reported
+            # it as copy addressed to whoever wrote the windower rather than to
+            # anyone reading the page: it describes what the reduction did to
+            # the document instead of telling a visitor what is in front of
+            # them, and "not in this window" is the implementation's own word
+            # for it.
+            #
+            # And by the time that was reported it was also WRONG. The clause
+            # was written when the only windower was `openAtCurrent`, which
+            # dropped every line ABOVE the position — so the position really was
+            # below the notice. That windower is gone. The one remaining caller
+            # is `ssr.featuredSession`'s `windowAround(radius = 12)`, which takes
+            # `radius` lines on EITHER side, so the position is in the MIDDLE of
+            # what is shown, not below it. The home page has been telling
+            # visitors to look below a marker that is centred in the box.
+            #
+            # A range rather than a start, because a range is what a reader can
+            # act on — it maps the excerpt onto the full file they can open —
+            # whereas "from line 71" leaves the extent unstated. §13's rule that
+            # a reduction is announced rather than silent is satisfied more
+            # completely by naming both ends of it.
+            #
+            # Still named in the unit the rows are actually in: `line` is the one
+            # word the instruction listing has spent four paragraphs explaining
+            # it does not have.
             if listing:
-              text "Showing from step " & $first & " — the session's position " &
-                   "is below, and the steps before it are not in this window."
+              text "Steps " & $first & "–" & $last &
+                   ", centred on where the session is stopped."
             else:
-              text "Showing from line " & $first & " — the session's position " &
-                   "is below, and the lines above it are not in this window."
+              text "Lines " & $first & "–" & $last &
+                   ", centred on where the session is stopped."
         for ln in d.lines:
           tdiv(class = "srcline" &
                        (if ln.current: " cur" else: "") &
@@ -1434,9 +1458,12 @@ proc renderShortcutsDialog*(km: Keymap; mac: bool): string =
           # dialog that failed to load, which is the one thing this surface
           # must never look like.
           p(class = "kbempty"):
+            # "…and their tooltips name no key — because there is none to
+            # name" explained why a DIFFERENT element renders the way it does.
+            # A reader who has just turned shortcuts off is not wondering about
+            # tooltip content; they want to know the buttons still work.
             text "No stepping shortcuts are bound. The toolbar buttons still "
-            text "work, and their tooltips name no key — because there is none "
-            text "to name."
+            text "work."
         else:
           tdiv(class = "kbrows", `data-kb-rows` = $km.bindings.len):
             for b in km.bindings:

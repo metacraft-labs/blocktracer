@@ -140,56 +140,53 @@ proc chainPage*(chain: string, info: ChainInfo,
         p(class = "muted stack"):
           a(href = txsUrl(chain)): text "All transactions →"
 
-        # ── Chain notes (§4's last row) ─────────────────────────────────
-        h2(class = "sec-title next"): text "Chain notes"
-        dl(class = "dl group"):
-          # THE PRODUCER'S OWN SENTENCES, ON THE CHAIN'S OWN PAGE.
-          #
-          # `provenanceMetaRows` puts these on a TRANSACTION's metadata surface,
-          # and until now that was the only page in the explorer register that
-          # carried them: the chain overview, the block list and the block pages
-          # get `provenanceChip`, which is the label and nothing else.
-          #
-          # That was survivable while every captured chain had transactions on
-          # it. A curated chain need not — `/aztec` publishes 24 blocks and zero
-          # transactions — and on such a chain there is no transaction page to
-          # reach, so the detail was reachable from nowhere at all. A visitor met
-          # two dozen empty blocks with no statement of what was watched to
-          # arrive at them, which is the shape of page that reads as broken while
-          # being entirely correct.
-          #
-          # NO `data-provenance` HERE. The chip above already carries the marker
-          # and `test_chain_provenance`'s "exactly one provenance marker" counts
-          # them; this is the producer's prose, quoted, in the notes list where
-          # the recorder pin and the coverage mode already sit.
-          if info.provenanceDetail.len > 0:
-            dt: text "Data"
-            dd(class = "measure"):
-              if info.provenanceLabel.len > 0:
-                text info.provenanceLabel & " — "
-              text info.provenanceDetail
-          dt: text "Recorder"
-          dd:
-            if info.hasRecorder:
-              span(class = "mono"):
-                text info.recorderId & " " & info.recorderVersion
-              span(class = "muted"): text " build " & truncHash(info.recorderBuild)
-            else:
-              span(class = "badge muted"): text "None pinned"
-              span(class = "muted"):
-                text " No trace address can be derived for this chain."
-          dt: text "Trace schema"
-          dd(class = "mono"):
-            text (if info.traceSchema.len > 0: info.traceSchema else: "—")
-          dt: text "Coverage"
-          dd(class = "measure"):
-            text "Coverage mode "
-            span(class = "mono"): text info.coverageMode
-            text " — what the Debug affordance does on a transaction with no "
-            text "published trace yet."
-          dt: text "Generation"
-          dd:
-            span(class = "identifier"): text info.generation
-            span(class = "muted"):
-              text " — every read on this page is pinned to it, so nothing here "
-              text "mixes two views of the chain."
+        # ── About this data (§4's last row) ─────────────────────────────
+        #
+        # THIS WAS "Chain notes", AND IT WAS FIVE ROWS. A reader reported it as
+        # internal team notes, and four of the five were:
+        #
+        #   * `Recorder` — a recorder id, a version and a truncated build hash,
+        #     with "No trace address can be derived for this chain" when there
+        #     was no pin. A visitor does not know what a trace address is.
+        #   * `Trace schema` — a bare schema string such as `ctfs/v4`, or `—`.
+        #   * `Coverage` — "Coverage mode `selective` — what the Debug
+        #     affordance does on a transaction with no published trace yet."
+        #     An internal term for the control, and a note about an unbuilt
+        #     state.
+        #   * `Generation` — an opaque identifier, plus "every read on this page
+        #     is pinned to it, so nothing here mixes two views of the chain",
+        #     which is a read-consistency guarantee addressed to whoever worried
+        #     about read consistency. No visitor arrives holding that worry.
+        #
+        # The first three are the SAME three dropped from `pages/chains`'s table
+        # in this change, and they are dropped in both places for one reason
+        # rather than two: they describe how this deployment is wired, and there
+        # is no user-facing surface where that is the reader's question. They
+        # remain published, machine-readable, in `/registry/chains.v{N}.json`,
+        # which is where a self-hoster or an integrator was always going to read
+        # them from.
+        #
+        # WHAT IS KEPT, AND WHY IT IS KEPT RATHER THAN FOLDED AWAY. The `Data`
+        # row is the producer's own account of what was watched, and on a
+        # zero-transaction chain it is the only place in the product that
+        # carries it: `provenanceMetaRows` puts the detail on a TRANSACTION's
+        # metadata surface, and `/aztec` publishes 24 blocks and no
+        # transactions, so there is no transaction page to reach. Without this a
+        # visitor meets two dozen empty blocks with no statement of what
+        # produced them — the shape of page that reads as broken while being
+        # entirely correct. It is also, on this page, the plain statement of
+        # whether the data is real or synthetic.
+        #
+        # A heading and a paragraph rather than a one-row definition list: a
+        # `dl` with a single `dt` reading "Data" under a section called "Chain
+        # notes" was a table of contents for one fact.
+        #
+        # NO `data-provenance` HERE, unchanged. The chip above carries the
+        # marker and `test_chain_provenance`'s "exactly one provenance marker"
+        # counts them; this is the producer's prose, quoted.
+        if info.provenanceDetail.len > 0:
+          h2(class = "sec-title next"): text "About this data"
+          p(class = "lead measure"):
+            if info.provenanceLabel.len > 0:
+              text info.provenanceLabel & " — "
+            text info.provenanceDetail
