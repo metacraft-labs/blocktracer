@@ -834,9 +834,36 @@ jobs:
         # `capture-env` alone every arm reported DID-NOT-BUILD, because `nim` was
         # not on PATH. The harness was right to call that "never ran" rather than
         # a kill — an arm that cannot compile has demonstrated nothing.
+        #
+        # BOUNDED, and the bound is the point rather than the number. Without
+        # `timeout-minutes` a step inherits the job's 360, and a suite that
+        # stalls burns six hours and is then CANCELLED — which prints no
+        # `RESULT` line and reads, in the log, exactly like a suite nobody ran.
+        # That is the state this suite has actually been observed in. A step
+        # timeout arrives as a signal, which `selftest.mjs` now catches: it
+        # prints `RESULT: DID NOT RUN`, names the arm it was on, and puts the
+        # mutated file back. 150 against a measured ~100 minutes for 62 arms,
+        # where each arm rebuilds the tree and reruns its journey three times.
+        timeout-minutes: 150
         run: |
           nix develop .#capture --command \
             vd0-capture-env node tools/journeys/selftest.mjs
+
+      - name: Does it say when it did NOT run?
+        # Machinery that reports an ENDING is only exercised by an ending, so
+        # the step above covers none of it — which is how it would rot with
+        # nobody noticing, in the one tool whose job is to certify that every
+        # other instrument is honest. Four real endings, each demanded to name
+        # itself. Cheap (one arm, four short runs) and it needs exactly the
+        # environment this job already has.
+        #
+        # AFTER the run above and not before: it deliberately leaves a journal
+        # describing an unfinished run, which the next full run would then
+        # report as a previous failure that never happened.
+        timeout-minutes: 20
+        run: |
+          nix develop .#capture --command \
+            vd0-capture-env bash tools/journeys/selftest-verdict-test.sh
 
       - name: The journeys, over the deployed artefact
         run: |
