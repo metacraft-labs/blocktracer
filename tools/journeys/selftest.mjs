@@ -1850,6 +1850,21 @@ async function rebuild({ hydration = false } = {}) {
         "-d:release",
         "-d:hydrationBundle=/assets/hydrate.js",
         "--hints:off",
+        // A NIMCACHE INSIDE THIS WORKTREE, and it is not a speed setting.
+        //
+        // Nim's default is `~/.cache/nim/static_export_r`, keyed on the project
+        // FILE NAME and not on its path, so every worktree of this repository
+        // on the machine compiles the exporter through ONE directory. Two
+        // selftests running at once — which is exactly what `--shard` is for —
+        // then interleave their generated C, and both fail with things like
+        // `use of undeclared identifier 'T1_'` in a stdlib file neither of them
+        // touched. MEASURED: two shards launched together, in two worktrees,
+        // both dead inside a minute.
+        //
+        // `hydrate/build.sh` already passes `--nimcache:"${here}/nimcache"` for
+        // the bundle; the exporter was the half that did not. `client/nimcache`
+        // is already gitignored by pattern.
+        `--nimcache:${join(CLIENT, "nimcache", "selftest-export")}`,
         "src/static_export.nim",
       ],
       { cwd: CLIENT, maxBuffer: 64 * 1024 * 1024 },

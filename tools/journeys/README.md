@@ -209,10 +209,53 @@ exits 0, because landing one arm should not require re-proving sixty-one others,
 but it prints `RESULT: OK OVER n OF m ARMS` — the full set is the suite's claim
 and "OK" is the word someone quotes later.
 
-Every run also prints its wall clock broken down by journey. Each arm rebuilds
-the tree and reruns its journey three times — before, mutated, restored — so a
-slow journey is slow once per arm pointing at it, and whether one journey's arms
-dominate the suite is a measurement rather than an argument.
+## The suite does not fit in an hour, so it shards
+
+Every run prints its wall clock broken down by journey. Each arm rebuilds the
+tree and reruns its journey **three times** — before, mutated, restored — so the
+cost is a journey's runtime times three, times the number of arms aimed at it,
+and whether one journey dominates is a measurement rather than an argument.
+
+Measured, warm tree, local builds:
+
+```
+  62 arms, ~115 minutes
+  1017s  30%   3 arm(s)  339s/arm  the-timeline-can-be-dragged   ← 8 arms in full: ~45 min
+   522s  15%   3 arm(s)  174s/arm  source-pane-holds-still-while-the-position-is-visible
+   479s  14%   3 arm(s)  160s/arm  a-stepped-session-shows-the-values-it-is-at
+```
+
+`the-timeline-can-be-dragged` is about **39% of the whole suite** from one
+journey, and it earns every second: two subject arms, three real drags each, and
+a settle budget whose 6 s quiet window is measured against a chain seek observed
+at 3.0 s. Shortening it is how the first draft of `settlePosition` came to report
+three chain drags as landing on steps 7, 32 and 32 when the drop points were 259,
+104 and 190. **The arms belong here** — journey 17 is where the drag is judged at
+all, and a mutation suite that skipped the most expensive journey would be
+certifying the cheap ones.
+
+What does not follow is that the suite must run as one process. Things that run
+it have wall-clock boxes: a run under an agent's background task was killed at
+~60 minutes while running **arm 47 of 62**, printing no verdict — the reported
+symptom, reproduced exactly. `--arm` cannot answer that, because it selects by
+NAME and a name is not a budget.
+
+```
+just journeys-selftest-shard 1 4     # …and 2 4, 3 4, 4 4 — in any order, anywhere
+just journeys-selftest-combine 4     # ONE verdict over the four journals
+```
+
+The slice is by **stride**, not by contiguous block: journey 17's eight arms are
+adjacent in the list, so a contiguous shard would hold all of them and be the
+whole problem again.
+
+**`--combine` is not an OR of passes.** It fails unless the shards' arms, unioned,
+are exactly the arm list — every arm once, none missing, none run twice, none
+belonging to a version of the file that has since changed — and every one of them
+killed. A shard that never ran leaves no journal, and the combine names it and
+says `DID NOT RUN` rather than reporting a failure. "Three of four shards passed"
+is not a claim about this suite; that is the same three-verdict rule, one level
+up.
 
 ## The ledger
 
