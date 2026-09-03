@@ -47,15 +47,21 @@ proc siteFooter*(): string =
       tdiv(class = "inner"):
         tdiv:
           text "BlockTracer — the deepest view into every transaction."
-          # §2's trust strip links to the privacy summary, and §12 is where a
-          # visitor goes to read what this deployment can observe. Both are
-          # site-level pages with no chain in their address, so the footer is
-          # where they belong: a page-level link to them would have to be
-          # repeated on every surface to be reachable from all of them.
+          # THE `Privacy & settings` LINK WENT WITH ITS PAGE. `/settings` is
+          # removed — see the note at the foot of this file — and a footer link
+          # is the first thing that has to go when a route does, because it is
+          # rendered on every page in the product and would be 819 dead links
+          # rather than one.
+          #
+          # The label is also the reason it could not simply be repointed at
+          # `/about`. It promised two things, `Privacy` and `settings`, and
+          # neither survives as a destination of its own: there are no settings,
+          # and the privacy claims are now items in About's `What it costs you`
+          # list rather than a page. `About` already links there and says what
+          # the reader will get.
           tdiv(class = "footlinks"):
             a(href = "/about"): text "About"
             a(href = "/chains"): text "Chains"
-            a(href = "/settings"): text "Privacy & settings"
         tdiv(class = "footcredit"):
           p(class = "credo"):
             # The heart carries the word it stands for as its accessible name,

@@ -285,7 +285,7 @@ proc exportSite() =
     else:
       echo "  ! " & route & " (status " & $status & ")"
   echo "  + client views: " & $rendered &
-    " pages (home, chains, chain, blocks, block, txs, tx, debug, address, code, search, settings, about)"
+    " pages (home, chains, chain, blocks, block, txs, tx, debug, address, code, search, about)"
 
   # The not-found body, at the file a static host serves for an unmatched path.
   #

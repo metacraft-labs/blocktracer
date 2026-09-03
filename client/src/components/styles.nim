@@ -257,10 +257,17 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
    contributes to min-content sizing, so the grid track is still sized as if
    the break were available. The difference is what they do to PROSE, and this
    list carries both: `break-all` breaks at whatever character the line ends on
-   whether or not the word would have fitted, which on /settings at 375px
-   produced "trace op / ens anonymously", "not yet i / mplemented", "nothing
-   switc / hed on" and "any other third part / y." in one screen. `anywhere`
-   breaks a word only when it cannot fit, which is the case the rule is for. */
+   whether or not the word would have fitted, which produced "trace op / ens
+   anonymously", "not yet i / mplemented", "nothing switc / hed on" and "any
+   other third part / y." in one screen. `anywhere` breaks a word only when it
+   cannot fit, which is the case the rule is for.
+
+   The measurement was taken on /settings at 375px. That route no longer
+   exists — the page was removed — and the rule is unchanged by that: /about
+   carries the same prose-bearing `.dl` at the same width, which is where the
+   case now lives. The example strings are kept verbatim rather than re-taken,
+   because what they demonstrate is the difference between the two properties
+   and not the content of any one page. */
 .dl dd{padding:var(--bt-density-cell-y) var(--bt-density-cell-x);border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);min-width:0;overflow-wrap:anywhere;font-size:var(--bt-type-body-sm-size);line-height:var(--bt-space-lg);font-variant-numeric:var(--bt-numeric-features)}
 .dl dd .identifier,.dl dd code{font-size:inherit;line-height:inherit}
 .dl dt:last-of-type,.dl dd:last-of-type{border-bottom:0}

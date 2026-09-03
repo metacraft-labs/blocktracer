@@ -275,7 +275,10 @@ suite "M9 — e2e_explorer_renders_from_published_files_only":
     check "/" in routes
     check "/chains" in routes
     check "/about" in routes
-    check "/settings" in routes
+    # `/settings` was REMOVED, and this line guards the removal rather than
+    # being deleted with it: a reintroduced route would otherwise slip back
+    # into the corpus with nothing objecting.
+    check "/settings" notin routes
     check "/search" in routes
     check ("/" & Chain) in routes
     check ("/" & Chain & "/blocks") in routes

@@ -1478,8 +1478,17 @@ proc renderShortcutsDialog*(km: Keymap; mac: bool): string =
                                              "reserved" else: "mac-fn")):
                     text hazardText(hz)
 
-        p(class = "kbfoot"):
-          text "Kept in this browser only. Nothing is sent anywhere."
+        # THE FOOTNOTE IS GONE, and it is the same family as the site
+        # footer's "No account, no tracking" and the removed `/settings` page:
+        # the product volunteering its privacy posture at a reader who did not
+        # ask. Here the mismatch is sharper than either, because the surface is
+        # not even about privacy — a reader opens a shortcuts dialog to choose
+        # a keybinding preset, and nobody choosing a keybinding wonders whether
+        # their choice is being transmitted to a server. Raising the question in
+        # order to answer it is what put the thought there.
+        #
+        # The claim itself remains true and remains stated where someone who
+        # DOES ask will look: `/about`, under `What it costs you`.
 
 proc renderShortcutsButton*(): string =
   ## The gear, for the identity bar's `.dbgacts` group.

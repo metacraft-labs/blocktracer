@@ -62,8 +62,11 @@ proc aboutPage*(chainCount: int): string =
             text "point the session is stopped."
           dt: text "Read the call trace"
           dd(class = "measure"):
-            text "The full tree of calls at a glance, with what each one cost "
-            text "and where it went."
+            # "with what each one COST" was a fourth sense of the word on a page
+            # whose section heading already owns it. See the note on the cost
+            # section below.
+            text "The full tree of calls at a glance, with how much work each "
+            text "one did and where it went."
           dt: text "Read the source"
           dd(class = "measure"):
             text "Where the source is published, you step through the "
@@ -73,34 +76,99 @@ proc aboutPage*(chainCount: int): string =
           dd(class = "measure"):
             text "The same session, whatever the chain, the VM or the "
             text "language it was written in."
+          # THIS ITEM MOVED HERE FROM `What it costs you`, WHERE A READER SAID
+          # THEY COULD NOT PARSE IT. It read:
+          #
+          #   Nothing held back — Address history is complete and no list is
+          #   cut off at a row limit. The thousandth page costs what the first
+          #   one does.
+          #
+          # Three faults, and the last explains the others. `Nothing held back`
+          # is a label naming an ABSENCE, so a reader must work out what was
+          # supposedly being held back before the label means anything.
+          # `costs` collided with the heading four lines above it — `What it
+          # costs you` means what you give up, this `costs` meant how much work
+          # a page is. And every clause denied a failure mode the page never
+          # introduced: truncated lists, row caps, pagination that degrades with
+          # depth. A reader who has hit those in another explorer gets it
+          # instantly; everyone else gets a riddle.
+          #
+          # The fact underneath is worth keeping and is genuinely
+          # distinguishing, so this is a rewrite rather than a deletion — and it
+          # belongs HERE because it was never a cost. It is a thing the reader
+          # can do.
+          dt: text "Go back as far as you like"
+          dd(class = "measure"):
+            text "Page through an address's entire history. Nothing is cut "
+            text "off at a row limit, and the oldest page is no slower to "
+            text "load than the newest."
 
+        # THREE ITEMS, AND THE SECTION NOW MEANS ONE THING.
+        #
+        # Re-read in one pass rather than line by line, the FRAMING was as much
+        # at fault as the sentence a reader could not parse. `What it costs you`
+        # asks one question — what do I give up — and three of the four items
+        # answered it. The fourth was a capability wearing a denial, so the
+        # section asked the reader to hold two questions at once. With it moved,
+        # every item is a direct answer and all three answers are "nothing",
+        # which is the whole point of asking.
+        #
+        # IT ALSO ENDS A COLLISION ON `cost`, which was doing four jobs on this
+        # page: the heading (what you give up), "costs us compute" (our
+        # expense), "the thousandth page costs what the first one does" (how
+        # much work a page is), and the call trace's "what each one cost"
+        # (opcodes). Only the heading keeps the word.
         h2(class = "sec-title next"): text "What it costs you"
         dl(class = "dl group"):
           dt: text "No account"
           dd(class = "measure"):
-            text "Every published trace opens anonymously. An account is "
-            text "needed only to request a trace that does not exist yet, "
-            text "because generating one costs us compute — and the result is "
-            text "then public for everyone."
+            # "ASK" USED TO RENDER IN LITERAL CAPITALS HERE. This repository
+            # shouts for emphasis in commits, specs and comments, where it
+            # signals something to the next reader of the source; it had leaked
+            # through a `text` literal onto a product page, where it is just a
+            # raised voice.
+            #
+            # THE REASON IS KEPT AND THE WORD `costs` IS NOT. Explaining why an
+            # account exists earns its line: the sentence has just told the
+            # reader there IS a case where they must register, so "why?" is a
+            # question the text itself raises rather than one invented for them.
+            # What the answer must not do is spend the heading's own word on a
+            # different meaning, so the expense is now named concretely. It
+            # makes the same point — the gate is metering, not identity
+            # collection.
+            text "Reading is anonymous — every published trace opens without "
+            text "an account. You need one only to ask for a trace that does "
+            text "not exist yet, because generating it replays the transaction "
+            text "on our hardware. The result is then public for everyone."
           dt: text "No ads"
           dd(class = "measure"):
             text "There is no advertising and no market-data widget. Neither "
-            text "helps someone who arrived with a transaction to understand."
+            text "helps you understand a transaction."
           dt: text "No tracking"
           dd(class = "measure"):
+            # THE TWO FACTS THAT SURVIVED `/settings`. That page was removed as
+            # a reader-reported redundancy, and all but two of its statements
+            # were already made here in this same list. These two were not: that
+            # this site keeps CDN logs at all, and what it leaves on the
+            # reader's machine. Both are real constraints rather than
+            # reassurance, and a reader who has navigated to a section headed
+            # `What it costs you` has asked for exactly them — so they land
+            # here rather than disappearing with the page.
             text "No third-party requests at all, so there is nothing here to "
-            text "track you with."
-          dt: text "Nothing held back"
-          dd(class = "measure"):
-            text "Address history is complete and no list is cut off at a row "
-            text "limit. The thousandth page costs what the first one does."
+            text "track you with. This site keeps its own CDN logs and nothing "
+            text "else, and leaves nothing on your machine beyond the ordinary "
+            text "browser cache."
 
         h2(class = "sec-title next"): text "How it works"
         p(class = "lead"):
           text "Every page here is a static file. Your browser downloads it "
           text "and nothing else happens — no API, no database, no request to "
-          text "anyone else. That is why there is nothing to track you with, "
-          text "and why a page costs nothing to serve twice."
+          # "and why a page costs nothing to serve twice" was a FIFTH sense
+          # of `cost` on this page — our hosting bill — and it is the one
+          # reading no visitor has any use for. What it costs us to serve is
+          # not what they came to find out.
+          text "anyone else. That is why there is nothing here to track you "
+          text "with."
         dl(class = "dl group"):
           dt: text "Chains published"
           dd(class = "tnum"): text $chainCount
@@ -122,5 +190,3 @@ proc aboutPage*(chainCount: int): string =
           dd(class = "measure"):
             text "No page calls out to a node or any other service to fill a "
             text "gap. What you see is what was published, from one source."
-        p(class = "muted stack"):
-          a(href = settingsUrl()): text "What this site can see →"

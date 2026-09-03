@@ -50,7 +50,6 @@ proc addressSegmentUrl*(chain, address, segment: string): string =
 proc addressCodeUrl*(chain, address: string): string =
   "/" & chain & "/address/" & address & "/code"
 proc searchUrl*(): string = "/search"
-proc settingsUrl*(): string = "/settings"
 proc aboutUrl*(): string = "/about"
 
 # ── outcome ────────────────────────────────────────────────────────────────

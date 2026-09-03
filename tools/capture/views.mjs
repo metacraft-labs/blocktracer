@@ -876,16 +876,8 @@ export const VIEWS = [
     route: () => "/search?q=0xdeadbeef",
   },
   {
-    id: "settings",
-    description: "Settings — storage, debugger, privacy and advanced groups",
-    covers: ["settings"],
-    register: "explorer",
-    status: "ready",
-    route: () => "/settings",
-  },
-  {
     id: "static-content",
-    description: "Static content — /about, the privacy summary the trust strip links to",
+    description: "Static content — /about",
     covers: ["static-content"],
     register: "explorer",
     status: "ready",

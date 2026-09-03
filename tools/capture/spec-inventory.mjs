@@ -158,8 +158,10 @@ export const PAGES = [
   { id: "search.ambiguous", route: "/search?q=", anchor: "§11 grouped candidates" },
   { id: "search.cross-chain", route: "/search?q=", anchor: "§11 found on other chains" },
   { id: "search.not-found", route: "/search?q=", anchor: "§11 / Search-And-Routing §8" },
-  { id: "settings", route: "/settings", anchor: "§12" },
-  { id: "static-content", route: "/about, /docs/*", anchor: "§1 route map" },
+  { id: "static-content", route: "/about", anchor: "§1 route map" },
+  // §12's `/settings` had an entry here until the page was removed. It is
+  // deliberately not replaced by a "pending" row: the route is gone rather
+  // than unbuilt, and a pending row would report it as work outstanding.
 
   // ── The provenance banner, as TWO entries ────────────────────────────────
   //
@@ -168,7 +170,7 @@ export const PAGES = [
   // exports. (It was documented here as 814; that number counted the home
   // page's chain strip, which carries `data-provenance` on its cards and is a
   // different surface. The six pages without a marker are the site-level ones:
-  // /about, /settings, /search, /chains and the 404.)
+  // /about, /search, /chains and the 404.)
   //
   // Since 2026-08-31 the FORM varies and the id does not: a band where the
   // provenance is abnormal and the page has no facts grid, a chip where it is

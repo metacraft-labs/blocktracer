@@ -166,11 +166,11 @@ export const BACKBONES = {
   "site-chrome": {
     spec: "Page-Descriptions §2, §12, Design-System §2",
     items: [
-      "The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, the Metacraft Labs / CodeTracer credit and the source link. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath. It carries NO disclosure sentence of any kind: no claim about whose data the page shows, and no privacy claim either. Provenance is the per-page marker's job, and the privacy claims are answered on `/settings` and `/about`, both linked from the footer's own row. A footer sentence asserting provenance, directing the reader elsewhere to find it, or reassuring them that no account is required, is a finding — the last of those reads as an answer to a question no visitor asked.",
+      "The site footer, closing the page: the product line, the About and Chains links, the Metacraft Labs / CodeTracer credit and the source link. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath. It carries NO disclosure sentence of any kind: no claim about whose data the page shows, and no privacy claim either. Provenance is the per-page marker's job, and the privacy claims are answered on `/about`, linked from the footer's own row. A footer sentence asserting provenance, directing the reader elsewhere to find it, or reassuring them that no account is required, is a finding — the last of those reads as an answer to a question no visitor asked.",
       "The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.",
       "The fixed site nav, with the brand and the resolver field, above a body that does not run under it.",
       "THE PROVENANCE MARKER, on a chain-scoped page: a badge naming what this data IS — `Synthetic demo data` in the neutral tone, or `Real Aztec <network> data` in the affirmative tone. It is the only thing on the page that tells a reader whether the hashes in front of them exist on any network, so it is graded as CONTENT and not as decoration: missing, naming the wrong chain, carrying a tone that contradicts its label, or unreadable against its surface in either theme is a P1. WHICH FORM IT TAKES DEPENDS ON THE PAGE, and all three are correct — revised 2026-08-31, when a band on every page was replaced by a band only where something is abnormal: (a) a full-width `.notice` BAND with the producer's sentences, on a page whose data is SYNTHETIC and which has no facts grid of its own — a block, an address, a list, a chain overview; (b) a compact `.provchip` badge above the breadcrumb, on those same pages when the data is REAL; (c) a `Data` ROW at the top of the transaction facts grid, on any page that has one, carrying the badge and the producer's sentences. Exactly ONE of the three is present on any page — two markers is a finding, and so is none. Do not report the absence of a BAND on a real-chain page as missing provenance: that is the change, and the chip or the row is where to look.",
-      "On a SITE-LEVEL page — `/about`, `/settings`, `/search`, `/chains`, 404 — the provenance marker is correctly ABSENT in ALL THREE of its forms, because those pages show no chain's data and the component returns nothing rather than inventing a claim on a producer's behalf. Its absence there is not a finding, and reporting it as one is the error this item exists to prevent in the other direction.",
+      "On a SITE-LEVEL page — `/about`, `/search`, `/chains`, 404 — the provenance marker is correctly ABSENT in ALL THREE of its forms, because those pages show no chain's data and the component returns nothing rather than inventing a claim on a producer's behalf. Its absence there is not a finding, and reporting it as one is the error this item exists to prevent in the other direction.",
     ],
   },
 
@@ -993,35 +993,9 @@ export const EXPECTATIONS = [
   },
 
   {
-    id: "settings",
-    summary:
-      "Preferences — entirely client-side, and notably short because there is nothing to configure. It is a plain statement of what the site does and does not do.",
-    spec: "Page-Descriptions §12, §13",
-    register: "explorer",
-    inherits: ["site-chrome"],
-    mustShow: [
-      "Two labelled groups: Privacy · Your browser.",
-      "The privacy group ANSWERED rather than described: no account, no ads, no third-party requests, no telemetry, what is logged (this site's own CDN logs), and no record caps. This group needs no script and must be complete.",
-      "The `Your browser` group stating only what is TRUE FOR THE READER NOW — nothing stored beyond the ordinary browser cache, and theme and reduced motion following the system settings. A group that instead promises a control and explains why it cannot act yet is a finding: on a settings page that is a feature announcement, not a setting.",
-      "A link onward to the fuller privacy summary.",
-    ],
-    mustNotShow: [
-      "ANY interactive control — no toggle, no select, no number field, no clear button. §13's rule is that a control that cannot succeed is one this product does not ship, and a settings control that appears to accept a value has told the user their preference was recorded.",
-      "A telemetry switch, even one drawn as off.",
-      "Any chain RPC, data-provider or indexer configuration — the page's shortness is a design statement and additions to it are a spec violation.",
-      "An account, profile or sign-in section.",
-    ],
-    watchFor: [
-      "A page of prose where a reviewer expects controls: check it reads as a deliberate account of what this deployment does rather than as an unfinished form.",
-      "The privacy group is a real answer among three stated absences; check it dominates rather than being lost among them.",
-      "A short page on a wide viewport: check whether it has been given a measure and a column, or left as full-width rows across 1920 px.",
-    ],
-  },
-
-  {
     id: "static-content",
     summary:
-      "Static content — /about, the privacy summary the home page's trust strip links to.",
+      "Static content — /about, which is where every claim the product makes about itself is stated.",
     spec: "Page-Descriptions §1 route map, §2 Trust strip",
     register: "explorer",
     inherits: ["site-chrome"],

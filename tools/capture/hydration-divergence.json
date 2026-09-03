@@ -202,11 +202,6 @@
       "capturedFrom": "plain",
       "shipsBundle": false
     },
-    "settings": {
-      "route": "/settings",
-      "capturedFrom": "plain",
-      "shipsBundle": false
-    },
     "static-content": {
       "route": "/about",
       "capturedFrom": "plain",

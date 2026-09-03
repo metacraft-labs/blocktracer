@@ -24,7 +24,6 @@ import pages/tx as txPg
 import pages/address as addressPg
 import pages/code as codePg
 import pages/search as searchPg
-import pages/settings as settingsPg
 import pages/about as aboutPg
 import pages/notfound as notFoundPg
 import pages/debug as debugPg
@@ -41,7 +40,7 @@ type
     ## in its `<meta>` and be treated as another by the sitemap.
     rcCore = "index,follow"           ## I0 — home, /chains, /about, chain landing
     rcAddressable = "noindex,follow"  ## N1 — ordinary entities and their lists
-    rcUtility = "noindex,nofollow"    ## N2 — search, settings, embeds
+    rcUtility = "noindex,nofollow"    ## N2 — search and embeds
 
 func isPaginationRoute*(route: string): bool =
   ## §6's last row: "Pagination, filter, sort and layout variants … Never
@@ -59,7 +58,7 @@ func routeClass*(route: string): RouteClass =
   if p.len == 0: return rcCore
   case p
   of "chains", "about": return rcCore
-  of "search", "settings": return rcUtility
+  of "search": return rcUtility
   else: discard
   # `/{chain}` — §6: "Chain is publicly supported", which is what being in the
   # registry means here.
@@ -78,8 +77,9 @@ proc isSitemapRoute*(route: string): bool =
   ##     `<meta robots>` and canonical already say so; being absent from the
   ##     sitemap is the same statement made where a crawler reads it first, and
   ##     M8b requires this milestone to add no second indexable copy.
-  ##   * **`/search` and `/settings`** — class N2, whose promotion column reads
-  ##     "Never".
+  ##   * **`/search`** — class N2, whose promotion column reads "Never".
+  ##     `/settings` was the other member of this class until the page was
+  ##     removed; see `components/footer` for why it went.
   ##   * **Pagination variants** — "Never submitted". Every page of a cursor
   ##     walk is reachable by following the pager from the first page, which is
   ##     what `follow` is for.
@@ -257,14 +257,6 @@ proc renderAbout*(r: DataRoot): string =
     aboutPg.aboutPage(chains(r).len),
     robots = $routeClass("/about"),
     canonical = SiteDomain & "/about")
-
-proc renderSettings*(r: DataRoot): string =
-  pageLayout(
-    "Settings — BlockTracer",
-    "Browser-side preferences, and what this deployment can observe.",
-    settingsPg.settingsPage(),
-    robots = $routeClass("/settings"),
-    canonical = SiteDomain & "/settings")
 
 proc renderSearch*(r: DataRoot): string =
   ## §11. The query is resolved in the browser (Search-And-Routing §1–§6), so
@@ -531,7 +523,6 @@ proc staticRoutes*(r: DataRoot): seq[string] =
   result.add "/"
   result.add "/chains"
   result.add "/about"
-  result.add "/settings"
   result.add "/search"
   for chain in chains(r):
     let info = chainInfo(r, chain)
@@ -594,7 +585,6 @@ proc renderRoute*(r: DataRoot, path: string): tuple[status: int, body: string, c
     case parts[0]
     of "chains": return (200, renderChains(r), "text/html")
     of "about": return (200, renderAbout(r), "text/html")
-    of "settings": return (200, renderSettings(r), "text/html")
     of "search": return (200, renderSearch(r), "text/html")
     else:
       if parts[0] in chains(r):
