@@ -272,7 +272,20 @@ const ARMS = [
     find: `  rowHandler(h.ui.eventLog, ".evrow")`,
     replace: `  discard h.ui.eventLog`,
     journey: "a-jump-moves-the-position",
-    assertion: "the session's reported step is the step the event-log row named",
+    // REPOINTED, AND THE OLD TARGET IS THE FINDING. This arm named "the
+    // session's reported step is the step the event-log row named" and SURVIVED
+    // it in three independent runs, because that assertion — and every other
+    // reading in that block — is taken AFTER the gesture settles, and an
+    // unbound row settles in exactly the right place: the browser follows the
+    // anchor's href, tears the document down, and a new session opens at the
+    // named step. Right step, right mark, right `?t=`, 18 MB of engine
+    // refetched to move one frame.
+    //
+    // The assertion that bites is the one that reads DURING: a token stamped on
+    // `window` before the click survives a seek and cannot survive a
+    // navigation. The old assertion is kept and still made — it is a true claim
+    // about where the session ends up — it simply never was this arm's.
+    assertion: "the event-log jump SEEKS the open session and does not reload the page",
   },
   {
     id: "M/the-calltrace-reply-is-discarded-again",

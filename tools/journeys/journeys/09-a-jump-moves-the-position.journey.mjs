@@ -92,7 +92,7 @@ export const id = "a-jump-moves-the-position";
 export const claim =
   "A visitor who clicks a row in the navigation regions sees the position move there.";
 export const spec = "Debugger-Integration.md §3, §4.2 — BlockTracer";
-export const assertions = 34;
+export const assertions = 36;
 export const needsEngine = true;
 
 /**
@@ -405,8 +405,64 @@ export async function run({ browser, site, j }) {
       evTarget ? `row "${evTarget.label}" names step ${evTarget.step}` : `none found (${opened.why ?? opened.pane})`,
     );
 
+    // ── THE JUMP IS A SEEK AND NOT A NAVIGATION ──────────────────────────
+    //
+    // WHY THIS IS HERE, AND WHY EVERY OTHER ASSERTION IN THIS BLOCK IS BLIND TO
+    // IT. `H/the-event-log-rows-are-not-bound` removes
+    // `rowHandler(h.ui.eventLog, ".evrow")` — the event log's click binding,
+    // leaving the call trace's alone — and it SURVIVED, reproduced in three
+    // independent runs. It survived because an event-log row IS AN ANCHOR with
+    // a real §6.0a href, and `hydrate.nim` says so at the binding itself:
+    //
+    //     The row IS a link in a hydrated page, and its href is a real, valid
+    //     §6.0a URL … What must not happen is the FULL NAVIGATION on an
+    //     ordinary click: the session is already open at the right trace, and
+    //     reloading it to move one frame would refetch an 18 MB engine to
+    //     arrive where a `ct/goto-ticks` gets in a millisecond.
+    //
+    // Unbind the row and the click is no longer cancelled, so the browser
+    // follows the href, the document is torn down, and a NEW session opens at
+    // the named step. `data-step` is then right, the mark is right, one line
+    // carries it, `?t=` advanced — every assertion above passes, because every
+    // one of them is a reading taken AFTER the dust settles, and the dust
+    // settles in the right place either way. What is lost is the thing the
+    // binding exists for: the seek. An 18 MB engine refetch and a session
+    // rebuild, to move one frame.
+    //
+    // So the reading is taken DURING, and the instrument is the document's own
+    // identity. A token stamped on `window` before the gesture is still there
+    // afterwards if and only if the same JavaScript context is still running —
+    // which no attribute, class or count on the page can tell you, because the
+    // reloaded page renders identically to the seeked one. That is the whole
+    // reason this defect had no assertion.
+    //
+    // NOT A FLAG, AND NOT A NUMBER READ BACK EARLY. The two failure modes this
+    // directory keeps meeting are a stale-but-plausible value and a set that
+    // turned out empty; a token that is either PRESENT or GONE has neither. The
+    // control below makes the absence a measurement rather than a typo.
+    const TOKEN = `seek-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const stamped = await page.evaluate((t) => {
+      globalThis.__btDocumentToken = t;
+      return globalThis.__btDocumentToken;
+    }, TOKEN);
+    j.expect(
+      stamped === TOKEN,
+      "INSTRUMENT: the live document can be stamped, so its survival is measurable",
+      `stamped ${stamped === TOKEN ? "and read back" : `${stamped}, expected ${TOKEN}`}`,
+    );
+
     const evBefore = await readFacts(page);
     const evAfter = evTarget ? await jump(page, evTarget.index, ".evrow", evBefore) : evBefore;
+
+    const survived = await page.evaluate(() => globalThis.__btDocumentToken ?? null);
+    j.expect(
+      survived === TOKEN,
+      "the event-log jump SEEKS the open session and does not reload the page",
+      survived === TOKEN
+        ? "the document that was stamped before the click is the one still on screen"
+        : `the stamp is gone (${survived}) — the click was not cancelled, so the browser` +
+          ` followed the row's href and rebuilt the whole session, engine and all, to move one frame`,
+    );
 
     j.expect(
       evAfter.urlQuery !== evBefore.urlQuery,
