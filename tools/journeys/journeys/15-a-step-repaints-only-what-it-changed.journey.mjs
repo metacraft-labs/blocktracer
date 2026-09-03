@@ -57,7 +57,14 @@
 // satisfy by accident. The demo chain is journey 14's arm, for the opposite
 // reason: it is where a step INTO a frame brings names that were not in scope.
 
-import { visit, readFacts } from "../lib/probe.mjs";
+import {
+  visit,
+  readFacts,
+  consoleMark,
+  waitForConsoleLine,
+  LOCALS_ANSWERED,
+  waitForFacts,
+} from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";
 
 export const id = "a-step-repaints-only-what-it-changed";
@@ -255,19 +262,41 @@ export async function run({ browser, site, j }) {
     //
     // `rowsArrived` is recorded rather than asserted, so a reader of a green run
     // can see which of the two happened instead of assuming the poll succeeded.
+    //
+    // THE LANDING HAS AN EVENT, BUT NOT NECESSARILY AT THE LANDING — and the
+    // second half of that sentence is measured, not hedged.
+    //
+    // `[PIPELINE] updateLocals: setting N variables` is emitted when the
+    // engine's values reach the pane, and it was invisible only because this
+    // layer filtered the console by severity and discarded every `log` line.
+    // So the event this site was filed as lacking does exist, and it is waited
+    // on below rather than slept through.
+    //
+    // It does NOT fire here. Measured on the built site: at the landing the
+    // session sits at `rrTicks=0` with `visibleLines memo: returning empty (no
+    // lines in store)` and no `updateLocals` at all — the note below reads
+    // "locals answer NOT seen within 20s; values pane rows never arrived" on a
+    // green run. Locals arrive once the session STEPS, which is why the walk
+    // further down reaches six positions whose Values pane settles with rows.
+    //
+    // So this row does not simply move out of the "no observable event"
+    // category. The event exists and is now used; the FALL-THROUGH is still
+    // load-bearing, because at this moment there may be nothing to wait for.
+    // That is why both readings are recorded and neither is asserted, and why
+    // the paragraph above about the instrument proof being engine-independent
+    // is what keeps this honest rather than the wait itself.
     let rowsArrived = false;
     {
-      const deadline = Date.now() + 20000;
-      while (Date.now() < deadline) {
-        if ((await readFacts(page)).stateRows.length > 0) {
-          rowsArrived = true;
-          break;
-        }
-        await page.waitForTimeout(150);
-      }
-      await page.waitForTimeout(800);
+      const mark = consoleMark(page);
+      const localsAnswered = await waitForConsoleLine(page, LOCALS_ANSWERED, {
+        sinceIndex: mark,
+        budgetMs: 20000,
+      });
+      const rows = await waitForFacts(page, (f) => f.stateRows.length > 0, 8000);
+      rowsArrived = rows.reached;
       j.note(
-        `values pane rows before the instrument proof: ${rowsArrived ? "arrived" : "never arrived (poll fell through)"}`,
+        `landing: locals answer ${localsAnswered ? "seen" : "NOT seen within 20s"}; ` +
+          `values pane rows ${rowsArrived ? "arrived" : "never arrived"}`,
       );
     }
 

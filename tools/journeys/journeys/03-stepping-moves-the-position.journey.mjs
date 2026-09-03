@@ -44,7 +44,7 @@
 // correctly" is vacuously true of a corpus that contains none — which is
 // exactly how the gap stayed invisible.
 
-import { visit, readFacts } from "../lib/probe.mjs";
+import { visit, readFacts, consoleMark, waitForConsoleLine, POSITION_ANSWERED, tickOf, waitForFacts } from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";
 
 export const id = "stepping-moves-the-position";
@@ -54,26 +54,36 @@ export const assertions = 16;
 export const needsEngine = true;
 
 /**
- * Step once and wait for ANY of the three things a step could move.
+ * Step once and wait for THE ENGINE TO ANSWER, then for the panes to carry that
+ * answer.
  *
- * A predicate, never a sleep: a step that moves nothing must be a timeout with
- * all three reported rather than a race this suite happened to lose.
+ * IT USED TO WAIT FOR THE DOM TO DIFFER, and that cannot tell two situations
+ * apart: the engine has not answered yet, and the engine answered and the
+ * position legitimately did not move — two steps landing on one line, or a step
+ * at the end of a range. The first is a wait; the second is a RESULT. Treating
+ * them alike meant a no-move step spun the full 15s and then handed back the
+ * reading it started with, so the journey judged a stale `before` as an `after`.
+ *
+ * `[PIPELINE] updateDebuggerPosition` is emitted on every stop whether or not
+ * anything moved, and it names the tick it moved to — so the wait is now "the
+ * engine answered this gesture", the DOM wait keys off the tick that answer
+ * NAMES rather than off a fixed interval, and whether anything moved is left to
+ * the assertions, which is where it belongs.
  */
 async function stepOnce(page, before) {
+  const mark = consoleMark(page);
   await page.click('[data-action="step-forward"]');
-  const deadline = Date.now() + 15000;
-  let after = before;
-  while (Date.now() < deadline) {
-    after = await readFacts(page);
-    if (
-      after.urlQuery !== before.urlQuery ||
-      after.step !== before.step ||
-      after.markedNumber !== before.markedNumber
-    )
-      break;
-    await page.waitForTimeout(200);
+  const answered = await waitForConsoleLine(page, POSITION_ANSWERED, {
+    sinceIndex: mark,
+    budgetMs: 15000,
+  });
+  const tick = tickOf(answered);
+  if (tick !== null) {
+    // The panes are written from that same answer, so this waits for the DOM to
+    // carry the tick the engine just named — not for a duration.
+    await waitForFacts(page, (f) => f.step === tick, 8000);
   }
-  return after;
+  return readFacts(page);
 }
 
 export async function run({ browser, site, j }) {

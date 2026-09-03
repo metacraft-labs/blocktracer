@@ -489,6 +489,24 @@ export async function visit(
     // own sentence naming which of the two faults it was — the engine never
     // loaded, or it loaded and refused the container.
     //
+    // THE GENERAL RULE, because "keep the harness budget under the product's"
+    // is NOT one and stating it as one would get this line "fixed" back:
+    //
+    //   BELOW the product's deadline when you need to catch the condition
+    //   BEFORE the product tidies it away. A cleared spinner, a reset phase, a
+    //   pane the product blanked on giving up — sample after that and you read
+    //   the tidy-up and call it success. This is a false PASS and it is
+    //   invisible in a green run.
+    //
+    //   ABOVE it when the product WRITES ITS OWN FAILURE RECORD and you want to
+    //   read that record. Giving up first only tells you that you gave up
+    //   first; outliving it tells you what happened, in the product's own
+    //   words.
+    //
+    // Which one applies is decided by ONE question — does the product leave
+    // evidence behind when its deadline fires? Here it does (`h.fail` ->
+    // `#dbg-engine-failure`), so above. Where it does not, go below.
+    //
     // 60s = EngineDeadlineMs + 15s. The margin is for the watchdog's own
     // handler to run and paint, not for more waiting.
     settleMs = 60000,
@@ -537,6 +555,11 @@ export async function visit(
     consoleLines.push({ type: m.type(), text });
     if (m.type() === "error") consoleErrors.push(text);
   });
+  // ATTACHED TO THE PAGE, so a helper that only receives `page` can wait on the
+  // product's own announcements. `walk(page)`, `stepOnce(page, before)` and the
+  // rest take no visit result, and threading one through every signature to
+  // reach a buffer is churn that would put people off using it.
+  page.__ctConsole = consoleLines;
 
   // INSTALLED BEFORE ANY PAGE SCRIPT RUNS, which is the only moment that is any
   // use: the hydration bundle constructs its worker during its own startup, so
@@ -580,4 +603,87 @@ export async function visit(
     settled,
     timedOut,
   };
+}
+
+// ---------------------------------------------------------------------------
+// WAITING ON WHAT THE PRODUCT SAYS, rather than on what the DOM has become.
+//
+// The hydration bundle announces its own pipeline on the console, and until
+// this layer stopped filtering by severity nobody could see it. Two lines
+// matter here, both measured firing in a live session:
+//
+//   [PIPELINE] updateDebuggerPosition: storeId=1 setting rrTicks=1 (was 0)
+//              file=/aztec/0x….avm line=5
+//   [PIPELINE] updateLocals: setting 5 variables
+//
+// WHY THIS BEATS POLLING THE DOM FOR A CHANGE, which is what the step waits in
+// journeys 03, 09 and 16 did. They loop until `step` or `markedNumber` differs
+// from before, so they cannot tell "the engine has not answered yet" from "the
+// engine answered and the position legitimately did not move" — two steps
+// landing on one line, a step at the end of a range. The first is a wait, the
+// second is a RESULT, and a loop that treats them alike spins its full 15s and
+// then hands back the reading it started with.
+//
+// `updateDebuggerPosition` is emitted on every stop whether or not anything
+// moved, and it carries the tick, the file and the line. So the wait becomes
+// "the engine answered this gesture" and the ASSERTION becomes "and here is
+// what moved" — which is the separation these journeys were written to have.
+// ---------------------------------------------------------------------------
+
+/** How many console lines have been seen. Take before a gesture. */
+export function consoleMark(page) {
+  return (page.__ctConsole || []).length;
+}
+
+/**
+ * Wait for a console line matching `test` to arrive AFTER `sinceIndex`.
+ *
+ * Returns the line, or `null` on timeout — never throws, because a timeout is a
+ * result the caller has to be able to report. It DOES throw when no buffer is
+ * attached, which is not the same thing: that means the page did not come from
+ * `visit()` and the wait would silently be a no-op, which is the shape of check
+ * that passes by not running.
+ */
+export async function waitForConsoleLine(page, test, { sinceIndex = 0, budgetMs = 20000 } = {}) {
+  const buf = page.__ctConsole;
+  if (!buf) {
+    throw new Error(
+      "waitForConsoleLine: no console buffer on this page — it did not come from visit()",
+    );
+  }
+  const deadline = Date.now() + budgetMs;
+  for (;;) {
+    for (let i = sinceIndex; i < buf.length; i += 1) {
+      if (test(buf[i].text)) return buf[i].text;
+    }
+    if (Date.now() >= deadline) return null;
+    await page.waitForTimeout(100);
+  }
+}
+
+/** The engine answered a gesture with a position. */
+export const POSITION_ANSWERED = (t) => t.includes("[PIPELINE] updateDebuggerPosition:");
+
+/** The engine answered a position with its locals. */
+export const LOCALS_ANSWERED = (t) => t.includes("[PIPELINE] updateLocals:");
+
+/**
+ * Poll `readFacts` until `test` holds. Returns the facts either way, plus
+ * whether the condition was reached — never a bare boolean, because a caller
+ * that times out still has to report WHAT it saw.
+ */
+export async function waitForFacts(page, test, budgetMs = 8000) {
+  const deadline = Date.now() + budgetMs;
+  let facts = await readFacts(page);
+  while (!test(facts) && Date.now() < deadline) {
+    await page.waitForTimeout(100);
+    facts = await readFacts(page);
+  }
+  return { facts, reached: test(facts) };
+}
+
+/** The tick `updateDebuggerPosition` says it moved to, or null. */
+export function tickOf(positionLine) {
+  const m = positionLine && positionLine.match(/rrTicks=(\d+)/);
+  return m ? m[1] : null;
 }

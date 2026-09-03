@@ -77,7 +77,15 @@
 // vacuously true of a corpus with no real captures, and that is precisely how
 // the gap above stayed invisible for as long as it did.
 
-import { visit, readFacts } from "../lib/probe.mjs";
+import {
+  visit,
+  readFacts,
+  consoleMark,
+  waitForConsoleLine,
+  POSITION_ANSWERED,
+  tickOf,
+  waitForFacts,
+} from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";
 
 export const id = "a-jump-moves-the-position";
@@ -226,31 +234,36 @@ const servedNavRows = (page, url) =>
   }, url);
 
 /**
- * Click, then wait for ANY of the three things a jump could move.
+ * Click, then wait for THE ENGINE TO ANSWER, then for the panes to carry it.
  *
- * A predicate and never a sleep — journey 03's reason applies unchanged: a jump
- * that moves nothing must be a timeout with all three reported, not a race this
- * suite happened to lose.
+ * IT USED TO WAIT FOR THE DOM TO DIFFER, and journey 03's correction applies
+ * unchanged: that cannot tell "the engine has not answered yet" from "the
+ * engine answered and the jump landed where we already were" — a row for the
+ * current position, a jump to the top of a range already at its top. The first
+ * is a wait; the second is a RESULT. Treated alike, a no-move jump spun the
+ * full 15s and handed back the reading it started with, so the journey judged a
+ * stale `before` as an `after`.
+ *
+ * `[PIPELINE] updateDebuggerPosition` is emitted on every stop whether or not
+ * anything moved, and names the tick. The wait is now "the engine answered this
+ * gesture"; whether anything moved is left to the assertions.
  */
 async function jump(page, index, selector, before) {
   await page.evaluate(
     ({ sel, i }) => document.querySelectorAll(sel)[i].scrollIntoView({ block: "center" }),
     { sel: selector, i: index },
   );
+  const mark = consoleMark(page);
   await page.click(`${selector} >> nth=${index}`);
-  const deadline = Date.now() + 15000;
-  let after = before;
-  while (Date.now() < deadline) {
-    after = await readFacts(page);
-    if (
-      after.urlQuery !== before.urlQuery ||
-      after.step !== before.step ||
-      after.markedNumber !== before.markedNumber
-    )
-      break;
-    await page.waitForTimeout(200);
+  const answered = await waitForConsoleLine(page, POSITION_ANSWERED, {
+    sinceIndex: mark,
+    budgetMs: 15000,
+  });
+  const tick = tickOf(answered);
+  if (tick !== null) {
+    await waitForFacts(page, (f) => f.step === tick, 8000);
   }
-  return after;
+  return readFacts(page);
 }
 
 export async function run({ browser, site, j }) {

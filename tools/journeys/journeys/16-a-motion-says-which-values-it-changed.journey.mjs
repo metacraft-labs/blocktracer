@@ -49,7 +49,15 @@
 //
 // NOTHING BELOW NAMES A VALUE, A VARIABLE, A STEP OR A TRANSACTION. Rule 4.
 
-import { visit, readFacts } from "../lib/probe.mjs";
+import {
+  visit,
+  readFacts,
+  consoleMark,
+  waitForConsoleLine,
+  POSITION_ANSWERED,
+  tickOf,
+  waitForFacts,
+} from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";
 
 export const id = "a-motion-says-which-values-it-changed";
@@ -89,13 +97,18 @@ async function settled(page, timeoutMs = 15000) {
 async function walk(page) {
   const readings = [await settled(page)];
   for (let i = 0; i < WALK; i++) {
-    const before = await readFacts(page);
+    // WAIT FOR THE ENGINE'S ANSWER, not for `step` to differ. A step that lands
+    // where it started is a RESULT, and this loop could not tell it from a step
+    // still in flight — it spun its full 15s and then took a reading of a
+    // position that had already settled.
+    const mark = consoleMark(page);
     await page.click('[data-action="step-forward"]');
-    const deadline = Date.now() + 15000;
-    while (Date.now() < deadline) {
-      if ((await readFacts(page)).step !== before.step) break;
-      await page.waitForTimeout(90);
-    }
+    const answered = await waitForConsoleLine(page, POSITION_ANSWERED, {
+      sinceIndex: mark,
+      budgetMs: 15000,
+    });
+    const tick = tickOf(answered);
+    if (tick !== null) await waitForFacts(page, (f) => f.step === tick, 8000);
     readings.push(await settled(page));
   }
   return readings;
