@@ -30,9 +30,25 @@ flake-pinned `wrangler pages deploy`:
 | `dev` | `blocktracer-dev` | — |
 | any PR | `blocktracer-dev` | `<head-ref>.blocktracer-dev.pages.dev` |
 
-The production **blocktracer.org** apex is served by a separate **Cloudflare R2
-delta-publisher** path (bucket bound to the `blocktracer.org` zone), documented
-in [`DEPLOY.md`](./DEPLOY.md) — not by the Pages projects above.
+**blocktracer.org is the `blocktracer` Pages project in the table above** — the
+apex is a custom domain on it, added out-of-band, and the `live` branch is its
+production branch. To promote production, fast-forward `live`; there is no other
+lever and no credential to obtain.
+
+[`DEPLOY.md`](./DEPLOY.md) describes an **R2 delta-publisher path that was never
+built.** None of its four steps were carried out: `data.json` declares no
+`blocktracer` R2 bucket, `r2_custom_domains` is empty, the repository holds no
+`R2_*` secret, and no publishing workflow has existed on any branch. Read it as a
+plan, never as a description of production. The claim that it *is* production
+stood in this file, in both deploy workflows and in DEPLOY.md's own opening for
+long enough to make "what serves blocktracer.org" unanswerable to several
+readers; the byte check that settles it is one command:
+
+```sh
+# identical => one store, i.e. Pages; divergent => two producers
+curl -s https://blocktracer.org/ | shasum -a 256
+curl -s https://blocktracer.pages.dev/ | shasum -a 256
+```
 
 **If a deploy is starved by the runner pool, it re-enqueues itself.**
 `eph-linux-x64` is shared across the org and deploys routinely queue behind it,

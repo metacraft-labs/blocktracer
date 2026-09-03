@@ -44,9 +44,10 @@ name: Deploy to Cloudflare Pages (reusable)
 #   creation with wrangler), so this workflow only deploys the right branch to
 #   the right project.
 #
-# NOTE: this is the Cloudflare PAGES deploy (the demo/static explorer). It is
-# independent of the R2 delta-publisher go-live runbook in DEPLOY.md, which
-# serves blocktracer.org from an R2 bucket — a separate, credentialed path.
+# NOTE: this Cloudflare PAGES deploy publishes EVERY BlockTracer host, including
+# the blocktracer.org apex, which is a custom domain on the `blocktracer` project
+# with `live` as its production branch. DEPLOY.md's R2 runbook was never carried
+# out and serves nothing; do not treat it as a second, credentialed path.
 # ---------------------------------------------------------------------------
 
 on:
