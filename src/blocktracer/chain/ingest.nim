@@ -95,6 +95,30 @@
 import std/[json, os, algorithm, strutils, tables]
 import ../contract/[model, ids, version]
 
+proc readableDate*(iso: string): string =
+  ## `2026-09-01T07:13:35.934Z` → `1 September 2026`.
+  ##
+  ## The banner is read by visitors. An ISO-8601 instant with milliseconds and a
+  ## `Z` is a machine's way of writing a date, and it was being printed twice in
+  ## one sentence on a paragraph whose whole job is to be understood. The exact
+  ## instant is not lost: `summary.json` keeps `capturedAt` verbatim, which is
+  ## where a check or a reader who wants the millisecond should read it.
+  ##
+  ## Anything that does not parse is returned unchanged rather than guessed at —
+  ## a date this proc cannot read is a date it must not invent.
+  const months = ["January", "February", "March", "April", "May", "June",
+                  "July", "August", "September", "October", "November",
+                  "December"]
+  if iso.len < 10: return iso
+  try:
+    let y = parseInt(iso[0 .. 3])
+    let m = parseInt(iso[5 .. 6])
+    let d = parseInt(iso[8 .. 9])
+    if m < 1 or m > 12 or d < 1 or d > 31: return iso
+    result = $d & " " & months[m - 1] & " " & $y
+  except ValueError:
+    return iso
+
 type
   IngestScope* = enum
     ## HOW MUCH OF A SNAPSHOT BECOMES PAGES. Not a filter and not a cap: the two
@@ -1151,32 +1175,6 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # HOW FAR THE NEWEST TRANSACTION SAT FROM THE WINDOW IT MISSED — and the arithmetic
   # only means that when it is actually below it.
   #
-  # `replayableFrom - mostRecentTxBlock` was written when a snapshot was one scan, where
-  # the newest transaction is necessarily at or below the tip that scan read. A WATCHED
-  # snapshot breaks that: the follower keeps extending the block record, so the newest
-  # transaction can sit far ABOVE the window recorded at the last catch, and the
-  # subtraction goes negative. It did: the first grown mainnet snapshot published
-  # "the most recent one settled in block 67511 — -391 block(s) below the window", a
-  # sentence that is not merely ugly but false, on the one element of the page whose
-  # entire job is to be believed.
-  #
-  # Three arms, because there are three states of the world and each says something
-  # different to a reader: nothing settled at all, the newest is below the window and
-  # therefore pruned, or the newest is inside it and simply was not replayable when the
-  # capture reached it.
-  let replFrom = win["replayableFrom"].getInt
-  let belowBy = replFrom - mostRecentTxBlock
-  let recency =
-    if txHeights.len == 0:
-      "no transaction settled in the enumerated range at all. "
-    elif belowBy > 0:
-      "the most recent one settled in block " & $mostRecentTxBlock & " — " &
-      $belowBy & " block(s) below that window, so it had already been pruned " &
-      "when this capture ran. "
-    else:
-      "the most recent one settled in block " & $mostRecentTxBlock &
-      ", at or above the last window recorded here — it carries no trace " &
-      "because its body was already gone when the capture reached it. "
 
   # The label a reader sees on the banner and on the home page's chain strip.
   # The capture supplies it; this is a fallback for a snapshot that named none,
@@ -1195,10 +1193,6 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # markup — and the right response to a check that cannot tell a mention from a
   # fetch is to stop putting fetchable-looking strings in prose, not to teach the
   # check to ignore a class of them.
-  var endpointHost = prov["endpoint"].getStr
-  for scheme in ["https://", "http://"]:
-    if endpointHost.startsWith(scheme):
-      endpointHost = endpointHost[scheme.len .. ^1]
   # WHAT WAS CAPTURED, AND — WHEN IT IS NOTHING — THAT IT WAS NOTHING.
   #
   # A chain whose window held no replayable transaction is a real outcome, not a
@@ -1213,84 +1207,51 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # the window was replayable" is a measurement, and the density that explains
   # it is published beside it.
   #
-  # A SNAPSHOT MAY BE THE PRODUCT OF MORE THAN ONE MOMENT. `capture-chain.mjs` writes one
-  # scan and its `capturedAt` is that scan; `follow-chain.mjs` WATCHES, and the snapshot it
-  # grows spans every moment it was extended. "at that moment" is then a false sentence
-  # about a true timestamp — the blocks run to the latest poll and the reader is told the
-  # whole chain was read hours earlier.
-  #
-  # So the phrasing follows the snapshot. A single-moment capture reads exactly as it
-  # always did, byte for byte; a watched one says it was watched, and names both ends.
-  # `firstCapturedAt` is what distinguishes them, and it is absent from a one-shot
-  # snapshot rather than equal to `capturedAt`, so this cannot misclassify a scan.
-  let firstAt = prov{"firstCapturedAt"}.getStr
   let lastAt = prov{"capturedAt"}.getStr
-  # A FROZEN CAPTURE IS FINISHED, AND SAYS SO IN THE PAST TENSE. The two arms below both
-  # describe a capture that is still going: "was last extended" and "when it was last
-  # looked at" are true only while something might extend it again. Once the demo's target
-  # is met the snapshot stops changing, and those phrases become quietly wrong — they
-  # invite a reader to expect a newer window than the one on the page, and they date the
-  # capture to a "last look" that will never happen again.
+  # THE THREE CAPTURE TENSES ARE GONE, AND `frozen` NO LONGER CHANGES THE PROSE.
   #
-  # `frozen` is written by `tools/chain/freeze-snapshot.mjs` only after every complete
-  # block has been verified against the chain, so this arm cannot be reached by a snapshot
-  # that merely stopped being written to.
-  var completeNums: seq[int] = @[]
-  if prov{"completeBlocks"} != nil and prov["completeBlocks"].kind == JArray:
-    for b in prov["completeBlocks"]: completeNums.add b.getInt
-  let blockList =
-    if completeNums.len == 1: "block " & $completeNums[0]
-    elif completeNums.len == 2: "blocks " & $completeNums[0] & " and " & $completeNums[1]
-    else:
-      var parts: seq[string] = @[]
-      for i, n in completeNums:
-        if i == completeNums.high: parts.add "and " & $n
-        else: parts.add $n
-      "blocks " & parts.join(", ")
-  # THE WINDOW THE FROZEN SENTENCE MEANS IS THE ONE AT THE LAST CAPTURE, NOT AT THE LAST
-  # POLL. `snap["window"]` is rewritten on every backfill, and a follower keeps polling and
-  # backfilling long after its final catch — mainnet's capture outlived its last catch by
-  # 92 minutes and 76 blocks. Reading the snapshot-level window here made the page say "the
-  # replay window was blocks 68287–68307 when the last of them was taken" about a block
-  # taken at 68231, inside a window of 68191–68231: a true window, attached to the wrong
-  # moment, in a sentence whose whole job is to date the capture. The per-transaction
-  # `capturedWindow` is the window that was open when THAT transaction was recorded.
-  var frozenFrom = replFrom
-  var frozenTip = tipAt
-  var frozenBlocks = win["blocks"].getInt
-  if completeNums.len > 0:
-    let newest = max(completeNums)
-    for t in snap["transactions"]:
-      if t{"blockNumber"}.getInt == newest and t{"capturedWindow"} != nil:
-        let cw = t["capturedWindow"]
-        frozenFrom = cw["replayableFrom"].getInt
-        frozenTip = cw["tip"].getInt
-        frozenBlocks = frozenTip - cw["finalized"].getInt
-  let captured =
-    if prov{"frozen"}.getBool and completeNums.len > 0:
-      "Captured from " & endpointHost &
-      (if firstAt.len > 0 and firstAt != lastAt: " between " & firstAt & " and " & lastAt
-       else: " at " & lastAt) &
-      " (node " & prov["nodeVersion"].getStr & "). This capture is complete and is not " &
-      "being extended: " & blockList & " were taken WHOLE — every transaction the chain " &
-      "published in " & (if completeNums.len == 1: "it" else: "them") &
-      " was re-executed and its trace is published here. The replay window was blocks " &
-      $frozenFrom & "–" & $frozenTip & " (" & $frozenBlocks &
-      " blocks) when the last of them was taken. "
-    elif firstAt.len > 0 and firstAt != lastAt:
-      "Captured from " & endpointHost & " over a watch that began " & firstAt &
-      " and was last extended " & lastAt & " (node " & prov["nodeVersion"].getStr &
-      "). The replay window was blocks " & $replFrom & "–" & $tipAt & " (" &
-      $win["blocks"].getInt & " blocks) when it was last looked at. "
-    else:
-      "Captured from " & endpointHost & " at " & lastAt &
-      " (node " & prov["nodeVersion"].getStr & "). The replay window was blocks " &
-      $replFrom & "–" & $tipAt & " (" & $win["blocks"].getInt &
-      " blocks) at that moment. "
+  # There used to be three arms here — a frozen capture in the past tense naming
+  # every block "taken WHOLE", a running watch that "was last extended", and a
+  # one-shot scan "at that moment" — because each was true of a different
+  # snapshot and the wrong one quietly misled. All three narrated the CAPTURE,
+  # and a visitor does nothing with any of them; a user asked for prose written
+  # for a reader instead. One sentence now serves every snapshot, and suite 11
+  # of `test_chain_provenance` asserts a frozen and an unfrozen capture produce
+  # it identically, which is where a re-grown branch would show.
+  #
+  # `frozen` still means what it meant — `tools/chain/freeze-snapshot.mjs`
+  # writes it only after re-reading every complete block from the chain — and it
+  # is still published in `summary.json`. It simply no longer picks a tense.
+  # THE FROZEN-WINDOW ARITHMETIC THAT USED TO LIVE HERE IS GONE WITH THE SENTENCE IT FED.
+  # It listed the complete blocks by number and recovered the replay window as it stood at
+  # the last catch rather than the last poll — a real correction, for a real defect, in a
+  # clause that no longer exists because no visitor was using it. `summary.json` still
+  # publishes `tipAtCapture`, `finalizedAtCapture` and `replayableWindowBlocks`, and the
+  # snapshot still carries the per-transaction `capturedWindow`, so nothing about the
+  # capture became unknowable — it stopped being narrated.
+  # WHEN IT WAS TAKEN, AND NOTHING ELSE.
+  #
+  # THIS PARAGRAPH USED TO DEFEND THE CAPTURE AND A USER ASKED FOR IT TO STOP.
+  # It named the endpoint host, the node version, two ISO-8601 instants, the
+  # replay window in blocks, and asserted that the capture "is complete and is
+  # not being extended" with `WHOLE` shouted in the middle of it. Every clause
+  # was true. None of it survives the question this site now asks of a sentence
+  # before publishing it: who is the reader, and what do they do with this?
+  #
+  # A visitor does which of those? None. They reassure the author that the
+  # capture was done properly, which is a doubt the reader did not arrive with.
+  # The facts are not lost — `summary.json` beside this keeps `endpoint`,
+  # `nodeVersion`, `capturedAt`, `tipAtCapture`, `finalizedAtCapture` and
+  # `replayableWindowBlocks` verbatim, and that is where a machine or a curious
+  # reader should get them. What is left in prose is the one thing a visitor
+  # uses: this is a recording of a real chain, and here is when it was made.
+  let captured = "Captured on " & readableDate(lastAt) & ". "
   let middle =
     if withTrace > 0:
-      $withTrace & " transaction(s) inside it were re-executed and their " &
-      "traces are published here. "
+      $withTrace & " transaction" & (if withTrace == 1: "" else: "s") &
+      " here " & (if withTrace == 1: "was" else: "were") &
+      " re-run and recorded, so " & (if withTrace == 1: "it steps" else: "they step") &
+      ". "
     elif refusedCount > 0:
       # THE HONEST DISTINCTION, and the reason this arm exists. The other arm says the
       # window held nothing replayable — a fact about the CHAIN. That sentence was
@@ -1299,25 +1260,20 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # runtime for a toolchain reason on this side of the wire. Reporting that as "no
       # transaction inside it was replayable" blames the chain for our own fault, and
       # tells a reader the opposite of what happened: the follower reached them in time.
-      $refusedCount & " transaction(s) inside it WERE still replayable and were " &
-      "caught in time, and the replay runtime refused " &
-      (if refusedCount == 1: "it" else: "them") &
-      (if refusalNames.len > 0: " (" & refusalNames.join(", ") & ")" else: "") &
-      ", so no trace was recorded. That is a failure on the recording side, not a " &
-      "property of this chain, and it is stated here rather than shown as an absence. " &
-      "Across the " & $blockRows.len &
-      " blocks enumerated here this chain settled " & $txCount &
-      " transaction(s), and they did not arrive evenly: the longest run with " &
-      "none was " & $largestGap & " blocks. "
+      # THE REFUSAL STAYS, THE TYPE NAME GOES. `AvmToolchainRegression` was
+      # being rendered to visitors — an internal class name, reaching a product
+      # surface through a generator. What a reader can use is that these
+      # transactions were reached in time and still could not be recorded, and
+      # that it was not the chain's doing. The names are kept in `summary.json`
+      # and in the snapshot for anyone diagnosing it.
+      $refusedCount & " transaction" & (if refusedCount == 1: "" else: "s") &
+      " could not be recorded because of a fault on our side, not the chain's. " &
+      "Nothing on " & (if refusedCount == 1: "it" else: "them") & " can be " &
+      "stepped through. "
     else:
-      "NO TRANSACTION INSIDE IT WAS REPLAYABLE, so this chain publishes real " &
-      "blocks and real transactions and no traces. That is what the capture " &
-      "found, not a failure to record. Across the " & $blockRows.len &
-      " blocks enumerated here this chain settled " & $txCount &
-      " transaction(s), and they did not arrive evenly: the longest run with " &
-      "none was " & $largestGap & " blocks, and " & recency &
-      "Catching one needs a follower that watches the tip continuously rather " &
-      "than a single scan. "
+      "None of the transactions here could be re-run, so there is nothing to " &
+      "step through. A transaction can only be replayed for a short time after " &
+      "it settles, and none was reached in time. "
   # THE CURATED PARAGRAPH IS A SEPARATE ARM, NOT AN EDIT TO THE ONE ABOVE.
   #
   # Every sentence in `middle` is a claim about the ENUMERATED range, and under
@@ -1332,75 +1288,58 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # empty set. "Every transaction here opens a container" is true and useless of a
   # chain with no transactions on it, and a reader who counts zero rows under that
   # sentence has been told nothing.
-  # WHY THE UNPUBLISHED ONES ARE UNPUBLISHED, SPLIT BY WHOSE FAULT IT WAS.
+  # WHY THERE ARE SO FEW, IN ONE SENTENCE A READER CAN USE.
   #
-  # "their bodies were pruned before anything could re-execute them" is a fact
-  # about the CHAIN, and it is false of a refusal: a refused transaction was
-  # reached inside the window with its body still served, and the replay runtime
-  # declined. Merging the two blames the network for a fault on this side of the
-  # wire — the exact sentence commit b7cafba had to replace on the uncurated
-  # banner, and it would have come straight back here, because the curated arm
-  # is a new paragraph and `refusedCount` counts only the PUBLISHED set, which
-  # under curation can never contain a refusal at all.
-  # ONE CLAUSE PER BUCKET, and the buckets are the outcomes rather than
-  # "replayed" and "everything else". A single sentence over the remainder is
-  # what merges a refusal into a pruning; three clauses cannot, and a fourth
-  # outcome the capture starts emitting gets its own clause naming itself rather
-  # than being absorbed into whichever neighbour reads closest.
-  var observedPruned, observedRefused, observedOther = 0
-  var observedRefusalNames, otherOutcomes: seq[string]
-  for t in snap["transactions"]:
-    let o = t["outcome"].getStr
-    case o
-    of "replayed", "divergent": discard
-    of "pruned": inc observedPruned
-    of "refused":
-      inc observedRefused
-      let rn = t{"refusal"}.getStr
-      if rn.len > 0 and rn notin observedRefusalNames: observedRefusalNames.add rn
-    else:
-      inc observedOther
-      if o notin otherOutcomes: otherOutcomes.add o
-  let unpublished = observedPruned + observedRefused + observedOther
-  var whyParts: seq[string]
-  if observedRefused > 0:
-    whyParts.add $observedRefused & " WERE still replayable when the capture " &
-      "reached " & (if observedRefused == 1: "it" else: "them") &
-      " and the replay runtime refused " &
-      (if observedRefused == 1: "it" else: "them") &
-      (if observedRefusalNames.len > 0: " (" & observedRefusalNames.join(", ") & ")"
-       else: "") & ", which is a failure on the recording side and not a " &
-      "property of this chain"
-  if observedPruned > 0:
-    whyParts.add $observedPruned & " had already been pruned when " &
-      (if observedPruned == 1: "it was" else: "they were") & " first seen"
-  if observedOther > 0:
-    whyParts.add $observedOther & " carried another outcome (" &
-      otherOutcomes.join(", ") & ")"
-  let whyUnpublished =
-    if unpublished == 0: ""
-    else: " Of the " & $unpublished & " not published here, " &
-          whyParts.join("; ") & "."
-  let watched =
-    "Over the whole watch — " & $observedBlocks & " blocks, " &
-    $observedTransactions & " transaction(s), blocks " & $allHeights[0] & "–" &
-    $allHeights[^1] & " — they did not arrive evenly: the longest run with none " &
-    "was " & $largestGap & " blocks." & whyUnpublished
+  # What this replaced: "Over the whole watch — 1563 blocks, 33 transaction(s),
+  # blocks 66745–68307 — they did not arrive evenly: the longest run with none
+  # was 309 blocks. Of the 31 not published here, 6 WERE still replayable when
+  # the capture reached them and the replay runtime refused them
+  # (AvmToolchainRegression, TypeError, unknown), which is a failure on the
+  # recording side and not a property of this chain; 25 had already been pruned
+  # when they were first seen."
+  #
+  # Two whole sentences of arrival-density statistics nobody asked for, and an
+  # internal error type printed to visitors. The reader's question is "why are
+  # there only two", and the answer is the replay window — so that is what is
+  # said, with the numbers that make it concrete and nothing else.
+  #
+  # IT DOES NOT BLAME THE CHAIN FOR OUR FAULTS, which is the trap the long
+  # version was built to avoid and the reason it grew. "They were pruned" is
+  # false of a refusal: those were reached in time and the runtime declined. So
+  # the short version says how many WERE recorded out of how many were seen and
+  # attributes nothing — true of both causes, and it needs no clause to stay
+  # true when a third cause appears.
+  let seenAndKept =
+    "Of the " & $observedTransactions & " transactions seen while watching " &
+    "this chain, " & $txCount & " could be recorded."
   let curatedMiddle =
     if withTrace > 0:
-      "THIS CHAIN IS PUBLISHED AS A CURATED WINDOW. " & window.why & " All " &
-      $txCount & " of them were re-executed and their traces are published " &
-      "here; " & $blockRows.len & " blocks carry them. " & watched & " "
+      "This is a selection rather than the whole chain: " & $txCount &
+      " transaction" & (if txCount == 1: "" else: "s") & " from blocks " &
+      $window.lo & "–" & $window.hi & ", each one re-run and recorded so you " &
+      "can step through it. A transaction can only be replayed for a short " &
+      "time after it settles. " & seenAndKept & " "
     else:
-      "THIS CHAIN IS PUBLISHED AS A CURATED WINDOW, AND IT CONTAINS NO " &
-      "TRANSACTION. " & window.why & " " & watched & " Catching one needs the " &
-      "follower to reach a transaction while its body is still served, which is " &
-      "a watch measured in hours rather than a scan. "
+      "This is a selection rather than the whole chain: blocks " & $window.lo &
+      "–" & $window.hi & ", which settled no transactions. A transaction can " &
+      "only be replayed for a short time after it settles, and none was " &
+      "reached in time. " & seenAndKept & " "
+  # THE PRUNING SENTENCE IS FOR THE SCOPE THAT SHOWS PRUNED TRANSACTIONS.
+  #
+  # It used to be unconditional, so a curated chain — where every transaction on
+  # the page steps, by construction — closed with a paragraph about
+  # transactions it does not show. Under `isFull` those rows are on the page and
+  # a reader who clicks one needs to know why it has no trace, so it stays there
+  # and stays plain.
+  let pruningNote =
+    if cfg.scope == isCurated: ""
+    else:
+      "Transactions below block " & $finalizedAt & " can still be seen on the " &
+      "network, but they can no longer be re-run, so there is nothing to step " &
+      "through."
   let provDetail =
-    captured & (if cfg.scope == isCurated: curatedMiddle else: middle) &
-    "Transactions below block " & $finalizedAt & " are still visible on the " &
-    "network but their bodies have been pruned, so they can no longer be " &
-    "replayed and carry no trace."
+    (captured & (if cfg.scope == isCurated: curatedMiddle else: middle) &
+     pruningNote).strip()
   cfg.writeJson(summaryRel, %*{
     "chain": chain, "generation": gen,
     "counters": {"blocks": blockRows.len, "transactions": txCount},

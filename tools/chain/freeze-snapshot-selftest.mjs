@@ -3,12 +3,18 @@
 //
 //   node tools/chain/freeze-snapshot-selftest.mjs
 //
-// WHY THIS EXISTS. `freeze-snapshot.mjs` is the gate in front of a published claim: once a
-// snapshot carries `frozen`, the page says those blocks "were taken WHOLE — every
-// transaction the chain published in them was re-executed". That is a universal statement
-// over the contents of a block, and a gate that never says no would let it be published
-// over anything. Verification-Harness-Traps §4: the check that has never refused is
+// WHY THIS EXISTS. `freeze-snapshot.mjs` is the gate in front of a published claim: a
+// frozen snapshot is one whose complete blocks have been re-read from the chain and found
+// to hold exactly the transactions the capture recorded. That is a universal statement over
+// the contents of a block, and a gate that never says no would let it be published over
+// anything. Verification-Harness-Traps §4: the check that has never refused is
 // indistinguishable from no check.
+//
+// The BANNER no longer quotes the claim — it used to read "were taken WHOLE — every
+// transaction the chain published in them was re-executed", which narrated the capture to a
+// reader who was not asking. The claim itself is unchanged and still gates the flag; what
+// rests on it now is the curated window, which publishes only blocks whose transactions all
+// have containers.
 //
 // So every refusal path is driven here against a MOCK NODE whose answers this test chooses,
 // and each one is paired with the passing control it must differ from. No live chain: the

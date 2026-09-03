@@ -165,12 +165,17 @@ Refusing to freeze is the safe outcome. `tools/chain/freeze-snapshot-selftest.mj
 drives all four refusals against a mock node — 19 counted assertions — because a
 gate that has never said no is indistinguishable from no gate.
 
-Once frozen, `ingest.nim` renders the provenance sentence in the **past tense**
-and names the blocks it claims are whole. The running-watch phrasing ("was last
-extended", "when it was last looked at") is true only while something might
-extend the capture and becomes quietly misleading the moment it stops; suite 11
-of `client/tests/test_chain_provenance.nim` pins both arms, with a mutation that
-removes `frozen` and checks the wording reverts.
+`frozen` does **not** change the prose on the page, and used to. `ingest.nim`
+carried three capture tenses — a frozen one naming every block "taken WHOLE", a
+running watch that "was last extended", a one-shot scan "at that moment" — each
+true of a different snapshot, with a mutation arm pinning the difference. A user
+read the result and asked for prose that is "more user friendly and simpler",
+with the things "real users are unlikely to care about" removed, and all three
+narrated the capture rather than the chain. There is one sentence now,
+`Captured on <date>`, for every snapshot; suite 11 asserts a frozen and an
+unfrozen capture produce it **identically**, which is where a re-grown branch
+would show. The flag still gates what it always gated and is still published in
+`summary.json` — it simply no longer picks a tense.
 
 ---
 
