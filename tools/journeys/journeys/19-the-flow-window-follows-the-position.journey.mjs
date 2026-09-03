@@ -10,37 +10,53 @@
 // and every assertion in it can be green while the window behind them never
 // moves.
 //
-// IT IS RED, AND THE CAUSE IS NAMED
-// ---------------------------------
-// Measured on `dev`, over the built site with the published engine staged, with
-// `Worker.postMessage` and the worker's message handler wrapped before the
-// page's own scripts ran. Eleven positions were driven — four `step-forward`
-// and six `step-in`, reaching ticks 0, 1, 5, 8, 671, 672, 673, 674, 675, 676,
-// 677 — and every `ct/load-flow` carried the tick it was issued for. The engine
-// answered all eleven with ONE window:
+// IT IS RED, AND THE CAUSE NAMED HERE WAS THE WRONG ONE
+// -----------------------------------------------------
+// This block used to read: eleven positions driven, ticks 0,1,5,8 and 671..677,
+// and the engine answered all of them with ONE window — path .../src/main.nr,
+// rrTicks 0, functionName "main", functionFirst 0 (`main`'s body is 12..38),
+// functionLast 15 — from which it concluded that `find_function_location`
+// (`expr_loader.rs`) misses its `processed_files.contains_key(&location.path)`
+// gate because the key is the JOINED spelling and this repository writes the
+// BARE one, so "two features, one key, opposite spellings".
 //
-//     location.path          .../noir_space_ship/src/main.nr   (every time)
-//     location.rrTicks       0                                 (every time)
-//     location.functionName  "main"
-//     location.functionFirst 0        — `main`'s body is lines 12..38
-//     location.functionLast  15
-//     steps                  14, on lines 1,12,13,15,17,23,24,25,27,32,35,36,37
+// EVERY NUMBER IN THAT READING IS CORRECT AND THE CONCLUSION IS NOT, and the
+// reason is a property of the walk rather than of the engine: all eleven of
+// those positions were inside `main`, so the one observation that separates
+// "one constant window" from "one window per CALL" is the observation the walk
+// could not make.
 //
-// `rrTicks: 0` for a request issued at tick 677, and a function extent of 0..15
-// for a function that begins on line 12, are the same defect twice: the
-// engine's `find_function_location` (`expr_loader.rs`) is gated on
-// `processed_files.contains_key(&location.path)`, and when the key is absent
-// the body is skipped and the incoming location passes through unchanged.
+// Re-measured with the same instrument over FOURTEEN `step-in`s, on an
+// unmodified control build and on one that wrote BOTH spellings into the VFS —
+// byte-identical answers on the two, so the prescribed work-around buys this
+// journey nothing and the publisher change it needs should not be spent here:
 //
-// The key is the JOINED spelling, `workdir().join(recorded)`. This repository
-// writes the BARE relative spelling into the VFS, and that is deliberate:
-// `client/hydrate/live_source.nim`'s header records the measurement behind it —
-// the origin classifier probes the relative path, `Path::exists()` is hardwired
-// `false` on wasm32 so the engine's own probe could only ever take the relative
-// branch, and writing the absolute path alone left the classifier saying
-// "source unavailable" on a recording that had published its source. So the
-// work-around that made the origin chain resolve is what starves the flow
-// window. Two features, one key, opposite spellings.
+//     asks t=1..8   (inside `main`)   -> t=0 callKey=0 fn=main         depth=0
+//     asks t=9..14  (inside the call) -> t=9 callKey=1 fn=iterate_asteroids depth=1
+//
+// The window DOES follow the position. It is a window over the enclosing CALL,
+// and the location it carries is that call's ENTRY step — so `rrTicks: 0` for a
+// request at tick 677 is `main`'s entry tick, not an uninitialised field. The
+// widening that produces it is deliberate and is itself a fix: codetracer's
+// `e9242df3` ("fix(flow): restore full-call scope", #606/#593/#595) removed the
+// behaviour of starting the window at the current statement, because a
+// forward-only walk made the window shrink on every step. The assertions below
+// that require the answer's location to be a position the session asked about
+// are therefore asking for #606 back.
+//
+// `functionFirst = 0` has the same root: the call entry sits on line 1
+// (`mod shield;`), outside every function body in the file, so the range search
+// finds no enclosing function there whichever key the VFS holds. Note the
+// engine reports first=0 last=15 for `main` and first=0 last=6 for
+// `iterate_asteroids` — two different extents, so the body is not being skipped.
+//
+// WHAT IS STILL UNANSWERED, and is the half of this journey worth keeping: the
+// window legitimately includes line 1, which lies outside the function it
+// labels, and the on-screen assertion counts eight annotated lines outside the
+// enclosing function because of it. Whether the overlay should annotate a line
+// outside its own function is a real question. It is a SPEC decision, not a
+// defect fix, and closing this journey means answering it rather than deleting
+// the assertion. `ledger.json` carries the full measurement.
 //
 // WHY THE JOURNEY EXISTS RATHER THAN A NOTE
 // -----------------------------------------

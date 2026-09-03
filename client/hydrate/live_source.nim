@@ -65,39 +65,46 @@
 ## which it could not have anyway: the island is written by the exporter and
 ## the absolute path exists only inside the container.
 ##
-## ## WHAT THIS COSTS, MEASURED — the flow window pays for it
+## ## WHAT THIS SECTION USED TO CLAIM, AND WHY IT WAS WRONG
 ##
-## The relative-only write is what makes the origin chain classify, and it is
-## also what starves the omniscience flow window. `find_function_location`
-## (`db-backend/src/expr_loader.rs`), which fills `FlowUpdate.location`'s
-## `function_name`, `first` and `last`, is gated on
-## `processed_files.contains_key(&location.path)` — and `location.path` is the
-## JOINED spelling, `workdir().join(recorded)` (`trace_reader.rs`). The key is
-## absent, the body is skipped, and the incoming location passes through
-## unchanged.
+## It said the relative-only write "starves the omniscience flow window", that
+## `find_function_location`'s `processed_files.contains_key(&location.path)`
+## gate misses because the key is the JOINED spelling, and that the fix is to
+## write BOTH spellings — which needs the recording's workdir and therefore a
+## change to the PUBLISHER. Journey 19 was ledgered with that reason.
 ##
-## Measured on the wire over the built site with the published engine staged
-## (`tools/journeys/journeys/19-the-flow-window-follows-the-position.journey
-## .mjs`, which is RED and ledgered with this reason): ELEVEN distinct request
-## ticks — 0, 1, 5, 8 and 671..677, reached by four `step-forward` and six
-## `step-in` from the landing position — sixteen answers, EVERY one carrying
-## `location.rrTicks = 0` and
-## `functionFirst = 0` for a function whose body begins on line 12. The engine
-## answers every position with the same window, so the values overlay shows one
-## function's window for the life of the session — the second half of the
-## user report this pair of defects was found from.
+## IT WAS TRIED AND MEASURED, AND IT CHANGES NOTHING. Both keys were written
+## from this proc — the bare path and `workdir.join(recorded)`, both confirmed
+## on the wire as `vfs-write` messages — and the session was walked through
+## fourteen `step-in`s against an unmodified control build of the same commit,
+## same engine staged. The answered flow locations are byte-identical on the
+## two builds. Do not spend the publisher change on this; it does not buy the
+## flow window anything.
 ##
-## Two features, one key, opposite spellings. The fix is to write BOTH, which
-## is what CodeTracer's own host helper does — `vfsKeysFor(recordedPath,
-## workdir)` in `platform/replay_engine_vfs.nim`: "writing both spellings costs
-## one extra map entry per source file and makes the probe order stop
-## mattering". It is not done here because the second key needs the recording's
-## workdir, which lives inside the container and which nothing in this
-## repository reads; surfacing it is a change to the PUBLISHER, not to this
-## module. The engine-side fix on codetracer's `fix/wasm-source-probe` makes
-## `source_probe_path` consult the filesystem and THEN the VFS, which removes
-## the need for the work-around entirely — and writing both keys is correct
-## either side of it, which is why the ledger entry names both.
+## WHAT THE ENGINE ACTUALLY DOES, measured over those same fourteen steps: the
+## flow window is a window over the enclosing CALL, and the location it comes
+## back with is that call's ENTRY step, not the position asked about. Requests
+## at ticks 1..8 (inside `main`) are all answered `rrTicks=0 callKey=0
+## fn=main`; from tick 9 the session is inside `iterate_asteroids` and every
+## answer becomes `rrTicks=9 callKey=1 depth=1`. The window follows the
+## position — it changes when and only when the session enters another call.
+## `rrTicks=0` is an entry tick, not an unfilled field, and the widening that
+## produces it is deliberate: codetracer `e9242df3` ("fix(flow): restore
+## full-call scope", #606/#593/#595) put it there precisely because starting
+## the window at the current statement made it shrink on every step.
+##
+## `functionFirst = 0` has the same explanation and is likewise not this
+## module's doing: the call entry sits on line 1 (`mod shield;`), outside every
+## function body in the file, so the range search finds no enclosing function
+## there whichever key the VFS holds.
+##
+## So the relative-only write below costs the flow window NOTHING. It remains
+## a work-around for the ORIGIN CHAIN's probe, and codetracer's `10626029`
+## (`source_probe_path`, filesystem then VFS — the commit `fix/wasm-source-probe`
+## carried as `67a51b19`) has since landed on `cloud` and is in the engine this
+## site fetches, so that work-around is now belt-and-braces rather than load
+## bearing. Writing both spellings is still defensible for the origin chain;
+## it is not a flow-window fix and must not be sold as one.
 
 import std/[json, strutils]
 
