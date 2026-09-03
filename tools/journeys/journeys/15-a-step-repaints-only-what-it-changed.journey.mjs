@@ -71,7 +71,7 @@ export const id = "a-step-repaints-only-what-it-changed";
 export const claim =
   "A visitor who steps sees the panes that changed change, and nothing else move.";
 export const spec = "Page-Descriptions.md §7.0, §8 — BlockTracer";
-export const assertions = 21;
+export const assertions = 22;
 export const needsEngine = true;
 
 /** How many steps the session is walked. */
@@ -494,11 +494,80 @@ export async function run({ browser, site, j }) {
       `INSTRUMENT: the frame sampler saw every position the walk visited (${frames.length} frames)`,
     );
 
+    // ── THE SAMPLER'S DENSITY, WHICH IS WHAT THE BLINK CLAIM RESTS ON ─────
+    //
+    // THE ASSERTION ABOVE IS A PRESENCE CHECK AND IT WAS THE ONLY THING BACKING
+    // THE VERDICT BELOW. It asks whether every position was sampled at least
+    // ONCE. A sampler that fired seven times over the whole walk — once per
+    // position — passes it, finds no blink, and hands back
+    // `countIs(0, 0)`: a clean green that means "the sampler barely ran".
+    //
+    // The window this journey is looking for is about 13 ms wide against a
+    // 16.7 ms frame. Catching it is a matter of sampling DENSITY, not of
+    // sampling at all, and `requestAnimationFrame` is exactly the clock that
+    // stops being dense when the machine is busy — which is the state this
+    // suite runs its own selftest in, four shards two at a time in two
+    // worktrees.
+    //
+    // `FL2/the-panes-move-before-the-values-arrive` SURVIVED one complete pass
+    // and was KILLED in another, on the same tree. Measured here on the mutated
+    // tree, four consecutive runs: 4, 4, 6 and 5 blinks out of six eligible
+    // positions, over 1117–1156 frames. The DETECTION is not marginal at this
+    // density and the arm does not miss — 4 of 4 killed. What is marginal is
+    // the density itself, and nothing asserted it, so a run in which the clock
+    // was starved reported the same green as a run in which the defect was
+    // absent. **A verdict that cannot tell "I looked and it was not there" from
+    // "I barely looked" is not a measurement**, and that is the whole of this
+    // arm's flakiness: not a race the detector loses, but a detector whose duty
+    // cycle nothing checked.
+    //
+    // So the floor is asserted, per position, and it is deliberately far below
+    // the ~160 frames/position a healthy run produces: the claim is not that
+    // the machine was fast, it is that the sampler was awake often enough for
+    // its silence to mean something. A starved run now REDDENS HERE, naming the
+    // instrument, instead of passing quietly below.
+    // SCOPED TO THE POSITIONS THE BLINK CLAIM RANGES OVER, and that scoping is
+    // itself a measurement rather than a convenience. The LANDING position is
+    // sampled only in the moment before the first step — measured at 10 frames
+    // against 128–321 for every position the walk stops at — and it carries no
+    // values, so it is not in `settledRowsAt` and no blink at it could ever be
+    // counted. Holding it to the same floor would redden this instrument for a
+    // position the verdict below does not look at, which is the false-RED
+    // direction that gets a gate switched off.
+    const FRAMES_PER_POSITION_FLOOR = 30;
+    const perPosition = new Map([...settledRowsAt.keys()].map((p) => [p, 0]));
+    for (const f of frames) if (perPosition.has(f.step)) perPosition.set(f.step, perPosition.get(f.step) + 1);
+    const starved = [...perPosition].filter(([, n]) => n < FRAMES_PER_POSITION_FLOOR);
+    j.note(
+      `frames per position: ` +
+        [...perPosition].map(([p, n]) => `${p}:${n}`).join(" ") +
+        ` (floor ${FRAMES_PER_POSITION_FLOOR})`,
+    );
+    j.countIs(
+      starved.length,
+      0,
+      `INSTRUMENT: the frame sampler stayed awake at every position, so an absence of blinks is a reading`,
+    );
+
     const blinks = frames.filter((f) => settledRowsAt.has(f.step) && f.rows === 0);
     j.atLeast(
       settledRowsAt.size,
       1,
       "CONTROL: the walk reached positions whose Values pane settled with rows on screen",
+    );
+    // WHICH positions blinked, not just how many frames did. This arm's verdict
+    // is stochastic in a way the count alone hides: measured over eight runs on
+    // five different engine builds, with the defect in place, the blink count
+    // came back 3, 4, 4, 4, 5, 5, 6 and 6 out of the same six eligible
+    // positions. It never reached zero and the arm killed every time — but a
+    // reader comparing two transcripts saw only two different numbers and no way
+    // to tell whether a different SET of positions was involved. The set is the
+    // thing that would say whether some position never blinks, which is what a
+    // zero would have to be made of.
+    const blinkAt = [...new Set(blinks.map((f) => f.step))];
+    j.note(
+      `blinks at position(s) ${blinkAt.join(",") || "none"} of the ${settledRowsAt.size}` +
+        ` that settled with values (${blinks.length} frames of ${frames.length})`,
     );
     j.countIs(
       blinks.length,
