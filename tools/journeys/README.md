@@ -321,6 +321,23 @@ the run producing them had never reached its summary. Each is now attributable:
   same reason Arm I refuses to judge when the browser cannot lay out text, and
   it exits 2 rather than 1 — a red journey is a claim about the product, and
   this is a refusal to make one.
+
+  **THIS IS OPEN, AND RE-FETCHING IS NOT THE REMEDY.** Two engine builds were
+  taken from the publisher four hours apart on the same day —
+  `3009b9892fa181cf…` and `2250e91aec39d2a6…` — and **both refuse this corpus**,
+  in the same place, with the same message. `just journeys-engine` will fetch a
+  third and may well fetch a fourth that also refuses. Until an engine that
+  reads `C0DE72ACE2 04 0001` is published, the way to get a verdict out of this
+  suite is to stage one that does:
+
+  ```
+  node tools/journeys/run.mjs --engine-cache <dir-holding-a-working-engine>
+  ```
+
+  `cf79c4bf9854465b…` is such an engine and is what every measurement recorded
+  above was taken on. The real fix belongs upstream, in whatever writes or reads
+  those containers; nothing in this repository can pin its way out of it, and
+  `fetch-engine.sh`'s header explains at length why it should not try.
 * `O4` — the same journey's red, arriving as a **vacuity**. The detail reads
   `counted 0, the claim says 0`. The assertion is `countIs(naming.length,
   shownHere.originControls)`, and its own comment argues it cannot pass vacuously
