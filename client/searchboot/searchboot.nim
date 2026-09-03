@@ -261,8 +261,8 @@ proc fetchShardHex(path: cstring; cb: proc(hex: cstring)) {.importjs: """
     .catch(function(){ cb(''); });
 })(#, #)""".}
 
-proc renderHits(slotId, hitsJson, query: cstring; navigate: bool) {.importjs: """
-(function(slotId, hits, q, navigate){
+proc renderHits(slotId, hitsJson, query: cstring) {.importjs: """
+(function(slotId, hits, q){
   var slot = document.getElementById(slotId);
   if (!slot) return;
   function esc(s){
@@ -275,11 +275,39 @@ proc renderHits(slotId, hitsJson, query: cstring; navigate: bool) {.importjs: ""
     return { tx: 'transaction', block: 'block', address: 'address' }[k] || k;
   }
 
-  if (hits.length === 1 && navigate) {
+  if (hits.length === 1) {
     // Page-Descriptions §11, first bullet: "Unambiguous input navigates
     // immediately, without an intermediate results page." The index is exact,
     // so this is a navigation to an object the index just confirmed — §5's
     // "the subsequent data fetch is guaranteed to succeed".
+    //
+    // ONE MATCH NAVIGATES, WHETHER OR NOT THE QUERY WAS A WHOLE HASH. This
+    // condition read `hits.length === 1 && navigate`, where `navigate` meant
+    // "the query was a full-length identifier" — so a fragment matching
+    // exactly one published object rendered a one-item list and made the
+    // visitor click it.
+    //
+    // The two readings of "unambiguous" are the whole of the disagreement. It
+    // can be a property of the INPUT'S FORM — a 64-hex string is an
+    // identifier, a fragment is not — or a property of the RESULT: how many
+    // things did this turn out to name? The form reading is defensible from
+    // §2, which classifies inputs, and it is the one this file shipped with.
+    //
+    // It is the wrong one for the person typing. A fragment that matches
+    // exactly one object is unambiguous in every sense they can perceive:
+    // they asked a question, it has one answer, and a list of one is a
+    // interstitial asking them to confirm a fact the page already knows. The
+    // result reading is also the one that keeps §11's own promise, since the
+    // promise is about not showing "an intermediate results page" and a
+    // one-item list is precisely that.
+    //
+    // WHAT FOLLOWS FROM IT, stated so it is never filed as a bug: the SAME
+    // QUERY CAN CHANGE BEHAVIOUR AS THE CORPUS GROWS. A fragment matching one
+    // object today navigates; when a second object with that prefix is
+    // published it will offer two candidates instead. That is inherent to
+    // resolving against live data rather than a defect, it is the honest
+    // outcome in both states, and collisions on a fragment of useful length
+    // are rare enough that nobody should design around them.
     slot.innerHTML =
       '<div class="stub group" data-search-state="resolved">' +
       '<div class="measure">Resolved <span class="mono">' + esc(q) +
@@ -319,16 +347,16 @@ proc renderHits(slotId, hitsJson, query: cstring; navigate: bool) {.importjs: ""
                esc(h.chain) + '</a></li>';
       }).join('') + '</ul>';
   });
+  // Reached only with TWO OR MORE hits: one navigates, above. The singular
+  // wording that used to live here is gone rather than kept "just in case" —
+  // an unreachable branch is a second answer to a question that now has one,
+  // and the next reader would have to prove it was dead.
   slot.innerHTML =
     '<div class="stub group" data-search-state="candidates">' +
-    '<div class="measure">' +
-    (hits.length === 1
-      ? 'One published entity begins with <span class="mono">' + esc(q) +
-        '</span>.'
-      : hits.length + ' published entities begin with <span class="mono">' +
-        esc(q) + '</span>. Every one is real; pick one.') +
-    '</div>' + html + '</div>';
-})(#, JSON.parse(#), #, #)""".}
+    '<div class="measure">' + hits.length +
+    ' published entities begin with <span class="mono">' + esc(q) +
+    '</span>. Every one is real; pick one.</div>' + html + '</div>';
+})(#, JSON.parse(#), #)""".}
 
 proc runCandidates(slotId, candidatesJson, canonical: cstring) {.importjs: """
 (function(slotId, cands, q){
@@ -572,14 +600,11 @@ proc boot(chainsCsv, packedMeta: cstring) =
                   "this is from a chain BlockTracer does not cover yet, it " &
                   "will not be here." & coveredNote & decimalNote))
         return
-      # An EXACT query that resolves navigates (§11). A PREFIX query never
-      # auto-navigates even when it happens to match one entity: the user typed
-      # a fragment, and taking them somewhere on the strength of a partial
-      # match is a guess dressed as a resolution. One hit is shown as one
-      # candidate — one click, and no surprise.
-      let exact = body.len == 64 or body.len == 40
+      # ONE MATCH NAVIGATES; TWO OR MORE DISAMBIGUATE. Whether the query was a
+      # whole hash or a fragment does not enter into it — see `renderHits` for
+      # why the count, not the form, is what "unambiguous" means here.
       renderHits(cstring(ResultSlotId), cstring(encodeHits(hits)),
-                 cstring("0x" & body), exact))
+                 cstring("0x" & body)))
     return
 
   # ---- §5.4: no index; probe the chains directly ---------------------------

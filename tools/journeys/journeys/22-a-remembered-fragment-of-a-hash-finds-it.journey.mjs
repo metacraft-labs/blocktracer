@@ -67,10 +67,10 @@ import { transactions } from "../lib/corpus.mjs";
 
 export const id = "a-remembered-fragment-of-a-hash-finds-it";
 export const claim =
-  "A visitor who remembers only the start of a hash is shown the entities that begin with it, and is told when the fragment is too short to look up.";
+  "A visitor who remembers only the start of a hash arrives at it when it names one thing, chooses when it names several, and is told when the fragment is too short to look up.";
 export const spec =
   "Search-And-Routing §5, §5.3, §5.4, §8; Page-Descriptions §11, §14";
-export const assertions = 9;
+export const assertions = 11;
 
 async function search(browser, origin, q) {
   const context = await browser.newContext();
@@ -152,19 +152,37 @@ export async function run({ browser, site, j }) {
       ),
     )
   ).filter((b) => b !== null);
+  // The index, decoded. Read in full rather than sampled, because the
+  // fragments below are DERIVED from it — a fragment asserted to match exactly
+  // one entity has to be one the published corpus actually makes unique, not
+  // one this file guessed and got right today.
   const indexedChains = new Set();
+  const entries = [];
   for (const buf of shardBodies) {
     const d = new Uint8Array(buf);
     if (String.fromCharCode(...d.subarray(0, 4)) !== "BThx") continue;
     // Header: magic(4) fmt(1) prefixLen(1) hashLen(1) chainCount(1) count(4),
-    // then `chainCount` u8-length-prefixed chain names.
+    // then `chainCount` u8-length-prefixed chain names, then the entries:
+    // hash(hashLen) chainIndex(1) kind(1).
+    const hashLen = d[6];
+    const count = new DataView(buf).getUint32(8, true);
     let pos = 12;
+    const names = [];
     for (let i = 0; i < d[7]; i++) {
       const n = d[pos++];
-      indexedChains.add(new TextDecoder().decode(d.subarray(pos, pos + n)));
+      names.push(new TextDecoder().decode(d.subarray(pos, pos + n)));
       pos += n;
     }
+    for (const n of names) indexedChains.add(n);
+    for (let i = 0; i < count; i++) {
+      const hex = [...d.subarray(pos, pos + hashLen)]
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+      pos += hashLen;
+      entries.push({ hex, chain: names[d[pos++]], kind: d[pos++] });
+    }
   }
+  const matching = (frag) => entries.filter((e) => e.hex.startsWith(frag));
   j.subjects(
     [...indexedChains],
     1,
@@ -188,24 +206,58 @@ export async function run({ browser, site, j }) {
   const sample = [...byChain.values()];
   j.subjects(sample, 1, "published transactions to search a fragment of");
 
-  // ---- 1. a fragment finds its transaction, on every chain ----------------
+  // ---- 1. a fragment that names one thing GOES there ----------------------
   //
-  // The fragment is longer than the shard depth and shorter than a hash, so it
-  // is unambiguously a PREFIX query and could not have been answered by the
-  // direct-path probe: a probe is an exact-key lookup of one computed path.
-  const missing = [];
+  // ONE MATCH NAVIGATES. "Unambiguous input navigates immediately, without an
+  // intermediate results page" (§11) has two readings, and this asserts the
+  // one about the RESULT: a fragment matching exactly one published object is
+  // unambiguous in every sense the person typing can perceive, and a list of
+  // one is exactly the intermediate page the bullet forbids. The other reading
+  // — unambiguous means the input was a full-length identifier — is what this
+  // shipped with first, and it made a fragment naming one object render a
+  // one-item list and ask the visitor to click it.
+  //
+  // THE FRAGMENT IS DERIVED, NOT CHOSEN. For each sampled transaction, take
+  // the shortest fragment at or above the shard depth that the PUBLISHED INDEX
+  // makes unique. So this cannot pass by accident on a corpus where the
+  // hardcoded length happened to be unique, and cannot fail spuriously on one
+  // where it happened not to be.
+  //
+  // A consequence worth stating rather than discovering: the same query can
+  // stop navigating as the corpus grows. When a second object with that prefix
+  // is published, this fragment offers two candidates instead — correct in
+  // both states, and the reason the length is recomputed here every run.
+  const unique = [];
   for (const t of sample) {
-    const frag = t.hash.slice(0, 2 + depth + 8);
+    const bare = t.hash.replace(/^0x/, "");
+    for (let n = depth; n <= bare.length; n++) {
+      const frag = bare.slice(0, n);
+      if (matching(frag).length === 1) {
+        unique.push({ t, frag: "0x" + frag });
+        break;
+      }
+    }
+  }
+  j.subjects(
+    unique,
+    1,
+    "fragments the published index makes unique, one per chain",
+  );
+
+  const notReached = [];
+  for (const { t, frag } of unique) {
     const r = await search(browser, site.origin, frag);
-    if (!r.slot.hrefs.some((h) => h.startsWith(`/${t.chain}/tx/${t.hash}`))) {
-      missing.push(`${t.chain} ${frag} -> ${r.slot.state} ${r.slot.hrefs[0] ?? "(no links)"}`);
+    if (!r.url.pathname.startsWith(`/${t.chain}/tx/${t.hash}`)) {
+      notReached.push(
+        `${t.chain} ${frag} -> ${r.url.pathname} (state ${r.slot.state}, ${r.slot.hrefs.length} links)`,
+      );
     }
   }
   j.countIs(
-    missing.length,
+    notReached.length,
     0,
-    `a fragment of a published hash offers that transaction as a candidate${
-      missing.length ? `: ${missing.slice(0, 3).join("; ")}` : ""
+    `a fragment matching exactly one entity arrives at it, with no list in between${
+      notReached.length ? `: ${notReached.slice(0, 3).join("; ")}` : ""
     }`,
   );
 
@@ -216,11 +268,7 @@ export async function run({ browser, site, j }) {
   // the REQUESTS the page made, because an implementation that quietly probed
   // every chain would render an identical answer.
   const one = sample[0];
-  const probe = await search(
-    browser,
-    site.origin,
-    one.hash.slice(0, 2 + depth + 8),
-  );
+  const probe = await search(browser, site.origin, unique[0].frag);
   const dataReads = probe.requests.filter((p) => p.startsWith("/d/"));
   j.countIs(
     dataReads.length,
@@ -237,12 +285,34 @@ export async function run({ browser, site, j }) {
   // transaction group matched nothing and every transaction was dropped from a
   // list that otherwise rendered perfectly. This asserts the group is there and
   // that the transaction is IN it.
-  const wide = await search(browser, site.origin, one.hash.slice(0, 2 + depth));
+  //
+  // The AMBIGUOUS fragment is derived the same way: the shortest prefix of a
+  // published transaction that the index maps to more than one entity. Picking
+  // `depth` and hoping is what would make this vacuous the day a corpus put
+  // one entity per shard.
+  const oneBare = unique[0].t.hash.replace(/^0x/, "");
+  let wideFrag = null;
+  for (let n = depth; n < oneBare.length; n++) {
+    const cands = matching(oneBare.slice(0, n));
+    if (cands.length >= 2) {
+      wideFrag = "0x" + oneBare.slice(0, n);
+      break;
+    }
+  }
+  j.subjects(
+    wideFrag ? [wideFrag] : [],
+    1,
+    "a fragment the published index maps to more than one entity",
+  );
+  const wide = await search(browser, site.origin, wideFrag ?? "0x");
   j.expect(
     wide.slot.state === "candidates" &&
-      wide.slot.hrefs.some((h) => h.startsWith(`/${one.chain}/tx/${one.hash}`)),
-    "a fragment matching several entities lists them as candidates, transactions included",
-    `state=${wide.slot.state} groups=[${wide.slot.groups.join(", ")}] links=${wide.slot.hrefs.length}`,
+      wide.slot.hrefs.some((h) =>
+        h.startsWith(`/${unique[0].t.chain}/tx/${unique[0].t.hash}`),
+      ) &&
+      wide.slot.hrefs.length >= 2,
+    "a fragment matching several entities lists them all as candidates, transactions included",
+    `${wideFrag} matches ${matching((wideFrag ?? "0x").slice(2)).length} in the index; state=${wide.slot.state} groups=[${wide.slot.groups.join(", ")}] links=${wide.slot.hrefs.length}`,
   );
 
   // ---- 4. too short to look up is NOT not-found ---------------------------
