@@ -25,6 +25,7 @@ import pages/address as addressPg
 import pages/code as codePg
 import pages/search as searchPg
 import pages/about as aboutPg
+import pages/settings as settingsPg
 import pages/notfound as notFoundPg
 import pages/debug as debugPg
 
@@ -40,7 +41,7 @@ type
     ## in its `<meta>` and be treated as another by the sitemap.
     rcCore = "index,follow"           ## I0 — home, /chains, /about, chain landing
     rcAddressable = "noindex,follow"  ## N1 — ordinary entities and their lists
-    rcUtility = "noindex,nofollow"    ## N2 — search and embeds
+    rcUtility = "noindex,nofollow"    ## N2 — search, settings and embeds
 
 func isPaginationRoute*(route: string): bool =
   ## §6's last row: "Pagination, filter, sort and layout variants … Never
@@ -58,7 +59,7 @@ func routeClass*(route: string): RouteClass =
   if p.len == 0: return rcCore
   case p
   of "chains", "about": return rcCore
-  of "search": return rcUtility
+  of "search", "settings": return rcUtility
   else: discard
   # `/{chain}` — §6: "Chain is publicly supported", which is what being in the
   # registry means here.
@@ -77,9 +78,12 @@ proc isSitemapRoute*(route: string): bool =
   ##     `<meta robots>` and canonical already say so; being absent from the
   ##     sitemap is the same statement made where a crawler reads it first, and
   ##     M8b requires this milestone to add no second indexable copy.
-  ##   * **`/search`** — class N2, whose promotion column reads "Never".
-  ##     `/settings` was the other member of this class until the page was
-  ##     removed; see `components/footer` for why it went.
+  ##   * **`/search` and `/settings`** — class N2, whose promotion column
+  ##     reads "Never". Both are utilities a reader reaches deliberately, and
+  ##     neither has content a search engine should rank: one resolves an
+  ##     identifier the visitor already has, the other configures their own
+  ##     browser. `routeClass` gives both `rcUtility` and the filter below
+  ##     reads that, so neither is listed here by name.
   ##   * **Pagination variants** — "Never submitted". Every page of a cursor
   ##     walk is reachable by following the pager from the first page, which is
   ##     what `follow` is for.
@@ -257,6 +261,21 @@ proc renderAbout*(r: DataRoot): string =
     aboutPg.aboutPage(chains(r).len),
     robots = $routeClass("/about"),
     canonical = SiteDomain & "/about")
+
+proc renderSettings*(r: DataRoot): string =
+  ## The keyboard-shortcut preset, and the full list of what is bound.
+  ##
+  ## `scripts = settingsScriptTag()` is what separates this page from the one
+  ## that was deleted at this address. That page had no controls and a header
+  ## explaining that controls would need script the client did not ship; this
+  ## one ships the script, so the chooser it serves is a control that acts.
+  pageLayout(
+    "Keyboard shortcuts — BlockTracer",
+    "Choose which keys step a recorded trace, and see everything the debugger binds.",
+    settingsPg.settingsPage(),
+    robots = $routeClass("/settings"),
+    canonical = SiteDomain & "/settings",
+    scripts = settingsScriptTag())
 
 proc renderSearch*(r: DataRoot): string =
   ## §11. The query is resolved in the browser (Search-And-Routing §1–§6), so
@@ -524,6 +543,7 @@ proc staticRoutes*(r: DataRoot): seq[string] =
   result.add "/chains"
   result.add "/about"
   result.add "/search"
+  result.add "/settings"
   for chain in chains(r):
     let info = chainInfo(r, chain)
     result.add "/" & chain
@@ -586,6 +606,7 @@ proc renderRoute*(r: DataRoot, path: string): tuple[status: int, body: string, c
     of "chains": return (200, renderChains(r), "text/html")
     of "about": return (200, renderAbout(r), "text/html")
     of "search": return (200, renderSearch(r), "text/html")
+    of "settings": return (200, renderSettings(r), "text/html")
     else:
       if parts[0] in chains(r):
         return (200, renderChain(r, parts[0]), "text/html")

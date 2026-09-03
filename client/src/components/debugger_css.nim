@@ -2202,6 +2202,48 @@ const shortcutsDialogCss = """
 .kbhazard.blocked{color:var(--bt-mark-not-taken)}
 .kbempty,.kbfoot{color:var(--bt-text-muted);
   font-size:var(--bt-type-caption-size);margin-top:var(--bt-space-md)}
+
+/* ── the same rows on `/settings`, which is a PAGE and not a dialog ──────
+   These rules exist because `siteCss` inlines `debugRouteCss` on every page,
+   so `.kbrow`, `.kbchord` and the preset picker above are already styled at
+   `/settings` — and styling them a second time under a page-only selector is
+   exactly the drift `components/shortcut_list.nim` was extracted to prevent,
+   in the stylesheet instead of the renderer.
+
+   So only what the page ADDS is declared here: the panel wrapper, the group
+   headings, and the multi-key cell. Nothing overrides a rule above. */
+
+/* NO `display` RULE ON `.kbpanel` OR `.kbchooser`, AND THAT IS THE RULE.
+   
+   Both are `div`s and already block. `.kbpanel{display:block}` was written
+   here as harmless tidiness and was not: the UA stylesheet hides a `hidden`
+   element with `[hidden]{display:none}`, a type-less attribute selector of
+   specificity (0,1,0), and a class selector ties it and wins on order. So the
+   rule silently defeated `hidden` and ALL EIGHT preset panels rendered at
+   once — the page showing four contradictory answers to "what is bound",
+   which is precisely what listing them in one place was for.
+   
+   It is worth the paragraph because of how it was found. The markup was
+   correct, the Nim suite was green on it, and journey 22 was green on it too:
+   the journey asked `hasAttribute("hidden")`, which was TRUE on all seven
+   hidden panels. Only a screenshot showed the page. The journey now reads
+   `getComputedStyle`, so the assertion is about what a reader sees rather
+   than about the attribute that was supposed to cause it. */
+
+/* The group headings on the page and in the dialog. Caption-weight rather
+   than heading-weight: they separate three lists of the same kind of thing,
+   and an `h2`-sized rule between them would read as three sections of a
+   document instead. */
+.kbgrouptitle{font-size:var(--bt-type-body-sm-size);
+  color:var(--bt-text-strong);margin-top:var(--bt-space-md)}
+
+/* A move with more than one key — the scrubber's four arrows, and Enter with
+   Space. Inline so `←` `or` `↓` reads as ONE answer to one question; a stack
+   would read as two separate shortcuts, which is the thing this whole list
+   exists to stop a reader believing. */
+.kbchordset{display:inline-flex;flex-wrap:wrap;align-items:baseline;
+  gap:var(--bt-space-3xs)}
+.kbor{color:var(--bt-text-muted);font-size:var(--bt-type-caption-size)}
 """
 
 const debugRouteCss* = debugRouteBaseCss & shortcutsDialogCss & """

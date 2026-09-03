@@ -59,6 +59,7 @@ import std/strutils
 import isonim/ssr/escape
 import isonim/dsl/ui
 import ./icons
+import ./shortcut_list
 import ../debugger/flow_view
 import ../debugger/layout_model
 import ../debugger/replay_engine
@@ -1439,44 +1440,34 @@ proc renderShortcutsDialog*(km: Keymap; mac: bool): string =
 
         # THE PRESET PICKER. Radios and not a `<select>`: the options are four
         # and each needs a sentence, which an option element cannot carry.
-        tdiv(class = "kbpresets", role = "radiogroup",
-             `aria-label` = "Shortcut preset"):
-          for id in KeymapId:
-            let on = id == km.id
-            label(class = "kbpreset" & (if on: " on" else: "")):
-              input(class = "kbradio", `type` = "radio", name = "kbpreset",
-                    value = $id, `data-kb` = "preset",
-                    checked = (if on: "checked" else: ""))
-              span(class = "kbpresetname"): text presetName(id)
-              span(class = "kbpresetwhy"): text presetWhy(id)
+        #
+        # DELEGATED SINCE `/settings` GREW THE SAME LIST. Both this dialog and
+        # the settings page show "the keyboard shortcuts", and two procs
+        # drawing that would be free to draw it differently — the same defect
+        # `keymap.nim`'s one-table rule exists to prevent, one level up. The
+        # rows moved to `components/shortcut_list.nim` and neither surface owns
+        # one now. `served = false`: this dialog only exists on the hydrated
+        # page, so its chooser is live as soon as it is in the DOM.
+        raw renderPresetChooser(km.id, served = false)
 
         # THE ACTIVE BINDINGS. `data-kb-rows` is what a check counts, so the
         # count is read off the rendered set rather than off an intention.
-        if km.bindings.len == 0:
-          # kmNone is a CHOICE a visitor can make, and it renders as a
-          # sentence rather than as an empty table — an empty table reads as a
-          # dialog that failed to load, which is the one thing this surface
-          # must never look like.
-          p(class = "kbempty"):
-            # "…and their tooltips name no key — because there is none to
-            # name" explained why a DIFFERENT element renders the way it does.
-            # A reader who has just turned shortcuts off is not wondering about
-            # tooltip content; they want to know the buttons still work.
-            text "No stepping shortcuts are bound. The toolbar buttons still "
-            text "work."
-        else:
-          tdiv(class = "kbrows", `data-kb-rows` = $km.bindings.len):
-            for b in km.bindings:
-              let hz = hazardOf(b.chord, mac)
-              tdiv(class = "kbrow", `data-kb-action` = $b.action):
-                span(class = "kbwhat"): text controlLabel(b.action)
-                kbd(class = "kbchord"): text describe(b.chord)
-                if hz != hzNone:
-                  span(class = "kbhazard" & (if hz == hzBrowserReserved:
-                                               " blocked" else: " maybe"),
-                       `data-kb-hazard` = (if hz == hzBrowserReserved:
-                                             "reserved" else: "mac-fn")):
-                    text hazardText(hz)
+        # `kmNone` renders a sentence rather than an empty table — an empty
+        # table reads as a dialog that failed to load, which is the one thing
+        # this surface must never look like.
+        raw renderBindingRows(km, mac)
+
+        # AND THE TWO REGISTRIES THIS DIALOG USED TO OMIT.
+        #
+        # It was headed "Keyboard shortcuts" and listed only the stepping
+        # preset, while this page also answers the scrubber's six moves and
+        # `hydrate.nim`'s own `Enter`/Space/`Escape`. A reader who opened this
+        # to find out what a key does was being given a third of the answer
+        # under a title that claimed all of it. See `shortcut_list.nim`.
+        h3(class = "kbgrouptitle"): text ScrubName
+        raw renderScrubRows()
+        h3(class = "kbgrouptitle"): text "Always active"
+        raw renderHardRows()
 
         # THE FOOTNOTE IS GONE, and it is the same family as the site
         # footer's "No account, no tracking" and the removed `/settings` page:
@@ -1489,6 +1480,11 @@ proc renderShortcutsDialog*(km: Keymap; mac: bool): string =
         #
         # The claim itself remains true and remains stated where someone who
         # DOES ask will look: `/about`, under `What it costs you`.
+        #
+        # IT STAYS GONE ON THE NEW `/settings` TOO. That page stores the
+        # preset choice and says nothing about storing it: the persistence is
+        # demonstrated by the choice surviving a reload, which is the only
+        # evidence a reader was ever going to accept anyway.
 
 proc renderShortcutsButton*(): string =
   ## The gear, for the identity bar's `.dbgacts` group.

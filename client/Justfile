@@ -10,9 +10,25 @@
 # server never sees `?q=` — so the search bundle is built first and this export
 # names it. Unlike hydration, this is NOT optional and takes no Embed SDK: a
 # build that skipped it would ship the search form that was the defect.
-export: search-bundle
+export: search-bundle settings-bundle
     nim c -r --mm:orc -d:isServer -d:release \
-      -d:searchBundle=/assets/search.js src/static_export.nim
+      -d:searchBundle=/assets/search.js \
+      -d:settingsBundle=/assets/settings.js src/static_export.nim
+
+# ── Settings (the /settings route's preset chooser) ────────────────────────
+
+# Build the settings bundle: `nim js` over client/settingsboot/settingsboot.nim.
+#
+# Same two source paths and the same §1a property as `search-bundle`: no Embed
+# SDK, no debugger on the Nim path. It is a DEPENDENCY OF `export` rather than
+# an option, for the reason `installSettingsBundle` gives — the page serves its
+# preset chooser `hidden` and this bundle is what unhides it, so a build
+# without it ships a settings page whose only control cannot be seen.
+settings-bundle:
+    nim js --hints:off -d:release \
+      --path:src --path:../src \
+      --nimcache:settingsboot/nimcache \
+      -o:settingsboot/settings.js settingsboot/settingsboot.nim
 
 # ── Search (the /search route's resolver) ──────────────────────────────────
 

@@ -132,7 +132,17 @@ async function readShortcuts(page) {
   return page.evaluate(
     ({ gear, dialog }) => {
       const dlg = document.querySelector(dialog);
-      const rows = [...(dlg?.querySelectorAll(".kbrow") ?? [])];
+      // `.kbrow[data-kb-action]` AND NOT `.kbrow`, since the dialog grew the
+      // other two registries it used to omit — the scrubber's keys and the
+      // always-active `Enter`/Space/`Escape`. Those are `.kbrow` too, on
+      // purpose: they are the same kind of row to a reader.
+      //
+      // Every assertion below is about the moves THE KEYMAP BINDS, compared
+      // against the toolbar that offers those same moves. `data-kb-action` is
+      // exactly the set the keymap produced, so narrowing the selector keeps
+      // this journey's claim identical and stops it counting rows that were
+      // never part of it.
+      const rows = [...(dlg?.querySelectorAll(".kbrow[data-kb-action]") ?? [])];
       return {
         gear: !!document.querySelector(gear),
         gearExpanded: document.querySelector(gear)?.getAttribute("aria-expanded") ?? null,

@@ -515,6 +515,13 @@ func keyLabel*(key: string): string =
   of "ArrowDown": "↓"
   of "PageUp": "Page Up"
   of "PageDown": "Page Down"
+  # THE SPACE BAR HAS A NAME AND IT IS NOT " ". `KeyboardEvent.key` for it is
+  # a single space, and printing that verbatim — which the `else` did — put an
+  # EMPTY key cap on the page: a bordered box with nothing in it, beside
+  # `Enter` and `Spacebar`, reading as a shortcut whose key failed to render.
+  # It reached a screenshot before anything noticed, because every check
+  # compared the string to itself and both sides were " ".
+  of " ": "Space"
   else: key
 
 func describeScrub*(b: ScrubBinding): string =

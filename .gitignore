@@ -64,6 +64,14 @@ nimcache/
 /client/searchboot/search.js
 /client/searchboot/nimcache/
 
+# The settings bundle and its nimcache are build output of `just settings-bundle`.
+# The same rule again, and `installSettingsBundle` enforces the same refusal:
+# a build declaring -d:settingsBundle for a file that was not produced stops,
+# rather than serving /settings a <script> tag pointing at a 404 and a preset
+# chooser that stays hidden forever.
+/client/settingsboot/settings.js
+/client/settingsboot/nimcache/
+
 # The exported site, which now also holds the replay engine copied to this
 # origin by `just replay-engine` — 18 MB of another repository's published
 # build output. See client/hydrate/fetch-engine.sh for why it is fetched at

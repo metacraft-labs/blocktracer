@@ -172,10 +172,22 @@
               --nimcache:searchboot/nimcache \
               -o:searchboot/search.js searchboot/searchboot.nim
 
-            # 2. The site, told where both bundles went.
+            # 1b. The settings bundle, on the same terms and for the same
+            #     reason at a different address: `/settings` serves a preset
+            #     chooser `hidden`, and this is the compilation that unhides it
+            #     and makes it store anything. Without this step the deploy
+            #     ships a settings page with no visible control — which is the
+            #     page that was deleted from this address, rebuilt by accident.
+            nim js --hints:off -d:release \
+              --path:src --path:../src \
+              --nimcache:settingsboot/nimcache \
+              -o:settingsboot/settings.js settingsboot/settingsboot.nim
+
+            # 2. The site, told where all three bundles went.
             nim c -r --mm:orc -d:isServer -d:release \
               -d:hydrationBundle=/assets/hydrate.js \
               -d:searchBundle=/assets/search.js \
+              -d:settingsBundle=/assets/settings.js \
               src/static_export.nim
           '';
           installPhase = ''

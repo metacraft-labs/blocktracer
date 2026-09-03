@@ -26,7 +26,7 @@ import blocktracer/chain/ingest
 import ssr
 import reader
 import debugger/replay_engine
-import components/layout   # `SearchBundle` — the URL /search's <script> names
+import components/layout   # `SearchBundle`/`SettingsBundle` — the URLs those <script>s name
 
 const
   OutputDir = "dist"
@@ -109,6 +109,31 @@ proc installSearchBundle() =
   ensureDir(parentDir(dest))
   copyFile(built, dest)
   echo "  + search bundle: " & SearchBundle & " (" &
+    $(getFileSize(built) div 1024) & " KB)"
+
+proc installSettingsBundle() =
+  ## Put the built settings bundle where `/settings` says it is — or fail.
+  ##
+  ## The same `quit 2` as the two above, and the reason it is not merely
+  ## consistency: a page at this address was DELETED for having controls-worth
+  ## of prose and no controls. The page that replaced it serves a preset
+  ## chooser `hidden`, to be unhidden by this bundle. A build that shipped the
+  ## page without the bundle would serve a settings page whose only control is
+  ## invisible — which is the deleted page again, arriving by a build accident
+  ## rather than by a decision, and looking from the outside exactly like the
+  ## thing that was just fixed.
+  if SettingsBundle.len == 0: return
+  let built = repoRoot() / "client" / "settingsboot" / "settings.js"
+  if not fileExists(built):
+    stderr.writeLine "settings bundle not built: " & built
+    stderr.writeLine "  This build declares -d:settingsBundle=" & SettingsBundle &
+                     ", so /settings carries a <script> for it."
+    stderr.writeLine "  Build it first (cd client && just settings-bundle) or drop the define."
+    quit 2
+  let dest = OutputDir / SettingsBundle.strip(chars = {'/'})
+  ensureDir(parentDir(dest))
+  copyFile(built, dest)
+  echo "  + settings bundle: " & SettingsBundle & " (" &
     $(getFileSize(built) div 1024) & " KB)"
 
 proc generateSitemap(routes: seq[string]) =
@@ -304,6 +329,7 @@ proc exportSite() =
   copyFonts()
   installHydrationBundle()
   installSearchBundle()
+  installSettingsBundle()
   # `sitemapRoutes`, not `routes`: every route is RENDERED, and a `noindex`
   # route is not SUBMITTED (SEO-And-Crawl-Budget.md §5). The debug route is the
   # transaction's content at a second address, so a sitemap entry for it would

@@ -51,6 +51,16 @@ proc addressCodeUrl*(chain, address: string): string =
   "/" & chain & "/address/" & address & "/code"
 proc searchUrl*(): string = "/search"
 proc aboutUrl*(): string = "/about"
+proc settingsUrl*(): string = "/settings"
+  ## The keyboard-shortcut preset and the full list of bindings.
+  ##
+  ## The address is `/settings` and the page is titled `Keyboard shortcuts`,
+  ## and the two differing is deliberate rather than an oversight. The ROUTE is
+  ## the product's settings route and keeps its conventional name; the PAGE
+  ## names what is actually on it, which today is one setting. A link to it
+  ## should carry the page's name and not the route's — the label the deleted
+  ## page's footer link used, `Privacy & settings`, promised two destinations
+  ## and delivered neither.
 
 # ── outcome ────────────────────────────────────────────────────────────────
 

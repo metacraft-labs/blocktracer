@@ -198,6 +198,31 @@ proc searchScriptTag*(): string =
   ui:
     script(src = SearchBundle, `defer` = "")
 
+const SettingsBundle* {.strdefine: "settingsBundle".} = ""
+  ## Where `client/settingsboot/settings.js` was published, or "" for a build
+  ## that did not produce it.
+  ##
+  ## A THIRD DEFINE RATHER THAN A REUSED ONE, for the reason `SearchBundle`
+  ## gives about the second: the three bundles have nothing in common but the
+  ## word "script". This one is the smallest of them by a wide margin — it
+  ## toggles two attributes and reads one `localStorage` key, and it links
+  ## neither the Embed SDK nor the search corpus. Folding it into either would
+  ## make `/settings` depend on a debugger to let a reader pick a keymap, and
+  ## would make a build with one bundle and not the other indistinguishable
+  ## from a build with both.
+
+proc settingsScriptTag*(): string =
+  ## The `<script defer>` for the settings bundle.
+  ##
+  ## `defer` for a sharper reason than the search bundle's: this script's first
+  ## act is to unhide the preset chooser, which is served `hidden` precisely so
+  ## that it does not exist as a dead control before the code that makes it
+  ## live has run. Executing before the document is parsed would find neither
+  ## the chooser nor the panels.
+  if SettingsBundle.len == 0: return ""
+  ui:
+    script(src = SettingsBundle, `defer` = "")
+
 proc debugLayout*(title, description, content: string,
                   robots = "noindex,follow", canonical = "",
                   provenance = ""): string =

@@ -275,10 +275,19 @@ suite "M9 — e2e_explorer_renders_from_published_files_only":
     check "/" in routes
     check "/chains" in routes
     check "/about" in routes
-    # `/settings` was REMOVED, and this line guards the removal rather than
-    # being deleted with it: a reintroduced route would otherwise slip back
-    # into the corpus with nothing objecting.
-    check "/settings" notin routes
+    # `/settings` was REMOVED and is now BACK, and the assertion is inverted
+    # rather than deleted — for the same reason it was written: this route has
+    # been added and taken away once each, and either move should have to pass
+    # a check rather than slip through.
+    #
+    # WHAT WAS REMOVED AND WHAT RETURNED ARE NOT THE SAME PAGE. The deleted one
+    # was four groups of prose with no control on it, at a title that promised
+    # settings. This one carries the keyboard-shortcut preset chooser and the
+    # full list of every key the debug route binds, and `just journeys` proves
+    # a preset chosen here changes which key steps a trace. If it ever loses
+    # that, the honest move is to delete the page again — not to keep a route
+    # this line says exists.
+    check "/settings" in routes
     check "/search" in routes
     check ("/" & Chain) in routes
     check ("/" & Chain & "/blocks") in routes
