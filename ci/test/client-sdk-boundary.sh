@@ -125,6 +125,28 @@ DEEPLINK_ENTRY_REL="src/blocktracer_client_deeplink.nim"
 DEEPLINK_ENTRY_MODULE="blocktracer_client_deeplink"
 DEEPLINK_INTERNAL_REL="src/blocktracer_client/deeplink.nim"
 
+# The SECOND browser entry point, for the same reason and with the same guard:
+# object-path derivation. `/search?q=` is resolved in a tab because a static
+# file server never sees a query string, so Search-And-Routing §4's "the client
+# computes the object path from the identifier and fetches it" happens there —
+# and the alternative to this entry point is a JavaScript restatement of
+# `d/{chain}/tx/{shard}/{hash}.json`, which is the second place for the layout
+# to drift that `paths.nim` exists to prevent.
+#
+# Unlike the deep link, this one carries three modules rather than one, and each
+# is named below rather than waved at. `paths` needs the sharding rule and the
+# contract version, both of which are pure and JS-safe; what it must NOT reach
+# is `blocktracer/contract/ids`, which is where `std/sha1` and therefore
+# `std/endians` and therefore `copyMem` come in. The allowlist is the whole
+# point: it is short enough that adding to it is visible.
+PATHS_ENTRY_REL="src/blocktracer_client_paths.nim"
+PATHS_ENTRY_MODULE="blocktracer_client_paths"
+PATHS_INTERNAL_REL="src/blocktracer_client/paths.nim"
+PATHS_ALLOWED_RELS=(
+	"src/blocktracer/contract/shards.nim"
+	"src/blocktracer/contract/version.nim"
+)
+
 # Where an unqualified module spec is looked up, after the importing file's own
 # directory. Mirrors client/nim.cfg and the repo's own layout.
 SEARCH_ROOTS=("src" "client/src" ".")
@@ -614,6 +636,10 @@ elif ! grep -q "BlockTracerClientDeepLinkModule\* = \"${DEEPLINK_ENTRY_MODULE}\"
 	check_failed "facade-present"
 	violation_detail "${FACADE_REL} does not declare BlockTracerClientDeepLinkModule* = \"${DEEPLINK_ENTRY_MODULE}\";"
 	violation_detail "the browser entry point's name and the name this guard enforces have drifted apart"
+elif ! grep -q "BlockTracerClientPathsModule\* = \"${PATHS_ENTRY_MODULE}\"" "${FACADE_REL}"; then
+	check_failed "facade-present"
+	violation_detail "${FACADE_REL} does not declare BlockTracerClientPathsModule* = \"${PATHS_ENTRY_MODULE}\";"
+	violation_detail "the path entry point's name and the name this guard enforces have drifted apart"
 else
 	check_ok "facade-present"
 	facade_ok=1
@@ -761,6 +787,60 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Check 4c: the PATH entry point stays browser-compilable
+#
+# Same shape as 4b, and the same failure it prevents: a reach into the reader,
+# the store or `blocktracer/contract/ids` compiles perfectly on the C backend
+# and breaks the one build this module exists for, in another directory, with
+# an error naming `std/endians`. The guard is the closure, not the import list.
+# ---------------------------------------------------------------------------
+
+if [ ! -f "${PATHS_ENTRY_REL}" ]; then
+	check_failed "paths-entry-present"
+	violation_detail "${PATHS_ENTRY_REL} does not exist — a browser build has no way to reach"
+	violation_detail "object-path derivation, and client/searchboot/ would have to restate"
+	violation_detail "d/{chain}/tx/{shard}/{hash}.json in JavaScript (Static-Site-Architecture.md §2.9)."
+elif [ ! -f "${PATHS_INTERNAL_REL}" ]; then
+	check_failed "paths-entry-present"
+	violation_detail "${PATHS_INTERNAL_REL} does not exist — the entry point re-exports nothing"
+else
+	paths_violations=0
+	saw_paths_internal=0
+	paths_closure=()
+	while IFS= read -r line; do paths_closure+=("${line}"); done < <(closure_of "${PATHS_ENTRY_REL}" | sort -u)
+	for m in ${paths_closure[@]+"${paths_closure[@]}"}; do
+		if [ "${m}" = "${PATHS_ENTRY_REL}" ]; then continue; fi
+		if [ "${m}" = "${PATHS_INTERNAL_REL}" ]; then
+			saw_paths_internal=1
+			continue
+		fi
+		allowed=0
+		for a in ${PATHS_ALLOWED_RELS[@]+"${PATHS_ALLOWED_RELS[@]}"}; do
+			if [ "${m}" = "${a}" ]; then allowed=1; break; fi
+		done
+		if [ "${allowed}" -eq 1 ]; then continue; fi
+		paths_violations=$((paths_violations + 1))
+		violation_detail "${PATHS_ENTRY_MODULE}'s graph reaches ${m}"
+		violation_detail "  The path entry point may carry ${PATHS_INTERNAL_REL} plus the pure"
+		violation_detail "  contract modules named in PATHS_ALLOWED_RELS, and nothing else. Its value"
+		violation_detail "  is that it compiles under \`nim js\`; the facade does not, because"
+		violation_detail "  blocktracer/contract/ids hashes with std/sha1 and std/endians uses copyMem."
+		violation_detail "  Widening this is a deliberate edit here, not an import over there."
+	done
+	if [ "${saw_paths_internal}" -eq 0 ]; then
+		paths_violations=$((paths_violations + 1))
+		violation_detail "${PATHS_ENTRY_REL} does not reach ${PATHS_INTERNAL_REL}"
+		violation_detail "  This module exists to re-export the object layout. If it stops doing so,"
+		violation_detail "  the check above is being asserted about an empty graph."
+	fi
+	if [ "${paths_violations}" -eq 0 ]; then
+		check_ok "paths-entry-browser-safe: ${PATHS_ENTRY_REL} carries only ${PATHS_INTERNAL_REL} and the pure contract modules"
+	else
+		check_failed "paths-entry-browser-safe: ${paths_violations} violation(s)"
+	fi
+fi
+
+# ---------------------------------------------------------------------------
 # Check 5: declared consumers reach this package only through the facade
 # ---------------------------------------------------------------------------
 
@@ -782,7 +862,8 @@ for c in ${consumers[@]+"${consumers[@]}"}; do
 		violation_detail "${c} imports '${spec}' -> ${resolved}"
 		violation_detail "  That is a Client SDK internal. A consumer may import only"
 		violation_detail "  '${FACADE_MODULE}' (or '${EMBED_HANDOFF_MODULE}' to open a trace, or"
-		violation_detail "  '${DEEPLINK_ENTRY_MODULE}' from a browser build that cannot compile the facade)."
+		violation_detail "  '${DEEPLINK_ENTRY_MODULE}' or '${PATHS_ENTRY_MODULE}' from a browser build that"
+		violation_detail "  cannot compile the facade)."
 	done < <(nim_imports "${c}")
 done
 

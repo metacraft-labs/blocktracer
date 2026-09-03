@@ -121,3 +121,27 @@ const
     ## additionally asserts that this entry point reaches **only**
     ## `blocktracer_client/deeplink` — widening the browser-visible surface is a
     ## deliberate edit to `ci/test/client-sdk-boundary.sh`, not a quiet import.
+
+  BlockTracerClientPathsModule* = "blocktracer_client_paths"
+    ## The **second** module a browser build may import instead of this facade:
+    ## object-path derivation, for the same JS-backend reason as the deep link
+    ## above.
+    ##
+    ## It exists because `/search?q=` is resolved in a tab. It has to be —
+    ## Static-Site-Architecture puts the whole site behind a static file server,
+    ## and a static file server never sees a query string — so
+    ## Search-And-Routing §4's "the client computes the object path from the
+    ## identifier and fetches it" happens in the browser, and the browser
+    ## therefore needs to know where an object lives.
+    ##
+    ## The alternative was a JavaScript restatement of
+    ## `d/{chain}/tx/{shard}/{hash}.json` inside `client/searchboot/`, which is
+    ## exactly the "second place for the layout to drift" that
+    ## `blocktracer_client/paths` was written to prevent (§2.9) — and a copy in
+    ## a language no Nim test can read is the worst available version of it.
+    ##
+    ## Guarded like the other two, with one difference stated in the guard: its
+    ## closure is allowed three modules rather than one, because path derivation
+    ## genuinely needs the sharding rule and the contract version. Both are
+    ## pure. What it must never reach is `blocktracer/contract/ids`, which is
+    ## where `std/sha1` comes in.

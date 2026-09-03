@@ -49,7 +49,7 @@
 ##
 ## Every RULE is Nim, and every rule is the same code the VM uses:
 ## `canonicalQuery` and `shapesOf` come from `viewmodel/search_shapes`, and the
-## object paths from `blocktracer_client/paths` — the module whose whole purpose
+## object paths from `blocktracer_client_paths` — the module whose whole purpose
 ## is that the layout lives in one place. What is JavaScript here is I/O and the
 ## DOM, because `ObjectStore.fetchProc` is synchronous and §4's fan-out has to be
 ## concurrent in a tab.
@@ -62,7 +62,7 @@
 import std/strutils
 
 import viewmodel/search_shapes
-import blocktracer_client/paths
+import blocktracer_client_paths
 
 type
   Candidate* = object

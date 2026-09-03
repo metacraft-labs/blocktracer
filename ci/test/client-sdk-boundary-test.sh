@@ -79,6 +79,7 @@ const
   BlockTracerClientFacadeModule* = "blocktracer_client"
   BlockTracerClientEmbedModule* = "blocktracer_client_embed"
   BlockTracerClientDeepLinkModule* = "blocktracer_client_deeplink"
+  BlockTracerClientPathsModule* = "blocktracer_client_paths"
 EOF
 
 	cat >"${d}/src/blocktracer_client/store.nim" <<'EOF'
@@ -102,6 +103,37 @@ EOF
 	cat >"${d}/src/blocktracer_client_deeplink.nim" <<'EOF'
 import blocktracer_client/deeplink
 export deeplink
+EOF
+
+	# The SECOND browser-compilable entry point: object-path derivation, whose
+	# closure is allowed the internal PLUS the pure contract modules it needs.
+	# `shards` stands for the sharding rule the browser computes a path with;
+	# `ids` — which is what actually drags std/sha1 in — is deliberately absent,
+	# and the negative case below adds it.
+	mkdir -p "${d}/src/blocktracer/contract"
+	cat >"${d}/src/blocktracer/contract/shards.nim" <<'EOF'
+import std/strutils
+
+func hexShard*(h: string): string = h.strip[0 .. 3]
+EOF
+
+	cat >"${d}/src/blocktracer/contract/version.nim" <<'EOF'
+const ContractVersion* = 1
+EOF
+
+	cat >"${d}/src/blocktracer_client/paths.nim" <<'EOF'
+import ../blocktracer/contract/shards
+import ../blocktracer/contract/version
+
+export hexShard
+
+proc txFactsPath*(chain, h: string): string =
+  "d/" & chain & "/tx/" & hexShard(h) & "/" & h & ".json"
+EOF
+
+	cat >"${d}/src/blocktracer_client_paths.nim" <<'EOF'
+import blocktracer_client/paths
+export paths
 EOF
 
 	cat >"${d}/src/blocktracer_client_embed.nim" <<'EOF'
@@ -275,6 +307,63 @@ make_sdk_tree "${t}"
 sed -i.bak 's/BlockTracerClientDeepLinkModule\* = "blocktracer_client_deeplink"/BlockTracerClientDeepLinkModule* = "something_else"/' \
 	"${t}/src/blocktracer_client.nim"
 expect_guard 1 "the browser entry point's name drifting from the guard's is rejected" --root "${t}"
+
+# --- the PATH entry point, guarded the same way ----------------------------
+#
+# Same four failures as the deep link's, plus the one that is specific to this
+# entry point: its allowlist. `paths` is allowed to carry the pure contract
+# modules, so the case that has to bite is a reach into `contract/ids` — the
+# module that hashes, and therefore the module whose presence is what makes the
+# facade uncompilable for a browser in the first place. An allowlist nobody
+# tests is a list of names, not a guard.
+
+t="${work}/paths-entry-missing"
+make_sdk_tree "${t}"
+rm "${t}/src/blocktracer_client_paths.nim"
+expect_guard 1 "a MISSING path entry point is rejected (searchboot would restate the object layout in JS)" --root "${t}"
+
+t="${work}/paths-entry-reaches-facade"
+make_sdk_tree "${t}"
+cat >"${t}/src/blocktracer_client_paths.nim" <<'EOF'
+import blocktracer_client
+export blocktracer_client
+
+import blocktracer_client/paths
+export paths
+EOF
+expect_guard 1 "the path entry point importing the FACADE is rejected (that is the graph it exists to avoid)" --root "${t}"
+
+t="${work}/paths-entry-reaches-ids"
+make_sdk_tree "${t}"
+cat >"${t}/src/blocktracer/contract/ids.nim" <<'EOF'
+import std/sha1
+
+proc contentId*(b: string): string = "sha1:" & $secureHash(b)
+EOF
+cat >>"${t}/src/blocktracer_client/paths.nim" <<'EOF'
+import ../blocktracer/contract/ids
+EOF
+expect_guard 1 "the path entry point reaching contract/ids is rejected (std/sha1 is what a browser cannot compile)" --root "${t}"
+
+t="${work}/paths-entry-reaches-second-internal"
+make_sdk_tree "${t}"
+cat >>"${t}/src/blocktracer_client/paths.nim" <<'EOF'
+import blocktracer_client/store
+EOF
+expect_guard 1 "a SECOND SDK internal in the path entry point's graph is rejected" --root "${t}"
+
+t="${work}/paths-entry-reexports-nothing"
+make_sdk_tree "${t}"
+cat >"${t}/src/blocktracer_client_paths.nim" <<'EOF'
+const Nothing* = 0
+EOF
+expect_guard 1 "a path entry point that re-exports NOTHING is rejected (the rule would hold vacuously)" --root "${t}"
+
+t="${work}/paths-constant-drift"
+make_sdk_tree "${t}"
+sed -i.bak 's/BlockTracerClientPathsModule\* = "blocktracer_client_paths"/BlockTracerClientPathsModule* = "something_else"/' \
+	"${t}/src/blocktracer_client.nim"
+expect_guard 1 "the path entry point's name drifting from the guard's is rejected" --root "${t}"
 
 t="${work}/facade-renamed"
 make_sdk_tree "${t}"
