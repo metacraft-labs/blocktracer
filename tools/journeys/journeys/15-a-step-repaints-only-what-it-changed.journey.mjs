@@ -510,16 +510,50 @@ export async function run({ browser, site, j }) {
     // worktrees.
     //
     // `FL2/the-panes-move-before-the-values-arrive` SURVIVED one complete pass
-    // and was KILLED in another, on the same tree. Measured here on the mutated
-    // tree, four consecutive runs: 4, 4, 6 and 5 blinks out of six eligible
-    // positions, over 1117–1156 frames. The DETECTION is not marginal at this
-    // density and the arm does not miss — 4 of 4 killed. What is marginal is
-    // the density itself, and nothing asserted it, so a run in which the clock
+    // and was KILLED in another, on the same tree.
+    //
+    // IT IS NOT RANDOMNESS. IT IS THE MACHINE, AND IT IS REPRODUCIBLE ON EACH
+    // SIDE. Measured on this tree with the defect in place:
+    //
+    //   load average 128    blinks 3,4,4,4,5,5,6,6   KILLED 8 of 8
+    //   load average 7–19   blinks 0,1,0,0,0         SURVIVED 4 of 5
+    //
+    // The blink is the gap between "the position is known" and "the values have
+    // arrived" — about 13 ms against a 16.7 ms frame. On a loaded machine the
+    // engine lags, the gap widens past a frame, and the contradiction is
+    // composited and trivially caught. On an idle one the reply is back before
+    // the next frame and nothing is ever painted. **THE FASTER THE MACHINE, THE
+    // LESS OBSERVABLE THE DEFECT** — which is also true of the defect itself, and
+    // is why the visitor who reported the flicker could see it and a developer
+    // on a fast laptop could not.
+    //
+    // The load in question was not the suite's: 96 orphaned busy-loop processes,
+    // leaked by two unrelated agents' load experiments, held this machine at
+    // load 128–175 for hours. The original pass that produced FL2's split
+    // verdict ran inside that. Two runs, two environments, one tree.
+    //
+    // SAMPLING HARDER DOES NOT FIX IT, and the floor below is not claimed to:
+    // those idle runs sampled 84–172 frames per position, far above it. The
+    // sampler was wide awake and there was nothing on screen to see.
+    //
+    // WHAT WAS TRIED AND DOES NOT WORK, so it is not tried again: holding the
+    // engine's `ct/load-locals` replies back by 220 ms to make the window last
+    // longer than a frame. It makes the MUTATED tree blink at all six positions,
+    // 3 of 3 — and it makes the UNMUTATED tree blink at all six positions too,
+    // 3 of 3. An instrument that reddens a correct tree is not an instrument.
+    // That result is itself worth a look by someone with time for it: the guard
+    // is supposed to hold the paint until the values land, `LocalsDeadlineMs` is
+    // 8000 ms so no timeout is involved, and a 220 ms engine still produces the
+    // contradictory frame. Either the guard does not cover every paint path or
+    // it is a race the product usually wins rather than a guarantee. NOT CLAIMED
+    // AS A DEFECT HERE — it is one measurement, and the journey it would belong
+    // to is this one.
+    //
+    // So what the floor below DOES close is a different and real hole found on
+    // the way: nothing asserted the sampler's duty cycle, so a run whose clock
     // was starved reported the same green as a run in which the defect was
-    // absent. **A verdict that cannot tell "I looked and it was not there" from
-    // "I barely looked" is not a measurement**, and that is the whole of this
-    // arm's flakiness: not a race the detector loses, but a detector whose duty
-    // cycle nothing checked.
+    // absent. A verdict that cannot tell "I looked and it was not there" from
+    // "I barely looked" is not a measurement either.
     //
     // So the floor is asserted, per position, and it is deliberately far below
     // the ~160 frames/position a healthy run produces: the claim is not that

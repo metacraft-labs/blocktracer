@@ -366,9 +366,43 @@ the run producing them had never reached its summary. Each is now attributable:
 * `H`, `Z2` — genuine survivals, reproduced in two independent runs.
 
 One arm is **flaky** and only two complete runs could show it: `FL2/the-panes-move-
-before-the-values-arrive` SURVIVED in one run and was KILLED in the other. It
-samples per frame over a six-step walk, so it is a coin the way the removed
-`SC-stale` arm was, and a single green run is not evidence about it.
+before-the-values-arrive` SURVIVED in one run and was KILLED in the other.
+
+**IT IS NOT A COIN. IT IS THE MACHINE, AND IT IS REPRODUCIBLE ON EACH SIDE.**
+Measured on one tree with the defect in place:
+
+| environment | blinks per run | verdict |
+|---|---|---|
+| load average 128 | 3, 4, 4, 4, 5, 5, 6, 6 | **KILLED 8 of 8** |
+| load average 7–19 (idle) | 0, 1, 0, 0, 0 | **SURVIVED 4 of 5** |
+
+The blink is the gap between "the position is known" and "the values have
+arrived" — about 13 ms against a 16.7 ms frame. On a loaded machine the engine
+lags, the gap widens past a frame, and the contradiction is composited. On an
+idle one the reply is back before the next frame and nothing is painted. **The
+faster the machine, the less observable the defect** — which is equally true of
+the defect itself, and is why a visitor could report the flicker and a developer
+on a fast laptop could not reproduce it.
+
+The load was not the suite's. **96 orphaned busy-loop processes**, leaked by two
+unrelated agents' load experiments (a `for p in $PIDS; do kill "$p"; done` that
+never fired, because zsh does not word-split unquoted expansions), held this
+machine at load 128–175 for hours. The original pass that produced FL2's split
+verdict ran inside that. Two runs, two environments, one tree — and neither
+transcript recorded which. It is the same lesson `lib/engine.mjs` already
+carries about the unpinned engine, arriving through the scheduler instead.
+
+Sampling harder does not fix it: the idle runs sampled 84–172 frames per
+position, far above the density floor added here. **What was tried and does not
+work** — holding `ct/load-locals` replies back by 220 ms so the window outlasts a
+frame — makes the mutated tree blink at all six positions 3 of 3, *and the
+unmutated tree blink at all six positions 3 of 3*. An instrument that reddens a
+correct tree is not an instrument, so it was reverted rather than shipped. That
+result deserves its own look: the guard is meant to hold the paint until values
+land, `LocalsDeadlineMs` is 8000 ms so no timeout is involved, and a 220 ms
+engine still produces the contradictory frame. Either the guard misses a paint
+path or it is a race the product usually wins rather than a guarantee. **Not
+claimed as a defect here** — it is one measurement.
 
 ## The ledger
 
