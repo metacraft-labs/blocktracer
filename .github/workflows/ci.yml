@@ -77,6 +77,13 @@ on:
   push:
     branches: [dev, staging, live]
   pull_request:
+  # THE LANE THAT CANNOT BE EVICTED. See the concurrency block below — this
+  # trigger exists so that a run can be produced which no push and no PR is
+  # able to collapse. `ci-coverage-clock.yml` is what fires it on a clock; it
+  # is also the handle for forcing a mainline verdict by hand:
+  #
+  #     gh workflow run ci.yml --ref dev
+  workflow_dispatch:
 
 # ONE RUN PER BRANCH. Superseded runs are cancelled.
 #
@@ -100,9 +107,58 @@ on:
 #
 # `github.ref` and not `github.sha`: the point is to collapse pushes to the SAME
 # branch. Two branches still run concurrently.
+#
+# ---------------------------------------------------------------------------
+#
+# WHAT THE PARAGRAPHS ABOVE GOT WRONG, MEASURED ON 2026-09-03.
+#
+# The trade they describe is "the gate is the branch TIP rather than every
+# commit". That is the trade this block makes when a run SURVIVES to a verdict.
+# It is not the trade it actually made. Of the last 25 `ci` runs on `dev`:
+# 21 CANCELLED, 3 failed, 0 successful, and the last run to reach any verdict
+# at all was ~4.5 hours old and red. No commit landed that day had a CI verdict
+# of any kind.
+#
+# The mechanism, and it is not the one the paragraphs above assume. They assume
+# the newest run survives and the superseded ones die. On a SATURATED pool that
+# is false: six of the eight jobs here need `eph-linux-x64`, a full run is
+# 10-15 minutes and `journeys` alone is bounded at 150, while pushes from
+# several agents land every few minutes. So the newest run is still PENDING —
+# it has not placed a single job on a runner — when the next push evicts it.
+# `cancel-in-progress` does not wait for a run to start being useful. The
+# branch tip is never gated either, because there is always a newer tip before
+# the current one can be judged. Cancelling to protect the queue and cancelling
+# away 100% of the coverage are the same setting; which one you get depends on
+# whether pushes are slower than a run, and here they are not.
+#
+# THIS IS CODETRACER'S DEFECT, and the remedy is ported from there rather than
+# reinvented: keying concurrency on the branch drained a 46-deep queue and cost
+# 100% of mainline coverage, and the fix was A SECOND LANE that no push and no
+# PR can produce. It is proven by controlled comparison — 31 jobs created for
+# the dispatch against 0 for a push in the same minute.
+#
+# HOW THE TWO LANES ARE KEPT DISJOINT. A push always has `github.ref` =
+# `refs/heads/<branch>`; a pull request always has `refs/pull/<n>/merge`.
+# NEITHER can ever equal the string `ci-coverage-<name>`, so the dispatch lane's
+# group is unreachable from the push and PR lanes by construction, not by
+# convention. They therefore cannot evict each other in either direction.
+#
+# `cancel-in-progress` is FALSE for the dispatch lane and true for the others.
+# A scheduled coverage run that a later scheduled coverage run could cancel
+# would reproduce this whole defect inside the lane written to escape it. The
+# pile-up that `false` risks is handled where it belongs — `ci-coverage-clock.yml`
+# does not dispatch while a coverage run is already in flight — rather than by
+# a setting that cannot tell "superseded" from "not started yet".
+#
+# THE CLOCK IS IN ANOTHER FILE, DELIBERATELY. GitHub fires `schedule:` only from
+# the DEFAULT branch, using that branch's copy of the workflow. Putting a
+# `schedule:` on this file would tie mainline coverage to whichever branch is
+# default — today that is `dev`, so it would appear to work, and it would give
+# `staging` and `live` nothing while looking correct in review. The clock names
+# the refs it wants explicitly instead; see `ci-coverage-clock.yml`.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'workflow_dispatch' && format('ci-coverage-{0}', github.ref_name) || format('ci-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
   # Does every suite this repository has actually run, on every branch it ships

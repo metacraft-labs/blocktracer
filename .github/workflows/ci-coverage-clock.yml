@@ -1,0 +1,142 @@
+name: ci-coverage-clock
+
+# THE CLOCK THAT MAKES A MAINLINE VERDICT EXIST.
+#
+# WHAT IT IS FOR. `ci.yml` collapses pushes to one run per branch and cancels
+# the superseded ones. On a saturated `eph-linux-x64` pool that setting does not
+# gate the branch tip — it gates nothing, because the newest run is still
+# PENDING when the next push evicts it. Measured on `dev` on 2026-09-03: of the
+# last 25 `ci` runs, 21 cancelled, 3 failed, 0 successful, and no commit landed
+# that day had a verdict of any kind. `ci.yml`'s concurrency block carries the
+# full account.
+#
+# The remedy is ported from codetracer, where the same defect drained a 46-deep
+# queue and cost 100% of mainline coverage: a DISPATCH-TRIGGERED run in its own
+# concurrency group, which no push and no pull request is able to produce, and
+# therefore which nothing can evict.
+#
+# ---------------------------------------------------------------------------
+#
+# WHY THE CLOCK IS HERE AND NOT A `schedule:` ON `ci.yml`.
+#
+# GitHub fires scheduled workflows ONLY from the default branch, and it runs
+# that branch's copy of the file. A `schedule:` written into `ci.yml` therefore
+# means "cover whatever branch happens to be default", which is:
+#
+#   * silently wrong for every OTHER branch this repository deploys —
+#     `deploy.yml` ships `live`, `staging` and `dev`, and a schedule on `ci.yml`
+#     would give exactly one of the three a scheduled verdict;
+#   * correct-looking in review, because the file that needs the coverage and
+#     the file that fires the clock are the same file, so nothing in the diff
+#     says which branch it applies to; and
+#   * load-bearing on a fact nobody restates when they change it. `dev` is the
+#     default branch TODAY. If that moves to `main` — which exists, and is 178
+#     commits behind — the scheduled run silently starts gating a branch nobody
+#     ships from, and `dev` goes dark again with the YAML unchanged.
+#
+# So the clock is split from the trigger. This file is the only thing that
+# needs to sit on the default branch; it names the refs it wants OUT LOUD, and
+# a ref that stops existing is reported rather than skipped.
+#
+# THE COVERAGE RUN IS THE FULL `ci`, not a subset. A cheaper "coverage-only"
+# lane would answer a different question from the one the pushes fail to
+# answer, and the point is to restore the verdict that was lost, not to invent
+# a weaker one.
+
+on:
+  schedule:
+    # Every two hours. A full `ci` run is 10-15 minutes for most jobs, but
+    # `journeys` is bounded at 150 and measured near 100, so a run can occupy
+    # most of a two-hour window. This is a floor on how stale a mainline
+    # verdict can be (~2h), not a promise of one every two hours — the guard
+    # below skips a tick whose predecessor is still going.
+    - cron: "0 */2 * * *"
+  # So a verdict can be forced without waiting for the clock.
+  workflow_dispatch:
+
+# The clock must not stack up on itself.
+concurrency:
+  group: ci-coverage-clock
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fire a coverage run for every branch we deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+
+          # The mainlines, spelled out. This list must equal `deploy.yml`'s
+          # push branches for the same reason `ci.yml`'s trigger must —
+          # a branch that is deployed and has no reachable verdict is the
+          # hole the whole `ci-coverage` job exists to report.
+          refs="dev staging live"
+
+          fired=0
+          skipped=0
+          missing=0
+
+          for ref in ${refs}; do
+            if ! git ls-remote --exit-code --heads \
+                "https://github.com/${GH_REPO}.git" "${ref}" >/dev/null 2>&1; then
+              # NOT a skip: a branch this clock names and cannot find is the
+              # same "dead trigger reads like a working trigger" defect that
+              # `ci-coverage.sh` step 4 was written for.
+              echo "::error::branch '${ref}' is named by this clock and does not exist"
+              missing=$((missing + 1))
+              continue
+            fi
+
+            # Do not dispatch on top of a coverage run that is still going.
+            # `ci.yml`'s dispatch lane sets `cancel-in-progress: false` — on
+            # purpose, so that a later coverage run cannot cancel an earlier
+            # one and reproduce the very defect this lane exists to escape.
+            # The cost of that choice is that ticks would QUEUE behind a long
+            # run, so the pile-up is prevented here, where "already running"
+            # can actually be distinguished from "superseded".
+            inflight="$(
+              gh run list --workflow ci.yml --branch "${ref}" \
+                --event workflow_dispatch --status in_progress \
+                --json databaseId --jq 'length' 2>/dev/null || echo 0
+            )"
+            queued="$(
+              gh run list --workflow ci.yml --branch "${ref}" \
+                --event workflow_dispatch --status queued \
+                --json databaseId --jq 'length' 2>/dev/null || echo 0
+            )"
+            if [ "${inflight:-0}" -gt 0 ] || [ "${queued:-0}" -gt 0 ]; then
+              echo "${ref}: a coverage run is already in flight (${inflight} running, ${queued} queued) — not stacking another"
+              skipped=$((skipped + 1))
+              continue
+            fi
+
+            if gh workflow run ci.yml --ref "${ref}"; then
+              echo "${ref}: coverage run dispatched"
+              fired=$((fired + 1))
+            else
+              echo "::error::${ref}: could not dispatch a coverage run"
+              missing=$((missing + 1))
+            fi
+          done
+
+          echo
+          echo "dispatched ${fired}, skipped ${skipped} (already running), failed ${missing}"
+
+          # A tick that fired nothing AND skipped nothing has silently done
+          # nothing at all, which is indistinguishable in the run list from a
+          # clock that is working. Fail instead.
+          if [ "${missing}" -gt 0 ]; then
+            exit 1
+          fi
+          if [ "${fired}" -eq 0 ] && [ "${skipped}" -eq 0 ]; then
+            echo "::error::this tick neither dispatched nor skipped anything — the clock is not doing its job"
+            exit 1
+          fi
