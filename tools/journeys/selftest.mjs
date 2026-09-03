@@ -1419,6 +1419,27 @@ proc noteFor*`,
     journey: "a-value-can-be-traced-to-its-origin",
     assertion: "and each control names the origin it would trace to",
   },
+  {
+    id: "R/the-landing-position-is-never-asked-about",
+    why:
+      "Remove the re-issue of the locals request at the position the session LANDS" +
+      " on. This is the defect exactly as it shipped, not an analogue of it: the" +
+      " request `StateVM`'s effect issues at construction is dropped before the" +
+      " worker exists and stays pending, the one store write that would re-run that" +
+      " effect happens BEFORE `goLive` clears the tracker so its send is skipped as" +
+      " a duplicate, and every write after the clear names the same coordinate and" +
+      " changes no signal. The pane then says 'Reading the values at this position…'" +
+      " for as long as the tab is open, and one step repairs it — which is why" +
+      " journeys 11, 16 and 18 were green through it for a week: every one of them" +
+      " steps before it reads, and journey 11's landing reading accepts any" +
+      " sentence, so a pane that never stops promising satisfied the check written" +
+      " to catch a pane that says nothing.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `  h.session.requestLandingLocals()`,
+    replace: `  discard  # MUTATED: the landing locals request is not issued`,
+    journey: "a-session-shows-the-values-it-landed-on",
+    assertion: "the Values pane at the landing position says what it says on returning to it",
+  },
 ];
 
 const log = (s = "") => console.log(s);
