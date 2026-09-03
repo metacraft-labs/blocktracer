@@ -645,6 +645,23 @@ type
       ## state — an instruction-level recording whose stream this tree does not
       ## publish, which renders the stated reason and nothing else, as it always
       ## did.
+    positions*: JsonNode
+      ## The recording's per-step SOURCE positions (`avm-source-positions/1`),
+      ## or nil.
+      ##
+      ## THE RUNG BETWEEN THE OTHER TWO, and the reason this field exists at all
+      ## is that `sourceLevel` could not express it. `sourceLevel` is one bit
+      ## about the whole recording — every step positioned, or not — so a
+      ## recording that positions most of its steps and not all of them
+      ## published its bundle, published this object, and then rendered a
+      ## bytecode listing, because the only question the pane knew how to ask
+      ## was the bit. That is the shape of an overclaim inverted: the tree held
+      ## real source at real lines and the page declined to show any of it.
+      ##
+      ## Carried on every trace view beside `instructions`, and the pane decides
+      ## between the three in `ssr.debugSessionFor`: positions win over a
+      ## listing, a listing wins over a paragraph. Nil here is not a failure —
+      ## it is every capture taken before an artifact could be resolved.
 
 proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
                 selector = ""): TraceView =
@@ -693,6 +710,13 @@ proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
   if isReplayable(t) and t.instructionsPath.len > 0:
     let ins = r.store.getJson(t.instructionsPath)
     if ins.found and ins.error.len == 0: result.instructions = ins.node
+  # Fetched on the same terms as the listing above and never in place of it:
+  # both are resolved, and `debugSessionFor` picks. A tree that publishes
+  # positions almost always publishes instructions too, and the pane that ends
+  # up with source simply leaves the listing unread.
+  if isReplayable(t) and t.positionsPath.len > 0:
+    let pos = r.store.getJson(t.positionsPath)
+    if pos.found and pos.error.len == 0: result.positions = pos.node
   if t.hasManifest:
     result.steps = t.manifest.execution.steps
     result.frames = t.manifest.execution.frames

@@ -504,6 +504,24 @@ type
       ##
       ## Only hydration sets it, and only once the session is live — the same
       ## rule and the same moment as `projectControls(live = true)`.
+    positionedSteps*, positionedOf*: int
+      ## How many of the recording's steps carry a source position, out of how
+      ## many it holds. `0 / 0` on every pane whose text did not come from a
+      ## per-step position stream — the fixture's, a listing's, and a bundle
+      ## that won because the manifest already claimed `sourceLevel`.
+      ##
+      ## THE PANE CARRIES THE COVERAGE BECAUSE THE PANE IS WHAT OVERCLAIMS
+      ## WITHOUT IT. A recording that positions 86 of its 108 steps shows real
+      ## Noir at 86 of them, and the honest frame has to be able to say which
+      ## number it is showing and which it is not. Kept as the two counts rather
+      ## than a ratio or a bool so the sentence `renderSource` writes is the
+      ## measurement and not a rounding of it.
+      ##
+      ## `positionedOf > positionedSteps` is the partial case, and it is the one
+      ## `canHeadline` refuses: an exhibit chosen for the home page may not be a
+      ## recording whose stepping runs out of source part-way through, and
+      ## CHAIN-CAPTURE.md §6.2 reserves that choice for a person rather than for
+      ## whatever appeared in the tree.
 
 const ListingPath* = "avm"
   ## The document path an INSTRUCTION LISTING is filed under, and therefore the
@@ -1668,6 +1686,15 @@ func canHeadline*(v: DebugSessionView): bool =
   if v.editor.availability != srcSourceLevel: return false
   if v.editor.documents.len == 0: return false
   if v.editor.currentLine <= 0: return false
+  # …and it does not run out of source part-way through. A partly positioned
+  # recording is a real one and this product now shows it (see `positionedSteps`
+  # and `withSourcePositions`), but the home page's exhibit is a first
+  # impression, and one that steps into "no source position for this step" is an
+  # argument rather than a demonstration. CHAIN-CAPTURE.md §6.2 puts this choice
+  # with a person; the refusal keeps it there instead of letting the strongest
+  # capture in the tree take the slot by arriving.
+  if v.editor.positionedOf > 0 and
+     v.editor.positionedSteps < v.editor.positionedOf: return false
   var hasLines = false
   for d in v.editor.documents:
     if d.lines.len > 0: hasLines = true

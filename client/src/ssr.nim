@@ -142,6 +142,13 @@ proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
   # interpretation the page should use", so a published bundle wins over the
   # client's fixture sources.
   withPublishedSources(result, t.sourceBundle)
+  # THE MIDDLE RUNG, between the manifest's whole-recording claim above and the
+  # program counters below. A recording that positions SOME of its steps sets no
+  # `sourceLevel` bit, so `withPublishedSources` declines it — and its bundle and
+  # its per-step positions are both published and both were going unread. This
+  # takes the pane only when the one above it did not, for the same coexistence
+  # reason the listing does: whatever won keeps the pane.
+  withSourcePositions(result, t.sourceBundle, t.positions)
   # …and the floor, AFTER it and never over it. A pane that ended up with source
   # keeps source; one that did not gets the program counters the recording
   # carries instead of a paragraph describing them. The order is the coexistence

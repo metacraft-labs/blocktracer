@@ -715,6 +715,194 @@ proc withPublishedSources*(session: var DebugSessionView; bundle: JsonNode) =
             "started.")
   session.editor = pane
 
+type StepPositions* = object
+  ## `positions.json` (`avm-source-positions/1`) decoded — the recording's own
+  ## per-step source coordinates, one entry per step, `pathId` null where the
+  ## step has none.
+  has*: bool
+  steps*, positioned*: int
+  postHoc*: bool
+    ## The positions were derived AFTER the fact, by re-asking the artifact
+    ## about a container that recorded none — `resolve-frozen-artifacts.mjs`,
+    ## not the recording session. Carried because it changes what the frame is
+    ## entitled to say; see `withSourcePositions`.
+  paths*: seq[string]
+  pathId*: seq[int]        ## -1 where the step carries no position
+  line*, column*: seq[int]
+
+proc decodeStepPositions*(node: JsonNode): StepPositions =
+  ## Total, and refuses rather than repairs.
+  ##
+  ## The three parallel arrays have to agree with each other and with `steps`,
+  ## because every consumer below indexes them with one number. A payload where
+  ## they do not is not a payload with a gap in it — it is one whose rows mean
+  ## something other than what this proc would read them as, and guessing which
+  ## is exactly how a step acquires a line number belonging to a different step.
+  if node.isNil or node.kind != JObject: return
+  if node{"schema"}.getStr != "avm-source-positions/1": return
+  let ids = node{"pathId"}
+  let lines = node{"line"}
+  let cols = node{"column"}
+  let paths = node{"paths"}
+  if ids.isNil or lines.isNil or cols.isNil or paths.isNil: return
+  if ids.kind != JArray or lines.kind != JArray or cols.kind != JArray or
+     paths.kind != JArray: return
+  if ids.len != lines.len or ids.len != cols.len or ids.len == 0: return
+  for p in paths:
+    if p.kind != JString: return
+    result.paths.add p.getStr
+  for i in 0 ..< ids.len:
+    let id = (if ids[i].kind == JInt: ids[i].getInt else: -1)
+    # A position pointing outside the interned path table is dropped to
+    # unpositioned rather than clamped: a step attributed to whichever file
+    # happens to sit at index 0 is worse than a step that says it has no source.
+    let ok = id >= 0 and id < result.paths.len and
+             lines[i].kind == JInt and lines[i].getInt > 0
+    result.pathId.add(if ok: id else: -1)
+    result.line.add(if ok: lines[i].getInt else: 0)
+    result.column.add(if ok and cols[i].kind == JInt: cols[i].getInt else: 0)
+    if ok: inc result.positioned
+  result.steps = result.pathId.len
+  result.postHoc = node{"measuredPostHoc"}.getBool
+  result.has = true
+
+proc withSourcePositions*(session: var DebugSessionView;
+                          bundle, positions: JsonNode) =
+  ## Render REAL SOURCE for a recording that positions some of its steps.
+  ##
+  ## ## The gap this closes
+  ##
+  ## `withPublishedSources` refuses any pane that is not already `srcSourceLevel`,
+  ## and it is right to: it re-applies a position it does not itself derive, so
+  ## handing it an instruction-level pane swapped the text and zeroed the
+  ## coordinate. Its header names the successor in as many words — the positions
+  ## "arrive in `positions.json` beside the container rather than on the frame,
+  ## and until a pane knows how to read them the honest thing is to leave the
+  ## instruction listing alone." This is the pane knowing how to read them.
+  ##
+  ## Until it existed, a real-chain transaction whose artifact resolved
+  ## published its 32-file Noir bundle AND its 108 per-step positions into the
+  ## tree, and then rendered a bytecode listing over the top of both, because
+  ## the only question the route could ask was `manifest.execution.sourceLevel`
+  ## — one bit meaning "EVERY step is positioned". No real capture has ever set
+  ## it (CHAIN-CAPTURE.md §6.2a), and on Aztec's `public_dispatch` contracts the
+  ## dispatch prologue is compiled procedure code the transpiler keys no
+  ## location for, so the bit is false while 86 of 108 steps sit on real Noir
+  ## lines. Gating the text on it discarded all 86.
+  ##
+  ## ## Why this may claim source level, and what it must say
+  ##
+  ## `srcSourceLevel` is "a bundle resolved; the pane shows code", and both are
+  ## true here: the bundle is proved against the class's `artifactHash` and the
+  ## pane shows the file the step is in, at the line it is on. What is NOT true
+  ## is the recording-wide claim, so the coverage travels with the pane
+  ## (`positionedSteps` / `positionedOf`), `renderSource` states it, and
+  ## `canHeadline` refuses a partial one. The rung, the corroboration and the
+  ## `sourceLevel` bit are untouched — this reads the tree, it does not restate
+  ## it, and `viewutil.sourcesLabel` keeps deriving the badge from its own two
+  ## axes.
+  ##
+  ## ## Three refusals, matching the listing's
+  ##
+  ## A pane already at source level is left alone (`withPublishedSources` won,
+  ## and the manifest's claim outranks this reconstruction). A pane that already
+  ## has documents is left alone. A payload that decodes to nothing, or one that
+  ## positions no step at all, is left alone — and the listing below then serves
+  ## the page it always served.
+  if not session.hasFrame: return
+  if session.editor.availability != srcUnverified: return
+  if session.editor.documents.len > 0: return
+  let pos = decodeStepPositions(positions)
+  if not pos.has or pos.positioned <= 0: return
+  # ── AND A FOURTH REFUSAL: POST-HOC POSITIONS DO NOT LIGHT THE PANE ──────────
+  #
+  # `resolve-frozen-artifacts.mjs` can ask a FROZEN container's question after
+  # the fact — the artifact comes from npm, the program counters are in the
+  # `.ct`, and CHAIN-CAPTURE.md §6.2b measured that 86 of the frozen FeeJuice
+  # transaction's 108 steps "would position", at real Noir lines. The mapping is
+  # sound. The refusal is not about the mapping.
+  #
+  # It is that the tree states this separation deliberately and in two places,
+  # and one pane may not quietly settle it. `reader.sourcesView` reads
+  # `stepsPositioned` out of the CAPTURE and out of nothing else, so "the
+  # artifact is provable" and "this recording shows it" stay apart — a frozen
+  # rung-3 row therefore reads `Source not recorded` no matter how good the
+  # retroactive answer is. Rendering source over that badge would not be a
+  # stronger page; it would be a page disagreeing with itself, and §6.2b names
+  # the combination it creates — `scAll` with `sourceLevel: false` — as one "the
+  # live pipeline never produces and the product has no copy for… a deliberate
+  # product decision… written down here rather than taken unilaterally."
+  #
+  # So this shows source only for a recording that MEASURED ITS OWN POSITIONS
+  # while it ran, where the badge already agrees with the pane. Deleting this
+  # one line is all that stands between the frozen captures and a source view,
+  # and that is the shape the decision should have when someone takes it.
+  if pos.postHoc: return
+  let docs = sourceDocumentsFromBundle(bundle)
+  if docs.len == 0: return
+
+  # THE COORDINATE IS THE SESSION'S, CLAMPED THE WAY THE LISTING CLAMPS IT.
+  # `entryStepWithin` can land one past the end of a short recording, and this
+  # is the second producer in a position to notice; correcting it here and in
+  # `withInstructionListing` identically keeps the toolbar's step, the URL's
+  # time coordinate and the marked row one derivation rather than three.
+  var step = (if session.controls.positioned: session.controls.step else: -1)
+  if step >= pos.steps: step = pos.steps - 1
+  # …AND THEN MOVED TO A STEP THERE IS SOURCE FOR, which is a landing rule and
+  # not a repair of the data. The 22 unpositioned steps of a FeeJuice execution
+  # are its dispatch prologue and they sit at the FRONT of the stream, so a
+  # session that landed on its own arithmetic mid-point would open on the one
+  # region with nothing to show and report "no source position" over a bundle
+  # that has source for the rest. `bestTrace` already lands the route in the
+  # half that can be debugged; this is the same rule one level down. The
+  # session's own step moves WITH it — a page may not report a position it is
+  # not showing.
+  var landed = -1
+  if step >= 0 and step < pos.steps and pos.pathId[step] >= 0:
+    landed = step
+  else:
+    for i in max(step, 0) ..< pos.steps:
+      if pos.pathId[i] >= 0: landed = i; break
+    if landed < 0:
+      for i in countdown(min(step, pos.steps - 1), 0):
+        if pos.pathId[i] >= 0: landed = i; break
+  if landed < 0: return
+  if landed != session.controls.step:
+    session.controls.step = landed
+    session.timeCoordinate = landed
+  session.controls.positioned = true
+
+  var pane = session.editor
+  pane.availability = srcSourceLevel
+  pane.reason = ""
+  pane.listingCaption = ""
+  pane.documents = docs
+  pane.activeIndex = 0
+  pane.positionedSteps = pos.positioned
+  pane.positionedOf = pos.steps
+
+  # THE GUTTER IS THE RECORDING'S OWN VISITED SET, built from the positions and
+  # nothing else. `markExecuted` exists precisely so this comes from the trace
+  # rather than from the text, and the fixture's `executedLines()` — which
+  # describes a different program — must not be anywhere near it.
+  var executed = initTable[string, seq[int]]()
+  for i in 0 ..< pos.steps:
+    if pos.pathId[i] < 0: continue
+    let p = pos.paths[pos.pathId[i]]
+    if not executed.hasKey(p): executed[p] = @[]
+    if pos.line[i] notin executed[p]: executed[p].add pos.line[i]
+  markExecuted(pane, executed)
+
+  let path = pos.paths[pos.pathId[landed]]
+  if documentIndex(pane, path) < 0:
+    # The bundle does not carry the file the step is in. That is a mismatched
+    # pair, not a partial one, and showing whichever file sorts first with a
+    # line number from another would be the confident wrong answer. Leave the
+    # pane alone and let the listing serve the page.
+    return
+  focus(pane, path, pos.line[landed])
+  session.editor = pane
+
 proc withInstructionListing*(session: var DebugSessionView; node: JsonNode) =
   ## Give an instruction-level pane the instructions.
   ##

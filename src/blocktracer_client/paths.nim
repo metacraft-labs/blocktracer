@@ -96,6 +96,26 @@ proc traceInstructionsPath*(traceArtifactId: string): string =
   let d = traceArtifactDir(traceArtifactId)
   if d.len == 0: "" else: d & "/instructions.json"
 
+proc tracePositionsPath*(traceArtifactId: string): string =
+  ## `positions.json` beside the container — the recording's per-step source
+  ## positions, when the capture (or a post-hoc resolution) could derive them.
+  ##
+  ## THE RUNG ABOVE `instructions.json`, AND A SIBLING FOR THE SAME REASON. Both
+  ## are per-step streams of a few hundred rows that only the pane which renders
+  ## them should pay to fetch, so neither is a field of the manifest. Asking is
+  ## the whole protocol here too: absent is a valid tree, and it is exactly the
+  ## tree every capture published before an artifact could be resolved.
+  ##
+  ## It is NOT a restatement of `manifest.execution.sourceLevel`, and the two
+  ## must not be collapsed. `sourceLevel` is a claim about the RECORDING — that
+  ## every executed step carries a position — while this object is the per-step
+  ## measurement itself, which is how a recording that positions 86 of its 108
+  ## steps can show real source at 86 of them and say so at the other 22. A
+  ## reader that inferred one from the other would have to choose between
+  ## suppressing real source and overclaiming a rung.
+  let d = traceArtifactDir(traceArtifactId)
+  if d.len == 0: "" else: d & "/positions.json"
+
 proc sourceBundlePointerPath*(chain, codeHash: string): string =
   ## `/src/{chain}/{codeHash}/current.json` — the ◆ pointer that moves when a
   ## better interpretation lands (Source-Resolution.md §5).

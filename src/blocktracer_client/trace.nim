@@ -82,6 +82,11 @@ type
       ## must not fetch an object nobody asked for, and the one surface that
       ## renders a listing is the one that should pay for finding out whether
       ## there is one.
+    positionsPath*: string
+      ## Where this recording's per-step SOURCE positions would be published —
+      ## the rung above `instructionsPath`, derived and not probed for the same
+      ## reason. See `tracePositionsPath` for why it is a sibling object rather
+      ## than a manifest field, and why it is not `execution.sourceLevel`.
     hasManifest*: bool
     manifest*: TraceManifest
     manifestError*: string
@@ -174,6 +179,7 @@ proc resolveExec*(store: ObjectStore, session: ChainSession,
   result.manifestPath = traceManifestPath(result.traceArtifactId)
   result.containerPath = traceContainerPath(result.traceArtifactId, "")
   result.instructionsPath = traceInstructionsPath(result.traceArtifactId)
+  result.positionsPath = tracePositionsPath(result.traceArtifactId)
 
   if result.kind == trkOnDemand and not probeOnDemand:
     return
