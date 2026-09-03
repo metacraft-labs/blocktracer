@@ -47,21 +47,37 @@ proc siteFooter*(): string =
       tdiv(class = "inner"):
         tdiv:
           text "BlockTracer — the deepest view into every transaction."
-          # THE `Privacy & settings` LINK WENT WITH ITS PAGE. `/settings` is
-          # removed — see the note at the foot of this file — and a footer link
-          # is the first thing that has to go when a route does, because it is
-          # rendered on every page in the product and would be 819 dead links
-          # rather than one.
+          # THE THIRD LINK IS BACK, AND IT IS NOT THE ONE THAT LEFT.
           #
-          # The label is also the reason it could not simply be repointed at
-          # `/about`. It promised two things, `Privacy` and `settings`, and
-          # neither survives as a destination of its own: there are no settings,
-          # and the privacy claims are now items in About's `What it costs you`
-          # list rather than a page. `About` already links there and says what
-          # the reader will get.
+          # `Privacy & settings` went when the prose page behind it was removed,
+          # and it could not have been repointed anywhere: the label promised
+          # two destinations and neither survived as one. `/settings` now serves
+          # a DIFFERENT page — a keymap preset chooser and the full list of
+          # bound chords — so this is a new link to a new page that happens to
+          # share a route, not the restoration of the old one.
+          #
+          # THE LABEL IS THE PAGE'S NAME AND NOT THE ROUTE'S, which is the rule
+          # `viewutil.settingsUrl` states and the reason the old label was
+          # wrong. The route is `/settings` and the page is titled
+          # `Keyboard shortcuts`; a footer reading `Settings` would promise a
+          # preferences surface in general and deliver one setting, which is the
+          # same over-promise in a shorter word. It is the full two words rather
+          # than `Shortcuts`, because a bare `Shortcuts` in a footer beside
+          # `About` and `Chains` reads as shortcuts to places on the site.
+          #
+          # A LITERAL, matching its two siblings, and NOT `viewutil.settingsUrl`.
+          # Calling it would be the tidier-looking choice and is the wrong one
+          # here: `viewutil` imports `reader`, `session_view` and
+          # `components/provenance`, so a component would be reaching up a layer
+          # and dragging the data seam behind it to obtain one string. `/about`
+          # and `/chains` are literals in this file for the same reason. The
+          # rule `settingsUrl` documents is about the LABEL, and that rule is
+          # followed above; the route spelling is three characters and shared
+          # with nothing that can drift independently of the router.
           tdiv(class = "footlinks"):
             a(href = "/about"): text "About"
             a(href = "/chains"): text "Chains"
+            a(href = "/settings"): text "Keyboard shortcuts"
         tdiv(class = "footcredit"):
           p(class = "credo"):
             # The heart carries the word it stands for as its accessible name,
