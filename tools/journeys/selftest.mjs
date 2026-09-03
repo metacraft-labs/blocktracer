@@ -106,6 +106,25 @@ const JOURNAL = join(HERE, ".selftest-journal.json");
  */
 const ARMS = [
   {
+    id: "Z/link-to-a-line-that-is-not-there",
+    why:
+      "Stop `windowAround` re-aiming the flow rail's link after it narrows the pane." +
+      " This is the defect exactly as it shipped and exactly as it was reported —" +
+      " 'there is a link line 4 that does nothing when clicked'. The rail's href is" +
+      " built against the WHOLE document, the home page's embed is then narrowed to" +
+      " lines 20..44 around the position, and without this line the href still reads" +
+      " `#L-src-shield-nr-4` over a document whose ids start at 20. One anchor," +
+      " twenty-five ids, no overlap: the browser has nothing to scroll to." +
+      " The arm is aimed at the SCROLL assertion rather than at the href, because a" +
+      " check that the anchor's target exists in the DOM passes on a target that" +
+      " sits in a container fragment navigation cannot move.",
+    file: join(CLIENT, "src", "debugger", "source_document.nim"),
+    find: `          fullDocumentUrl & "#" & lineAnchor(doc.path, result.flow.line)`,
+    replace: `          result.flow.href`,
+    journey: "a-link-to-a-line-arrives-at-that-line",
+    assertion: "and it is inside the viewport — the click arrived somewhere a reader can see",
+  },
+  {
     id: "A/no-position-mark",
     why:
       "Remove the class that marks the execution position. This is the shape of the" +

@@ -434,7 +434,10 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       let rail = projectFlowRail(s.flow, "src/shield.nr")
       check rail.loopIndex == 1
       check rail.line == 4
-      check rail.anchor == lineAnchor("src/shield.nr", 4)
+      # A same-page fragment: hydration runs on the debug route, which renders
+      # every line, so the header is on the page. The narrowed home embed is a
+      # different surface and is asserted in `test_debug_route`.
+      check rail.href == "#" & lineAnchor("src/shield.nr", 4)
       check rail.selected == 2
       check rail.navigable                          # a live session SEEKS
       check rail.iterations.len == 8

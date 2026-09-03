@@ -531,7 +531,13 @@ proc projectFlowRail*(vm: FlowVM; path: string): FlowRail =
   result = FlowRail(
     loopIndex: focused,
     line: loop.registeredLine,
-    anchor: lineAnchor(path, loop.registeredLine),
+    # A SAME-PAGE FRAGMENT, and on this surface that is right: hydration runs on
+    # the debug route, which renders every line of the document (`pages/debug`
+    # and `hydrate/hydrate` both do), so the header line is on the page. The one
+    # surface that narrows is the home page's embed, which carries no engine and
+    # never reaches here — see `source_document.windowAround`, which is where a
+    # narrowing has to re-aim this.
+    href: "#" & lineAnchor(path, loop.registeredLine),
     selected: vm.selectedIteration.val,
     active: vm.selectedIteration.val,
     navigable: true,
