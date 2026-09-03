@@ -84,12 +84,21 @@ proc chainPage*(chain: string, info: ChainInfo,
         if tour.len > 0:
           h2(class = "sec-title next"): text "What this debugger can show"
           p(class = "muted measure"):
-            text "Each entry is one small Noir program, recorded by "
-            span(class = "mono"): text "nargo trace"
-            text " into its own container. Open one to step through it — the "
-            text "source, the function names and the values are the program's "
-            text "own. The transaction it is published under is synthetic, like "
-            text "every other transaction on this chain."
+            # "recorded by `nargo trace` into its own container" was the same
+            # fault the footer was reported for: a build tool named by its
+            # command, plus the word the pipeline uses for where it puts the
+            # output. Neither changes anything a visitor does next, and which
+            # recorder produced the trace is not a question they arrive with.
+            #
+            # Everything after it is kept unchanged. "Open one to step through
+            # it" is the action, the middle clause tells them what they will be
+            # looking at, and the last sentence is the synthetic disclosure —
+            # which is exactly the plain, at-the-point-of-use provenance
+            # statement this sweep moved TOWARD, not away from.
+            text "Each entry is one small Noir program. Open one to step "
+            text "through it — the source, the function names and the values "
+            text "are the program's own. The transaction it is published under "
+            text "is synthetic, like every other transaction on this chain."
           # THE PROGRAM'S ID IS THE LABEL AND ITS TITLE IS THE ACTION, in that
           # order and not the other way round.
           #
