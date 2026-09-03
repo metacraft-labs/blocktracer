@@ -5,13 +5,13 @@
   "chain": "aztec-testnet",
   "label": "Real Aztec testnet data",
   "endpoint": "https://aztec-testnet.drpc.org",
-  "capturedAt": "2026-08-31T07:40:55.566Z",
+  "capturedAt": "2026-09-02T21:02:05.785Z",
   "nodeVersion": "5.2.0",
   "l1ChainId": 11155111,
   "rollupVersion": 1821665230,
   "rollupAddress": "0xd73a91bdcf6891c7642f3e460036e1ef2cc23178",
-  "tool": "tools/chain/capture-chain.mjs",
-  "runtimeCommit": "505cb11117c6560ba060f6e9ca1c5e0e1b18d6b3",
+  "tool": "tools/chain/follow-chain.mjs",
+  "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
   "frozen": true,
   "frozenAt": "2026-09-01T04:50:32.529Z",
   "completeBlocks": [
@@ -21,26 +21,27 @@
    63664,
    63653,
    63642
-  ]
+  ],
+  "firstCapturedAt": "2026-08-31T07:40:55.566Z"
  },
  "window": {
-  "tip": 63678,
-  "finalized": 63628,
-  "proven": 63660,
-  "replayableFrom": 63629,
-  "replayableTo": 63678,
-  "blocks": 50,
-  "enumeratedDepth": 220
+  "tip": 67058,
+  "finalized": 67009,
+  "replayableFrom": 67010,
+  "replayableTo": 67058,
+  "blocks": 49
  },
  "counts": {
   "blocks": 220,
   "blocksWithTransactions": 32,
-  "transactions": 32,
-  "bodyRetained": 7,
-  "replayed": 6,
-  "divergent": 0,
-  "refused": 0,
-  "pruned": 25
+  "transactions": 52,
+  "bodyRetained": 27,
+  "replayed": 24,
+  "divergent": 1,
+  "refused": 1,
+  "pruned": 25,
+  "tracesPublished": 25,
+  "captureSessions": 20
  },
  "blocks": [
   {
@@ -3518,6 +3519,3028 @@
    "firstInBlock": true,
    "outcome": "pruned",
    "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 63628 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 63520, 108 block(s) below it. It can no longer be re-executed, so no trace was recorded for it."
+  },
+  {
+   "txHash": "0x27d610455b1e99c5a0e7f943a4b763e71426931d22c2c461b5b3e723de2a91fb",
+   "blockNumber": 67055,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x000000000000000000000000000000000000000000000000149cc9473fbb11e0",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:06.342Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x27d610455b1e99c5a0e7f943a4b763e71426931d22c2c461b5b3e723de2a91fb.ct",
+   "containerBytes": 180224,
+   "l2BlockNumber": 67055,
+   "preStateReadAt": 67054,
+   "contractReferenceBlock": 67055,
+   "hydrationRounds": 2,
+   "seedSize": {
+    "nullifiers": 1,
+    "publicData": 1
+   },
+   "instructionsExecuted": 94,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 11,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 180224,
+    "events": 94,
+    "steps": 94,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 18,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 94,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 94,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+     "contractClassId": "0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x19e21705ad87acab66ebb75493ca8d66d1896c6ee91d4321ea9abd7ec3f2baf0",
+     "chain": "0x2f0619d7baa027fef00963f0ad1966022c4dc3aef07e8e3de0fcbd17321513d3",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x0fe326ac8f6c95d002e52044adf191cfafbf47a87c349a0dd733bd20a7a1d119",
+     "chain": "0x29b73d81dc3f809bbd51c8709d98aacc29425058335cbc4a3462bc2092a5a488",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x0e22ca13e418142e457de0a16ebe44343308b238265ead06b6a689438d61db92",
+     "chain": "0x1a047a48dcfc78aac19fc79a7e281ae36228868f16532232c837701e4bda2485",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x1ef38c179dbb5a558ab4a726ad3ac9d02f5906625bbe309b5156fec97ef3144a",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x087941e69bffe81c0b705a4e1d41ef71ead5107dde2959829fa4f9de7d8aecbc",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x148be707062e295ce0ea0b2924820b7d416067fa29bda41bb27f823d4577b7fc",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x15049353d2a0c021c1f0a0c7d9f3123e3c4b61d86a6292c3cee7c0185ad7936e",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x302ee86e9890857721cefbd8e78b058c61665ed411f9a63ab03cd404328a7d18",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2e7ee3b8c001ac68c993982d4df4e3b3f28f4c6e5d2f54783f54c7c4dc2dd482",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x179d9e390f248f5e000c70cba877de9c2c01aa53e7c820c691d386079689a9f1",
+     "reason": "absent-on-chain-at-parent"
+    }
+   ]
+  },
+  {
+   "txHash": "0x08f8ab52d0960e45e0a88e65b3f55a9c4960eb5040afa43b47e285b8f0c11f35",
+   "blockNumber": 67053,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x000000000000000000000000000000000000000000000000147b93d7f4c0c6d0",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:08.803Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x08f8ab52d0960e45e0a88e65b3f55a9c4960eb5040afa43b47e285b8f0c11f35.ct",
+   "containerBytes": 180224,
+   "l2BlockNumber": 67053,
+   "preStateReadAt": 67052,
+   "contractReferenceBlock": 67053,
+   "hydrationRounds": 2,
+   "seedSize": {
+    "nullifiers": 1,
+    "publicData": 1
+   },
+   "instructionsExecuted": 94,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 11,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 180224,
+    "events": 94,
+    "steps": 94,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 18,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 94,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 94,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+     "contractClassId": "0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x13a97965c2d796c09d233769c56468403f52a6d85f42a17d8e5e89f6830b4195",
+     "chain": "0x275ad1e3921ec89e3b46c9fb6c2236d16ec9f9f345ed2810e6492a795acd25a0",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x29a1eb12e64acd704b20a9c41f1713ff492fc36181239a6a0e7f2ed3291d4f30",
+     "chain": "0x210df62533c8d322feb38c514b9fd1fc75c5638c18324af5986f22bc9625eb96",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x19b1584dc13f9fe3dcc244869702dac97a1f92d7b43387fe587d53c22741f549",
+     "chain": "0x1a02c7a0a0387f274ff9b0c6a2d7ade45c4878ef378da2fffada50393edbfd03",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x191eb1f73b332951c9024cbde3059a590b38e6f66c0d71c97af7781cd3a9761f",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x01b1ff52f8ef32116cdade72598af72d5fc0341e528576d7520a687c0bcdc35f",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x250ffa753280549d6c31320cfc58054f4af484eefc669de160ec73826af9a3ff",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2a1ca043f000f04a9fb7372bd63dfd4efd3dfa0a0a6484b115d504dabc447234",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2cf787a3cbf0608cb155e22acebcb91bee981de7f77ea040614bffa7a9fcaa46",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2f63ea20910218fde38135a12077e5521e0d939e7292a65adf868fd8d0ef0aca",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x179d9e390f248f5e000c70cba877de9c2c01aa53e7c820c691d386079689a9f1",
+     "reason": "absent-on-chain-at-parent"
+    }
+   ]
+  },
+  {
+   "txHash": "0x06a360069f3559b71a30ec624e8eb374935052d44d8c101ed0c9d76c46272dbb",
+   "blockNumber": 67052,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x000000000000000000000000000000000000000000000000183397b38d6b4ff0",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:11.260Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x06a360069f3559b71a30ec624e8eb374935052d44d8c101ed0c9d76c46272dbb.ct",
+   "containerBytes": 188416,
+   "l2BlockNumber": 67052,
+   "preStateReadAt": 67051,
+   "contractReferenceBlock": 67052,
+   "hydrationRounds": 6,
+   "seedSize": {
+    "nullifiers": 4,
+    "publicData": 11
+   },
+   "instructionsExecuted": 345,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 23,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 188416,
+    "events": 345,
+    "steps": 345,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 24,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 345,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x2a9a1d0e8f1974267536abefa565e7a7351f92ddbe95ec13c57c79b70664f7c8",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 345,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x2a9a1d0e8f1974267536abefa565e7a7351f92ddbe95ec13c57c79b70664f7c8",
+     "contractClassId": "0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x2590f2aab19dd791700b4a43d3f52bb88ef2409a3731da8e848663559202e4c6",
+     "chain": "0x10ead550d937710731601f4f501ce93f7ff2ca33787ba4bdd50c66dda6465a2b",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x00a7a4f1d3bed272165ce12cb25fb24e1eb85098bff86d620daa202c3400a468",
+     "chain": "0x2e8a3ac27f15f2cd7ec9b94cb806fbc5cfba37693f244520b40c8e1754d73fb1",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x2c26e3a74c439f4ab96489b903c54f5c6146c5a20892765b31b9e97954114281",
+     "chain": "0x16d889c7fa3b65e1e9e833bfcdc814ad4b258b2cb551caa4c0d4f6f3173bfe49",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x275d893f2d0f7803c645e5a09928db08e1fa19d4a4fb563fa5d19611fa43785c",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x2e347961d2a93dbdc960f3b49cb9eb7ccebfd4a0832d546cf6673c61484ba606",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x093b0ba41aeac26c468f8b4bc59d47427ef5ea2f518391487597d8d9daa81649",
+     "reason": "absent-on-chain-at-parent"
+    },
+    {
+     "value": "0x2e347961d2a93dbdc960f3b49cb9eb7ccebfd4a0832d546cf6673c61484ba606",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2e347961d2a93dbdc960f3b49cb9eb7ccebfd4a0832d546cf6673c61484ba606",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2e347961d2a93dbdc960f3b49cb9eb7ccebfd4a0832d546cf6673c61484ba606",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2e347961d2a93dbdc960f3b49cb9eb7ccebfd4a0832d546cf6673c61484ba606",
+     "reason": "emitted-by-this-transaction"
+    }
+   ]
+  },
+  {
+   "txHash": "0x1d82a85bc32b566430e0ffe18b2ee467fcb91b18b3f80e870cbefbddef13aa9a",
+   "blockNumber": 67051,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x000000000000000000000000000000000000000000000000147b93d7f4c0c6d0",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:17.918Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x1d82a85bc32b566430e0ffe18b2ee467fcb91b18b3f80e870cbefbddef13aa9a.ct",
+   "containerBytes": 180224,
+   "l2BlockNumber": 67051,
+   "preStateReadAt": 67050,
+   "contractReferenceBlock": 67051,
+   "hydrationRounds": 2,
+   "seedSize": {
+    "nullifiers": 1,
+    "publicData": 1
+   },
+   "instructionsExecuted": 94,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 11,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 180224,
+    "events": 94,
+    "steps": 94,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 18,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 94,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 94,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+     "contractClassId": "0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x16924d85ef2dd235c3cc03d3dbe1e839b1c1ef1e904a80a3879f92852943c06c",
+     "chain": "0x10ead550d937710731601f4f501ce93f7ff2ca33787ba4bdd50c66dda6465a2b",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x168530869c5eb008758398a1d9b56f45b2cc6f7547672ba45462ee0f9b693caa",
+     "chain": "0x07f0898056d2c13c6eeab8eb2d818bf36b1c0c7b3dd35395ea6cd39a597be0c9",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x141c8828dda26a15e0971de5ee8ea88351ca49428a5d96685da21d7c2bd7af11",
+     "chain": "0x0f7765bd446f1f5ec2cd4a91588a810e3acfa553e06b4bb3a8b43be0cf0f724f",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x275d893f2d0f7803c645e5a09928db08e1fa19d4a4fb563fa5d19611fa43785c",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x00dc23199ac57cd767a471332eaa60546abbe66a5a75951e44e8ef11e756fa34",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x0a27d7cb7518664c2625dd7404e3fb5c5bcc0f44fead4c4f33a7b9233ef02636",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x21c6e4387ec2db0ab5461725a3de07e72406b760b9a32f9cb3a536acfc51eff7",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2783d28a93a30187153fe51c5522aa0466530e421b05d34400bcd41ea6962680",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x25f8880ac74c465ef8be46ea71bbc0621aef8f2b5c1950f019a912c937a586b0",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x179d9e390f248f5e000c70cba877de9c2c01aa53e7c820c691d386079689a9f1",
+     "reason": "absent-on-chain-at-parent"
+    }
+   ]
+  },
+  {
+   "txHash": "0x02f7fc42d3090fdf535a16ff969410c8aec7afc4ff9524232de84d52ed8f6b18",
+   "blockNumber": 67050,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x000000000000000000000000000000000000000000000000147b93d7f4c0c6d0",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:20.353Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x02f7fc42d3090fdf535a16ff969410c8aec7afc4ff9524232de84d52ed8f6b18.ct",
+   "containerBytes": 180224,
+   "l2BlockNumber": 67050,
+   "preStateReadAt": 67049,
+   "contractReferenceBlock": 67050,
+   "hydrationRounds": 2,
+   "seedSize": {
+    "nullifiers": 1,
+    "publicData": 1
+   },
+   "instructionsExecuted": 94,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 11,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 180224,
+    "events": 94,
+    "steps": 94,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 18,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 94,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 94,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+     "contractClassId": "0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x2a17383067739407276344fe364d884afab602d1f0b88bff6adaebf76fb37616",
+     "chain": "0x2ad6680a3f55be02ad4d06eff6e43e1866d4e4cdcd77e5799a84a410fe528817",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x0b56222bab5b4a6b974a40df955f81987f52875edaa46a8e4104067ea4e82462",
+     "chain": "0x2956d3fb7c739843b6f0f175a276996302d341e6016ea5e2965f961891bb3f87",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x09f049463d6bdb2a0c966e8f6d15589f32a70e6013718308abcd6ae3d7a6e5f8",
+     "chain": "0x0cfaf72b01418512fe71dcfb0c4c73b0e30198e7323eb570b0db7afd00d168cf",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x275d893f2d0f7803c645e5a09928db08e1fa19d4a4fb563fa5d19611fa43785c",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x127bf9efa8d3a63a2be7a0665d91a95783e26e75c4cf10704cd504eeae5035da",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1675119c2ee00ce9ac7e07bbcbee6cda09baafb98fc1b26554ef2aaa6baa7380",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2947256e0290f0192f5aef7bfea5d0286e6fa57018a089fdea7e5a24759d807f",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x21210b3f14e17847e57805ad2f640cc80ee5121b5a70662867870c5c80e69f27",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x260101299d06145898ae70a955c17462573e68e73ba4c3a0e32aaa35abc11ebc",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x179d9e390f248f5e000c70cba877de9c2c01aa53e7c820c691d386079689a9f1",
+     "reason": "absent-on-chain-at-parent"
+    }
+   ]
+  },
+  {
+   "txHash": "0x073f3dcc6e49572930d1e5f40deb56390b2f6bec642ab921191fbff4df7b0112",
+   "blockNumber": 67048,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x00000000000000000000000000000000000000000000000013c0c71a93cec5fa",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:22.810Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x073f3dcc6e49572930d1e5f40deb56390b2f6bec642ab921191fbff4df7b0112.ct",
+   "containerBytes": 180224,
+   "l2BlockNumber": 67048,
+   "preStateReadAt": 67047,
+   "contractReferenceBlock": 67048,
+   "hydrationRounds": 2,
+   "seedSize": {
+    "nullifiers": 1,
+    "publicData": 1
+   },
+   "instructionsExecuted": 94,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 11,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 180224,
+    "events": 94,
+    "steps": 94,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 18,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 94,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 94,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+     "contractClassId": "0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x0b7029bebf548f58660bb9ca08690168d919d7d3310ee30bbdc35dde3d8ea11e",
+     "chain": "0x1890605da3983a7aa94e6bd95fcfaa6711ca047cd4c59830e09a02e3ef17e0e8",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x2c836f712330358d894fd43af9be0f36a3daa397a51125bf4ac8da09beffd622",
+     "chain": "0x2827e6e743da6dbeccdfcc6de086481f87ee891dac2cea97269f0260e1fa134c",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x23de907536f4a9ac2bec3045821ab6b92da8ce87ca9225562e33c4d71c4ae9ad",
+     "chain": "0x1e1f180a361c20c8edef405991ba927a054a0f752994b5da84a86a8ec3370cf1",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x0c55dd7a38faf2ee88d39b4ca0107cced5b42b96a9962469b8010440fa41ac07",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x18fd04c8f5cf4c6e2e81f61377408f6e24315900eca74278861751ee032e77c2",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x142ee5decf42d5b66ae9ecf37dc1db5d886c305bd47142b5534dec568150271e",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x0b66188ec5b4ec4f98e894d5e35159fbda0f317d6f15644eec7e64bbddd6c32b",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x009a2c35c335dec03d88dc19e400a6ce64339ee5c14cb1259c21bea78c7ec9a4",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1c88d9d3b2a4d04f65371d29bd3362efadd8e8d18abda15336b372849c4b358e",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x179d9e390f248f5e000c70cba877de9c2c01aa53e7c820c691d386079689a9f1",
+     "reason": "absent-on-chain-at-parent"
+    }
+   ]
+  },
+  {
+   "txHash": "0x009fb0c0fc8ef1d2ea15322e0f9b57b3d40bd5e3cbecb91a307d2ae9fb6ef53a",
+   "blockNumber": 67047,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x00000000000000000000000000000000000000000000000015253e7d56c29c78",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:25.259Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x009fb0c0fc8ef1d2ea15322e0f9b57b3d40bd5e3cbecb91a307d2ae9fb6ef53a.ct",
+   "containerBytes": 180224,
+   "l2BlockNumber": 67047,
+   "preStateReadAt": 67046,
+   "contractReferenceBlock": 67047,
+   "hydrationRounds": 2,
+   "seedSize": {
+    "nullifiers": 1,
+    "publicData": 1
+   },
+   "instructionsExecuted": 94,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 12,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 180224,
+    "events": 94,
+    "steps": 94,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 18,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 94,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 94,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+     "contractClassId": "0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x1688423fee92226d6c28888e809fe874c2bf77a684a2ff585c8168c1f6d6583d",
+     "chain": "0x1fdc80c89cc05c9f9a0dbe8ed464f8d61ce573fdb53215a7704c58a419c7acc8",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x1c75e5a9c3edb4485248d3553a60eba21e56e77033531eb6c562fee5894f7daa",
+     "chain": "0x0f248412b0aadb8dce8d2d215fda70e32fd4a143877708eaa2e1a2d3d1a30958",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x02ad797b3313af75f3ba3928e04795dc02b2f9a97586fa4a2869c17c671bc54a",
+     "chain": "0x2d99472f59aafd37339804345931bcdb0251a8d0ccf7226c9046abbfdf892eb6",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x0c55dd7a38faf2ee88d39b4ca0107cced5b42b96a9962469b8010440fa41ac07",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x19fec496b3c24c191f05117b1c1daa1e3bb1ea9feab87ec55a6c82df3cb11c22",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x0c7c857a9799270c74b7b11d545fb802e7d05397c112b2cce43df5563de3f8a6",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2a991198df1bf45ba5ecc8bf6b2b0383c11193a2802e5e919bf2c74c192af77c",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x13cd6e4ef84241e27b91c6d0b0b7205dbec5b09cddcff419e29121affce619c7",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x052241951394b9f8de28e659883c4f596934de46ae866e601ac8a07d39c1e543",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1c85a0f6cfb44fb02dc24a54b16d3a0f78ac61ddd1fc8aea3d24c511adadbed0",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x179d9e390f248f5e000c70cba877de9c2c01aa53e7c820c691d386079689a9f1",
+     "reason": "absent-on-chain-at-parent"
+    }
+   ]
+  },
+  {
+   "txHash": "0x1d8942ed6d4c54f9cd0ae4797596f277588bd51e2b9699934346398980b948f0",
+   "blockNumber": 67045,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x00000000000000000000000000000000000000000000000013c0c71a93cec5fa",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:27.729Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x1d8942ed6d4c54f9cd0ae4797596f277588bd51e2b9699934346398980b948f0.ct",
+   "containerBytes": 180224,
+   "l2BlockNumber": 67045,
+   "preStateReadAt": 67044,
+   "contractReferenceBlock": 67045,
+   "hydrationRounds": 2,
+   "seedSize": {
+    "nullifiers": 1,
+    "publicData": 1
+   },
+   "instructionsExecuted": 94,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 11,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 180224,
+    "events": 94,
+    "steps": 94,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 18,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 94,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 94,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+     "contractClassId": "0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x2fb0d1f02ed2eb1fd1f203cff5f89a507315531d572456a1708d17745244114b",
+     "chain": "0x0aeb79e7ad4c3d50a7ea85fc3a0fa50805f6d23bb06215b0939570b9578cacd8",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x26a3c975c3c39b799527f0058c5f48febd52de2ab984ea52713fe1cfc1c1f01b",
+     "chain": "0x191940fef04a271fb1bf56209ba5207ca6fba96626c44e3d8034faebba871a26",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x1d06cf8448eef5974263a31e8f99999c0171c65aebffcb68b9f1f79e01199aa9",
+     "chain": "0x18c7a509019a3a167181236840317c77b51c4b93e47164bc6c6f1f42a5e30ed8",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x0c55dd7a38faf2ee88d39b4ca0107cced5b42b96a9962469b8010440fa41ac07",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x1b1f5d1fa70d5dba483346029bf4c6f4cf74b9aae5054aaaa93e06b34b887ba7",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x12735f9339ea48e58e88b13a68a507a67cd90ae6521d61b7182b60446ff14337",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2fd688ab7f04b4c86825476dcf329292cfcaa54278b6f5ec9b27ec994a1a2ced",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1c776aa09cc999ceafee0d0c09d7d0f6d684cba5df755e9dedd7a1c46a7f0876",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x175b13351125347183acf5123667feaf32a4e4c2077d3cd7a55eb25b1f78f1d7",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x179d9e390f248f5e000c70cba877de9c2c01aa53e7c820c691d386079689a9f1",
+     "reason": "absent-on-chain-at-parent"
+    }
+   ]
+  },
+  {
+   "txHash": "0x09497f8e778e67fdf221acf22e8a5c0b6fe9fd6447048ad7179534229d2b3508",
+   "blockNumber": 67044,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x00000000000000000000000000000000000000000000000013c0c71a93cec5fa",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:30.182Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x09497f8e778e67fdf221acf22e8a5c0b6fe9fd6447048ad7179534229d2b3508.ct",
+   "containerBytes": 180224,
+   "l2BlockNumber": 67044,
+   "preStateReadAt": 67043,
+   "contractReferenceBlock": 67044,
+   "hydrationRounds": 2,
+   "seedSize": {
+    "nullifiers": 1,
+    "publicData": 1
+   },
+   "instructionsExecuted": 94,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 11,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 180224,
+    "events": 94,
+    "steps": 94,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 18,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 94,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 94,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+     "contractClassId": "0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x188a34ea831ee86fefd0d297ac854f3cf9d221aa179191eee1835159f3a630d3",
+     "chain": "0x2e619c9d8abe9b9f56f73e2d3ab2f70f4a7d73535a254ef8f026701b0d48f682",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x0ac7853d3b11846ffc574eb18bd08ce4a0ebb2df3b2dffeb44a7d89f14ecceee",
+     "chain": "0x0412ffd516620953c3c8bb78534e6df7146e34f90d6a104fa4c7fd8afef5ad4b",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x1d386e6f0b64a1119ee5fa8735ab2456eb88c9c65d73f886c20e2a9d48cfca25",
+     "chain": "0x0fe89d37b3f1a1c4b55f63061bf09d0f9cd8e84d2af5557d66579800caee8986",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x0c55dd7a38faf2ee88d39b4ca0107cced5b42b96a9962469b8010440fa41ac07",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x0ed0cbebbdae6a8a8326925b0bcdf080904421628930b6dccd8f11d1529185bd",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x05af708de071d599d52f292b74e89e3a1864b1c5caab46ac34d0197e2b65dfe8",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x24e2fefac65b5f3d42880dd35d175869ccd4fdc40f42c5930619785b7be9ac31",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2e046643c3729a262758cd8cd8e5908b186ec2d59f5431e61078c4a56bca0e06",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x242c4aa8680d879e93dd2a6df9d804838b4b43bc01098e0fdfaddc9c6966c105",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x179d9e390f248f5e000c70cba877de9c2c01aa53e7c820c691d386079689a9f1",
+     "reason": "absent-on-chain-at-parent"
+    }
+   ]
+  },
+  {
+   "txHash": "0x0b1df658f22bccd7c0576dcdcd8afb3fd4b7850b35cfd905c78bbb6c76efdffb",
+   "blockNumber": 67043,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x0000000000000000000000000000000000000000000000001530fe432c1515b8",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:32.622Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x0b1df658f22bccd7c0576dcdcd8afb3fd4b7850b35cfd905c78bbb6c76efdffb.ct",
+   "containerBytes": 180224,
+   "l2BlockNumber": 67043,
+   "preStateReadAt": 67042,
+   "contractReferenceBlock": 67043,
+   "hydrationRounds": 2,
+   "seedSize": {
+    "nullifiers": 1,
+    "publicData": 1
+   },
+   "instructionsExecuted": 94,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 12,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 180224,
+    "events": 94,
+    "steps": 94,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 18,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 94,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 94,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+     "contractClassId": "0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x17bdb714aa14474ecc16e5791fbe1428e09f1f702ca99c221a3027a218456773",
+     "chain": "0x0b8755c5e458196f4002885f2b6cbfb1fb8f98352119f80bf71c2e9688b9ba42",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x2b45d2e705eb6dfef4dd98a0a48ec366374c2ce562b93b1008bb7524e58a8573",
+     "chain": "0x154a490a176ce297f6a8bd8060a4acb5983fc45f609b3c406b5c8a9a01ef81e4",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x1ae720c611046fa47235509dc9b1a4e8c2983f958d9003f21b23e21aca89fe01",
+     "chain": "0x2fc1f05b32ffd8e0ec157785795812fb2750bd662cea56ad318e5a75593d8c69",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x0c55dd7a38faf2ee88d39b4ca0107cced5b42b96a9962469b8010440fa41ac07",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x0ef19fe8fc261c58f0bed01d9c09cdb9e43264cebecf922131c9b9164ec8f0fe",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x15db8c48e1098fbc4aa0dac3c22b5e1d8052c4c67c236e07df73f99dbd2023d0",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x09d6f7e566def6b450c30f0b24587e13bbe4dd5aad1bdab806ccae0c484cf5ee",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2aae9aee78cad259bea9a084de5c9392a0868dde5e0deae01acfe1e4d9c2cc08",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x006283ceaa17367dedf2c6aa5a3b193045527b154bdd2532f8a9614c0727c11a",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1b3128f4bfd0b631574dfca9a72176d771d509429609e066ea8136c9d0aaf6a1",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x179d9e390f248f5e000c70cba877de9c2c01aa53e7c820c691d386079689a9f1",
+     "reason": "absent-on-chain-at-parent"
+    }
+   ]
+  },
+  {
+   "txHash": "0x1ea0937d725ea16a04f54caa62f58ea792cab64346936407c77a9bdedbbbd808",
+   "blockNumber": 67042,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x0000000000000000000000000000000000000000000000001530fe432c1515b8",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:36.084Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x1ea0937d725ea16a04f54caa62f58ea792cab64346936407c77a9bdedbbbd808.ct",
+   "containerBytes": 180224,
+   "l2BlockNumber": 67042,
+   "preStateReadAt": 67041,
+   "contractReferenceBlock": 67042,
+   "hydrationRounds": 2,
+   "seedSize": {
+    "nullifiers": 1,
+    "publicData": 1
+   },
+   "instructionsExecuted": 94,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 12,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 180224,
+    "events": 94,
+    "steps": 94,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 18,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 94,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 94,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+     "contractClassId": "0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x0717a0d26320b69cee456953c86496512ed3d11685ae544ef4808a7e2a7849e5",
+     "chain": "0x2ccd1e225fc5229c8e6cbe590803e97da95a09ed89be35c86ad15c65c19119fd",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x221e5b92174e2c9ff3d3fff886924e905d1ff994649ce845fca3d82bf13ecd72",
+     "chain": "0x1396878da8354f00b8c3f84f7c0858ae2312e2ededc16c630d7bbabe91770f24",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x05fb2c59d8c03c203d5b82f6f14da2ec441d00459c9606a052320becf32204ae",
+     "chain": "0x17d63d503ebb2f1134322fb8c18dc96515a43447941712182ddd1b4c867fb3a4",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x0c55dd7a38faf2ee88d39b4ca0107cced5b42b96a9962469b8010440fa41ac07",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x1e7ab9dd589e90194b27e822287c278ebddacd3d0ad9845b2bed4a63a4a36374",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x11fdfeb8804746c0dead62bf0859f8930f2c492f283a4b7349ea19e7e15473c8",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2ebbbe243e869235fe2047ff8e489b3f8fee84d07b3be0d1ac85a1eb070a8c15",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x137354c4327dc1b06ddebcec4e58c9c25e2bc77a156ffce8324bb7123f56b6d6",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1fa7231862344b47cd78aec15e40fdcfb023c85c326286da17380e252a432f7a",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x0db04f4f3371a902be268573db4465c4e55dc658ac21410903359d0796f10dbc",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x179d9e390f248f5e000c70cba877de9c2c01aa53e7c820c691d386079689a9f1",
+     "reason": "absent-on-chain-at-parent"
+    }
+   ]
+  },
+  {
+   "txHash": "0x03076d112320c93b3a3ae07a1b84590be7cd7ef0cc761f839b1ab6c7ed40512e",
+   "blockNumber": 67040,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x0000000000000000000000000000000000000000000000001763d88b21ee08ae",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:38.546Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x03076d112320c93b3a3ae07a1b84590be7cd7ef0cc761f839b1ab6c7ed40512e.ct",
+   "containerBytes": 188416,
+   "l2BlockNumber": 67040,
+   "preStateReadAt": 67039,
+   "contractReferenceBlock": 67040,
+   "hydrationRounds": 6,
+   "seedSize": {
+    "nullifiers": 4,
+    "publicData": 11
+   },
+   "instructionsExecuted": 345,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 23,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 188416,
+    "events": 345,
+    "steps": 345,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 24,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 345,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x2a9a1d0e8f1974267536abefa565e7a7351f92ddbe95ec13c57c79b70664f7c8",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 345,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x2a9a1d0e8f1974267536abefa565e7a7351f92ddbe95ec13c57c79b70664f7c8",
+     "contractClassId": "0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x2590f2aab19dd791700b4a43d3f52bb88ef2409a3731da8e848663559202e4c6",
+     "chain": "0x03fba98a8a466ac804086ca541b70c0a550fc0004060a3d39afa82cab93638e5",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x116661d0742ecefddb5a0cb3016b749908ed3d7adb969626297b8d41337a39df",
+     "chain": "0x16dd9c6d227fc6889077de8f0e74bc7a0df8672269b32ae5ca265e21905aafa3",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x152946461b292a44df00d36a995cc0a3f6e5fee9ac84a8d0d9bf92f0211cbb1c",
+     "chain": "0x03e74272d5147663dd27cc7549bfa850e2faafd562f32143ec4790139bbadcab",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x11d95a044baea1184ade8f7a76a5eed28a93188b034156d02790538bd9f2b475",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x0f330346bf3b4effca5bb0394adfb6c25d2e77592064c098e16f3761572e3cc2",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x093b0ba41aeac26c468f8b4bc59d47427ef5ea2f518391487597d8d9daa81649",
+     "reason": "absent-on-chain-at-parent"
+    },
+    {
+     "value": "0x0f330346bf3b4effca5bb0394adfb6c25d2e77592064c098e16f3761572e3cc2",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x0f330346bf3b4effca5bb0394adfb6c25d2e77592064c098e16f3761572e3cc2",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x0f330346bf3b4effca5bb0394adfb6c25d2e77592064c098e16f3761572e3cc2",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x0f330346bf3b4effca5bb0394adfb6c25d2e77592064c098e16f3761572e3cc2",
+     "reason": "emitted-by-this-transaction"
+    }
+   ]
+  },
+  {
+   "txHash": "0x2a8c1516fb7e4ff8171b03412a4edb250a0920d441930bda2cc768afae0a1d06",
+   "blockNumber": 67038,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x00000000000000000000000000000000000000000000000014a9c78f9309304b",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:43.038Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x2a8c1516fb7e4ff8171b03412a4edb250a0920d441930bda2cc768afae0a1d06.ct",
+   "containerBytes": 180224,
+   "l2BlockNumber": 67038,
+   "preStateReadAt": 67037,
+   "contractReferenceBlock": 67038,
+   "hydrationRounds": 2,
+   "seedSize": {
+    "nullifiers": 1,
+    "publicData": 1
+   },
+   "instructionsExecuted": 94,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 11,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 180224,
+    "events": 94,
+    "steps": 94,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 18,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 94,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 94,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+     "contractClassId": "0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x1f10362d981f5bf5febb0b2773af09ded7a269aedc76182cdc0cc5ed722cad5e",
+     "chain": "0x03fba98a8a466ac804086ca541b70c0a550fc0004060a3d39afa82cab93638e5",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x0a8f3d5d244a31978be7ac48ea23d3d8e18faa628b0f665c27974c4ca762cef7",
+     "chain": "0x1d6696946b68bf95b66833d3cf5d4db0b62acc0a24ed470594f3ad63cade99f0",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x1aa87e52a1584fffc44ef3ce0a704a056666010a03a89cdee9fc46b6df3329df",
+     "chain": "0x114d116ccbc2efa1e7301f07cd24e0c77c16ef27beee748896d6f1c99150484d",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x0180a10363bf02afc2a632238508942cafd64bca3191272757e8d4665b3a7ad7",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x0f428e0cd933d6cb83feeca45d2542b9530b884af83824b8dac1567ad28fa36d",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x0f9f2ebdb6662f50bfbb02742100f0c5169c7e632c702a53921379e507947789",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x03197b9a8eb466ff4b366afa83f7581713c75f40e341f1a80dcd98c208e4972a",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x0a2734c59145db1ce4c95a586a0fad2d3c93925160aa51474f73c209a9cdd3e2",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1ae6be7eed001bedbf13af61a064810b19afa44ff8e6dadad30202568a27beac",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x179d9e390f248f5e000c70cba877de9c2c01aa53e7c820c691d386079689a9f1",
+     "reason": "absent-on-chain-at-parent"
+    }
+   ]
+  },
+  {
+   "txHash": "0x13bb999979d59c1bb83be2a1b96a1755d84de3db91ac6831d87073015ce054bb",
+   "blockNumber": 67036,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x000000000000000000000000000000000000000000000000161eabbb87004024",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:45.654Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x13bb999979d59c1bb83be2a1b96a1755d84de3db91ac6831d87073015ce054bb.ct",
+   "containerBytes": 180224,
+   "l2BlockNumber": 67036,
+   "preStateReadAt": 67035,
+   "contractReferenceBlock": 67036,
+   "hydrationRounds": 2,
+   "seedSize": {
+    "nullifiers": 1,
+    "publicData": 1
+   },
+   "instructionsExecuted": 94,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 12,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 180224,
+    "events": 94,
+    "steps": 94,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 18,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 94,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 94,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+     "contractClassId": "0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x1bea1162754a471d7b480c31962f15267184ab6376730d4c256ca345a1ffd678",
+     "chain": "0x1d4536acc5bc1c7796129b14ca767eab8ffd03234a491f54096b8a1568bd04c1",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x2d4cfd90c2ac425667b43d52764ee539aba888fe0e7a257a1aedbd5e358cc32a",
+     "chain": "0x16a89325c4e50e04b6320abdd1f0792cc33883a03a3fd1289305ad896bb6bbc3",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x09cbc65ea951f54cc9004c5b5626f86f7ae9b2f0acc5885d8f1cc47416c9c50d",
+     "chain": "0x0450064f4b121443826807e01522ee6991fd4f518d34b7028de61365cb566dce",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x16098235d791bc3ab68673982c18e5a7b42e4f8ce9910980e1c775d673b315d2",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x0e6d38df0310b58f4da127a76c3dd88d99d4220093494ef17f8bf6f8591fa30e",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x0fed740074dd56f22b32a0a9581399bfd743994781593397747731d47ec34d46",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1eee86851f8f5b86bcd6c5b677deb3caf9257d8666ecda8bcb13f566c63b0b9d",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x055849843035a00e64e6d82736da93bcb7bdaeab4d12bcaf91aef4176b5e03b4",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2ef12ee45a4fe4bb980d2ed1d32c22ec3074020a6d5c809f9ca19e61d6c88132",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2678da62b1a83694955a5cba11fbd5171f6d1de36aa0130c656188dfa5385b20",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x179d9e390f248f5e000c70cba877de9c2c01aa53e7c820c691d386079689a9f1",
+     "reason": "absent-on-chain-at-parent"
+    }
+   ]
+  },
+  {
+   "txHash": "0x0ef558688f6cb48ff944c1d586de667e802a7fbd52e2fc46714084b32531efa9",
+   "blockNumber": 67035,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x000000000000000000000000000000000000000000000000161eabbb87004024",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:48.092Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x0ef558688f6cb48ff944c1d586de667e802a7fbd52e2fc46714084b32531efa9.ct",
+   "containerBytes": 180224,
+   "l2BlockNumber": 67035,
+   "preStateReadAt": 67034,
+   "contractReferenceBlock": 67035,
+   "hydrationRounds": 2,
+   "seedSize": {
+    "nullifiers": 1,
+    "publicData": 1
+   },
+   "instructionsExecuted": 94,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 12,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 180224,
+    "events": 94,
+    "steps": 94,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 18,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 94,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 94,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x25819851436e3b3ccaf14a5b5baadea4d91fe48f2c2b8cdb021ac807e18c5016",
+     "contractClassId": "0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2aa610693c62830ca20d4ea10658a4a42bd86377796634be6940dfb3d4ada202. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x1e4e6617f097274443f7aa9dd4c9e0eaeea42ba993b1f79415956f474c8d8064",
+     "chain": "0x124af6f696cfc17c38e0f21445c437840ec169da58dcb7429803b79908f3426e",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x22dc9eca9ece0e81dec81f17ec8ce1e041b9477e23491a449b3aab348e22665a",
+     "chain": "0x1a456c01583d339c3ab8455412cd09a7bb804e3699404569005e3e3081405467",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x2a39012571ad5039f94b27a6f5f6c8235e762e736d0a6db6e23cc35ceeb05490",
+     "chain": "0x2807d291697e88e517bffc204fcde28c34dd8088ab75fbe4d5524fe163233e6f",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x16098235d791bc3ab68673982c18e5a7b42e4f8ce9910980e1c775d673b315d2",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x10b1cd7a1fa272a430d37851603bd8eb253f6baf8c03b02c504826742b87cd24",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1869c0f9d90ac1ebf71243f6d8ea506413de8eccdc36c5696052cb2642e8fb6c",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x10e916687f70cfae78a81ecb5eb2fa6a16c7a0cb0045d7bc13530a23256d1112",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x0c8b0cff83ffdd195220a330c0d1e02a06efca170af8e71c7de93f00741937ef",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x20f45e21047ad7d83fb2599a5e09bd921ca2d1563579c89eeaeba82b92016524",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1712a20f2ebd189a1058550592f6a5af353219f049757ebf8e3ed5471212acef",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x179d9e390f248f5e000c70cba877de9c2c01aa53e7c820c691d386079689a9f1",
+     "reason": "absent-on-chain-at-parent"
+    }
+   ]
+  },
+  {
+   "txHash": "0x1ceda53e94bf491bbc5ffe4a0153251de3f990724e035dc78eafafe8c64c354e",
+   "blockNumber": 67029,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x00000000000000000000000000000000000000000000000017ae875b2a417c13",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:50.528Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x1ceda53e94bf491bbc5ffe4a0153251de3f990724e035dc78eafafe8c64c354e.ct",
+   "containerBytes": 188416,
+   "l2BlockNumber": 67029,
+   "preStateReadAt": 67028,
+   "contractReferenceBlock": 67029,
+   "hydrationRounds": 6,
+   "seedSize": {
+    "nullifiers": 4,
+    "publicData": 11
+   },
+   "instructionsExecuted": 345,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 23,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 188416,
+    "events": 345,
+    "steps": 345,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 24,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 345,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x2a9a1d0e8f1974267536abefa565e7a7351f92ddbe95ec13c57c79b70664f7c8",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 345,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x2a9a1d0e8f1974267536abefa565e7a7351f92ddbe95ec13c57c79b70664f7c8",
+     "contractClassId": "0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x2590f2aab19dd791700b4a43d3f52bb88ef2409a3731da8e848663559202e4c6",
+     "chain": "0x1937a5fdd77787b40b9fff06e1b9653a2a354b1399d09a36a94f8ce4e3d02e01",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x00fd33e58bc3ca5b7aa75713ae83a8e38569e35ae5c2ffb350603afee6c2993b",
+     "chain": "0x0da9282adbd6d252060f781226993bb9fc0024e30c188e0a3040cecd9c138b48",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x1571258eb23c3ba0c7bc04148eb9339e1877c1954a907644c5fd8ec318662f17",
+     "chain": "0x2a9bfe77a6e178249b1c56d5eaceedbfc2ddeab02be8dbc908dafa4f0b0de6b6",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x0cd22f1837ce315ed7a21e1e03b13b4dcb41cc7c01d02cf3a80961b6ec1669cf",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x0c7a40843139eb23c63fab8e670146dd3f9dbba697e997bd29f39fc93fc86aad",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x093b0ba41aeac26c468f8b4bc59d47427ef5ea2f518391487597d8d9daa81649",
+     "reason": "absent-on-chain-at-parent"
+    },
+    {
+     "value": "0x0c7a40843139eb23c63fab8e670146dd3f9dbba697e997bd29f39fc93fc86aad",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x0c7a40843139eb23c63fab8e670146dd3f9dbba697e997bd29f39fc93fc86aad",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x0c7a40843139eb23c63fab8e670146dd3f9dbba697e997bd29f39fc93fc86aad",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x0c7a40843139eb23c63fab8e670146dd3f9dbba697e997bd29f39fc93fc86aad",
+     "reason": "emitted-by-this-transaction"
+    }
+   ]
+  },
+  {
+   "txHash": "0x065d6dbbace6b49b25b5bf102dc8a5db451ce96a0982857997e88d4cb0c613a8",
+   "blockNumber": 67019,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x0000000000000000000000000000000000000000000000002211d5c072ffd1d0",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:55.109Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": false,
+   "outcome": "refused",
+   "refusal": "ModuleRefusedReplay",
+   "reason": "This transaction could not be re-executed: the replay runtime refused with ModuleRefusedReplay. No trace was recorded for it.",
+   "detail": "ModuleRefusedReplay: the AVM refused to replay 0x065d6dbbace6b49b25b5bf102dc8a5db451ce96a0982857997e88d4cb0c613a8 after 3 hydration round(s), with 2 nullifier(s) and 2 public-data leaf/leaves seeded and the query set no longer growing. The module said: AvmHostError: avm_simulate failed with status 1: Stored hash does not match preimage hash. This is NOT a loop that failed to converge — it converge"
+  },
+  {
+   "txHash": "0x1f1c3008ed59245c4ffd33621e54617e9bdeefbe03b836d17b3697d6760c0e06",
+   "blockNumber": 67018,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x0000000000000000000000000000000000000000000000001820de4908e9f842",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:01:57.549Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x1f1c3008ed59245c4ffd33621e54617e9bdeefbe03b836d17b3697d6760c0e06.ct",
+   "containerBytes": 188416,
+   "l2BlockNumber": 67018,
+   "preStateReadAt": 67017,
+   "contractReferenceBlock": 67018,
+   "hydrationRounds": 6,
+   "seedSize": {
+    "nullifiers": 4,
+    "publicData": 11
+   },
+   "instructionsExecuted": 345,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 23,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 188416,
+    "events": 345,
+    "steps": 345,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 24,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 345,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x2a9a1d0e8f1974267536abefa565e7a7351f92ddbe95ec13c57c79b70664f7c8",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 345,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x2a9a1d0e8f1974267536abefa565e7a7351f92ddbe95ec13c57c79b70664f7c8",
+     "contractClassId": "0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x2590f2aab19dd791700b4a43d3f52bb88ef2409a3731da8e848663559202e4c6",
+     "chain": "0x1937a5fdd77787b40b9fff06e1b9653a2a354b1399d09a36a94f8ce4e3d02e01",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x2c9e2572af3ffdb4878ffc57cc92b76e2388a51223930df6cf5a08e3ee0b123c",
+     "chain": "0x2e1ccec5f939ed0bfbb91abaff94b42642bbf258ef6d65bedb0dd587567d5ce7",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x12de2db2551c4113fc9fb98fc8268d493aa15019bce61563c3daa6fcb18b49f2",
+     "chain": "0x125206d1dc7bc304868b659d7f423bba2d223996d4b3472f899f3cbbc03cc544",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x2c57de960efabea0fdb9ce7a8339170eaff49f1e71bb558973158dfd92de547e",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x22f47637cd3979c89cff68a0170b53a34e98e049e322eda036bf0cb7927d9935",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x093b0ba41aeac26c468f8b4bc59d47427ef5ea2f518391487597d8d9daa81649",
+     "reason": "absent-on-chain-at-parent"
+    },
+    {
+     "value": "0x22f47637cd3979c89cff68a0170b53a34e98e049e322eda036bf0cb7927d9935",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x22f47637cd3979c89cff68a0170b53a34e98e049e322eda036bf0cb7927d9935",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x22f47637cd3979c89cff68a0170b53a34e98e049e322eda036bf0cb7927d9935",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x22f47637cd3979c89cff68a0170b53a34e98e049e322eda036bf0cb7927d9935",
+     "reason": "emitted-by-this-transaction"
+    }
+   ]
+  },
+  {
+   "txHash": "0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f",
+   "blockNumber": 67011,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x00000000000000000000000000000000000000000000000014191f1cc6195412",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:02:03.006Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.ct",
+   "containerBytes": 184320,
+   "l2BlockNumber": 67011,
+   "preStateReadAt": 67010,
+   "contractReferenceBlock": 67011,
+   "hydrationRounds": 2,
+   "seedSize": {
+    "nullifiers": 1,
+    "publicData": 0
+   },
+   "instructionsExecuted": 108,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 10,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 184320,
+    "events": 108,
+    "steps": 108,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 2,
+    "distinctOpcodes": 21,
+    "contexts": 1,
+    "stepsPositioned": 86,
+    "stepsUnpositioned": 22,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x0000000000000000000000000000000000000000000000000000000000000003",
+      "rung": 2,
+      "reason": "86 of 108 executed step(s) of this contract resolve to a source position; the remaining 22 are in regions the artifact's brillig_locations does not key — compiled procedures are appended after the main body (avm-transpiler transpile.rs:489,505), SOURCE-MAPPING.md section 2.4 hole 2 — first at pc 0. The artifact itself is rung 1: 314 pc(s) in [130, 1785] map to source spans over 32 file(s), and avm-transpiler re-keys brillig_locations by AVM byte offset (transpile.rs:1803), so each is a real (path, line, column)",
+      "steps": 108,
+      "positioned": 86,
+      "firstUnpositionedPc": 0,
+      "resolved": true
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x0000000000000000000000000000000000000000000000000000000000000003",
+     "contractClassId": "0x1f85d8b901a87b3fa9b93a44ab569ca2f5eb62412dfd58c894fdfff218be11a4",
+     "resolved": true,
+     "origin": "npm:@aztec/protocol-contracts@5.3.0-nightly.20260819 FeeJuice",
+     "shape": "snake_case",
+     "artifactHash": "0x1a57ff2a8e653094229bd15c028683e08b2086dfeadecac4c6b950c383b3ae1d",
+     "debugDigest": "f87f9cc0f91809b2a0a607484a65ed5de9aa9ee44d83a1b510eb5a9013228e2a",
+     "sourceFiles": 32,
+     "corroboration": "single-distributor",
+     "agreeingDistributors": [
+      "npm"
+     ],
+     "sources": [
+      {
+       "path": "std/aes128.nr",
+       "bytes": 1235
+      },
+      {
+       "path": "std/cmp.nr",
+       "bytes": 20120
+      },
+      {
+       "path": "std/field/mod.nr",
+       "bytes": 34480
+      },
+      {
+       "path": "std/hash/mod.nr",
+       "bytes": 17892
+      },
+      {
+       "path": "std/ops/arith.nr",
+       "bytes": 27490
+      },
+      {
+       "path": "std/option.nr",
+       "bytes": 11165
+      },
+      {
+       "path": "std/panic.nr",
+       "bytes": 503
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/fee_juice_contract/src/lib.nr",
+       "bytes": 1444
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/fee_juice_contract/src/main.nr",
+       "bytes": 14527
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/context/private_context.nr",
+       "bytes": 16723
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/context/public_context.nr",
+       "bytes": 10935
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/hash.nr",
+       "bytes": 4088
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/messaging.nr",
+       "bytes": 1424
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/avm.nr",
+       "bytes": 7250
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/execution_cache.nr",
+       "bytes": 1086
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/get_l1_to_l2_membership_witness.nr",
+       "bytes": 831
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/nullifiers.nr",
+       "bytes": 2436
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/public_call.nr",
+       "bytes": 841
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/tx_phase.nr",
+       "bytes": 1149
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/version.nr",
+       "bytes": 2310
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/state_vars/map.nr",
+       "bytes": 1315
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/state_vars/public_mutable.nr",
+       "bytes": 1397
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/hash.nr",
+       "bytes": 16766
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/merkle_tree/merkle_tree.nr",
+       "bytes": 3959
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/merkle_tree/root.nr",
+       "bytes": 3704
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/storage/map.nr",
+       "bytes": 1117
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/type_packing.nr",
+       "bytes": 6413
+      },
+      {
+       "path": "/home/aztec-dev/nargo/github.com/noir-lang/poseidon/v0.3.0/src/poseidon2.nr",
+       "bytes": 4599
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/serde/src/reader.nr",
+       "bytes": 1517
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/serde/src/serialization.nr",
+       "bytes": 13105
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/serde/src/type_impls.nr",
+       "bytes": 22360
+      },
+      {
+       "path": "/home/aztec-dev/nargo/github.com/noir-lang/sha256/v0.3.0/src/sha256.nr",
+       "bytes": 16545
+      }
+     ],
+     "reason": "class 0x1f85d8b901a87b3fa9b93a44ab569ca2f5eb62412dfd58c894fdfff218be11a4 is proved by npm:@aztec/protocol-contracts@5.3.0-nightly.20260819 FeeJuice: computeArtifactHash = 0x1a57ff2a8e653094229bd15c028683e08b2086dfeadecac4c6b950c383b3ae1d equals the class's, public_dispatch is byte-equal to the class's packedBytecode (1947 bytes), and recomputing the class id from them returns 0x1f85d8b901a87b3fa9b93a44ab569ca2f5eb62412dfd58c894fdfff218be11a4. artifactHash does NOT commit to debug_symbols or file_map, and those are attested by 1 distributor(s) (npm) at digest f87f9cc0f91809b2",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x2c9c7314fcd5d7ee782fde836943e5dd0527a9cb34bada4b3cebb2a5a04e7f7b",
+     "chain": "0x1937a5fdd77787b40b9fff06e1b9653a2a354b1399d09a36a94f8ce4e3d02e01",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x0517b9b0c3d6460d1233bd37456d71e9753b5c3dc00b413e3875da71ff09fc50",
+     "chain": "0x098f1aa10a6a9f105acb9b25066aea3b7271727a8cc2435cbbb09771ee33f767",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x2a75046f55186cf802b3a3bdfe2ebb0faf919d6b8226ead1426629064adface6",
+     "chain": "0x2652822e62a3ae47395b78b72fb51f858be0d66a65e8c19fd9c91f884a4d5eaf",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x22abadf2819f7fb5335dcf81e7fe68bacaa23c1f03f2d6d51dedd076848f862f",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x081ebf18328c5ffd15d0d6de59420f96e7b60d6722abf6da36921c25185b8d2c",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1f30cecb08dca14aee2222fb3afcd492dec7bfe03113129ef3ced8e0c1169dd7",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2fb800be54f808ca65fcf25c2dcc033d5540cfb6fcdcf6bacb961e26ea1e8613",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x188b2620d9b6c6587d8dbbdb26ccb695a729ddc0b63b12924656a7b5d70c743d",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x081ebf18328c5ffd15d0d6de59420f96e7b60d6722abf6da36921c25185b8d2c",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1f30cecb08dca14aee2222fb3afcd492dec7bfe03113129ef3ced8e0c1169dd7",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2fb800be54f808ca65fcf25c2dcc033d5540cfb6fcdcf6bacb961e26ea1e8613",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x188b2620d9b6c6587d8dbbdb26ccb695a729ddc0b63b12924656a7b5d70c743d",
+     "reason": "emitted-by-this-transaction"
+    }
+   ],
+   "sourceBundles": "sources/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.json"
+  },
+  {
+   "txHash": "0x2cda2117f68c2028e8ab99eed9a57ed8733f1e762ee615ecd8feb46b14322933",
+   "blockNumber": 67010,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x00000000000000000000000000000000000000000000000013f6c7700a2ab516",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:02:05.785Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "divergent",
+   "kind": "divergent",
+   "container": "ct/0x2cda2117f68c2028e8ab99eed9a57ed8733f1e762ee615ecd8feb46b14322933.ct",
+   "containerBytes": 200704,
+   "l2BlockNumber": 67010,
+   "preStateReadAt": 67009,
+   "contractReferenceBlock": 67010,
+   "hydrationRounds": 9,
+   "seedSize": {
+    "nullifiers": 7,
+    "publicData": 11
+   },
+   "instructionsExecuted": 875,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": false,
+    "matched": 10,
+    "mismatched": 2,
+    "mismatches": [
+     {
+      "field": "transactionFee",
+      "published": "0x00000000000000000000000000000000000000000000000013f6c7700a2ab516",
+      "replayed": "0x00000000000000000000000000000000000000000000000013f6c21da641a70b",
+      "matches": false
+     },
+     {
+      "field": "publicDataWrites[2].value",
+      "published": "0x000000000000000000000000000000000000000000000087a0e91b775c04a1a0",
+      "replayed": "0x000000000000000000000000000000000000000000000087a0e920c9bfedafab",
+      "matches": false
+     }
+    ]
+   },
+   "recording": {
+    "bytes": 200704,
+    "events": 875,
+    "steps": 875,
+    "callsOpened": 1,
+    "logEvents": 6,
+    "declaredRung": 3,
+    "distinctOpcodes": 24,
+    "contexts": 1,
+    "stepsPositioned": 0,
+    "stepsUnpositioned": 875,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x2e10858cf6750c003489a62f570535966fb940bb10d18a0c146a36cac64713b6",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 875,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
+   },
+   "artifacts": [
+    {
+     "address": "0x2e10858cf6750c003489a62f570535966fb940bb10d18a0c146a36cac64713b6",
+     "contractClassId": "0x062af0e593d6fe00a6cb3babb551fb9ba3adb23c994fc50fd76910ff5a219d4b",
+     "resolved": false,
+     "candidatesConsidered": 0,
+     "reason": "no off-chain artifact was proved to be class 0x062af0e593d6fe00a6cb3babb551fb9ba3adb23c994fc50fd76910ff5a219d4b. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes.",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x2590f2aab19dd791700b4a43d3f52bb88ef2409a3731da8e848663559202e4c6",
+     "chain": "0x182b2cdc82259c9da41ba47e462e935eaa6482be1eb227a9a415d7e66afb397c",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x2b9fee1a93b553f3c7239220462306183175fe97091364639129c6559f02464a",
+     "chain": "0x17cf74d7630415578af9007e6c95b724c15900035f126fd097fde185ee300e83",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x030024ade8f166328e0272df39f1db5aea14983688001226069c1de040526811",
+     "chain": "0x2d6b055468347e194f1a2d4e518d260015a411fbebf2c9e595143d169ce405dc",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x22abadf2819f7fb5335dcf81e7fe68bacaa23c1f03f2d6d51dedd076848f862f",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x087c9412b3e879ab45074bda8295e7397038e24f493881a18be8fa3395e92ed8",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1895ecd2a61ae6b61542b7e4ae0ee9a7f98742612b16e446f84319f7c00358d1",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2e2aadc3d19baa4715bc429d2a85cc3989a74a01fc6e59c4792d8a942f2c1fb2",
+     "reason": "absent-on-chain-at-parent"
+    },
+    {
+     "value": "0x087c9412b3e879ab45074bda8295e7397038e24f493881a18be8fa3395e92ed8",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1895ecd2a61ae6b61542b7e4ae0ee9a7f98742612b16e446f84319f7c00358d1",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x087c9412b3e879ab45074bda8295e7397038e24f493881a18be8fa3395e92ed8",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1895ecd2a61ae6b61542b7e4ae0ee9a7f98742612b16e446f84319f7c00358d1",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x087c9412b3e879ab45074bda8295e7397038e24f493881a18be8fa3395e92ed8",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1895ecd2a61ae6b61542b7e4ae0ee9a7f98742612b16e446f84319f7c00358d1",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x087c9412b3e879ab45074bda8295e7397038e24f493881a18be8fa3395e92ed8",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1895ecd2a61ae6b61542b7e4ae0ee9a7f98742612b16e446f84319f7c00358d1",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x087c9412b3e879ab45074bda8295e7397038e24f493881a18be8fa3395e92ed8",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1895ecd2a61ae6b61542b7e4ae0ee9a7f98742612b16e446f84319f7c00358d1",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x087c9412b3e879ab45074bda8295e7397038e24f493881a18be8fa3395e92ed8",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1895ecd2a61ae6b61542b7e4ae0ee9a7f98742612b16e446f84319f7c00358d1",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x087c9412b3e879ab45074bda8295e7397038e24f493881a18be8fa3395e92ed8",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1895ecd2a61ae6b61542b7e4ae0ee9a7f98742612b16e446f84319f7c00358d1",
+     "reason": "emitted-by-this-transaction"
+    }
+   ]
+  }
+ ],
+ "captures": [
+  {
+   "capturedAt": "2026-09-02T21:01:06.342Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x27d610455b1e99c5a0e7f943a4b763e71426931d22c2c461b5b3e723de2a91fb",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:08.803Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x08f8ab52d0960e45e0a88e65b3f55a9c4960eb5040afa43b47e285b8f0c11f35",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:11.260Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x06a360069f3559b71a30ec624e8eb374935052d44d8c101ed0c9d76c46272dbb",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:17.918Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x1d82a85bc32b566430e0ffe18b2ee467fcb91b18b3f80e870cbefbddef13aa9a",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:20.353Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x02f7fc42d3090fdf535a16ff969410c8aec7afc4ff9524232de84d52ed8f6b18",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:22.810Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x073f3dcc6e49572930d1e5f40deb56390b2f6bec642ab921191fbff4df7b0112",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:25.259Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x009fb0c0fc8ef1d2ea15322e0f9b57b3d40bd5e3cbecb91a307d2ae9fb6ef53a",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:27.729Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x1d8942ed6d4c54f9cd0ae4797596f277588bd51e2b9699934346398980b948f0",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:30.182Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x09497f8e778e67fdf221acf22e8a5c0b6fe9fd6447048ad7179534229d2b3508",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:32.622Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x0b1df658f22bccd7c0576dcdcd8afb3fd4b7850b35cfd905c78bbb6c76efdffb",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:36.084Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x1ea0937d725ea16a04f54caa62f58ea792cab64346936407c77a9bdedbbbd808",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:38.546Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x03076d112320c93b3a3ae07a1b84590be7cd7ef0cc761f839b1ab6c7ed40512e",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:43.038Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x2a8c1516fb7e4ff8171b03412a4edb250a0920d441930bda2cc768afae0a1d06",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:45.654Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x13bb999979d59c1bb83be2a1b96a1755d84de3db91ac6831d87073015ce054bb",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:48.092Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x0ef558688f6cb48ff944c1d586de667e802a7fbd52e2fc46714084b32531efa9",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:50.528Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x1ceda53e94bf491bbc5ffe4a0153251de3f990724e035dc78eafafe8c64c354e",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:55.109Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x065d6dbbace6b49b25b5bf102dc8a5db451ce96a0982857997e88d4cb0c613a8",
+     "outcome": "refused"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:01:57.549Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x1f1c3008ed59245c4ffd33621e54617e9bdeefbe03b836d17b3697d6760c0e06",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:02:03.006Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f",
+     "outcome": "replayed"
+    }
+   ]
+  },
+  {
+   "capturedAt": "2026-09-02T21:02:05.785Z",
+   "by": "tools/chain/follow-chain.mjs",
+   "window": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058,
+    "blocks": 49
+   },
+   "nodeVersion": "5.2.0",
+   "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061",
+   "yielded": [
+    {
+     "txHash": "0x2cda2117f68c2028e8ab99eed9a57ed8733f1e762ee615ecd8feb46b14322933",
+     "outcome": "divergent"
+    }
+   ]
   }
  ]
 }
