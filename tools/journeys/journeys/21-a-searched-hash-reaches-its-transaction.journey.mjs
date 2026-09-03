@@ -81,7 +81,7 @@ export const claim =
   "A visitor who pastes a published transaction hash into the search box arrives at that transaction.";
 export const spec =
   "Page-Descriptions §11, §14; Search-And-Routing §2, §4, §5.4";
-export const assertions = 6;
+export const assertions = 8;
 
 /** Load a URL and give the page's own script time to answer. */
 async function open(browser, origin, path) {
@@ -123,6 +123,10 @@ async function search(browser, origin, q) {
       // The whole visible page, so "the hash is on screen" is a reading of what
       // was rendered rather than of one selector somebody could rename.
       body: await v.page.evaluate(() => document.body.innerText),
+      // What the search box itself is showing. Read separately from the body
+      // because it is the surface a visitor corrects a typo in.
+      box: await v.page.evaluate(
+        () => document.querySelector('input[name="q"]')?.value ?? null),
       slot,
     };
   } finally {
@@ -190,24 +194,69 @@ export async function run({ browser, site, j }) {
     }`,
   );
 
-  // ---- 2. case is an alias, not a different object ------------------------
+  // ---- 2. the punctuation is not part of the identifier -------------------
   //
-  // SEO-And-Crawl-Budget §13.1 lists "Upper/lower-case hash alias" as an alias
-  // class that must resolve to one canonical encoding. Every published object
-  // is named in lowercase, so a pasted checksummed or upper-cased hash used to
-  // classify perfectly and then miss on every chain — reporting "not on this
-  // chain" about an object that is right there. That is a FALSE ABSENCE CLAIM
-  // and it is worse than the silence it replaced.
-  const upperSubject = sample[0];
-  const upper =
-    "0x" + upperSubject.hash.replace(/^0x/, "").toUpperCase();
-  const upperResult = await search(browser, site.origin, upper);
+  // A hash is copied from a log line, a CSV column, a block explorer's table or
+  // a chat message, and it arrives differently punctuated every time. Two spec
+  // clauses bear on it and they pull in opposite directions, which is why this
+  // is asserted over a TABLE of forms rather than one:
+  //
+  //   * SEO-And-Crawl-Budget §13.1 lists "Upper/lower-case hash alias" as an
+  //     alias class that must resolve to ONE canonical encoding. Every
+  //     published object is named in lowercase, so an upper-cased hash used to
+  //     classify perfectly and then miss on every chain — reporting "not on
+  //     this chain" about an object that is right there, which is a FALSE
+  //     ABSENCE CLAIM and worse than the silence it replaced.
+  //
+  //   * Threat-Model §11 forbids normalisation that "collapses distinct
+  //     identifiers into one result". Case is significant in base58, base64url
+  //     and bech32 — §2's Solana, TON and Cardano rows — so the widening is
+  //     HEX-ONLY, and the last row below is the one that would catch anybody
+  //     who later replaces it with a blanket `.toLowerCase()`.
+  //
+  // The `0x` itself is punctuation the user did not choose. §2's table only
+  // names the prefixed forms, so accepting a bare hash EXTENDS the spec; the
+  // extension is asserted here because it is the difference between "search is
+  // broken" and "search works" for anyone not pasting from an explorer URL.
+  const subject = sample[0];
+  const bare = subject.hash.replace(/^0x/, "");
+  const forms = [
+    ["as published", subject.hash],
+    ["upper-cased, 0X prefix", "0X" + bare.toUpperCase()],
+    ["mixed case", "0x" + bare.slice(0, 20).toUpperCase() + bare.slice(20)],
+    ["no 0x prefix at all", bare],
+    ["no prefix, upper-cased", bare.toUpperCase()],
+    ["surrounded by whitespace", `  ${subject.hash} `],
+  ];
+  const formMisses = [];
+  for (const [label, q] of forms) {
+    const r = await search(browser, site.origin, q);
+    if (!r.url.pathname.startsWith(`/${subject.chain}/tx/${subject.hash}`)) {
+      formMisses.push(`${label} -> ${r.url.pathname}`);
+    }
+  }
+  j.subjects(forms, 6, "punctuations of one published hash");
+  j.countIs(
+    formMisses.length,
+    0,
+    `every punctuation of a published hash arrives at the same transaction${
+      formMisses.length ? `: ${formMisses.slice(0, 3).join("; ")}` : ""
+    }`,
+  );
+
+  // THE LIMIT, asserted as a limit. `canonicalHash` lowercases hex and nothing
+  // else; a query that is NOT hex must survive verbatim, because collapsing its
+  // case would corrupt a real identifier into a different real-looking one.
+  // There is no case-carrying chain in this corpus to resolve against, so what
+  // is checked is that the page ECHOES the query it was given, unaltered.
+  const cased = "EQAvDfWFG0oYX19jwNDNBBL1rKNT9XfaGP9HyTb5nb2Eml6y";
+  const casedResult = await search(browser, site.origin, cased);
   j.expect(
-    upperResult.url.pathname.startsWith(
-      `/${upperSubject.chain}/tx/${upperSubject.hash}`,
-    ),
-    "an upper-cased hash arrives at the same transaction as its lower-cased form",
-    `searched ${upper.slice(0, 14)}… and landed on ${upperResult.url.pathname}`,
+    casedResult.box === cased,
+    "a case-carrying non-hex identifier is echoed back uncollapsed",
+    `searched a TON-shaped base64url address; the box shows ${
+      JSON.stringify(casedResult.box)
+    }`,
   );
 
   // ---- 3. a miss says it looked, and says where ---------------------------
@@ -245,6 +294,7 @@ export async function run({ browser, site, j }) {
   j.note(
     `${all.length} published transactions over ${chains.length} chains ` +
       `(${chains.join(", ")}); searched ${sample.length} hashes, one per chain, ` +
-      `plus one upper-cased and one absent.`,
+      `plus ${forms.length} punctuations of one of them, one case-carrying ` +
+      `non-hex identifier, and one absent hash.`,
   );
 }

@@ -236,7 +236,11 @@ const
   nameIdxVersion = "1"  ## the curated name corpus does not grow with new blocks,
                         ## so its version is fixed; the hash index is versioned by
                         ## generation instead (see `generate`).
-  hashPrefixLen = 2      ## hex chars of the hash that select a hash-index shard
+  hashPrefixLen = HashShardPrefixLen
+    ## Hex chars of the hash that select a hash-index shard. Read from the
+    ## contract rather than restated: the exporter builds a GLOBAL index over
+    ## every chain at the same path, and two writers disagreeing about the
+    ## shard depth would publish a tree where half the shard names are wrong.
   nameShardBits = 1      ## low bits of the term hash that select a name shard (2 shards)
 
 proc recorderRef(): RecorderRef =

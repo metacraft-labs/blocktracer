@@ -20,7 +20,8 @@
 ##   nim c -r --mm:orc -d:isServer -d:release src/static_export.nim
 ##   # or via the Justfile:  just export
 
-import std/[os, strutils, times, algorithm]
+import std/[os, strutils, times, algorithm, sets, tables, json]
+import blocktracer/contract/hashshard   # §5's shard codec + its published depth
 import blocktracer/demo/generator
 import blocktracer/chain/ingest
 import ssr
@@ -85,6 +86,106 @@ proc installHydrationBundle() =
   copyFile(built, dest)
   echo "  + hydration bundle: " & HydrationBundle & " (" &
     $(getFileSize(built) div 1024) & " KB)"
+
+proc buildGlobalHashIndex(routes: seq[string]) =
+  ## §5's global hash index — "which chains hold this hash, and as what kind of
+  ## entity?" — built over EVERY published chain, from the same route
+  ## enumeration that decides which pages exist.
+  ##
+  ## ## Why this is here and not in a producer
+  ##
+  ## Because the artifact is GLOBAL and the producers are not. The demo
+  ## generator already emitted `/idx/hash/{version}/{prefix}.bin`, and it
+  ## emitted it from inside a per-chain generation — so it indexed `demo` and
+  ## nothing else, and `chain/ingest.nim` writes `idx: nil` for a captured
+  ## chain, so the two real Aztec chains were in no index at all. Measured on a
+  ## hydrated build of 37afe34: 52 shards, 56 entries, every one of them
+  ## `demo`; `/aztec`'s own generation root carried no `idx` descriptor.
+  ##
+  ## That is worse than an index that does not exist, because §5's contract is
+  ## that "a hit is definite" and therefore a MISS is definite too. A prefix
+  ## search served from a demo-only index would have answered "no chain holds
+  ## this" for every real transaction on the site — a confident false absence,
+  ## which is the exact defect class this route has already been through once.
+  ##
+  ## Two per-chain producers writing one global path would also have raced:
+  ## `/idx/hash/{v}/{prefix}.bin` has no chain segment, so the second writer
+  ## wins and the first chain silently vanishes from the index. One global
+  ## artifact needs one writer, and this is the only place that has seen every
+  ## chain.
+  ##
+  ## `routes` is that place's evidence. It is the enumeration `staticRoutes`
+  ## already produced to decide which pages to render, so the index covers
+  ## exactly what the site publishes, by construction rather than by a second
+  ## walk that could disagree with the first.
+  var entries: seq[HashEntry]
+  var seen = initHashSet[string]()
+  for route in routes:
+    # `/{chain}/{kind}/{id}` — and nothing longer. `/tx/{h}/debug` is the same
+    # transaction at a second address, and a second entry for it would make the
+    # index claim two objects where there is one.
+    let parts = route.strip(chars = {'/'}).split('/')
+    if parts.len != 3: continue
+    let (chain, kindSeg, id) = (parts[0], parts[1], parts[2])
+    let kind = kindOfRouteSegment(kindSeg)
+    if kind == 0: continue
+    let key = chain & "/" & $kind & "/" & id
+    if key in seen: continue
+    seen.incl key
+    entries.add HashEntry(hexHash: id, chain: chain, kind: kind)
+
+  if entries.len == 0:
+    # Nothing published has a hash. Emitting an empty index would publish a
+    # descriptor asserting that the index is authoritative over a corpus it
+    # does not contain, and the browser would read a definite "no" from it.
+    echo "  ! global hash index: no hash-addressable routes; not published"
+    return
+
+  var byPrefix = initTable[string, seq[HashEntry]]()
+  for e in entries:
+    byPrefix.mgetOrPut(hashPrefix(e.hexHash, HashShardPrefixLen), @[]).add e
+  var prefixes: seq[string]
+  for p in byPrefix.keys: prefixes.add p
+  prefixes.sort()
+
+  var largest = 0
+  for p in prefixes:
+    let bytes = encodeHashShard(byPrefix[p], HashShardPrefixLen)
+    if bytes.len > largest: largest = bytes.len
+    let rel = "idx" / "hash" / HashIndexVersion / p & ".bin"
+    ensureDir(parentDir(OutputDir / rel))
+    writeFile(OutputDir / rel, bytes)
+
+  # THE DESCRIPTOR, which the spec does not define and the client cannot work
+  # without.
+  #
+  # Search-And-Routing §5 requires the client to "compute the shard path
+  # directly" AND requires shard depth to vary — §5.3: "shard depth follows
+  # arithmetically from the total entry count across all chains, and should be
+  # recomputed rather than fixed: more chains or more history means a deeper
+  # prefix". Those two are only compatible if the depth is discoverable, and §5
+  # names no carrier for it: the `meta.json` in that spec belongs to §6's name
+  # index, and the `{version}` in the path is given no source either.
+  #
+  # So this file closes the gap, deliberately mirroring §6's meta.json rather
+  # than inventing a shape — same directory position, same "shard count, hash
+  # function, entry count" role. `prefixLen` is what makes the depth a
+  # published fact instead of a constant compiled into a client, which is what
+  # `client/searchboot/` reads it as: it derives the minimum usable prefix
+  # length from this number and never hardcodes one. `shards` lets a query for
+  # an unoccupied prefix be answered definitively with ZERO requests.
+  var shardsJson = newJArray()
+  for p in prefixes: shardsJson.add %p
+  writeFile(OutputDir / "idx" / "hash" / "meta.json", pretty(%*{
+    "indexVersion": HashIndexVersion,
+    "prefixLen": HashShardPrefixLen,
+    "shardCount": prefixes.len,
+    "entryCount": entries.len,
+    "largestShardBytes": largest,
+    "shards": shardsJson}))
+  echo "  + global hash index: " & $entries.len & " entries over " &
+    $prefixes.len & " shards (prefixLen " & $HashShardPrefixLen &
+    ", largest " & $largest & " B)"
 
 proc installSearchBundle() =
   ## Put the built search bundle where `/search` says it is — or fail.
@@ -311,6 +412,11 @@ proc exportSite() =
       echo "  ! " & route & " (status " & $status & ")"
   echo "  + client views: " & $rendered &
     " pages (home, chains, chain, blocks, block, txs, tx, debug, address, code, search, about)"
+
+  # §5's global hash index, over the routes just rendered. After the render
+  # loop because it is built from the same enumeration: whatever got a page is
+  # what the index claims to cover, and neither can drift from the other.
+  buildGlobalHashIndex(routes)
 
   # The not-found body, at the file a static host serves for an unmatched path.
   #

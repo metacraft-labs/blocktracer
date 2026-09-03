@@ -52,7 +52,7 @@
 ## because `ObjectStore.fetchProc` is. On a page that is a browser tab, the
 ## §4 fan-out has to be concurrent promises, which this type cannot express.
 ## So the browser performs the I/O and this VM states the rules — and both
-## call the same `shapesOf`, `canonicalQuery` and path derivation, which is
+## call the same `shapesOf`, `canonicalHash` and path derivation, which is
 ## the part that must never drift.
 
 import std/strutils
@@ -66,7 +66,7 @@ import ./chain_registry_vm
 import ./chain_vm
 import ./search_shapes
 
-export search_shapes   # `QueryShape`, `shapesOf`, `canonicalQuery`
+export search_shapes   # `QueryShape`, `shapesOf`, `canonicalHash`
 
 type
   SearchMechanism* = enum
@@ -158,24 +158,34 @@ proc resolve*(vm: SearchVM) =
   ## one, because a search is explicitly cross-chain: §14's row is about the
   ## chains that were *checked*, and checking a chain means pinning its
   ## generation and reading in it.
-  ## The query is canonicalised (§13.1 of SEO-And-Crawl-Budget) BEFORE any path
-  ## is computed from it: `0xABC…` and `0xabc…` are the same object, and the
-  ## published tree names it in lowercase. Resolving the raw string missed every
-  ## chain and then reported "not on this chain" — an absence claim about an
-  ## object that was there.
-  let q = canonicalQuery(vm.query.val)
+  ## CLASSIFY THE RAW QUERY, CANONICALISE ONLY THE PATH. The two steps used to
+  ## be one — `shapesOf(canonicalQuery(q))` — and that was safe only while the
+  ## canonical form was reachable from `0x`-prefixed input alone. It is not any
+  ## more: `68231` is both a block height and a valid hex string, and
+  ## canonicalising first would rewrite it to `0x68231` and lose §3's
+  ## zero-request local inference to six 404s. §2 is explicit that "a single
+  ## input may match several shapes; all matches are carried forward", and
+  ## carrying them means not destroying one of them before classification.
+  ##
+  ## The hash branch still canonicalises (§13.1 of SEO-And-Crawl-Budget) before
+  ## any path is computed: `0xABC…`, `0xabc…` and a bare `abc…` are the same
+  ## object, and the published tree names it in lowercase with the prefix.
+  ## Resolving the raw string missed every chain and then reported "not on this
+  ## chain" — an absence claim about an object that was there.
+  let raw = vm.query.val.strip
   var found: seq[SearchResult]
   var checked: seq[string]
   vm.resolved.val = true
 
-  let shapes = shapesOf(q)
+  let shapes = shapesOf(raw)
   if qsDecimal in shapes:
-    for r in vm.numericCandidates(parseInt(q)):
+    for r in vm.numericCandidates(parseInt(raw)):
       found.add r
     # Local inference issues no request, so no chain was "checked" by it. The
     # list stays honest even when the answer came for free.
 
   if isHashLike(shapes):
+    let q = canonicalHash(raw)
     for slug in vm.registry.chains.val:
       let opened = openChain(vm.store, slug)
       if opened.outcome != ooOpened:
