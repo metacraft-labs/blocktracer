@@ -142,7 +142,7 @@ export const spec = "Page-Descriptions.md §7.0; Debugger-Integration.md §7 —
 // steps where it chose not to move it". Before `data-reveal-seq` there was
 // nothing to ask — a reveal that held still left no trace at all, which is why
 // the wait for it in this file used to be a duration.
-export const assertions = 43;
+export const assertions = 45;
 export const needsEngine = true;
 
 // The walk stops at `MAX_STEPS` or when the trace ends, whichever comes first,
@@ -311,14 +311,64 @@ export async function run({ browser, site, j }) {
   // CONTAINS another's, because a selftest arm aimed at the shorter one would
   // resolve to two records and silently never run. A bare name paired with a
   // `REAL:`-prefixed one is exactly that shape.
-  await arm(browser, site, j, synthetic[0], "SOURCE");
-  await arm(browser, site, j, realCaptures[0], "LISTING");
+  const reveals = [
+    ...(await arm(browser, site, j, synthetic[0], "SOURCE")),
+    ...(await arm(browser, site, j, realCaptures[0], "LISTING")),
+  ];
+
+  // ── WHERE A REVEAL LANDS, ASKED OF EVERY REVEAL THIS RUN PRODUCED ──────
+  //
+  // WHY THE PER-ARM VERSION OF THIS CLAIM WAS NOT ENOUGH, AND IT IS A
+  // MEASUREMENT AND NOT A PRECAUTION. `Z2/the-revealed-position-is-anchored-
+  // to-the-top` anchors the reveal to the top of the box instead of centring
+  // it, and it SURVIVED two independent full passes against `LISTING: the
+  // revealed position is NOT the first line on screen`. Measured here, on the
+  // mutated tree:
+  //
+  //   unmutated  LISTING  30 steps → 29 already on screen, 1 DEPARTURE, 1 unclamped reveal
+  //   mutated    LISTING  30 steps → 30 already on screen, 0 DEPARTURES, 0 reveals
+  //
+  // THE MUTATION ERASES ITS OWN SUBJECT. Centring leaves about half a box
+  // below the revealed line, so the walk departs again a dozen steps later;
+  // top-anchoring leaves a WHOLE box below it, and a thirty-step walk never
+  // departs a second time. The arm's assertion then had nothing to quantify
+  // over, `countIs(0, 0)` was green, and a defect that makes itself
+  // unobservable read as a defect that was not there. A self-erasing mutation
+  // is the hardest kind for a per-subject arm to catch, because the harder the
+  // defect bites the fewer subjects survive to notice it.
+  //
+  // The whole target rested on ONE reveal out of a thirty-step walk. So the
+  // destination claim is also made over the UNION of both arms' reveals: two
+  // documents of very different lengths, and it can only lose its subject if
+  // NEITHER produced a reveal clear of both ends — which is the SUBJECTS
+  // assertion immediately below, not a silent zero.
+  //
+  // The per-arm assertions stay exactly as they are. They say something this
+  // one does not: that the policy holds for THAT rendering. This says the
+  // policy holds at all, and it is the one a self-erasing mutation cannot
+  // starve.
+  const clear = reveals.filter((r) => r.top > 0 && r.top < r.range);
+  j.atLeast(
+    clear.length,
+    1,
+    "SUBJECTS: reveals across both renderings that landed clear of both ends of their document",
+  );
+  j.countIs(
+    clear.filter((r) => r.indexOnScreen === 0).length,
+    0,
+    "no reveal in EITHER rendering puts the position on the first line of the box",
+  );
 }
 
 /**
  * The claim, over one recording. The same eleven assertions for both renderings
  * — the policy is not allowed to be right on source and wrong on a disassembly,
  * which is the surface the report was actually about.
+ *
+ * RETURNS the scroll readings of the reveals this arm produced, so `run` can
+ * state the destination claim over both arms at once. See the comment there:
+ * a mutation that anchors the reveal to the top of the box also stops the walk
+ * from ever departing again, and a per-arm subject list is what that starves.
  */
 async function arm(browser, site, j, subject, rendering) {
   const tag = `${rendering}: `;
@@ -650,6 +700,10 @@ async function arm(browser, site, j, subject, rendering) {
           )
           .join("; "),
     );
+    // The scroll readings of every reveal this arm produced, clamped ones
+    // included — `run` applies its own end-of-document filter, so the two
+    // callers cannot disagree about what "clear of both ends" means.
+    return departures.filter((t) => t.scroll).map((t) => t.scroll);
   } finally {
     await page.close();
   }

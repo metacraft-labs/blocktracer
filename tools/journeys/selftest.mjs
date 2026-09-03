@@ -862,7 +862,32 @@ proc noteFor*`,
     find: `    var centred = lineTop - (s.clientHeight - cr.height) / 2;`,
     replace: `    var centred = lineTop;`,
     journey: "source-pane-holds-still-while-the-position-is-visible",
-    assertion: "LISTING: the revealed position is NOT the first line on screen",
+    // REPOINTED, AND THE OLD TARGET IS THE FINDING. This arm SURVIVED two
+    // independent full passes against "LISTING: the revealed position is NOT
+    // the first line on screen", and the reason is that THE MUTATION ERASES ITS
+    // OWN SUBJECT:
+    //
+    //   unmutated  LISTING  30 steps → 29 on screen, 1 DEPARTURE, 1 reveal
+    //   mutated    LISTING  30 steps → 30 on screen, 0 DEPARTURES, 0 reveals
+    //
+    // Centring leaves half a box below the revealed line, so the walk departs
+    // again a dozen steps later. Top-anchoring leaves a WHOLE box below it, and
+    // thirty steps never depart a second time. The assertion then quantified
+    // over nothing and `countIs(0, 0)` was green — a defect that makes itself
+    // unobservable, read as a defect that was not there. The harder it bites,
+    // the fewer subjects survive to notice it.
+    //
+    // The paragraph above claiming the SOURCE arm cannot express this — "the
+    // demo document is 886px against a 512px box … a top-anchored scroll
+    // CLAMPS" — has also expired: that document is now 369px of range over a
+    // 517px box and produces two reveals, one of them clear of both ends and
+    // landing at index 0. Repointing to the source arm would work today and
+    // would be the same bet on geometry that failed here.
+    //
+    // So the target is the claim made over BOTH arms' reveals at once. It can
+    // only lose its subject if NEITHER document produced a reveal clear of its
+    // ends, and that is an asserted subject count rather than a silent zero.
+    assertion: "no reveal in EITHER rendering puts the position on the first line of the box",
   },
   {
     id: "Z3/the-document-is-re-windowed-under-the-position",
