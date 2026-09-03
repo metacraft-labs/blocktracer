@@ -92,6 +92,12 @@ type
     qsText
       ## Anything else — a name, a symbol, a label. Needs the name shards.
 
+func isAllDigits*(s: string): bool =
+  if s.len == 0: return false
+  for c in s:
+    if c notin Digits: return false
+  true
+
 func isHexDigits*(s: string): bool =
   if s.len == 0: return false
   for c in s:
@@ -127,7 +133,17 @@ func hexBodyOf*(raw: string): string =
     # "0x" — it is a malformed identifier, and falling through to the bare
     # branch would silently reinterpret the prefix as two more digits.
     return ""
-  if q.len >= BareHexFloor and isHexDigits(q): return q
+  # A BARE ALL-DIGIT STRING IS A NUMBER, NOT INFERRED HEX — and this is a
+  # budget, not a preference. §3: "numeric search is entirely local"; §8 gives
+  # it "< 1 ms, ZERO REQUESTS". Inferring hex from `18000000` made a block
+  # number cost one index fetch, or six probes without an index, and
+  # `test_chain_viewmodels`' "local inference costs no request at all" went red
+  # the moment bare hex was accepted — which is the budget defending itself.
+  #
+  # Nothing is lost that the user cannot ask for: a hex identifier whose digits
+  # are ALL decimal still resolves with an explicit `0x`, and for a 64-character
+  # hash the odds of that are about one in ten thousand billion.
+  if q.len >= BareHexFloor and isHexDigits(q) and not isAllDigits(q): return q
   ""
 
 func canonicalHexBody*(raw: string): string =
@@ -166,10 +182,7 @@ func shapesOf*(raw: string): set[QueryShape] =
   ## "run on every keystroke" is affordable, and testable with no tree at all.
   let q = raw.strip
   if q.len == 0: return {qsEmpty}
-  block decimal:
-    for c in q:
-      if c notin Digits: break decimal
-    result.incl qsDecimal
+  if isAllDigits(q): result.incl qsDecimal
   let body = hexBodyOf(q)
   if body.len > 0:
     if body.len == 64: result.incl qsHash32

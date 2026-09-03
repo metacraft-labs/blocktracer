@@ -70,7 +70,7 @@ export const claim =
   "A visitor who remembers only the start of a hash is shown the entities that begin with it, and is told when the fragment is too short to look up.";
 export const spec =
   "Search-And-Routing §5, §5.3, §5.4, §8; Page-Descriptions §11, §14";
-export const assertions = 8;
+export const assertions = 9;
 
 async function search(browser, origin, q) {
   const context = await browser.newContext();
@@ -111,8 +111,31 @@ async function search(browser, origin, q) {
 export async function run({ browser, site, j }) {
   // The descriptor is the deployment's own statement about its index. Every
   // number this journey uses comes from it rather than from a literal here.
-  const meta = await (await fetch(`${site.origin}/idx/hash/meta.json`)).json();
-  const depth = meta.prefixLen;
+  //
+  // READ DEFENSIVELY, AND ASSERT ITS ABSENCE RATHER THAN THROWING ON IT. A
+  // tree that publishes no descriptor is exactly the tree this work started
+  // from, and a journey that dies on `JSON.parse` there records ONE failure and
+  // never runs the seven assertions that say what is actually missing. The
+  // harness's own rule, from `Journey.#vacuityCheck`: the assertion must still
+  // RUN and still be RECORDED — it must simply not be allowed to be green.
+  const meta = await fetch(`${site.origin}/idx/hash/meta.json`)
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
+  const haveMeta = !!(meta && meta.prefixLen > 0);
+  j.expect(
+    haveMeta,
+    "the deployment publishes a hash-index descriptor naming its shard depth",
+    haveMeta
+      ? `prefixLen=${meta.prefixLen}, version=${meta.indexVersion}, ${meta.shardCount} shards`
+      : "GET /idx/hash/meta.json did not return an index descriptor — §5.3's " +
+        "depth is not discoverable, so no client can compute a shard path",
+  );
+  // A stand-in depth so the assertions below still RUN on a tree with no
+  // descriptor. They then fail on what they are each about, rather than all
+  // failing as one stack trace.
+  const depth = haveMeta ? meta.prefixLen : 2;
+  const shards = (meta && meta.shards) || [];
+  const version = (meta && meta.indexVersion) || "1";
 
   const all = await transactions(site.root);
   const publishedChains = [...new Set(all.map((t) => t.chain))].sort();
@@ -120,16 +143,19 @@ export async function run({ browser, site, j }) {
   // THE ASSERTION THAT WOULD HAVE CAUGHT THE ORIGINAL STATE. An index covering
   // one of three chains is not a smaller index; it is an index that answers
   // confidently and wrongly for the other two.
-  const shardBodies = await Promise.all(
-    meta.shards.map((p) =>
-      fetch(`${site.origin}/idx/hash/${meta.indexVersion}/${p}.bin`).then((r) =>
-        r.arrayBuffer(),
+  const shardBodies = (
+    await Promise.all(
+      shards.map((p) =>
+        fetch(`${site.origin}/idx/hash/${version}/${p}.bin`)
+          .then((r) => (r.ok ? r.arrayBuffer() : null))
+          .catch(() => null),
       ),
-    ),
-  );
+    )
+  ).filter((b) => b !== null);
   const indexedChains = new Set();
   for (const buf of shardBodies) {
     const d = new Uint8Array(buf);
+    if (String.fromCharCode(...d.subarray(0, 4)) !== "BThx") continue;
     // Header: magic(4) fmt(1) prefixLen(1) hashLen(1) chainCount(1) count(4),
     // then `chainCount` u8-length-prefixed chain names.
     let pos = 12;
@@ -144,6 +170,9 @@ export async function run({ browser, site, j }) {
     1,
     "chains represented in the published hash index",
   );
+  // NOT a subject count. `indexedChains` being non-empty says an index exists;
+  // this says it covers what the site serves, and it is the assertion that
+  // would have caught a 56-entry index in which every entry was `demo`.
   const unindexed = publishedChains.filter((c) => !indexedChains.has(c));
   j.countIs(
     unindexed.length,
@@ -250,8 +279,8 @@ export async function run({ browser, site, j }) {
   );
 
   j.note(
-    `index: prefixLen=${depth}, ${meta.shardCount} shards, ${meta.entryCount} ` +
-      `entries, largest ${meta.largestShardBytes} B, chains ` +
+    `index: prefixLen=${depth}, ${shards.length} shards, ${meta?.entryCount ?? 0} ` +
+      `entries, largest ${meta?.largestShardBytes ?? 0} B, chains ` +
       `[${[...indexedChains].sort().join(", ")}]; site publishes ` +
       `[${publishedChains.join(", ")}]`,
   );

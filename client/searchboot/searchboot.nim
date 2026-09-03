@@ -465,21 +465,31 @@ proc boot(chainsCsv, packedMeta: cstring) =
     # `SearchVM.mechanism` reports `smUnsupportedShape` for precisely this
     # reason: "we cannot look this up yet" must never render as "it does not
     # exist".
-    let allHex = raw.strip.len > 0 and isHexDigits(raw.strip)
+    # THREE DIFFERENT REASONS, THREE DIFFERENT SENTENCES. They were one, and
+    # it told a visitor searching block 68231 that their query was "too short",
+    # which is false — it is five digits, well over the bare-hex floor. It was
+    # rejected for being a NUMBER, and a message that names the wrong cause
+    # sends the reader to fix the wrong thing.
+    let q = raw.strip
+    let why =
+      if isAllDigits(q):
+        "Read as a block number rather than a hash. §3's local inference " &
+        "resolves a height from live head pointers, which this page does " &
+        "not hold. To search it as a hex identifier instead, write it with " &
+        "a <span class=\"mono\">0x</span>. "
+      elif isHexDigits(q):
+        "Too short to read as a hash. Without a <span class=\"mono\">0x" &
+        "</span> prefix, a hex string is only taken for an identifier at " &
+        $BareHexFloor & " digits or more, because shorter ones are usually " &
+        "words. Add the prefix to search it anyway. "
+      else:
+        "This deployment resolves an identifier by computing its object " &
+        "path, which needs a hash — with or without the <span class=" &
+        "\"mono\">0x</span>. "
     renderNoQuery(cstring(ResultSlotId), "unsupported",
-      cstring(
-        (if allHex:
-           "Too short to read as a hash. Without an <span class=\"mono\">" &
-           "0x</span> prefix, a hex string is only taken for an identifier " &
-           "at " & $BareHexFloor & " digits or more, because shorter ones " &
-           "are usually words. Add the prefix to search it anyway. "
-         else:
-           "This deployment resolves an identifier by computing its object " &
-           "path, which needs a hash — with or without the <span class=" &
-           "\"mono\">0x</span>. ") &
-        "Block numbers and names resolve through local inference and the " &
-        "name shards, which this deployment does not read from the browser " &
-        "yet. Nothing was looked in."))
+      cstring(why & "Names resolve through the index shards below, which " &
+              "this deployment does not read from the browser yet. Nothing " &
+              "was looked in — which is not the same as nothing being there."))
     return
 
   var chains: seq[string]
