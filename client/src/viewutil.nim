@@ -550,6 +550,33 @@ proc sourcesNote*(v: SourceCoverageView): string =
     if v.state == scPartial:
       s.add " Steps inside the contracts that did not resolve continue at " &
             "instruction level."
+    # WHAT THE RECORDING CAN ACTUALLY SHOW, WHERE IT IS LESS THAN WHAT RESOLVED.
+    #
+    # THIS IS THE SENTENCE THAT KEEPS THE BADGE HONEST, and without it this whole
+    # feature would have made rows read better than they are. `Sources available`
+    # is a true statement about the ARTIFACT — it is provable against the chain's
+    # commitment to the class, and `available` was chosen over `verified` for
+    # exactly that scope. It is not a statement about THIS CONTAINER. Every real
+    # transaction the site publishes today was captured by a runtime that could
+    # not resolve artifacts, so its steps were never written against a debug map,
+    # and the resolution was measured afterwards against classes the node still
+    # serves. Those recordings step perfectly and show no text.
+    #
+    # Left unsaid, the two surfaces would have contradicted each other on one
+    # screen: this row saying `Sources available` and the debugger's source pane,
+    # inches away, saying "Stepping continues at instruction level". A visitor
+    # would be right to conclude one of them was lying. Neither is; they answer
+    # different questions, and the note is where the difference gets a sentence.
+    #
+    # The `scPartial` clause above is about OTHER CONTRACTS in this transaction;
+    # this one is about this recording, and both can be true at once.
+    if not v.positioned:
+      s.add " This recording was taken before its runtime could position steps " &
+            "against a resolved artifact" &
+            (if v.postHoc: " — the artifact was proved afterwards, against a " &
+                           "contract class the node still serves" else: "") &
+            ", so stepping continues at instruction level and the source text " &
+            "is not shown beside it."
     s
   of scNone:
     "All " & $v.contracts & " contract" &

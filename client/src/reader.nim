@@ -177,6 +177,33 @@ type
     resolved*: int           ## how many of them resolved an artifact
     corroboration*: SourceCorroboration
     origins*: seq[string]    ## the distinct distributors named, sorted
+    positioned*: bool
+      ## WHETHER THIS RECORDING CAN SHOW THE SOURCE IT RESOLVED, which is a
+      ## SEPARATE QUESTION from whether the source resolved and became a
+      ## separate field the moment the two could differ.
+      ##
+      ## Resolution asks "is this contract's artifact provable against the
+      ## chain's commitment to its class". Positioning asks "were this
+      ## recording's steps written against that artifact's debug map". The
+      ## second needs the transaction body; the first needs only world state,
+      ## which outlives it. So a transaction can now be `scAll` — every
+      ## executed contract resolved — over a container that positions nothing,
+      ## and every real transaction this site publishes today is exactly that
+      ## shape: captured by a runtime that never looked, resolved afterwards by
+      ## `resolve-frozen-artifacts.mjs` against classes the node still serves.
+      ##
+      ## Without this field `sourcesNote` would say an artifact resolved and
+      ## stop, and a visitor would open the debugger onto a source pane reading
+      ## "Stepping continues at instruction level" — the page promising what
+      ## the container cannot keep. It is read from the tree's own
+      ## `replay.sourceLevel` rather than inferred from the presence of a
+      ## resolution, because those are the two things that must not be
+      ## conflated.
+    postHoc*: bool
+      ## Whether the resolution was measured AFTER the capture rather than
+      ## during it. Folded from the entries' `measuredPostHoc`, and true only
+      ## when EVERY resolved entry carries it — a mixed record makes the
+      ## weaker, and therefore honest, claim about the transaction as a whole.
 
   TxRow* = object
     ## One row of the shared transactions table (block detail, tx list).
@@ -437,6 +464,11 @@ proc sourceCoverage*(native: JsonNode): SourceCoverageView =
   if replay.isNil or replay.kind != JObject: return
   # From here on the transaction HAS a replay record, so "nobody looked" and
   # "looked and found nothing" are separable.
+  # WHETHER THE CONTAINER POSITIONS ITS STEPS, read from the tree and not inferred. This is
+  # the recording's own `sourceLevel`, which `ingest.nim` writes from the capture and from
+  # nothing else — in particular a post-hoc resolution cannot raise it, which is what keeps
+  # "the artifact is provable" and "this recording shows it" apart. See `positioned`.
+  result.positioned = replay{"sourceLevel"}.getBool
   let artifacts = replay{"artifacts"}
   if artifacts.isNil or artifacts.kind != JArray:
     result.state = scUnchecked
@@ -445,9 +477,11 @@ proc sourceCoverage*(native: JsonNode): SourceCoverageView =
   result.contracts = artifacts.len
   if artifacts.len == 0: return
   var everyResolvedIsCorroborated = true
+  var everyResolvedIsPostHoc = true
   for a in artifacts:
     if not a{"resolved"}.getBool: continue
     inc result.resolved
+    if not a{"measuredPostHoc"}.getBool: everyResolvedIsPostHoc = false
     let origin = a{"origin"}.getStr
     if origin.len > 0 and origin notin result.origins:
       result.origins.add origin
@@ -461,6 +495,7 @@ proc sourceCoverage*(native: JsonNode): SourceCoverageView =
   if result.resolved > 0:
     result.corroboration =
       if everyResolvedIsCorroborated: scCorroborated else: scSingleDistributor
+    result.postHoc = everyResolvedIsPostHoc
 
 proc txView*(r: DataRoot, info: ChainInfo, hash: string): TxView =
   ## The transaction-detail projection. The SDK assembles the three data-plane

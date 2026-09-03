@@ -2693,15 +2693,121 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     # declared, rendered and never assigned.
     let realInfo = chainInfo(root, RealChain)
     let realRow = txRow(root, realInfo, replayedTx)
-    # The frozen captures were taken before the runtime could resolve artifacts.
-    ck realRow.sources.state == scUnchecked
-    ck txView(root, realInfo, replayedTx).sources.state == scUnchecked
+    # THIS USED TO ASSERT `scUnchecked`, AND THAT WAS THE STATUS QUO A USER
+    # OBJECTED TO. The frozen captures were taken by a runtime that could not
+    # resolve artifacts, so every real transaction on the site read "Not
+    # checked" — "nobody looked". The bodies are pruned and cannot be
+    # re-captured, so the question was asked without them:
+    # `resolve-frozen-artifacts.mjs --write` resolves against the contract
+    # classes the node still serves, and `ingest.nim` republishes that answer
+    # marked as measured after the fact. The states below are therefore
+    # MEASURED, and the two surfaces are asserted to agree because `txRow`
+    # projects `txView` and a divergence here would be a fold read twice.
+    ck realRow.sources.state == txView(root, realInfo, replayedTx).sources.state
+    ck realRow.sources.state notin {scUnchecked, scUnrecorded}
     let demoInfo = chainInfo(root, DemoChain)
     let demoPage = txsFrom(root, demoInfo, -1)
     ck demoPage.rows.len > 0
     let demoTx = demoPage.rows[0].hash
     ck demoPage.rows[0].sources.state == scUnrecorded
     ck txRow(root, demoInfo, demoTx).sources.state == scUnrecorded
+
+  test "NOTHING PUBLISHED READS 'Not checked', and the count is not zero":
+    # THE USER'S ACTUAL REQUIREMENT, as a gate. "We should check all
+    # transactions before publishing" — so no published row may report the
+    # outcome of a procedure nobody ran. Every row must land on a MEASURED
+    # state: `scAll`, `scPartial`, `scNone` or `scNoCode`.
+    #
+    # THE COUNT IS ASSERTED FIRST AND ASSERTED NON-ZERO. "0 of 0 transactions
+    # are unchecked" passes vacuously, and an ingest that published no
+    # transactions at all would satisfy every other line in this test. The
+    # denominator is the claim.
+    # `scUnchecked` AND `scUnrecorded` ARE NOT THE SAME FAILURE, and only the
+    # first is the one the user saw. `sourcesStated` renders no badge at all for
+    # `scUnrecorded`, because a transaction with no replay record had no
+    # resolution applied and there is no outcome to report — a pruned body is
+    # not a procedure somebody skipped. So the gate is: no row RENDERS "Not
+    # checked", and every row that has a replay record lands on a measured
+    # state. The second clause is what stops the first from being satisfiable by
+    # quietly downgrading replayed rows to `scUnrecorded`.
+    let realInfo = chainInfo(root, RealChain)
+    var replayedHashes: seq[string]
+    for t in snap["transactions"]:
+      if t["outcome"].getStr in ["replayed", "divergent"]:
+        replayedHashes.add t["txHash"].getStr
+    var published, saysNotChecked, silent, silentButReplayed, withSources = 0
+    var fromH = -1
+    while true:
+      let page = txsFrom(root, realInfo, fromH)
+      for row in page.rows:
+        inc published
+        if sourcesStated(row.sources.state):
+          if sourcesState(row.sources.state) == "Not checked": inc saysNotChecked
+        else:
+          inc silent
+          # A row that states nothing must be one the capture never replayed.
+          # Counted rather than asserted per row, so the assertion total stays
+          # independent of how many transactions the capture happens to hold.
+          if row.hash in replayedHashes: inc silentButReplayed
+        if row.sources.state in {scAll, scPartial}: inc withSources
+      if not page.hasMore: break
+      fromH = page.nextFrom
+    ck published > 0
+    ck saysNotChecked == 0
+    ck silentButReplayed == 0
+    # Non-vacuity in the other direction: this scope really does publish both
+    # populations, so the loop above was not silently grading an empty half.
+    ck silent > 0
+    ck published - silent > 0
+
+    # AND THE TREE AGREES WITH THE MEASUREMENT, rather than with itself. The
+    # expected number of transactions carrying source comes out of the sidecar
+    # the resolver wrote — the same discipline the ground-truth block at the top
+    # of this file uses, and for the same reason: a test that asked the reader
+    # how many it had resolved would agree with a tree it had misread.
+    let side = parseJson(readFile(snapshotDir / "artifact-resolution.json"))
+    var sideResolvedTxs = 0
+    for e in side["transactions"]:
+      let arts = e{"artifacts"}
+      if arts == nil or arts.kind != JArray or arts.len == 0: continue
+      var anyResolved = false
+      for a in arts:
+        if a{"resolved"}.getBool: anyResolved = true
+      if anyResolved: inc sideResolvedTxs
+    ck sideResolvedTxs > 0
+    ck withSources == sideResolvedTxs
+
+  test "a resolved artifact over an unpositioned recording does not over-promise":
+    # THE WAY THIS FEATURE GOES WRONG. The frozen captures resolve artifacts
+    # after the fact, so a transaction can read `Sources available` over a
+    # container whose steps were never written against a debug map. The badge is
+    # true — the artifact is provable — but on its own it would promise text the
+    # debugger cannot show, and the source pane inches away says "Stepping
+    # continues at instruction level". So the note has to say which of the two
+    # is the case, and this asserts it does.
+    let realInfo = chainInfo(root, RealChain)
+    var subject = SourceCoverageView()
+    var found = 0
+    var fromH = -1
+    while true:
+      let page = txsFrom(root, realInfo, fromH)
+      for row in page.rows:
+        if row.sources.state == scAll:
+          inc found
+          subject = row.sources
+      if not page.hasMore: break
+      fromH = page.nextFrom
+    ck found > 0
+    ck sourcesState(subject.state) == "Sources available"
+    # Measured after the capture, over a recording that positions nothing.
+    ck subject.postHoc
+    ck not subject.positioned
+    # And the note says so, in both halves: what the recording cannot do, and
+    # that the proof came afterwards rather than from the capture.
+    ck sourcesNote(subject).contains("instruction level")
+    ck sourcesNote(subject).contains("proved afterwards")
+    # The badge still may not claim the strong word — §9 owns `verified`.
+    ck not sourcesNote(subject).toLowerAscii.contains("verified")
 
   # ── mutation arms ────────────────────────────────────────────────────────
   #
@@ -2757,5 +2863,31 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     ck sourcesClass(scNone) != "bad"
     ck sourcesClass(scPartial) != outcomeClass(ooReverted)
 
+  test "MUTATION BITE: the sidecar ignored puts every real row back on 'Not checked'":
+    # The gate above asserts that nothing published reads "Not checked". This is
+    # the state it guards against, produced on purpose: a capture with no
+    # `artifacts` key — which is every frozen capture as it was taken — folds to
+    # `scUnchecked`, and that is what the site showed before the resolution pass.
+    # If `ingest.nim` stopped reading `artifact-resolution.json`, the gate would
+    # see this, so the gate is not vacuous.
+    let ignored = coverageOf("mut-sidecar-ignored", nil)
+    ck ignored.state == scUnchecked
+    ck sourcesState(ignored.state) == "Not checked"
+    ck sourcesNote(ignored).contains("Nobody looked")
+
+  test "MUTATION BITE: the instruction-level caveat is conditional, not decoration":
+    # A sentence printed on every resolved transaction would say nothing and
+    # would still pass the over-promise test above. It has to appear EXACTLY
+    # when the recording cannot show what resolved — so the identical artifacts
+    # over a POSITIONED recording must not carry it, and that is the arm.
+    let arts = %[artifact(AddrResolved, ClassResolved, true, OriginNpm,
+                          "corroborated")]
+    let unpositioned = coverageOf("mut-caveat-on", arts, sourceLevel = false)
+    let positioned = coverageOf("mut-caveat-off", arts, sourceLevel = true)
+    ck unpositioned.state == scAll
+    ck positioned.state == scAll
+    ck sourcesNote(unpositioned).contains("stepping continues at instruction level")
+    ck not sourcesNote(positioned).contains("stepping continues at instruction level")
+
   test "assertion count":
-    expectCount(110)
+    expectCount(131)

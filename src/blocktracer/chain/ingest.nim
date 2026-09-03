@@ -461,6 +461,57 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   if chain.len == 0:
     raise newException(ValueError,
       "the snapshot names no chain in provenance.chain; refusing to guess a slug")
+
+  # ---- the artifact-resolution SIDECAR, if this capture has one -------------
+  #
+  # WHAT IT IS FOR. Every transaction in `client/fixtures/chain/` was captured by a runtime
+  # that predates off-chain artifact resolution, so its recording carries no
+  # `ct.source-provenance` at all and every one of them publishes `Not checked` — "nobody
+  # looked". Re-capturing to answer the question is impossible and permanently so: the bodies
+  # are pruned at the finalized tip (CHAIN-CAPTURE.md §1). So the question is asked WITHOUT
+  # the transaction, against contract instances and classes the node still serves, by
+  # `tools/chain/resolve-frozen-artifacts.mjs --write` — which uses the resolver the driver
+  # itself calls and writes its answer BESIDE the frozen capture rather than into it.
+  #
+  # WHAT IT MAY NOT DO, and these are the load-bearing restrictions:
+  #
+  #   * It may not touch `sourceLevel` or cause a source bundle to be written. A resolution
+  #     says an artifact is PROVABLE; a source-level RECORDING additionally requires the step
+  #     stream to have been written against that artifact's debug map, which needs the body.
+  #     `measuredSourceLevel` below reads the snapshot and only the snapshot.
+  #   * It may not override a capture that recorded its own answer. A real
+  #     `ct.source-provenance` is the measurement taken at the moment of execution; a
+  #     post-hoc one is an answer about the class today. Where both exist the capture wins,
+  #     and this is a `notin` test rather than a merge for exactly that reason.
+  #   * It may not arrive anonymously. The published entries are marked `measuredPostHoc`
+  #     and the tree records when and by which resolver, so a reader is never asked to
+  #     believe a capture recorded something it did not.
+  var postHoc = initTable[string, JsonNode]()
+  var postHocMeasuredAt = ""
+  var postHocResolver = ""
+  let sidecarPath = cfg.snapshotDir / "artifact-resolution.json"
+  if fileExists(sidecarPath):
+    let side = parseJson(readFile(sidecarPath))
+    if side{"format"}.getStr != "blocktracer/artifact-resolution@1":
+      raise newException(ValueError,
+        "unsupported artifact-resolution format '" & side{"format"}.getStr &
+        "' at " & sidecarPath & "; this build reads blocktracer/artifact-resolution@1")
+    # A SIDECAR FROM ANOTHER CHAIN IS A REFUSAL, NOT A SKIP. Applying one silently would
+    # attach one chain's resolution answers to another chain's transactions — invisible in
+    # the tree, and wrong in the direction that invents evidence.
+    if side{"chain"}.getStr != chain:
+      raise newException(ValueError,
+        sidecarPath & " resolves chain '" & side{"chain"}.getStr & "' but this snapshot is '" &
+        chain & "'; refusing to attach one chain's resolution to another's transactions")
+    postHocMeasuredAt = side{"measuredAt"}.getStr
+    postHocResolver = side{"measuredBy"}{"runtimeCommit"}.getStr
+    for e in side{"transactions"}:
+      let h = e{"txHash"}.getStr
+      let arts = e{"artifacts"}
+      # `null` is the tool's own "this run did not finish asking" and stays unanswered here,
+      # which lands the row on `Not checked` — the same honest outcome as no sidecar at all.
+      if h.len > 0 and arts != nil and arts.kind == JArray:
+        postHoc[h] = arts
   assertSlugAvailable(cfg.outDir, chain, "live-capture")
   let win = snap["window"]
   let finalizedAt = win["finalized"].getInt
@@ -645,9 +696,21 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     # This is also why the edges do not depend on `sourceLevel`: they are
     # published for a rung-3 transaction too, and they were simply missing
     # before — the seq was declared and left empty.
+    # THE CAPTURE'S OWN RECORD FIRST, the sidecar only where there is none. `artifactsOf` is
+    # the one place that choice is made, so the code edges and the published summary below
+    # cannot come to disagree about which array they were built from.
+    let capturedArtifacts =
+      if t{"artifacts"} != nil and t["artifacts"].kind == JArray: t["artifacts"]
+      else: nil
+    let postHocArtifacts =
+      if capturedArtifacts == nil and txHash in postHoc: postHoc[txHash]
+      else: nil
+    let artifactsOf =
+      if capturedArtifacts != nil: capturedArtifacts else: postHocArtifacts
+
     var codeEdges: seq[CodeEdge]
-    if t{"artifacts"} != nil and t["artifacts"].kind == JArray:
-      for a in t["artifacts"]:
+    if artifactsOf != nil:
+      for a in artifactsOf:
         let addr0 = a{"address"}.getStr
         let cls = a{"contractClassId"}.getStr
         if addr0.len == 0 and cls.len == 0: continue
@@ -670,16 +733,24 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     # recording had gone to the trouble of carrying: a consumer could no longer
     # tell "nobody looked" from "looked, nothing to look at", and a badge derived
     # from it would have had to guess. `null` for the first, `[]` for the second.
+    #
+    # AND A POST-HOC ANSWER SAYS SO, PER ENTRY. `measuredPostHoc` is written on every entry
+    # rather than once per transaction because the entries are what a consumer folds and
+    # what a reviewer quotes; a flag one level up is a flag that gets separated from the
+    # claim it qualifies. It is `false` on a capture's own record, not absent, so the two
+    # are distinguishable without knowing which snapshots have sidecars.
     var artifactSummary = newJNull()
-    if t{"artifacts"} != nil and t["artifacts"].kind == JArray:
+    if artifactsOf != nil:
+      let isPostHoc = postHocArtifacts != nil
       artifactSummary = newJArray()
-      for a in t["artifacts"]:
+      for a in artifactsOf:
         artifactSummary.add %*{
           "address": orNull(a{"address"}),
           "contractClassId": orNull(a{"contractClassId"}),
           "resolved": a{"resolved"}.getBool,
           "origin": orNull(a{"origin"}),
-          "corroboration": orNull(a{"corroboration"})}
+          "corroboration": orNull(a{"corroboration"}),
+          "measuredPostHoc": %isPostHoc}
 
     # THE MEASUREMENT, AND IT DEFAULTS TO FALSE.
     #
@@ -741,7 +812,21 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         # page, a check or a reader can look at.
         "sourceLevel": %measuredSourceLevel,
         "contractRungs": orNull(t["recording"]{"contractRungs"}),
-        "artifacts": artifactSummary}
+        "artifacts": artifactSummary,
+        # WHEN THE RESOLUTION WAS MEASURED, AND BY WHAT. Present only where the answer came
+        # from the sidecar, so its absence means the capture recorded its own — the same
+        # absence-is-informative discipline `artifacts: null` follows one field up.
+        #
+        # This is what keeps `sourceLevel: false` beside `artifacts[].resolved: true` from
+        # reading as a contradiction. It is not one: the artifact is provable TODAY, and the
+        # recording was written by a runtime that never asked. Both facts are true, they are
+        # about different moments, and the tree now carries the moment.
+        "artifactsMeasuredAt":
+          (if postHocArtifacts != nil and postHocMeasuredAt.len > 0:
+             %postHocMeasuredAt else: newJNull()),
+        "artifactsMeasuredByRuntime":
+          (if postHocArtifacts != nil and postHocResolver.len > 0:
+             %postHocResolver else: newJNull())}
 
     let facts = TransactionFacts(
       chain: chain,

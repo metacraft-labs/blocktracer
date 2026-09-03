@@ -1,0 +1,125 @@
+{
+ "format": "blocktracer/artifact-resolution@1",
+ "note": "Off-chain artifact resolution measured AFTER the capture, against contract instances and classes the node still serves (world state survives the mempool pruning that destroyed these transaction bodies). It says whether a contract's artifact is provable, NOT that this recording positioned its steps against one — that needs the body and is permanently unavailable for these transactions.",
+ "chain": "aztec-testnet",
+ "measuredAt": "2026-09-03T17:09:12.984Z",
+ "measuredBy": {
+  "tool": "tools/chain/resolve-frozen-artifacts.mjs",
+  "resolver": "replay/src/artifact_resolution.ts",
+  "runtimeCommit": "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061"
+ },
+ "capturedWithRuntimeCommit": "505cb11117c6560ba060f6e9ca1c5e0e1b18d6b3",
+ "snapshotFrozenAt": "2026-09-01T04:50:32.529Z",
+ "endpoint": "https://aztec-testnet.drpc.org",
+ "counts": {
+  "transactionsConsidered": 6,
+  "transactionsAnswered": 6,
+  "transactionsWithheld": 0,
+  "contracts": 6,
+  "resolved": 1
+ },
+ "transactions": [
+  {
+   "txHash": "0x0858d644c60851824141160a69391e304430aabc06ef9ace18d8024b22e67fb2",
+   "blockNumber": 63675,
+   "artifacts": [
+    {
+     "address": "0x2a9a1d0e8f1974267536abefa565e7a7351f92ddbe95ec13c57c79b70664f7c8",
+     "contractClassId": "0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc",
+     "artifactHash": "0x0ce0ec4d35923e443cababb4ed1be8ec0b291657b60a8cd7d8081583ed931f7d",
+     "resolved": false,
+     "origin": null,
+     "corroboration": null,
+     "candidatesConsidered": 0,
+     "rejected": [],
+     "reason": "no off-chain artifact was proved to be class 0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes."
+    }
+   ]
+  },
+  {
+   "txHash": "0x11274b64b0b71aebc39145f1d08ec4d63c5a94a1187f22785e08daf2f668ae05",
+   "blockNumber": 63671,
+   "artifacts": [
+    {
+     "address": "0x0310a1576f294a987d75e2ed84ed0a61c16fd30b84bec49ac040c74fe2e9ef63",
+     "contractClassId": "0x2ae59f7d3a54ff246c93fa87ed57731788a0c9a816e2ee5ecaca68f869042888",
+     "artifactHash": "0x172cfdf8d65749da1c61b9c4a9ec5e6493cc0e15a17c501203ad40f44b9e043c",
+     "resolved": false,
+     "origin": null,
+     "corroboration": null,
+     "candidatesConsidered": 0,
+     "rejected": [],
+     "reason": "no off-chain artifact was proved to be class 0x2ae59f7d3a54ff246c93fa87ed57731788a0c9a816e2ee5ecaca68f869042888. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes."
+    }
+   ]
+  },
+  {
+   "txHash": "0x12525d6d2a629f908a9d68aade391624eda2bfe38866d00c06233be7810e795f",
+   "blockNumber": 63670,
+   "artifacts": [
+    {
+     "address": "0x0000000000000000000000000000000000000000000000000000000000000003",
+     "contractClassId": "0x1f85d8b901a87b3fa9b93a44ab569ca2f5eb62412dfd58c894fdfff218be11a4",
+     "artifactHash": "0x1a57ff2a8e653094229bd15c028683e08b2086dfeadecac4c6b950c383b3ae1d",
+     "resolved": true,
+     "origin": "npm:@aztec/protocol-contracts@5.3.0-nightly.20260819 FeeJuice",
+     "corroboration": "single-distributor",
+     "candidatesConsidered": null,
+     "rejected": [],
+     "reason": "class 0x1f85d8b901a87b3fa9b93a44ab569ca2f5eb62412dfd58c894fdfff218be11a4 is proved by npm:@aztec/protocol-contracts@5.3.0-nightly.20260819 FeeJuice: computeArtifactHash = 0x1a57ff2a8e653094229bd15c028683e08b2086dfeadecac4c6b950c383b3ae1d equals the class's, public_dispatch is byte-equal to the class's packedBytecode (1947 bytes), and recomputing the class id from them returns 0x1f85d8b901a87b3fa9b93a44ab569ca2f5eb62412dfd58c894fdfff218be11a4. artifactHash does NOT commit to debug_symbols or file_map, and those are attested by 1 distributor(s) (npm) at digest f87f9cc0f91809b2"
+    }
+   ]
+  },
+  {
+   "txHash": "0x0d56d91b5096219def8c9e6bf05bd5ab476901ddf322ea228973fcd141f84f35",
+   "blockNumber": 63664,
+   "artifacts": [
+    {
+     "address": "0x2a9a1d0e8f1974267536abefa565e7a7351f92ddbe95ec13c57c79b70664f7c8",
+     "contractClassId": "0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc",
+     "artifactHash": "0x0ce0ec4d35923e443cababb4ed1be8ec0b291657b60a8cd7d8081583ed931f7d",
+     "resolved": false,
+     "origin": null,
+     "corroboration": null,
+     "candidatesConsidered": 0,
+     "rejected": [],
+     "reason": "no off-chain artifact was proved to be class 0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes."
+    }
+   ]
+  },
+  {
+   "txHash": "0x1a064089da812e9b42ad53ef7f3765bcd3a2ceb7a0c3b85b6ee68d1d7799a8e8",
+   "blockNumber": 63653,
+   "artifacts": [
+    {
+     "address": "0x2a9a1d0e8f1974267536abefa565e7a7351f92ddbe95ec13c57c79b70664f7c8",
+     "contractClassId": "0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc",
+     "artifactHash": "0x0ce0ec4d35923e443cababb4ed1be8ec0b291657b60a8cd7d8081583ed931f7d",
+     "resolved": false,
+     "origin": null,
+     "corroboration": null,
+     "candidatesConsidered": 0,
+     "rejected": [],
+     "reason": "no off-chain artifact was proved to be class 0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes."
+    }
+   ]
+  },
+  {
+   "txHash": "0x099baa002af07624ee622e06f0c38b1fcb756311377d7c599e05010bf4256063",
+   "blockNumber": 63642,
+   "artifacts": [
+    {
+     "address": "0x2a9a1d0e8f1974267536abefa565e7a7351f92ddbe95ec13c57c79b70664f7c8",
+     "contractClassId": "0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc",
+     "artifactHash": "0x0ce0ec4d35923e443cababb4ed1be8ec0b291657b60a8cd7d8081583ed931f7d",
+     "resolved": false,
+     "origin": null,
+     "corroboration": null,
+     "candidatesConsidered": 0,
+     "rejected": [],
+     "reason": "no off-chain artifact was proved to be class 0x2b6749411979b61926b6f8836c3a1a28c39e9c0c3fb3322ed6e776f2f02cb6dc. 0 candidate(s) were considered and 0 rejected. THE RUNG STAYS 3 AND THE STEPS STAY UNPOSITIONED — a chain-fetched contract whose artifact cannot be proved is exactly the case recording.ts's ceiling describes."
+    }
+   ]
+  }
+ ]
+}

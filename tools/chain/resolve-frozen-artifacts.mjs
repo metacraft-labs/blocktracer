@@ -54,7 +54,8 @@
 // without it is refused BY NAME rather than reported as "nothing resolved", because those
 // two readings are the entire subject of this file.
 
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { join, resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -66,6 +67,17 @@ const arg = (name, fallback) => {
 const args = (name) => argv.flatMap((a, i) => (a === `--${name}` ? [argv[i + 1]] : []))
   .filter(Boolean);
 const asJson = argv.includes('--json');
+// `--write` emits the SIDECAR, and the word sidecar is the whole design.
+//
+// `snapshot.json` is not opened for writing here and must never be: §6's freeze is
+// irreplaceable, the bodies behind it are pruned, and a tool that could damage it by mistake
+// is a tool that eventually does. So the answer lands BESIDE the capture, in
+// `artifact-resolution.json`, carrying its own provenance — when it was measured, by which
+// resolver, and against which runtime — precisely so that a consumer can tell a post-hoc
+// answer from one the capture itself recorded. `ingest.nim` reads it under exactly that
+// distinction and republishes it marked; it may not become a recording, and §6.1's rule that
+// a resolution is not a recording is enforced there rather than assumed here.
+const asWrite = argv.includes('--write');
 const die = (m) => { console.error(`resolve-frozen-artifacts: ${m}`); process.exit(2); };
 
 const runtime = arg('runtime', process.env.AZTEC_RUNTIME);
@@ -130,6 +142,22 @@ if (snapshotDirs.length === 0) {
 }
 if (snapshotDirs.length === 0) die('no snapshot directories to read');
 
+/** The resolver checkout's own commit, recorded into the sidecar.
+ *
+ * `provenance.runtimeCommit` already says which runtime CAPTURED a snapshot; a post-hoc
+ * answer needs the same fact about the runtime that ANSWERED, because the two differ by
+ * construction — that difference is the entire reason this tool exists — and a sidecar that
+ * did not name its own resolver could not be re-derived or disputed later. Unknown is
+ * written as `null` rather than omitted: a missing key reads as "not recorded", and this
+ * file's whole subject is that absence and measurement must stay apart. */
+function runtimeCommitOf(dir) {
+  try {
+    return execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'],
+                        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
+  } catch { return null; }
+}
+const resolverCommit = runtimeCommitOf(runtime);
+
 const rows = [];
 let transactions = 0, contracts = 0, resolved = 0;
 
@@ -145,6 +173,12 @@ for (const dir of snapshotDirs) {
       + 'explorer that holds nothing.');
   }
   const providers = liveChainProviders({ chain: scanChain });
+  /** Every transaction this run actually opened, with the address list it interned — kept
+   *  so the sidecar can distinguish "answered" from "not reached". A transaction whose
+   *  container interned NO address produces no rows at all, and would otherwise vanish from
+   *  the grouping and be published as the empty record `[]`, i.e. as "checked, executed no
+   *  contract code". That is a different and stronger claim than this run can make. */
+  const considered = [];
 
   for (const t of snap.transactions) {
     if (t.outcome !== 'replayed' && t.outcome !== 'divergent') continue;
@@ -155,7 +189,9 @@ for (const dir of snapshotDirs) {
         + 'would shrink the set silently.');
     }
     transactions++;
-    for (const address of addressesIn(ct, t.txHash)) {
+    const addresses = addressesIn(ct, t.txHash);
+    considered.push({ txHash: t.txHash, blockNumber: t.blockNumber, addresses });
+    for (const address of addresses) {
       const instance = await rpc(url, 'node_getContract', [address]);
       if (!instance) {
         rows.push({ chain, txHash: t.txHash, blockNumber: t.blockNumber, address,
@@ -205,6 +241,102 @@ for (const dir of snapshotDirs) {
       });
     }
   }
+
+  if (!asWrite) continue;
+
+  // ── THE SIDECAR ────────────────────────────────────────────────────────────────────────
+  //
+  // One record per transaction this run OPENED, and a transaction is written with an
+  // `artifacts` array only when the run answered for EVERY address its container interned.
+  // Anything less is written `artifacts: null` with the reason, which is the same `null` the
+  // capture path uses for "nobody looked" and lands the row on `Not checked` — the honest
+  // outcome for a question this run did not finish asking.
+  //
+  // The alternative, publishing the addresses that did answer, is the exact defect
+  // `test_chain_provenance`'s "the numerator and denominator are the transaction's, not the
+  // resolved set's" exists to catch: a two-contract transaction that answered for one would
+  // be published as 1/1 and read as complete. The denominator has to be the transaction's or
+  // the fold is measuring a set nobody chose.
+  const byTx = new Map();
+  for (const r of rows) {
+    if (r.chain !== chain) continue;
+    if (!byTx.has(r.txHash)) byTx.set(r.txHash, []);
+    byTx.get(r.txHash).push(r);
+  }
+  const txOut = [];
+  let wrote = 0, withheld = 0;
+  for (const c of considered) {
+    const got = byTx.get(c.txHash) ?? [];
+    const answered = got.filter((r) => !r.note);
+    const complete = c.addresses.length > 0 && answered.length === c.addresses.length;
+    if (!complete) {
+      withheld++;
+      const why = c.addresses.length === 0
+        ? 'this container interned no contract address, so there was nothing to resolve '
+          + 'against and this run cannot say the transaction executed no contract code'
+        : `${answered.length} of ${c.addresses.length} interned address(es) answered; the `
+          + 'rest have no contract instance or no class the node will serve, so the '
+          + 'transaction\'s denominator is unknown';
+      txOut.push({ txHash: c.txHash, blockNumber: c.blockNumber, artifacts: null, reason: why });
+      continue;
+    }
+    wrote++;
+    txOut.push({
+      txHash: c.txHash,
+      blockNumber: c.blockNumber,
+      artifacts: answered.map((r) => ({
+        address: r.address,
+        contractClassId: r.contractClassId,
+        artifactHash: r.artifactHash,
+        resolved: r.resolved,
+        origin: r.origin,
+        corroboration: r.corroboration,
+        // Kept because §6.2's reading of the corpus turns on it: `candidatesConsidered: 0`
+        // with an empty `rejected` means both providers were asked and neither offered a
+        // candidate, which is a measurement — a provider that threw would appear as a
+        // rejection. Without these two a reader cannot tell that from a swallowed outage.
+        candidatesConsidered: r.candidatesConsidered,
+        rejected: r.rejected,
+        reason: r.reason,
+      })),
+    });
+  }
+  const out = {
+    format: 'blocktracer/artifact-resolution@1',
+    // WHAT THIS IS, in the file, because the file will be read by someone who has not read
+    // §6. A resolution is not a recording; nothing here may be folded into one.
+    note: 'Off-chain artifact resolution measured AFTER the capture, against contract '
+      + 'instances and classes the node still serves (world state survives the mempool '
+      + 'pruning that destroyed these transaction bodies). It says whether a contract\'s '
+      + 'artifact is provable, NOT that this recording positioned its steps against one — '
+      + 'that needs the body and is permanently unavailable for these transactions.',
+    chain,
+    measuredAt: new Date().toISOString(),
+    measuredBy: {
+      tool: 'tools/chain/resolve-frozen-artifacts.mjs',
+      resolver: 'replay/src/artifact_resolution.ts',
+      runtimeCommit: resolverCommit,
+    },
+    // The snapshot's own provenance, restated so the gap this file exists to close is
+    // legible from inside it: the capture ran a runtime that could not resolve, this run
+    // used one that can, and those are two different commits.
+    capturedWithRuntimeCommit: snap.provenance?.runtimeCommit ?? null,
+    snapshotFrozenAt: snap.provenance?.frozenAt ?? null,
+    endpoint: url,
+    counts: {
+      transactionsConsidered: considered.length,
+      transactionsAnswered: wrote,
+      transactionsWithheld: withheld,
+      contracts: txOut.reduce((n, t) => n + (t.artifacts?.length ?? 0), 0),
+      resolved: txOut.reduce(
+        (n, t) => n + (t.artifacts ?? []).filter((a) => a.resolved).length, 0),
+    },
+    transactions: txOut,
+  };
+  const dest = join(dir, 'artifact-resolution.json');
+  writeFileSync(dest, JSON.stringify(out, null, 1) + '\n');
+  console.error(`resolve-frozen-artifacts: wrote ${dest} — ${wrote} answered, `
+    + `${withheld} withheld, ${out.counts.resolved}/${out.counts.contracts} resolved`);
 }
 
 if (asJson) {
