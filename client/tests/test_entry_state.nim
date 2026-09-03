@@ -304,7 +304,9 @@ suite "entry state — a position the fixture constant does not describe":
     let html = dbgc.renderSource(pane)
     check occurrences(html, "class=\"srcline") == 3
     # …and it says nothing about a reduction, because it made none.
-    check "Showing from line" notin html
+    # The markup, not the retired sentence: "Showing from line" is no longer
+    # emitted under any behaviour, so asserting its absence proved nothing.
+    check "<div class=\"srcfrom\">" notin html
 
   test "stepping across files carries the pane with the position":
     ## Ported in spirit from desktop's `test_formatted_view_step_in_vm.nim` /

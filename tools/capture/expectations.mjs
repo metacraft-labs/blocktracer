@@ -166,7 +166,7 @@ export const BACKBONES = {
   "site-chrome": {
     spec: "Page-Descriptions §2, §12, Design-System §2",
     items: [
-      "The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the data disclosure — \"No account, no tracking\", plus a statement that each chain says on its own pages whether its data is synthetic (`blocktracer-demo-gen`) or captured from a network. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath. The disclosure must NOT assert that this page is demo data: it is rendered on real-chain pages too, and until 2026-08-31 it claimed the opposite of the provenance marker on the same page on 632 of the tree's 819 pages.",
+      "The site footer, closing the page: the product line, the About / Chains / Privacy & settings links, and the privacy claim — \"No account, no tracking\", which is the whole of the disclosure and is true of every page here. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath. The footer must make NO claim about whose data the page shows: it is rendered on synthetic and real-chain pages alike and has no chain in scope, so provenance is the per-page marker's job and a footer sentence about it — asserting it, or directing the reader elsewhere to find it — is a finding.",
       "The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.",
       "The fixed site nav, with the brand and the resolver field, above a body that does not run under it.",
       "THE PROVENANCE MARKER, on a chain-scoped page: a badge naming what this data IS — `Synthetic demo data` in the neutral tone, or `Real Aztec <network> data` in the affirmative tone. It is the only thing on the page that tells a reader whether the hashes in front of them exist on any network, so it is graded as CONTENT and not as decoration: missing, naming the wrong chain, carrying a tone that contradicts its label, or unreadable against its surface in either theme is a P1. WHICH FORM IT TAKES DEPENDS ON THE PAGE, and all three are correct — revised 2026-08-31, when a band on every page was replaced by a band only where something is abnormal: (a) a full-width `.notice` BAND with the producer's sentences, on a page whose data is SYNTHETIC and which has no facts grid of its own — a block, an address, a list, a chain overview; (b) a compact `.provchip` badge above the breadcrumb, on those same pages when the data is REAL; (c) a `Data` ROW at the top of the transaction facts grid, on any page that has one, carrying the badge and the producer's sentences. Exactly ONE of the three is present on any page — two markers is a finding, and so is none. Do not report the absence of a BAND on a real-chain page as missing provenance: that is the change, and the chip or the row is where to look.",
@@ -241,24 +241,25 @@ export const EXPECTATIONS = [
   {
     id: "chains-index",
     summary:
-      "The honest capability inventory — a table of every chain in the registry, generated from the registry so it cannot drift.",
+      "Every chain BlockTracer publishes — what its data is, and how much of it there is. Generated from the registry, which is a property of the build and must not be claimed in the page's own copy.",
     spec: "Page-Descriptions §3",
     register: "explorer",
     inherits: ["site-chrome"],
     mustShow: [
-      "A table whose every cell is a REGISTRY fact — chain slug, recorder id and version, trace schema, coverage mode, block and transaction counters, and freshness against the tip. A placeholder or a hand-written cell means the page was not generated from the registry, which is §3's one structural requirement.",
-      "Coverage rendered in its own vocabulary — `eager` / `selective` / `on demand` — because that is what the Debug affordance will do on first click.",
+      "A table whose every cell is a published fact — chain slug, what the data IS, block and transaction counters, and freshness against the tip. A placeholder or a hand-written cell means the page was not generated from the registry, which is §3's one structural requirement.",
+      "A `Data` column carrying the producer's own provenance label in its own tone — `Real Aztec mainnet data` affirmatively, `Synthetic demo data` neutrally. This is the one table that enumerates the chains, so it is where the synthetic/captured distinction is STATED; it must read from the published provenance and never from the slug.",
       "Freshness as a state (at tip / behind tip) WITH the head and finalized heights beside it, so the claim is checkable rather than asserted.",
-      "A statement, below the table, naming the two columns §3 asks for that have no published source yet — the debug tier and historical reach — and what would carry them. §3's table has eight columns; six are in the tree and this page must not let a reader mistake the other two for columns this chain lacks.",
+      "The recorder pin, the trace schema and the coverage mode are ABSENT from this table, and their absence is correct: they describe how the deployment is wired rather than anything a visitor came to find, and they remain published in `/registry/chains.v{N}.json`. Reporting them as missing columns is the error this item exists to prevent.",
       "The chain slug as a link into the chain overview: this page is the entry point a protocol team lands on.",
     ],
     mustNotShow: [
-      "A 'Requires' or 'Supported' boolean column that flattens the coverage vocabulary back into yes/no.",
+      "A provenance value inferred from the chain SLUG rather than read from the published provenance — a row labelled synthetic because it is called `demo`. A name is not a claim about where data came from.",
       "A debug tier badge or a historical-reach value INVENTED from the recorder pin. This is the one page in the product where a confident wrong answer costs the most, and a plausible T1 badge with no source behind it is exactly that.",
+      "Copy defending the page's own build process — that it is generated, that it cannot drift, that it cannot claim support that is not deployed. That is a property of the pipeline addressed to whoever doubts it, and no visitor arrives holding that doubt.",
       "Placeholder chain rows (`Chain 1`, `example-chain`) — this page is registry-generated and placeholders mean it is not.",
     ],
     watchFor: [
-      "A seven-column table with one row: check the table does not read as an empty frame, and that the single row is not lost against the header.",
+      "A five-column table with one row: check the table does not read as an empty frame, and that the single row is not lost against the header.",
       "The freshness cell carries a badge and a run of small text; check the two are grouped as one fact rather than reading as two columns that ran together.",
       "The absent-columns statement is prose under a data table — check it reads as a note about the table rather than as a footer of the page.",
     ],
@@ -994,14 +995,14 @@ export const EXPECTATIONS = [
   {
     id: "settings",
     summary:
-      "Preferences — entirely client-side, and notably short because there is nothing about data sources to configure.",
+      "Preferences — entirely client-side, and notably short because there is nothing to configure. It is a plain statement of what the site does and does not do.",
     spec: "Page-Descriptions §12, §13",
     register: "explorer",
     inherits: ["site-chrome"],
     mustShow: [
-      "Four labelled groups: Privacy · Storage · Debugger · Advanced.",
-      "The privacy group ANSWERED rather than described: no account, no ads, no third-party requests, telemetry off, what is logged (this deployment's own CDN logs), and no record caps. This group needs no script and must be complete.",
-      "For each of the other three groups, a statement of what it will control and why it cannot act yet — measuring a cache, persisting a theme and overriding a registry at run time are all script operations.",
+      "Two labelled groups: Privacy · Your browser.",
+      "The privacy group ANSWERED rather than described: no account, no ads, no third-party requests, no telemetry, what is logged (this site's own CDN logs), and no record caps. This group needs no script and must be complete.",
+      "The `Your browser` group stating only what is TRUE FOR THE READER NOW — nothing stored beyond the ordinary browser cache, and theme and reduced motion following the system settings. A group that instead promises a control and explains why it cannot act yet is a finding: on a settings page that is a feature announcement, not a setting.",
       "A link onward to the fuller privacy summary.",
     ],
     mustNotShow: [
@@ -2282,7 +2283,7 @@ export const EXPECTATIONS = [
     mustShow: [
       "The provenance marker in its AFFIRMATIVE tone: `Real Aztec testnet data`. Since 2026-08-31 this page carries it as the compact CHIP above the breadcrumb, not as a band — real chain data is the ordinary case and no longer interrupts the page to announce itself. The chip is a badge only; the capture's own account of itself (endpoint, moment, block range) is NOT on this page any more, and its absence here is not a finding. What IS a finding: a chip that is missing, that names the wrong chain, whose tone contradicts its label, or that is so quiet a reader scanning the page would not register that they are looking at real network data.",
       "A head height, block count and transaction count that are plainly a real chain's rather than a fixture's — five-figure heights, an irregular transaction distribution.",
-      "The chain notes: coverage mode, generation, and the recorder pin, exactly as the synthetic overview renders them. This view is partly a CONTROL — the surrounding page must not have changed because the data is real.",
+      "The `About this data` section: the producer's own account of what was captured, exactly as the synthetic overview renders its own. This view is partly a CONTROL — the surrounding page must not have changed because the data is real. The coverage mode, generation and recorder pin are deliberately NOT here; they describe the deployment's wiring and their absence is not a finding.",
     ],
     mustNotShow: [
       "Any suggestion that this chain is a demo, a sample or a preview. The neutral `Synthetic demo data` treatment appearing here would be the product telling a reader that real chain data is fake, which is a P1 in its own right even though it is the safer of the two directions.",

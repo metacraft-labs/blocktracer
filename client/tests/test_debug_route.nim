@@ -775,7 +775,14 @@ suite "M8a — the source pane renders real source, with stable line identity":
     # Nothing was dropped, so nothing is announced. Asserted AFTER the count
     # above and never instead of it: a file SHORTER than the old window carried
     # no banner either, so an absent banner on its own proves nothing.
-    check "Showing from line" notin html
+    # The MARKUP and not the sentence. This asserted the retired wording
+    # "Showing from line", which no longer appears anywhere however the pane
+    # behaves, so it had become a check that could not fail. `<div
+    # class="srcfrom">` is the notice itself and is wording-independent; the
+    # opening tag rather than the bare class name, because this page inlines a
+    # stylesheet that declares `.srcfrom` and a substring test would be
+    # answered by the CSS.
+    check "<div class=\"srcfrom\">" notin html
 
   test "every file the tab strip names is reachable":
     ## The strip listed the published bundle's four files and exactly one of
@@ -1042,7 +1049,9 @@ suite "M8a — the source pane renders real source, with stable line identity":
             e.documents[i].lines[j].number == line and i == e.activeIndex
       check activeDocument(e).lines.len == want
       check activeDocument(e).lines[0].number == 1
-      check dbgc.renderSource(e).contains("Showing from line") == false
+      # The markup, not the retired sentence — see the note at the "nothing
+      # was dropped, so nothing is announced" check above.
+      check dbgc.renderSource(e).contains("<div class=\"srcfrom\">") == false
       inc asked
     check asked == want
 
@@ -3523,7 +3532,7 @@ suite "the embedded demo on the home page is the same session surface":
     check "id=\"pane-calltrace\"" in html
     check "Open the full session" in html
     # …and it is positioned, which is what makes it a demo rather than a shell.
-    check "stopped mid-execution at step" in html
+    check "Stopped mid-execution at step" in html
     check "class=\"srcline cur" in html
 
 suite "hydration — the seams the bundle reads, and the honesty they preserve":

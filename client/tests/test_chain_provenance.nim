@@ -1543,7 +1543,7 @@ suite "9 — the home page features a session that can actually be shown":
     # …and the page renders it.
     let home = renderRoute(root, "/").body
     ck "id=\"live-demo\"" in home
-    ck "stopped mid-execution at step" in home
+    ck "Stopped mid-execution at step" in home
 
   test "the rung-3 real transaction passes the OLD rule and fails the new one":
     # The exact regression, as an assertion. Without this the new rule could
@@ -1656,7 +1656,7 @@ suite "9 — the home page features a session that can actually be shown":
     # carries explanatory comments that quote the embed's own sentence, so a
     # whole-document "is not here" would be answered by a CSS comment.
     ck "id=\"live-demo\"" notin markup(home)
-    ck "stopped mid-execution at step" notin markup(home)
+    ck "Stopped mid-execution at step" notin markup(home)
     # The rest of the page is still a page.
     ck "deepest" in markup(home)
     ck "chaincard" in markup(home)

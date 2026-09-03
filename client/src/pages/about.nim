@@ -4,10 +4,29 @@
 ##
 ## The one page besides the home and the chains index that is class I0
 ## (`index,follow`) in SEO-And-Crawl-Budget §5–§6, with the condition attached:
-## "documentation must contain substantive unique content". So this page states
-## the product's actual read path — which is unusual enough to be substantive,
-## and is the evidence behind every claim in the trust strip rather than a
-## restatement of them.
+## "documentation must contain substantive unique content".
+##
+## ## REWRITTEN FOR A VISITOR, WHICH IS WHO ACTUALLY READS IT
+##
+## This page used to open "What BlockTracer is, and what it costs you" and then
+## spend its first and largest section on "The read path" — GETs against an
+## object store, immutable objects, "no coherence protocol and no cache to get
+## wrong". That is the product's architecture, and it was here because the SEO
+## condition above asks for substantive content and the architecture is the most
+## unusual true thing this tree knows. But substantive is not the same as
+## internal: a reader who clicks About wants to know what the thing DOES.
+##
+## So the order is inverted. `What you can do` leads, because it is the answer
+## to the question the page is asked; `What it costs you` is §2's trust strip,
+## which is what the page is FOR; `How it works` keeps the read path, cut to one
+## paragraph in plain words, where it now serves as the evidence for "no
+## tracking" rather than as the subject. The counters and badges are unchanged
+## — they were always the concrete part.
+##
+## The section title "The trust strip, itemised" is gone. `trust strip` is
+## §2's name for the row of claims, not a phrase any visitor has met, and a
+## heading naming the internal artefact rather than its subject is the same
+## fault this sweep removed everywhere else.
 
 import isonim/ssr/escape
 import isonim/dsl/ui
@@ -22,26 +41,67 @@ proc aboutPage*(chainCount: int): string =
           span(class = "sep"): text "/"
           span: text "about"
         tdiv(class = "eyebrow"): text "About"
-        h1(class = "h1"): text "What BlockTracer is, and what it costs you"
+        h1(class = "h1"): text "What BlockTracer is"
         p(class = "lead"):
-          text "A block explorer whose transaction pages are debugging "
-          text "sessions. Arriving at a transaction with a published trace "
-          text "means arriving in its execution — not at a button that opens "
-          text "one."
+          text "A block explorer where a transaction is a debugging session. "
+          text "Open one that has a recorded trace and you land inside its "
+          text "execution — stepping, rewinding, and reading the values at "
+          text "every line."
 
-        h2(class = "sec-title next"): text "The read path"
-        p(class = "lead"):
-          text "The browser reads static files and nothing else. No API, no "
-          text "database, no third-party endpoint, no per-request compute of "
-          text "any kind. A page load is a series of GETs against an object "
-          text "store behind a CDN, and most of those objects are immutable "
-          text "and therefore free after the first visitor in a region."
+        h2(class = "sec-title next"): text "What you can do"
         dl(class = "dl group"):
-          dt: text "Mutable objects"
+          dt: text "Step and rewind"
           dd(class = "measure"):
-            text "One per chain — the generation pointer. Everything else a "
-            text "page reads is written once and never modified, which is why "
-            text "there is no coherence protocol and no cache to get wrong."
+            text "Move through a transaction one instruction at a time, "
+            text "forwards or backwards. Nothing re-runs — the whole "
+            text "execution is already recorded, so going back is as fast as "
+            text "going on."
+          dt: text "See the values"
+          dd(class = "measure"):
+            text "Every line shows the values it touched, as they were at the "
+            text "point the session is stopped."
+          dt: text "Read the call trace"
+          dd(class = "measure"):
+            text "The full tree of calls at a glance, with what each one cost "
+            text "and where it went."
+          dt: text "Read the source"
+          dd(class = "measure"):
+            text "Where the source is published, you step through the "
+            text "program as it was written. Where it is not, you step "
+            text "through the instructions instead."
+          dt: text "Across chains and languages"
+          dd(class = "measure"):
+            text "The same session, whatever the chain, the VM or the "
+            text "language it was written in."
+
+        h2(class = "sec-title next"): text "What it costs you"
+        dl(class = "dl group"):
+          dt: text "No account"
+          dd(class = "measure"):
+            text "Every published trace opens anonymously. An account is "
+            text "needed only to request a trace that does not exist yet, "
+            text "because generating one costs us compute — and the result is "
+            text "then public for everyone."
+          dt: text "No ads"
+          dd(class = "measure"):
+            text "There is no advertising and no market-data widget. Neither "
+            text "helps someone who arrived with a transaction to understand."
+          dt: text "No tracking"
+          dd(class = "measure"):
+            text "No third-party requests at all, so there is nothing here to "
+            text "track you with."
+          dt: text "Nothing held back"
+          dd(class = "measure"):
+            text "Address history is complete and no list is cut off at a row "
+            text "limit. The thousandth page costs what the first one does."
+
+        h2(class = "sec-title next"): text "How it works"
+        p(class = "lead"):
+          text "Every page here is a static file. Your browser downloads it "
+          text "and nothing else happens — no API, no database, no request to "
+          text "anyone else. That is why there is nothing to track you with, "
+          text "and why a page costs nothing to serve twice."
+        dl(class = "dl group"):
           dt: text "Chains published"
           dd(class = "tnum"): text $chainCount
           dt: text "Third parties"
@@ -51,70 +111,16 @@ proc aboutPage*(chainCount: int): string =
           dd:
             span(class = "badge ok"): text "Not required to read anything"
 
-        h2(class = "sec-title next"): text "The trust strip, itemised"
-        dl(class = "dl group"):
-          dt: text "No account"
-          dd(class = "measure"):
-            # "ASK" WAS RENDERING IN LITERAL CAPITALS TO VISITORS. This
-            # repository shouts for emphasis in commits, specs and comments,
-            # where it is a useful signal to the next reader of the source; it
-            # had leaked through a `text` literal onto a product page, where it
-            # just reads as raised voice. The distinction it was drawing — that
-            # the account is for REQUESTING work, not for reading — survives in
-            # the word "request", which carries it without shouting.
-            #
-            # The rest is kept, including "costs us compute". That looks like
-            # the register this sweep is removing but is not: "why do I need an
-            # account?" is a question a reader genuinely arrives with, and the
-            # honest answer is that generating a trace costs money. It is a
-            # reason offered to the reader, not a design decision defended.
-            text "Every published trace opens anonymously. An account is "
-            text "needed only to request a trace that does not exist yet, "
-            text "because generating one costs us compute — and the result is "
-            text "then public for everyone."
-          dt: text "No ads"
-          dd(class = "measure"):
-            text "There is no advertising surface, and no market-data widget "
-            text "either: each would cost a scheduled request per visitor and "
-            text "none helps someone who arrived with a transaction to "
-            text "understand."
-          dt: text "No tracking"
-          dd(class = "measure"):
-            text "No third-party requests at all, so there is nothing to "
-            text "track you with. What this site can see is its own "
-            text "CDN logs."
-          dt: text "Complete history"
-          dd(class = "measure"):
-            # "no capability to negotiate and no degraded variant of an address
-            # page" is the same internal phrase `pages/address` carried, and it
-            # describes an architecture rather than a promise. What it means for
-            # a reader is that every chain gets the same complete page.
-            text "Every listed chain has complete history and complete log "
-            text "coverage — the same full address page on all of them, with "
-            text "no reduced version anywhere."
-          dt: text "No record caps"
-          dd(class = "measure"):
-            text "History is stored as immutable segments keyed by block "
-            text "range and paged by walking them, so the thousandth page "
-            text "costs what the first one does. Nothing is truncated at a "
-            text "row count."
-
-        h2(class = "sec-title next"): text "What this product will not do"
+        h2(class = "sec-title next"): text "What it will not do"
         dl(class = "dl group"):
           dt: text "Guess"
           dd(class = "measure"):
-            # "An unconditional claim about variable values is the one thing
-            # this product cannot afford" states the RISK TO US of getting this
-            # wrong. The reader's version of the same commitment is a promise
-            # about what they will be shown, which is what the second sentence
-            # is now.
             text "Where a fact is not published, the page says so instead of "
             text "guessing at it. You are never shown a value that was not "
             text "recorded."
-          dt: text "Fall back to a node"
+          dt: text "Ask anyone else"
           dd(class = "measure"):
-            text "No page falls back to a live tracing endpoint, and no page "
-            text "computes anything itself. Both would reintroduce a "
-            text "third-party dependency and a second source of truth."
+            text "No page calls out to a node or any other service to fill a "
+            text "gap. What you see is what was published, from one source."
         p(class = "muted stack"):
           a(href = settingsUrl()): text "What this site can see →"

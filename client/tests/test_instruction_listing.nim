@@ -336,8 +336,8 @@ suite "2 — the pane renders instructions, with the current one marked":
       # stylesheet this page inlines, so `"srcfrom" notin body` would be
       # answered by the CSS and never by the markup.
       ck occurrences(body, "<div class=\"srcfrom\">") == 0
-      ck not body.contains("Showing from step ")
-      ck not body.contains("Showing from line ")
+      ck not body.contains("class=\"srcfrom\">Steps ")
+      ck not body.contains("class=\"srcfrom\">Lines ")
       inc judged
     ck judged == 8
 
