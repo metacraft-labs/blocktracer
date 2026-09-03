@@ -82,6 +82,7 @@ jobs:
 
           fired=0
           skipped=0
+          pending=0
           missing=0
 
           for ref in ${refs}; do
@@ -92,6 +93,29 @@ jobs:
               # `ci-coverage.sh` step 4 was written for.
               echo "::error::branch '${ref}' is named by this clock and does not exist"
               missing=$((missing + 1))
+              continue
+            fi
+
+            # A DISPATCH RUNS THE WORKFLOW AS THAT REF DEFINES IT, so a branch
+            # whose `ci.yml` predates the `workflow_dispatch:` trigger cannot be
+            # dispatched at all — the API answers 422.
+            #
+            # This is not hypothetical and it is why this check is here: when
+            # this clock was written `staging` was 90 commits behind `dev` and
+            # `live` was 133, and NEITHER carried the trigger. A clock that
+            # treated that as a dispatch failure would have gone red on its
+            # first tick and stayed red — and an always-red job is one everyone
+            # learns to ignore, which is the same rot as a trigger nobody
+            # notices is dead.
+            #
+            # So it is reported as what it is: a mainline that will start being
+            # covered the moment the lead promotes `dev` onto it. It self-heals,
+            # it names its own remedy, and it does not cry wolf in the meantime.
+            if ! gh api "repos/${GH_REPO}/contents/.github/workflows/ci.yml?ref=${ref}" \
+                 --jq '.content' 2>/dev/null | base64 -d 2>/dev/null |
+                 grep -q '^[[:space:]]*workflow_dispatch:'; then
+              echo "::notice::${ref}: this branch's ci.yml has no workflow_dispatch trigger, so no coverage run can be dispatched for it yet. It starts being covered when dev is promoted onto ${ref}."
+              pending=$((pending + 1))
               continue
             fi
 
@@ -128,15 +152,19 @@ jobs:
           done
 
           echo
-          echo "dispatched ${fired}, skipped ${skipped} (already running), failed ${missing}"
+          echo "dispatched ${fired}, skipped ${skipped} (already running), ${pending} awaiting the trigger, failed ${missing}"
 
-          # A tick that fired nothing AND skipped nothing has silently done
-          # nothing at all, which is indistinguishable in the run list from a
-          # clock that is working. Fail instead.
           if [ "${missing}" -gt 0 ]; then
             exit 1
           fi
+
+          # A tick that fired nothing AND skipped nothing has done nothing for
+          # any branch that COULD have been covered — and in the run list that
+          # is indistinguishable from a clock that is working. `pending` does
+          # not count towards doing something: if every mainline were pending,
+          # this clock would be producing no verdicts at all while reporting
+          # success, which is the exact failure it exists to end.
           if [ "${fired}" -eq 0 ] && [ "${skipped}" -eq 0 ]; then
-            echo "::error::this tick neither dispatched nor skipped anything — the clock is not doing its job"
+            echo "::error::this tick dispatched nothing and skipped nothing — no mainline is being covered by this clock"
             exit 1
           fi
