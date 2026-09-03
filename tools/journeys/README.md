@@ -170,6 +170,50 @@ Two smaller rules came out of the same file and generalise:
   comparison: with the bundle running, the two mechanisms are indistinguishable by
   the time any probe can look.
 
+## A suite that did not finish is not a suite that failed
+
+`selftest.mjs` gives every ARM three verdicts — killed, survived, never-ran —
+and gave ITSELF two. The third state it could reach and could not say is the one
+it was observed in: dying part-way through the arm list with no `RESULT` line at
+all. **A stall that produces no verdict reads to a human exactly like a suite
+nobody bothered to run**, and it is the worse member of the family, because a
+suite that never completes cannot tell you which of its arms are dead — which is
+the only question it exists to answer. Every journey's green is unbacked for as
+long as it is in that state. Two dead arms were found by hand rather than by
+this file reporting them: `P4`'s `find` string occurred zero times after the
+guard it names shed a conjunct, and `break-check.mjs`'s two markers had been
+renamed out from under it.
+
+Three mechanisms, in increasing order of how violent an ending they survive:
+
+1. **Every exit path prints a `RESULT:` line.** `finish()` is the only thing
+   that sets an exit code, and an `exit` handler prints `RESULT: DID NOT RUN` if
+   nothing else did. The top-level `catch` used to print a stack and no verdict
+   — which is how a missing `playwright` produced a log ending in an exception
+   and no verdict at all.
+2. **`SIGINT`/`SIGTERM`/`SIGHUP` are caught.** An agent's shell wrapper giving
+   up at a timeout, a Ctrl-C, a CI cancellation. The handler prints the verdict
+   *and restores the mutated file* — which a `finally` cannot, because it does
+   not run when the process is signalled, and that is how
+   `K/the-served-values-stand` was left in a worktree.
+3. **A journal, `.selftest-journal.json`,** written before the first arm and
+   rewritten after each one. `SIGKILL` and the OOM killer defeat 1 and 2 by
+   construction, so the evidence has to be something already on disk. The NEXT
+   run reads it and reports how far the last one got, by arm name and count.
+
+The journal is never read to skip work. Its only purpose is to say that a
+previous run did not finish, and where.
+
+A **filtered** run (`--arm <substring>`) is a fourth case and is neither. It
+exits 0, because landing one arm should not require re-proving sixty-one others,
+but it prints `RESULT: OK OVER n OF m ARMS` — the full set is the suite's claim
+and "OK" is the word someone quotes later.
+
+Every run also prints its wall clock broken down by journey. Each arm rebuilds
+the tree and reruns its journey three times — before, mutated, restored — so a
+slow journey is slow once per arm pointing at it, and whether one journey's arms
+dominate the suite is a measurement rather than an argument.
+
 ## The ledger
 
 `ledger.json` names the journeys known RED on this branch, each with what was

@@ -83,6 +83,7 @@
 //    behaviour in a browser instead — which is what the journeys are for.
 
 import { readFile, writeFile, readdir } from "node:fs/promises";
+import { writeFileSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -94,6 +95,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
 const CLIENT = join(REPO, "client");
 const REPORT = join(HERE, ".selftest-report.json");
+const JOURNAL = join(HERE, ".selftest-journal.json");
 
 /**
  * The arms.
@@ -1383,6 +1385,153 @@ proc noteFor*`,
 
 const log = (s = "") => console.log(s);
 
+// ---------------------------------------------------------------------------
+// "DID NOT RUN" AND "FAILED" MUST NOT LOOK THE SAME TO A HUMAN
+// ---------------------------------------------------------------------------
+//
+// Verification-Harness-Traps.md §1a's third verdict, applied to THE SUITE and
+// not only to its arms. The arms have had it since this file was written: a
+// mutation that does not compile is DID-NOT-BUILD, never a kill. The suite
+// itself had two verdicts — `RESULT: OK` and `RESULT: FAILED` — and a third
+// state it could reach and could not say: it never got there at all.
+//
+// THIS IS NOT HYPOTHETICAL AND IT IS THE WORSE FAILURE OF THE FAMILY. This
+// suite has been observed dying part-way through with NO `RESULT` line, and
+// **a stall producing no verdict reads to a human exactly like a suite nobody
+// bothered to run.** A suite that never completes cannot tell you which of its
+// arms are dead — which is the one question it exists to answer — so every
+// journey's green is unbacked for as long as it is in that state. Two dead arms
+// (`P4`'s `find` string occurring zero times, `break-check.mjs`'s two markers
+// renamed out from under it) were found BY HAND rather than by this file
+// reporting them, because this file was not reaching its summary.
+//
+// Three mechanisms, in increasing order of how violent an ending they survive:
+//
+//   1. EVERY EXIT PATH PRINTS A `RESULT:` LINE. `finish()` is the only way to
+//      set an exit code, and an `exit` handler prints `RESULT: DID NOT RUN` if
+//      nothing else did — which covers a `throw`, a `process.exit()` from a
+//      dependency, and the top-level `catch`. The catch used to print a stack
+//      and no verdict, which is exactly the shape being ruled out.
+//   2. SIGINT / SIGTERM / SIGHUP ARE CAUGHT. An agent's shell wrapper giving up
+//      at a timeout, a Ctrl-C, a CI cancellation: all three arrive as signals,
+//      and a signal handler can both print the verdict and — see `inFlight` —
+//      put the mutated file back. `finally` cannot; it does not run when the
+//      process is signalled, which is how `K/the-served-values-stand` was left
+//      in a worktree.
+//   3. A JOURNAL ON DISK, written before the first arm and rewritten after each
+//      one. `SIGKILL` and an OOM kill defeat 1 and 2 by construction — nothing
+//      runs — so the evidence has to be something already written. The NEXT run
+//      reads it and says how far the last one got. That turns "the log just
+//      stops" into a named arm and a count.
+//
+// The journal is NOT a cache and is never read to skip work. It is read for
+// exactly one purpose: to say that a previous run did not finish, and where.
+const journal = {
+  startedAt: new Date().toISOString(),
+  finishedAt: null,
+  status: "running",
+  planned: null,
+  armFilter: null,
+  arms: [],
+  lastArmStarted: null,
+};
+
+const writeJournal = () => {
+  try {
+    writeFileSync(JOURNAL, JSON.stringify(journal, null, 2));
+  } catch {
+    /* a journal that cannot be written must not be able to fail the run */
+  }
+};
+
+/**
+ * The file this run has mutated and not yet put back, or `null`.
+ *
+ * Held at module scope precisely so a SIGNAL HANDLER can reach it. The restore
+ * in `main` is a `finally` and remains the normal path; this is the one that
+ * runs when there is no normal path left.
+ */
+let inFlight = null;
+const restoreInFlight = () => {
+  if (!inFlight) return null;
+  const { file, original } = inFlight;
+  inFlight = null;
+  try {
+    writeFileSync(file, original);
+    return file;
+  } catch {
+    return `${file} — RESTORE FAILED, the mutation is still in the tree`;
+  }
+};
+
+let verdictPrinted = false;
+
+/**
+ * Print the run's one verdict, and record it. The ONLY way an exit code is set.
+ *
+ * `status` is the machine word and goes in the journal; `line` is what a human
+ * reads. They are produced together so they cannot disagree, which is the same
+ * rule `artefactIdentity` imposes on a verdict and the thing it was measured on.
+ */
+const finish = (status, line, code) => {
+  verdictPrinted = true;
+  journal.status = status;
+  journal.finishedAt = new Date().toISOString();
+  writeJournal();
+  log(line);
+  process.exitCode = code;
+};
+
+const progressSoFar = () => {
+  const done = journal.arms.length;
+  const planned = journal.planned ?? ARMS.length;
+  const where = journal.lastArmStarted
+    ? `, while running ${journal.lastArmStarted}`
+    : done === 0
+      ? ", before the first arm"
+      : "";
+  return `after ${done} of ${planned} arm(s)${where}`;
+};
+
+for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+  process.on(sig, () => {
+    const restored = restoreInFlight();
+    log("");
+    if (restored) log(`  ${sig} — restored the mutated file: ${restored}`);
+    finish(
+      "did-not-run",
+      `RESULT: DID NOT RUN — ${sig} ${progressSoFar()}.\n` +
+        `        No arm's verdict below is a statement about the arms that never ran,\n` +
+        `        and this run has judged NOTHING. Re-run, or run the remainder with\n` +
+        `        \`--arm <substring>\`.`,
+      2,
+    );
+    process.exit(2);
+  });
+}
+
+process.on("exit", () => {
+  if (verdictPrinted) return;
+  // A `throw`, a dependency calling `process.exit`, or any path that reached
+  // the end without going through `finish`. Printing here is the difference
+  // between "this run has no verdict" and a log that merely stops.
+  restoreInFlight();
+  journal.status = "did-not-run";
+  journal.finishedAt = new Date().toISOString();
+  writeJournal();
+  log("");
+  log(`RESULT: DID NOT RUN — the run ended without a verdict ${progressSoFar()}.`);
+});
+
+/** What the PREVIOUS run's journal says, or `null` if there is none. */
+function previousRun() {
+  try {
+    return JSON.parse(readFileSync(JOURNAL, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Does this arm's journey judge the HYDRATED artefact?
  *
@@ -1612,6 +1761,30 @@ async function main() {
   log("    it was green before and is green again after.");
   log("");
 
+  // WHAT HAPPENED LAST TIME, said out loud before anything else.
+  //
+  // A run killed by `SIGKILL`, an OOM or a lost machine cannot print its own
+  // verdict — nothing of it runs. What it leaves is the journal, and this is
+  // the only thing that reads it. Without this, the previous run's silence is
+  // indistinguishable from nobody having run the suite at all, which is the
+  // whole complaint this block exists to answer.
+  const prev = previousRun();
+  if (prev && prev.status === "running") {
+    const done = (prev.arms ?? []).length;
+    log(`the PREVIOUS run did not finish. It started ${prev.startedAt} and stopped`);
+    log(`after ${done} of ${prev.planned ?? "?"} arm(s)` +
+        (prev.lastArmStarted ? `, while running ${prev.lastArmStarted}.` : "."));
+    log(`It printed no verdict, so it judged nothing — NOT a pass, and NOT a failure.`);
+    if (done > 0) {
+      const kills = prev.arms.filter((a) => a.verdict === "killed").length;
+      log(`(what it did reach: ${kills} killed, ` +
+          `${prev.arms.filter((a) => a.verdict === "survived").length} survived, ` +
+          `${prev.arms.filter((a) => a.verdict === "never").length} never ran — ` +
+          `over ${done} arm(s) only, and a verdict over a subset is not this suite's claim.)`);
+    }
+    log("");
+  }
+
   // BEFORE ANYTHING IS MEASURED. See `strandedMutations` for the two incidents
   // this exists for; the second of them was created by killing this very file
   // at a shell timeout, so it is not a hypothetical.
@@ -1633,8 +1806,7 @@ async function main() {
     log("          `origin/dev` moves under you while other agents push, and a diff");
     log("          against a moving base reports their commits as your damage.");
     log("");
-    log("RESULT: DID NOT RUN");
-    process.exitCode = 2;
+    finish("did-not-run", "RESULT: DID NOT RUN", 2);
     return;
   }
 
@@ -1645,7 +1817,7 @@ async function main() {
   if (!base.built) {
     log("the unmutated tree does not build; nothing below would mean anything");
     log(base.log);
-    process.exitCode = 2;
+    finish("did-not-run", "RESULT: DID NOT RUN — the unmutated tree does not build", 2);
     return;
   }
   log(`baseline artefact: ${describe(await artefactIdentity())}`);
@@ -1668,13 +1840,33 @@ async function main() {
     log(`--arm ${armFilter}: running ${arms.length} of ${ARMS.length} arm(s)`);
     log("");
     if (arms.length === 0) {
-      log(`RESULT: FAILED — no arm's id contains ${armFilter}`);
-      process.exitCode = 2;
+      finish("did-not-run", `RESULT: DID NOT RUN — no arm's id contains ${armFilter}`, 2);
       return;
     }
   }
+  journal.planned = arms.length;
+  journal.armFilter = armFilter;
+  writeJournal();
+
+  // Recorded per arm, and reported as a table at the end. Not decoration: the
+  // question "does one journey's arms dominate this suite's wall clock, and do
+  // they belong in it" is only answerable from measurements, and a suite that
+  // does not carry its own timings makes that a matter of opinion every time it
+  // is asked. It also localises a stall — an arm that is running when the run
+  // is killed is named in the journal, beside how long its neighbours took.
+  const armStartedAt = () => Date.now();
+  const recordArm = (arm, verdict, startedAt) => {
+    const seconds = Math.round((Date.now() - startedAt) / 1000);
+    journal.arms.push({ id: arm.id, journey: arm.journey, verdict, seconds });
+    journal.lastArmStarted = null;
+    writeJournal();
+    return seconds;
+  };
 
   for (const arm of arms) {
+    const started = armStartedAt();
+    journal.lastArmStarted = arm.id;
+    writeJournal();
     const needsBundle = await judgesHydratedArtefact(arm.journey);
     log(`--- ${arm.id}`);
     log(`    ${arm.why}`);
@@ -1689,6 +1881,7 @@ async function main() {
       log(`    NEVER RAN — the mutation site occurs ${occurrences} times, expected exactly 1`);
       log(`               (the source moved; this arm is describing a file that no longer exists)`);
       neverRan += 1;
+      recordArm(arm, "never", started);
       log("");
       continue;
     }
@@ -1710,6 +1903,7 @@ async function main() {
         log(`               CONTAINS the other — a "REAL: " + verbatim copy is the usual cause.`);
       }
       neverRan += 1;
+      recordArm(arm, "never", started);
       log("");
       continue;
     }
@@ -1719,6 +1913,7 @@ async function main() {
       log(`               A mutation cannot demonstrate anything about an assertion that`);
       log(`               was not green to begin with.`);
       neverRan += 1;
+      recordArm(arm, "never", started);
       log("");
       continue;
     }
@@ -1726,6 +1921,14 @@ async function main() {
     log(`    before:  GREEN   on ${describe(beforeId)}`);
 
     // 2. mutate
+    //
+    // `inFlight` is set BEFORE the write and cleared in the `finally` beside
+    // the restore, so a signal arriving anywhere in between has the file and
+    // its original bytes to hand. The `finally` is still the normal path; this
+    // is the one that exists because a `finally` does not run when the process
+    // is signalled, and `K/the-served-values-stand` was left in a worktree by
+    // exactly that.
+    inFlight = { file: arm.file, original };
     await writeFile(arm.file, original.split(arm.find).join(arm.replace));
     let verdict;
     let mutatedId = beforeId;
@@ -1767,6 +1970,7 @@ async function main() {
     } finally {
       // 3. restore, byte-for-byte, whatever happened above
       await writeFile(arm.file, original);
+      inFlight = null;
     }
 
     // 4. and prove the restore took
@@ -1794,21 +1998,75 @@ async function main() {
     if (verdict === "killed") killed += 1;
     else if (verdict === "survived") survived += 1;
     else neverRan += 1;
+    const seconds = recordArm(arm, verdict, started);
+    log(`    took ${seconds}s`);
     log("");
   }
+
+  // ── what this run cost, per journey ────────────────────────────────────────
+  //
+  // Every arm rebuilds the tree and reruns its journey THREE times — before,
+  // mutated, restored — so an arm costs three runs of one journey plus two
+  // builds, and a journey that is slow is slow eight times over if eight arms
+  // point at it. Printed as a table because the alternative is arguing about
+  // it: the suite's own numbers decide whether one journey's arms dominate.
+  const perJourney = new Map();
+  for (const a of journal.arms) {
+    const e = perJourney.get(a.journey) ?? { arms: 0, seconds: 0 };
+    e.arms += 1;
+    e.seconds += a.seconds;
+    perJourney.set(a.journey, e);
+  }
+  const total = journal.arms.reduce((n, a) => n + a.seconds, 0) || 1;
+  log("wall clock, by journey:");
+  for (const [j, e] of [...perJourney].sort((a, b) => b[1].seconds - a[1].seconds)) {
+    log(
+      `  ${String(e.seconds).padStart(5)}s  ${String(Math.round((100 * e.seconds) / total)).padStart(3)}%  ` +
+        `${String(e.arms).padStart(2)} arm(s)  ${j}`,
+    );
+  }
+  log(`  ${String(total).padStart(5)}s         ${journal.arms.length} arm(s)  TOTAL`);
+  log("");
 
   log(`${arms.length} arm(s): ${killed} killed, ${survived} survived, ${neverRan} never ran`);
   if (armFilter) log(`(filtered run — ${ARMS.length - arms.length} arm(s) not exercised)`);
   if (killed !== arms.length) {
-    log("RESULT: FAILED — every arm must be killed by the assertion written for it");
-    process.exitCode = 1;
+    // Named, not counted. "Some arm is not killed" sends the reader back
+    // through the log; the arms that are not killed are known here, and a dead
+    // arm is the finding this suite exists to produce.
+    for (const a of journal.arms.filter((x) => x.verdict !== "killed")) {
+      log(`  ${a.verdict === "survived" ? "SURVIVED " : "NEVER RAN"}  ${a.id}`);
+    }
+    finish(
+      "failed",
+      armFilter
+        ? "RESULT: FAILED — over the filtered subset only; the full set is this suite's claim"
+        : "RESULT: FAILED — every arm must be killed by the assertion written for it",
+      1,
+    );
     return;
   }
   log("  Each journey reddens on the defect it exists to catch, and only then.");
-  log("RESULT: OK");
+  // A filtered run still exits 0 — `--arm` is the supported way to land one arm
+  // without re-proving sixty-one others — but it does NOT get to print the same
+  // word as a full run. The suite's claim is the full set, and "OK" over a
+  // subset is the sentence someone quotes later.
+  finish(
+    "ok",
+    armFilter
+      ? `RESULT: OK OVER ${arms.length} OF ${ARMS.length} ARMS — a filtered run. The full set is` +
+          " this suite's claim, and it has NOT been made here."
+      : "RESULT: OK",
+    0,
+  );
 }
 
 main().catch((e) => {
+  // A verdict, not just a stack. This path used to print the stack and nothing
+  // else, so a `playwright is not installed` — which judges nothing — left a log
+  // ending in an exception and no `RESULT:` line at all: the exact shape that
+  // reads to a human like a suite nobody ran.
   console.error(String(e && e.stack ? e.stack : e));
-  process.exitCode = 1;
+  restoreInFlight();
+  finish("did-not-run", `RESULT: DID NOT RUN — the run threw ${progressSoFar()}`, 2);
 });
