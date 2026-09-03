@@ -952,6 +952,12 @@ html[data-register="debugger"],
   font-family:var(--bt-font-mono),var(--bt-font-mono-fallback)}
 .frline{color:var(--bt-text-link);text-decoration:underline;
   text-underline-offset:var(--bt-space-3xs)}
+/* `.noloc` is the rail's line when NO surface reachable from this page renders
+   that line — `renderFlowRail` emits a `span` rather than an `a`, and this
+   strips the two paints that say "clickable". The text is identical because the
+   fact is identical; what is withdrawn is the promise. See
+   `session_view.FlowRail.href`. */
+.frline.noloc{color:var(--bt-text-subtle);text-decoration:none}
 /* One counter per pass, all in the markup, one displayed — see
    `renderFlowRail`. `.now` is the pass the session is in; the target ladder
    moves it in lock-step with the labels, so the number a reader reads and the

@@ -1062,7 +1062,8 @@ suite "M8a — the source pane renders real source, with stable line identity":
     # The property the anchors exist for. The home page's embed renders a
     # window; a link out of it must land on the same line of the full session.
     let s = sessionFor(readyTx)
-    let windowed = windowAround(s.editor, radius = 5)
+    let windowed = windowAround(s.editor, radius = 5,
+                                fullDocumentUrl = "/demo/tx/0xdead/debug")
     check windowed.documents.len == 1
     check windowed.documents[0].lines.len <= 11
     let full = activeDocument(s.editor)
@@ -1610,7 +1611,7 @@ suite "VD.5 — the source pane is syntax highlighted, at export time":
 
     # Narrowing copies lines into a new document; the tokens travel with them,
     # so a window is not silently unhighlighted.
-    let windowed = windowAround(pane, 3)
+    let windowed = windowAround(pane, 3, fullDocumentUrl = "/demo/tx/0xdead/debug")
     let wdoc = activeDocument(windowed)
     check wdoc.lines.len > 0
     var anyTokens = false
@@ -1965,13 +1966,83 @@ suite "Omniscience — the recorded values, against the real zk_shields trace":
         if ln.annotations.len > 0:
           check ln.executed
 
+  test "no fragment link in a narrowed pane points at an id the pane does not have":
+    ## THE REPORTED DEFECT, AS THE PROPERTY THAT MAKES IT IMPOSSIBLE.
+    ##
+    ## Reported against the live home page: "there is a link 'line 4' that does
+    ## nothing when clicked". It was the flow rail's link to the loop header. The
+    ## home embed is `windowAround(radius = 12)` over a session stopped at line
+    ## 32, so the pane renders ids `L-src-shield-nr-20` .. `-44`; the rail's href
+    ## was built before the narrowing and still said `#L-src-shield-nr-4`. The
+    ## browser had no such element, so it had nothing to scroll to.
+    ##
+    ## The assertion is over EVERY same-page fragment the pane emits and not over
+    ## the rail's href specifically. "Does this one link resolve" is answerable by
+    ## patching one string; "does this document contain a fragment link with no
+    ## target" is the actual defect, and it catches the next control that learns
+    ## to emit one.
+    proc attrValues(html, attr: string): seq[string] =
+      let needle = attr & "=\""
+      var i = 0
+      while true:
+        let at = html.find(needle, i)
+        if at < 0: break
+        let start = at + needle.len
+        let stop = html.find('"', start)
+        if stop < 0: break
+        result.add html[start ..< stop]
+        i = stop + 1
+
+    let full = flowPane()
+    check full.flow.line == 4
+
+    let embed = windowAround(full, radius = 12,
+                             fullDocumentUrl = debugUrl("demo", "0xfeed"))
+    let html = dbgc.renderSource(embed)
+
+    # The premise: this really is a pane that does NOT render line 4. Without
+    # this the test would still pass over an unnarrowed pane and would be
+    # asserting nothing about windowing at all.
+    check ("id=\"" & lineAnchor("src/shield.nr", 4) & "\"") notin html
+    check ("id=\"" & lineAnchor("src/shield.nr", 32) & "\"") in html
+
+    var ids: seq[string] = @[]
+    for v in attrValues(html, "id"): ids.add v
+    var fragments = 0
+    for href in attrValues(html, "href"):
+      if not href.startsWith("#"): continue
+      inc fragments
+      check href[1 .. ^1] in ids
+    # The rail's `:target` ladder emits fragment hrefs of its own, so a pane that
+    # emitted none would mean the loop above ran over nothing and checked
+    # nothing — the shape of passing check this repository keeps finding.
+    check fragments > 0
+
+    # And the link is not merely absent: it goes to the surface that DOES render
+    # line 4, which is what "Go to the loop header" promises.
+    check embed.flow.href == debugUrl("demo", "0xfeed") & "#" &
+                             lineAnchor("src/shield.nr", 4)
+    check ("href=\"" & embed.flow.href & "\"") in html
+
+    # With nowhere to send a reader, the rail states the line and offers no
+    # link — a `span`, not an `a` with a dead or self-reloading href.
+    let orphan = windowAround(full, radius = 12, fullDocumentUrl = "")
+    check orphan.flow.href == ""
+    let orphanHtml = dbgc.renderSource(orphan)
+    check "frline noloc" in orphanHtml
+    check "line 4" in orphanHtml
+    check "<a class=\"frline\"" notin orphanHtml
+
   test "the loop rail states which pass, out of how many, and where":
     let pane = flowPane()
     let rail = pane.flow
     check rail.loopIndex == 1
     check rail.line == 4                      # `for i in 0..8 {`
     check rail.label == "iterate_asteroids"
-    check rail.anchor == lineAnchor("src/shield.nr", 4)
+    # A SAME-PAGE FRAGMENT on this surface, and that is the correct answer here:
+    # the debug route renders all 67 lines of `shield.nr`, so line 4 is on the
+    # page. The narrowed surface is asserted separately below.
+    check rail.href == "#" & lineAnchor("src/shield.nr", 4)
     check rail.iterations.len == 8            # the array has eight asteroids
     check rail.active == 2
     check rail.selected == rail.active
@@ -2074,7 +2145,7 @@ suite "Omniscience — the recorded values, against the real zk_shields trace":
     # `MaxIndentDepth`'s rule, applied to passes. The failure this prevents is
     # silent: an unclamped segment resolves to no rule, so the rail would look
     # complete and switch to the wrong pass.
-    var rail = FlowRail(loopIndex: 1, line: 4, anchor: "L-x-4",
+    var rail = FlowRail(loopIndex: 1, line: 4, href: "#L-x-4",
                         label: "wide_loop", selected: 0, active: 0)
     for i in 0 ..< MaxStaticIterations + 5:
       rail.iterations.add FlowIteration(index: i, ticks: 10 + i, reached: true)

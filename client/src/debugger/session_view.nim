@@ -267,11 +267,30 @@ type
     ## outside it. So the departure is now justified by one surface rather than
     ## by every one, and it has NOT been re-argued for the debug route; it is
     ## kept because one placement serving both surfaces is the property the rail
-    ## was built for, not because the header is unreachable. `line`/`anchor` name
-    ## where the loop is, and the rail links to it.
+    ## was built for, not because the header is unreachable.
+    ##
+    ## AND THE HEADER BEING OFF-WINDOW IS EXACTLY WHAT `href` HAD TO LEARN. This
+    ## field was `anchor`: the header line's id, which the renderer turned into
+    ## `href="#" & anchor`. A bare fragment says "this id is on THIS page", and on
+    ## the one surface that still narrows it is not — the home page shipped
+    ## `href="#L-src-shield-nr-4"` into a document whose ids run 20..44, so the
+    ## browser had nothing to scroll to and the click did nothing. A reader
+    ## reported it as a link that does nothing, which is precisely what it was.
+    ##
+    ## So the rail no longer carries an id and lets someone else guess the scope.
+    ## It carries the WHOLE href, and the type change is the point: an id can be
+    ## interpolated into a fragment by any caller that never considered the
+    ## window, and an href cannot be built without having decided which document
+    ## the target is in. `windowAround` is where that decision now lives, because
+    ## narrowing is the only operation that can move the target off the page.
     loopIndex*: int       ## 0 when there is no loop; the rail renders nothing
     line*: int            ## the loop header's source line
-    anchor*: string       ## that line's stable id, so the rail can link to it
+    href*: string         ## where "line N" goes: a same-page fragment when this
+                          ## surface renders the header, a link to a surface that
+                          ## does when it does not, and EMPTY when no surface
+                          ## reachable from here renders it — in which case the
+                          ## rail states the line and offers no link, rather than
+                          ## offering one that cannot arrive.
     label*: string        ## the enclosing function, e.g. `iterate_asteroids`
     selected*: int        ## the pass whose labels are on screen
     active*: int          ## the pass the SESSION is in — never moves

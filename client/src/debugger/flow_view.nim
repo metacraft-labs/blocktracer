@@ -294,7 +294,13 @@ proc buildRail(input: FlowWindowInput; loopIndex: int;
   result = FlowRail(
     loopIndex: loopIndex,
     line: loop.registeredLine,
-    anchor: anchorOf(loop.registeredLine),
+    # A SAME-PAGE FRAGMENT, because the pane this rail is built against holds
+    # every line of the file. `applyFlow` runs before any narrowing — see the
+    # note in this file's Rule 4 section — so at this point the header line is
+    # always present and `#id` is the correct, cheapest thing to emit. The one
+    # caller that narrows afterwards (`source_document.windowAround`) is the one
+    # that has to revisit this, and it is given the rail to revisit it with.
+    href: "#" & anchorOf(loop.registeredLine),
     label: input.functionLabel,
     selected: active,
     active: active,

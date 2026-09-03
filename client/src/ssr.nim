@@ -185,7 +185,17 @@ proc demoSessionFor*(r: DataRoot): Option[DebugSessionView] =
           # than at line 1 of the file. Line numbers and anchors are unchanged,
           # so a link out of the embed lands on the same line of the full
           # session.
-          s.editor = windowAround(s.editor, radius = 12)
+          #
+          # AND THAT IS NOW SAID IN AN ARGUMENT RATHER THAN IN A COMMENT. This
+          # narrowing drops the loop header — line 4, against a window of 20..44
+          # — and the flow rail's "line 4" link was left pointing at `#L-…-4` on
+          # a page that no longer contained it, which a reader reported as a link
+          # that does nothing. `debugUrl` is this session's own full-file surface,
+          # the one the button five lines down in `pages/home` already calls
+          # "Open the full session", so the rail's link now goes exactly where
+          # the sentence above always claimed it would.
+          s.editor = windowAround(s.editor, radius = 12,
+                                  fullDocumentUrl = debugUrl(s.chain, s.txHash))
           return some(s)
   none(DebugSessionView)
 

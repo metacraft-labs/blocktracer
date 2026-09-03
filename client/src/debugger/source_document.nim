@@ -218,7 +218,8 @@ proc focus*(pane: var EditorPane; path: string; line: int) =
 ## position with, and it keeps the banner that says what it did — an honest
 ## announced reduction, which is the part this pane got right.
 
-proc windowAround*(pane: EditorPane; radius: int): EditorPane =
+proc windowAround*(pane: EditorPane; radius: int;
+                   fullDocumentUrl: string): EditorPane =
   ## The active document narrowed to `radius` lines either side of the current
   ## line, other documents dropped.
   ##
@@ -228,6 +229,28 @@ proc windowAround*(pane: EditorPane; radius: int): EditorPane =
   ## narrowing, which is the property the anchors exist for: the same line has
   ## the same id in the embed and in the full session, so a link out of one
   ## lands in the other.
+  ##
+  ## ## `fullDocumentUrl`, and why it is not optional
+  ##
+  ## That last sentence was the design's own contract and nothing enforced it.
+  ## The pane carries a `FlowRail` whose `href` was written against the UNNARROWED
+  ## document — narrowing is the only operation in the codebase that can move a
+  ## link's target out of the page it points into, and it did so silently. The
+  ## home page shipped `href="#L-src-shield-nr-4"` over a document containing ids
+  ## 20..44 and a reader reported the result: a link that does nothing.
+  ##
+  ## `fullDocumentUrl` is the page that renders the document WHOLE — for the home
+  ## embed, the featured session's own debug route, which the same page already
+  ## offers as "Open the full session". Passing it is how the link out of the
+  ## embed lands in the full session, as promised above; the anchors need no
+  ## change at all to make that work, which is the whole point of them.
+  ##
+  ## It has no default. A default would be `""`, and `""` is a real answer —
+  ## "nothing reachable from here renders that line, so offer no link" — which is
+  ## right for a hypothetical caller with no fuller surface to send a reader to
+  ## and WRONG for every caller that has one. Making it the silent fallback would
+  ## reinstate exactly this defect for the next narrowing that gets written, one
+  ## forgotten argument at a time. The compiler asks instead.
   result = pane
   if pane.availability == srcAbsent or pane.documents.len == 0: return
   let doc = activeDocument(pane)
@@ -239,3 +262,22 @@ proc windowAround*(pane: EditorPane; radius: int): EditorPane =
       window.lines.add ln
   result.documents = @[window]
   result.activeIndex = 0
+
+  # THE RAIL'S LINK, RE-AIMED AT WHERE ITS TARGET ACTUALLY IS NOW.
+  #
+  # Asked of the lines that SURVIVED rather than recomputed from `currentLine ±
+  # radius`: the window is whatever the loop above kept, and a file shorter than
+  # the radius keeps fewer lines than the arithmetic predicts. Asking the result
+  # cannot drift from it.
+  if result.flow.loopIndex > 0:
+    var headerShown = false
+    for ln in window.lines:
+      if ln.number == result.flow.line:
+        headerShown = true
+        break
+    if not headerShown:
+      result.flow.href =
+        if fullDocumentUrl.len > 0:
+          fullDocumentUrl & "#" & lineAnchor(doc.path, result.flow.line)
+        else:
+          ""

@@ -296,9 +296,25 @@ proc renderFlowRail*(rail: FlowRail): string =
         text "Loop"
         if rail.label.len > 0:
           span(class = "frfn"): text rail.label
-      a(class = "frline", href = "#" & rail.anchor,
-        title = "Go to the loop header"):
-        text "line " & $rail.line
+      # WHERE THE HEADER IS, AS A LINK ONLY WHEN THERE IS SOMEWHERE TO GO.
+      #
+      # `rail.href` is complete — see `session_view.FlowRail.href` for why this
+      # is not an id the renderer wraps in a `#`. It used to be, and the `#` this
+      # line added was the defect: it asserted the target was on this page over a
+      # pane that had since been narrowed to lines that did not include it.
+      #
+      # An empty href means no surface reachable from here renders that line. The
+      # element then drops to a `span` — same text, same position, and no
+      # underline, no pointer, no tooltip promising a destination. The line
+      # number is a FACT and stays; only the affordance is conditional, because
+      # an anchor that cannot arrive is the failure being fixed and `href=""`
+      # (which reloads the page) would be a fresh one.
+      if rail.href.len > 0:
+        a(class = "frline", href = rail.href,
+          title = "Go to the loop header"):
+          text "line " & $rail.line
+      else:
+        span(class = "frline noloc"): text "line " & $rail.line
       # ONE COUNTER PER PASS, and the stylesheet shows one — the same mechanism
       # as the labels, for the same reason. CSS can switch which element is
       # displayed and cannot rewrite text, so a single server-rendered counter
