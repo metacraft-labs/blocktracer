@@ -282,9 +282,11 @@ proc renderSearch*(r: DataRoot): string =
   pageLayout(
     "Search — BlockTracer",
     "Resolve a transaction hash, block, or address. Resolution is identifier lookup, not a query.",
-    searchPg.searchPage(chains(r), named),
+    searchPg.searchPage(chains(r), named,
+                        resolvesInBrowser = SearchBundle.len > 0),
     robots = $routeClass("/search"),
-    canonical = SiteDomain & "/search")
+    canonical = SiteDomain & "/search",
+    scripts = searchScriptTag())
 
 proc renderChain*(r: DataRoot, chain: string): string =
   let info = chainInfo(r, chain)

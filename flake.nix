@@ -160,9 +160,22 @@
             #    nothing will ever ask for.
             bash ./hydrate/build.sh --require
 
-            # 2. The site, told where the bundle went.
+            # 1b. The SEARCH bundle, for the same reason and with the same
+            #     refusal downstream (`installSearchBundle`). Plain `nim js`
+            #     over this repo's own sources — no Embed SDK, no debugger on
+            #     the Nim path. `/search` is the one route that cannot be
+            #     server-rendered, because a static file server never sees
+            #     `?q=`; without this step the deploy ships a search form that
+            #     submits to a page which cannot read what it was given.
+            nim js --hints:off -d:release \
+              --path:src --path:../src \
+              --nimcache:searchboot/nimcache \
+              -o:searchboot/search.js searchboot/searchboot.nim
+
+            # 2. The site, told where both bundles went.
             nim c -r --mm:orc -d:isServer -d:release \
               -d:hydrationBundle=/assets/hydrate.js \
+              -d:searchBundle=/assets/search.js \
               src/static_export.nim
           '';
           installPhase = ''

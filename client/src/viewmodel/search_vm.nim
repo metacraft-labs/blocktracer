@@ -39,6 +39,21 @@
 ## (chain, shape) pair, and `results` can hold more than one — which is also
 ## what makes the "chains checked" list truthful rather than a restatement of
 ## the registry.
+##
+## ## Where this VM runs, and where it does not
+##
+## Classification and canonicalisation now live in `search_shapes`, and this
+## module re-exports them, because the static site resolves `?q=` in the
+## browser and a `nim js` bundle cannot import this one — the isonim signal
+## graph and the Client SDK facade do not cross. `client/searchboot/` is that
+## bundle; it shares §2's table with this VM rather than restating it.
+##
+## The split is a real one and worth naming: `resolve` below is SYNCHRONOUS,
+## because `ObjectStore.fetchProc` is. On a page that is a browser tab, the
+## §4 fan-out has to be concurrent promises, which this type cannot express.
+## So the browser performs the I/O and this VM states the rules — and both
+## call the same `shapesOf`, `canonicalQuery` and path derivation, which is
+## the part that must never drift.
 
 import std/strutils
 
@@ -49,28 +64,11 @@ import ./contract_equality   # the facade, plus `==` for its discriminated union
 import ./chain_degradation
 import ./chain_registry_vm
 import ./chain_vm
+import ./search_shapes
+
+export search_shapes   # `QueryShape`, `shapesOf`, `canonicalQuery`
 
 type
-  QueryShape* = enum
-    ## The syntactic classes this VM can resolve with the mechanisms it has.
-    ## Deliberately a subset of Search-And-Routing §2's table: the base58,
-    ## base64url, bech32, SS58 and name-suffix rows all resolve through the
-    ## hash index or the name shards, which are blocked — see the module doc.
-    qsEmpty
-    qsDecimal
-      ## A block number, slot or checkpoint. §3: "numeric search is entirely
-      ## local" — it costs no request at all.
-    qsHash32
-      ## `0x` + 64 hex. Both a plausible transaction hash and a plausible block
-      ## hash; both are tried.
-    qsAddress20
-      ## `0x` + 40 hex.
-    qsHexShort
-      ## `0x` + 1–63 hex. A Starknet felt: address, class hash or transaction
-      ## hash. Tried as all three.
-    qsText
-      ## Anything else — a name, a symbol, a label. Needs the name shards.
-
   SearchMechanism* = enum
     smNone = "none"
     smLocalInference = "localInference"   ## §3 — zero requests
@@ -116,32 +114,6 @@ type
     snapshot*: Memo[ChainStateSnapshot]
     degradation*: Memo[ChainDegradation]
 
-func isHexDigits(s: string): bool =
-  if s.len == 0: return false
-  for c in s:
-    if c notin HexDigits: return false
-  true
-
-func shapesOf*(raw: string): set[QueryShape] =
-  ## Deterministic syntactic classification. Pure and allocation-light, so §2's
-  ## "run on every keystroke" is affordable, and testable with no tree at all.
-  let q = raw.strip
-  if q.len == 0: return {qsEmpty}
-  block decimal:
-    for c in q:
-      if c notin Digits: break decimal
-    result.incl qsDecimal
-  if q.len > 2 and (q[0] == '0' and (q[1] == 'x' or q[1] == 'X')):
-    let body = q[2 .. ^1]
-    if isHexDigits(body):
-      if body.len == 64: result.incl qsHash32
-      elif body.len == 40:
-        result.incl qsAddress20
-        # An address is also a valid short felt on Cairo, and §2 lists both.
-        result.incl qsHexShort
-      elif body.len < 64: result.incl qsHexShort
-  if result.card == 0: result.incl qsText
-
 proc numericCandidates*(vm: SearchVM; height: int): seq[SearchResult] =
   ## §3's local inference: "suggestions for every chain whose head exceeds it
   ## ... **without issuing a single** request".
@@ -169,7 +141,7 @@ proc resolveOn(vm: SearchVM; session: ChainSession; q: string;
                shapes: set[QueryShape]; found: var seq[SearchResult]) =
   ## §4's direct path, on one chain. One read per candidate meaning, and no
   ## read at all for a shape that cannot address an object.
-  if qsHash32 in shapes or qsHexShort in shapes:
+  if isHashLike(shapes):
     let tx = transaction(vm.store, session, q)
     if tx.outcome == roFound:
       found.add SearchResult(kind: rkTransaction, chain: session.chain, id: q,
@@ -186,7 +158,12 @@ proc resolve*(vm: SearchVM) =
   ## one, because a search is explicitly cross-chain: §14's row is about the
   ## chains that were *checked*, and checking a chain means pinning its
   ## generation and reading in it.
-  let q = vm.query.val.strip
+  ## The query is canonicalised (§13.1 of SEO-And-Crawl-Budget) BEFORE any path
+  ## is computed from it: `0xABC…` and `0xabc…` are the same object, and the
+  ## published tree names it in lowercase. Resolving the raw string missed every
+  ## chain and then reported "not on this chain" — an absence claim about an
+  ## object that was there.
+  let q = canonicalQuery(vm.query.val)
   var found: seq[SearchResult]
   var checked: seq[string]
   vm.resolved.val = true
@@ -198,7 +175,7 @@ proc resolve*(vm: SearchVM) =
     # Local inference issues no request, so no chain was "checked" by it. The
     # list stays honest even when the answer came for free.
 
-  if qsHash32 in shapes or qsHexShort in shapes:
+  if isHashLike(shapes):
     for slug in vm.registry.chains.val:
       let opened = openChain(vm.store, slug)
       if opened.outcome != ooOpened:

@@ -57,6 +57,13 @@ nimcache/
 /client/hydrate/hydrate.js
 /client/hydrate/nimcache/
 
+# The search bundle and its nimcache are build output of `just search-bundle`.
+# Same rule and the same reason: it is generated, `installSearchBundle` refuses
+# a build whose declared URL names a file that was not produced, and a
+# committed copy is a second answer to "what does /search run".
+/client/searchboot/search.js
+/client/searchboot/nimcache/
+
 # The exported site, which now also holds the replay engine copied to this
 # origin by `just replay-engine` — 18 MB of another repository's published
 # build output. See client/hydrate/fetch-engine.sh for why it is fetched at

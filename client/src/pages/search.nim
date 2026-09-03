@@ -1,6 +1,6 @@
 ## Search (`/search?q=`) — Page-Descriptions §11, Search-And-Routing.md.
 ##
-## ## The honest shape of this page on a client that ships no script
+## ## Nothing the SERVER renders can resolve a query, and that is still true
 ##
 ## §11's first bullet is "Unambiguous input navigates immediately, without an
 ## intermediate results page", and Search-And-Routing §1 is explicit that "most
@@ -11,6 +11,16 @@
 ## browser**. A static file server cannot read `?q=`, so this route cannot
 ## resolve anything, and there is no arrangement of markup that makes it able
 ## to.
+##
+## CORRECTION, and it is the whole of the defect this page was in. That
+## paragraph was true and complete, and it was read as though it settled the
+## matter — so for the life of this route NOTHING resolved a query, the form on
+## the home page submitted here, the page returned 200, and a visitor who pasted
+## a transaction hash got a mechanism table. "Markup cannot do it" is not "it
+## cannot be done": `client/searchboot/` is a 41 KB `nim js` bundle that reads
+## `?q=` and resolves it, `ResultSlotId` below is where it writes, and
+## `ssr.renderSearch` defers it. What this page renders is what a SERVER
+## genuinely knows; the browser supplies the rest.
 ##
 ## What follows from that is a decision, not a workaround. The page does not
 ## render a results list it did not compute, and it does not render an empty
@@ -35,6 +45,7 @@
 import isonim/ssr/escape
 import isonim/dsl/ui
 import ../viewutil
+import ../viewmodel/search_shapes   # `ResultSlotId` — shared with the bundle
 
 type
   NamedEntity* = object
@@ -42,7 +53,16 @@ type
     ## route of the thing it names.
     chain*, id*, name*, symbol*, kind*, provenance*, href*: string
 
-proc searchPage*(chains: seq[string], named: seq[NamedEntity]): string =
+proc searchPage*(chains: seq[string], named: seq[NamedEntity],
+                 resolvesInBrowser: bool): string =
+  ## `resolvesInBrowser` is whether this build published the search bundle.
+  ##
+  ## It is a parameter rather than a `SearchBundle.len > 0` read inside the
+  ## page, because the page's job is to be TRUE about the deployment it is part
+  ## of and the caller is what knows. Before the bundle existed this text said
+  ## "this deployment ships no script, so none of them ran" — accurate then,
+  ## and it would have quietly become the page's own lie the moment one
+  ## shipped.
   ui:
     section(class = "sec"):
       tdiv(class = "inner"):
@@ -57,8 +77,25 @@ proc searchPage*(chains: seq[string], named: seq[NamedEntity]): string =
           button(class = "btn primary", `type` = "submit"):
             text "Search"
 
+        # Written by `client/searchboot/`, which is the only thing that can see
+        # `?q=`. Empty in the markup on purpose: a results container pre-filled
+        # with "no results" would be a claim the server is not in a position to
+        # make, and would be wrong for every query that does resolve. What
+        # stands in for it until the bundle answers is the directory below,
+        # which is data rather than a verdict.
+        tdiv(id = ResultSlotId, class = "searchresult")
+
         tdiv(class = "stub group"):
           tdiv(class = "measure"):
+            # COPY OWNED BY THE PROSE SWEEP; the branch is not. The sentence
+            # below is that sweep's, kept verbatim, and its reasoning is kept
+            # with it. What this change adds is that the sentence is now
+            # CONDITIONAL, because it stopped being true of every build: a
+            # deployment that ships client/searchboot/ does run search, and
+            # printing "Search is not running on this site" on a page whose own
+            # script is at that moment resolving the query would be the page
+            # contradicting itself in front of the reader.
+            #
             # WHAT THIS SENTENCE HAS TO DO, which the old one did not. A reader
             # arrives here having typed something and got no result, and needs
             # two things: to know their query was not looked up and REJECTED —
@@ -80,10 +117,17 @@ proc searchPage*(chains: seq[string], named: seq[NamedEntity]): string =
             # "on this site" and not "on this deployment": `deployment` is the
             # word this tree uses for itself, and the About and Settings pages
             # dropped it in the same change. One vocabulary across the site.
-            b: text "Search is not running on this site, so nothing was "
-            b: text "looked up. "
-            text "This is not a result — it does not mean your identifier is "
-            text "absent. Every block, transaction and address here has a "
+            if not resolvesInBrowser:
+              b: text "Search is not running on this site, so nothing was "
+              b: text "looked up. "
+              text "This is not a result — it does not mean your identifier "
+              text "is absent. "
+            # The second half is unconditional, and is the sweep's wording
+            # unchanged. It is the half that is true either way: the stable
+            # address is what the table below is FOR, and on a build where
+            # search works it is still the answer for anyone who would rather
+            # navigate than type.
+            text "Every block, transaction and address here has a "
             text "stable address you can go to directly, and the table below "
             text "gives the form for each kind."
 

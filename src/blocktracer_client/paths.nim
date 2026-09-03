@@ -11,7 +11,7 @@
 ## the failure Static-Site-Architecture.md §2.9 exists to prevent.
 
 import std/strutils
-import ../blocktracer/contract/ids
+import ../blocktracer/contract/shards
 import ../blocktracer/contract/version
 
 export hexShard, traceShards

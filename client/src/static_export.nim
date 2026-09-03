@@ -26,6 +26,7 @@ import blocktracer/chain/ingest
 import ssr
 import reader
 import debugger/replay_engine
+import components/layout   # `SearchBundle` — the URL /search's <script> names
 
 const
   OutputDir = "dist"
@@ -83,6 +84,31 @@ proc installHydrationBundle() =
   ensureDir(parentDir(dest))
   copyFile(built, dest)
   echo "  + hydration bundle: " & HydrationBundle & " (" &
+    $(getFileSize(built) div 1024) & " KB)"
+
+proc installSearchBundle() =
+  ## Put the built search bundle where `/search` says it is — or fail.
+  ##
+  ## Exactly the shape of `installHydrationBundle` above, and for a reason that
+  ## is sharper here rather than weaker. `/search` is the route whose entire
+  ## defect was an affordance that rendered and could not act: the form
+  ## submitted, the page loaded, every layer reported success and nothing
+  ## resolved. A `<script>` pointing at a 404 would restore precisely that
+  ## state, with the page now also claiming — in its own copy — that resolution
+  ## runs in the browser. So a missing bundle is `quit 2` at build time, not a
+  ## silent 404 at visit time.
+  if SearchBundle.len == 0: return
+  let built = repoRoot() / "client" / "searchboot" / "search.js"
+  if not fileExists(built):
+    stderr.writeLine "search bundle not built: " & built
+    stderr.writeLine "  This build declares -d:searchBundle=" & SearchBundle &
+                     ", so /search carries a <script> for it."
+    stderr.writeLine "  Build it first (cd client && just search-bundle) or drop the define."
+    quit 2
+  let dest = OutputDir / SearchBundle.strip(chars = {'/'})
+  ensureDir(parentDir(dest))
+  copyFile(built, dest)
+  echo "  + search bundle: " & SearchBundle & " (" &
     $(getFileSize(built) div 1024) & " KB)"
 
 proc generateSitemap(routes: seq[string]) =
@@ -277,6 +303,7 @@ proc exportSite() =
   # Step 3: assets + crawl files.
   copyFonts()
   installHydrationBundle()
+  installSearchBundle()
   # `sitemapRoutes`, not `routes`: every route is RENDERED, and a `noindex`
   # route is not SUBMITTED (SEO-And-Crawl-Budget.md §5). The debug route is the
   # transaction's content at a second address, so a sitemap entry for it would

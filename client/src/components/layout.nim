@@ -71,7 +71,18 @@ proc provenanceRegion(provenance: string): string =
 
 proc pageLayout*(title, description, content: string,
                  robots = "index,follow", canonical = "",
-                 provenance = ""): string =
+                 provenance = "", scripts = ""): string =
+  ## `scripts` is a pre-rendered string and defaults to "" — the explorer
+  ## register is server-rendered and the overwhelming majority of these pages
+  ## ship no JavaScript at all. It exists for the one route that CANNOT be
+  ## server-rendered: `/search?q=` is resolved from the query string, which a
+  ## static file server never sees. Passing a tag here is what closes that
+  ## route; before it existed the search form submitted to a page that could
+  ## not read what it was given, and did not say so.
+  ##
+  ## Same shape as `hydrationScriptTag` below and for the same reason: a STRING
+  ## the caller places, never a top-level `if` inside `ui:`.
+  ##
   ## `provenance` is a pre-rendered string and defaults to "": a site-level page
   ## has no chain and therefore makes no claim about whose data it shows. Every
   ## chain-scoped route passes one — see `components/provenance.nim` for why the
@@ -102,6 +113,7 @@ proc pageLayout*(title, description, content: string,
             raw provenanceRegion(provenance)
             raw content
           raw siteFooter()
+          raw scripts
   )
 
 proc hydrationScriptTag(): string =
@@ -161,6 +173,30 @@ proc hydrationScriptTag(): string =
   if HydrationBundle.len == 0: return ""
   ui:
     script(src = HydrationBundle, `defer` = "")
+
+const SearchBundle* {.strdefine: "searchBundle".} = ""
+  ## Where `client/searchboot/search.js` was published, or "" for a build that
+  ## did not produce it.
+  ##
+  ## Separate from `HydrationBundle` because the two bundles have nothing in
+  ## common but the word "script". `hydrate.js` links the CodeTracer Embed SDK,
+  ## is 1.3 MB, and is deferred by the debug route only. `search.js` is 40 KB of
+  ## this repository's own code with no debugger on its Nim path — AGENTS.md
+  ## §1a's property — and is deferred by exactly one route. Folding them into
+  ## one define would make `/search` depend on the Embed SDK to work, and would
+  ## make a build that has the SDK but not the search bundle indistinguishable
+  ## from one that has both.
+
+proc searchScriptTag*(): string =
+  ## The `<script defer>` for the search bundle. Same STRING-returning shape as
+  ## `hydrationScriptTag`, and the same reasoning applies unchanged: a top-level
+  ## `if` inside `ui:` renders as nothing, silently.
+  ##
+  ## `defer` rather than `async` or inline: the bundle writes into
+  ## `#search-result`, which the document has to have parsed first.
+  if SearchBundle.len == 0: return ""
+  ui:
+    script(src = SearchBundle, `defer` = "")
 
 proc debugLayout*(title, description, content: string,
                   robots = "noindex,follow", canonical = "",

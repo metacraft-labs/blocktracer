@@ -5,8 +5,28 @@
 # /registry + entry pages) with the rendered explorer views (home, chain, block
 # list, block detail, tx detail) written over it at clean URLs, plus fonts,
 # sitemap.xml and robots.txt.
-export:
-    nim c -r --mm:orc -d:isServer -d:release src/static_export.nim
+#
+# `/search` is the one route that cannot be server-rendered — a static file
+# server never sees `?q=` — so the search bundle is built first and this export
+# names it. Unlike hydration, this is NOT optional and takes no Embed SDK: a
+# build that skipped it would ship the search form that was the defect.
+export: search-bundle
+    nim c -r --mm:orc -d:isServer -d:release \
+      -d:searchBundle=/assets/search.js src/static_export.nim
+
+# ── Search (the /search route's resolver) ──────────────────────────────────
+
+# Build the search bundle: `nim js` over client/searchboot/searchboot.nim.
+#
+# Plain `nim js` with this repository's own two source paths and nothing else.
+# That is the whole point of it being a separate bundle from `hydrate`: no
+# CodeTracer Embed SDK, no debugger on the Nim path (AGENTS.md §1a), 40 KB
+# rather than 1.3 MB, and a gate for it that runs anywhere Nim does.
+search-bundle:
+    nim js --hints:off -d:release \
+      --path:src --path:../src \
+      --nimcache:searchboot/nimcache \
+      -o:searchboot/search.js searchboot/searchboot.nim
 
 # ── Hydration (the debug route's live session) ─────────────────────────────
 
@@ -30,9 +50,10 @@ hydrate:
 # FIRST, and only then is the exporter compiled with a -d:hydrationBundle that
 # names it — so a page can never carry a <script> for a file that was not
 # produced. `installHydrationBundle` re-checks that and fails the build.
-export-hydrated: hydrate
+export-hydrated: hydrate search-bundle
     nim c -r --mm:orc -d:isServer -d:release \
-      -d:hydrationBundle=/assets/hydrate.js src/static_export.nim
+      -d:hydrationBundle=/assets/hydrate.js \
+      -d:searchBundle=/assets/search.js src/static_export.nim
 
 # Copy the published replay engine into dist/replay-engine/ so a LOCAL preview
 # has a live session.

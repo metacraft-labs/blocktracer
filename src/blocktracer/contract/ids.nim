@@ -16,6 +16,9 @@
 
 import std/[sha1, strutils]
 
+import ./shards
+export shards   # `hexShard`, `traceShards` — see the note where they used to be
+
 const
   ContractTagTrace = "blocktracer/trace/v1"
     ## Domain-separation tag for `traceArtifactId` (Trace-Artifacts.md §2.1).
@@ -79,15 +82,6 @@ proc contentHashSha1*(bytes: string): string =
   "sha1:" & sha1LowerHex(bytes)
 
 # --- path sharding (Static-Site-Architecture.md §2, Trace-Artifacts.md §3) ---
-
-proc hexShard*(hashHex: string): string =
-  ## `{h0h1}` / `{a0a1}` shard: first two bytes (4 hex chars) of a 0x-prefixed
-  ## hash or address.
-  var h = hashHex
-  if h.startsWith("0x"): h = h[2 .. ^1]
-  if h.len < 4: h = h & repeat('0', 4 - h.len)
-  h[0 .. 3]
-
-proc traceShards*(tid: string): tuple[a, b: string] =
-  ## `/t/{tid[0:2]}/{tid[2:4]}/{tid}/` — Trace-Artifacts.md §3.
-  (tid[0 .. 1], tid[2 .. 3])
+#
+# Moved to `./shards` and re-exported: the browser needs `hexShard` and this
+# module's `std/sha1` does not compile on the JS backend. See shards.nim.
