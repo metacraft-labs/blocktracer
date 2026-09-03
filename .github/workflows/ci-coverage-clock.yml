@@ -96,28 +96,10 @@ jobs:
               continue
             fi
 
-            # A DISPATCH RUNS THE WORKFLOW AS THAT REF DEFINES IT, so a branch
+            # (A dispatch runs the workflow AS THAT REF DEFINES IT, so a branch
             # whose `ci.yml` predates the `workflow_dispatch:` trigger cannot be
-            # dispatched at all — the API answers 422.
-            #
-            # This is not hypothetical and it is why this check is here: when
-            # this clock was written `staging` was 90 commits behind `dev` and
-            # `live` was 133, and NEITHER carried the trigger. A clock that
-            # treated that as a dispatch failure would have gone red on its
-            # first tick and stayed red — and an always-red job is one everyone
-            # learns to ignore, which is the same rot as a trigger nobody
-            # notices is dead.
-            #
-            # So it is reported as what it is: a mainline that will start being
-            # covered the moment the lead promotes `dev` onto it. It self-heals,
-            # it names its own remedy, and it does not cry wolf in the meantime.
-            if ! gh api "repos/${GH_REPO}/contents/.github/workflows/ci.yml?ref=${ref}" \
-                 --jq '.content' 2>/dev/null | base64 -d 2>/dev/null |
-                 grep -q '^[[:space:]]*workflow_dispatch:'; then
-              echo "::notice::${ref}: this branch's ci.yml has no workflow_dispatch trigger, so no coverage run can be dispatched for it yet. It starts being covered when dev is promoted onto ${ref}."
-              pending=$((pending + 1))
-              continue
-            fi
+            # dispatched at all. That case is classified below, from the API's
+            # own answer, rather than predicted from the file.)
 
             # Do not dispatch on top of a coverage run that is still going.
             # `ci.yml`'s dispatch lane sets `cancel-in-progress: false` — on
@@ -142,11 +124,41 @@ jobs:
               continue
             fi
 
-            if gh workflow run ci.yml --ref "${ref}"; then
+            # ASK, DO NOT PREDICT.
+            #
+            # The first draft of this decided whether a ref could accept a
+            # dispatch by fetching its `ci.yml` through the contents API,
+            # base64-decoding it and grepping for the trigger — with `2>/dev/null`
+            # on both halves of the pipe. On the runner that pipeline produced
+            # nothing for EVERY ref, including `dev`, which does carry the
+            # trigger. So the clock reported all three mainlines as "awaiting the
+            # trigger" and dispatched nothing, while every individual line of its
+            # log looked reasonable. Measured, not reasoned about: run
+            # 33815158002.
+            #
+            # That is the same defect as the gate it was written to serve — a
+            # check that cannot reach its subject reporting a verdict anyway,
+            # here by silently swallowing the two errors that would have said so.
+            #
+            # The remedy is to stop predicting what the API will accept and let
+            # the API answer. A ref without the trigger comes back 422 naming
+            # `workflow_dispatch`; that is a PENDING mainline. Anything else that
+            # fails is a real failure and is reported with the error text, not
+            # discarded.
+            # `|| rc=$?` and not a bare assignment: GitHub runs this step under
+            # `bash -e {0}`, and `set -uo pipefail` at the top does not take that
+            # away. A bare `err="$(cmd)"` whose command failed would abort the
+            # step before any of the classification below could run.
+            rc=0
+            err="$(gh workflow run ci.yml --ref "${ref}" 2>&1)" || rc=$?
+            if [ "${rc}" -eq 0 ]; then
               echo "${ref}: coverage run dispatched"
               fired=$((fired + 1))
+            elif printf '%s' "${err}" | grep -qi 'workflow_dispatch\|Workflow does not have'; then
+              echo "::notice::${ref}: this branch's ci.yml predates the workflow_dispatch trigger, so no coverage run can be dispatched for it yet. It starts being covered when dev is promoted onto ${ref}. (${err})"
+              pending=$((pending + 1))
             else
-              echo "::error::${ref}: could not dispatch a coverage run"
+              echo "::error::${ref}: could not dispatch a coverage run: ${err}"
               missing=$((missing + 1))
             fi
           done
