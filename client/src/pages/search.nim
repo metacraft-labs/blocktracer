@@ -77,7 +77,10 @@ proc searchPage*(chains: seq[string], named: seq[NamedEntity]): string =
             # named — it answers an accusation of hand-waving that nobody made,
             # and it was not even true, since the point of the sentence is that
             # nothing was tried.
-            b: text "Search is not running on this deployment, so nothing was "
+            # "on this site" and not "on this deployment": `deployment` is the
+            # word this tree uses for itself, and the About and Settings pages
+            # dropped it in the same change. One vocabulary across the site.
+            b: text "Search is not running on this site, so nothing was "
             b: text "looked up. "
             text "This is not a result — it does not mean your identifier is "
             text "absent. Every block, transaction and address here has a "
