@@ -257,6 +257,49 @@ says `DID NOT RUN` rather than reporting a failure. "Three of four shards passed
 is not a claim about this suite; that is the same three-verdict rule, one level
 up.
 
+## The first complete pass, and what it found
+
+Four shards, two at a time in two worktrees, `dfe7c98`:
+
+```
+  62 arm(s) over 4 shard(s): 57 killed, 3 survived, 2 never ran
+    NEVER RAN  N/the-position-is-compared-by-number-alone
+    NEVER RAN  O1/the-engine-never-gets-the-source
+    SURVIVED   O4/the-control-does-not-say-what-it-would-answer
+    SURVIVED   H/the-event-log-rows-are-not-bound
+    SURVIVED   Z2/the-revealed-position-is-anchored-to-the-top
+```
+
+**These five are the point of the exercise, and none of them was visible before.**
+The reason they had not been reported is not that anyone ignored them — it is that
+the run producing them had never reached its summary. Each is now attributable:
+
+* `N` — `NEVER RAN — the artefact is byte-identical to the unmutated one`. The
+  mutation does not reach what the journey measures, so nothing about that
+  assertion has been demonstrated either way. Not a survival, and reporting it as
+  one would send someone to strengthen a test that may be fine.
+* `O1` — `the assertion is ALREADY RED before the mutation`. Its journey,
+  `a-value-can-be-traced-to-its-origin`, is red on `dev` and carries no ledger
+  entry. A mutation cannot demonstrate anything about an assertion that was not
+  green to begin with; this is the harness reporting the tree's state, not a
+  defect in the arm.
+* `O4` — the same journey's red, arriving as a **vacuity**. The detail reads
+  `counted 0, the claim says 0`. The assertion is `countIs(naming.length,
+  shownHere.originControls)`, and its own comment argues it cannot pass vacuously
+  because an earlier verdict asserts `classified >= 1`. That argument assumes a red
+  assertion *stops* the journey, and it does not: the earlier assertion fails, the
+  run continues, `originControls` is 0, and `0 === 0` is green. **An implication is
+  only as strong as its antecedent** — the rule this file already states — and here
+  the antecedent is asserted and then not relied upon. Fixing journey 07's red
+  closes this; the vacuity is worth stating separately, because a page that
+  legitimately shows no controls would reach the same `countIs(0, 0)`.
+* `H`, `Z2` — genuine survivals, reproduced in two independent runs.
+
+One arm is **flaky** and only two complete runs could show it: `FL2/the-panes-move-
+before-the-values-arrive` SURVIVED in one run and was KILLED in the other. It
+samples per frame over a six-step walk, so it is a coin the way the removed
+`SC-stale` arm was, and a single green run is not evidence about it.
+
 ## The ledger
 
 `ledger.json` names the journeys known RED on this branch, each with what was
