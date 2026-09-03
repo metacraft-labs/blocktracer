@@ -245,15 +245,15 @@ proc renderHome*(r: DataRoot): string =
 proc renderChains*(r: DataRoot): string =
   pageLayout(
     "Supported chains — BlockTracer",
-    "Every chain in BlockTracer's registry, with the recorder, trace schema, coverage mode and freshness it actually has.",
+    "Every chain BlockTracer publishes: whether its data is captured from a network or synthetic, how many blocks and transactions each holds, and how close it is to the tip.",
     chainsPg.chainsPage(chainRows(r)),
     robots = $routeClass("/chains"),
     canonical = SiteDomain & "/chains")
 
 proc renderAbout*(r: DataRoot): string =
   pageLayout(
-    "About BlockTracer — no account, no ads, no tracking",
-    "How BlockTracer reads a chain: static files behind a CDN, one mutable object per chain, no third-party requests, and no record caps.",
+    "About BlockTracer — what it is and what it costs you",
+    "What BlockTracer does: open a transaction with a recorded trace and step through its execution, reading the values and the full call trace at every line.",
     aboutPg.aboutPage(chains(r).len),
     robots = $routeClass("/about"),
     canonical = SiteDomain & "/about")

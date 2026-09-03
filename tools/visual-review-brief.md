@@ -1046,8 +1046,8 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - On a SITE-LEVEL page — `/about`, `/settings`, `/search`, `/chains`, 404 — the provenance marker is correctly ABSENT in ALL THREE of its forms, because those pages show no chain's data and the component returns nothing rather than inventing a claim on a producer's behalf. Its absence there is not a finding, and reporting it as one is the error this item exists to prevent in the other direction.
 - Long-form prose with a heading hierarchy of at least two levels.
 - A constrained measure — this is the one page in the product that is purely reading, and full-viewport-width body text at 1920 px is a P2 typography failure here specifically.
-- The trust strip's five claims itemised with their EVIDENCE — no account, no ads, no tracking, complete history, no record caps — rather than restated. A claim repeated is not a privacy summary.
-- An account of the read path: static files behind a CDN, one mutable object per chain, no third-party requests.
+- A `What it costs you` group itemising the trust strip's claims with their EVIDENCE — no account, no ads, no tracking, nothing held back — rather than restating them. A claim repeated is not a privacy summary.
+- A `What you can do` group LEADING the page — stepping and rewinding, the values, the call trace, the source, across chains and languages — because that is what a visitor opened About to find out. The read path (static files, no third-party requests) is kept to one short paragraph AFTER it, where it reads as the evidence for `no tracking` rather than as the subject of the page.
 - The site's standard header and footer, so the page reads as part of the product.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:
