@@ -34,7 +34,17 @@
 #
 # WHAT IT CHECKS
 #   1. Every target in `client/Justfile`'s `test:` aggregate is run by some job.
-#   2. Every `ci/test/*.sh` gate is run by some job.
+#   1b. Every `test-*` recipe is run by SOMETHING — in the aggregate, or named
+#      by a CI job. Not "is in the aggregate": `test-selection-detail-selftest`
+#      is a ~100-compile mutation sweep that client/Justfile deliberately keeps
+#      out of `just test`, for the same reason every `<subject>-test.sh` is its
+#      own CI step rather than part of `<subject>.sh`. Deliberately outside the
+#      aggregate is fine; run by nothing is not, and that is the distinction.
+#   2. Every `ci/test/*.sh` gate is run by some job, OR is recorded in
+#      `ci/test/ci-coverage.known-dark.txt` with what it would cost to wire.
+#      That register fails in both directions — a listed gate that becomes
+#      reachable, or that stops existing, fails by name — so an entry cannot
+#      outlive the hole it records. It is not an exemption list.
 #   3. ci.yml's push trigger covers every branch `deploy.yml` deploys from —
 #      those are the mainlines BY DEFINITION, so the two cannot disagree without
 #      a branch being deployed ungated.
@@ -183,10 +193,12 @@ done <<<"${client_targets}"
 echo
 
 # ---------------------------------------------------------------------------
-echo "Step 1b: every test-* recipe is IN the aggregate"
+echo "Step 1b: every test-* recipe is RUN by something"
 echo "    Recognising the aggregate closes one hole and opens a smaller one: a"
 echo "    suite written as a recipe and never added to \`test:\` is run by"
 echo "    nothing and named by nothing, so step 1 cannot see it either."
+echo "    In the aggregate, or named by a CI job — a recipe deliberately kept"
+echo "    OUT of \`just test\` is fine; a recipe nothing runs at all is not."
 # ---------------------------------------------------------------------------
 declared_recipes="$(
 	grep -oE '^test-[a-z0-9-]+:' "${client_justfile}" | sed 's/:$//' | sort -u
@@ -198,34 +210,127 @@ else
 	bad "found only ${recipe_count} test-* recipe(s) — the scan is broken and this step is vacuous"
 fi
 
+# TWO WAYS FOR A RECIPE TO BE RUN, and the second one is not a loophole.
+#
+# The rule this step began as — "every test-* recipe is IN the aggregate" — is
+# very slightly wrong, and `test-selection-detail-selftest` is the case that
+# shows how. It is a MUTATION SWEEP over the suite beside it (79 negations plus
+# 17 planted product defects, ~100 Nim compiles), and client/Justfile says in
+# its own words why it is not an aggregate member:
+#
+#     NOT in `just test` — it is ~100 compiles and takes minutes. It is the
+#     same relation `ci/test/<subject>-test.sh` has to `ci/test/<subject>.sh`
+#
+# That relation is one this repository already runs everywhere: every
+# `<subject>-test.sh` is a proof-of-bite executed as its OWN CI step, never
+# folded into the suite it proves. Forcing this one into `just test` would put
+# minutes of mutation sweep into every developer's `just test` and into the
+# `debug-route` job, to satisfy a guard — the tail wagging the dog.
+#
+# So what this step actually wants to know is NOT "is it in the aggregate". It
+# is "does anything run it". A recipe in the aggregate is run; a recipe a CI job
+# names is run; a recipe in neither is the orphan the step was written for, and
+# is still reported. The by-name test is the same one step 1 already applies,
+# so this adds no new parsing and no new list.
 orphan_recipes=0
+by_name=0
 while read -r r; do
 	[ -n "${r}" ] || continue
 	if printf '%s\n' "${client_targets}" | grep -qx -- "${r}"; then
 		:
+	elif printf '%s' "${workflow_all}" | grep -qE "just[[:space:]]+${r}([^a-z0-9-]|\$)"; then
+		# Named by a CI job, deliberately outside the aggregate. Reported
+		# rather than passed over in silence: a recipe on this path is one
+		# nobody running `just test` will ever execute, and that is worth
+		# seeing in the log.
+		by_name=$((by_name + 1))
+		ok "recipe '${r}' is outside the \`test:\` aggregate BUT a CI job runs it by name"
 	else
 		orphan_recipes=$((orphan_recipes + 1))
-		bad "recipe '${r}' is defined in client/Justfile and is NOT in the \`test:\` aggregate — nothing runs it, locally or in CI"
+		bad "recipe '${r}' is defined in client/Justfile and is run by NOTHING — not in the \`test:\` aggregate, and named by no CI job"
 	fi
 done <<<"${declared_recipes}"
 if [ "${orphan_recipes}" -eq 0 ]; then
-	ok "all ${recipe_count} test-* recipes are in the aggregate"
+	ok "all ${recipe_count} test-* recipes are run — $((recipe_count - by_name)) via the aggregate, ${by_name} by name in CI"
 fi
 echo
 
 # ---------------------------------------------------------------------------
-echo "Step 2: every ci/test/*.sh gate runs in CI"
+echo "Step 2: every ci/test/*.sh gate runs in CI, or is RECORDED as dark"
+echo "    A gate nothing runs is a hole. A gate nothing runs, written down"
+echo "    with why, is a known hole — which is a different object, and the"
+echo "    register below fails in BOTH directions so it cannot outlive it."
 # ---------------------------------------------------------------------------
+# THE KNOWN-DARK REGISTER, ported from codetracer's
+# `ci/test/shell-gate-coverage.known-dark.txt` rather than reinvented. Its rule,
+# in its own words, is why this exists instead of five more workflow steps:
+#
+#     Wiring them is deliberately NOT done here. Each needs an owner who knows
+#     what it costs to run, what it needs on the runner, and whether it passes
+#     today — and a guard author quietly adding five unknown jobs to CI would be
+#     making five decisions that are not theirs. What is done here is making the
+#     number impossible to lose.
+#
+# IT IS NOT AN EXEMPTION LIST. An entry does not say "this need not run". It
+# says "this SHOULD run, nothing runs it, and here is what it would cost". So:
+#
+#   * listed and dark      -> reported, does not fail. The hole is known.
+#   * listed and REACHABLE -> FAILS, by name, demanding the line be deleted, so
+#                             an entry cannot outlive the hole it records and
+#                             nobody has to remember to clean up after wiring.
+#   * listed and ABSENT    -> FAILS. An entry for a file that no longer exists
+#                             is a claim about nothing, and it would sit there
+#                             silently excusing a name that could come back.
+#   * unlisted and dark    -> FAILS, exactly as before.
+#
+# Basenames, matching codetracer's file, so the two registers read alike.
+known_dark_file="${repo_root}/ci/test/ci-coverage.known-dark.txt"
+known_dark=""
+if [ -f "${known_dark_file}" ]; then
+	known_dark="$(sed 's/#.*//' "${known_dark_file}" | tr -d '[:blank:]' | grep -v '^$' || true)"
+fi
+known_dark_count="$(printf '%s\n' "${known_dark}" | grep -c . || true)"
+
 uncovered_shell=0
+recorded_dark=0
+register_problems=0
 while read -r gate; do
 	[ -n "${gate}" ] || continue
+	base="$(basename "${gate}")"
+	listed=0
+	if [ -n "${known_dark}" ] && printf '%s\n' "${known_dark}" | grep -qxF -- "${base}"; then
+		listed=1
+	fi
+
 	if printf '%s' "${workflow_all}" | grep -qF -- "${gate}"; then
-		ok "shell gate '${gate}' is run by a CI job"
+		if [ "${listed}" -eq 1 ]; then
+			register_problems=$((register_problems + 1))
+			bad "shell gate '${gate}' IS run by a CI job and is still listed in ci/test/ci-coverage.known-dark.txt — delete that line"
+		else
+			ok "shell gate '${gate}' is run by a CI job"
+		fi
+	elif [ "${listed}" -eq 1 ]; then
+		recorded_dark=$((recorded_dark + 1))
+		note "[DARK]   shell gate '${gate}' is run by no CI job, and is RECORDED in ci/test/ci-coverage.known-dark.txt"
 	else
 		uncovered_shell=$((uncovered_shell + 1))
 		bad "shell gate '${gate}' exists and NO CI job runs it"
 	fi
 done <<<"${shell_gates}"
+
+# Every entry must name a gate that is really there. A register that accrues
+# names of deleted files is one that will one day excuse a file that comes back.
+while read -r entry; do
+	[ -n "${entry}" ] || continue
+	if [ ! -f "${repo_root}/ci/test/${entry}" ]; then
+		register_problems=$((register_problems + 1))
+		bad "ci/test/ci-coverage.known-dark.txt names '${entry}', which does not exist in ci/test/ — delete that line"
+	fi
+done <<<"${known_dark}"
+
+if [ "${known_dark_count}" -gt 0 ] && [ "${register_problems}" -eq 0 ]; then
+	ok "${known_dark_count} gate(s) recorded as known-dark, and each is still dark and still present"
+fi
 echo
 
 # ---------------------------------------------------------------------------
@@ -301,14 +406,29 @@ fi
 echo
 
 # ---------------------------------------------------------------------------
+# THE DARK COUNT IS PRINTED HERE, PASS OR FAIL.
+#
+# The old footer read "client suites: N declared, 0 uncovered" and nothing else,
+# and that line is how this gate got misread: it counts AGGREGATE MEMBERS, so it
+# says "0 uncovered" while step 1b is failing about a recipe that is not one —
+# a true sentence standing next to `RESULT: FAILED` and taken for the verdict.
+# A number that cannot express the failure beside it invites exactly that.
 echo "${checks} check(s), ${failures} failure(s)"
-echo "  client suites: ${client_count} declared, ${uncovered_client} uncovered"
-echo "  shell gates:   ${shell_count} found,    ${uncovered_shell} uncovered"
+echo "  client suites: ${client_count} in \`just test\`, ${uncovered_client} uncovered"
+echo "                 (${recipe_count} test-* recipes exist; ${by_name} run by CI outside the aggregate)"
+echo "  shell gates:   ${shell_count} found,    ${uncovered_shell} uncovered, ${recorded_dark} recorded dark"
 if [ "${failures}" -gt 0 ]; then
 	echo "RESULT: FAILED — ${failures} check(s)"
 	exit 1
 fi
-echo "  Every suite this repository has runs in CI, on every branch it deploys."
+if [ "${recorded_dark}" -gt 0 ]; then
+	echo "  Every suite this repository has either runs in CI, on every branch it"
+	echo "  deploys, or is one of the ${recorded_dark} recorded in ci/test/ci-coverage.known-dark.txt."
+	echo "  THOSE ${recorded_dark} DO NOT RUN ANYWHERE. This gate is green because the hole is"
+	echo "  written down with its cost, not because it is closed."
+else
+	echo "  Every suite this repository has runs in CI, on every branch it deploys."
+fi
 echo "  NOT claimed: that those suites pass, or that they assert anything useful."
 echo "  This gate measures the SURFACE, and nothing else does."
 echo "RESULT: OK"

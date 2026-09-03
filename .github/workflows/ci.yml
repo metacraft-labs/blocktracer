@@ -781,6 +781,37 @@ jobs:
             bash ci/test/flow-layout-vendor.sh &&
             bash ci/test/flow-layout-vendor-test.sh'
 
+      # DOES `test_selection_detail.nim` BITE? The proof-of-bite for the one Nim
+      # suite that exists BECAUSE a guard somewhere else was dead.
+      #
+      # WHY IT IS A STEP AND NOT AN AGGREGATE MEMBER. `client/Justfile` says so
+      # in its own words — "NOT in `just test` — it is ~100 compiles and takes
+      # minutes. It is the same relation `ci/test/<subject>-test.sh` has to
+      # `ci/test/<subject>.sh`" — and that relation is one this workflow already
+      # runs everywhere: every `-test.sh` proof-of-bite above is its own step,
+      # never folded into the suite it proves. Folding this one in would put a
+      # mutation sweep into every developer's `just test` to satisfy a guard.
+      #
+      # So it was RIGHT to keep it out of the aggregate and WRONG that nothing
+      # then ran it. `ci-coverage.sh` step 1b reported the second half and was
+      # read as demanding the first; it now asks "is this recipe run by
+      # ANYTHING" and this step is the answer for this one.
+      #
+      # `.#ci` supplies both interpreters it needs: the sweep is driven by node
+      # and every arm recompiles the suite with nim.
+      #
+      # BOUNDED, for the reason the `journeys` job states beside its own bound:
+      # without `timeout-minutes` a step inherits the job's 360, and a sweep
+      # that stalls burns six hours and is then CANCELLED — which prints no
+      # RESULT line and reads, in the log, exactly like a step nobody ran. 60
+      # against 96 arms (79 negations + 17 planted product defects), each one a
+      # Nim compile of the suite.
+      - name: Does the selection-detail suite bite? (79 negations, 17 planted defects)
+        timeout-minutes: 60
+        run: |
+          nix develop .#ci --command bash -c \
+            'cd client && just test-selection-detail-selftest'
+
   # ── Journey conformance ────────────────────────────────────────────────────
   # Spec claims, judged in a browser, over the artefact this repository DEPLOYS.
   #

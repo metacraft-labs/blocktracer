@@ -1,0 +1,73 @@
+# Gates in ci/test/ that no CI job runs, with why each is still here.
+#
+# THIS FILE FAILS IN BOTH DIRECTIONS. A listed gate that stays dark is reported
+# and does not fail the run. A listed gate that BECOMES REACHABLE fails the run,
+# by name, demanding its line be deleted — so an entry cannot outlive the hole
+# it records, and nobody has to remember to clean up after wiring one. A listed
+# gate that no longer EXISTS fails too, so the register cannot accrue names that
+# would one day silently excuse a file coming back.
+#
+# IT IS NOT AN EXEMPTION LIST. An entry does not say "this need not run". It
+# says: this IS a gate, it SHOULD run, nothing runs it today, and here is what
+# it would cost the person who wires it.
+#
+# Ported from codetracer's `ci/test/shell-gate-coverage.known-dark.txt`,
+# including the rule that is the reason this file exists rather than two more
+# workflow steps:
+#
+#     Wiring them is deliberately NOT done here. Each needs an owner who knows
+#     what it costs to run, what it needs on the runner, and whether it passes
+#     today — and a guard author quietly adding five unknown jobs to CI would be
+#     making five decisions that are not theirs. What is done here is making the
+#     number impossible to lose.
+#
+# Format: one basename per line. `#` comments and blank lines ignored.
+
+# ── the Noir DAP engine seam ────────────────────────────────────────────────
+#
+# Both landed on `dev` in the merge `d504a11` (from `56ce9c9`, "noir-dap:
+# CodeTracer's Noir tests over the engine we ship, and the ten they find"),
+# two days after `ci-coverage.sh` itself. Neither commit message mentions CI,
+# a workflow, or a job; the merge's own scope statement is about a Justfile
+# conflict. So the DARKNESS was an oversight — but wiring them is not the
+# remedy, for a reason the commit states outright:
+#
+#     Ten checks are red and one request is never answered, so the lane exits
+#     124.
+#     Nothing is fixed here. Every finding is in the engine, which is a
+#     published artifact from another repository.
+#
+# A gate that is RED BY DESIGN against today's engine, wired as an ordinary
+# step, turns a truthful diagnostic into a permanently-failing job — and a job
+# that is always red is a job everybody learns to ignore, which is how the
+# `main` trigger rotted for 178 commits, arrived at from the other direction.
+#
+# WHAT IT WOULD COST WHOEVER WIRES IT, so the decision can be made by someone
+# who owns it:
+#
+#   * `$CODETRACER_SRC` or a `../codetracer` sibling — available in `.#ci` from
+#     the flake's pinned input, so this part is already paid for.
+#   * `nim` and `node` on PATH — also `.#ci`.
+#   * an 18 MB replay engine: `$REPLAY_ENGINE_DIR`, else
+#     `client/dist/replay-engine`, else it FETCHES the published one. That is
+#     the same unpinned artifact the `journeys` job takes from
+#     `web-codetracer.pages.dev`, and it is the artifact every one of the ten
+#     findings is about.
+#   * NO SKIP PATH AND NO `--require` FLAG, unlike every other gate in this
+#     directory. The script's header states the rule deliberately — "A suite
+#     that goes green because its subject is absent is worse than no suite" —
+#     so a runner missing an input gets a failure, not a skip. That is correct
+#     for the gate and it is the reason it cannot be added defensively.
+#
+# WHAT WOULD MAKE THIS ENTRY DELETABLE: the engine findings being fixed
+# upstream, or an owner deciding the lane runs `continue-on-error` as a
+# reported diagnostic. Either way the guard above will demand this line go.
+noir-engine-dap.sh
+
+# The proof-of-bite for the lane above, and it inherits the lane's problem
+# exactly: it captures a BASELINE of the already-red checks before any arm
+# ("The baseline already fails several checks against today's engine, so an arm
+# cannot be judged by the exit code"), so it needs the same 18 MB engine, the
+# same Embed SDK and the same toolchain, and it is meaningful only where the
+# lane it proves is meaningful. It goes dark and comes back with its subject.
+noir-engine-dap-test.sh

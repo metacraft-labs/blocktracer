@@ -14,9 +14,19 @@
 # real files, so an arm that stops applying is caught by its `before` control
 # exactly as `tools/journeys/selftest.mjs`'s arms are.
 #
-# FOUR ARMS, ONE PER RULE THE GUARD ENFORCES, plus the control that the
-# unmutated tree is green — without which "the mutation made it red" is not a
-# statement about the mutation.
+# ONE ARM PER RULE THE GUARD ENFORCES, plus the control that the unmutated tree
+# is green — without which "the mutation made it red" is not a statement about
+# the mutation.
+#
+# THE COUNT IS NOT WRITTEN DOWN HERE. It said "four" while five arms ran, and
+# then would have said "four" while nine did: a sentence describing a check does
+# not get corrected when the check does. The banner and the footer below count
+# what actually executed instead.
+#
+# Most arms demand a RED and are driven by `arm`. Arm 2b is the exception and is
+# spelled out longhand: the known-dark register is supposed to keep the run
+# GREEN while still naming the hole, so its assertion is "green AND the gate is
+# still named", which is not a shape `arm` can express.
 #
 # Usage:  bash ci/test/ci-coverage-test.sh
 
@@ -49,6 +59,10 @@ stage() {
 	cp "${repo_root}/.github/workflows/deploy.yml" "${dest}/.github/workflows/"
 	cp "${repo_root}/client/Justfile" "${dest}/client/"
 	cp "${repo_root}"/ci/test/*.sh "${dest}/ci/test/"
+	# The known-dark register. Without this the staged tree has no register at
+	# all, the two recorded Noir gates read as plain orphans, and the CONTROL
+	# below would be red — which would disable every arm in this file.
+	cp "${repo_root}/ci/test/ci-coverage.known-dark.txt" "${dest}/ci/test/" 2>/dev/null || true
 	# A real git dir, so step 4 resolves branches rather than skipping. The
 	# branches are created to match what the workflows name, so the BASELINE is
 	# green and arm 4 has something to take away.
@@ -129,7 +143,7 @@ sys.exit(1)
 PY
 }
 
-echo "=== ci-coverage selftest — four arms, each aimed at one rule ==="
+echo "=== ci-coverage selftest — every arm aimed at one rule ==="
 echo
 
 # ---------------------------------------------------------------------------
@@ -189,13 +203,92 @@ mutate_recipe_outside_aggregate() {
 	printf '\ntest-a-recipe-outside-the-aggregate:\n    echo hi\n' \
 		>>"${work}/arm/client/Justfile"
 }
-arm "1b/a recipe outside the aggregate" "is NOT in the \`test:\` aggregate" mutate_recipe_outside_aggregate
+arm "1b/a recipe outside the aggregate" "is run by NOTHING" mutate_recipe_outside_aggregate
+
+# ARM 1c — THE EXEMPTION PATH, PROVED FROM THE OTHER SIDE.
+#
+# Step 1b accepts a recipe that is outside `just test` when a CI job names it,
+# because `test-selection-detail-selftest` is deliberately outside the aggregate
+# (client/Justfile says why: ~100 compiles) and is run by its own step. An
+# acceptance nobody has seen fail is indistinguishable from a hole: if the step
+# that names it were deleted, the guard must NOTICE, or the exemption is just a
+# way of not checking.
+#
+# So: leave the recipe exactly where it is and take the CI step away. `edit_line`
+# rather than `delete_step`, because this step is the last of its job and
+# deleting through to the next `- name:` would take the following job's header
+# with it — mutating a second thing, which is the arm measuring something it did
+# not aim at.
+mutate_unname_the_selftest_step() {
+	edit_line "${work}/arm/.github/workflows/ci.yml" \
+		'just test-selection-detail-selftest' 'just test-a-recipe-that-is-not-this-one' || return 1
+	# The mutation must have applied, and the recipe must still be declared —
+	# otherwise this arm is measuring a Justfile change it did not make.
+	! grep -q 'just test-selection-detail-selftest' "${work}/arm/.github/workflows/ci.yml" &&
+		grep -q '^test-selection-detail-selftest:' "${work}/arm/client/Justfile"
+}
+arm "1c/the by-name exemption, with the CI step taken away" \
+	"'test-selection-detail-selftest' is defined in client/Justfile and is run by NOTHING" \
+	mutate_unname_the_selftest_step
 
 # ARM 2 — a shell gate in ci/test/ that no job runs.
 mutate_orphan_gate() {
 	printf '#!/usr/bin/env bash\nexit 0\n' >"${work}/arm/ci/test/a-gate-nobody-runs.sh"
 }
 arm "2/orphaned shell gate" "a-gate-nobody-runs.sh' exists and NO CI job runs it" mutate_orphan_gate
+
+# ── THE KNOWN-DARK REGISTER, DRIVEN IN BOTH DIRECTIONS ──────────────────────
+#
+# The register is the one part of this guard that can turn a failure into a
+# pass, so it is the part most worth attacking. Three arms, because it has three
+# ways to be wrong, and only the first is the one it was written for.
+
+# ARM 2b — the register must not become a blanket exemption. Listing a gate is
+# supposed to record a KNOWN hole, not silence the check; if an entry could be
+# added for anything, step 2 would be a formality. This plants the orphan of arm
+# 2 AND lists it, and demands the guard still reports it as dark by name — a
+# `[DARK]` note rather than a silent [OK].
+mutate_listed_orphan_is_still_reported() {
+	printf '#!/usr/bin/env bash\nexit 0\n' >"${work}/arm/ci/test/a-gate-nobody-runs.sh"
+	printf '\na-gate-nobody-runs.sh\n' >>"${work}/arm/ci/test/ci-coverage.known-dark.txt"
+	grep -q 'a-gate-nobody-runs.sh' "${work}/arm/ci/test/ci-coverage.known-dark.txt"
+}
+# This one is EXPECTED TO PASS the guard — the hole is recorded — so it cannot
+# use `arm`, which demands a red. The assertion is that the dark gate is still
+# NAMED in the output, and that the run is green.
+stage "${work}/arm"
+mutate_listed_orphan_is_still_reported >/dev/null || bad "2b: the mutation could not be applied"
+out2b="$(run_guard "${work}/arm")"
+if printf '%s' "${out2b}" | grep -q 'RESULT: OK' &&
+	printf '%s' "${out2b}" | grep -qF "[DARK]   shell gate 'ci/test/a-gate-nobody-runs.sh'"; then
+	ok "2b/a recorded dark gate: green, and still reported by name as DARK"
+elif printf '%s' "${out2b}" | grep -q 'RESULT: OK'; then
+	bad "2b: the register silenced the gate instead of recording it — no [DARK] line names it"
+else
+	bad "2b: a gate recorded in the register still failed the run — the register does nothing"
+fi
+
+# ARM 3b — THE DIRECTION THAT MAKES THE REGISTER SAFE TO HAVE. An entry that
+# outlives its hole is worse than no entry: it sits there excusing a gate that
+# is now wired, and the next gate to go dark under that name is excused too.
+# So a listed gate that BECOMES REACHABLE must fail, by name, demanding the line
+# go. Here: list a gate that a CI job already runs.
+mutate_stale_register_entry() {
+	printf '\nflow-layout-vendor.sh\n' >>"${work}/arm/ci/test/ci-coverage.known-dark.txt"
+}
+arm "3b/an entry that outlived its hole" \
+	"IS run by a CI job and is still listed in ci/test/ci-coverage.known-dark.txt — delete that line" \
+	mutate_stale_register_entry
+
+# ARM 3c — an entry naming a gate that does not exist. A register that accrues
+# dead names is one that will one day silently excuse a file coming back under
+# a name somebody deleted years earlier.
+mutate_register_names_a_ghost() {
+	printf '\na-gate-that-was-deleted.sh\n' >>"${work}/arm/ci/test/ci-coverage.known-dark.txt"
+}
+arm "3c/an entry naming a gate that is gone" \
+	"which does not exist in ci/test/ — delete that line" \
+	mutate_register_names_a_ghost
 
 # ARM 3 — a branch that is deployed and not gated. THIS IS THE DEFECT THAT WAS
 # LIVE: ci.yml triggered on `main` while dev/staging/live were deployed.
@@ -219,5 +312,5 @@ if [ "${failures}" -gt 0 ]; then
 	echo "RESULT: FAILED — every arm must be killed by the rule written for it"
 	exit 1
 fi
-echo "  The guard reports each of the four holes, and only then."
+echo "  The guard reports each of the $((checks - 1)) planted holes, and only then."
 echo "RESULT: OK"
