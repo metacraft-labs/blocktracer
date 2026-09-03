@@ -1800,6 +1800,60 @@ async function filesUnder(dir, out = []) {
 
 const shortHash = (buf) => createHash("sha256").update(buf).digest("hex").slice(0, 16);
 
+/**
+ * THE MEASURING INSTRUMENT IS PART OF THE ARTEFACT, AND LEAVING IT OUT COST AN
+ * ARM ITS WHOLE LIFE.
+ *
+ * `N/the-position-is-compared-by-number-alone` mutates
+ * `journeys/09-a-jump-moves-the-position.journey.mjs` — a JOURNEY, not product
+ * source — because what it is testing is journey 09's own comparison: whether
+ * "the marked position moved" is a RELATION or an integer. That is a legitimate
+ * arm and a valuable one; the demo session's first row naming a step it is not
+ * on moves the mark from `main.nr:1` to `shield.nr:1`, so a comparison on the
+ * number alone reads a working jump as a mark that never moved.
+ *
+ * It scored `NEVER RAN — the artefact is byte-identical to the unmutated one`
+ * on the first complete pass, and the diagnosis written from that — "the
+ * mutation does not reach what the journey measures" — WAS WRONG. Editing a
+ * journey file cannot change `client/dist` or the hydration bundle. By
+ * construction. So `sameArtefact` was always true for this arm, and it would
+ * have reported NEVER RAN on every run forever, including the run in which the
+ * comparison was deleted outright.
+ *
+ * MEASURED, by applying the arm's own mutation by hand and running journey 09:
+ *
+ *     [FAILED] the marked position moved to the row's step
+ *              — D-src-main-nr:1 -> D-src-shield-nr:1
+ *
+ * The arm is aimed at the right site and the journey does depend on it. The
+ * only thing wrong was that the identity this harness compares did not include
+ * the file the arm edits.
+ *
+ * So the journey sources are hashed too. `run.mjs` imports every
+ * `journeys/*.journey.mjs` and everything under `lib/` at run time, which makes
+ * them as much a part of what a verdict was taken on as `dist/` is — and, for a
+ * meta-arm, the only part that moves. Product arms are unaffected: they touch no
+ * file under here, so their before/after `instrument` hash is identical and the
+ * byte-identity guard still catches a product mutation that missed the build.
+ */
+async function instrumentIdentity() {
+  const h = createHash("sha256");
+  for (const dir of [join(HERE, "journeys"), join(HERE, "lib")]) {
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries.sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      if (!e.isFile() || !e.name.endsWith(".mjs")) continue;
+      h.update(e.name);
+      h.update(await readFile(join(dir, e.name)).catch(() => Buffer.alloc(0)));
+    }
+  }
+  return h.digest("hex").slice(0, 16);
+}
+
 async function artefactIdentity() {
   const bundle = await readFile(BUNDLE).catch(() => null);
   const files = await filesUnder(DIST);
@@ -1813,12 +1867,15 @@ async function artefactIdentity() {
     bundle: bundle ? shortHash(bundle) : "ABSENT",
     bundleBytes: bundle ? bundle.length : 0,
     files: files.length,
+    instrument: await instrumentIdentity(),
   };
 }
 
-const sameArtefact = (a, b) => a.rendered === b.rendered && a.bundle === b.bundle;
+const sameArtefact = (a, b) =>
+  a.rendered === b.rendered && a.bundle === b.bundle && a.instrument === b.instrument;
 const describe = (id) =>
-  `rendered ${id.rendered} · bundle ${id.bundle} (${id.bundleBytes} B over ${id.files} files)`;
+  `rendered ${id.rendered} · bundle ${id.bundle} · instrument ${id.instrument}` +
+  ` (${id.bundleBytes} B over ${id.files} files)`;
 
 async function rebuild({ hydration = false } = {}) {
   // The exporter is always rebuilt. The hydration BUNDLE is rebuilt only for
