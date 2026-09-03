@@ -82,6 +82,29 @@ const readRows = (page) =>
         hash: link.getAttribute("href").split("/tx/")[1].split("/")[0],
         state: badge?.getAttribute("data-sources") ?? null,
         text: badge?.textContent?.trim() ?? null,
+        // THE STATE WORDS ALONE, WITH THE RATIO TAKEN OFF STRUCTURALLY.
+        //
+        // The badge is `display:flex; gap:4px` and holds two items: the state
+        // label, and — for `partial` and `none` — a `.mono` ratio. The gap is a
+        // CSS token, so it is NOT a character: `textContent` reads
+        // `Instruction level0/1` for a badge that renders `Instruction level 0/1`
+        // four pixels apart. `tables.nim` chose the gap deliberately, because a
+        // literal `" "` is whitespace between flex items and gets stripped —
+        // which is how a ratio came to read as part of the word before it.
+        //
+        // So the ratio is removed by ELEMENT rather than by splitting on spaces.
+        // A word-boundary heuristic over this string cannot work and cannot be
+        // made to: there is no boundary in the DOM to find.
+        label: (() => {
+          if (!badge) return null;
+          const ratio = badge.querySelector(".mono");
+          if (!ratio) return badge.textContent.trim();
+          return [...badge.childNodes]
+            .filter((n) => n !== ratio)
+            .map((n) => n.textContent)
+            .join("")
+            .trim();
+        })(),
         visible: shown(badge),
         // §6 column 1 is the one column that never scrolls out of view, and the
         // badge is a statement about the control in it. A badge that rendered
@@ -248,8 +271,23 @@ export async function run({ browser, site, j }) {
         );
         return dt?.nextElementSibling?.textContent?.trim() ?? null;
       });
-      const want = rows.find((r) => r.chain === chain && r.hash === hash)?.text ?? null;
-      if (said === null || want === null || !said.startsWith(want.split(" ").slice(0, 2).join(" "))) {
+      // THE STATE, NOT THE DENSITY. The two surfaces render the same
+      // `sourcesState(...)` — one function, so a copy edit moves both together —
+      // and then differ ON PURPOSE in what they add to it: the list appends the
+      // ratio, because `0/1` is the actionable part of a partial row in a table;
+      // the page states the whole thing in a sentence in its own `dd`. That is
+      // affordance, not divergence, and §7.1 forbids the second.
+      //
+      // This used to take `want.split(" ").slice(0, 2)` off the list's full
+      // badge text. Two words was already a guess, and it broke outright the
+      // first time a real transaction reached a state that carries a ratio:
+      // `Instruction level0/1` split to `["Instruction", "level0/1"]`, and no
+      // page starts with `level0/1`. Comparing the label removes the guess —
+      // and it is STRICTER than the old prefix, because it matches the whole
+      // state rather than its first two words (`No contract code` was only ever
+      // checked as far as `No contract`).
+      const want = rows.find((r) => r.chain === chain && r.hash === hash)?.label ?? null;
+      if (said === null || want === null || !said.startsWith(want)) {
         pageDisagrees.push(`${key} list=${want} page=${said}`);
       }
       pagesCompared += 1;
