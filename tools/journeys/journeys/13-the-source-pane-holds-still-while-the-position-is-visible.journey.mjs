@@ -119,14 +119,30 @@
 // subject list asserted non-empty, and no fallback between them — a `??` there
 // is how six journeys in this directory came to judge only the demo chain.
 
-import { visit, visitWithoutScript, readFacts } from "../lib/probe.mjs";
+import {
+  visit,
+  visitWithoutScript,
+  readFacts,
+  waitForFacts,
+} from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";
 
 export const id = "source-pane-holds-still-while-the-position-is-visible";
 export const claim =
   "A visitor stepping a session sees the source pane hold still while the position is on screen.";
 export const spec = "Page-Descriptions.md §7.0; Debugger-Integration.md §7 — BlockTracer";
-export const assertions = 41;
+// 41 -> 43, and it is TWO because the verdict block runs once per surface:
+// SOURCE (the debug route's own pane) and LISTING (the whole-file view). The
+// first draft wrote 42, counting the assertion rather than its executions, and
+// the declared-count check caught it — which is the check earning its place,
+// since a miscount is exactly how an arm that silently stopped running looks.
+//
+// What the added pair asserts is the half `scrollTop` cannot see from the
+// other direction: not "did the pane move", but "did the reveal RUN on the
+// steps where it chose not to move it". Before `data-reveal-seq` there was
+// nothing to ask — a reveal that held still left no trace at all, which is why
+// the wait for it in this file used to be a duration.
+export const assertions = 43;
 export const needsEngine = true;
 
 // The walk stops at `MAX_STEPS` or when the trace ends, whichever comes first,
@@ -153,7 +169,15 @@ const MIN_STEPS = 10;
  * marked line — and the scroll reading is taken only after it has moved.
  */
 async function stepOnce(page, before) {
+  const revealBefore = before.revealSeq ?? null;
   await page.click('[data-action="step-forward"]');
+  // THE SESSION ADVANCED, and here the DOM difference is the right question
+  // rather than the wrong one. `moved` is this walk's TERMINATION condition —
+  // the demo recording ends after about thirteen steps and a fixed count
+  // clicked seventeen times at a trace that had stopped — so "did the position
+  // change" is exactly what is being asked, not a proxy for "has the engine
+  // answered". The sibling journeys' step waits were converted; this one is
+  // left, deliberately, because its subject is different.
   const deadline = Date.now() + 15000;
   let moved = false;
   while (Date.now() < deadline) {
@@ -164,10 +188,21 @@ async function stepOnce(page, before) {
     }
     await page.waitForTimeout(150);
   }
-  // One more settle: the reveal runs inside the same task as the pane write, but
-  // the READING is a separate round trip and the layout it reports must be the
-  // one the visitor ends up looking at.
-  await page.waitForTimeout(120);
+  // THE REVEAL IS NOW WAITED FOR, and it used to be slept through.
+  //
+  // This was `waitForTimeout(120)` under the note "the reveal runs inside the
+  // same task as the pane write, but the READING is a separate round trip". The
+  // note was right and the instrument was a guess: 120ms was chosen against
+  // nothing, and on a loaded machine the reading could be taken before the
+  // reveal had run — on a journey whose entire subject is what the reveal did.
+  //
+  // There was nothing else to wait on, because a reveal that holds still moves
+  // no scroll, sets no class and fires no event a restore does not also fire.
+  // `data-reveal-seq` is that missing trace: `revealCurrentLine` increments it
+  // on every call, including the calls where it decides to change nothing.
+  if (revealBefore !== null) {
+    await waitForFacts(page, (f) => (f.revealSeq ?? -1) > revealBefore, 8000);
+  }
   return { moved, facts: await readFacts(page) };
 }
 
@@ -215,6 +250,7 @@ async function walk(page, maxSteps) {
     const topBefore = prev.sourceScroll?.top ?? null;
     const fromTopBefore = prev.sourceScroll?.fromTop ?? null;
     const docBefore = prev.markedDoc ?? null;
+    const revealSeqBefore = prev.revealSeq ?? null;
     const { moved: sessionMoved, facts: after } = await stepOnce(page, prev);
 
     // THE WALK STOPS WHEN THE SESSION DOES, and this is a correctness fix
@@ -236,6 +272,16 @@ async function walk(page, maxSteps) {
       fromTopBefore,
       topAfter: after.sourceScroll?.top ?? null,
       moved: (after.sourceScroll?.top ?? null) !== topBefore,
+      // DID THE REVEAL RUN? Separate from `moved`, and that separation is the
+      // whole point: on a step whose destination is already on screen the
+      // reveal runs and deliberately moves nothing, so `moved` is false and
+      // says nothing about whether the reveal happened at all.
+      revealSeqBefore,
+      revealSeqAfter: after.revealSeq ?? null,
+      revealAdvanced:
+        revealSeqBefore !== null &&
+        (after.revealSeq ?? null) !== null &&
+        after.revealSeq > revealSeqBefore,
       markedBefore: prev.markedNumber,
       markedAfter: after.markedNumber,
       scroll: after.sourceScroll,
@@ -445,6 +491,31 @@ async function arm(browser, site, j, subject, rendering) {
       movedAnyway.length,
       0,
       `${tag}a step to a position already on screen leaves \`scrollTop\` UNCHANGED`,
+    );
+
+    // ── AND THE REVEAL RAN ANYWAY ─────────────────────────────────────────
+    //
+    // THE PAIRING IS THE CLAIM, and neither half is worth much alone. The
+    // assertion above says the pane did not move; on its own that is equally
+    // true of a build where the reveal never ran, never was called, or threw
+    // on its first line. This says the reveal RAN on those same steps — the
+    // ones where it decided to hold still — so "held still" is a decision the
+    // product made and not an absence.
+    //
+    // IT IS ASSERTED ON `noRevealNeeded` DELIBERATELY, and that is what keeps
+    // it from being a second spelling of `scrollTop`. Asserted over every step
+    // it would be satisfied by the steps that scrolled, which are exactly the
+    // ones the existing assertions already cover; asserted over the steps that
+    // did NOT scroll, the counter is the only evidence that anything happened.
+    //
+    // `data-reveal-seq` is published by `revealCurrentLine` at entry, so it
+    // counts reveals and not scrolls: two reveals that both hold still advance
+    // it by two.
+    const heldStillWithoutRevealing = noRevealNeeded.filter((t) => !t.revealAdvanced);
+    j.countIs(
+      heldStillWithoutRevealing.length,
+      0,
+      `${tag}and the reveal RAN on each of those steps — the pane held still by decision, not by absence`,
     );
 
     // ── VERDICT 1b — THE HALF `scrollTop` ALONE CANNOT SEE ────────────────

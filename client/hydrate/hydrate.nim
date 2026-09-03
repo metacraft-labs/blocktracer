@@ -672,6 +672,37 @@ proc noteRevealAnchor(pane: Element) {.importjs: """
 
 proc revealCurrentLine(pane: Element) {.importjs: """
 (function(pane){
+  // THE REVEAL SAYS IT RAN, and it is the only thing here that does.
+  //
+  // Everything else this proc does is CONDITIONAL: the whole point of the
+  // policy below is that a position already on screen leaves every scroller
+  // untouched. So on the case this feature exists for, `scrollTop` is the same
+  // before and after, no class changes, no event fires that a restore does not
+  // also fire, and there is NOTHING a reader outside this function can observe
+  // to know the reveal has happened. A harness waiting for it had no choice but
+  // to sleep, which is how `13-…`'s "one more settle" came to be a duration.
+  //
+  // Incremented at ENTRY, deliberately, so the two early returns below are
+  // counted too. The claim this attribute makes is "a reveal ran and has
+  // finished deciding", not "a reveal moved something" — a reveal that found no
+  // current line and did nothing HAS run, and a waiter that hung on those cases
+  // would be waiting for a decision that had already been made. Entry and exit
+  // are indistinguishable to any observer regardless: `renderPanes` is one
+  // synchronous task and nothing is painted inside it.
+  //
+  // A `data-` attribute on the pane, which SURVIVES `writePane` for the same
+  // reason `__btReveal` does — `innerHTML` replaces the children and not the
+  // node. It is inert: no stylesheet selects it (checked), it takes no space
+  // and it changes nothing a visitor sees.
+  //
+  // WHAT IT IS NOT: a count of scrolls. Two reveals that both hold still
+  // advance it by two. `13-…` asserts exactly that pairing — the counter moved
+  // AND `scrollTop` did not — because a counter that only advanced when the
+  // pane scrolled would be a second spelling of `scrollTop` and would prove
+  // nothing the existing assertion does not.
+  var seq = Number(pane.getAttribute("data-reveal-seq") || "0");
+  pane.setAttribute("data-reveal-seq", String(seq + 1));
+
   var a = pane.__btReveal || { doc: "", inner: 0, outer: 0 };
   var cur = pane.querySelector(".srcline.cur");
   if (!cur) return;
@@ -757,6 +788,10 @@ proc revealCurrentLine(pane: Element) {.importjs: """
   ## the position when it moves. The policy and its provenance are the block
   ## comment above; this is `revealLineInCenterIfOutsideViewport` over a DOM that
   ## has no Monaco to ask for it.
+  ##
+  ## Publishes `data-reveal-seq` on the pane, incremented once per call. That is
+  ## the only externally observable trace of a reveal that decided to hold
+  ## still, and `readFacts` exposes it as `revealSeq`.
 
 type
   PaneWrite = object

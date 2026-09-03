@@ -151,6 +151,19 @@ export const readFacts = (page) =>
       //
       // `sourceInView` is reported and is deliberately NOT the verdict, for the
       // reason above: it is the assertion that passes under both behaviours.
+      // HOW MANY REVEALS HAVE RUN, published by `revealCurrentLine` on the pane
+      // it reveals into (`#pane-editor .panebody`, which is `Ui.editor`).
+      //
+      // It exists because the reveal's whole policy is to do NOTHING when the
+      // position is already on screen — no scroll, no class, no event a restore
+      // does not also fire — so on the case the feature exists for there was
+      // nothing to observe and a harness could only sleep. `null` before the
+      // first reveal, because the exporter does not write the attribute.
+      revealSeq: (() => {
+        const pane = document.querySelector("#pane-editor .panebody");
+        const v = pane && pane.getAttribute("data-reveal-seq");
+        return v === null || v === undefined ? null : Number(v);
+      })(),
       sourceScroll: (() => {
         const pane = document.querySelector("#pane-editor .panebody");
         if (!pane || !cur) return null;
