@@ -49,9 +49,20 @@ proc chainPage*(chain: string, info: ChainInfo,
           tdiv(class = "stat"):
             tdiv(class = "k"): text "Transactions"
             tdiv(class = "v"): text $info.txCount
-          tdiv(class = "stat"):
-            tdiv(class = "k"): text "Coverage"
-            tdiv(class = "v mono"): text info.coverageMode
+          # COVERAGE LEFT THE STAT ROW TOO, and this is the half of the notes
+          # cleanup that was missed the first time. Dropping the `Coverage` row
+          # from the facts list below while leaving `Coverage: selective` up
+          # here moved the internal term rather than removing it — and this was
+          # the worse of the two placements: in the notes it at least had a
+          # sentence explaining what the mode does, whereas as a stat it is a
+          # bare wire value standing in a row whose other four entries are
+          # counts a reader can read at sight.
+          #
+          # `selective` is not a quantity and means nothing to a visitor. What
+          # the mode actually governs — what the Debug control does on a
+          # transaction with no recorded trace — is stated at the point the
+          # reader meets it, by the transaction page's own "No trace has been
+          # recorded for this transaction yet" panel.
 
         raw degraded.notice(degradation, note)
 
