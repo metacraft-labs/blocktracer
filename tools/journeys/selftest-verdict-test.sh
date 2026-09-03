@@ -110,6 +110,38 @@ grep -q '"status": "did-not-run"' "$J"
 ck "and the journal agrees" $?
 
 echo ""
+echo "=== probe 2b: the same, with stdout through a PIPE ==="
+# NOT a duplicate of probe 2, and the difference is the whole point.
+#
+# `process.stdout` is synchronous only for FILES and TTYs. To a PIPE it is
+# asynchronous, and `process.exit()` does not drain it — so a verdict printed
+# with `console.log` from a signal handler is written under `> file` and
+# DISCARDED under `| tee`, in a CI log collector, or through an agent's shell
+# wrapper. Probe 2 redirects, so it cannot see this; the piped runs are the ones
+# most likely to need the verdict.
+#
+# `> >(cat > file)` and not `| cat > file`: stdout is a pipe either way, but a
+# process substitution leaves `$!` as NODE's pid. In a pipeline `$!` is the last
+# stage, and signalling that would test nothing.
+rm -f "$J"
+node tools/journeys/selftest.mjs --arm A/no-position-mark > >(cat > "$LOGS/p2b") 2>&1 &
+pid=$!
+for _ in $(seq 1 600); do
+  mutation_applied && break
+  kill -0 $pid 2>/dev/null || break
+  sleep 0.5
+done
+mutation_applied
+ck "the arm's mutation is on disk — the probe has a subject" $?
+kill -TERM $pid
+wait $pid 2>/dev/null
+sleep 1   # let the `cat` on the other end of the pipe finish writing
+grep -q "RESULT: DID NOT RUN — SIGTERM" "$LOGS/p2b"
+ck "the verdict survives the pipe" $?
+git diff --quiet -- "$MUT"
+ck "and the file is back" $?
+
+echo ""
 echo "=== probe 3: the NEXT run reports the unfinished one ==="
 # SIGKILL: no handler runs, nothing is printed, and the only evidence is what
 # was already on disk. This is the ending that is indistinguishable, from the

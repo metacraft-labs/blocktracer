@@ -39,8 +39,9 @@
 ## `CallFrame.current` is `CalltraceVM.selectedEntry`, which is READ and never
 ## WRITTEN on a hydrated session — nothing in the hydration bundle or the Embed
 ## SDK's projection sets it, because a click on a row is `ct/goto-ticks` and the
-## session's answer is a POSITION. Measured on the hydrated calls-and-recursion
-## trace: 49 frames drawn, none marked. A fixture that marked one would be
+## session's answer is a POSITION. `selectionDetail`'s own comment records the
+## reading: 49 frames drawn on the hydrated calls-and-recursion trace, none
+## marked. A fixture that marked one would be
 ## testing the branch that cannot fire in the browser, and would stay green
 ## under exactly the mutation this file is here to catch — so `noneMarked`
 ## below is asserted rather than assumed, on every frame fixture.

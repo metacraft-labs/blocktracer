@@ -83,7 +83,7 @@
 //    behaviour in a browser instead — which is what the journeys are for.
 
 import { readFile, writeFile, readdir } from "node:fs/promises";
-import { writeFileSync, readFileSync } from "node:fs";
+import { writeFileSync, readFileSync, writeSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -1426,19 +1426,63 @@ const log = (s = "") => console.log(s);
 //
 // The journal is NOT a cache and is never read to skip work. It is read for
 // exactly one purpose: to say that a previous run did not finish, and where.
+// ---------------------------------------------------------------------------
+// SHARDS, BECAUSE THE SUITE DOES NOT FIT IN AN HOUR
+// ---------------------------------------------------------------------------
+//
+// MEASURED, on a warm tree with local builds: 62 arms, ~115 minutes. Each arm
+// rebuilds and reruns its journey THREE times — before, mutated, restored — so
+// the cost is a journey's runtime times three, times the number of arms aimed
+// at it. `the-timeline-can-be-dragged` runs 339 s per arm and has eight arms:
+// 45 minutes, about 39% of the whole suite, from one journey. It earns it —
+// two subject arms, three real drags each, and a settle budget whose 6 s quiet
+// window is measured against a chain seek observed at 3.0 s — but it means the
+// suite has no hope of finishing inside a box smaller than two hours.
+//
+// AND THINGS THAT RUN IT HAVE SUCH BOXES. A run under an agent's background
+// task was killed at ~60 minutes while running arm 47 of 62, with no verdict:
+// the reported symptom, reproduced exactly. `--arm` cannot answer it, because
+// it selects by NAME and a name is not a budget.
+//
+// `--shard i/n` slices the arms, and `--combine n` reads the shards' journals
+// back and issues ONE verdict over the union. The slice is by STRIDE and not by
+// contiguous block, deliberately: the eight expensive arms are adjacent in the
+// list, so a contiguous shard would hold all of them and be the whole problem
+// again. A stride spreads them.
+//
+// THE COMBINE IS NOT AN OR OF PASSES. It fails unless the shards' arms, unioned,
+// are EXACTLY the full arm list — every arm once, none missing, none twice —
+// and every one of them killed. A shard that never ran leaves no journal and
+// the combine says which one, as DID NOT RUN rather than as a failure. That is
+// the same three-verdict rule one level up: "n-1 shards passed" is not a claim
+// about the suite.
+const shardIdx = process.argv.indexOf("--shard");
+const shard = (() => {
+  if (shardIdx < 0) return null;
+  const m = /^(\d+)\/(\d+)$/.exec(process.argv[shardIdx + 1] ?? "");
+  if (!m) return null;
+  const [i, of] = [Number(m[1]), Number(m[2])];
+  return i >= 1 && i <= of ? { i, of } : null;
+})();
+
+const journalPath = shard
+  ? JOURNAL.replace(/\.json$/, `.shard-${shard.i}of${shard.of}.json`)
+  : JOURNAL;
+
 const journal = {
   startedAt: new Date().toISOString(),
   finishedAt: null,
   status: "running",
   planned: null,
   armFilter: null,
+  shard,
   arms: [],
   lastArmStarted: null,
 };
 
 const writeJournal = () => {
   try {
-    writeFileSync(JOURNAL, JSON.stringify(journal, null, 2));
+    writeFileSync(journalPath, JSON.stringify(journal, null, 2));
   } catch {
     /* a journal that cannot be written must not be able to fail the run */
   }
@@ -1467,6 +1511,31 @@ const restoreInFlight = () => {
 let verdictPrinted = false;
 
 /**
+ * `console.log` STRAIGHT TO THE FILE DESCRIPTOR, and this is not a style
+ * preference.
+ *
+ * Node's `process.stdout` is synchronous only for files and TTYs. **To a PIPE
+ * it is asynchronous** — and `process.exit()` does not drain it, nor does an
+ * `exit` handler get another turn of the loop. So the two paths that exist to
+ * guarantee a verdict, the signal handler and the `exit` handler, are exactly
+ * the two whose `console.log` can be discarded, and only when the output is
+ * piped. Under `> file` it works; under `| tee run.log`, in a CI log collector,
+ * or through an agent's shell wrapper, the verdict silently disappears — which
+ * would restore the very thing this whole section removes, on the runs most
+ * likely to need it.
+ *
+ * `selftest-verdict-test.sh` runs the SIGTERM probe both redirected and piped
+ * for this reason. With `console.log` here the piped one prints no verdict.
+ */
+const logSync = (s) => {
+  try {
+    writeSync(1, s + "\n");
+  } catch {
+    console.log(s); // EAGAIN on a full pipe: better a late line than none
+  }
+};
+
+/**
  * Print the run's one verdict, and record it. The ONLY way an exit code is set.
  *
  * `status` is the machine word and goes in the journal; `line` is what a human
@@ -1478,7 +1547,7 @@ const finish = (status, line, code) => {
   journal.status = status;
   journal.finishedAt = new Date().toISOString();
   writeJournal();
-  log(line);
+  logSync(line);
   process.exitCode = code;
 };
 
@@ -1496,8 +1565,8 @@ const progressSoFar = () => {
 for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
   process.on(sig, () => {
     const restored = restoreInFlight();
-    log("");
-    if (restored) log(`  ${sig} — restored the mutated file: ${restored}`);
+    logSync("");
+    if (restored) logSync(`  ${sig} — restored the mutated file: ${restored}`);
     finish(
       "did-not-run",
       `RESULT: DID NOT RUN — ${sig} ${progressSoFar()}.\n` +
@@ -1519,17 +1588,122 @@ process.on("exit", () => {
   journal.status = "did-not-run";
   journal.finishedAt = new Date().toISOString();
   writeJournal();
-  log("");
-  log(`RESULT: DID NOT RUN — the run ended without a verdict ${progressSoFar()}.`);
+  logSync("");
+  logSync(`RESULT: DID NOT RUN — the run ended without a verdict ${progressSoFar()}.`);
 });
 
 /** What the PREVIOUS run's journal says, or `null` if there is none. */
 function previousRun() {
   try {
-    return JSON.parse(readFileSync(JOURNAL, "utf8"));
+    return JSON.parse(readFileSync(journalPath, "utf8"));
   } catch {
     return null;
   }
+}
+
+/** The per-journey wall-clock table, over any list of journalled arms. */
+function timingTable(arms) {
+  const per = new Map();
+  for (const a of arms) {
+    const e = per.get(a.journey) ?? { arms: 0, seconds: 0 };
+    e.arms += 1;
+    e.seconds += a.seconds ?? 0;
+    per.set(a.journey, e);
+  }
+  const total = arms.reduce((n, a) => n + (a.seconds ?? 0), 0) || 1;
+  log("wall clock, by journey:");
+  for (const [j, e] of [...per].sort((a, b) => b[1].seconds - a[1].seconds)) {
+    log(
+      `  ${String(e.seconds).padStart(5)}s  ${String(Math.round((100 * e.seconds) / total)).padStart(3)}%  ` +
+        `${String(e.arms).padStart(2)} arm(s)  ${String(Math.round(e.seconds / e.arms)).padStart(4)}s/arm  ${j}`,
+    );
+  }
+  log(`  ${String(total).padStart(5)}s                ${arms.length} arm(s)  TOTAL`);
+  log("");
+}
+
+/**
+ * `--combine n` — one verdict over n shards' journals.
+ *
+ * Read `combine` as an ASSERTION about coverage, not as a merge. It is the
+ * place where "the full set" is claimed, so it has to be the place that checks
+ * the full set is what was run.
+ */
+function combine(n) {
+  log("=== journey selftest — combining shards ===");
+  log("");
+  const shards = [];
+  const missing = [];
+  for (let i = 1; i <= n; i += 1) {
+    const p = JOURNAL.replace(/\.json$/, `.shard-${i}of${n}.json`);
+    try {
+      shards.push({ i, ...JSON.parse(readFileSync(p, "utf8")) });
+    } catch {
+      missing.push(i);
+    }
+  }
+  for (const s of shards) {
+    log(`  shard ${s.i}/${n}: ${s.status}, ${(s.arms ?? []).length} of ${s.planned ?? "?"} arm(s), ` +
+        `started ${s.startedAt}`);
+  }
+  for (const i of missing) log(`  shard ${i}/${n}: NO JOURNAL — it did not run, or ran elsewhere`);
+  log("");
+
+  const unfinished = shards.filter((s) => s.status === "running");
+  if (missing.length > 0 || unfinished.length > 0) {
+    for (const s of unfinished) {
+      log(`  shard ${s.i}/${n} never finished` +
+          (s.lastArmStarted ? ` — it stopped while running ${s.lastArmStarted}` : ""));
+    }
+    finish(
+      "did-not-run",
+      `RESULT: DID NOT RUN — ${missing.length + unfinished.length} of ${n} shard(s) produced no` +
+        " verdict, so there is nothing here to combine. This is NOT a failure: the arms in\n" +
+        "        those shards were not judged either way.",
+      2,
+    );
+    return;
+  }
+
+  // EVERY ARM ONCE. A stride that skipped one, an `n` that disagrees between
+  // the shards and the combine, or two shards run with the same index would all
+  // otherwise produce a confident verdict over a subset.
+  const seen = new Map();
+  for (const s of shards) for (const a of s.arms ?? []) {
+    seen.set(a.id, [...(seen.get(a.id) ?? []), { ...a, shard: s.i }]);
+  }
+  const absent = ARMS.filter((a) => !seen.has(a.id)).map((a) => a.id);
+  const twice = [...seen].filter(([, v]) => v.length > 1).map(([k]) => k);
+  const alien = [...seen.keys()].filter((id) => !ARMS.some((a) => a.id === id));
+  if (absent.length || twice.length || alien.length) {
+    for (const id of absent) log(`  NOT RUN BY ANY SHARD  ${id}`);
+    for (const id of twice) log(`  RUN BY MORE THAN ONE SHARD  ${id}`);
+    for (const id of alien) log(`  AN ARM NO LONGER IN THIS FILE  ${id}  (the shards are stale)`);
+    finish(
+      "did-not-run",
+      `RESULT: DID NOT RUN — the shards do not cover the arm list exactly, so a verdict\n` +
+        "        over them would be a verdict over a subset wearing the full set's name.",
+      2,
+    );
+    return;
+  }
+
+  const all = [...seen.values()].map((v) => v[0]);
+  const notKilled = all.filter((a) => a.verdict !== "killed");
+  timingTable(all);
+  log(`${all.length} arm(s) over ${n} shard(s): ` +
+      `${all.length - notKilled.length} killed, ` +
+      `${notKilled.filter((a) => a.verdict === "survived").length} survived, ` +
+      `${notKilled.filter((a) => a.verdict === "never").length} never ran`);
+  for (const a of notKilled) {
+    log(`  ${a.verdict === "survived" ? "SURVIVED " : "NEVER RAN"}  ${a.id}  [shard ${a.shard}]`);
+  }
+  if (notKilled.length > 0) {
+    finish("failed", "RESULT: FAILED — every arm must be killed by the assertion written for it", 1);
+    return;
+  }
+  log("  Each journey reddens on the defect it exists to catch, and only then.");
+  finish("ok", "RESULT: OK", 0);
 }
 
 /**
@@ -1755,6 +1929,21 @@ async function strandedMutations() {
 }
 
 async function main() {
+  const combineIdx = process.argv.indexOf("--combine");
+  if (combineIdx >= 0) {
+    const n = Number(process.argv[combineIdx + 1]);
+    if (!Number.isInteger(n) || n < 1) {
+      finish("did-not-run", "RESULT: DID NOT RUN — --combine needs the shard COUNT, e.g. `--combine 4`", 2);
+      return;
+    }
+    combine(n);
+    return;
+  }
+  if (shardIdx >= 0 && !shard) {
+    finish("did-not-run", "RESULT: DID NOT RUN — --shard needs `i/n` with 1 <= i <= n, e.g. `--shard 2/4`", 2);
+    return;
+  }
+
   log("=== journey selftest — do the journeys bite? ===");
   log("    One mutation per arm, in real product source, each aimed at ONE");
   log("    assertion. An arm passes only if THAT assertion flips, and only if");
@@ -1835,7 +2024,7 @@ async function main() {
   // own summary rather than reporting a pass over the arms it skipped.
   const armFilterIdx = process.argv.indexOf("--arm");
   const armFilter = armFilterIdx >= 0 ? process.argv[armFilterIdx + 1] : null;
-  const arms = armFilter ? ARMS.filter((a) => a.id.includes(armFilter)) : ARMS;
+  let arms = armFilter ? ARMS.filter((a) => a.id.includes(armFilter)) : ARMS;
   if (armFilter) {
     log(`--arm ${armFilter}: running ${arms.length} of ${ARMS.length} arm(s)`);
     log("");
@@ -1844,8 +2033,17 @@ async function main() {
       return;
     }
   }
+  if (shard) {
+    arms = arms.filter((_, i) => i % shard.of === shard.i - 1);
+    log(`--shard ${shard.i}/${shard.of}: running ${arms.length} of ${ARMS.length} arm(s)`);
+    log(`  A SHARD IS NOT A RUN. Its verdict is about the arms it holds, and the`);
+    log(`  suite's claim is the full set — \`--combine ${shard.of}\` makes it, or says`);
+    log(`  which shard is missing.`);
+    log("");
+  }
   journal.planned = arms.length;
   journal.armFilter = armFilter;
+  journal.shard = shard;
   writeJournal();
 
   // Recorded per arm, and reported as a table at the end. Not decoration: the
@@ -1854,7 +2052,6 @@ async function main() {
   // does not carry its own timings makes that a matter of opinion every time it
   // is asked. It also localises a stall — an arm that is running when the run
   // is killed is named in the journal, beside how long its neighbours took.
-  const armStartedAt = () => Date.now();
   const recordArm = (arm, verdict, startedAt) => {
     const seconds = Math.round((Date.now() - startedAt) / 1000);
     journal.arms.push({ id: arm.id, journey: arm.journey, verdict, seconds });
@@ -1864,7 +2061,7 @@ async function main() {
   };
 
   for (const arm of arms) {
-    const started = armStartedAt();
+    const started = Date.now();
     journal.lastArmStarted = arm.id;
     writeJournal();
     const needsBundle = await judgesHydratedArtefact(arm.journey);
@@ -2003,33 +2200,15 @@ async function main() {
     log("");
   }
 
-  // ── what this run cost, per journey ────────────────────────────────────────
-  //
   // Every arm rebuilds the tree and reruns its journey THREE times — before,
   // mutated, restored — so an arm costs three runs of one journey plus two
   // builds, and a journey that is slow is slow eight times over if eight arms
   // point at it. Printed as a table because the alternative is arguing about
   // it: the suite's own numbers decide whether one journey's arms dominate.
-  const perJourney = new Map();
-  for (const a of journal.arms) {
-    const e = perJourney.get(a.journey) ?? { arms: 0, seconds: 0 };
-    e.arms += 1;
-    e.seconds += a.seconds;
-    perJourney.set(a.journey, e);
-  }
-  const total = journal.arms.reduce((n, a) => n + a.seconds, 0) || 1;
-  log("wall clock, by journey:");
-  for (const [j, e] of [...perJourney].sort((a, b) => b[1].seconds - a[1].seconds)) {
-    log(
-      `  ${String(e.seconds).padStart(5)}s  ${String(Math.round((100 * e.seconds) / total)).padStart(3)}%  ` +
-        `${String(e.arms).padStart(2)} arm(s)  ${j}`,
-    );
-  }
-  log(`  ${String(total).padStart(5)}s         ${journal.arms.length} arm(s)  TOTAL`);
-  log("");
+  timingTable(journal.arms);
 
   log(`${arms.length} arm(s): ${killed} killed, ${survived} survived, ${neverRan} never ran`);
-  if (armFilter) log(`(filtered run — ${ARMS.length - arms.length} arm(s) not exercised)`);
+  if (armFilter || shard) log(`(partial run — ${ARMS.length - arms.length} arm(s) not exercised)`);
   if (killed !== arms.length) {
     // Named, not counted. "Some arm is not killed" sends the reader back
     // through the log; the arms that are not killed are known here, and a dead
@@ -2039,24 +2218,28 @@ async function main() {
     }
     finish(
       "failed",
-      armFilter
-        ? "RESULT: FAILED — over the filtered subset only; the full set is this suite's claim"
+      armFilter || shard
+        ? "RESULT: FAILED — over this subset only; the full set is still this suite's claim"
         : "RESULT: FAILED — every arm must be killed by the assertion written for it",
       1,
     );
     return;
   }
   log("  Each journey reddens on the defect it exists to catch, and only then.");
-  // A filtered run still exits 0 — `--arm` is the supported way to land one arm
-  // without re-proving sixty-one others — but it does NOT get to print the same
-  // word as a full run. The suite's claim is the full set, and "OK" over a
-  // subset is the sentence someone quotes later.
+  // A partial run still exits 0 — `--arm` is the supported way to land one arm
+  // without re-proving sixty-one others, and a shard is one leg of a run that
+  // does not fit in one box — but neither gets to print the same word as a full
+  // run. The suite's claim is the full set, and "OK" over a subset is the
+  // sentence someone quotes later.
   finish(
     "ok",
-    armFilter
-      ? `RESULT: OK OVER ${arms.length} OF ${ARMS.length} ARMS — a filtered run. The full set is` +
-          " this suite's claim, and it has NOT been made here."
-      : "RESULT: OK",
+    shard
+      ? `RESULT: OK OVER SHARD ${shard.i}/${shard.of} (${arms.length} of ${ARMS.length} arms).` +
+          ` The suite's claim needs \`--combine ${shard.of}\`.`
+      : armFilter
+        ? `RESULT: OK OVER ${arms.length} OF ${ARMS.length} ARMS — a filtered run. The full set is` +
+            " this suite's claim, and it has NOT been made here."
+        : "RESULT: OK",
     0,
   );
 }
