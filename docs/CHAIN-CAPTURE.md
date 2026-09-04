@@ -585,8 +585,12 @@ page "only because that page has no CTFS reader — the site build is hermetic a
 cannot depend on `codetracer-trace-format-nim`", and that the pane's note was
 therefore accurate as it stood: *"They are listed once the session is live."*
 
-**That conclusion did not follow from its premises, and it stood for six review
-rounds because it sounded like a fact about the architecture.** The build indeed
+**That conclusion did not follow from its premises, and it went unchallenged
+because it sounded like a fact about the architecture rather than an inference.**
+(The six review rounds this section cites elsewhere — vd9-r1 L4/L5/ADV, vd9-r2
+L5/ADV — filed the pane's *wording*, not its emptiness. The emptiness was never
+contested, which is the point: a sentence asserting an impossibility stops people
+looking, and reviewers kept correcting the explanation instead.) The build indeed
 does not open a container. But `instructions/<tx>.json` and `positions/<tx>.json`
 are also read out of these same containers by that same reader — the read happens
 BY HAND, ahead of the build, and the result is committed (`just chain-instructions`).
