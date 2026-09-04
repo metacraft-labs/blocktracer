@@ -94,8 +94,10 @@ type
       ## Orthogonal to both of them rather than another rung of the same ladder:
       ## `instructions` and `positions` are per-STEP streams and answer "where
       ## is this step", while this answers "what called what", which a recording
-      ## can carry at any rung. Every container in the chain corpus is at the
-      ## instruction-level floor and every one of them names its frames.
+      ## can carry at any rung. Measured on the committed corpus: 26 containers
+      ## at rung 3 and one at rung 2, and all 27 name their frames — so the two
+      ## questions really are independent, rather than independent in principle
+      ## and correlated in this data.
     hasManifest*: bool
     manifest*: TraceManifest
     manifestError*: string
