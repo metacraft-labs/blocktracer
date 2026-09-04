@@ -109,7 +109,7 @@ preview-live: export-hydrated replay-engine
 
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
-test: test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-capability-tour test-instruction-listing test-scrub-queue test-selection-detail test-noir-frame-folding
+test: test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-capability-tour test-instruction-listing test-scrub-queue test-selection-detail test-noir-frame-folding test-frame-identity-jump
 
 # The static-export round-trip test: compile + run the real exporter into a
 # temp dir, then assert the three view types render for the demo entities and
@@ -257,3 +257,13 @@ clean:
 # gates can go red — is `just chain-selftest`.
 test-noir-frame-folding:
     nim c -r --mm:orc --hints:off tests/test_noir_frame_folding.nim
+
+# Which FRAME a call-trace row names, and whether a click can land on it.
+#
+# The pane's coordinates are not injective over its rows — forty-six frames,
+# twenty-two distinct steps, and a chain of six that are all open at step 59 —
+# so a jump keyed on the coordinate has one destination for six different
+# functions and can mark none of them. The anchors ARE injective on the same
+# pane, and this suite is what holds the seam that uses them.
+test-frame-identity-jump:
+    nim c -r --mm:orc --hints:off tests/test_frame_identity_jump.nim

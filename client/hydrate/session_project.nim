@@ -583,6 +583,48 @@ proc projectCalltrace*(vm: CalltraceVM; contentHash = ""): CallTracePane =
     result.frames[i].href = positionQuery(
       contentHash, result.frames[i].step, result.frames[i].anchor)
 
+proc selectCalltraceFrame*(s: LiveSession; anchor: string): bool =
+  ## Make the frame `anchor` names the selected one, so the next projection
+  ## marks THAT row and no other.
+  ##
+  ## ## Why this exists, when `projectCalltrace` above already renders a mark
+  ##
+  ## It renders `current: vm.selectedEntry.val == some(line.index)` — a
+  ## SELECTION, not a coordinate comparison — and it has been right the whole
+  ## time. Nothing ever wrote `selectedEntry`, so the comparison was against
+  ## `none` on every row of every stop, and a hydrated session drew its frames
+  ## with none of them marked. `session_view` records the measurement: "49
+  ## frames drawn, none marked." The renderer was not the missing half; the
+  ## write was.
+  ##
+  ## ## Why the anchor is what comes in, and an index is not
+  ##
+  ## The caller is a click on a row in the DOM, and what that row carries is
+  ## `data-anchor`. It could carry a row ordinal instead, and that ordinal would
+  ## be wrong twice over: the served page's rows are the static export's and the
+  ## live pane's are the engine's, so an ordinal minted by one producer would be
+  ## read by the other, and `CalltraceVM` indexes entries from
+  ## `startLineIndex` — a windowed pane's first row is not entry zero. The
+  ## anchor is a call PATH, both producers derive it from the same function, and
+  ## it survives both.
+  ##
+  ## `false` when the anchor names no frame in the live pane — a click on a
+  ## served row the engine's window does not currently hold. The caller keeps
+  ## the seek it was going to do anyway, so a row still moves the session; it
+  ## just cannot also claim to have selected a frame that is not there.
+  let pane = projectCalltrace(s.calltrace)
+  let i = frameOfAnchor(pane, anchor)
+  if i < 0: return false
+  # The projection walks `visibleLines` in order and appends one frame per line,
+  # so frame `i` IS line `i`. Re-read here rather than carried through the pane
+  # because `CallFrame` has no entry index and must not grow one: the index is
+  # the live ViewModel's private numbering, and putting it on the shared pane
+  # type would hand the static producer a field it can only fill with a lie.
+  let lines = s.calltrace.visibleLines.val
+  if i >= lines.len: return false
+  s.calltrace.selectEntry(some(lines[i].index))
+  true
+
 proc applyLocals*(s: LiveSession; variables: seq[Variable]) =
   ## Mirror a backend locals response into the store, as the session's own
   ## position's.

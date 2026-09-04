@@ -2164,6 +2164,26 @@ proc bindGestures(h: Hydration) =
       if row == nil: return
       let step = attr(row, "data-step")
       if step.len == 0: return
+      # WHICH FRAME, before WHERE IN TIME. The row carries both and only one of
+      # them identifies it: on the published transaction forty-six frames carry
+      # twenty-two distinct steps, and the six that run
+      # `Map::at` → `derive_storage_slot_in_map` → `poseidon2_hash_with_separator`
+      # → `poseidon2_hash` → `Poseidon2::hash` → `Poseidon2::hash_internal` are
+      # all open at step 59. A click carrying only the coordinate sends all six
+      # to one place and leaves the pane unable to say which was asked for —
+      # which is what it did, and why no row came back marked.
+      #
+      # `data-anchor` is the §6.0a call path. It has been rendered on every row
+      # since the anchors landed, both producers compute it from the same
+      # function, and it is in the row's own href — it was present, correct and
+      # read by nothing at the moment it was needed. This is that moment.
+      #
+      # The seek below still happens, and still happens on EVERY row. Selecting
+      # a frame says which one the reader means; it does not move the session,
+      # and a row whose anchor the live window does not hold must still take the
+      # visitor to its coordinate rather than becoming inert.
+      let anchor = attr(row, "data-anchor")
+      if anchor.len > 0: discard h.session.selectCalltraceFrame(anchor)
       # The row IS a link in a hydrated page, and its href is a real, valid
       # §6.0a URL — which is what makes middle-click, "open in new tab" and
       # copy-link-address all work, and what makes Enter activate it without a

@@ -94,6 +94,75 @@ proc withCallAnchors*(p: var CallTracePane) =
   for i in 0 ..< p.frames.len:
     p.frames[i].anchor = "call:" & callPath(p.frames, i)
 
+# ---------------------------------------------------------------------------
+# Frame identity — the reading half of the anchor above
+# ---------------------------------------------------------------------------
+#
+# ## A tick does not name a frame, and on this corpus it usually cannot
+#
+# `CallFrame.step` is a TIME, and time is shared. On the transaction this
+# repository publishes, forty-six frames carry twenty-two distinct steps: the
+# six frames `Map<K, V, Context>::at` → `derive_storage_slot_in_map` →
+# `poseidon2_hash_with_separator` → `poseidon2_hash` → `Poseidon2::hash` →
+# `Poseidon2::hash_internal` are ALL open at step 59, because a call that
+# immediately calls another records no step in between. That is not a defect in
+# the recording — at step 59 the stack really is ten deep — it is the reason a
+# coordinate cannot be asked which of those six frames a reader meant.
+#
+# The call path can be, and `withCallAnchors` above already gives every frame
+# one: forty-six frames, forty-six distinct anchors, on the same pane where the
+# steps collide thirty-four times. `test_debug_route` has asserted that
+# distinctness since the anchors landed. So the anchor is the frame's identity
+# and the step is merely where it starts, and these two procs are what let a
+# caller hold the first without going through the second.
+#
+# Nothing here consults `step`. That is deliberate and it is what makes this
+# usable from either producer: the static export mints a frame's `step` from
+# the container's step CLOCK (`tools/chain/lib/calltrace_frames.mjs`) and the
+# live session takes it from the engine's `rrTicks`, and the two disagree by one
+# on almost every frame. A selection keyed on the anchor is the same selection
+# under both numbering conventions, so this seam does not have to wait for that
+# disagreement to be settled.
+
+func frameOfAnchor*(ct: CallTracePane; anchor: string): int =
+  ## The INDEX of the frame `anchor` names, or `-1` when no frame carries it.
+  ##
+  ## An index and not a coordinate, because the index is what identifies the
+  ## row: two frames may share a step, and on this corpus most of them do.
+  ## `resolveAnchor` below answers the coordinate question §6.0a asks; this
+  ## answers the identity question a CLICK asks, and they are different
+  ## questions over the same rows.
+  result = -1
+  if anchor.len == 0: return
+  for i in 0 ..< ct.frames.len:
+    if ct.frames[i].anchor.len > 0 and ct.frames[i].anchor == anchor:
+      return i
+
+proc selectFrame*(p: var CallTracePane; anchor: string): int =
+  ## Mark exactly the frame `anchor` names as current, and no other. Returns the
+  ## index it marked, or `-1` — in which case NOTHING is marked and the pane is
+  ## left saying no frame is current rather than guessing at one.
+  ##
+  ## EVERY OTHER FRAME IS CLEARED FIRST, including when the lookup then fails.
+  ## A selection that added a mark without removing the previous one would leave
+  ## two rows claiming to be the position, and the renderer draws `cur` on both;
+  ## the reader would see the pane assert something the session cannot mean.
+  ##
+  ## This is the whole of "the clicked row is the marked row". The alternative
+  ## the producers reach for otherwise is interval containment on the step —
+  ## `f.step <= pos and pos <= endStep`, deepest match wins — which on the six
+  ## frames above marks `Poseidon2::hash_internal` whichever of them was
+  ## clicked, because all six contain step 59 and it is the deepest. Containment
+  ## answers "where is the session", and it is still the right answer to that;
+  ## it cannot answer "which frame did the reader ask for".
+  result = -1
+  for i in 0 ..< p.frames.len:
+    p.frames[i].current = false
+  let i = frameOfAnchor(p, anchor)
+  if i < 0: return
+  p.frames[i].current = true
+  result = i
+
 proc withEventAnchors*(p: var EventLogPane) =
   ## Give every event row the §6.0a anchor its KIND supports, and give the
   ## others none.
@@ -222,6 +291,22 @@ type
       ## recover from and nothing to announce. Conflating the two would put a
       ## sentence about a failed deep link on every plain page view.
     coordinate*: int
+    frame*: int
+      ## The INDEX of the call-trace frame the link resolved to, or `-1`.
+      ##
+      ## Carried beside the coordinate rather than derived from it, because it
+      ## cannot be derived from it: `coordinate` is a step, and on the published
+      ## transaction thirty-four of forty-six frames share their step with a
+      ## sibling. A caller handed only the coordinate and asked to mark the row
+      ## the link named has to guess, and the guess that suggests itself —
+      ## innermost frame containing the step — is wrong for five of those six
+      ## poseidon2 frames every time.
+      ##
+      ## `-1` for a link that named no frame: a `log:` or `sw:` anchor resolving
+      ## against the event log, an enclosing-frame fallback, or the execution
+      ## start. Those land at a coordinate without selecting a row, which is a
+      ## different and weaker thing than landing ON a frame, and the field says
+      ## so rather than pointing at row 0.
     notice*: PositionNotice
     parseErrors*: seq[string]
       ## What the grammar rejected, kept so a caller can distinguish a link
@@ -246,6 +331,12 @@ proc resolveLanding*(payload: string;
   ## the address, or followed a link with no position in it — returns
   ## `asked = false` and nothing else, which is the only outcome that renders
   ## no notice besides an exact hit.
+  # BEFORE the early returns, so every outcome carries it. `0` is a real frame
+  # index and `LinkLanding` is zero-initialised, so a landing that resolved no
+  # frame would otherwise claim to have landed on the first one — and the two
+  # returns below are the ordinary-visit and not-a-deep-link paths, which are
+  # exactly the ones that resolve nothing.
+  result.frame = -1
   var raw = payload
   if raw.startsWith("?") or raw.startsWith("#"): raw = raw[1 .. ^1]
   if raw.strip.len == 0: return
@@ -270,6 +361,14 @@ proc resolveLanding*(payload: string;
     executionStartCoordinate: $startCoordinate(calltrace, eventLog)))
 
   result.coordinate = coordinateOf(decision.coordinate)
+  # ONLY on an exact hit. The enclosing-frame branch resolves a frame too, and
+  # it is deliberately not reported here: §6.0a's step 4 is the claim "the frame
+  # that WOULD contain it", which is a statement about a link whose target is
+  # gone. Marking that frame as the one the reader asked for would dress the
+  # weaker claim as the stronger one — the precedence keeps them in two
+  # sentences and this keeps them in two states.
+  if found.exactFound:
+    result.frame = frameOfAnchor(calltrace, anchorWire(link.anchor))
   result.notice = PositionNotice(outcome: $decision.outcome,
                                  statement: decision.statement)
   # §6.0a: "Every branch below (2) is visible." The SDK decides which those are
