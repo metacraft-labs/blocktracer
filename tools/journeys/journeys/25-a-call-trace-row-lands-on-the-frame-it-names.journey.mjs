@@ -60,7 +60,7 @@ export const claim =
   "A reader who clicks a call-trace row lands on the frame that row names, and that row is the one marked — even where several frames share a coordinate.";
 export const spec = "Debugger-Integration.md §3, §6.0a — BlockTracer";
 export const needsEngine = true;
-export const assertions = 10;
+export const assertions = 11;
 
 /** Every live call-trace row, with the two identities it carries. */
 const readRows = (page) =>
@@ -72,6 +72,12 @@ const readRows = (page) =>
       anchor: r.getAttribute("data-anchor"),
       name: r.querySelector(".ctname")?.textContent ?? null,
       current: r.classList.contains("cur"),
+      // WHOSE ROW IS THIS. The live producer gives every frame an `href`, which
+      // `renderCallTrace` draws as an `<a>`; the static export leaves it empty
+      // and draws a `<div>` (`CallFrame.href` — "Empty on every statically
+      // exported page and non-empty only in a hydrated one"). So the tag name
+      // is the producer, and the CONTROL below reads it.
+      live: r.tagName === "A",
     }));
   });
 
@@ -163,6 +169,33 @@ export async function run({ browser, site, j }) {
   try {
     j.note(`driving ${subject.debugPath}; ${group.length} rows share step ${group[0].step}`);
 
+    // THE CONTROL, AND IT COMES FIRST SO A FAILURE NAMES THE RIGHT THING.
+    //
+    // Everything below judges what a click does to the LIVE pane. If the live
+    // pane never painted, the rows under the cursor are the static export's,
+    // every assertion below fails, and the reading "the anchor is not being
+    // honoured" would be wrong — the anchor never got the chance. Journey 09
+    // makes the same check for the same reason, and its subject is a small
+    // capture where it passes.
+    //
+    // Measured on 2026-09-04 against this deep capture: it FAILS, and the cause
+    // is not the call trace. `renderSource` overflows the JavaScript stack on
+    // this transaction's 4 MB source document — Nim-JS builds a string as a
+    // char-code array and joins it, which does not scale to a document this
+    // size — and it throws out of `renderPanes` BEFORE the call-trace pane is
+    // written. So the served rows stand, no live row is ever marked, and seven
+    // `Maximum call stack size exceeded` errors are on the page. That is a
+    // separate defect in a separate pane, it is present on unmodified `dev`,
+    // and it blocks this claim from being judged on the only capture in the
+    // corpus that can judge it.
+    const anchorRows = (await readRows(page)).filter((r) => r.live).length;
+    j.expect(
+      anchorRows > 0,
+      "CONTROL: the Call Trace rows are the engine's, not the export's",
+      `${anchorRows} of ${group.length ? (await readRows(page)).length : 0} rows are live links;` +
+        " 0 means renderPanes never wrote this pane and nothing below judges a live session",
+    );
+
     // THE PREMISE, COUNTED. The collision is what makes the coordinate
     // insufficient, and a subject that quietly stopped colliding would leave
     // every assertion below green while measuring nothing.
@@ -176,6 +209,22 @@ export async function run({ browser, site, j }) {
       group.length,
       "those same rows carry one DISTINCT anchor each, so an identity for them exists",
     );
+
+    // OPEN THE FOLDS FIRST. The deepest of these frames is inside a subtree the
+    // pane starts CLOSED — poseidon2, by the `vendored-crate` fold rule — so it
+    // is in the DOM and not on screen, and a click on it times out. A reader
+    // reaches it by opening the triangle, and this is that gesture.
+    //
+    // `open = true` rather than clicking the `<summary>`: a folded row IS the
+    // summary, so clicking it would both toggle the disclosure and count as
+    // choosing that frame, and the journey would be unable to say which of the
+    // two the mark came from.
+    const folds = await page.evaluate(() => {
+      const d = [...document.querySelectorAll(".ctview.def details.ctfold")];
+      d.forEach((e) => (e.open = true));
+      return d.length;
+    });
+    j.note(`opened ${folds} folded subtree(s) so every one of the six is on screen`);
 
     const landings = [];
     for (const target of group) {
