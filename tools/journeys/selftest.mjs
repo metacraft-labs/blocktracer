@@ -1406,7 +1406,11 @@ proc noteFor*`,
 
   // A THIRD ARM WAS TRIED AND WITHDRAWN TOO — `flow_view.applyFlow`'s rule 1,
   // `if pane.availability != srcSourceLevel: return`, aimed at the journey's
-  // "REAL: an instruction-level session is given no values overlay". It
+  // absence arms (the assertion was then spelled "REAL: an instruction-level
+  // session is given no values overlay"; it is now "REAL:"/"SOURCE-SHOWN: a
+  // session that recorded no values is given no values overlay", one per arm,
+  // since the journey gained a second absence subject — the rung-2 capture that
+  // DISPLAYS SOURCE and recorded nothing on it). It
   // SURVIVES, and for a reason worth writing down rather than working around:
   // the gate is doubled. `session_project.projectReplayPanes` only calls
   // `applyLiveFlow` inside `if result.editor.availability == srcSourceLevel`,

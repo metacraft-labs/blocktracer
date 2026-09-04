@@ -71,7 +71,9 @@ export const id = "a-stepped-session-shows-the-values-recorded-on-its-lines";
 export const claim =
   "A visitor who steps sees the engine's recorded values, placed on the source lines they were recorded on.";
 export const spec = "Omniscience-Flow.md; Page-Descriptions.md §7.0 — BlockTracer";
-export const assertions = 2 + 6 + 5; // 13
+// 3 subject sets + the source arm + two absence arms (the instruction listing
+// and the rung-2 capture that displays source and recorded nothing on it).
+export const assertions = 3 + 6 + 5 + 5; // 19
 export const needsEngine = true;
 
 /** How many times each session is stepped. See journey 11 on why it is a walk. */
@@ -252,20 +254,43 @@ export async function run({ browser, site, j }) {
   // "the other kind was not in the tree" pass as "this kind was checked".
   //
   // The predicates are the corpus's OWN classification, read out of the served
-  // markup — `hasSource` and `instructionLevel`, which it derives from the
-  // rows the page actually rendered rather than from the chain's name. That is
-  // what makes the two arms principled rather than a demo/real split that
-  // happens to line up today: a chain capture whose contract gains a verified
-  // artifact moves into the first arm on its own, and this file needs no edit.
+  // markup, which is what makes the arms principled rather than a demo/real
+  // split that happens to line up today.
+  //
+  // THE FIRST ARM'S PREDICATE WAS `hasSource` AND THAT WAS WRONG, measurably
+  // and not as a matter of taste. It selected `aztec-testnet/0x20ed5b91` — a
+  // rung-2 chain capture that publishes 32 Noir files and records no values on
+  // any of them — and this journey read the resulting 0 labels as the product
+  // having lost the overlay. The sentence this paragraph used to end on ("a
+  // chain capture whose contract gains a verified artifact moves into the first
+  // arm on its own, and this file needs no edit") described that displacement
+  // as a feature. It happened, and it was not one: the capture that gained a
+  // verified artifact gained SOURCE TO DISPLAY, not VALUES TO SHOW.
+  //
+  // The two facts are separate and `corpus.mjs` now names both. The arms below
+  // split on `hasRecordedValues` — did the exporter draw a value on a source
+  // line — which is the property this journey's claim actually turns on. See
+  // the "third category" header in `corpus.mjs` for why the split can never go
+  // back to being two-valued: `docs/CHAIN-CAPTURE.md` §6.5 establishes that rung
+  // 1 is structurally unreachable for any real Aztec transaction, so "displays
+  // source" and "is source-level" stay apart for chain captures permanently.
+  const sessions = all.filter((t) => landingOf(t.phase) === "session");
   const sourceLevel = j.subjects(
-    all.filter((t) => landingOf(t.phase) === "session" && t.hasSource),
+    sessions.filter((t) => t.hasSource && t.hasRecordedValues),
     1,
-    "the tree holds a session whose Code pane shows SOURCE",
+    "the tree holds a session whose Code pane shows SOURCE with values recorded on it",
   );
-  const instructionLevel = j.subjects(
-    all.filter((t) => landingOf(t.phase) === "session" && t.instructionLevel),
+  // EVERY SESSION THAT RECORDED NO VALUES, of either kind. See the "third
+  // category" header in `corpus.mjs`: an instruction listing and a rung-2 chain
+  // capture that displays source both have nothing to place a value against,
+  // and rule 1 gives them the same correct answer — an ABSENT overlay. Uniting
+  // them is what keeps the rung-2 capture ASSERTED. Selecting the source arm on
+  // `hasRecordedValues` moved it out of that arm, and a category that leaves one
+  // arm and joins no other is a subject the suite has silently stopped judging.
+  const noValues = j.subjects(
+    sessions.filter((t) => !t.hasRecordedValues),
     1,
-    "the tree holds a session whose Code pane shows an INSTRUCTION LISTING",
+    "the tree holds a session whose recording placed NO values on its rows",
   );
 
   // ── the source-level arm ────────────────────────────────────────────────
@@ -348,48 +373,76 @@ export async function run({ browser, site, j }) {
     // lets one entry in the ledger close on one fix.
   }
 
-  // ── the instruction-level arm ───────────────────────────────────────────
+  // ── the two absence arms ────────────────────────────────────────────────
   // A different correct answer, and the assertion a "draw what we have"
-  // implementation fails. The engine sends this recording a full window of
-  // values; there is no source for them to be placed against, and rule 1 is
-  // that they are ABSENT rather than approximate.
-  {
-    const tx = instructionLevel[0];
-    const { readings } = await walk(browser, site.origin, tx);
-    j.atLeast(readings.length, 2, "REAL: the chain session reached several positions");
-    j.expect(
-      readings.some((r) => r.step !== readings[0].step),
-      "REAL: CONTROL — the walk moved the position",
-      `steps ${readings.map((r) => r.step).join(" -> ")}`,
-    );
-    // THE PRECONDITION FOR AN ABSENCE TO BE A MEASUREMENT.
-    //
-    // Both assertions below are `countIs(…, 0)` over `flowLines`, and
-    // `probe.mjs` returns `flowLines: []` for ANY page where `shownDocs.length
-    // !== 1` — deliberately, because the source pane holds every document at
-    // once and a document-wide read would report the overlay of a file nobody is
-    // looking at. The consequence here is that a session showing zero documents,
-    // or four, produces an empty overlay reading and satisfies "there is no
-    // overlay" for a reason that has nothing to do with the claim.
-    //
-    // The source arm has a positive backstop — it asserts labels are PRESENT, so
-    // an empty read reddens there. This arm asserts only absences, so it has
-    // none, and the precondition has to be stated. `docsShown` comes from the
-    // same reading and is exactly the condition `flowLines` gates on.
-    j.countIs(
-      readings.filter((r) => r.facts.docsShown === 1).length,
-      readings.length,
-      "REAL: CONTROL — every reading had one document on screen, so an empty overlay is a measurement",
-    );
-    j.countIs(
-      readings.filter((r) => r.labels > 0).length,
-      0,
-      "REAL: an instruction-level session is given no values overlay",
-    );
-    j.countIs(
-      readings.filter((r) => r.lines.length > 0).length,
-      0,
-      "REAL: and no annotated lines at all",
-    );
-  }
+  // implementation fails. The engine sends these recordings a full window of
+  // values; there is nothing to place them against, and rule 1 is that they
+  // are ABSENT rather than approximate.
+  //
+  // TWO ARMS AND NOT ONE, because "recorded no values" is now two different
+  // pages and only one of them was ever driven. An instruction listing has NO
+  // SOURCE LINE to draw a label on, so a renderer that drew whatever the engine
+  // sent, wherever it could, passes that arm for free. The rung-2 chain capture
+  // does have source lines — 8,354 of them — and no values recorded against
+  // them, so it is the page where "draw what we have" actually shows. Driving
+  // only the instruction listing left the discriminating case unasserted.
+  //
+  // Each is selected by property and asserted non-empty above and below; there
+  // is no `??` between them, for the reason the header gives.
+  await absenceArm(browser, site, j, noValues[0], "REAL");
+
+  const sourceShownNoValues = j.subjects(
+    sessions.filter((t) => t.hasSource && !t.hasRecordedValues),
+    1,
+    "the tree holds a session that DISPLAYS SOURCE and recorded no values on it",
+  );
+  await absenceArm(browser, site, j, sourceShownNoValues[0], "SOURCE-SHOWN");
+}
+
+/**
+ * "This session is given no values overlay", asserted over one subject.
+ *
+ * `prefix` distinguishes the two arms' assertion texts. It is load-bearing
+ * rather than cosmetic: `selftest.mjs` resolves an arm's target with
+ * `r.what.includes(assertion)` and treats two hits as no hit, so two arms
+ * sharing an assertion text would disarm the mutation aimed at either.
+ */
+async function absenceArm(browser, site, j, tx, prefix) {
+  j.note(`${prefix}: driving ${tx.debugPath}`);
+  const { readings } = await walk(browser, site.origin, tx);
+  j.atLeast(readings.length, 2, `${prefix}: the session reached several positions`);
+  j.expect(
+    readings.some((r) => r.step !== readings[0].step),
+    `${prefix}: CONTROL — the walk moved the position`,
+    `steps ${readings.map((r) => r.step).join(" -> ")}`,
+  );
+  // THE PRECONDITION FOR AN ABSENCE TO BE A MEASUREMENT.
+  //
+  // Both assertions below are `countIs(…, 0)` over `flowLines`, and
+  // `probe.mjs` returns `flowLines: []` for ANY page where `shownDocs.length
+  // !== 1` — deliberately, because the source pane holds every document at
+  // once and a document-wide read would report the overlay of a file nobody is
+  // looking at. The consequence here is that a session showing zero documents,
+  // or four, produces an empty overlay reading and satisfies "there is no
+  // overlay" for a reason that has nothing to do with the claim.
+  //
+  // The source arm has a positive backstop — it asserts labels are PRESENT, so
+  // an empty read reddens there. This arm asserts only absences, so it has
+  // none, and the precondition has to be stated. `docsShown` comes from the
+  // same reading and is exactly the condition `flowLines` gates on.
+  j.countIs(
+    readings.filter((r) => r.facts.docsShown === 1).length,
+    readings.length,
+    `${prefix}: CONTROL — every reading had one document on screen, so an empty overlay is a measurement`,
+  );
+  j.countIs(
+    readings.filter((r) => r.labels > 0).length,
+    0,
+    `${prefix}: a session that recorded no values is given no values overlay`,
+  );
+  j.countIs(
+    readings.filter((r) => r.lines.length > 0).length,
+    0,
+    `${prefix}: and no annotated lines at all`,
+  );
 }

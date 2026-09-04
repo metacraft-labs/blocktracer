@@ -490,17 +490,34 @@ export async function run({ browser, site, j }) {
   // the day a chain capture carries source (its contract gains a verified
   // artifact, which `corpus.mjs` reads per transaction), it moves into the
   // first arm and is judged by it, with no edit here.
-  const withSource = sessions.filter((t) => t.hasSource);
-  const withoutSource = sessions.filter((t) => !t.hasSource);
+  // ...AND "PUBLISHED SOURCE" IS NOT THE PROPERTY. IT WAS, UNTIL A CAPTURE
+  // ARRIVED THAT SEPARATES THE TWO.
+  //
+  // The capability needs a VALUE to trace and a SOURCE LINE that assigned it.
+  // `hasSource` asserts only the second. `aztec-testnet/0x20ed5b91` is a rung-2
+  // chain capture with 32 published Noir files and an empty State pane — 0
+  // `.strow` rows on the served frame — and because the corpus sorts on
+  // `chain + hash` it became `withSource[0]` and the subject of this arm. The
+  // arm then counted 0 origin controls and 0 classified hops and reported a lost
+  // capability. There was no value on that page to offer a control ON.
+  //
+  // `hasRecordedState` is the corpus's name for the missing half. See its header
+  // in `corpus.mjs`, and `docs/CHAIN-CAPTURE.md` §6.5 for why the split is
+  // permanent: rung 1 is structurally unreachable for a real Aztec transaction,
+  // so a chain capture can display source and carry no source-level state
+  // forever. The paragraph above is still right that the capability follows the
+  // RECORDING and not the chain — it just names the wrong fact about it.
+  const withSource = sessions.filter((t) => t.hasSource && t.hasRecordedState);
+  const withoutSource = sessions.filter((t) => !t.hasRecordedState);
   j.atLeast(
     withSource.length,
     1,
-    `SUBJECTS: sessions whose recording published source (${withSource.length}), so the capability arm has a subject`,
+    `SUBJECTS: sessions whose recording published source AND state to trace (${withSource.length}), so the capability arm has a subject`,
   );
   j.atLeast(
     withoutSource.length,
     1,
-    `SUBJECTS: sessions whose recording published NO source (${withoutSource.length}), so the honest-absence arm has a subject`,
+    `SUBJECTS: sessions whose recording published NO values to trace (${withoutSource.length}), so the honest-absence arm has a subject`,
   );
 
   const subject = withSource[0];

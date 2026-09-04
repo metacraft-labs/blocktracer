@@ -196,10 +196,19 @@ async function stepAndSettle(page, action) {
 
 export async function run({ browser, site, j }) {
   const all = await transactions(site.root);
+  // `hasRecordedValues` AND NOT `hasSource`, for the reason journey 18 records
+  // at length and `corpus.mjs` documents under "the third category": a rung-2
+  // chain capture displays source and records no values on it, sorts ahead of
+  // every demo entry, and became `[0]` here. This journey asks where the flow
+  // WINDOW is; a recording with no window at all cannot answer, and the red it
+  // produced would not have been the red this journey's ledger entry describes.
+  // An entry can only speak for the failure it was written about.
   const subjects = j.subjects(
-    all.filter((t) => landingOf(t.phase) === "session" && t.hasSource),
+    all.filter(
+      (t) => landingOf(t.phase) === "session" && t.hasSource && t.hasRecordedValues,
+    ),
     1,
-    "the tree holds a session whose Code pane shows SOURCE",
+    "the tree holds a session whose Code pane shows SOURCE with values recorded on it",
   );
   const tx = subjects[0];
 

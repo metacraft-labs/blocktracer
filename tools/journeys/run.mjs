@@ -287,9 +287,22 @@ async function engineArm(browser, site) {
   // One subject per RECORDING KIND, selected by filter and never with a `??`:
   // a corpus that has lost a kind must be visible here as a missing probe, not
   // silently covered by whichever kind survived.
+  // THREE KINDS AND NOT TWO. "publishes source" and "recorded values on that
+  // source" came apart when the first rung-2 chain capture landed — see the
+  // "third category" header in `lib/corpus.mjs`. Probing only the two-valued
+  // split meant the engine was never opened against the kind of container that
+  // now sorts first in the corpus, which is exactly the hole this arm exists to
+  // refuse ("a list cannot notice a chain nobody added it to").
   const groups = [
-    ["recordings that publish source", sessions.filter((t) => t.hasSource)],
-    ["recordings that publish none", sessions.filter((t) => !t.hasSource)],
+    [
+      "recordings with source and values recorded on it",
+      sessions.filter((t) => t.hasSource && t.hasRecordedValues),
+    ],
+    [
+      "recordings that display source and recorded no values",
+      sessions.filter((t) => t.hasSource && !t.hasRecordedValues),
+    ],
+    ["recordings that publish no source", sessions.filter((t) => !t.hasSource)],
   ];
   const out = [];
   for (const [label, list] of groups) {

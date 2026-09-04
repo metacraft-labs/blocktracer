@@ -111,6 +111,62 @@ export async function transactions(root) {
         // SET in its own right: the pages the instruction listing exists for.
         instructionLevel: /class="src instr"/.test(html),
 
+        // ── THE THIRD CATEGORY: SOURCE IS SHOWN, NOTHING WAS RECORDED ON IT ──
+        //
+        // `hasSource` above says the Code pane's rows are SOURCE. It does NOT
+        // say the recording carries values recorded against those rows, and
+        // those are two different facts about two different things — the
+        // artifact's debug map, and the trace. Reading the first as the second
+        // is a real defect this file shipped, and it cost three journeys.
+        //
+        // WHAT HAPPENED. `aztec-testnet/0x20ed5b91` is a live FeeJuice capture
+        // whose contract artifact resolved, so the exporter publishes its 32
+        // Noir files and the Code pane renders 8,354 SOURCE rows. `hasSource`
+        // is therefore true, and because the corpus sorts on `chain + hash` it
+        // sorts ahead of every `demo/` entry and became `[0]` for every journey
+        // selecting on `hasSource`. Journeys 07 and 18 took it as their
+        // source-level subject and asked it for values it does not have: the
+        // served frame carries 0 `.fv` chips and 0 `.strow` rows. They read
+        // that as the product having lost a capability. It had not.
+        //
+        // WHY IT IS PERMANENT AND NOT A GAP TO BE CLOSED. The published replay
+        // record calls this capture `declaredRung: 2, sourceLevel: false` — 86
+        // of its 108 executed steps resolve to a source position and 22 do not,
+        // because every Aztec public transaction enters through
+        // `public_dispatch`, whose 17-instruction prologue is compiler-
+        // generated and carries no Noir line by construction. `docs/CHAIN-
+        // CAPTURE.md` §6.5 states the consequence and it is not a to-do:
+        //
+        //   "Rung 1 cannot be recorded from any real Aztec chain transaction.
+        //    Not with a better contract, not with a longer watch, not with an
+        //    upstream avm-transpiler fix… So do not set rung 1 as a target for
+        //    chain capture. The honest target is rung 2 with high coverage."
+        //
+        // So "displays source" and "is a source-level recording" have come
+        // apart PERMANENTLY for chain captures, and a two-valued split cannot
+        // express it. That is the whole of the defect: not a missing overlay,
+        // a missing NAME.
+        //
+        // AND IT IS NOT ONLY THE CHAIN CAPTURE. Measured over this corpus, 16
+        // sessions have `hasSource` and only 6 carry values — the ten demo tour
+        // programs publish source and record no state either. The journeys were
+        // green on a lottery: one of the six happened to sort first. Any subject
+        // that moved broke them, which is exactly what happened.
+        //
+        // READ FROM THE SERVED FRAME, which is the product's own statement of
+        // what it recorded. The exporter draws the REAL overlay for the frame it
+        // serves, so a chip here means the recording carries a value on a source
+        // line — the precondition, and the only honest one, for asking whether a
+        // LIVE session still shows it.
+        //
+        // TWO MARKERS AND NOT ONE, because they are two panes and a journey
+        // should not be able to pass on the strength of the other's rows. `.fv`
+        // is the omniscience overlay's chip (`debugger.nim` renders
+        // `class="fv <slot> m-<mode>"`, so the character class excludes its
+        // `fvn`/`fvv`/`fvsep`/`fvto` children); `.strow` is a State pane row.
+        hasRecordedValues: /class="fv[ "]/.test(html),
+        hasRecordedState: /class="strow[ "]/.test(html),
+
         // How many FRAME rows the served Call Trace paints.
         //
         // `data-step` is what makes it a frame: the aggregate ("self cost")
