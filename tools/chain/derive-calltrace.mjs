@@ -92,10 +92,14 @@ let skipped = 0;
 const report = [];
 
 for (const t of snap.transactions) {
-  if (t.outcome !== 'replayed' && t.outcome !== 'divergent') continue;
-  if (!t.container) continue;
+  // COUNTED, NOT SILENTLY DROPPED. A transaction with no container is a pruned
+  // body or an unreplayed one — a valid, expected row — but a run that wrote
+  // nothing and reported nothing would look identical to a run that found no
+  // snapshot at all, so the two outcomes are told apart in the report.
+  if (t.outcome !== 'replayed' && t.outcome !== 'divergent') { skipped++; continue; }
+  if (!t.container) { skipped++; continue; }
   const ct = join(dir, t.container);
-  if (!existsSync(ct)) continue;
+  if (!existsSync(ct)) { skipped++; continue; }
 
   const events = JSON.parse(execFileSync(ctPrint, ['--events', ct],
     { encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 }));
