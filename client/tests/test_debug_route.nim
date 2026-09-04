@@ -4290,6 +4290,78 @@ suite "§6.0a — the five resolution branches, each one visible":
     # §6.0's table treats as unverifiable, not as agreement.
     check "data-content-hash=\"\"" in debugHtml(onDemandTx)
 
+suite "§6.0a — the position is written without taking the fragment with it":
+  ## WHY THIS SUITE EXISTS
+  ##
+  ## `positionQuery` returns a QUERY-ONLY relative reference. Resolved against
+  ## the current URL, that keeps the path, replaces the query — and sets the
+  ## fragment to NULL. `hydrate.paint` wrote it bare, on every live paint after
+  ## the engine reported a position, with no user gesture. So the visitor's
+  ## fragment was destroyed the moment the session went live.
+  ##
+  ## What that cost is not hypothetical, and `positionQuery`'s own comment names
+  ## it: "the source pane's per-line ids and the pane stack's `:target` tabs both
+  ## live there". The pane tab, the source-document tab, the self-cost view and
+  ## the loop rail rung are all `:target` state, and the page's own Share control
+  ## (`pages/debug.nim`) emits `positionQuery(...) & "#" & share.element` — both
+  ## halves — so the product was dropping the half it had just written.
+  ##
+  ## THE RULE IS NOT "ALWAYS KEEP IT". A payload fragment (`#v=1&t=…`) is §6's
+  ## URL form; hydration reads it at load and re-expresses it in the query, so
+  ## keeping it would leave a stale duplicate that freezes at the arrival
+  ## position while the query tracks the session. Spent payload out, element id
+  ## kept — the same precedence `linkPayload` applies, read backwards.
+
+  let hash = sessionFor(readyTx).traceContentHash
+  doAssert hash.len > 0,
+    "the ready transaction has no traceContentHash — `positionQuery` would " &
+    "emit no witness and the payload/element distinction below would be " &
+    "asserting about a grammar this product never writes"
+  let q = positionQuery(hash, 41, "")
+  doAssert q.startsWith("?v="),
+    "positionQuery no longer emits a query-only reference; this suite's " &
+    "subject has moved and the assertions below no longer describe it"
+
+  test "an element fragment survives the position write":
+    # The shape every share link carries, and the shape `:target` reads.
+    check withPreservedFragment(q, "#L-src-shield-nr-32") ==
+          q & "#L-src-shield-nr-32"
+    check withPreservedFragment(q, "#pane-eventlog") == q & "#pane-eventlog"
+    # A caller that hands over the id without its `#` gets the same URL, so the
+    # one separator is not a thing two call sites can disagree about.
+    check withPreservedFragment(q, "L-src-shield-nr-32") ==
+          q & "#L-src-shield-nr-32"
+
+  test "a spent payload fragment does not survive it":
+    # This is the §6 URL form. Hydration has already read it and re-expressed it
+    # in `q`; re-appending it would publish two positions that disagree the
+    # moment the visitor steps.
+    let payload = positionQuery(hash, 12, "")
+    let asFragment = "#" & payload[1 .. ^1]
+    check carriesPayload(asFragment)
+    check withPreservedFragment(q, asFragment) == q
+    # And the discriminator is `v`, asked of the real parser — not a guess at
+    # the spelling. An element id carries no `=` at all and is never a payload.
+    check not carriesPayload("#L-src-shield-nr-32")
+    check not carriesPayload("#pane-eventlog")
+    check not carriesPayload("")
+
+  test "no fragment is not a fragment to invent":
+    check withPreservedFragment(q, "") == q
+    # A bare `#` names no element and is not a payload; it must not become a
+    # trailing `#` the visitor never typed.
+    check withPreservedFragment(q, "#") == q & "#"
+
+  test "the Share control's own URL round-trips through the write":
+    # `pages/debug.nim` emits `positionQuery(...) & "#" & share.element`. Split
+    # that at the `#`, put it through the write, and the URL must come back
+    # whole — this is the exact loss the defect named.
+    let shareUrl = q & "#L-src-shield-nr-32"
+    let cut = shareUrl.find('#')
+    check cut > 0
+    check withPreservedFragment(shareUrl[0 ..< cut], shareUrl[cut .. ^1]) ==
+          shareUrl
+
 suite "the stepping chords — one table, and every surface reads it":
   ## WHY THIS SUITE EXISTS, AND WHAT ITS ABSENCE COST
   ##

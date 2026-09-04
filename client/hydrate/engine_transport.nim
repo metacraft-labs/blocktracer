@@ -372,6 +372,17 @@ proc replaceQueryImpl(query: cstring) {.importjs: """
 proc locationSearchImpl(): cstring {.importjs: "(location.search || '')".}
 proc locationHashImpl(): cstring {.importjs: "(location.hash || '')".}
 
+proc locationHash*(): string =
+  ## The fragment currently in the address bar, `#` included, or `""`.
+  ##
+  ## Exported because `replaceQuery` writes a query-only reference, which nulls
+  ## the fragment, and the caller composing that write is the only layer that
+  ## knows whether this fragment is the visitor's UI state or a spent payload.
+  ## That decision is grammar, so it lives with the grammar
+  ## (`deeplink_landing.withPreservedFragment`) rather than here: this file
+  ## imports nothing and is the FFI boundary, not a place that reads links.
+  $locationHashImpl()
+
 proc linkPayload*(): string =
   ## The §6.0a payload this page was opened with — the query if it carries one,
   ## else the fragment.

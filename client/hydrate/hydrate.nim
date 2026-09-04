@@ -1464,8 +1464,16 @@ proc paint(h: Hydration) =
     if track != nil: track.classList.add("scrubbing")
   # After the panes and never before them, so a reader who copies the address
   # bar copies the position they are looking at.
+  #
+  # THROUGH `withPreservedFragment`, because `pendingQuery` is a query-only
+  # reference and resolving one of those nulls the fragment. Writing it bare
+  # dropped the visitor's `:target` state — the pane tab, the source-document
+  # tab, the self-cost view, the loop rail rung — on the first live paint, and
+  # took the `#…` half of the page's own Share link with it. The proc decides
+  # which fragments are the visitor's to keep; see its comment for why a spent
+  # payload is not one of them.
   if h.pendingQuery.len > 0:
-    replaceQuery(h.pendingQuery)
+    replaceQuery(withPreservedFragment(h.pendingQuery, locationHash()))
     h.pendingQuery = ""
 
 proc render(h: Hydration) =

@@ -397,3 +397,54 @@ proc positionQuery*(contentHash: string; step: int; anchor: string): string =
   # either way, so the one character is swapped rather than the grammar being
   # written twice.
   "?" & emitFragment(link)[1 .. ^1]
+
+proc carriesPayload*(fragment: string): bool =
+  ## Does this fragment carry a §6.0a deep-link payload, as opposed to naming an
+  ## element?
+  ##
+  ## The discriminator is `v`, and it is asked of the REAL PARSER rather than
+  ## re-spelled here: `linkPayload` already treats a fragment as a payload when
+  ## it parses, and a second opinion about the same grammar is a second thing to
+  ## keep in step. `parseDeepLink` sets `version` only from a `v=` field, so a
+  ## bare element id — `#L-src-shield-nr-32`, which every share link also carries
+  ## and which contains no `=` at all — leaves it 0.
+  fragment.len > 0 and parseDeepLink(fragment).link.version > 0
+
+proc withPreservedFragment*(query, fragment: string): string =
+  ## Compose the URL `replaceState` writes: the position query, plus the
+  ## visitor's fragment where the fragment is still theirs to keep.
+  ##
+  ## ## Why this proc exists
+  ##
+  ## `positionQuery` returns a QUERY-ONLY relative reference (`?v=1&…`). Resolved
+  ## against the current URL that keeps the path and replaces the query — and
+  ## sets the fragment to NULL. So every live paint after the engine reports a
+  ## position silently dropped whatever fragment the visitor arrived with, and
+  ## `positionQuery`'s own comment names what lives there: "the source pane's
+  ## per-line ids and the pane stack's `:target` tabs both live there". The code
+  ## knew the fragment carried UI state and then wrote a URL that annihilated it.
+  ##
+  ## ## Why it is not simply "always re-append"
+  ##
+  ## Because the two fragment shapes on this route mean opposite things.
+  ##
+  ##   * A PAYLOAD fragment (`#v=1&t=…&c=…`) is §6's URL form. Hydration reads it
+  ##     at load, honours the position, and re-expresses it in the query — this
+  ##     very query. Re-appending it would leave a stale duplicate that freezes
+  ##     at the arrival position while the query tracks the session, so a visitor
+  ##     who steps and then copies the address bar hands out a URL whose two
+  ##     halves disagree about where they are. `linkPayload` gives the query
+  ##     precedence for exactly this reason — "a URL carrying both is one where
+  ##     the fragment is the older half" — and the older half is finished here.
+  ##   * An ELEMENT fragment (`#L-src-shield-nr-32`, `#pane-eventlog`) positions
+  ##     nothing and is not re-expressed anywhere. It is the `:target` state of
+  ##     the pane tab, the source-document tab, the self-cost view and the loop
+  ##     rail rung, and it is what the page's own Share control emits alongside
+  ##     the query. Nothing else preserves it, so dropping it is a loss with no
+  ##     compensating write.
+  ##
+  ## So the payload is spent and the element id is kept, which is the same
+  ## precedence `linkPayload` already applies, read in the other direction.
+  if fragment.len == 0 or carriesPayload(fragment): query
+  elif fragment.startsWith("#"): query & fragment
+  else: query & "#" & fragment
