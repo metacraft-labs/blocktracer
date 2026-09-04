@@ -397,8 +397,30 @@ export async function run({ browser, site, j }) {
   // taken on trust from one another), and a reading taken for a reason is a
   // claim. `atLeast` first, because the two fields are read from different
   // places and a page that carried neither would otherwise agree vacuously.
+  // THE COMPARISON IS A SUFFIX RELATION, AND IT USED TO BE EQUALITY.
+  //
+  // It was `s.m.tabLabel !== s.m.activePath`, which was right while a tab was
+  // labelled with the whole path, and went stale the moment `tabLabel` in
+  // `components/debugger.nim` started shortening a label to the shortest tail
+  // of whole path segments that is still unique in the bundle — `avm.nr` where
+  // that is unambiguous, `field/mod.nr` where a bundle holds two `mod.nr`. The
+  // island keeps publishing the full interned path, as it must: a breakpoint
+  // has to name the file to the engine exactly as the trace interned it.
+  //
+  // So this verdict has been RED on the mainline since that landed, over a
+  // product that is behaving correctly — which is the expensive kind of red,
+  // because a gate that cries wolf is the one people learn to scroll past.
+  //
+  // The claim itself is unchanged and is still worth making: the tab a pane
+  // marks must NAME the document its island calls active. What changed is what
+  // "names" means. A whole-segment suffix is exactly the relation `tabLabel`
+  // produces, and it still fails on the thing this was written to catch — a
+  // strip marking a different file from the one on screen — because a tail of
+  // one path is not a tail of another. The boundary is checked on `/` rather
+  // than by `endsWith` alone, so `shield.nr` does not satisfy `myshield.nr`.
+  const namesTheSame = (label, path) => label === path || path.endsWith("/" + label);
   const withBoth = seen.filter((s) => s.m.tabLabel && s.m.activePath);
-  const disagreeing = withBoth.filter((s) => s.m.tabLabel !== s.m.activePath);
+  const disagreeing = withBoth.filter((s) => !namesTheSame(s.m.tabLabel, s.m.activePath));
   for (const s of disagreeing) {
     j.note(
       `${s.t.debugPath}: the tab strip marks "${s.m.tabLabel}" and the island's active` +
