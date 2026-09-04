@@ -1010,13 +1010,19 @@ proc withCallFrames*(session: var DebugSessionView; node: JsonNode) =
       # The address is the transaction's own published fact and the page already
       # states it. A copy here would be a second producer of it — the same
       # reason `derive-instructions.mjs` declines to write it per step.
-      module: "",
-      # ZERO, AND MEANT. Every frame in this corpus is placed on the recorder's
-      # pseudo-path, so there is no line — which is precisely what the pane's
-      # standing note says, and that clause of it stays true with rows on
-      # screen. `renderCallTrace` drops the coordinate entirely rather than
-      # painting `:0`.
-      line: 0,
+      # READ OFF THE DATA, not hard-coded to "". Every frame in this corpus
+      # carries `path: null` — the recorder places them on its pseudo-path and
+      # `derive-calltrace.mjs` refuses to write a frame placed anywhere else —
+      # so this IS empty today. Writing the constant would have made this
+      # producer the thing that discards a position the tool one day starts
+      # emitting, silently, which is the failure the tool's own refusal exists
+      # to prevent. One field, one source.
+      module: f{"path"}.getStr(""),
+      # The same, for the same reason. `null` decodes to 0, which is what
+      # `CallFrame.line` means by "no line" and what `renderCallTrace` draws as
+      # nothing rather than as `:0` — so the pane's standing sentence, "they
+      # carry no file or line", stays true with rows on screen.
+      line: f{"line"}.getInt(0),
       step: f{"step"}.getInt,
       # NO COST COLUMN. The container carries a per-step gas reading, but both
       # frames here are open for every step of the recording — there is no
