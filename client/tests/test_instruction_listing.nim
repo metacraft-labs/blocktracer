@@ -87,6 +87,25 @@ type Subject = object
 
 var subjects: seq[Subject]
 var sourceLevelSubjects: seq[Subject]
+var positionedSubjects: seq[Subject]
+  ## Recordings whose manifest does NOT claim source level and which render
+  ## source anyway, from the per-step stream in `positions.json`.
+  ##
+  ## THE PARTITION USED TO BE `t.sourceLevel` AND THAT IS THE WRONG QUESTION
+  ## HERE. This file grades what the Code pane RENDERS — it looks for listing
+  ## rows, a `▶`, a "stopped at step" caption — and the manifest bit stopped
+  ## predicting that. `sourceLevel` means EVERY executed step is positioned, a
+  ## claim no real chain capture can make (CHAIN-CAPTURE.md §6.5), while a
+  ## recording that positions MOST of its steps now renders real Noir. Testnet
+  ## 0x20ed5b91… is exactly that: `sourceLevel: false`, 86 of 108 steps placed,
+  ## a Code pane full of `avm.nr`. Partitioned by the bit it landed in
+  ## `subjects` and failed five assertions that are true of every listing and
+  ## none of it — including "the tree publishes a listing for each", which it
+  ## deliberately does not, because `derive-instructions.mjs` refuses a
+  ## container whose `line` field holds source lines rather than pcs.
+  ##
+  ## So the discriminator is the pane's own availability, which is the thing
+  ## being graded rather than a proxy for it.
 for chain in allChains:
   let info = chainInfo(root, chain)
   for h in blockHashes(root, info):
@@ -97,6 +116,7 @@ for chain in allChains:
       let subj = Subject(chain: chain, tx: tx, steps: t.steps,
                          step: s.controls.step, listing: t.instructions)
       if t.sourceLevel: sourceLevelSubjects.add subj
+      elif s.editor.availability == srcSourceLevel: positionedSubjects.add subj
       else: subjects.add subj
 
 var asserted = 0
@@ -145,7 +165,21 @@ suite "1 — the mnemonics are checked against the recording, never asserted":
     for s in subjects:
       if s.listing != nil: inc withListing
     ck withListing == subjects.len       # the tree publishes one for each
-    ck subjects.len == 8
+    ck subjects.len == 26
+
+    # AND THE EXCLUDED ONE IS EXCLUDED FOR A REASON THAT IS ITSELF CHECKED.
+    # Narrowing a population is how a suite goes green by grading less, so the
+    # recording this file no longer asks for a listing is asserted to render the
+    # better thing instead — real source, from its own per-step positions, with
+    # no listing published for it at all.
+    ck positionedSubjects.len == 1
+    for s in positionedSubjects:
+      ck s.listing == nil                # `derive-instructions.mjs` refused it
+      let sess = debugSessionFor(root, s.chain, s.tx)
+      ck sess.editor.availability == srcSourceLevel
+      ck sess.editor.positionedSteps > 0
+      ck sess.editor.positionedSteps < sess.editor.positionedOf
+      ck activeDocument(sess.editor).path.endsWith(".nr")
 
   test "the table reproduces every program counter it predicts":
     var checked = 0
@@ -160,11 +194,17 @@ suite "1 — the mnemonics are checked against the recording, never asserted":
       checked += l.check.checked
       matched += l.check.matched
       inc recordings
-    ck recordings == 8
+    # The population grew with the 2026-09-02 testnet capture: 8 real
+    # instruction-level recordings became 26, and one further recording —
+    # 0x20ed5b91… — left this population entirely because it renders source.
+    # Restated at the measured value rather than relaxed to `> 0`: an exact
+    # count is what makes a check that silently stopped predicting fail
+    # differently from one that predicted everything and was right.
+    ck recordings == 26
     # The count is asserted, not merely non-zero: a check that silently stopped
     # predicting would otherwise report the same green as one that predicted
     # everything and was right.
-    ck checked == 2026
+    ck checked == 5167
     ck matched == checked
 
   test "MUTATION BITE: a table shifted by one explains nothing":
@@ -218,7 +258,7 @@ suite "1 — the mnemonics are checked against the recording, never asserted":
     ck not l.named
 
   test "assertion count":
-    expectCount(54)
+    expectCount(132)
 
 suite "2 — the pane renders instructions, with the current one marked":
   asserted = 0
@@ -254,7 +294,7 @@ suite "2 — the pane renders instructions, with the current one marked":
       # it, so a bare `find` compares two positions inside the CSS.
       ck body.find("class=\"srcpos\"") < body.find("class=\"srcline")
       inc pages
-    ck pages == 8
+    ck pages == 26
 
   test "the rows carry the program counters the recording actually holds":
     # Not "some hex appears". Every counter in the published stream that falls
@@ -284,7 +324,7 @@ suite "2 — the pane renders instructions, with the current one marked":
       rows += onPage
       want += s.steps
     ck rows == want
-    ck want == 2269
+    ck want == 5746
 
   test "MUTATION BITE: an unpositioned session marks no row":
     # The listing is still rendered — "here is the whole recording and this page
@@ -339,10 +379,10 @@ suite "2 — the pane renders instructions, with the current one marked":
       ck not body.contains("class=\"srcfrom\">Steps ")
       ck not body.contains("class=\"srcfrom\">Lines ")
       inc judged
-    ck judged == 8
+    ck judged == 26
 
   test "assertion count":
-    expectCount(2417)
+    expectCount(6200)
 
 suite "3 — it composes with the marks the pane already draws":
   asserted = 0
@@ -439,7 +479,7 @@ suite "3 — it composes with the marks the pane already draws":
       ck body.contains("counters are offsets into ")
 
   test "assertion count":
-    expectCount(132)
+    expectCount(420)
 
 suite "4 — the prose sits beside the listing, and says what is true now":
   asserted = 0
@@ -499,7 +539,7 @@ suite "4 — the prose sits beside the listing, and says what is true now":
     ck occurrences(html, "class=\"srcpos\"") == 1
 
   test "assertion count":
-    expectCount(377)
+    expectCount(4095)
 
 suite "5 — source and instructions coexist; neither is hard-coded":
   asserted = 0
@@ -561,18 +601,51 @@ suite "5 — source and instructions coexist; neither is hard-coded":
     # its step count must equal the manifest's — a listing of a different length
     # would put the marker on the wrong row with every surface reporting success.
     var found = 0
+    var positioned = 0
     for chain in allChains:
       let info = chainInfo(root, chain)
       for h in blockHashes(root, info):
         for tx in readBlockDetail(root, info, h).transactions:
           let t = traceView(root, info, tx)
           if t.outcome != tvReplayable or t.sourceLevel: continue
+          # A RECORDING THAT PUBLISHES POSITIONS PUBLISHES NO LISTING, and the
+          # skip is on the object rather than on `sourceLevel`, which is the
+          # manifest's all-or-nothing claim and false for exactly this case.
+          # Reading it the other way dereferenced a nil `instructions` and took
+          # the suite down with a SIGSEGV rather than a failed check — the
+          # partition was wrong on the data plane in the same way it was wrong
+          # on the pane.
+          #
+          # `derive-instructions.mjs` refuses the container: a positioned
+          # recording spends its `line` field on a source line, so there is no
+          # pc column to publish and a listing derived anyway would be Noir line
+          # numbers presented as program counters.
+          #
+          # AND `measuredPostHoc` IS PART OF THE TEST, because two transactions
+          # here publish positions and only one of them renders source. Frozen
+          # 0x12525d6d… is a rung-3 container whose positions were computed
+          # AFTERWARDS by `resolve-frozen-artifacts.mjs`: its `line` field holds
+          # real program counters, so it has a listing, and the pane refuses its
+          # positions because the capture measured 0 where the derivation says
+          # 86 (CHAIN-CAPTURE.md §6.2b). It therefore belongs in the listing
+          # population below, and this branch is only for a recording that
+          # measured its own positions while it ran.
+          if t.positions != nil and not t.positions{"measuredPostHoc"}.getBool:
+            ck t.instructions == nil
+            ck t.positions{"steps"}.getInt(-1) == t.steps
+            ck t.positions{"positioned"}.getInt(0) > 0
+            ck t.positions{"positioned"}.getInt(0) < t.steps
+            inc positioned
+            continue
           ck t.instructions != nil
           ck t.instructions{"steps"}.getInt(-1) == t.steps
           ck t.instructions{"isa"}.getStr("") == "aztec-avm"
           ck t.instructions{"pc"}.len == t.steps
           inc found
-    ck found == 8
+    ck found == 26
+    # Non-vacuous in the other direction too: the skip above is a real
+    # population, not a branch nothing takes.
+    ck positioned == 1
 
   test "MUTATION BITE: publish refuses a listing the position cannot be in":
     # The one guard in `ingest.nim`. `execution.steps` is what the toolbar counts
@@ -629,7 +702,7 @@ suite "5 — source and instructions coexist; neither is hard-coded":
     removeDir(mutDir)
 
   test "assertion count":
-    expectCount(67)
+    expectCount(144)
 
 suite "6 — the listing survives hydration, in the artefact a visitor loads":
   asserted = 0
@@ -781,4 +854,4 @@ suite "6 — the listing survives hydration, in the artefact a visitor loads":
     ck marked == 1
 
   test "assertion count":
-    expectCount(236)
+    expectCount(740)
