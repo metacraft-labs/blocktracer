@@ -617,10 +617,16 @@ proc selectCalltraceFrame*(s: LiveSession; anchor: string): bool =
   ## has navigated by something that is not a frame, so the previous selection
   ## stops describing where they are — and a mark left behind would go on
   ## asserting a frame the reader has since navigated away from. It is retired
-  ## rather than kept, which is `deeplink_landing.selectFrame`'s rule ("EVERY
-  ## OTHER FRAME IS CLEARED FIRST, including when the lookup then fails") at the
-  ## live layer, so the two cannot drift into disagreeing about what a miss
-  ## means.
+  ## rather than kept.
+  ##
+  ## The two layers differ here, and deliberately. `hydrate.markServedFrame`,
+  ## which marks the SERVED rows for an incoming deep link, returns without
+  ## touching a row on a miss — it must, because a link that names no frame
+  ## (an ordinary visit, a `log:` anchor) has to leave the static producer's own
+  ## mark alone rather than strip the page's answer and put nothing back. This
+  ## layer clears, because here a miss is a GESTURE: the reader clicked
+  ## something, and the honest report of "which frame did they choose" is
+  ## `none`, not the frame they chose before.
   ##
   ## The caller keeps the seek it was going to do anyway, so a row still moves
   ## the session; it just cannot also claim to have selected a frame.

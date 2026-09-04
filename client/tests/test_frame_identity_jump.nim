@@ -237,65 +237,69 @@ suite "3 — THE LANDING: an anchor resolves to a FRAME, not merely to a tick":
   test "COUNTED":
     check asserted == 22
 
-suite "4 — THE MARK: the row that was chosen is the row that is current":
+suite "4 — THE LINK: a deep link resolves to the frame it names, not to a tick":
+  ## Through `resolveLanding`, which is what `hydrate.announceLanding` calls on
+  ## arrival and the only production reader of this. `LinkLanding.frame` is the
+  ## row `hydrate.markServedFrame` then marks, so what is asserted here is the
+  ## input to the mark rather than a restatement of the lookup above.
   asserted = 0
 
-  test "selecting each of the six marks exactly one row":
-    for fn in Six:
-      var p = pane
-      discard p.selectFrame(p.frames[indexOfFn(p, fn, 59)].anchor)
-      var marked = 0
-      for f in p.frames:
-        if f.current: inc marked
-      ck marked == 1
+  proc landingFor(anchor: string): LinkLanding =
+    ## A real §6.0a payload, parsed by the real grammar. Not a hand-built
+    ## `Anchor`: the thing that must work is a URL a visitor pasted, and the
+    ## parse is half of it.
+    resolveLanding("?v=1&a=" & anchor,
+                   artifactAvailable = true,
+                   currentContentHash = "",
+                   calltrace = pane,
+                   eventLog = EventLogPane())
 
-  test "…and the row it marks is the row that was chosen":
-    ## The assertion the product could not make before this change. The rule it
-    ## replaces — innermost frame containing the step — marks
-    ## `Poseidon2::hash_internal` for all six, because all six contain step 59
-    ## and it is the deepest.
+  test "each of the six links resolves to its own frame":
     for fn in Six:
-      var p = pane
-      let want = indexOfFn(p, fn, 59)
-      discard p.selectFrame(p.frames[want].anchor)
-      var got = -1
-      for i in 0 ..< p.frames.len:
-        if p.frames[i].current: got = i
-      ck got == want
-      ck p.frames[got].fn == fn
+      let want = indexOfFn(pane, fn, 59)
+      let got = landingFor(pane.frames[want].anchor)
+      ck got.asked
+      ck got.frame == want
 
-  test "selecting reports the index it marked":
+  test "…so six links that carry ONE coordinate name six different rows":
+    ## The assertion the product could not make before this change. Every one of
+    ## these links resolves to coordinate 59 — `landingFor(...).coordinate` is
+    ## 59 for all six — and the frame is what tells them apart.
+    var frames: HashSet[int]
+    var coords: HashSet[int]
     for fn in Six:
-      var p = pane
-      let want = indexOfFn(p, fn, 59)
-      ck p.selectFrame(p.frames[want].anchor) == want
+      let got = landingFor(pane.frames[indexOfFn(pane, fn, 59)].anchor)
+      frames.incl got.frame
+      coords.incl got.coordinate
+    ck frames.len == 6
+    ck coords.len == 1
 
-  test "a selection REPLACES the previous one; two rows are never both current":
-    ## Six selections in a row over one pane, which is what a reader clicking
-    ## down the chain does. A mark that accumulated would leave the pane
-    ## asserting six positions at once.
-    var p = pane
+  test "…and each names the function its own link pointed at":
     for fn in Six:
-      discard p.selectFrame(p.frames[indexOfFn(p, fn, 59)].anchor)
-    var marked = 0
-    for f in p.frames:
-      if f.current: inc marked
-    ck marked == 1
-    ck p.frames[indexOfFn(p, Six[^1], 59)].current
+      let got = landingFor(pane.frames[indexOfFn(pane, fn, 59)].anchor)
+      ck pane.frames[got.frame].fn == fn
 
-  test "an anchor that names no frame marks NOTHING, rather than guessing":
-    ## The refusal, and it is load-bearing: a selection that fell back to row 0
-    ## on a miss would put the mark on `<toplevel>` and call it an answer.
-    var p = pane
-    discard p.selectFrame(p.frames[indexOfFn(p, "poseidon2_hash", 59)].anchor)
-    ck p.selectFrame("call:0.0.0.9.9.9") == -1
-    var marked = 0
-    for f in p.frames:
-      if f.current: inc marked
-    ck marked == 0
+  test "a link naming no frame reports none, rather than pointing at row 0":
+    ## `0` IS a frame index, and `LinkLanding` is zero-initialised, so this is
+    ## the difference between "the first row" and "no row". A landing that
+    ## reported 0 here would have `markServedFrame` move the mark to
+    ## `<toplevel>` on every event link and every ordinary visit.
+    ck landingFor("log:0").frame == -1
+    ck landingFor("call:0.0.0.9.9.9").frame == -1
+    ck resolveLanding("", artifactAvailable = true, currentContentHash = "",
+                      calltrace = pane, eventLog = EventLogPane()).frame == -1
+
+  test "the ENCLOSING-frame fallback names no frame either":
+    ## §6.0a step 4 is a weaker claim — "the frame that WOULD contain it" — and
+    ## it is deliberately not reported as the frame the reader asked for. The
+    ## link below names a callee that does not exist under a frame that does, so
+    ## it resolves by prefix to a real enclosing frame and still reports `-1`.
+    let got = landingFor("call:0.0.0.3.3.0.9")
+    ck got.asked
+    ck got.frame == -1
 
   test "COUNTED":
-    check asserted == 28
+    check asserted == 25
 
 suite "5 — CONTROL: a recording whose coordinates do NOT collide":
   ## The mechanism must be the same mechanism on a pane where the coordinate
@@ -335,32 +339,31 @@ suite "5 — CONTROL: a recording whose coordinates do NOT collide":
     for i in 0 ..< distinctPane.frames.len:
       ck frameOfAnchor(distinctPane.frames, distinctPane.frames[i].anchor) == i
 
-  test "CONTROL: selecting any frame marks that frame and only that frame":
+  test "CONTROL: a link to any frame resolves to that frame":
     for i in 0 ..< distinctPane.frames.len:
-      var p = distinctPane
-      ck p.selectFrame(p.frames[i].anchor) == i
-      var marked = 0
-      for f in p.frames:
-        if f.current: inc marked
-      ck marked == 1
-      ck p.frames[i].current
+      let got = resolveLanding("?v=1&a=" & distinctPane.frames[i].anchor,
+                               artifactAvailable = true, currentContentHash = "",
+                               calltrace = distinctPane, eventLog = EventLogPane())
+      ck got.frame == i
 
   test "CONTROL: the two frames of ONE function are still told apart":
     ## `calculate_damage` twice, at 41 and at 112 — the demo's own recursion
     ## case. Distinct steps here, so the coordinate WOULD separate them; the
     ## anchor separates them too, which is what makes it a replacement rather
     ## than a second mechanism to keep in step.
-    var p = distinctPane
+    let p = distinctPane
     let first = 2
     let second = 5
     ck p.frames[first].fn == p.frames[second].fn
     ck p.frames[first].anchor != p.frames[second].anchor
-    discard p.selectFrame(p.frames[second].anchor)
-    ck p.frames[second].current
-    ck not p.frames[first].current
+    let got = resolveLanding("?v=1&a=" & p.frames[second].anchor,
+                             artifactAvailable = true, currentContentHash = "",
+                             calltrace = p, eventLog = EventLogPane())
+    ck got.frame == second
+    ck got.frame != first
 
   test "COUNTED":
-    check asserted == 35
+    check asserted == 21
 
 suite "6 — MUTATION BITE: with the identity discarded, none of this holds":
   ## The proof that §3 and §4 measure the anchor rather than passing over it.
@@ -378,14 +381,17 @@ suite "6 — MUTATION BITE: with the identity discarded, none of this holds":
     for fn in Six:
       ck frameOfAnchor(p.frames, pane.frames[indexOfFn(pane, fn, 59)].anchor) == -1
 
-  test "BITE: …and selecting marks nothing at all":
+  test "BITE: …and a link carrying one resolves to no frame, so nothing is marked":
+    ## `hydrate.markServedFrame` returns without touching a row on `-1`, so a
+    ## pane whose anchors were dropped keeps whatever the static producer said
+    ## and the link silently stops selecting. That is the regression this
+    ## suite exists to make loud.
     for fn in Six:
-      var p = anchorless(pane)
-      ck p.selectFrame(pane.frames[indexOfFn(pane, fn, 59)].anchor) == -1
-      var marked = 0
-      for f in p.frames:
-        if f.current: inc marked
-      ck marked == 0
+      let p = anchorless(pane)
+      let got = resolveLanding("?v=1&a=" & pane.frames[indexOfFn(pane, fn, 59)].anchor,
+                               artifactAvailable = true, currentContentHash = "",
+                               calltrace = p, eventLog = EventLogPane())
+      ck got.frame == -1
 
   test "BITE: the coordinate, which is what was used instead, collapses to one":
     ## The counter-measurement, and the whole finding in one number: the six
@@ -401,4 +407,4 @@ suite "6 — MUTATION BITE: with the identity discarded, none of this holds":
     ck anchorSet.len == 6
 
   test "COUNTED":
-    check asserted == 20
+    check asserted == 14

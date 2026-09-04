@@ -147,31 +147,6 @@ func frameOfAnchor*(frames: openArray[CallFrame]; anchor: string): int =
     if frames[i].anchor.len > 0 and frames[i].anchor == anchor:
       return i
 
-proc selectFrame*(p: var CallTracePane; anchor: string): int =
-  ## Mark exactly the frame `anchor` names as current, and no other. Returns the
-  ## index it marked, or `-1` — in which case NOTHING is marked and the pane is
-  ## left saying no frame is current rather than guessing at one.
-  ##
-  ## EVERY OTHER FRAME IS CLEARED FIRST, including when the lookup then fails.
-  ## A selection that added a mark without removing the previous one would leave
-  ## two rows claiming to be the position, and the renderer draws `cur` on both;
-  ## the reader would see the pane assert something the session cannot mean.
-  ##
-  ## This is the whole of "the clicked row is the marked row". The alternative
-  ## the producers reach for otherwise is interval containment on the step —
-  ## `f.step <= pos and pos <= endStep`, deepest match wins — which on the six
-  ## frames above marks `Poseidon2::hash_internal` whichever of them was
-  ## clicked, because all six contain step 59 and it is the deepest. Containment
-  ## answers "where is the session", and it is still the right answer to that;
-  ## it cannot answer "which frame did the reader ask for".
-  result = -1
-  for i in 0 ..< p.frames.len:
-    p.frames[i].current = false
-  let i = frameOfAnchor(p.frames, anchor)
-  if i < 0: return
-  p.frames[i].current = true
-  result = i
-
 proc withEventAnchors*(p: var EventLogPane) =
   ## Give every event row the §6.0a anchor its KIND supports, and give the
   ## others none.

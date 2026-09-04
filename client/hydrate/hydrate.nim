@@ -1119,6 +1119,36 @@ proc servedEventLog(root: Element): EventLogPane =
   for r in rowsOf(root, ".evrow"):
     result.rows.add EventRow(step: r.step, anchor: r.anchor)
 
+proc markServedFrame(root: Element; index: int) =
+  ## Mark the served call-trace row a `call:` link named, and unmark the rest.
+  ##
+  ## ## Why this happens here, on rows the engine has not seen
+  ##
+  ## §6.3 wants a shared link resolved "before first paint", and the engine is
+  ## 18 MB away. Between arriving and the session coming up, the served rows are
+  ## the whole of what the visitor has — and the mark on them is the STATIC
+  ## producer's answer to a different question. `demo_session.withCallFrames`
+  ## marks the innermost frame containing the served coordinate, which is the
+  ## right answer to "where is the session" and the wrong one to "which frame
+  ## did this link name": for a link into the six frames that share step 59 it
+  ## marks `Poseidon2::hash_internal` every time, because all six contain the
+  ## step and it is the deepest.
+  ##
+  ## The index is `LinkLanding.frame`, and it indexes THESE rows: `resolveLanding`
+  ## was handed `servedCallTrace(root)`, which `rowsOf` built from this same
+  ## `.ctrow` selector in this same order. One walk, one numbering.
+  ##
+  ## CLEARED FIRST, AND ONLY WHEN A FRAME WAS NAMED. Two rows carrying `cur`
+  ## would have the pane assert two positions, and the caller only reaches here
+  ## with a frame in hand — an ordinary visit, or a link that named an event or
+  ## no anchor at all, leaves the served mark exactly as served rather than
+  ## stripping the page's own answer and replacing it with nothing.
+  let rows = root.querySelectorAll(".ctrow")
+  if index < 0 or index >= rows.len: return
+  for i in 0 ..< rows.len:
+    rows[i].classList.remove("cur".cstring)
+  rows[index].classList.add("cur".cstring)
+
 proc announceLanding(root: Element): LinkLanding =
   ## Resolve the link this page was opened with, and say where it landed.
   ##
@@ -1137,6 +1167,11 @@ proc announceLanding(root: Element): LinkLanding =
     currentContentHash = attr(root, "data-content-hash"),
     calltrace = servedCallTrace(root),
     eventLog = servedEventLog(root))
+  # The frame the link named, marked on the served rows. Before the notice,
+  # because the notice is the sentence ABOUT the landing and this is the
+  # landing: a visitor who reads "opened at the position this link names"
+  # beside a pane marking a different frame has been told two things.
+  markServedFrame(root, result.frame)
   let slot = document.getElementById(PositionNoticeSlotId.cstring)
   if slot == nil: return
   var view: DebugSessionView
