@@ -684,6 +684,36 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   proc recorderForTx(txHash: string): RecorderRef =
     recorderFor(if txHash in recordedBy: recordedBy[txHash] else: snapshotCommit)
 
+  # TWO COMMITS THAT SHORTEN TO ONE LABEL ARE REFUSED, and this became worth
+  # checking on this commit rather than before it. `recorderVersion` has always
+  # been `shortHash` — the first ten hex characters — and while a snapshot had
+  # exactly one recorder that truncation was a cosmetic choice about a label.
+  # It is now the DISCRIMINATOR: `recorderBuildHash` hashes the label, so two
+  # builds sharing ten characters would produce one build hash, one `/t/**`
+  # prefix, and two containers silently filed as one recorder's work — the exact
+  # misattribution this whole change exists to prevent, reintroduced through the
+  # naming. It is a ~40-bit coincidence and it costs one table to refuse.
+  #
+  # SORTED, so the sentence a failure prints is the same on every run. The
+  # published bytes cannot depend on this — it only ever raises — but a refusal
+  # that names its two commits in table order is a refusal that reproduces
+  # differently each time it is investigated.
+  var allCommits: seq[string] = @[prov{"runtimeCommit"}.getStr]
+  for _, commit in recordedBy: allCommits.add commit
+  allCommits.sort()
+  var labelOwner = initTable[string, string]()
+  for commit in allCommits:
+    if commit.len == 0: continue
+    let v = "l3-" & shortHash(commit)
+    if v in labelOwner and labelOwner[v] != commit:
+      raise newException(ValueError,
+        "this snapshot names two recorder commits that shorten to the same " &
+        "version label '" & v & "': " & labelOwner[v] & " and " & commit &
+        ". The label is what `recorderBuildHash` hashes, so publishing both " &
+        "would file two builds' containers under one recorder. Lengthen " &
+        "`shortHash` rather than picking one of them.")
+    labelOwner[v] = commit
+
   # The chain's DEFAULT pin — see the registry note below for what it now means.
   let rRef = recorderFor(snapshotCommit)
   let pRef = ProfileRef(name: profileName, hash: profileHash(profileName))
