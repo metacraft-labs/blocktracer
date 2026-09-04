@@ -74,11 +74,36 @@ jobs:
         run: |
           set -uo pipefail
 
-          # The mainlines, spelled out. This list must equal `deploy.yml`'s
-          # push branches for the same reason `ci.yml`'s trigger must —
-          # a branch that is deployed and has no reachable verdict is the
-          # hole the whole `ci-coverage` job exists to report.
-          refs="dev staging live"
+          # `dev` ONLY, and this is a narrower list than `deploy.yml`'s on
+          # purpose. It was `dev staging live` and that was wrong.
+          #
+          # WHAT THIS LANE IS FOR. Not "coverage on every mainline" — it is the
+          # remedy for ONE mechanism: `ci.yml`'s `cancel-in-progress` evicting a
+          # run that has not started yet, which only happens when a SECOND push
+          # to the SAME branch lands before the first run places a job. That is
+          # a description of `dev`, where several agents push every few minutes.
+          #
+          # It is not a description of `staging` or `live`. Those move only when
+          # the lead promotes, one push at a time, and their push runs are not
+          # evicted — measured 2026-09-04 02:06, with the fleet fully saturated:
+          # `33826220152` (staging, push) was in_progress and `33826222157`
+          # (live, push) queued and intact. A branch whose push run survives to
+          # a verdict does not need a second lane to produce one; dispatching it
+          # anyway buys nothing and spends a scarce runner twice.
+          #
+          # AND THE COST IS NOT SMALL ANY MORE. Since `journeys-bite` became a
+          # 4-way matrix a `ci` run is TEN `eph-linux-x64` jobs, not six. At
+          # three refs that is thirty queued jobs against a pool observed
+          # running four at a time — this clock would then be the largest single
+          # consumer of the capacity it exists to get a verdict out of, and the
+          # dev verdict it is actually for would queue behind two it is not.
+          #
+          # WHEN TO ADD ONE BACK: if `staging` or `live` ever starts taking
+          # rapid successive pushes, its push runs will begin cancelling each
+          # other exactly as `dev`'s did, and it belongs here. The symptom to
+          # look for is the one this whole lane was built from — cancelled runs
+          # outnumbering conclusions on that branch.
+          refs="dev"
 
           fired=0
           skipped=0
