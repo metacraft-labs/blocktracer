@@ -5,7 +5,7 @@
   "chain": "aztec-testnet",
   "label": "Real Aztec testnet data",
   "endpoint": "https://aztec-testnet.drpc.org",
-  "capturedAt": "2026-09-04T11:46:02.741Z",
+  "capturedAt": "2026-09-04T11:49:15.448Z",
   "nodeVersion": "5.2.0",
   "l1ChainId": 11155111,
   "rollupVersion": 1821665230,
@@ -25,14 +25,14 @@
   "firstCapturedAt": "2026-08-31T07:40:55.566Z"
  },
  "window": {
-  "tip": 69093,
+  "tip": 69095,
   "finalized": 69062,
   "replayableFrom": 69063,
-  "replayableTo": 69093,
-  "blocks": 31
+  "replayableTo": 69095,
+  "blocks": 33
  },
  "counts": {
-  "blocks": 5634,
+  "blocks": 5636,
   "blocksWithTransactions": 1346,
   "transactions": 1357,
   "bodyRetained": 488,
@@ -44,6 +44,28 @@
   "captureSessions": 481
  },
  "blocks": [
+  {
+   "number": 69095,
+   "hash": "0x2309025543876d505d407520919dca6be330d91e0204e53556d841b72550bbc5",
+   "timestamp": 1788522516,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x36502a83735ed62671b55858809703898cde4f95",
+   "feePerL2Gas": "1888458237032",
+   "archiveRoot": "0x00923b1a0bf0127e252d0c85b692870aa49db78d95f8a3c7808785be71656411",
+   "parentArchiveRoot": "0x2309e78360ad894d6fbe45f46e73f4cc4001fe938b0cd446f9e6a890570b788c",
+   "transactions": []
+  },
+  {
+   "number": 69094,
+   "hash": "0x0f9111210f71bbc3cbc6545e27d4d46de64b4487e646965a956a4edf37f15059",
+   "timestamp": 1788522444,
+   "totalManaUsed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "coinbase": "0x36502a83735ed62671b55858809703898cde4f95",
+   "feePerL2Gas": "1888458237032",
+   "archiveRoot": "0x2309e78360ad894d6fbe45f46e73f4cc4001fe938b0cd446f9e6a890570b788c",
+   "parentArchiveRoot": "0x0f22fc4771d285577e9688403ece719830106d88b278e7275ab5afac5c5daf2e",
+   "transactions": []
+  },
   {
    "number": 69093,
    "hash": "0x0414e3be2d1ff890595b2373535e7ac9a5e0871e224c8a1ff35fdda545d84698",
