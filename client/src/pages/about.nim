@@ -31,6 +31,10 @@
 import isonim/ssr/escape
 import isonim/dsl/ui
 import ../viewutil
+# The address, not a copy of it. `from … import` rather than a plain `import`
+# because this page wants one constant and not `siteFooter`, which `layout`
+# already renders below it.
+from ../components/footer import CodeTracerUrl
 
 proc aboutPage*(chainCount: int): string =
   ui:
@@ -86,7 +90,44 @@ proc aboutPage*(chainCount: int): string =
           text "A block explorer where a transaction is a debugging session. "
           text "A transaction does the same thing every time it runs, so its "
           text "whole execution can be recorded and replayed — not reduced to "
-          text "what went in and what came out."
+          text "what went in and what came out. "
+
+          # THE THIRD AND FOURTH SENTENCES ARE AN ADDITION, NOT A REWRITE. The
+          # two above are the strongest lines on the site and neither moved.
+          #
+          # `the deepest view into a transaction there is` RESTATES THE
+          # POSITIONING WITHOUT BORROWING THE HOME PAGE'S QUANTIFIER. The
+          # standing line — in the site title, the home hero and the footer of
+          # this very page — is "the deepest view into every transaction", and
+          # `every` is doing coverage work there. On THIS page it would collide
+          # with `What you can do` eight lines below, which says plainly that
+          # where source is published you read source and where it is not you
+          # read instructions. A lead that claims uniform depth over a section
+          # that qualifies it is the overclaim a careful reader checks first.
+          #
+          # What replaces it is a stronger claim and a safer one, because it is
+          # a CEILING rather than a census: the whole execution is all the
+          # information a deterministic computation contains, so there is
+          # nothing deeper to show. The preceding sentence has just established
+          # exactly that, which is why this clause can sit unhedged.
+          #
+          # CODETRACER IS NAMED WITH WHAT IT IS, NOT JUST LINKED. A reader who
+          # has never heard of it learns in the same breath why the descent
+          # matters: this is a time-travel debugger with ordinary software
+          # behind it, pointed at chains — not a block explorer that grew a
+          # debugger feature.
+          #
+          # `a public good` IS THE LABEL AND THE CLAUSE BEFORE IT IS THE
+          # EVIDENCE. Asserted on its own the phrase is self-congratulation, so
+          # the two facts land first and the label only names them. `Open
+          # source` is the one that is not already on this page — the footer
+          # carries it and nothing else does. It deliberately does NOT
+          # enumerate no-account/no-ads/no-tracking: `What it costs you` owns
+          # those three and says them better than a lead could.
+          text "It is the deepest view into a transaction there is, built on "
+          a(href = CodeTracerUrl): text "CodeTracer"
+          text ", a time-travel debugger for ordinary software. Open source "
+          text "and free to use: a public good."
 
         h2(class = "sec-title next"): text "What you can do"
         dl(class = "dl group"):

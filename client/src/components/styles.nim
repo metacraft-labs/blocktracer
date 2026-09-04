@@ -125,6 +125,18 @@ a{color:inherit;text-decoration:none}
 .sec-title.next{margin-top:var(--bt-rhythm-section);border-top:var(--bt-stroke-hairline) solid var(--bt-border-default);padding-top:var(--bt-rhythm-stack)}
 .sec-title.sibling{margin-top:var(--bt-rhythm-group);border-top:0;padding-top:0}
 .lead{font-size:var(--bt-type-body-size);line-height:var(--bt-type-body-line);color:var(--bt-text-muted);max-width:var(--bt-measure-prose);margin-top:var(--bt-rhythm-stack)}
+/* A link inside running prose has to LOOK like one. The reset at the top of
+   this sheet is `a{color:inherit;text-decoration:none}`, so every context
+   opts in — `.crumbs a`, `.dl dd a`, `.footlinks a`, `.footcredit a`,
+   `.linklist a` — and `.lead` had no rule because no lead had ever carried a
+   link. The About page's opening paragraph now links CodeTracer, and without
+   this it rendered as body text: present in the markup, invisible to a
+   reader, which is the same as not linking it at all.
+   Identical declarations to `.dl dd a` rather than a new treatment; this is
+   the site's one prose-link look, and a second one would be a second thing
+   to keep in step. */
+.lead a{color:var(--bt-text-link);text-decoration:underline;text-underline-offset:var(--bt-space-3xs);transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
+.lead a:hover{color:var(--bt-text-link-hover)}
 .muted{color:var(--bt-text-muted)}
 .subtle{color:var(--bt-text-subtle)}
 .accent{color:var(--bt-accent-default)}

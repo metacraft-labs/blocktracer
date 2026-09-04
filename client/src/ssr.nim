@@ -277,7 +277,17 @@ proc renderChains*(r: DataRoot): string =
 proc renderAbout*(r: DataRoot): string =
   pageLayout(
     "About BlockTracer — what it is and what it costs you",
-    "A block explorer where a transaction is a debugging session — its whole execution recorded and replayed, not reduced to what went in and what came out.",
+    # `Built on CodeTracer` EARNS ITS PLACE IN THE SNIPPET, and the words it
+    # cost were `whole` and `reduced to`. The page now opens by naming what
+    # BlockTracer is built on, and this is the version a reader sees BEFORE
+    # deciding whether to click — someone searching for the relationship
+    # between the two products is asking the question this page answers, and a
+    # snippet that omits the answer sends them to a competitor's page for it.
+    #
+    # 155 characters. The budget is real: at ~160 a search result clips the
+    # tail, and the tail is the new clause. Trimming the middle rather than
+    # dropping the attribution is the whole point of the edit.
+    "A block explorer where a transaction is a debugging session — its execution recorded and replayed, not just what went in and came out. Built on CodeTracer.",
     aboutPg.aboutPage(chains(r).len),
     robots = $routeClass("/about"),
     canonical = SiteDomain & "/about")

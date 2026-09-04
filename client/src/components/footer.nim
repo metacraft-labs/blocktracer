@@ -32,7 +32,11 @@ import ./icons
 
 const
   MetacraftUrl = "https://metacraft-labs.com"
-  CodeTracerUrl = "https://codetracer.com"
+  CodeTracerUrl* = "https://codetracer.com"
+    ## Exported because `pages/about` names CodeTracer in its opening
+    ## paragraph and links it there too. One address, one spelling: a product
+    ## name written as a literal in a second file is a second thing to update
+    ## when it moves, and the two would not fail together.
   SourceUrl = "https://github.com/metacraft-labs/blocktracer"
     ## `metacraft-labs/blocktracer` — THIS repository, verified public before
     ## it was linked (`gh repo view --json visibility` → PUBLIC). The claim the
