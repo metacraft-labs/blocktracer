@@ -1195,71 +1195,181 @@ proc renderCallTrace*(p: CallTracePane): string =
         # when the producer has no line, rather than rendered as `:0`.
         if f.line > 0:
           span(class = "ctline"): text ":" & $f.line
+    # WHAT IS BEHIND THE TRIANGLE, SAID IN NUMBERS THE PRODUCER SUPPLIED.
+    #
+    # Both figures are read off the frame; neither is computed here, and there is
+    # no arithmetic in this proc that could drift from the container's. See
+    # `CallFrame.hiddenSteps` for why that is structural rather than tidiness.
+    #
+    # BOTH NUMBERS, because they answer different questions: steps say how much
+    # of the trace is inside, frames say how tangled it is, and the reader
+    # deciding whether to open wants the first far more often than the second.
+    # Steps therefore go last, where the eye lands.
+    let hidden = if f.foldedBy.len == 0: "" else: ui:
+      span(class = "cthidden"):
+        text $f.hiddenDescendants & (if f.hiddenDescendants == 1: " frame · "
+                                     else: " frames · ") &
+             groupDigits(f.hiddenSteps) &
+             (if f.hiddenSteps == 1: " step" else: " steps")
     let cost = ui:
       span(class = "ctcost num"): text f.cost
-    name & cost
+    name & hidden & cost
+
+  proc rowOf(f: CallFrame; asSummary: bool): string =
+    ## One row's element. `asSummary` makes it the `<summary>` of a folded
+    ## frame's disclosure; everything else about it is identical, which is the
+    ## point — a folded frame is a row in its ordinary place, not a different
+    ## kind of thing standing in for one.
+    # `data-step` is the time coordinate the frame starts at — the same
+    # coordinate `?t=` carries (Debugger-Integration §6.2), which is why
+    # it needs no protocol of its own.
+    #
+    # `href` is what turns the row into a jump target, and it is the
+    # PRODUCER's decision, not this renderer's. §3 deferred these on the
+    # grounds that "until hydration lands such a link would reload the
+    # page at a coordinate the static export cannot honour" — which is
+    # still true of a static export, because a query string does not
+    # select a file. What changed is that hydration now READS the
+    # coordinate (§6.0a), so a link is honourable exactly where a script
+    # is running to honour it. The served page keeps rows that are rows;
+    # the hydrated page has anchors, and gets focus, Enter, middle-click
+    # and the status bar from the platform rather than from a `keydown`
+    # handler that would have to reimplement all four.
+    #
+    # `data-anchor` rides alongside as the row's §6.0a recovery anchor.
+    # It is what makes the SERVED page able to resolve an incoming link
+    # before a byte is fetched: §7.0 makes this page the session's first
+    # frame from published data, so these rows already describe the
+    # artifact the link is about, and §6.3 wants resolution "before first
+    # paint" rather than after a round trip to an engine that has not
+    # loaded. Inert either way — a row with no href does nothing with it.
+    #
+    # `ctfolded` marks the row as the head of a closed subtree. It is on the row
+    # rather than only on the `<details>` because every reader of a row —
+    # `hydrate.rowsOf`, `entities.mjs`, the tests — finds rows by `.ctrow`, and a
+    # class that lived one element up would be invisible to all of them.
+    let cls = "ctrow " & depthClass(f.depth) &
+              (if f.current: " cur" else: "") &
+              (if f.foldedBy.len > 0: " ctfolded" else: "")
+    #
+    # `title` and `data-module` come AFTER `data-anchor` and that order
+    # is load-bearing: `tools/capture/lib/entities.mjs` matches
+    # `data-step="…" data-anchor="…"` as ADJACENT attributes, so anything
+    # inserted between them silently stops the capture harness finding
+    # rows. New attributes go on the end.
+    #
+    # `title` is the path's new home. A native tooltip rather than a
+    # styled one because this route ships no JavaScript and must work
+    # with scripting off: `title` is the only hover text a static page
+    # can offer, and it is reachable by keyboard focus and to a screen
+    # reader, which a CSS-only `::after` popover is not. Its content is
+    # DERIVED from the frame by `session_view.frameTooltip` — no clause
+    # of it is spelled here, so a row cannot describe a fact its own
+    # data does not carry.
+    #
+    # `data-module` is the path as DATA. `hydrate.rowsOf` needs it to
+    # resolve a `src:` deep link against the served rows, and it used to
+    # get it by reading `.ctmod`'s `textContent` — scraping a
+    # presentation element for a value. That coupling is why removing a
+    # span from this row would otherwise have broken deep-link landing
+    # with nothing to catch it.
+    let tip = frameTooltip(f, unit)
+    if asSummary:
+      # A FOLDED ROW IS A `<summary>` AND NOT A LINK, EVEN WHEN HYDRATION GAVE IT
+      # ONE. A closed node's primary action is opening it, and `<summary>` is
+      # what makes that action the platform's: the disclosure toggles on click
+      # and on Enter, it is in the tab order, and a screen reader announces it
+      # collapsed or expanded — none of which a `<div>` plus script gets for
+      # free. Nesting the jump link inside would put two actions on one row with
+      # no way to tell them apart by keyboard.
+      #
+      # Nothing is lost by it. `data-step`, `data-anchor` and `data-module` are
+      # unchanged, so `hydrate.rowsOf` and `deeplink_landing.resolveAnchor` still
+      # see this frame; a link that lands ON it opens the fold and reveals the
+      # subtree, which is what a reader following that link wanted. And on the
+      # statically exported page no row is a link at all, so this costs the
+      # served page nothing.
+      ui:
+        summary(class = cls, `data-step` = $f.step, `data-anchor` = f.anchor,
+                title = tip, `data-module` = f.module):
+          raw frameCells(f)
+    elif f.href.len > 0:
+      ui:
+        a(class = cls, href = f.href, `data-step` = $f.step,
+          `data-anchor` = f.anchor, title = tip,
+          `data-module` = f.module):
+          raw frameCells(f)
+    else:
+      ui:
+        tdiv(class = cls, `data-step` = $f.step, `data-anchor` = f.anchor,
+             title = tip, `data-module` = f.module):
+          raw frameCells(f)
 
   proc rows(frames: seq[CallFrame]): string =
+    ## The rows, with every folded subtree wrapped in a real disclosure.
+    ##
+    ## ## Why `<details>` here, when the source tab overflow chose a checkbox
+    ##
+    ## That decision (see `renderSourceTabs`) turned on a requirement this does
+    ## not have: that menu must show its contents WHILE CLOSED, which means
+    ## overriding the user agent's own hiding, which differs between engines. A
+    ## folded frame wants the opposite — its contents hidden while closed and
+    ## revealed when opened — which is precisely what `<details>` does natively.
+    ## The objection was to using `<details>` against its grain; this is with it.
+    ##
+    ## ## Closed by default, and openable is the whole feature
+    ##
+    ## No `open` attribute, so the subtree starts shut. There is no elision
+    ## anywhere in this pane: every frame the recorder wrote is in `frames` and
+    ## every one of them is in this markup, at its real depth, in call order. The
+    ## reader opens `Poseidon2::hash` and its steps are there. That is why the
+    ## producer marks frames instead of removing them, and why this walk must
+    ## never `continue` past a frame without emitting it.
+    ##
+    ## ## The subtree is a contiguous run, which is a fact about the producer
+    ##
+    ## Frames arrive in call order, so a frame's descendants are exactly the
+    ## frames after it with a greater depth, up to the first one at its depth or
+    ## shallower. That is the same shape `session_view.selfCost` already walks.
+    ## Nested folds cannot occur — the producer folds the OUTERMOST match and
+    ## stops descending — but this recurses rather than assuming it, because a
+    ## renderer that silently dropped an inner fold mark would show an open
+    ## subtree while the row above it claimed a count for a closed one.
+    proc emit(i: int; upto: int): string =
+      var k = i
+      while k < upto:
+        let f = frames[k]
+        if f.foldedBy.len == 0:
+          result.add rowOf(f, asSummary = false)
+          k.inc
+          continue
+        var j = k + 1
+        while j < upto and frames[j].depth > f.depth: j.inc
+        # A MARK WITH NOTHING UNDER IT IS DRAWN AS AN ORDINARY ROW.
+        #
+        # `derive-calltrace.mjs` never marks a leaf and `ingest.nim` refuses a
+        # stream that does, so this cannot arrive from the published tree. It is
+        # here anyway because the alternative is a disclosure triangle on an
+        # empty subtree: the reader opens it, nothing happens, and the row has
+        # told them something is hidden when nothing is. That failure is silent
+        # and it is in the one place this pane cannot afford one, so the
+        # renderer does not rely on the producer's promise to avoid it.
+        if j == k + 1:
+          result.add rowOf(f, asSummary = false)
+          k = j
+          continue
+        let head = rowOf(f, asSummary = true)
+        let body = emit(k + 1, j)
+        let wrapped = ui:
+          details(class = "ctfold"):
+            raw head
+            raw body
+        result.add wrapped
+        k = j
+
     ui:
       tdiv(class = "ctrows"):
-        for f in frames:
-          # `data-step` is the time coordinate the frame starts at — the same
-          # coordinate `?t=` carries (Debugger-Integration §6.2), which is why
-          # it needs no protocol of its own.
-          #
-          # `href` is what turns the row into a jump target, and it is the
-          # PRODUCER's decision, not this renderer's. §3 deferred these on the
-          # grounds that "until hydration lands such a link would reload the
-          # page at a coordinate the static export cannot honour" — which is
-          # still true of a static export, because a query string does not
-          # select a file. What changed is that hydration now READS the
-          # coordinate (§6.0a), so a link is honourable exactly where a script
-          # is running to honour it. The served page keeps rows that are rows;
-          # the hydrated page has anchors, and gets focus, Enter, middle-click
-          # and the status bar from the platform rather than from a `keydown`
-          # handler that would have to reimplement all four.
-          #
-          # `data-anchor` rides alongside as the row's §6.0a recovery anchor.
-          # It is what makes the SERVED page able to resolve an incoming link
-          # before a byte is fetched: §7.0 makes this page the session's first
-          # frame from published data, so these rows already describe the
-          # artifact the link is about, and §6.3 wants resolution "before first
-          # paint" rather than after a round trip to an engine that has not
-          # loaded. Inert either way — a row with no href does nothing with it.
-          let cls = "ctrow " & depthClass(f.depth) &
-                    (if f.current: " cur" else: "")
-          #
-          # `title` and `data-module` come AFTER `data-anchor` and that order
-          # is load-bearing: `tools/capture/lib/entities.mjs` matches
-          # `data-step="…" data-anchor="…"` as ADJACENT attributes, so anything
-          # inserted between them silently stops the capture harness finding
-          # rows. New attributes go on the end.
-          #
-          # `title` is the path's new home. A native tooltip rather than a
-          # styled one because this route ships no JavaScript and must work
-          # with scripting off: `title` is the only hover text a static page
-          # can offer, and it is reachable by keyboard focus and to a screen
-          # reader, which a CSS-only `::after` popover is not. Its content is
-          # DERIVED from the frame by `session_view.frameTooltip` — no clause
-          # of it is spelled here, so a row cannot describe a fact its own
-          # data does not carry.
-          #
-          # `data-module` is the path as DATA. `hydrate.rowsOf` needs it to
-          # resolve a `src:` deep link against the served rows, and it used to
-          # get it by reading `.ctmod`'s `textContent` — scraping a
-          # presentation element for a value. That coupling is why removing a
-          # span from this row would otherwise have broken deep-link landing
-          # with nothing to catch it.
-          let tip = frameTooltip(f, unit)
-          if f.href.len > 0:
-            a(class = cls, href = f.href, `data-step` = $f.step,
-              `data-anchor` = f.anchor, title = tip,
-              `data-module` = f.module):
-              raw frameCells(f)
-          else:
-            tdiv(class = cls, `data-step` = $f.step, `data-anchor` = f.anchor,
-                 title = tip, `data-module` = f.module):
-              raw frameCells(f)
+        raw emit(0, frames.len)
 
   proc head(first, cost: string; withCalls: bool): string =
     ## The unit belongs to the COLUMN, not to every row in it. Repeating it per

@@ -1,0 +1,287 @@
+{
+ "format": "blocktracer/chain-snapshot@1",
+ "provenance": {
+  "note": "NOT A CAPTURE. This snapshot describes the fixture container written by tools/chain/record-noir-frames-fixture.mjs; see provenance.json beside it for what in that container is measured, what is reconstructed and what is zero.",
+  "chain": "aztec-testnet",
+  "of": "client/fixtures/chain/aztec-testnet/snapshot.json, for this one transaction, with the recording counts replaced by the fixture recorder's own"
+ },
+ "transactions": [
+  {
+   "txHash": "0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f",
+   "blockNumber": 67011,
+   "txIndexInBlock": 0,
+   "revertCode": 0,
+   "transactionFee": "0x00000000000000000000000000000000000000000000000014191f1cc6195412",
+   "bodyRetained": true,
+   "effectVisible": true,
+   "firstInBlock": true,
+   "capturedAt": "2026-09-02T21:02:03.006Z",
+   "capturedWindow": {
+    "tip": 67058,
+    "finalized": 67009,
+    "replayableFrom": 67010,
+    "replayableTo": 67058
+   },
+   "replayed": true,
+   "outcome": "replayed",
+   "kind": "replayed",
+   "container": "ct/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.ct",
+   "containerBytes": 172032,
+   "l2BlockNumber": 67011,
+   "preStateReadAt": 67010,
+   "contractReferenceBlock": 67011,
+   "hydrationRounds": 2,
+   "seedSize": {
+    "nullifiers": 1,
+    "publicData": 0
+   },
+   "instructionsExecuted": 108,
+   "publishedRevertCode": 0,
+   "replayedRevertCode": 0,
+   "effects": {
+    "reproduced": true,
+    "matched": 10,
+    "mismatched": 0,
+    "mismatches": []
+   },
+   "recording": {
+    "bytes": 172032,
+    "events": 108,
+    "steps": 108,
+    "callsOpened": 45,
+    "logEvents": 6,
+    "declaredRung": 2,
+    "distinctOpcodes": 21,
+    "contexts": 1,
+    "stepsPositioned": 86,
+    "stepsUnpositioned": 22,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x0000000000000000000000000000000000000000000000000000000000000003",
+      "rung": 2,
+      "reason": "86 of 108 executed step(s) of this contract resolve to a source position; the remaining 22 are in regions the artifact's brillig_locations does not key — compiled procedures are appended after the main body (avm-transpiler transpile.rs:489,505), SOURCE-MAPPING.md section 2.4 hole 2 — first at pc 0. The artifact itself is rung 1: 314 pc(s) in [130, 1785] map to source spans over 32 file(s), and avm-transpiler re-keys brillig_locations by AVM byte offset (transpile.rs:1803), so each is a real (path, line, column)",
+      "steps": 108,
+      "positioned": 86,
+      "firstUnpositionedPc": 0,
+      "resolved": true
+     }
+    ],
+    "noirFramesOpened": 44,
+    "noirMaxDepth": 9,
+    "distinctNoirFunctions": 33,
+    "pathsInterned": 18
+   },
+   "artifacts": [
+    {
+     "address": "0x0000000000000000000000000000000000000000000000000000000000000003",
+     "contractClassId": "0x1f85d8b901a87b3fa9b93a44ab569ca2f5eb62412dfd58c894fdfff218be11a4",
+     "resolved": true,
+     "origin": "npm:@aztec/protocol-contracts@5.3.0-nightly.20260819 FeeJuice",
+     "shape": "snake_case",
+     "artifactHash": "0x1a57ff2a8e653094229bd15c028683e08b2086dfeadecac4c6b950c383b3ae1d",
+     "debugDigest": "f87f9cc0f91809b2a0a607484a65ed5de9aa9ee44d83a1b510eb5a9013228e2a",
+     "sourceFiles": 32,
+     "corroboration": "single-distributor",
+     "agreeingDistributors": [
+      "npm"
+     ],
+     "sources": [
+      {
+       "path": "std/aes128.nr",
+       "bytes": 1235
+      },
+      {
+       "path": "std/cmp.nr",
+       "bytes": 20120
+      },
+      {
+       "path": "std/field/mod.nr",
+       "bytes": 34480
+      },
+      {
+       "path": "std/hash/mod.nr",
+       "bytes": 17892
+      },
+      {
+       "path": "std/ops/arith.nr",
+       "bytes": 27490
+      },
+      {
+       "path": "std/option.nr",
+       "bytes": 11165
+      },
+      {
+       "path": "std/panic.nr",
+       "bytes": 503
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/fee_juice_contract/src/lib.nr",
+       "bytes": 1444
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/fee_juice_contract/src/main.nr",
+       "bytes": 14527
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/context/private_context.nr",
+       "bytes": 16723
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/context/public_context.nr",
+       "bytes": 10935
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/hash.nr",
+       "bytes": 4088
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/messaging.nr",
+       "bytes": 1424
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/avm.nr",
+       "bytes": 7250
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/execution_cache.nr",
+       "bytes": 1086
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/get_l1_to_l2_membership_witness.nr",
+       "bytes": 831
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/nullifiers.nr",
+       "bytes": 2436
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/public_call.nr",
+       "bytes": 841
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/tx_phase.nr",
+       "bytes": 1149
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/version.nr",
+       "bytes": 2310
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/state_vars/map.nr",
+       "bytes": 1315
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/state_vars/public_mutable.nr",
+       "bytes": 1397
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/hash.nr",
+       "bytes": 16766
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/merkle_tree/merkle_tree.nr",
+       "bytes": 3959
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/merkle_tree/root.nr",
+       "bytes": 3704
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/storage/map.nr",
+       "bytes": 1117
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/type_packing.nr",
+       "bytes": 6413
+      },
+      {
+       "path": "/home/aztec-dev/nargo/github.com/noir-lang/poseidon/v0.3.0/src/poseidon2.nr",
+       "bytes": 4599
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/serde/src/reader.nr",
+       "bytes": 1517
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/serde/src/serialization.nr",
+       "bytes": 13105
+      },
+      {
+       "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/serde/src/type_impls.nr",
+       "bytes": 22360
+      },
+      {
+       "path": "/home/aztec-dev/nargo/github.com/noir-lang/sha256/v0.3.0/src/sha256.nr",
+       "bytes": 16545
+      }
+     ],
+     "reason": "class 0x1f85d8b901a87b3fa9b93a44ab569ca2f5eb62412dfd58c894fdfff218be11a4 is proved by npm:@aztec/protocol-contracts@5.3.0-nightly.20260819 FeeJuice: computeArtifactHash = 0x1a57ff2a8e653094229bd15c028683e08b2086dfeadecac4c6b950c383b3ae1d equals the class's, public_dispatch is byte-equal to the class's packedBytecode (1947 bytes), and recomputing the class id from them returns 0x1f85d8b901a87b3fa9b93a44ab569ca2f5eb62412dfd58c894fdfff218be11a4. artifactHash does NOT commit to debug_symbols or file_map, and those are attested by 1 distributor(s) (npm) at digest f87f9cc0f91809b2",
+     "rejected": []
+    }
+   ],
+   "roots": [
+    {
+     "tree": "noteHashTree",
+     "resident": "0x2c9c7314fcd5d7ee782fde836943e5dd0527a9cb34bada4b3cebb2a5a04e7f7b",
+     "chain": "0x1937a5fdd77787b40b9fff06e1b9653a2a354b1399d09a36a94f8ce4e3d02e01",
+     "agrees": false
+    },
+    {
+     "tree": "nullifierTree",
+     "resident": "0x0517b9b0c3d6460d1233bd37456d71e9753b5c3dc00b413e3875da71ff09fc50",
+     "chain": "0x098f1aa10a6a9f105acb9b25066aea3b7271727a8cc2435cbbb09771ee33f767",
+     "agrees": false
+    },
+    {
+     "tree": "publicDataTree",
+     "resident": "0x2a75046f55186cf802b3a3bdfe2ebb0faf919d6b8226ead1426629064adface6",
+     "chain": "0x2652822e62a3ae47395b78b72fb51f858be0d66a65e8c19fd9c91f884a4d5eaf",
+     "agrees": false
+    },
+    {
+     "tree": "l1ToL2MessageTree",
+     "resident": "0x0fef6d80d31109ddb56d6b3f607cbc9c0af0bff3ea0d43e8f278983c64c11f7a",
+     "chain": "0x22abadf2819f7fb5335dcf81e7fe68bacaa23c1f03f2d6d51dedd076848f862f",
+     "agrees": false
+    }
+   ],
+   "rootsAnyAgree": false,
+   "skipped": [
+    {
+     "value": "0x081ebf18328c5ffd15d0d6de59420f96e7b60d6722abf6da36921c25185b8d2c",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1f30cecb08dca14aee2222fb3afcd492dec7bfe03113129ef3ced8e0c1169dd7",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2fb800be54f808ca65fcf25c2dcc033d5540cfb6fcdcf6bacb961e26ea1e8613",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x188b2620d9b6c6587d8dbbdb26ccb695a729ddc0b63b12924656a7b5d70c743d",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x081ebf18328c5ffd15d0d6de59420f96e7b60d6722abf6da36921c25185b8d2c",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x1f30cecb08dca14aee2222fb3afcd492dec7bfe03113129ef3ced8e0c1169dd7",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x2fb800be54f808ca65fcf25c2dcc033d5540cfb6fcdcf6bacb961e26ea1e8613",
+     "reason": "emitted-by-this-transaction"
+    },
+    {
+     "value": "0x188b2620d9b6c6587d8dbbdb26ccb695a729ddc0b63b12924656a7b5d70c743d",
+     "reason": "emitted-by-this-transaction"
+    }
+   ],
+   "sourceBundles": "sources/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.json"
+  }
+ ]
+}

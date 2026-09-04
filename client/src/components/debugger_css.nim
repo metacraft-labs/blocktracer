@@ -1382,6 +1382,44 @@ a.ctrow,a.evrow{cursor:pointer}
 .ctrow:not(.d0):not(.flat) .ctfn{
   border-left:var(--bt-stroke-hairline) solid var(--bt-border-default);
   margin-left:var(--bt-space-2xs)}
+
+/* ── the folded subtree ──────────────────────────────────────────────────────
+
+   A frame whose subtree starts CLOSED. Not elided: the frames are all in the
+   markup, inside this `<details>`, and one click or Enter reveals them. The
+   pane's job here is to make the closed state look like a row that can be
+   opened rather than like a row with something missing.
+
+   `<details>` carries no box of its own — `display:contents` — so the summary
+   and the revealed rows sit in `.ctrows`'s normal flow at their own depths, and
+   a folded frame is separated from its neighbours by nothing at all. Wrapping
+   them in a visible box would draw a container the data does not have: the
+   frame is one row among its siblings, and its subtree is more rows.
+
+   `list-style:none` plus the WebKit pseudo-element is the pair that removes the
+   UA's default marker on both engine families; the caret below is drawn instead
+   so it can sit where the ladder puts it rather than where the UA does. */
+.ctfold{display:contents}
+summary.ctrow{list-style:none;cursor:pointer}
+summary.ctrow::-webkit-details-marker{display:none}
+/* THE CARET NAMES THE STATE AND IS NOT THE ONLY THING THAT DOES. `▸`/`▾` is the
+   same register as the source tab menu's `▾`/`▴` and the position mark's `▶` —
+   glyphs this pane already spends, not an icon set this layer would import. It
+   is `::before` on the name so it rides with the indentation and cannot drift
+   away from the row it belongs to at depth 8. */
+summary.ctrow .ctname::before{content:"\25b8 ";color:var(--bt-text-subtle)}
+details[open] > summary.ctrow .ctname::before{content:"\25be "}
+summary.ctrow:hover{background:var(--bt-surface-hover)}
+/* WHAT IS INSIDE, IN THE READER'S OWN UNITS, and it stays legible when opened
+   rather than vanishing — an opened node still says how much it holds, which is
+   what lets a reader close it again on purpose instead of by hunting. It sits
+   between the name and the cost column, so the cost column stays where it is on
+   every row and the numbers still line up down the pane. */
+.cthidden{flex:0 0 auto;color:var(--bt-text-subtle);
+  font-size:var(--bt-type-label-size);
+  font-variant-numeric:var(--bt-numeric-features);
+  white-space:nowrap}
+details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
 .ctfoot{border-bottom:0;color:var(--bt-text-subtle);
   font-size:var(--bt-type-label-size);justify-content:space-between}
 .ctsort{color:var(--bt-text-link);text-decoration:underline;

@@ -17,33 +17,58 @@
 // `Call`/`Function` events instead of `Step` events, and the build stays exactly
 // as hermetic as it was.
 //
-// ── What the container actually carries ──────────────────────────────────────
+// ── What the container carries, and what CHANGED under it ───────────────────
 //
-// Measured across all 27 committed containers (`client/fixtures/chain/aztec`
-// and `aztec-testnet`), the structure is uniform: two `Function` events
-// (`<toplevel>` and `enqueued-call-0`), two `Call` events, one `Return`. The
-// second `Call` carries the enqueued call's target contract as its one argument.
+// Two shapes, and this tool reads both.
 //
-// BOTH CALLS OPEN BEFORE STEP 0 AND THE RETURN LANDS AFTER THE LAST STEP. This
-// is a two-deep stack that is open for the whole recording, not a tree that
-// evolves as it runs — an AVM enqueued call is one public function invocation
-// and the recorder does not open a frame per Noir inlined callee. A reader of
-// this file should expect a short, flat answer, and the pane rendering two rows
-// is that answer and not a truncation of a longer one.
+// THE AVM-CONTEXT SHAPE, which every container committed under
+// `client/fixtures/chain/` has: two `Function` events (`<toplevel>` and
+// `enqueued-call-0`), two `Call` events, one `Return`. Both calls open before
+// step 0 and the return lands after the last step — a two-deep stack open for
+// the whole recording, not a tree that evolves as it runs. Both frames sit on
+// `path_id: 0`, the pseudo-path `/aztec/<txHash>.avm` the recorder interns first
+// and files unplaceable coordinates under, so both carry `path: null`.
 //
-// ── No file, no line, and that stays true ────────────────────────────────────
+// THE NOIR SHAPE, which `aztec-avm-runtime@26cac14` taught both recorders to
+// write: the same two AVM frames, and INSIDE the enqueued call a frame per Noir
+// function boundary, each on a REAL interned path with a real declaration line.
+// On the published snapshot's own 108 steps that is 44 more frames, nine deep,
+// over 33 distinct functions.
 //
-// The `Function` events name `path_id: 0`, which is the synthetic pseudo-path
-// `/aztec/<txHash>.avm` the recorder interns first and files unplaceable
-// coordinates under (see `derive-positions.mjs` for the same structural test).
-// A frame's declared `line: 1` there is a slot filler, not a source line.
+// This tool used to REFUSE the second shape — `if (fn.path_id > 0) … exit(1)`,
+// on the grounds that writing `path: null` under it would discard a coordinate
+// the recording took the trouble to write. That refusal was right and it has
+// been paid off rather than deleted: the path is now RESOLVED through the
+// container's own `Path` table instead of dropped.
 //
-// So `path` and `line` are written as `null` and the pseudo-path is DROPPED
-// rather than renumbered, exactly as the positions stream drops it. The pane's
-// standing sentence — "Nothing resolved a source position, so they carry no
-// file or line" — remains literally true after this tool runs; what stops being
-// true is only the clause that said the frames are listed *once the session is
-// live*, because they are listed now.
+// ── Resolving a frame's path, and the pseudo-path that is not one ───────────
+//
+// `Path` events arrive in interning order, so their index IS the `path_id` a
+// `Function` event quotes — the same identity `derive-positions.mjs` relies on
+// for steps. Index 0 is the pseudo-path; a frame there has no source position
+// and is written `path: null, line: null`, which is what `CallFrame.line == 0`
+// means downstream and what the renderer draws as nothing rather than as `:0`.
+//
+// ── Folding, and why the counts are computed HERE ────────────────────────────
+//
+// A third of the reader's steps on a typical Aztec public call are inside
+// poseidon2. `fold_rules.mjs` says which subtrees the pane starts with CLOSED —
+// library code the contract author did not write — and this tool applies it and
+// writes the answer down. Nothing is omitted: every frame the recorder wrote is
+// in the output, at its real depth, in order. A folded frame is one that carries
+// `foldedBy`, and the pane draws it shut with a disclosure the reader can open.
+//
+// THE COUNTS ARE THIS TOOL'S BECAUSE ONLY THIS TOOL HOLDS THE WHOLE TREE. It
+// reads every `Call`, `Return` and `Step` event in the container, in order, so
+// `hiddenDescendants` and `hiddenSteps` are properties of the RECORDING. A
+// renderer that counted its way down the rows it happened to have would be
+// answering a different question — and would answer it differently depending on
+// what else the page had loaded. `session_view.CallFrame` therefore has no
+// arithmetic in it; it carries these two numbers and paints them.
+//
+// `hiddenSteps` is cross-checked against a second, independent reading of the
+// same fact — `endStep - step`, the recording's own step clock across the
+// frame's life — and a disagreement is fatal. See `foldSubtrees` below.
 //
 // ── Cost is deliberately not written ─────────────────────────────────────────
 //
@@ -57,16 +82,26 @@
 // Usage:
 //   CT_PRINT=../codetracer-trace-format-nim/ct-print \
 //     node tools/chain/derive-calltrace.mjs client/fixtures/chain/aztec-testnet
+//
+//   …--no-fold writes the same frames with no fold marks at all, which is how
+//   the OTHER direction of the default gets measured. A default that cannot be
+//   turned off is not a default.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
-const dir = process.argv[2];
+import { DEFAULT_FOLD_RULES, foldRuleFor } from './fold_rules.mjs';
+import { buildFrames } from './lib/calltrace_frames.mjs';
+
+const args = process.argv.slice(2);
+const noFold = args.includes('--no-fold');
+const dir = args.find((a) => !a.startsWith('--'));
 if (!dir) {
-  console.error('usage: derive-calltrace.mjs <snapshot-dir>');
+  console.error('usage: derive-calltrace.mjs [--no-fold] <snapshot-dir>');
   process.exit(2);
 }
+const rules = noFold ? [] : DEFAULT_FOLD_RULES;
 
 function findCtPrint() {
   const explicit = process.env.CT_PRINT;
@@ -104,96 +139,48 @@ for (const t of snap.transactions) {
   const events = JSON.parse(execFileSync(ctPrint, ['--events', ct],
     { encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 }));
 
-  // The interning tables, in the order the container declares them. A
-  // `Function` event is a DEFINITION and a `Call` event is an INVOCATION that
-  // references one by index; the two are separate streams and this tool must
-  // not assume they interleave one-to-one, even though on this corpus they do.
-  const functions = events.filter((e) => e.type === 'Function');
-  const varNames = events.filter((e) => e.type === 'VariableName').map((e) => e.name);
-
   // Walk in stream order, counting Steps, so every frame gets the time
   // coordinate it opened at. That coordinate is what the pane's row carries as
   // `data-step` and what a share link from the row resolves against, so it has
   // to be the recording's own step index and not the frame's position in a list.
-  let step = 0;
-  const open = [];
-  const frames = [];
-  let calls = 0;
-  let returns = 0;
-
-  for (const e of events) {
-    if (e.type === 'Step') { step++; continue; }
-
-    if (e.type === 'Call') {
-      calls++;
-      const fn = functions[e.function_id];
-      if (!fn) {
-        console.error(`derive-calltrace: ${t.txHash}: Call references function_id `
-          + `${e.function_id} and the container declares ${functions.length} `
-          + `function(s). Refusing to write a frame with no definition behind it.`);
-        process.exit(1);
-      }
-      // The corpus-wide fact this file rests on, checked per frame. If a
-      // recorder ever positions a frame on a real interned path, writing
-      // `path: null` below would DISCARD a source coordinate the recording
-      // took the trouble to write — a silent downgrade, and the exact shape of
-      // defect this repository refuses elsewhere. Stop instead.
-      if (fn.path_id > 0) {
-        console.error(`derive-calltrace: ${t.txHash}: frame '${fn.name}' is placed on `
-          + `interned path ${fn.path_id}, not the pseudo-path. This tool would drop `
-          + `that position. Teach it to emit path/line before deriving this container.`);
-        process.exit(1);
-      }
-      const frame = {
-        name: fn.name,
-        depth: open.length,
-        // The step the frame opened at. Both frames on this corpus open at 0,
-        // before the first Step event is read.
-        step,
-        // NULL BY MEASUREMENT, NOT BY OMISSION, and asserted rather than
-        // assumed. `path_id === 0` is the pseudo-path — the recorder's "no
-        // source position" — so there is no file and no line to write. Every
-        // frame in this corpus sits there; a recorder that one day places a
-        // frame on a real path must not have that position silently dropped,
-        // so it is refused below instead.
-        path: null,
-        line: null,
-        args: (e.args ?? []).map((a) => ({
-          name: varNames[a.variable_id] ?? null,
-          value: a.value?.text ?? (a.value?.i !== undefined ? String(a.value.i) : null),
-        })),
-        endStep: null,
-      };
-      open.push(frame);
-      frames.push(frame);
-      continue;
-    }
-
-    if (e.type === 'Return') {
-      returns++;
-      const frame = open.pop();
-      // A Return with nothing open is a malformed stream, not a frame at
-      // depth -1. Refusing beats writing a call trace that claims a structure
-      // the container does not have.
-      if (!frame) {
-        console.error(`derive-calltrace: ${t.txHash}: a Return event closes a frame `
-          + `that was never opened. Refusing to write a malformed call trace.`);
-        process.exit(1);
-      }
-      frame.endStep = step;
-    }
+  //
+  // The walk, the path resolution and the fold marking are in
+  // `lib/calltrace_frames.mjs` so the self-test can drive them over hand-built
+  // streams with no container and no `ct-print`. Its refusals are exceptions,
+  // and they become this tool's `exit(1)` here — a tool stops, a library reports.
+  let built;
+  try {
+    built = buildFrames(events, { rules, foldRuleFor });
+  } catch (err) {
+    console.error(`derive-calltrace: ${t.txHash}: ${err.message}`);
+    process.exit(1);
   }
+  const { frames, calls, returns } = built;
 
   // THE CAPTURE'S OWN COUNT IS THE ORACLE, and a disagreement is fatal rather
   // than reported — the same contract `derive-positions.mjs` signs.
   //
-  // `recording.callsOpened` counts the ENQUEUED calls and excludes the
-  // synthetic `<toplevel>` frame the recorder opens to hold them, so the
-  // relation is `calls == callsOpened + 1`. That is an assumption about how the
-  // recorder counts, which is exactly the kind of assumption that must be
-  // checked rather than believed: if it is wrong, the pane renders a frame the
-  // recording never opened, and `manifest.execution.frames` — which is written
-  // FROM `callsOpened` — would go on reporting the other number beside it.
+  // `recording.callsOpened` is the writer module's own `ct_calls_opened()` — it
+  // counts every frame the RECORDER opened and excludes the synthetic
+  // `<toplevel>` the trace writer emits on open, so the relation is
+  // `calls == callsOpened + 1`. That is an assumption about how the recorder
+  // counts, which is exactly the kind of assumption that must be checked rather
+  // than believed: if it is wrong, the pane renders a frame the recording never
+  // opened, and `manifest.execution.frames` — which is written FROM
+  // `callsOpened` — would go on reporting the other number beside it.
+  //
+  // IT SURVIVED THE NOIR FRAMES UNCHANGED, AND THAT WAS MEASURED RATHER THAN
+  // HOPED FOR. This comment used to say `callsOpened` counts "the ENQUEUED
+  // calls", which was true of every container that existed when it was written
+  // and is not the rule. Read off both shapes of the same transaction:
+  //
+  //   published, AVM-context frames    2 Call, 1 Return, callsOpened 1
+  //   fixture, Noir frames            46 Call, 45 Return, callsOpened 45
+  //
+  // One unmatched `Call` in each, `function_id 0`, first in the container, no
+  // args and no `Return` — the `<toplevel>` row this pane has always drawn.
+  // `+ 1` is that frame, on both shapes, which is why the refusal needed no
+  // widening for a tree forty-four frames deeper.
   const declared = t.recording?.callsOpened ?? 0;
   if (calls !== declared + 1) {
     console.error(`derive-calltrace: ${t.txHash}: the capture recorded `
@@ -203,24 +190,48 @@ for (const t of snap.transactions) {
     process.exit(1);
   }
 
+  const folded = frames.filter((f) => f.foldedBy !== null);
+
   mkdirSync(outDir, { recursive: true });
   const out = {
-    schema: 'avm-call-frames/1',
+    // BUMPED FROM `/1`, AND THE FIELDS ARE ADDITIVE. Every frame carries
+    // `foldedBy`, `foldWhy`, `hiddenDescendants` and `hiddenSteps`; a `/1`
+    // sidecar has none of them and still renders, because their absence reads as
+    // "nothing is folded", which is exactly what a `/1` recording's two frames
+    // are. The version moves so a reviewer can tell the two apart, not because
+    // one of them stopped working.
+    schema: 'avm-call-frames/2',
     tx: t.txHash,
     // Republished so the ingest can refuse a stream that disagrees with the
     // manifest it is about to write, without re-deriving anything.
     callsOpened: declared,
     frames: frames.length,
     steps: t.recording?.steps ?? null,
+    // THE FOLD POLICY THAT PRODUCED THIS FILE, NAMED IN IT. Two derivations of
+    // one container differ only by this, and a sidecar that did not say which
+    // one it was would be indistinguishable from a recording with no library
+    // code in it. `--no-fold` writes `[]` here rather than omitting the field.
+    foldRules: rules.map((r) => ({ id: r.id, why: r.why })),
+    foldedFrames: folded.length,
+    // The reader-facing total: how much of the trace starts behind a triangle.
+    // Summed over the fold POINTS, which never nest — the fold lands on the
+    // outermost matching frame — so this cannot double-count.
+    foldedSteps: folded.reduce((a, f) => a + f.hiddenSteps, 0),
     measuredPostHoc: false,
     measuredBy: 'tools/chain/derive-calltrace.mjs (read from the container)',
     frame: frames,
   };
   writeFileSync(join(outDir, `${t.txHash}.json`), JSON.stringify(out, null, 1) + '\n');
   wrote++;
-  report.push({ tx: t.txHash, frames: frames.length, returns });
-  console.error(`derive-calltrace: ${t.txHash.slice(0, 10)}… ${frames.length} frame(s) `
-    + `[${frames.map((f) => f.name).join(', ')}], ${returns} return(s)`);
+  report.push({
+    tx: t.txHash, frames: frames.length, returns,
+    folded: folded.length, foldedSteps: out.foldedSteps,
+  });
+  const shown = frames.length <= 4
+    ? ` [${frames.map((f) => f.name).join(', ')}]`
+    : ` [${frames.slice(0, 3).map((f) => f.name).join(', ')}, …]`;
+  console.error(`derive-calltrace: ${t.txHash.slice(0, 10)}… ${frames.length} frame(s)${shown}, `
+    + `${returns} return(s), ${folded.length} folded hiding ${out.foldedSteps} step(s)`);
 }
 
 console.log(JSON.stringify({ snapshot: dir, wrote, skipped, report }, null, 1));

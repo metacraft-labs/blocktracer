@@ -287,7 +287,28 @@ const cursorsAtCentre = (page, sel) =>
  */
 const CLICKABLE =
   'a[href],button:not([disabled]):not([aria-disabled="true"]),' +
+  'summary,' +
   '[role="button"],[role="link"],[role="tab"],[role="menuitem"]';
+
+/*
+ * `summary` JOINED THE SET WHEN THE PAGE GREW ONE, WHICH IS THE LESSON THE
+ * `role="slider"` PARAGRAPH ABOVE ALREADY PAID FOR.
+ *
+ * The Call Trace pane folds library subtrees — `Poseidon2::hash` and friends —
+ * and draws the closed node as a real `<details>`/`<summary>` disclosure so it
+ * opens with no JavaScript, from the keyboard, and announces its state. A
+ * `<summary>` is natively clickable and carries `cursor:pointer`, so before this
+ * line it would have counted as an ORPHAN: a surface showing the hand with no
+ * clickable ancestor, which is this sweep's violation.
+ *
+ * The wrong fixes were both available. Dropping the cursor would make a control
+ * that opens on click look inert; stamping `role="button"` on it would satisfy
+ * the selector by DESTROYING the native disclosure semantics — a screen reader
+ * would stop hearing "collapsed"/"expanded", which is the one thing that makes
+ * the fold legible to a reader who cannot see the triangle. The selector was
+ * written before this page had a disclosure; it is the selector that was
+ * incomplete.
+ */
 
 /**
  * THE CONTROLS THAT ARE OPERATED BY A DRAG, WHICH IS NOT A CLICK.

@@ -269,6 +269,15 @@ jobs:
         # "this arm caught something" unless a capture target says otherwise.
         run: bash tools/chain/watch-chain-selftest.sh
 
+      - name: Does the call trace fold what it should, and can that go red?
+        # 19 assertions and six arms, over the two committed derivations of one
+        # container — with the fold policy and without it. §1 rebuilds the
+        # container's event stream from the unfolded sidecar and requires the
+        # policy to reproduce the folded one field for field; §2 mutates the
+        # rule to match nothing, then everything, and requires the gate to fail
+        # naming what it found. Offline: no `ct-print`, no `.ct`, plain node.
+        run: node tools/chain/calltrace-fold-selftest.mjs
+
   contract:
     runs-on: eph-linux-x64
     steps:

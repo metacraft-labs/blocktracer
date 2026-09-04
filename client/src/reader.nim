@@ -678,7 +678,15 @@ type
       ## listing, a listing wins over a paragraph. Nil here is not a failure —
       ## it is every capture taken before an artifact could be resolved.
     callFrames*: JsonNode
-      ## The frames the recording opened (`avm-call-frames/1`), or nil.
+      ## The frames the recording opened (`avm-call-frames/1` or `/2`), or nil.
+      ##
+      ## `/2` adds the fold marks — `foldedBy`, `foldWhy`, `hiddenDescendants`,
+      ## `hiddenSteps` — which say which subtrees the pane starts with CLOSED and
+      ## how much is behind each. Additive: a `/1` sidecar carries none of them
+      ## and renders exactly as it always did, because their absence reads as
+      ## "nothing is folded", which is the truth about a two-frame AVM-context
+      ## recording. Nothing here validates the version; the pane's producer
+      ## defaults every one of the four.
       ##
       ## NOT A FOURTH RUNG OF THE LADDER ABOVE. The three fields around it all
       ## answer "how well is a STEP placed", and they compete for one pane. This

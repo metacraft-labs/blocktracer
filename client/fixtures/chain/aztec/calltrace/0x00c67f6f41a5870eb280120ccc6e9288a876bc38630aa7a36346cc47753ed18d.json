@@ -1,9 +1,21 @@
 {
- "schema": "avm-call-frames/1",
+ "schema": "avm-call-frames/2",
  "tx": "0x00c67f6f41a5870eb280120ccc6e9288a876bc38630aa7a36346cc47753ed18d",
  "callsOpened": 1,
  "frames": 2,
  "steps": 208,
+ "foldRules": [
+  {
+   "id": "noir-stdlib",
+   "why": "Noir's standard library — hashing, comparison, Option and operator machinery that the contract calls but does not contain"
+  },
+  {
+   "id": "vendored-crate",
+   "why": "a third-party crate vendored in through nargo — poseidon2 is here, and it is the single largest consumer of steps in a typical Aztec public call"
+  }
+ ],
+ "foldedFrames": 0,
+ "foldedSteps": 0,
  "measuredPostHoc": false,
  "measuredBy": "tools/chain/derive-calltrace.mjs (read from the container)",
  "frame": [
@@ -14,7 +26,11 @@
    "path": null,
    "line": null,
    "args": [],
-   "endStep": null
+   "endStep": null,
+   "foldedBy": null,
+   "foldWhy": null,
+   "hiddenDescendants": 0,
+   "hiddenSteps": 0
   },
   {
    "name": "enqueued-call-0",
@@ -28,7 +44,11 @@
      "value": "0x2e384847ef23aa143710e34352ada347e7cd206a53799ae5e1af26722b81b2f6"
     }
    ],
-   "endStep": 208
+   "endStep": 208,
+   "foldedBy": null,
+   "foldWhy": null,
+   "hiddenDescendants": 0,
+   "hiddenSteps": 0
   }
  ]
 }

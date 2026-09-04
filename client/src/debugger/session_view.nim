@@ -621,6 +621,45 @@ type
       ## frame with no derivable anchor carries `""`, which is not an error —
       ## the coordinate alone still names the position while the container is
       ## the one it was taken from.
+    foldedBy*: string
+      ## The id of the rule that starts this frame's subtree CLOSED, or `""` for
+      ## a frame the reader sees open.
+      ##
+      ## ## Folded is not elided, and this field is the whole difference
+      ##
+      ## A third of the steps in a typical Aztec public call are inside
+      ## poseidon2. The pane starts that subtree shut so the tree reads, and the
+      ## frames are all still HERE: `frames` holds every one the recorder wrote,
+      ## in order, at its real depth. This marks which of them the renderer draws
+      ## as a closed disclosure the reader can open. Nothing is dropped from the
+      ## sequence, nothing is summarised out of it, and `selfCostRows` aggregates
+      ## over the same complete list it always did.
+      ##
+      ## It is the RULE'S ID and not a `bool` because a reader who cannot tell
+      ## why a node came up shut cannot tell folding from missing data. `foldWhy`
+      ## carries the sentence; this carries the name to attribute it to.
+    foldWhy*: string
+      ## Why this class of code is folded, in a sentence the reader is shown.
+      ## Empty when `foldedBy` is.
+    hiddenDescendants*: int
+      ## Frames inside this one. `0` unless `foldedBy` is set.
+    hiddenSteps*: int
+      ## Steps inside this one, its own included. `0` unless `foldedBy` is set.
+      ##
+      ## **BOTH COUNTS ARE READ, NEVER COMPUTED HERE.** They are properties of
+      ## the whole recording — `tools/chain/derive-calltrace.mjs` walks every
+      ## `Call`, `Return` and `Step` event in the container to get them, and
+      ## cross-checks `hiddenSteps` against the recording's own step clock
+      ## (`endStep - step`) before writing it down. A view that re-derived them
+      ## from the rows it happened to hold would be answering a different
+      ## question, and would answer it differently depending on what else the
+      ## page had loaded. There is deliberately no `func hiddenSteps(...)` in
+      ## this file to tempt anyone.
+      ##
+      ## Steps is the number that says how much of the trace is behind the
+      ## triangle; frames is the number that says how tangled it is. The row
+      ## shows both because "2 frames" and "22 steps" answer different
+      ## questions and the reader deciding whether to open has both.
     href*: string
       ## Where clicking this row goes, or `""` for a row that is not a link.
       ##
@@ -790,6 +829,19 @@ func frameTooltip*(f: CallFrame; paneUnit = ""): string =
     let unit = if f.costUnit.len > 0: f.costUnit else: paneUnit
     tail.add f.cost & (if unit.len > 0: " " & unit else: "")
   if tail.len > 0: result.add "\n" & tail.join(" · ")
+  # WHY THIS NODE CAME UP CLOSED, IN THE ROW'S OWN HOVER TEXT.
+  #
+  # A fold the reader cannot account for is indistinguishable from missing data,
+  # and the counts alone do not say WHY — they say how much. The producer returns
+  # the RULE rather than a boolean precisely so this sentence exists to be shown,
+  # and this is where a static page can show it: `title` is the only hover text a
+  # route that ships no JavaScript can offer, and it reaches keyboard focus and a
+  # screen reader, which a CSS-only popover does not.
+  #
+  # Read off the frame like every other clause. A frame that is not folded adds
+  # nothing here, so no row describes a state it is not in.
+  if f.foldedBy.len > 0 and f.foldWhy.len > 0:
+    result.add "\nFolded by default — " & f.foldWhy & "."
 
 func selfCost*(frames: seq[CallFrame]; i: int): int =
   ## Frame `i`'s cost with its DIRECT callees' cost removed, or `-1` when the

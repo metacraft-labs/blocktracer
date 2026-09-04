@@ -34,6 +34,7 @@ chain-selftest:
     node tools/chain/replay-selftest.mjs
     node tools/chain/freeze-snapshot-selftest.mjs
     bash tools/chain/watch-chain-selftest.sh
+    node tools/chain/calltrace-fold-selftest.mjs
 
 # ── what a frozen capture would have measured ──────────────────────────────
 #
@@ -135,6 +136,48 @@ chain-calltrace:
       [ -f "$d/snapshot.json" ] || continue
       node tools/chain/derive-calltrace.mjs "$d"
     done
+
+# ── the Noir-frame fixture, and its two derivations ─────────────────────────
+#
+# `client/fixtures/noir-frames/` is the container the NEW recorder would have
+# written for the transaction this repository publishes. It exists because that
+# transaction cannot be re-recorded — the node serves bodies out of its active
+# pool for about an hour and that hour is long past — and because the view side
+# needed a Noir call tree to be built against before one could be published.
+#
+# Its frame tree is `aztec-avm-runtime`'s own `ContractSourceMap` and
+# `NoirFrameTracker`, imported and RUN; its bytes are the real `CtWriter` driving
+# the real `aztec_ct_writer.wasm`. Its per-step AVM registers are ZERO and say so
+# in `provenance.json`. Read `tools/chain/record-noir-frames-fixture.mjs`'s header
+# before trusting any number out of it — the split between what is measured, what
+# is reconstructed and what is zero is the whole honesty of the fixture.
+#
+# NEEDS AN aztec-avm-runtime CHECKOUT at 26cac14 or later with the wasm built
+# (`just ct-writer-build` there), a version-matched FeeJuice artifact, and node
+# >= 22 for the TypeScript imports. Same standing as `chain-calltrace`: not part
+# of any build, not part of `just test`, run by hand, output committed.
+#
+# BOTH DERIVATIONS ARE COMMITTED and both are asserted. `calltrace/` is the
+# default view and `calltrace-unfolded/` is the same container with the policy
+# turned off — a default that cannot be turned off is not a default, and the two
+# carrying the same forty-six frames is what makes "folded, not elided" a
+# measurement rather than a claim.
+#
+#     just noir-frames-fixture ../aztec-avm-runtime <path>/FeeJuice.json
+noir-frames-fixture avm artifact:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out=client/fixtures/noir-frames
+    node tools/chain/record-noir-frames-fixture.mjs \
+      --avm-runtime "{{avm}}" --artifact "{{artifact}}" --out "$out"
+    node tools/chain/derive-calltrace.mjs "$out"
+    rm -rf "$out/calltrace-unfolded"
+    tmp="$(mktemp -d)"
+    cp "$out/snapshot.json" "$tmp/"; cp -r "$out/ct" "$tmp/"
+    node tools/chain/derive-calltrace.mjs --no-fold "$tmp"
+    mv "$tmp/calltrace" "$out/calltrace-unfolded"
+    rm -rf "$tmp"
+    node tools/chain/calltrace-fold-selftest.mjs
 
 # ── @blocktracer/client — the Client SDK (M12a) ─────────────────────────────
 # The chain-aware layer above the CodeTracer Embed SDK. See

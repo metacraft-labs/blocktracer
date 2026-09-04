@@ -93,7 +93,7 @@ preview-live: export-hydrated replay-engine
 
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
-test: test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-capability-tour test-instruction-listing test-scrub-queue test-selection-detail
+test: test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-capability-tour test-instruction-listing test-scrub-queue test-selection-detail test-noir-frame-folding
 
 # The static-export round-trip test: compile + run the real exporter into a
 # temp dir, then assert the three view types render for the demo entities and
@@ -222,3 +222,22 @@ clean:
     rm -rf dist nimcache
     find . -name nimcache -type d -exec rm -rf {} +
     rm -f src/static_export tests/test_static_export tests/test_chain_viewmodels tests/test_debug_route tests/test_explorer_breadth tests/test_entry_state tests/test_chain_provenance tests/test_capability_tour tests/test_selection_detail
+
+# tests/test_noir_frame_folding.nim — the Call Trace pane over a Noir call tree.
+#
+# Folded by DEFAULT and OPENABLE, which are two claims and are asserted
+# separately: the frames inside a closed node are checked to be in the markup,
+# and the same container derived with the policy off is checked to carry the
+# same forty-six frames. If folding were elision those two lists would differ in
+# length.
+#
+# §1 is the CONTROL — the container this repository actually publishes still
+# renders its two rows, on the pseudo-path, with no disclosure anywhere near
+# them. §7 is the published corpus's own histogram: `{absent: 957, 1: 298,
+# 2: 101}` across 1,356 rows, so no-frames is the majority shape and all three
+# must render without throwing.
+#
+# The offline half — the fold policy itself, and the six arms that prove its
+# gates can go red — is `just chain-selftest`.
+test-noir-frame-folding:
+    nim c -r --mm:orc --hints:off tests/test_noir_frame_folding.nim

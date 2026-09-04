@@ -1024,6 +1024,20 @@ proc withCallFrames*(session: var DebugSessionView; node: JsonNode) =
       # carry no file or line", stays true with rows on screen.
       line: f{"line"}.getInt(0),
       step: f{"step"}.getInt,
+      # THE FOLD MARKS, READ AND NOT DECIDED. Which subtrees start closed is
+      # `tools/chain/fold_rules.mjs`'s answer, applied where the container is
+      # read; the counts behind a closed row are the derivation's walk over the
+      # WHOLE recorded event stream. Both arrive here as data.
+      #
+      # ABSENT IS VALID, and it is what every `avm-call-frames/1` sidecar is: no
+      # `foldedBy` decodes to `""`, which the renderer draws as an ordinary open
+      # row. That is the correct rendering for a two-frame AVM-context recording
+      # — there is no library subtree in it to close — so the twenty-seven
+      # snapshots captured before this existed keep the pane they had.
+      foldedBy: f{"foldedBy"}.getStr(""),
+      foldWhy: f{"foldWhy"}.getStr(""),
+      hiddenDescendants: f{"hiddenDescendants"}.getInt(0),
+      hiddenSteps: f{"hiddenSteps"}.getInt(0),
       # NO COST COLUMN. The container carries a per-step gas reading, but both
       # frames here are open for every step of the recording — there is no
       # interval where one runs and the other does not — so any split would be

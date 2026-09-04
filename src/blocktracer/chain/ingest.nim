@@ -1325,6 +1325,48 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
             "the call trace for " & txHash & " declares " & $carriedFrames &
             " frame(s) and carries " &
             (if arr == nil: "no" else: $arr.len) & " of them")
+        # THE FOLD MARKS ARE REFUSED ON THE SAME TERMS AS THE FRAME COUNT, and
+        # for the same reason: the pane is about to tell a reader how much of
+        # the trace is behind a closed triangle, and that number is the ONE
+        # thing on the row they cannot check by looking.
+        #
+        # `avm-call-frames/1` carries none of these fields, and that stays
+        # valid — the twenty-seven snapshots captured before folding existed
+        # publish exactly as they did. What is refused is a stream that carries
+        # them and contradicts itself.
+        var markedFolded = 0
+        var markedSteps = 0
+        for f in arr:
+          if f{"foldedBy"}.getStr("").len == 0: continue
+          markedFolded.inc
+          markedSteps += f{"hiddenSteps"}.getInt(0)
+          # A CLOSED ROW WITH NOTHING BEHIND IT IS THE DEFECT THIS CATCHES.
+          # Folding is a claim that there is something inside; a frame marked
+          # folded while claiming zero descendants puts a disclosure triangle on
+          # an empty subtree, and the reader opens it and nothing happens.
+          if f{"hiddenDescendants"}.getInt(0) <= 0:
+            raise newException(ValueError,
+              "the call trace for " & txHash & " marks frame '" &
+              f{"name"}.getStr & "' folded while claiming " &
+              $f{"hiddenDescendants"}.getInt(0) & " descendant(s); refusing to " &
+              "publish a closed row with nothing behind it")
+        let declaredFolded = cf{"foldedFrames"}.getInt(0)
+        let declaredSteps = cf{"foldedSteps"}.getInt(0)
+        if markedFolded != declaredFolded or markedSteps != declaredSteps:
+          raise newException(ValueError,
+            "the call trace for " & txHash & " declares foldedFrames=" &
+            $declaredFolded & " foldedSteps=" & $declaredSteps &
+            " and its frames carry " & $markedFolded & " / " & $markedSteps &
+            "; refusing to publish a summary the rows contradict")
+        # The steps behind every triangle cannot exceed the steps the recording
+        # has. The fold points never nest — the derivation folds the outermost
+        # match and stops descending — so this is a sum, not a union, and an
+        # overrun means either the marks or the step count is wrong.
+        let recSteps = t["recording"]["steps"].getInt
+        if markedSteps > recSteps:
+          raise newException(ValueError,
+            "the call trace for " & txHash & " folds " & $markedSteps &
+            " step(s) out of a recording that has " & $recSteps)
         cfg.writeJson(dir / "calltrace.json", cf)
 
       let manifest = TraceManifest(

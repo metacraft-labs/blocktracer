@@ -1,0 +1,30 @@
+{
+ "format": "noir-frames-fixture-container/1",
+ "tx": "0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f",
+ "container": {
+  "file": "ct/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.ct",
+  "bytes": 172032,
+  "sha1": "sha1:95391c45b30360fb9bdbdfb327be97a47b0facb2"
+ },
+ "measured": {
+  "frameLogic": "aztec-avm-runtime ct-host/src/{source_map,noir_frames}.ts, imported and RUN",
+  "artifact": "npm:@aztec/protocol-contracts@5.3.0-nightly.20260819 FeeJuice",
+  "stepPositions": "aztec-avm-runtime replay/fixtures/published_snapshot_step_positions.json, decoded from the published container",
+  "pathTable": "the published container's twelve interned paths, in its own order, then the files only the frame tree reaches",
+  "containerBytes": "the real CtWriter driving the real aztec_ct_writer.wasm"
+ },
+ "reconstructed": {
+  "programCounters": "the 86 positioned steps, under the smallest-candidate-greater-than-previous rule aztec-avm-runtime states and asserts is over-determined"
+ },
+ "notMeasured": {
+  "perStepAvmRegisters": "contextId, pc, opcode, l2Gas, daGas and contractAddress are written as ZERO. The published fixture does not carry them and this tool does not invent them. Nothing in the call-trace path reads them."
+ },
+ "recording": {
+  "steps": 108,
+  "callsOpened": 45,
+  "noirFramesOpened": 44,
+  "noirMaxDepth": 9,
+  "distinctNoirFunctions": 33,
+  "pathsInterned": 18
+ }
+}
