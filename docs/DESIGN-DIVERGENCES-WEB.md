@@ -96,6 +96,7 @@ a question for the design-system authors.
 <a id="d-08"></a>
 <a id="d-09"></a>
 <a id="d-10"></a>
+<a id="d-11"></a>
 
 | # | Dimension | Web-lineage value | Product-lineage token | Notes for the authors |
 | --- | --- | --- | --- | --- |
@@ -110,6 +111,7 @@ a question for the design-system authors.
 | **D-08** | Numeric feature settings | `tabular-nums lining-nums` | **No token.** | Rubric A5 requires tabular figures in numeric columns, and this product is mostly digits. OpenType feature selection is a typographic property with no representation in any lineage. Should it become a `type` token, given the desktop app's cost columns have the same requirement? |
 | **D-09** | Font fallback stacks | `ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif` and `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace` | **No token.** The brand names one family per role. | The desktop app ships its fonts and never falls back; a web page served to an arbitrary browser must. Should fallbacks be part of the brand's font tokens, or is a fallback stack inherently a delivery-channel concern? |
 | **D-10** | Recession as opacity | `0.82` — `--bt-opacity-not-run`, the alpha a source line takes when it is inside a branch the execution evaluated and did not take | **No token.** No lineage defines an opacity ramp. The desktop app hard-codes the same idea twice in `frontend/styles/components/flow.styl` — `.line-flow-skip{opacity:0.5}` and `.line-flow-unknown{opacity:0.5}` — with no token behind either. | Every other recession in both lineages is a *colour*: a quieter text role, a sunken surface. Source code is the case that cannot use one, because each span already carries a syntax hue and overriding them all would replace the highlighting with a flat wash. Should recession-as-ratio become a shared primitive — the desktop app has two hand-written instances of it and would be its second consumer — or is opacity legitimately a per-surface decision? Note the web value is far gentler than desktop's `0.5`: it is set at the lowest ratio that keeps every syntax role above 4.5:1 in both themes (weakest 4.62:1), because a web listing is held to a text-contrast floor a desktop editor is not, and because here the recession is the second channel and not the only one.
+| **D-11** | Viewport-relative caps | `22vh` — `--bt-layout-tabstrip-max-height`, the ceiling a wrapping tab strip hits before it scrolls | **No token.** Neither lineage expresses a length as a share of the viewport; the brand's ramps are px and the product lineage's are px. | This is the one bound in the web lineage whose subject is the READER'S SCREEN rather than the layout, which is why it is not another number in D-07. A tab strip is a way in to the document beneath it, and a 32-file bundle wrapped to twenty-odd rows and left the source four lines tall — so the strip has to be bounded, and bounded against the thing that made it wrong. A px ceiling cannot do that: any value large enough to be useful on a desktop is most of a phone. Does a design system own proportional bounds at all, or is "a share of the viewport" inherently a per-component layout decision the system should decline to name? Note the cap is on the container and not on the tab count, so it never removes a tab — the strip scrolls and every tab stays a reachable link. |
 
 **One row is intentionally not backed by a literal: D-00**, which records where
 this lineage lives rather than what it renders. It is named in
@@ -251,6 +253,7 @@ has drifted.
 | `--bt-layout-prose` | bkLiteral | `700px` | [D-07](#d-07) |
 | `--bt-layout-scrubber-min` | bkLiteral | `160px` | [D-07](#d-07) |
 | `--bt-layout-search` | bkLiteral | `260px` | [D-07](#d-07) |
+| `--bt-layout-tabstrip-max-height` | bkLiteral | `22vh` | [D-11](#d-11) |
 | `--bt-measure-narrow` | bkLiteral | `44ch` | [D-06](#d-06) |
 | `--bt-measure-prose` | bkLiteral | `68ch` | [D-06](#d-06) |
 | `--bt-measure-title` | bkLiteral | `22ch` | [D-06](#d-06) |

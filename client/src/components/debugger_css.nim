@@ -444,9 +444,11 @@ html[data-register="debugger"],
    own purpose. Capped at a share of the pane and scrolled past that, which
    keeps every tab reachable (they are real links, and the cap is on the
    container rather than on the count) while guaranteeing the document the rest
-   of the height. */
+   of the height. The cap is a token because the quantity it bounds is the
+   reader's viewport and not this pane — see D-11. */
 .srctabs{display:flex;gap:var(--bt-space-3xs);flex-wrap:wrap;flex:0 0 auto;
-  max-height:22vh;overflow-y:auto;overscroll-behavior:contain;
+  max-height:var(--bt-layout-tabstrip-max-height);
+  overflow-y:auto;overscroll-behavior:contain;
   padding:var(--bt-space-3xs) var(--bt-density-cell-x);
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
   background:var(--bt-surface-sunken)}
