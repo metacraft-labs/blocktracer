@@ -438,8 +438,8 @@ html[data-register="debugger"],
 .srcdoc.alt{display:none}
 .srcdoc.alt:target{display:flex}
 .srcdoc.alt:target ~ .srcdoc.def{display:none}
-/* IT NO LONGER WRAPS BY DEFAULT — IT IS ONE ROW THAT SCROLLS, AND THE WRAP IS
-   NOW A DISCLOSURE.
+/* IT NO LONGER WRAPS — IT IS ONE ROW THAT SCROLLS, AND THE OVERFLOW IS A
+   DROPDOWN MENU.
 
    The strip wrapped, and capping its height only bounded how much of the
    document it could take rather than stopping it taking it: on the 32-file
@@ -449,12 +449,23 @@ html[data-register="debugger"],
    fix is for it to stop occupying the document's height at all rather than to
    occupy a bounded share of it.
 
-   THE ROW IS THE RESTING STATE AND THE WRAPPED GRID IS THE OPENED ONE. The
-   surface, the border and the padding move to `.srcstrip`, which is the row's
-   outer box and holds the tabs and the disclosure side by side; `.srctabs`
-   keeps its name — four suites match its class attribute as an exact string,
-   so it may not gain a modifier — and becomes the horizontally scrolling part
-   of it.
+   THE ROW IS THE RESTING STATE AND A MENU IS THE OPENED ONE, AND THAT SECOND
+   HALF IS THE CHANGE. It used to unfold — the wrapped grid came back IN FLOW,
+   measured at EIGHT rows and 196px at 1280, which is more than the seven rows
+   and 172px that were reported as the bug. A disclosure whose open state
+   exceeds the defect gives the reader the layout they complained about and
+   calls it a choice. A menu is the treatment that does not: it leaves the flow
+   entirely, so the row keeps its height, the document keeps its position, and
+   the list is drawn over the source rather than in place of it.
+
+   THE SURFACE, THE BORDER AND THE PADDING SIT ON `.srcstrip`, which is the
+   row's outer box and holds the tabs and the trigger side by side, and is the
+   POSITIONED ancestor the open menu hangs from. The list itself keeps its name
+   — four suites match its class attribute as an exact string, so it may not
+   gain a modifier — and it is the SAME element in both states: a scrolling row
+   at rest, an overlay column when open. One list, one anchor per file, so the
+   menu costs no markup at all and cannot disagree with the row about which tab
+   is the marked one.
 
    AND THAT SENTENCE MAY NOT SPELL THE ATTRIBUTE OUT, which is not pedantry:
    this comment SHIPS. Stylesheet comments are inlined into every page, two of
@@ -462,7 +473,8 @@ html[data-register="debugger"],
    instruction-listing page, and an earlier draft of this paragraph quoted it
    literally — which put one occurrence on every listing page in the build and
    turned a comment into a red suite. */
-.srcstrip{display:flex;align-items:stretch;flex:0 0 auto;min-width:0;
+.srcstrip{position:relative;display:flex;align-items:stretch;flex:0 0 auto;
+  min-width:0;
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
   background:var(--bt-surface-sunken)}
 .srctabs{display:flex;gap:var(--bt-space-3xs);flex-wrap:nowrap;
@@ -518,7 +530,7 @@ html[data-register="debugger"],
   background:var(--bt-surface-sunken);
   box-shadow:0 0 var(--bt-space-xs) var(--bt-space-3xs) var(--bt-surface-sunken);
   color:var(--bt-text-strong);border-bottom-color:var(--bt-mark-view)}
-/* THE DISCLOSURE. The checkbox is the state and the label is the control; the
+/* THE TRIGGER. The checkbox is the state and the label is the control; the
    input is zero-sized rather than `display:none` because a hidden input is not
    focusable and this has to stay operable from the keyboard. Bare `0` is not a
    length, so this stays inside A2 without inventing a token for "no size". */
@@ -529,33 +541,95 @@ html[data-register="debugger"],
    No new tokens — the same three the global rule uses. */
 .srcallt:focus-visible ~ .srcall{outline:var(--bt-focus-width) solid var(--bt-focus-ring);
   outline-offset:var(--bt-focus-offset)}
-/* `flex-start` and not `center`: opening the list makes the strip six times
-   taller, and a centred control slides down to the middle of what it just
-   opened — away from the pointer that opened it, and away from the row a
-   reader closes it from. It stays on the first row in both states. */
-.srcall{flex:0 0 auto;align-self:flex-start;cursor:pointer;white-space:nowrap;
+/* IT STRETCHES, AND ITS VERTICAL PADDING IS THE ROW'S HEIGHT WHEN THE LIST IS
+   OUT OF FLOW. This is the one place the menu form costs something the
+   disclosure did not: the open list is absolutely positioned, so it stops
+   contributing height, and the trigger is then the ONLY thing holding the row
+   open. `2xs` is exactly the `3xs` the list's own padding spends plus the `3xs`
+   a tab spends — the two boxes the row's 26px used to come from — so the row is
+   the same height open and closed and the source below it does not shift by a
+   pixel when the menu appears. That is the whole property the report asked for,
+   and it is worth stating that it rests on a padding rung and not on a
+   coincidence. `align-self` is left alone for the same reason: stretched, the
+   trigger's own left border becomes the row's full-height divider rather than a
+   stub that stopped where a two-pixel padding did.
+
+   AND IT CARRIES A TAB'S OWN TRANSPARENT UNDERLINE, which is the last two
+   pixels of that sum and was measured rather than reasoned: a tab's box is its
+   padding PLUS the `thick` rule it reserves for the active mark, and a trigger
+   without one closed the row from 27px to 25px the moment the list left flow —
+   a 2px jump of the whole document, on the one interaction whose entire claim
+   is that it does not move the document. Reserving the same rule here makes the
+   two boxes identical by construction instead of by arithmetic that happened to
+   agree. Transparent, so nothing is drawn: the trigger is not a tab and does not
+   claim to be selectable. */
+.srcall{flex:0 0 auto;cursor:pointer;white-space:nowrap;
+  display:flex;align-items:center;
   font-size:var(--bt-type-label-size);color:var(--bt-text-subtle);
-  padding:var(--bt-space-3xs) var(--bt-density-cell-x);
+  padding:var(--bt-space-2xs) var(--bt-density-cell-x);
   border-left:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
+  border-bottom:var(--bt-stroke-thick) solid transparent;
   transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
 .srcall:hover{color:var(--bt-text-default);background:var(--bt-surface-hover)}
+/* Open, the trigger is a pressed control rather than an idle one — the menu it
+   opened is drawn OVER the source, so the one thing on screen that says where
+   that overlay came from is the chip it came out of. */
+.srcallt:checked ~ .srcall{color:var(--bt-text-strong);
+  background:var(--bt-surface-hover)}
 /* Which of the two words the control shows is the toggle's only other job. */
 .srcallless{display:none}
 .srcallt:checked ~ .srcall > .srcallmore{display:none}
 .srcallt:checked ~ .srcall > .srcallless{display:inline}
-/* OPENED: EXACTLY THE STRIP THIS USED TO BE, AND THIS IS WHERE THE CAP LIVES
-   NOW. The wrapped, height-capped, scrolling grid is unchanged in every respect
-   except that a reader now asks for it, so `--bt-layout-tabstrip-max-height`
-   still bounds the one state that can displace the document — see D-11, whose
-   reasoning is untouched: the quantity being bounded is the reader's viewport
-   and not this pane. The sticky pin is released here because there is no
-   horizontal scroll left for it to defend against, and a box that is sticky on
-   both inline edges of a container that does not scroll them just sits still
-   anyway — saying so is cheaper than relying on it. */
-.srcallt:checked ~ .srctabs{flex-wrap:wrap;
+/* OPENED: THE SAME LIST, DRAWN AS A MENU OVER THE SOURCE.
+
+   Not a second list. Every anchor here is the anchor that was in the row a
+   moment ago, so the menu adds no markup to a page that already carries every
+   line of every document — the 32-file bundle's page holds 1024 tab anchors
+   across its 32 panels and holds exactly 1024 with the menu. It is also why
+   `.srctab.on` still matches once per visible panel, which
+   `tools/journeys/lib/frame.mjs` and `lib/probe.mjs` both depend on.
+
+   `position:absolute` IS THE FIX, not a detail of it. Out of flow, the list
+   cannot push the document down, which is precisely what the disclosure it
+   replaces did — 196px of it at 1280. `top:100%` hangs it off the row's bottom
+   border and `right:0` aligns it under the trigger it came from rather than at
+   the far end of the pane. `width:max-content` with `max-width:100%` sizes it
+   to the longest filename it holds and no wider, and clamps it to the pane when
+   that is too wide.
+
+   THE CAP IS `--bt-layout-tabmenu-max-height` AND ITS SUBJECT CHANGED WITH THE
+   CONTROL — see D-11. It used to bound how much of the DOCUMENT an in-flow list
+   could take, so it had to be small; an overlay takes none of the document, so
+   what it bounds now is only whether the menu outruns the reader's screen, and
+   it is set to show most of a 32-file bundle at once instead of six of it. The
+   list scrolls past the cap, so no file is ever removed from it.
+
+   The sticky pin is released here: there is no horizontal scroll left for it to
+   defend against, and the halo it carries is a mask for tabs sliding underneath
+   it, which in a column is nothing. The marked file is instead named the way a
+   menu names its current item — a filled row with a leading mark — and every
+   item carries the same transparent leading border so that mark costs no
+   alignment. */
+.srcallt:checked ~ .srctabs{position:absolute;top:100%;right:0;z-index:2;
+  flex-direction:column;flex-wrap:nowrap;align-items:stretch;
+  width:max-content;max-width:100%;
+  max-height:var(--bt-layout-tabmenu-max-height);
   overflow-x:hidden;overflow-y:auto;
-  max-height:var(--bt-layout-tabstrip-max-height)}
-.srcallt:checked ~ .srctabs > .srctab.on{position:static}
+  padding:var(--bt-space-3xs);
+  background:var(--bt-surface-overlay);
+  border:var(--bt-stroke-hairline) solid var(--bt-border-default);
+  border-radius:var(--bt-radius-sm);
+  box-shadow:var(--bt-elevation-overlay)}
+.srcallt:checked ~ .srctabs > .srctab{position:static;box-shadow:none;
+  background:none;border-bottom-color:transparent;
+  border-left:var(--bt-stroke-thick) solid transparent;
+  border-radius:var(--bt-radius-xs);
+  overflow:hidden;text-overflow:ellipsis}
+.srcallt:checked ~ .srctabs > .srctab:hover{color:var(--bt-text-default);
+  background:var(--bt-surface-hover)}
+.srcallt:checked ~ .srctabs > .srctab.on{color:var(--bt-text-strong);
+  background:var(--bt-surface-selected);
+  border-left-color:var(--bt-mark-view)}
 /* THE INSTRUCTION LISTING'S CAPTION — the strip a listing gets where source
    gets its tab strip.
 

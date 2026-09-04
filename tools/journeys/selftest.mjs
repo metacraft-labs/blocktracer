@@ -1459,6 +1459,33 @@ proc noteFor*`,
     journey: "a-session-shows-the-values-it-landed-on",
     assertion: "the Values pane at the landing position says what it says on returning to it",
   },
+  {
+    id: "S/the-file-list-unfolds-in-place",
+    why:
+      "Put the opened file list back IN FLOW. This is not an analogue of a defect," +
+      " it is a defect that SHIPPED and was rejected by the reporter: the first" +
+      " answer to 'the Code panel renders its tabs on multiple rows' made the strip" +
+      " one row and turned the wrap into a DISCLOSURE — the same anchors unfolding" +
+      " into the same wrapped grid, in place, in flow. Measured on the 32-file" +
+      " bundle, the unfolded state was EIGHT rows and 196px at 1280, against the" +
+      " seven rows and 172px that had been filed as the bug, so the control's open" +
+      " state was larger than the thing it was written to fix." +
+      " AND EVERY ASSERTION IN THAT JOURNEY WAS GREEN OVER IT. Six of them read the" +
+      " CLOSED strip — one row, marked tab visible, every file reachable — and the" +
+      " seventh only counted what the open state CONTAINED. None read what opening" +
+      " it COST, which is why the journey certified a layout its own reporter then" +
+      " rejected, and why the two assertions this arm is aimed at exist at all." +
+      " The replacement is byte-for-byte the rule that shipped, so this arm" +
+      " reconstructs the rejected product rather than inventing a way to break the" +
+      " new one.",
+    file: join(CLIENT, "src", "components", "debugger_css.nim"),
+    find: `.srcallt:checked ~ .srctabs{position:absolute;top:100%;right:0;z-index:2;
+  flex-direction:column;flex-wrap:nowrap;align-items:stretch;
+  width:max-content;max-width:100%;`,
+    replace: `.srcallt:checked ~ .srctabs{flex-wrap:wrap;`,
+    journey: "a-long-file-list-fits-on-one-row",
+    assertion: "opening the file list moves neither the source nor the row it opened from",
+  },
 ];
 
 const log = (s = "") => console.log(s);
@@ -1508,7 +1535,11 @@ const log = (s = "") => console.log(s);
 // SHARDS, BECAUSE THE SUITE DOES NOT FIT IN AN HOUR
 // ---------------------------------------------------------------------------
 //
-// MEASURED, on a warm tree with local builds: 62 arms, ~115 minutes. Each arm
+// MEASURED, on a warm tree with local builds: ~1.9 minutes an arm — 115 minutes
+// over the 62 arms that existed when this was timed, and 65 arms now. The RATE
+// is the measurement and the total is a multiplication, said that way round
+// because the count moves with every arm added and the sentence quoting a total
+// went stale twice without anything noticing. Each arm
 // rebuilds and reruns its journey THREE times — before, mutated, restored — so
 // the cost is a journey's runtime times three, times the number of arms aimed
 // at it. `the-timeline-can-be-dragged` runs 339 s per arm and has eight arms:
