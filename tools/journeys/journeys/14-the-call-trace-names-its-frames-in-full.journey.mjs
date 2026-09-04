@@ -290,14 +290,26 @@ export async function run({ browser, site, j }) {
   const own = await openBrowser();
   const live = await own.newPage({ viewport: { width: 1440, height: 900 } });
   try {
-    // The sessions whose frames exist ONLY live: a container to replay, and a
-    // served Call Trace with no frames in it. Ranked by the recording's length
-    // and capped, because hydrating a session costs a worker and an 18 MB wasm
-    // and the arm must not walk the whole corpus to find one. The ranking is a
-    // budget, not the claim — the subject is chosen below by the property that
-    // matters, which is how many frames share a name.
+    // The sessions a live engine can open: a container to replay. Ranked by the
+    // recording's length and capped, because hydrating a session costs a worker
+    // and an 18 MB wasm and the arm must not walk the whole corpus to find one.
+    // The ranking is a budget, not the claim — the subject is chosen below by
+    // the property that matters, which is how many frames share a name.
+    //
+    // THIS USED TO ALSO REQUIRE `calltraceFrames === 0`, on the premise that the
+    // frames of a chain recording "exist ONLY live". That premise is gone:
+    // `tools/chain/derive-calltrace.mjs` lifts them out of the container and the
+    // served page lists them (CHAIN-CAPTURE.md §6.6). Keeping the clause would
+    // have made this arm select from an empty set and fail on a subject
+    // shortage, reporting a missing recursion trace where the real change was
+    // that the served pane stopped being empty.
+    //
+    // What the arm proves is unchanged and is now the stronger claim: the LIVE
+    // call trace is richer than the served one — the engine expands frames the
+    // raw `Call` events do not carry — and `hydrate.writePane`'s latch lets it
+    // replace a served pane that already has rows.
     const candidates = all
-      .filter((x) => x.hasContainer && x.calltraceFrames === 0)
+      .filter((x) => x.hasContainer)
       .sort((a, b) => b.totalSteps - a.totalSteps)
       .slice(0, 4);
     j.note(`LIVE: hydrating ${candidates.length} candidate session(s)`);

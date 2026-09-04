@@ -158,6 +158,18 @@ proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
   # rule made mechanical — see `withInstructionListing`, which refuses any pane
   # that is not `srcUnverified` and any pane that already has documents.
   withInstructionListing(result, t.instructions)
+  # THE CALL TRACE, AND IT IS NOT PART OF THAT CONTEST. The three calls above
+  # compete for the CODE pane — a bundle beats positions beats a listing — and
+  # this fills a different pane from a different object, so it runs outside the
+  # ladder rather than as a fourth rung of it.
+  #
+  # LAST, THOUGH, AND THAT ORDER IS LOAD-BEARING: `withInstructionListing`
+  # clamps `controls.step` to the recording's own last tick, and the frame this
+  # marks `current` is the one containing that coordinate. Running before the
+  # clamp would resolve the current frame against a step the page then corrects,
+  # which is the two-producers-of-one-coordinate defect the listing's own
+  # comment describes.
+  withCallFrames(result, t.callFrames)
 
 proc demoSessionFor*(r: DataRoot): Option[DebugSessionView] =
   ## The home page's featured session: the first transaction in the tree whose

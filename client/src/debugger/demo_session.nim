@@ -952,6 +952,109 @@ proc withSourcePositions*(session: var DebugSessionView;
     "source position; the rest are compiler-generated code the artifact maps " &
     "no line for."
 
+proc withCallFrames*(session: var DebugSessionView; node: JsonNode) =
+  ## Give the Call Trace pane the frames the recording opened.
+  ##
+  ## THE PANE THAT PROMISED ROWS AND SERVED A SENTENCE. `CHAIN-CAPTURE.md` §6.6
+  ## recorded this pane's emptiness as a static-export limitation with a working
+  ## live path — "they are listed once the session is live" — resting on the
+  ## claim that the served page has no CTFS reader and the build is hermetic.
+  ## The premise is true and the conclusion was not: `instructions.json` and
+  ## `positions.json` are read out of the same containers by the same reader the
+  ## build does not have, BY HAND and ahead of the build, and they reach this
+  ## page. `tools/chain/derive-calltrace.mjs` now does it for the frames.
+  ##
+  ## So the served page lists them, which is what §6.6 said only a live session
+  ## could do. Two things it said remain true and are kept: the frames carry no
+  ## file and no line, because the recorder placed them on the pseudo-path; and
+  ## a live session still lists MORE — `hydrate/session_project.projectCalltrace`
+  ## adds `href`s and reads the engine's own `CalltraceVM`. The hydration latch
+  ## in `hydrate.writePane` only replaces a served pane with one that has frames,
+  ## so filling these rows cannot cost a visitor the richer live answer.
+  ##
+  ## ## The refusals
+  ##
+  ## A pane that already HAS frames is left alone — the source-level fixture
+  ## fills its own, and this is the chain floor, never an overwrite of a rung
+  ## above it.
+  ##
+  ## A payload that decodes to nothing leaves the pane exactly as it was, note
+  ## and all. A snapshot captured before the derivation existed publishes no
+  ## `calltrace.json`, and the paragraph it falls back to is the page this route
+  ## has always served — the same absent-is-valid contract the listing signs.
+  if not session.hasFrame: return
+  if session.calltrace.frames.len > 0: return
+  if node == nil or node.kind != JObject: return
+  let arr = node{"frame"}
+  if arr == nil or arr.kind != JArray or arr.len == 0: return
+
+  var frames: seq[CallFrame]
+  for f in arr:
+    frames.add CallFrame(
+      depth: f{"depth"}.getInt,
+      fn: f{"name"}.getStr,
+      # EMPTY, AND NOT THE CONTRACT ADDRESS, though the container hands one over
+      # on the `Call` event and `calltrace.json` carries it.
+      #
+      # `module` is a SOURCE PATH by contract, not a free-text "where did this
+      # run" field. `deeplink_landing.resolveAnchor` resolves a `src:` anchor by
+      # `f.module.contains(file)`, and its comment says so — "matched against
+      # the frame's module string, which is where the static producer puts the
+      # path". `hydrate.rowsOf` reads the same value out of `data-module` for
+      # the same purpose, and the live producer fills it from
+      # `line.location.file`. Putting a 66-character hex address there would
+      # make one field mean two things across the two producers, and would let a
+      # `src:` link land on a frame because a filename happened to be a
+      # substring of an address.
+      #
+      # The address is the transaction's own published fact and the page already
+      # states it. A copy here would be a second producer of it — the same
+      # reason `derive-instructions.mjs` declines to write it per step.
+      module: "",
+      # ZERO, AND MEANT. Every frame in this corpus is placed on the recorder's
+      # pseudo-path, so there is no line — which is precisely what the pane's
+      # standing note says, and that clause of it stays true with rows on
+      # screen. `renderCallTrace` drops the coordinate entirely rather than
+      # painting `:0`.
+      line: 0,
+      step: f{"step"}.getInt,
+      # NO COST COLUMN. The container carries a per-step gas reading, but both
+      # frames here are open for every step of the recording — there is no
+      # interval where one runs and the other does not — so any split would be
+      # an arithmetic convention rendered as a measurement.
+      cost: "", costUnit: "",
+      # Empty on a statically exported page, per `CallFrame.href`: a query
+      # string does not select a frame, and the producer decides this, not the
+      # renderer. Hydration supplies them.
+      href: "")
+
+  # THE INNERMOST CONTAINING FRAME, NOT EVERY CONTAINING ONE. Both frames span
+  # this recording, so a "contains the position" test marks both — and
+  # `session_view.selectionPanel` takes the FIRST `current` frame it finds,
+  # which would make the selection panel report `<toplevel>` as the current
+  # frame on every step of every chain transaction. The deepest match is the
+  # frame the reader is in.
+  if session.controls.positioned:
+    let pos = session.controls.step
+    var innermost = -1
+    for i, f in frames:
+      let endStep = arr[i]{"endStep"}
+      let ends = (if endStep == nil or endStep.kind == JNull: high(int)
+                  else: endStep.getInt)
+      if f.step <= pos and pos <= ends: innermost = i
+    if innermost >= 0: frames[innermost].current = true
+
+  session.calltrace.frames = frames
+  withCallAnchors(session.calltrace)
+  # THE NOTE IS CORRECTED, NOT LEFT TO GO UNREAD. `renderCallTrace` only prints
+  # it when there are no frames, so a stale sentence here would be invisible
+  # rather than wrong — and an invisible false statement is how this pane's
+  # explanation drifted from its behaviour for six review rounds. What the note
+  # claimed is now done: the frames ARE listed, statically.
+  session.calltrace.note =
+    "Frames are recorded and carry the names this recording gives them. " &
+    "Nothing resolved a source position, so they carry no file or line."
+
 proc withInstructionListing*(session: var DebugSessionView; node: JsonNode) =
   ## Give an instruction-level pane the instructions.
   ##

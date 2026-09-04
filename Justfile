@@ -66,12 +66,27 @@ chain-frozen-artifacts runtime:
 # resolved for.
 #
 # DELIBERATELY NOT PART OF ANY BUILD, and not part of `just test`. Reading a
-# `.ct` needs `ct-print` from a `codetracer-trace-format-nim` checkout, which is
-# not a dependency of this repository and cannot be one — the site build is
-# hermetic. Same standing as `fixtures/trace/tour/record.sh` and
+# `.ct` needs `ct-print` from a `codetracer-trace-format-nim` checkout, and this
+# repository does not depend on that one: nothing here imports it, `flake.nix`
+# does not name it, and adding it would put a Nim library on the site build's
+# source-dependency graph for the sake of an offline derivation. Same standing
+# as `fixtures/trace/tour/record.sh` and
 # `client/fixtures/demo-session/extract-flow.mjs`: run by hand, output
 # committed, and a snapshot with none is a valid tree that renders the state it
 # always did.
+#
+# THIS COMMENT USED TO SAY THE DEPENDENCY "CANNOT BE ONE — the site build is
+# hermetic", and that overstatement is worth correcting where it stood, because
+# it was cited. `CHAIN-CAPTURE.md` §6.6 rested the empty Call Trace pane on it
+# and concluded the frames could only ever be listed by a live session. But the
+# rule here is source-dependency hygiene, not purity: the deploy already fetches
+# a build input across a repository boundary over HTTP
+# (`client/hydrate/fetch-engine.sh` curls the replay engine from
+# `web-codetracer.pages.dev`), and `ingest.nim` already reads and parses these
+# very capture artefacts. What is actually true is narrower and sufficient — the
+# BUILD does not open a container, because the read happens here, by hand, and
+# the result is committed. A pane can be filled by adding a derivation, and
+# `chain-calltrace` below is that argument taken to its conclusion.
 #
 #     CT_PRINT=../codetracer-trace-format-nim/ct-print just chain-instructions
 chain-instructions:
@@ -80,6 +95,34 @@ chain-instructions:
     for d in client/fixtures/chain/*/; do
       [ -f "$d/snapshot.json" ] || continue
       node tools/chain/derive-instructions.mjs "$d"
+    done
+
+# ── the chain captures' call frames ─────────────────────────────────────────
+#
+# Derive `calltrace/<tx>.json` beside a committed capture's containers: the
+# frames the recording opened, their nesting, the step each began at and the
+# arguments the recorder wrote on the call.
+#
+# WHY IT EXISTS. The Call Trace pane served a paragraph on every real chain
+# transaction — "they are listed once the session is live" — while the manifest
+# beside it published `execution.frames: 1`. The frames were in the containers
+# the whole time; what was missing was a derivation, not a capability. See
+# `chain-instructions` above for the correction to the reasoning that had this
+# recorded as impossible.
+#
+# SAME STANDING AS `chain-instructions`, in every respect: not part of any build
+# and not part of `just test`, needs `ct-print` from a
+# `codetracer-trace-format-nim` checkout, run by hand, output committed. A
+# snapshot with no `calltrace/` is a VALID tree — `ingest.nim` publishes
+# whatever is there and the pane falls back to the note it always showed.
+#
+#     CT_PRINT=../codetracer-trace-format-nim/ct-print just chain-calltrace
+chain-calltrace:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for d in client/fixtures/chain/*/; do
+      [ -f "$d/snapshot.json" ] || continue
+      node tools/chain/derive-calltrace.mjs "$d"
     done
 
 # ── @blocktracer/client — the Client SDK (M12a) ─────────────────────────────

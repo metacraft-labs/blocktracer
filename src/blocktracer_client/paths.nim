@@ -116,6 +116,25 @@ proc tracePositionsPath*(traceArtifactId: string): string =
   let d = traceArtifactDir(traceArtifactId)
   if d.len == 0: "" else: d & "/positions.json"
 
+proc traceCalltracePath*(traceArtifactId: string): string =
+  ## `calltrace.json` beside the container — the frames the recording opened,
+  ## when the capture derived them (`tools/chain/derive-calltrace.mjs`).
+  ##
+  ## A THIRD SIBLING, ON THE SAME TERMS AS THE OTHER TWO. It is not a manifest
+  ## field for the reason `traceInstructionsPath` gives, and absent is a valid
+  ## tree for the reason `tracePositionsPath` gives. Asking is the whole
+  ## protocol here as well.
+  ##
+  ## It is NOT a restatement of `manifest.execution.frames`, and the difference
+  ## is why this object had to exist. That field is a COUNT — one integer, taken
+  ## from the capture's `recording.callsOpened` — and a count is exactly what the
+  ## Call Trace pane could never render. The pane needs the frames' names, their
+  ## nesting and the step each opened at, and a tree that published the count
+  ## while withholding the frames is how a manifest reading `frames: 1` came to
+  ## sit beside a pane rendering none.
+  let d = traceArtifactDir(traceArtifactId)
+  if d.len == 0: "" else: d & "/calltrace.json"
+
 proc sourceBundlePointerPath*(chain, codeHash: string): string =
   ## `/src/{chain}/{codeHash}/current.json` — the ◆ pointer that moves when a
   ## better interpretation lands (Source-Resolution.md §5).

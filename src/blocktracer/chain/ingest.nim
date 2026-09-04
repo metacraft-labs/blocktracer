@@ -1285,6 +1285,48 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           "pathId": pos{"pathId"},
           "line": pos{"line"},
           "column": pos{"column"}})
+
+      # ---- CALL FRAMES: what called what ------------------------------------
+      #
+      # THE THIRD SIDECAR, AND THE ONE THAT CORRECTS A RECORDED MISTAKE.
+      # CHAIN-CAPTURE.md §6.6 held that the Call Trace pane is empty on the
+      # served page because "the site build is hermetic and cannot depend on
+      # codetracer-trace-format-nim". Every clause was true and the conclusion
+      # did not follow: the two sidecars ABOVE THIS ONE are also read out of a
+      # `.ct` by a reader this build does not have, and they reach the page
+      # because the read happens by hand, ahead of the build, and the result is
+      # committed. Nobody had pointed that mechanism at the frames.
+      #
+      # So this is `instructions.json`'s shape a third time — derived offline,
+      # absent-is-valid, refused at publish time if it disagrees with the
+      # capture — and the build is exactly as hermetic as it was before.
+      #
+      # THE REFUSAL IS AGAINST `callsOpened`, WHICH IS THE MANIFEST'S OWN
+      # NUMBER. `execution.frames` a few lines below is written from that same
+      # field, so a stream that disagreed with it would put a pane rendering N
+      # rows beside a manifest declaring M — two producers of one answer, which
+      # is the defect that put an empty pane next to `frames: 1` in the first
+      # place. `<toplevel>` is the synthetic frame the recorder opens to hold
+      # the enqueued calls and is not counted by `callsOpened`, hence the + 1.
+      let ctFile = cfg.snapshotDir / "calltrace" / txHash & ".json"
+      if fileExists(ctFile):
+        let cf = parseJson(readFile(ctFile))
+        let declaredCalls = t["recording"]{"callsOpened"}.getInt
+        let carriedFrames = cf{"frames"}.getInt(-1)
+        if carriedFrames != declaredCalls + 1:
+          raise newException(ValueError,
+            "the call trace for " & txHash & " holds " & $carriedFrames &
+            " frame(s) and the recording declares callsOpened=" &
+            $declaredCalls & "; refusing to publish a call trace the " &
+            "manifest's own frame count contradicts")
+        let arr = cf{"frame"}
+        if arr == nil or arr.kind != JArray or arr.len != carriedFrames:
+          raise newException(ValueError,
+            "the call trace for " & txHash & " declares " & $carriedFrames &
+            " frame(s) and carries " &
+            (if arr == nil: "no" else: $arr.len) & " of them")
+        cfg.writeJson(dir / "calltrace.json", cf)
+
       let manifest = TraceManifest(
         schema: ContractVersion, traceArtifactId: tid,
         executionInputId: execInputId, chain: chain, tx: txHash,

@@ -87,6 +87,15 @@ type
       ## the rung above `instructionsPath`, derived and not probed for the same
       ## reason. See `tracePositionsPath` for why it is a sibling object rather
       ## than a manifest field, and why it is not `execution.sourceLevel`.
+    calltracePath*: string
+      ## Where this recording's CALL FRAMES would be published. Derived and not
+      ## probed, like the two above.
+      ##
+      ## Orthogonal to both of them rather than another rung of the same ladder:
+      ## `instructions` and `positions` are per-STEP streams and answer "where
+      ## is this step", while this answers "what called what", which a recording
+      ## can carry at any rung. Every container in the chain corpus is at the
+      ## instruction-level floor and every one of them names its frames.
     hasManifest*: bool
     manifest*: TraceManifest
     manifestError*: string
@@ -180,6 +189,7 @@ proc resolveExec*(store: ObjectStore, session: ChainSession,
   result.containerPath = traceContainerPath(result.traceArtifactId, "")
   result.instructionsPath = traceInstructionsPath(result.traceArtifactId)
   result.positionsPath = tracePositionsPath(result.traceArtifactId)
+  result.calltracePath = traceCalltracePath(result.traceArtifactId)
 
   if result.kind == trkOnDemand and not probeOnDemand:
     return

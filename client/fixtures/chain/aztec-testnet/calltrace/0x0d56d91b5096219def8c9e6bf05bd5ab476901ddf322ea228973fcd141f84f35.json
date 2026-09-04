@@ -1,0 +1,34 @@
+{
+ "schema": "avm-call-frames/1",
+ "tx": "0x0d56d91b5096219def8c9e6bf05bd5ab476901ddf322ea228973fcd141f84f35",
+ "callsOpened": 1,
+ "frames": 2,
+ "steps": 345,
+ "measuredPostHoc": false,
+ "measuredBy": "tools/chain/derive-calltrace.mjs (read from the container)",
+ "frame": [
+  {
+   "name": "<toplevel>",
+   "depth": 0,
+   "step": 0,
+   "path": null,
+   "line": null,
+   "args": [],
+   "endStep": null
+  },
+  {
+   "name": "enqueued-call-0",
+   "depth": 1,
+   "step": 0,
+   "path": null,
+   "line": null,
+   "args": [
+    {
+     "name": "contractAddress",
+     "value": "0x2a9a1d0e8f1974267536abefa565e7a7351f92ddbe95ec13c57c79b70664f7c8"
+    }
+   ],
+   "endStep": 345
+  }
+ ]
+}

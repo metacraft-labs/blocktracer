@@ -197,8 +197,9 @@ and then rendered no instructions.
 
 | Path | Role |
 |------|------|
-| `tools/chain/derive-instructions.mjs` | lifts the per-step stream out of a `.ct` into `<snapshot>/instructions/<tx>.json`. Needs `ct-print` and is **run by hand**, exactly like `client/fixtures/demo-session/extract-flow.mjs` — the site build is hermetic and cannot open a container. `just chain-instructions` |
-| `src/blocktracer/chain/ingest.nim` | publishes whatever it finds as `instructions.json` beside `trace.ct`, refusing a listing whose step count disagrees with the manifest's |
+| `tools/chain/derive-instructions.mjs` | lifts the per-step stream out of a `.ct` into `<snapshot>/instructions/<tx>.json`. Needs `ct-print` and is **run by hand**, exactly like `client/fixtures/demo-session/extract-flow.mjs` — the BUILD does not open a container, because this read happens ahead of it and the output is committed. (This row used to say the build "is hermetic and cannot open a container". The build indeed does not; "cannot" was an overstatement that got cited as a reason a pane had to stay empty — see CHAIN-CAPTURE.md §6.6.) `just chain-instructions` |
+| `tools/chain/derive-calltrace.mjs` | lifts the recording's CALL FRAMES out of a `.ct` into `<snapshot>/calltrace/<tx>.json` — names, nesting, the step each opened at, the arguments the recorder wrote. Same standing as the row above: needs `ct-print`, **run by hand**, output committed, absent is a valid tree. Refuses a stream whose frame count is not the capture's `recording.callsOpened` + 1. `just chain-calltrace` |
+| `src/blocktracer/chain/ingest.nim` | publishes whatever it finds as `instructions.json`, `positions.json` and `calltrace.json` beside `trace.ct`, refusing a listing whose step count — or a call trace whose frame count — disagrees with the manifest's |
 | `client/src/debugger/avm_opcodes.nim` | the opcode table, with each instruction's encoded LENGTH — and `explainsProgramCounters`, which is why a mnemonic may be shown at all |
 | `client/src/debugger/instruction_listing.nim` | the stream → `SourceLine` rows, so `renderSource` draws them and every mark it already knows how to draw composes by construction |
 

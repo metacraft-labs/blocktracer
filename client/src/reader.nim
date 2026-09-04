@@ -677,6 +677,17 @@ type
       ## between the three in `ssr.debugSessionFor`: positions win over a
       ## listing, a listing wins over a paragraph. Nil here is not a failure —
       ## it is every capture taken before an artifact could be resolved.
+    callFrames*: JsonNode
+      ## The frames the recording opened (`avm-call-frames/1`), or nil.
+      ##
+      ## NOT A FOURTH RUNG OF THE LADDER ABOVE. The three fields around it all
+      ## answer "how well is a STEP placed", and they compete for one pane. This
+      ## competes with nothing: it feeds the Call Trace, which is a different
+      ## pane asking a different question, and it is resolved for a source-level
+      ## and an instruction-level recording alike.
+      ##
+      ## Nil is a valid tree and renders the pane's standing note, exactly as a
+      ## nil `instructions` does.
 
 proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
                 selector = ""): TraceView =
@@ -732,6 +743,12 @@ proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
   if isReplayable(t) and t.positionsPath.len > 0:
     let pos = r.store.getJson(t.positionsPath)
     if pos.found and pos.error.len == 0: result.positions = pos.node
+  # The frames, on the same terms and independently of whichever of the two
+  # above won the Code pane. A source-level recording and an instruction-level
+  # one both have a call structure, so this is never the loser of a contest.
+  if isReplayable(t) and t.calltracePath.len > 0:
+    let ct = r.store.getJson(t.calltracePath)
+    if ct.found and ct.error.len == 0: result.callFrames = ct.node
   if t.hasManifest:
     result.steps = t.manifest.execution.steps
     result.frames = t.manifest.execution.frames

@@ -568,22 +568,65 @@ number it is showing. Three rules keep it honest:
   §6.2b concluded; live `0x20ed5b91…` says 86 and derives 86, so the detail
   behind a number the recording already published is shown.
 
-### 6.6 The Call Trace and Values panes are still empty, and they have DIFFERENT causes
+### 6.6 The Values pane is still empty; the Call Trace is NOT, and the reason it was is a correction worth keeping
 
 Recorded because the obvious reading — "the panes are empty, so the pane
-plumbing is broken" — is wrong for both, and the two need different work by
-different owners. Neither blocks the source view above.
+plumbing is broken" — was wrong for both, and the two needed different work by
+different owners. Neither blocked the source view above.
 
-**Call Trace: nothing is missing from the recording.** The container carries the
-frames. Measured on `0x20ed5b91…`: two `Function` events (`<toplevel>`,
-`enqueued-call-0`) and two `Call` events, the second carrying the contract
-address as its argument. They are absent from the STATICALLY EXPORTED page only
-because that page has no CTFS reader — the site build is hermetic and cannot
-depend on `codetracer-trace-format-nim` (§Justfile `chain-instructions`). The
-pane's note is therefore accurate as it stands: *"They are listed once the
-session is live."* A hydrated session with the replay engine lists them. **No
-recorder change is needed; this is a static-export limitation with a working
-live path.**
+**Call Trace: FILLED, and the argument that said it could not be is the lesson.**
+The container carries the frames. Measured on `0x20ed5b91…`, and identically on
+all 27 committed containers: two `Function` events (`<toplevel>`,
+`enqueued-call-0`), two `Call` events — the second carrying the contract address
+as its argument — and one `Return`.
+
+This section used to conclude that they were absent from the STATICALLY EXPORTED
+page "only because that page has no CTFS reader — the site build is hermetic and
+cannot depend on `codetracer-trace-format-nim`", and that the pane's note was
+therefore accurate as it stood: *"They are listed once the session is live."*
+
+**That conclusion did not follow from its premises, and it stood for six review
+rounds because it sounded like a fact about the architecture.** The build indeed
+does not open a container. But `instructions/<tx>.json` and `positions/<tx>.json`
+are also read out of these same containers by that same reader — the read happens
+BY HAND, ahead of the build, and the result is committed (`just chain-instructions`).
+The pane was empty because nobody had pointed that already-accepted mechanism at
+the frames, not because anything prevented it.
+
+Two further facts undercut the "hermetic" framing as it was written. The deploy
+already fetches a build input across a repository boundary over HTTP —
+`client/hydrate/fetch-engine.sh` curls the replay engine from
+`web-codetracer.pages.dev`. And `ingest.nim` already reads and parses these very
+capture artefacts. The real rule is **source-dependency hygiene** — do not put a
+Nim library on this repository's dependency graph — which is narrower than
+"hermetic" and does not reach the frames at all.
+
+**What is there now.** `tools/chain/derive-calltrace.mjs` (`just chain-calltrace`)
+writes `calltrace/<tx>.json`; `ingest.nim` publishes it as `calltrace.json` beside
+the container; `ssr.withCallFrames` renders the rows. Same standing as
+`chain-instructions` in every respect — run by hand, output committed, absent is a
+valid tree.
+
+**The disagreement it closed.** `manifest.execution.frames` is written from the
+capture's `recording.callsOpened` and was publishing `1` on every transaction
+while the pane beside it rendered zero rows. Two producers of one answer,
+disagreeing in public, with the prose above explaining the silence rather than
+catching it. The derivation and the ingest both now refuse a stream whose frame
+count is not `callsOpened + 1` (`<toplevel>` is the synthetic frame holding the
+enqueued calls and is not counted by `callsOpened`).
+
+**What remains true, and is kept.** The frames carry NO file and NO line: the
+recorder places them on the pseudo-path `/aztec/<tx>.avm`, which is its own
+spelling of "no source position". And a live session still lists *more* — it adds
+`href`s and the engine's own `CalltraceVM` — so the hydrated path is richer, not
+redundant. `hydrate.writePane` only replaces a served pane with one that has
+frames, so filling these rows cannot cost a visitor the live answer.
+
+**What this call trace is not.** It is two frames deep, both open before step 0,
+and one `Return` at the end. An AVM enqueued call is one public function
+invocation and the recorder opens no frame per inlined Noir callee, so a reader
+should expect a short flat answer — the pane showing two rows is that answer and
+not a truncation of a longer one.
 
 **Values: the artifact has no variable table, and this is upstream of us.** The
 container carries five `VariableName` events and 541 `Value`s — but the five are
@@ -674,9 +717,13 @@ What is not available is the container:
 
 * it would need a **CTFS transcoder** — read the frozen `.ct`, re-emit every event through
   a writer opened at rung 1. `codetracer-trace-format-nim` has both halves, so it is
-  buildable; but this repository cannot depend on it (§Justfile `chain-instructions`:
-  reading a `.ct` needs a checkout that "is not a dependency of this repository and cannot
-  be one — the site build is hermetic");
+  buildable, and it would run BY HAND and commit its output, exactly as
+  `chain-instructions` and `chain-calltrace` do — so the dependency question is not
+  what blocks this. (This bullet used to cite §Justfile `chain-instructions` for the
+  claim that such a checkout "cannot be one — the site build is hermetic". That
+  overstatement is corrected at both ends; see §6.6. It never load-bore here anyway,
+  because the two bullets below are the actual blockers and neither is about
+  dependencies.);
 * it would be a **second producer of containers**, beside `buildSettledRecording`, which
   is the only thing that has ever written one for this corpus;
 * the rung is fixed at `CtWriter` **construction** on purpose — `resolveTracingConfig`

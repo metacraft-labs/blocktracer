@@ -1778,13 +1778,84 @@ suite "9 — the home page features a session that can actually be shown":
     # `expectations.mjs` does: a substring match on "source position" would
     # have gone on passing through the very edit that made the old sentence
     # wrong, which is the whole failure this pair of assertions exists to catch.
-    ck "Nothing resolved a source position, so they carry no file or line." in body
+    # THE CALL TRACE'S SENTENCE MOVED AGAIN, and this time because the pane
+    # stopped needing it. `renderCallTrace` prints the note only when there are
+    # no frames, and there are frames now — `tools/chain/derive-calltrace.mjs`
+    # lifts them out of the container the same way the instruction listing and
+    # the positions are lifted. So the quote is no longer on this page, and
+    # asserting its presence would be asserting that the pane is still empty.
+    #
+    # What is asserted instead is the FACT the sentence carried, on the surface
+    # that now carries it: the frames are listed, and they still show no source
+    # coordinate. See the dedicated test below for the frames themselves.
     ck "carries no variable names" in body
     # …and NOT on the home page.
     let home = renderRoute(root, "/").body
     ck "carries no variable names" notin markup(home)
-    ck "Nothing resolved a source position, so they carry no file or line." notin
-       markup(home)
+
+  test "the served Call Trace lists the frames the recording opened":
+    # CONTROL DATA. Before `calltrace/<tx>.json` existed this test failed on
+    # every real chain transaction in the corpus, and it failed the same way on
+    # each: the pane rendered `<p class="panenote">` and zero `.ctrow`
+    # elements, while the manifest published beside it declared
+    # `execution.frames: 1`. Two producers of one answer, disagreeing in public.
+    #
+    # CHAIN-CAPTURE.md §6.6 recorded that emptiness as a static-export
+    # limitation that only a live session could lift. It was not one: the
+    # containers carry the frames, and the derivation that reads them out is the
+    # one `chain-instructions` and `chain-frozen-artifacts` already established.
+    #
+    # ABSENT-IS-VALID IS NOT WEAKENED BY THIS TEST. A tree with no `calltrace/`
+    # directory is still a tree this repository builds and serves — `ingest.nim`
+    # publishes what it finds and `withCallFrames` returns on a nil node. What
+    # is pinned here is that THIS corpus, which does carry the derivation,
+    # renders it.
+    let body = renderRoute(root, "/" & RealChain & "/tx/" & replayedTx &
+                           "/debug").body
+    # Named verbatim, not counted. A count would go on passing if the recorder
+    # renamed a frame, and the names are the whole reason the pane is worth
+    # filling: `<toplevel>` is the synthetic frame holding the enqueued calls,
+    # `enqueued-call-0` is the public function this transaction actually ran.
+    # Escaped, because the renderer escapes it: `<toplevel>` is a name with
+    # angle brackets in it and the page must not emit an element called
+    # `toplevel`. Quoting the escaped form is also the assertion that it IS
+    # escaped.
+    ck "&lt;toplevel&gt;" in body
+    ck "enqueued-call-0" in body
+    # The names are on ROWS, not merely mentioned in prose. Asserted as the
+    # frame name inside a `.ctname` span rather than as `"ctrow" in body`, which
+    # was measured VACUOUS: the debug page carries a second call-trace view (the
+    # `selfCostRows` aggregate) whose rows use the same class, so `ctrow`
+    # appears on this page even when the served pane has zero frames. It passed
+    # identically with the derivation removed, which is the definition of an
+    # assertion that is not measuring its subject.
+    ck "ctname" in body
+    ck "enqueued-call-0</span>" in body
+    # AND THE NOTE IS GONE, which is the half of this that catches a regression
+    # in the other direction: a change that stopped the frames reaching the pane
+    # would put the paragraph back, and a test that only looked for the names
+    # might still find them in a sentence about them.
+    ck "They are listed once the session is live." notin body
+
+  test "the frames the page lists agree with the manifest's own count":
+    # THE DISAGREEMENT THAT WAS SHIPPING. `manifest.execution.frames` is written
+    # from the capture's `recording.callsOpened` and counts the ENQUEUED calls;
+    # the pane lists those plus the synthetic `<toplevel>` that holds them. So
+    # the relation is `rows == frames + 1`, and it is asserted rather than
+    # assumed because `derive-calltrace.mjs` refuses to write a stream that
+    # breaks it — this is the same check, read back off the rendered page, so a
+    # regression anywhere between the container and the row is caught here and
+    # not only at derivation time.
+    let view = debugSessionFor(root, RealChain, replayedTx)
+    let declared = snap["transactions"].getElems.filterIt(
+      it{"txHash"}.getStr == replayedTx)[0]{"recording"}{"callsOpened"}.getInt
+    ck view.calltrace.frames.len == declared + 1
+    ck view.calltrace.frames[0].fn == "<toplevel>"
+    # Every frame carries a name and no source coordinate — the rung-3 fact the
+    # retired sentence used to state in prose, now checked against the data.
+    for f in view.calltrace.frames:
+      ck f.fn.len > 0
+      ck f.line == 0
 
   test "a PARTLY positioned recording renders real source, not a bytecode listing":
     # THE DEFECT THIS PINS, in one sentence: the tree published a 32-file Noir
