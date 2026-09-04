@@ -605,13 +605,24 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # showing only the blocks that did work would misrepresent this chain: Aztec
   # testnet is mostly empty blocks, and hiding them would turn a ~1-in-11
   # heartbeat into an apparently continuous stream of activity.
-  var blockRows: seq[tuple[hash: string, height: int, parent: string, txs: seq[string]]]
+  # `time` IS CARRIED ON THE ROW, and it is the only field here that no
+  # published file reads. `BlockDetail` has no timestamp — the block list says
+  # so in its Age column — so this exists for one consumer: the coverage span in
+  # "About this data". It rides on the row rather than being looked up later
+  # because the span has to be measured over THE PUBLISHED SET, and the
+  # published set is this seq after the curation narrowing below. A second
+  # height→time table read afterwards would be a second answer to "which blocks
+  # is this about", which is the disagreement the curated/uncurated arms used to
+  # institutionalise.
+  var blockRows: seq[tuple[hash: string, height: int, parent: string,
+                           txs: seq[string], time: int64]]
   var byHeight = initTable[int, string]()
   for b in snap["blocks"]:
     let h = b["number"].getInt
     var txs: seq[string]
     for t in b["transactions"]: txs.add t.getStr
-    blockRows.add (b["hash"].getStr, h, b["parentArchiveRoot"].getStr, txs)
+    blockRows.add (b["hash"].getStr, h, b["parentArchiveRoot"].getStr, txs,
+                   b{"timestamp"}.getBiggestInt)
     byHeight[h] = b["hash"].getStr
   # Ascending by height: the published maps and the block list are ordered by
   # the chain's own ordering, not by the order the capture happened to walk.
@@ -1315,8 +1326,10 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # THERE IS NO SCOPE BRANCH AND NO OUTCOME BRANCH ANY MORE. A reader's question
   # is the same whichever way this build was configured, and the two arms this
   # module used to carry are the mechanism by which a page came to describe a
-  # chain in numbers that disagreed with the counts above them. One sentence
-  # cannot disagree with itself.
+  # chain in numbers that disagreed with the counts above them. One expression
+  # over the published set answers for every scope: a curated build states a
+  # narrower span than a full one because it publishes less, not because a second
+  # arm was written to say so.
   #
   # WHAT "REAL" IS ALLOWED TO MEAN HERE. Taken from the live network — that, and
   # deliberately not a word more. It does not claim the export is complete (it is
@@ -1328,21 +1341,42 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # with it: the chip on a list page, the `Data` row on a transaction and in the
   # debugger, and the prefix of this very paragraph on the chain overview.
   #
-  # THE SPAN IS THE WHOLE EXPORT'S, READ FROM THE BLOCK RECORD. `capturedAt` is
-  # one instant at one end of it and was the only date this section used to
-  # carry, which told a reader when the watch stopped and nothing about what it
-  # covers. The ends come from the timestamps the blocks themselves carry — every
-  # block the snapshot enumerated, before any curation narrows what is published
-  # — because the subject of the sentence is the export, and a build that quoted
-  # its own published slice back would be describing the configuration rather
-  # than the data. It is computed here rather than hardcoded so it cannot go
-  # stale against the snapshot it describes.
+  # THE SPAN IS THE PUBLISHED SLICE'S, MEASURED OVER `blockRows`. `capturedAt` is
+  # one instant at one end of a watch and was the only date this section used to
+  # carry, which told a reader when the reading stopped and nothing about what
+  # period the data covers. The ends come from the timestamps the blocks
+  # themselves carry, so the sentence and the `Blocks` stat above it are two
+  # views of ONE set rather than two facts about two.
+  #
+  # THIS WAS `snap["blocks"]` FOR ONE COMMIT AND IT WAS THE WRONG SET. The
+  # reasoning for it — the subject of "preliminary export" is the export, so
+  # quote the export's own ends — is coherent and it loses to the reader:
+  # "covered" is covered by what is in front of them. On `/aztec` that is 170
+  # blocks, and a span belonging to the 1563 the snapshot enumerated overstates
+  # it nearly tenfold while naming days the reader cannot browse to. "Preliminary
+  # export" already says this is a slice; the dates have to say WHICH slice or
+  # they say nothing anyone can act on.
+  #
+  # It is also, more seriously, the disagreement this whole change deleted,
+  # re-entering through the back door. The curated and uncurated arms existed
+  # because a claim about the published set is false of the enumerated set and
+  # the reverse, and that is exactly what a span over the enumerated set printed
+  # above a count of the curated one is. `curationWindow` narrows to a contiguous
+  # height range and `blockRows` is narrowed to it in place, so measuring the
+  # rows costs nothing and cannot drift from what the page lists.
+  #
+  # AND IT IS MEASURED UNCONDITIONALLY, WITH NO SCOPE TEST. Under `isFull` the
+  # narrowing is a no-op and these rows ARE the enumerated set, so one expression
+  # gives both answers. A `if cfg.scope == isCurated` here to pick which set to
+  # measure would be a third arm of precisely the kind just removed.
+  #
+  # min/max over the rows rather than the first and last of them: `blockRows` is
+  # sorted by HEIGHT, and height is not time on a chain that ever reorged.
   var firstBlockAt, lastBlockAt = int64(0)
-  for b in snap["blocks"]:
-    let ts = b{"timestamp"}.getBiggestInt
-    if ts <= 0: continue
-    if firstBlockAt == 0 or ts < firstBlockAt: firstBlockAt = ts
-    if ts > lastBlockAt: lastBlockAt = ts
+  for b in blockRows:
+    if b.time <= 0: continue
+    if firstBlockAt == 0 or b.time < firstBlockAt: firstBlockAt = b.time
+    if b.time > lastBlockAt: lastBlockAt = b.time
   # A snapshot whose blocks carry no readable time gets no span rather than an
   # invented one — the same rule `readableDate` follows for a date it cannot
   # parse. The claim that survives is the one that needs no clock.

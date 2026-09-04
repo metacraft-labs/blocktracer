@@ -581,6 +581,11 @@ suite "3 — real and synthetic are tellable apart, on the page":
     # running 66745–68307, whose timestamps span 2026-08-30T23:20:47Z to
     # 2026-09-01T07:13:35Z — two calendar months, one year, so the span is
     # written with the year said once.
+    #
+    # `root` IS THE `isFull` TREE, so these blocks are both the enumerated set
+    # and the published one and the span covers both. The deployed site ingests
+    # `isCurated` and names the narrower span its own 170 blocks cover; suite 8
+    # grades that, and grades the two trees against each other.
     check "This is a preliminary export covering 30 August to 1 September 2026." in
       chainInfo(root, "aztec").provenanceDetail
     # …and the testnet capture is the same-day arm, from the same generator.
@@ -1408,41 +1413,65 @@ suite "8 — a curated chain publishes only transactions that open":
       ck ing.transactions == ing.withTrace
     ck curated == 2
 
-  test "the curated banner is the SAME sentence the uncurated one writes":
-    # WHAT THIS USED TO GRADE. The curated arm named the published window
-    # ("blocks 63642–63675"), the watch it was chosen out of ("Of the 32
-    # transactions seen while watching this chain, 6 could be recorded") and a
-    # per-outcome clause; the uncurated arm named the enumerated range and a
-    # pruning boundary instead. Two arms, because a claim about the published
-    # set is false of the enumerated one and the reverse — which is the
-    # mechanism by which this module twice published a number that disagreed
-    # with the counts printed above it (a nine-hour-stale window, a negative
-    # block distance).
+  test "the span is the PUBLISHED slice's, so the two trees differ by design":
+    # WHAT THIS USED TO GRADE, TWICE, AND WHY IT IS THIS NOW.
     #
-    # A user asked the section to say three things and stop: the data is real,
-    # it is a preliminary export, here is the timespan. None of the three
-    # depends on how much of the snapshot this build chose to publish, so the
-    # scope branch is gone — and the assertion is the EQUALITY rather than a
-    # phrase list, because two arms that happen to agree on this fixture would
-    # satisfy any list of phrases while leaving the hazard in place.
-    let curated = chainInfo(curatedRoot, RealChain).provenanceDetail
-    let full = chainInfo(root, RealChain).provenanceDetail
-    ck curated == full
-    ck "taken from the live network" in curated
-    # THE SPAN IS THE EXPORT'S, NOT THE PUBLISHED SLICE'S, and this fixture is
-    # exactly where the difference shows: the curated tree publishes blocks
-    # 63642–63675 out of an enumerated 63459–63678. Both fall inside 31
-    # August 2026, and the sentence describes the export.
-    ck "preliminary export covering 31 August 2026." in curated
+    # Round one: the curated arm named the published window ("blocks
+    # 63642–63675"), the watch it was chosen out of ("Of the 32 transactions
+    # seen while watching this chain, 6 could be recorded") and a per-outcome
+    # clause; the uncurated arm named the enumerated range and a pruning
+    # boundary. Two arms, because a claim about the published set is false of
+    # the enumerated one and the reverse — the mechanism by which this module
+    # twice published a number that disagreed with the counts printed above it.
+    #
+    # Round two deleted both arms and, for one commit, measured the coverage
+    # span over `snap["blocks"]` — the ENUMERATED set — while the page below it
+    # lists the CURATED one. That is the same disagreement re-entering through
+    # the back door: `/aztec` published 170 blocks under a sentence naming a
+    # span that belongs to 1563, overstating what a reader can browse nearly
+    # tenfold and naming two days they cannot reach.
+    #
+    # THE SPAN IS NOW MEASURED OVER `blockRows`, AFTER THE NARROWING, so the
+    # sentence and the `Blocks` stat are two views of one set. There is still no
+    # scope branch: under `isFull` the narrowing is a no-op and the same
+    # expression yields the enumerated span. What this asserts is therefore the
+    # DIFFERENCE — a build that reverted to the enumerated set would make these
+    # two trees agree, and a build that hardcoded either answer would fail one.
+    #
+    # MAINNET IS WHERE THE DIFFERENCE SHOWS, and it is the chain the complaint
+    # was filed against. Its capture enumerates 1563 blocks over two days and
+    # publishes 170 of them inside three and a half hours of the last one.
+    let curatedMain = chainInfo(curatedRoot, "aztec").provenanceDetail
+    let fullMain = chainInfo(root, "aztec").provenanceDetail
+    ck "This is a preliminary export covering 1 September 2026." in curatedMain
+    ck "This is a preliminary export covering 30 August to 1 September 2026." in
+       fullMain
+    ck curatedMain != fullMain
+    # The counts the two spans correspond to, stated rather than implied: this
+    # is the correspondence a reader checks the sentence against, and it is what
+    # makes the difference above a fact about the DATA rather than a spelling.
+    ck chainInfo(curatedRoot, "aztec").blockCount == 170
+    ck chainInfo(root, "aztec").blockCount == 1563
+
+    # TESTNET IS THE CONTROL, and it is a control rather than a second witness:
+    # its 220 enumerated blocks and its 34 published ones both fall inside 31
+    # August 2026, so the two trees legitimately write the same sentence. An
+    # assertion of "the trees always differ" would be false here, and asserting
+    # it on this chain is what would have hidden the mainnet regression.
+    let curatedTest = chainInfo(curatedRoot, RealChain).provenanceDetail
+    let fullTest = chainInfo(root, RealChain).provenanceDetail
+    ck "This is a preliminary export covering 31 August 2026." in curatedTest
+    ck curatedTest == fullTest
     ck chainInfo(curatedRoot, RealChain).blockCount <
-       chainInfo(root, RealChain).blockCount       # non-vacuous: it really is a slice
-    # Neither arm's vocabulary survived, in either tree.
+       chainInfo(root, RealChain).blockCount     # non-vacuous: it IS a slice
+
+    # Neither of the deleted arms' vocabulary survived, in either tree.
     for phrase in ["selection rather than the whole chain", "blocks 63642",
                    "seen while watching this chain", "CURATED WINDOW",
                    "did not arrive evenly", "longest run with none",
                    "Transactions below block"]:
-      ck phrase notin curated
-      ck phrase notin full
+      ck phrase notin curatedMain
+      ck phrase notin fullMain
 
   test "the curated banner attributes NO cause to the transactions it leaves out":
     # THIS REPLACES AN ARM THAT CHECKED THE ATTRIBUTION WAS SPLIT CORRECTLY, and
@@ -1643,7 +1672,7 @@ suite "8 — a curated chain publishes only transactions that open":
     ck ing.withTrace == 0
 
   test "assertion count":
-    expectCount(83)
+    expectCount(87)
 
 # ── 9 — the home page features a session that can actually be shown ──────────
 #

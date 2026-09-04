@@ -181,13 +181,24 @@ round either. A user asked the "About this data" section to "just say that the
 data is real, but limited to a preliminary export while citing the timespan that
 is covered", and a capture date is one END of a watch: it says when the reading
 stopped and nothing about what period the data covers. The section is now two
-sentences for every snapshot and every ingest scope —
+sentences, written by one expression for every snapshot and every ingest scope —
 
 > Blocks and transactions taken from the live network. This is a preliminary
-> export covering 30 August to 1 September 2026.
+> export covering 1 September 2026.
 
-— with the span read from the timestamps the **blocks** carry, over every block
-the snapshot enumerated, so it cannot go stale against the data it describes.
+— with the span read from the timestamps the **blocks** carry, over the blocks
+the generation **publishes**. That is the curated window under `isCurated` and
+the whole enumerated record under `isFull`, with no branch: the narrowing is a
+no-op in the second case. So the sentence and the `Blocks` stat above it are two
+views of one set, and neither can go stale against the other.
+
+The alternative — measuring the enumerated record even when a narrower one is
+published — shipped for one commit and is the reason this paragraph names the
+rule. `/aztec` enumerates 1563 blocks across two days and publishes 170 inside
+three and a half hours of the last one; a span quoted from the first set
+overstates what a reader can browse nearly tenfold. "Covered" means covered by
+what is in front of them.
+
 `capturedAt` is still published verbatim in `summary.json`, along with
 `tracesPublished`, `publishedWindow`, `observedBlocks`, `observedTransactions`,
 `finalizedAtCapture` and `longestRunWithoutTx` — every number the four
