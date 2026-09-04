@@ -12,6 +12,13 @@
 // It also drives the four fail-closed paths (absent ledger, unparseable
 // ledger, orphan resolution, malformed severity), because the failure this
 // gate must never have is going green because it found nothing to check.
+//
+// EXIT CODES — never 0 for "did not run":
+//   0  every case decided as expected
+//   1  a case failed: a gate condition did not block what it must block
+//   2  this script threw
+//   3  a PRECONDITION is absent, so the suite never started (see below). Not a
+//      verdict about the gate, and callers must not report it as one.
 
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -25,14 +32,40 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const GATE = join(HERE, "gate.mjs");
 const REPO_ROOT = resolvePath(HERE, "..", "..");
 
+/** This process did not run, as distinct from ran-and-decided-against.
+ *
+ *  1 is a genuine case failure — a gate condition that did not block.
+ *  2 is a thrown exception (see the `.catch` at the foot of this file).
+ *  3 is THIS: a precondition of the suite is absent, so the suite never
+ *    started. Same spirit as `tools/journeys/lib/site.mjs`, which throws with
+ *    `.exitCode = 2` for every "did not run" condition rather than letting a
+ *    missing input be read as a clean sweep.
+ */
+const EXIT_PRECONDITION_ABSENT = 3;
+
 // A capture that really exists, so the hash cases below are about the LEDGER
 // rather than about a missing file — the "gone" case names its own absent one.
 const REAL_IMAGE_REL = "screenshots/debugger__wide__dark.png";
 const REAL_IMAGE_ABS = join(REPO_ROOT, REAL_IMAGE_REL);
 if (!existsSync(REAL_IMAGE_ABS)) {
-  console.error(`SKIP-PROOF FAILURE — ${REAL_IMAGE_REL} does not exist, so G2's "the exact image"` +
-    ` cases could not tell a stale hash from a missing file. Capture the debugger view first.`);
-  process.exit(1);
+  // THE REFUSAL IS CORRECT AND STAYS. Running the suite without this file
+  // would leave the half of G2 that decides against the FILE — stale hash vs.
+  // missing capture — unproven, and a silent skip over G2 is worse than a red
+  // step. What was wrong was that the refusal was INDISTINGUISHABLE from a
+  // verdict: exit 1 is what a real case failure returns, and the reason went
+  // to stderr while the only aggregate consumer (review-selftest.mjs) reads
+  // the last line of STDOUT. So it reported a bare failing check with no
+  // reason attached, on every fresh checkout, forever — `screenshots/` is
+  // gitignored, so this file is never present until a capture run writes it.
+  //
+  // On STDOUT, one line, because that is the stream the aggregate reads.
+  console.log(
+    `PRECONDITION ABSENT — this suite did not run: ${REAL_IMAGE_REL} is not in this tree, so G2's` +
+      ` "the exact image" cases could not tell a stale hash from a missing file and were NOT executed.` +
+      ` \`screenshots/\` is gitignored, so a fresh checkout never has it; capture the debugger view` +
+      ` first (the visual-design-canary job regenerates the tree before running this).`,
+  );
+  process.exit(EXIT_PRECONDITION_ABSENT);
 }
 /** The file's hash, read when the case is BUILT rather than at start-up.
  *

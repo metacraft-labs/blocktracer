@@ -325,6 +325,22 @@ just review-selftest                                    # all three VD.1 verific
 | `verify_deliberate_break_is_detected` | `break-check.mjs`, graded over the recorded round |
 | `verify_gate_definition_is_machine_checkable` | `gate.mjs`, proved by `gate-selftest.mjs` |
 
+`gate-selftest.mjs` hashes a real capture (`screenshots/debugger__wide__dark.png`)
+so that G2's "the exact image" cases can tell a stale hash from a missing file.
+`screenshots/` is gitignored, so on a fresh checkout that file is absent and the
+suite **refuses to run** — deliberately, because silently skipping G2 would be
+worse. It says so with its own exit code, and so does its caller:
+
+| exit | `gate-selftest.mjs` | `review-selftest.mjs` |
+| --- | --- | --- |
+| 0 | every case decided as expected | every check ran and passed — `PASS` |
+| 1 | a gate condition did not block | a check ran and failed — `FAIL` |
+| 2 | the script threw | the script threw |
+| 3 | a precondition is absent; nothing ran | at least one check DID NOT RUN — `INCOMPLETE` |
+
+A skip is reported in its own bucket with its own reason, is excluded from both
+sides of the `n/m checks decided` tally, and never makes either script exit 0.
+
 ## The foundations scope (VD.2)
 
 `gate.mjs --foundations` answers a narrower question than the full gate:

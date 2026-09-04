@@ -11,6 +11,13 @@
 //
 // The negative controls are the point. A checker that passes is not evidence;
 // a checker that passes AND fails for the right reason is.
+//
+// EXIT CODES — never 0 for "did not run":
+//   0  every check ran and passed
+//   1  a check ran and failed
+//   2  this script threw
+//   3  every check that RAN passed, but at least one did not run. Reported as
+//      INCOMPLETE, with the reason, and non-zero on purpose.
 
 import { readFile, writeFile, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -26,11 +33,36 @@ const BRIEF = join(REPO_ROOT, "tools", "visual-review-brief.md");
 const ROUNDS_DIR = join(REPO_ROOT, "reviews");
 const LEDGER = join(REPO_ROOT, "reviews", "ledger.json");
 
+/** The third state a check can be in: it did not run.
+ *
+ *  `check(name, SKIPPED, why)` records neither a pass nor a failure. It exists
+ *  because the two-state version had nowhere to put "this could not be
+ *  decided", so a sub-suite that REFUSED to run — correctly — arrived here as
+ *  a bare ✗ with no reason, and the tally counted it against the denominator
+ *  as though a check had decided against us. A skip is not a pass; it is also
+ *  not a verdict. It gets its own bucket, its own line, and its own exit code.
+ */
+const SKIPPED = Symbol("skipped");
+
 const results = [];
 function check(name, ok, detail = "") {
-  results.push({ name, ok, detail });
-  console.log(`  ${ok ? "✓" : "✗"} ${name}${detail ? `\n        ${detail}` : ""}`);
+  const state = ok === SKIPPED ? "skipped" : ok ? "pass" : "fail";
+  results.push({ name, state, detail });
+  const mark = state === "skipped" ? "⊘" : state === "pass" ? "✓" : "✗";
+  console.log(`  ${mark} ${name}${detail ? `\n        ${detail}` : ""}`);
 }
+
+/** gate-selftest.mjs's "a precondition is absent, so nothing ran" code. */
+const GATE_SELFTEST_PRECONDITION_ABSENT = 3;
+
+/** The last line of stdout, falling back to stderr — never the empty string.
+ *
+ *  A check whose detail is `""` prints a verdict with no reason at all, which
+ *  is how the gate-selftest refusal went unread for as long as it did. */
+const lastLineOf = (r) =>
+  r.stdout.trim().split("\n").pop() ||
+  r.stderr.trim().split("\n").pop() ||
+  `exit ${r.status}, no output on either stream`;
 
 const node = (args, opts = {}) =>
   spawnSync("node", args, { cwd: REPO_ROOT, encoding: "utf8", ...opts });
@@ -97,8 +129,17 @@ async function main() {
   console.log("\nverify_gate_definition_is_machine_checkable\n");
 
   r = node([join(HERE, "gate-selftest.mjs")]);
-  const last = r.stdout.trim().split("\n").pop();
-  check("every gate condition independently blocks (gate-selftest)", r.status === 0, last ?? "");
+  const gateName = "every gate condition independently blocks (gate-selftest)";
+  if (r.status === GATE_SELFTEST_PRECONDITION_ABSENT) {
+    // NOT a pass, and not a failure of the gate either — the suite refused to
+    // start, which is the right thing to do (a silent skip over G2's "the
+    // exact image" cases would be worse than a red step). It is reported here
+    // as UNDECIDED, with the refusal's own sentence, and it makes this whole
+    // script exit non-zero. See the verdict block.
+    check(gateName, SKIPPED, `DID NOT RUN — ${lastLineOf(r)}`);
+  } else {
+    check(gateName, r.status === 0, lastLineOf(r));
+  }
 
   if (!existsSync(LEDGER)) {
     check("the real ledger is gated", false, `no ledger at ${LEDGER}`);
@@ -126,11 +167,28 @@ async function main() {
     );
   }
 
-  const failed = results.filter((x) => !x.ok);
+  // ---- the verdict names WHICH number it is -----------------------------
+  //
+  // Three buckets, and the denominator is the checks that RAN. A skip counted
+  // against the denominator reads as a failing check ("12/13 FAIL") and a skip
+  // counted into the numerator reads as a passing one; both are the same lie
+  // in opposite directions. It is reported on its own term, and it still makes
+  // this script exit non-zero, because a VD.1 verification that did not run is
+  // not a VD.1 verification that held.
+  const failed = results.filter((x) => x.state === "fail");
+  const skipped = results.filter((x) => x.state === "skipped");
+  const passed = results.filter((x) => x.state === "pass");
+  const ran = passed.length + failed.length;
+
+  const verdict = failed.length ? "FAIL" : skipped.length ? "INCOMPLETE" : "PASS";
   console.log(
-    `\n${failed.length ? "FAIL" : "PASS"} — ${results.length - failed.length}/${results.length} VD.1 checks`,
+    `\n${verdict} — ${passed.length}/${ran} VD.1 checks decided` +
+      (skipped.length ? `, ${skipped.length} SKIPPED — did not run, and a skip is not a pass` : ""),
   );
-  return failed.length ? 1 : 0;
+  for (const s of skipped) console.log(`  skipped: ${s.name}\n           ${s.detail}`);
+
+  if (failed.length) return 1;
+  return skipped.length ? 3 : 0; // 3 — "did not run", never 0
 }
 
 main()

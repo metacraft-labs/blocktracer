@@ -488,7 +488,11 @@ jobs:
       # cases can tell a stale hash from a missing file, and `screenshots/` is
       # gitignored, so on a fresh checkout it is never there. It refuses to run
       # rather than skipping, which is correct, and it means this job could
-      # never have run it. It is exactly the argument already written beside
+      # never have run it. The refusal now exits 3 — "a precondition is absent,
+      # so nothing ran" — rather than 1, which is what a gate condition failing
+      # to block returns; review-selftest.mjs reports it as SKIPPED with the
+      # reason and still exits non-zero.
+      # It is exactly the argument already written beside
       # `ingest-selftest.mjs` in the canary job — the twin was moved for this
       # reason and this one was left behind.
 
@@ -668,7 +672,10 @@ jobs:
         # can distinguish a stale hash from a missing file, and it fails closed
         # when that image is absent instead of skipping. `screenshots/` is
         # gitignored, so the only place it exists is after the regeneration two
-        # steps up.
+        # steps up. If the regeneration ever stops producing it, this step exits
+        # 3 — "a precondition is absent, so nothing ran" — which is still a red
+        # step, but is not the same red as exit 1, "a gate condition did not
+        # block". Read the exit code before reading the step name.
         run: nix run .#capture-env -- node tools/capture/gate-selftest.mjs
 
       - name: The VD.0 verifications, end to end
