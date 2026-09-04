@@ -1857,6 +1857,64 @@ suite "9 — the home page features a session that can actually be shown":
       ck f.fn.len > 0
       ck f.line == 0
 
+  test "MUTATION BITE: a call trace the manifest's frame count contradicts is refused":
+    # THE REFUSAL, DRIVEN. `ingest.nim` raises when a published call trace
+    # disagrees with the capture's own `recording.callsOpened` — the number
+    # `manifest.execution.frames` is written from. A check nobody has seen say
+    # no is a check that may not work, and this pane's whole defect was two
+    # producers of one answer going unreconciled, so the reconciliation gets a
+    # test that watches it fire.
+    #
+    # Driven over a COPY. The committed fixture is never mutated: the same rule
+    # `treeWithRealChain` follows, for the same reason.
+    let bite = getTempDir() / ("bt-calltrace-bite-" & $getCurrentProcessId())
+    removeDir bite
+    createDir bite
+    copyDir(chainFixtures / "aztec", bite / "aztec")
+    let snapDir = bite / "aztec"
+
+    proc ingestOutcome(label: string): string =
+      try:
+        discard ingestSnapshot(IngestConfig(outDir: bite / ("out-" & label),
+                                            snapshotDir: snapDir))
+        "accepted"
+      except ValueError as e:
+        "refused: " & e.msg
+
+    # CONTROL FIRST, so a refusal below cannot be the tree being broken for some
+    # other reason. Without this the two mutations would pass identically if
+    # `ingestSnapshot` had simply stopped working.
+    ck ingestOutcome("control") == "accepted"
+
+    var target = ""
+    for f in walkFiles(snapDir / "calltrace" / "*.json"): target = f
+    ck target.len > 0
+    let orig = readFile(target)
+
+    # A frame count the manifest's own number contradicts.
+    var j = parseJson(orig)
+    j["frames"] = %3
+    writeFile(target, $j)
+    let bitten = ingestOutcome("frames")
+    ck bitten.startsWith("refused")
+    ck "callsOpened=1" in bitten
+
+    # …and a declared count the array does not carry, which is the same defect
+    # one level in: the header would agree with the manifest while the rows it
+    # describes are not there.
+    j = parseJson(orig)
+    j["frame"] = %(j["frame"].getElems[0 .. 0])
+    writeFile(target, $j)
+    let shortened = ingestOutcome("short")
+    ck shortened.startsWith("refused")
+    ck "carries 1 of them" in shortened
+
+    # RESTORED, AND ACCEPTED AGAIN. Without this the test would pass if ingest
+    # had begun refusing everything.
+    writeFile(target, orig)
+    ck ingestOutcome("restored") == "accepted"
+    removeDir bite
+
   test "a PARTLY positioned recording renders real source, not a bytecode listing":
     # THE DEFECT THIS PINS, in one sentence: the tree published a 32-file Noir
     # bundle and a 108-row `positions.json` for this transaction, and the page
