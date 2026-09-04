@@ -574,6 +574,51 @@ proc projectCalltrace*(vm: CalltraceVM; contentHash = ""): CallTracePane =
       costUnit: "ticks",
       # The time coordinate the frame starts at — what `data-step` carries into
       # the markup, and what a click on the row hands back to the engine.
+      #
+      # ── OPEN, AND DEFINITIONAL: WHICH TICK IS "THE FRAME'S" (#234) ───────
+      #
+      # This value and the STATIC producer's `step` (`demo_session.nim`'s
+      # `f{"step"}.getInt`, minted by `tools/chain/lib/calltrace_frames.mjs`)
+      # fill the same field, are read by the same `hydrate.rowsOf`, and are
+      # MINTED FROM DIFFERENT DEFINITIONS. Measured over one recording, 44 of
+      # 46 frames present in both differ by exactly one, uniformly.
+      #
+      # THAT IS NOT AN OFF-BY-ONE BUG AND THERE IS NO `±1` ANYWHERE IN THIS
+      # FILE OR IN THE STATIC PATH. The line above takes `line.rrTicks`
+      # verbatim; the static side reads a counter it increments once per `Step`
+      # event, at the moment it sees the `Call`. Neither adjusts anything. Two
+      # honest readings of "the frame's tick" simply differ:
+      #
+      #   static  the callee's FIRST STEP. The counter has consumed every Step
+      #           before the Call, so its value is the index of the next one.
+      #   live    the CALL SITE, on the landing evidence — the caller's step at
+      #           which the call was made, one earlier.
+      #
+      # WHY IT IS NOT FIXED HERE. Two agents have declined to adjudicate it and
+      # both were right: it is a decision about what `data-step` MEANS, and it
+      # is user-visible, because `href` below is
+      # `positionQuery(contentHash, step, anchor)`. Whoever decides is deciding
+      # whether clicking a call-trace row lands a visitor on the call or on the
+      # callee's first instruction. Do NOT settle it by adding a `+1` or a `-1`
+      # to either producer: that makes one silently adopt the other's
+      # convention with neither written down, which is exactly how two
+      # definitions came to share one field name.
+      #
+      # WHAT WOULD SETTLE IT — three checks, in order of cost:
+      #
+      #   1. THE TWO EXCEPTIONS. If the reading above is right, the frames that
+      #      do NOT differ by one are exactly the ones with no call site: the
+      #      frames that open at step 0 before any `Step` event is read
+      #      (`calltrace_frames.mjs` records that shape for the AVM-context
+      #      recording, where both frames open at 0). Check which two they are.
+      #      If they are those, the account holds; if they are not, it is wrong
+      #      and this comment should be deleted rather than believed.
+      #   2. ASK THE ENGINE. For one frame, compare `line.rrTicks` against the
+      #      container's own `Call` event position. If `rrTicks` is the step the
+      #      CALL instruction ran at, `static == live + 1` by construction and
+      #      the question becomes purely which one the product wants.
+      #   3. THEN STATE IT ONCE, in `CallFrame.step`'s own doc comment, and make
+      #      both producers cite it.
       step: int(line.rrTicks),
       current: vm.selectedEntry.val == some(line.index))
   # The anchors first, because the href carries one. Both derived by the shared

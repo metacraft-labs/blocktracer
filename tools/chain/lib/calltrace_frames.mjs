@@ -128,6 +128,35 @@ export function buildFrames(events, { rules, foldRuleFor }) {
         depth: open.length,
         // The step the frame opened at. On the AVM-context shape both frames
         // open at 0, before the first Step event is read.
+        //
+        // ── OPEN, AND DEFINITIONAL: WHICH TICK IS "THE FRAME'S" (#234) ─────
+        //
+        // BE PRECISE ABOUT WHAT THIS NUMBER IS, because a second producer
+        // fills the same field from a different definition. `step` is
+        // incremented once per `Step` event and read HERE, at the `Call` —
+        // so it is the count of steps already consumed, which is the index of
+        // the CALLEE'S FIRST STEP. The `Call` event itself is not a Step and
+        // does not advance it.
+        //
+        // The live producer, `client/hydrate/session_project.projectCalltrace`,
+        // writes `step: int(line.rrTicks)` from the engine's `CalltraceVM`, and
+        // the landing evidence reads that as the CALL SITE — the caller's step
+        // at which the call was made, one earlier. Measured over one recording,
+        // 44 of 46 frames present in both differ by exactly one, uniformly.
+        //
+        // NEITHER SIDE ADJUSTS ANYTHING. There is no `±1` in the Nim and none
+        // here; this is two definitions, not an off-by-one. Do not "fix" it by
+        // adding one to either — that adopts the other's convention without
+        // stating it, which is how one field name came to mean two things.
+        //
+        // WHAT WOULD SETTLE IT, and this file holds the cheapest test: if the
+        // account above is right, the frames that do NOT differ by one are
+        // exactly those with no call site — the ones that open at 0 before any
+        // `Step` is read, which is the shape the line above already records.
+        // Identify the two exceptions and check them against that prediction.
+        // The full statement of the question, and what a decision would have to
+        // decide (a row's share link resolves against this number), is in
+        // `session_project.projectCalltrace`.
         step,
         path,
         line: path === null ? null : (fn.line ?? null),

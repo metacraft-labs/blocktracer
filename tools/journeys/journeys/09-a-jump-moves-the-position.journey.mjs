@@ -307,6 +307,24 @@ export async function run({ browser, site, j }) {
     // THE LIVE PATH RAN, AND THE EXPORT IS NOT ANSWERING FOR IT. See
     // `servedNavRows`. This is the assertion that would have failed for the
     // whole life of the two panes and did not exist to.
+    //
+    // NOTE WHAT THIS CONTROL DOES AND DOES NOT SAY, because it is the place a
+    // reader most often meets "the two producers disagree" and it is easy to
+    // read it as settling more than it does. It asserts the two produce a
+    // different NUMBER OF ROWS — that is the whole claim, and it is how we know
+    // the engine answered rather than the export. It says nothing about the
+    // rows' `data-step` values.
+    //
+    // Those disagree too, and that one is OPEN (#234): the static producer
+    // (`tools/chain/lib/calltrace_frames.mjs`) mints `step` as the callee's
+    // FIRST STEP, the live producer
+    // (`client/hydrate/session_project.projectCalltrace`) as `line.rrTicks`,
+    // read on the landing evidence as the CALL SITE, and 44 of 46 shared frames
+    // differ by exactly one. Nothing in this suite asserts either convention,
+    // and nothing should until the question below is decided — an assertion
+    // written now would freeze whichever producer the author happened to
+    // measure. The question, and the cheapest test that would settle it, is
+    // written at `projectCalltrace`'s `step` field.
     const servedRows = await servedNavRows(page, site.origin + subject.debugPath);
     const hydratedRows = await page.evaluate(
       () => document.querySelectorAll(".ctrow,.evrow").length,

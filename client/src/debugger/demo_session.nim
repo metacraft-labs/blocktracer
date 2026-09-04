@@ -1023,6 +1023,15 @@ proc withCallFrames*(session: var DebugSessionView; node: JsonNode) =
       # nothing rather than as `:0` — so the pane's standing sentence, "they
       # carry no file or line", stays true with rows on screen.
       line: f{"line"}.getInt(0),
+      # READ, NOT MINTED — and the definition it carries is NOT the live
+      # producer's. `tools/chain/lib/calltrace_frames.mjs` writes this as the
+      # CALLEE'S FIRST STEP (a per-`Step` counter, read at the `Call`), while
+      # `hydrate/session_project.projectCalltrace` fills the same field with
+      # `int(line.rrTicks)`, which the landing evidence reads as the CALL SITE.
+      # 44 of 46 frames present in both differ by exactly one, uniformly, and
+      # there is no `±1` on either side — it is two definitions sharing a field
+      # name, not an off-by-one. Open as #234; the question, and what settling
+      # it would decide, is written out at `projectCalltrace`'s `step`.
       step: f{"step"}.getInt,
       # THE FOLD MARKS, READ AND NOT DECIDED. Which subtrees start closed is
       # `tools/chain/fold_rules.mjs`'s answer, applied where the container is
