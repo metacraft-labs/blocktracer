@@ -593,13 +593,25 @@ BY HAND, ahead of the build, and the result is committed (`just chain-instructio
 The pane was empty because nobody had pointed that already-accepted mechanism at
 the frames, not because anything prevented it.
 
-Two further facts undercut the "hermetic" framing as it was written. The deploy
-already fetches a build input across a repository boundary over HTTP —
-`client/hydrate/fetch-engine.sh` curls the replay engine from
-`web-codetracer.pages.dev`. And `ingest.nim` already reads and parses these very
-capture artefacts. The real rule is **source-dependency hygiene** — do not put a
-Nim library on this repository's dependency graph — which is narrower than
-"hermetic" and does not reach the frames at all.
+**The build's hermeticity was never the issue, and it is worth being exact about
+why, because the word is load-bearing elsewhere.** `nix build` really is
+sandboxed with no network, and `client/src` really does compile with no debugger
+on the Nim path (§1a) — both are true, both are checked, and neither is being
+weakened here. What went wrong was reasoning from "the build cannot reach for X"
+to "the site may not contain X". This derivation does not run in the build. It
+runs by hand and commits a JSON file, which is then an ordinary source input —
+exactly like the vendored `.ct` containers sitting beside it, which the build
+also does not fetch and does not open.
+
+The repository already draws that line correctly everywhere else. The deploy
+workflow adds the replay engine to the staged site by `curl` **after**
+`nix build`, and says so in as many words, *because* the build cannot reach the
+network. Nothing about that is a compromise of hermeticity; it is what
+hermeticity means. §6.6 was the one place that crossed the line.
+
+The rule that IS real is **source-dependency hygiene** — do not put a Nim
+library on this repository's dependency graph — which is narrower than
+"hermetic" and never reached the frames at all.
 
 **What is there now.** `tools/chain/derive-calltrace.mjs` (`just chain-calltrace`)
 writes `calltrace/<tx>.json`; `ingest.nim` publishes it as `calltrace.json` beside

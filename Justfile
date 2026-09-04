@@ -78,15 +78,26 @@ chain-frozen-artifacts runtime:
 # THIS COMMENT USED TO SAY THE DEPENDENCY "CANNOT BE ONE — the site build is
 # hermetic", and that overstatement is worth correcting where it stood, because
 # it was cited. `CHAIN-CAPTURE.md` §6.6 rested the empty Call Trace pane on it
-# and concluded the frames could only ever be listed by a live session. But the
-# rule here is source-dependency hygiene, not purity: the deploy already fetches
-# a build input across a repository boundary over HTTP
-# (`client/hydrate/fetch-engine.sh` curls the replay engine from
-# `web-codetracer.pages.dev`), and `ingest.nim` already reads and parses these
-# very capture artefacts. What is actually true is narrower and sufficient — the
-# BUILD does not open a container, because the read happens here, by hand, and
-# the result is committed. A pane can be filled by adding a derivation, and
-# `chain-calltrace` below is that argument taken to its conclusion.
+# and concluded the frames could only ever be listed by a live session.
+#
+# `nix build` REALLY IS HERMETIC — sandboxed, no network — and that is not what
+# was wrong. What was wrong was reasoning from it to what the SITE MAY CONTAIN.
+# This derivation does not run in the build at all: it runs here, by hand, and
+# commits a JSON file that is then an ordinary source input, exactly like the
+# vendored `.ct` containers beside it. Hermeticity constrains what the build may
+# REACH FOR; it says nothing about what a committed input may hold.
+#
+# The deploy makes the same distinction and states it: the workflow adds the
+# replay engine to the staged site by `curl` AFTER `nix build`, precisely
+# because the build cannot reach the network
+# (`.github/workflows/deploy-cloudflare-pages.yml`, `fetch-engine.sh`). So the
+# line between "the build is sealed" and "the product may only contain what the
+# build could compute" was already drawn correctly elsewhere in this repository,
+# and only §6.6 crossed it.
+#
+# The rule that IS real here is source-dependency hygiene, stated in the
+# paragraph above. `chain-calltrace` below is the same argument taken to its
+# conclusion.
 #
 #     CT_PRINT=../codetracer-trace-format-nim/ct-print just chain-instructions
 chain-instructions:
