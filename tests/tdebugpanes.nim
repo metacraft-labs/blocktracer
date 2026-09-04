@@ -45,7 +45,7 @@
 ## Build:
 ##   just debug-panes                 # resolves CODETRACER_SRC / ../codetracer
 
-import std/[json, strutils, tables, unittest]
+import std/[json, sets, strutils, tables, unittest]
 
 import codetracer_embed
 
@@ -539,6 +539,85 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       var swapped = defaultReplayLayout()
       check activate(swapped, paneEventLog)
       check panes.renderLayout(swapped, view) != reference
+
+      s.close()
+      dispose()
+
+  test "a frame is chosen by its ANCHOR, where its coordinate cannot choose it":
+    ## `selectCalltraceFrame` — the live half of frame identity, and the half a
+    ## row click runs. Driven here because it is the one part of that seam a
+    ## hermetic suite cannot reach: it writes `CalltraceVM.selectedEntry`, which
+    ## only exists with the Embed SDK on the path.
+    ##
+    ## The section below is the shape the published transaction has and the
+    ## reason the feature exists: FIVE frames carrying TWO distinct ticks,
+    ## because a call that immediately calls another records no step in between.
+    ## Four of them share tick 59. Anything that selects by coordinate has one
+    ## answer for those four; `projectCalltrace` renders `current` from
+    ## `selectedEntry`, so what is asserted is that the frame ASKED FOR is the
+    ## frame marked.
+    createRoot proc(dispose: proc()) =
+      let s = openSession()
+      s.calltrace.setViewportHeight(8)
+      # NUMBERED, and the numbering is not decoration. `CallLine.index` is what
+      # `selectedEntry` is compared against, and the SDK's `makeCallLine`
+      # convenience constructor hardcodes `index: 0` while
+      # `updateCalltraceSection` stores the seq verbatim — so a section built
+      # only from that constructor gives EVERY row index 0, a state the real
+      # pipeline never produces and in which one selection marks all five rows.
+      # `live_navigation.callLinesOf` numbers them `startCallLineIndex + i`,
+      # which is what this reproduces; without it this test asserts against a
+      # store no engine could put the product in.
+      var section = @[
+        makeCallLine("main", 0, 1'u64, file = "src/main.nr", line = 1),
+        makeCallLine("Map::at", 1, 59'u64, file = "src/map.nr", line = 36),
+        makeCallLine("derive_storage_slot_in_map", 2, 59'u64,
+                     file = "src/map.nr", line = 11),
+        makeCallLine("poseidon2_hash", 3, 59'u64, file = "src/hash.nr", line = 212),
+        makeCallLine("Poseidon2::hash", 4, 59'u64,
+                     file = "src/poseidon2.nr", line = 16),
+      ]
+      for k in 0 ..< section.len: section[k].index = int64(k)
+      s.store.updateCalltraceSection(section, startIndex = 0'i64, totalCount = 5'u64)
+
+      let before = projectCalltrace(s.calltrace)
+      check before.frames.len == 5
+
+      # THE PREMISE, COUNTED. Four frames on one tick, five distinct anchors —
+      # a control that stopped holding would leave every check below vacuous.
+      var ticks: HashSet[int]
+      var anchors: HashSet[string]
+      for f in before.frames:
+        ticks.incl f.step
+        anchors.incl f.anchor
+      check ticks.len == 2
+      check anchors.len == 5
+
+      # Nothing is marked until something chooses. This is the state a hydrated
+      # session was in for every frame of every stop: `selectedEntry` is `none`,
+      # so `projectCalltrace`'s comparison is false on every row.
+      for f in before.frames:
+        check not f.current
+
+      for i in 1 ..< before.frames.len:
+        check s.selectCalltraceFrame(before.frames[i].anchor)
+        let after = projectCalltrace(s.calltrace)
+        var marked: seq[int]
+        for k in 0 ..< after.frames.len:
+          if after.frames[k].current: marked.add k
+        # EXACTLY ONE, AND THAT ONE. Not `after.frames[i].current`, which a pane
+        # marking everything would also satisfy.
+        check marked == @[i]
+        check after.frames[i].fn == before.frames[i].fn
+
+      # A miss RETIRES the selection rather than leaving the last one standing,
+      # which is what a click on an event-log row must do: it names no frame,
+      # and the honest answer to "which frame did the reader choose" is none.
+      check not s.selectCalltraceFrame("call:9.9.9")
+      var stillMarked = 0
+      for f in projectCalltrace(s.calltrace).frames:
+        if f.current: inc stillMarked
+      check stillMarked == 0
 
       s.close()
       dispose()
