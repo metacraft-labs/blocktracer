@@ -178,6 +178,22 @@ proc decodeExecTrace*(n: JsonNode): ExecTrace =
   if n.hasKey("validation"):
     result.hasValidation = true
     result.validation = decodeValidationSummary(n["validation"])
+  # THE ROW'S OWN RECORDER, when it names one. Absent is not a defect and never
+  # becomes one: it means "addressed by the chain pin", which is what every row
+  # written before this field existed means, so an old tree decodes unchanged.
+  #
+  # PRESENT-BUT-PARTIAL IS REFUSED. `id` and `build` are both terms of
+  # `deriveTraceArtifactId`; a row carrying one of them would silently derive an
+  # address off a half-stated recorder, and the page would 404 on a container
+  # that is sitting right there. `version` is a label and stays optional, the
+  # same way the manifest and the registry treat it.
+  if n.hasKey("recorder"):
+    let rec = req(n, "recorder", what)
+    result.hasRecorder = true
+    result.recorder = RecorderRef(
+      id: reqStr(rec, "id", what & ".recorder"),
+      build: reqStr(rec, "build", what & ".recorder"),
+      version: optStr(rec, "version"))
   # §2.3a: a reason is REQUIRED when the execution is not observable. The
   # producer-side validator enforces it; the consumer refuses to present an
   # unexplained `absent`, because "absent with no reason" is indistinguishable

@@ -139,9 +139,21 @@ type
     status*: ValidationStatus
     strength*: int             ## the only field the UI interprets (ordered rank)
 
+  RecorderRef* = object
+    ## WHICH RECORDER PRODUCED A CONTAINER. Declared here, above the overlay,
+    ## rather than down with the manifest where it used to live, because the
+    ## overlay is now one of its two homes and a type cannot be used before it
+    ## is declared.
+    id*, build*, version*: string
+
   ExecTrace* = object
-    ## One execution's availability within the overlay. Note: NO artifactId — it
-    ## is derived from `executionInputId` + the registry recorder pin (§2.3b).
+    ## One execution's availability within the overlay. Note: still NO
+    ## artifactId — the address is DERIVED (§2.1), never carried. What may now
+    ## be carried is one of its INPUTS, `recorder`, and the difference is the
+    ## whole point: a published id would make the overlay authoritative over
+    ## the derivation and end content-addressing, whereas a published input
+    ## leaves the derivation exactly where it was and only corrects where one
+    ## of its terms is read from.
     selector*: string
     availability*: TraceAvailability
     reason*: string            ## required when availability == absent/unsupported
@@ -149,6 +161,27 @@ type
     reconstructed*: bool       ## orthogonal to availability (§2.3a)
     hasValidation*: bool
     validation*: ValidationSummary
+    hasRecorder*: bool
+      ## Whether this row names the recorder that produced its container.
+    recorder*: RecorderRef
+      ## THE RECORDER THAT PRODUCED THIS CONTAINER, when the producer knows it.
+      ##
+      ## WHY THIS IS PER ROW AND NOT PER CHAIN. `traceArtifactId` commits to
+      ## `recorderBuild` on purpose — "changing the recorder must change the URL
+      ## so a stale artifact cannot outlive a bug fix" (ids.nim). Reading that
+      ## term from a single per-chain pin makes the commitment a lie the moment
+      ## a chain carries containers from two recorders: re-pinning the chain
+      ## re-derives the address of every container already published under the
+      ## old recorder, and attributes bytes to a build that did not produce
+      ## them. A chain is a set of transactions observed over time, and the
+      ## recorder that observed them is a fact about each observation.
+      ##
+      ## ABSENT MEANS "USE THE CHAIN PIN", which is what every row published
+      ## before this field existed means, and is why adding it re-derives
+      ## nothing: a consumer that finds no `recorder` here behaves exactly as it
+      ## did, and a producer that names the chain's own pin here derives the
+      ## identical id. Both halves are load-bearing for not rewriting the
+      ## identity of anything already published.
 
   TraceSelection* = object
     ## `/d/{chain}/ts/{v}/{h0h1}/{txHash}.json` — versioned overlay.
@@ -199,9 +232,6 @@ type
 # ---------------------------------------------------------------------------
 
 type
-  RecorderRef* = object
-    id*, build*, version*: string
-
   ProfileRef* = object
     name*, hash*: string
 
@@ -359,6 +389,13 @@ proc toJson*(x: ExecTrace): JsonNode =
   if x.bytes > 0: result["bytes"] = %x.bytes
   if x.reconstructed: result["reconstructed"] = %true
   if x.hasValidation: result["validation"] = x.validation.toJson
+  # OMITTED WHEN UNKNOWN, and that is a contract statement rather than a saving
+  # of bytes: an absent `recorder` means "this row is addressed by the chain
+  # pin", which is what every previously-published row means. Writing an empty
+  # object here would turn "not stated" into "stated as nothing".
+  if x.hasRecorder:
+    result["recorder"] = %*{"id": x.recorder.id, "build": x.recorder.build,
+                            "version": x.recorder.version}
 
 proc toJson*(x: TraceSelection): JsonNode =
   result = newJObject()

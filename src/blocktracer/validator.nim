@@ -116,7 +116,8 @@ proc checkSourceBundles(v: var Validator, mrel, chain: string, m: JsonNode) =
           v.err(bundleRel, "source '" & path & "' has empty content")
 
 proc checkContainerAndManifest(v: var Validator, tid, txHash, chain,
-                               execInputId: string, overlayBytes: int) =
+                               execInputId: string, overlayBytes: int,
+                               overlayRecorderBuild = "") =
   ## Derived-path check: the artifact must live exactly where the id says, and
   ## its manifest must be internally consistent (Trace-Artifacts §3, §4, §2.1).
   let sh = traceShards(tid)
@@ -139,6 +140,23 @@ proc checkContainerAndManifest(v: var Validator, tid, txHash, chain,
   for f in ["recorder", "profile", "container", "execution", "validation",
             "prestateStrategy"]:
     discard v.need(m, mrel, f)
+  # THE OVERLAY AND THE MANIFEST MUST NAME THE SAME RECORDER, and this is the
+  # `overlayBytes` check one field over: the overlay advertises something about
+  # the artifact and the artifact must agree.
+  #
+  # It is not redundant with the address derivation, which is the tempting
+  # reading. The address was derived FROM the overlay's recorder, so a manifest
+  # naming a different one is a container filed at an address that describes a
+  # build other than the one it says produced it — two answers to "what recorded
+  # this", one of which every published URL is derived from. The producer writes
+  # both from one binding precisely so they cannot drift; nothing else notices
+  # if that ever stops being true.
+  if overlayRecorderBuild.len > 0 and "recorder" in m:
+    let mb = m["recorder"]{"build"}.getStr
+    if mb != overlayRecorderBuild:
+      v.err(mrel, "the overlay addresses this trace under recorder build '" &
+            overlayRecorderBuild & "' and its manifest says it was produced by '" &
+            mb & "'")
   # container: bytes must equal the real file size; hash must match its bytes.
   if "container" in m:
     let c = m["container"]
@@ -208,14 +226,24 @@ proc checkExecTrace(v: var Validator, ctx: string, t: JsonNode,
       return
     let reg = v.registryFor(chain)
     if reg == nil: return
-    let rec = reg{"recorder"}
+    # EXACTLY AS THE CLIENT WOULD: the row's own recorder when it names one, the
+    # chain's pin otherwise (blocktracer_client/trace.nim `resolveExec`). Reading
+    # the pin unconditionally here would make the validator green on precisely
+    # the tree the client cannot open — a chain whose containers came from two
+    # recorders — which is the one shape this check exists to grade.
+    let rec = if t.hasKey("recorder"): t["recorder"] else: reg{"recorder"}
     let prof = reg{"profile"}
+    if rec == nil or rec{"id"}.getStr.len == 0 or rec{"build"}.getStr.len == 0:
+      v.err(ctx, "no recorder to derive this trace's address from: the overlay " &
+            "row names none and the chain registry pins none")
+      return
     let tid = deriveTraceArtifactId(execInputId, rec{"id"}.getStr,
       rec{"build"}.getStr, prof{"hash"}.getStr, reg{"traceSchema"}.getStr)
     # -1 means the overlay did not advertise a size, which is legal; a size that
     # is present must be the truth.
     let overlayBytes = if "bytes" in t: t["bytes"].getInt else: -1
-    v.checkContainerAndManifest(tid, txHash, chain, execInputId, overlayBytes)
+    v.checkContainerAndManifest(tid, txHash, chain, execInputId, overlayBytes,
+                                rec{"build"}.getStr)
 
 proc checkTransaction(v: var Validator, chain, txHash, gen, tsv: string) =
   v.walkedTx.add txHash

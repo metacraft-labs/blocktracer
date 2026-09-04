@@ -60,6 +60,18 @@ type
       ## "Recorder unavailable for the VM" as a fact about the tree rather than
       ## as an inference from an empty Debug column.
     recorderId*, recorderVersion*, recorderBuild*: string
+      ## THE CHAIN'S DEFAULT PIN, WHICH IS NOT NECESSARILY THE ONLY RECORDER IT
+      ## CARRIES. A chain is followed for days while the recorder is improved,
+      ## so it accumulates containers from more than one build; each overlay row
+      ## names the one that produced it and the pin is what a row naming none is
+      ## addressed under (docs/data-contract.md, "The recorder term is per
+      ## container, not per chain").
+      ##
+      ## So a surface that printed these as "the recorder for this chain" would
+      ## be stating a chain-wide fact it does not have. Nothing renders them
+      ## today. A page that wants to name the recorder BEHIND A PARTICULAR
+      ## TRACE should read it from that trace's manifest, which is the only
+      ## place the question has one answer.
     profileName*, traceSchema*: string
     provenanceKind*, provenanceLabel*, provenanceDetail*: string
       ## Where this chain's data came from, as the tree states it. Empty

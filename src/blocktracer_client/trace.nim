@@ -177,15 +177,47 @@ proc resolveExec*(store: ObjectStore, session: ChainSession,
       "' but the immutable facts carry no executionInputId for it"
     return
 
-  if not session.hasPin:
+  # WHICH RECORDER THIS ROW IS ADDRESSED UNDER — the row's own, when it names
+  # one; the chain's pin otherwise.
+  #
+  # THE PIN IS NO LONGER THE ONLY ANSWER, AND IT WAS NEVER A SAFE ONE FOR A CHAIN
+  # THAT OUTLIVES A RECORDER. A chain accumulates containers over time and a
+  # recorder is upgraded during that time; with one pin per chain, publishing a
+  # container from the new recorder means re-pinning the chain, which re-derives
+  # the address of every container the OLD recorder produced and attributes its
+  # bytes to a build that never ran them. `recorderBuild` is a term of the id
+  # precisely to prevent that (ids.nim), so the fix is to read the term from the
+  # thing it describes.
+  #
+  # THE PIN IS STILL REQUIRED WHEN THE ROW IS SILENT, and the `unresolvable`
+  # state below is unchanged for that case: a row that names no recorder is
+  # addressed by the chain's, and a chain with neither cannot be addressed at
+  # all. A row that DOES name one is resolvable with no pin present, which is the
+  # only behaviour change on this path.
+  let recorder =
+    if e.hasRecorder: e.recorder
+    elif session.hasPin: session.pin.recorder
+    else: RecorderRef()
+  if recorder.build.len == 0:
     result.kind = trkUnresolvable
     result.reason = "no recorder pinned for chain '" & session.chain &
       "' in " & registryPath(session.contractVersion) &
+      " and execution '" & e.selector & "' names none of its own" &
+      "; the trace address cannot be derived (Trace-Artifacts.md §2.1)"
+    return
+  # `profile` and `traceSchema` stay chain-scoped deliberately. They describe
+  # what this chain's producer publishes, not what any one run recorded, and
+  # both producers hold them constant; a chain with no pin at all therefore
+  # cannot be addressed even by a row that names its recorder.
+  if not session.hasPin:
+    result.kind = trkUnresolvable
+    result.reason = "no recording profile or trace schema pinned for chain '" &
+      session.chain & "' in " & registryPath(session.contractVersion) &
       "; the trace address cannot be derived (Trace-Artifacts.md §2.1)"
     return
 
   result.traceArtifactId = deriveTraceArtifactId(
-    result.executionInputId, session.pin.recorder.id, session.pin.recorder.build,
+    result.executionInputId, recorder.id, recorder.build,
     session.pin.profile.hash, session.pin.traceSchema)
   result.manifestPath = traceManifestPath(result.traceArtifactId)
   result.containerPath = traceContainerPath(result.traceArtifactId, "")

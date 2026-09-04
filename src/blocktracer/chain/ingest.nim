@@ -617,10 +617,75 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   let finalizedAt = win["finalized"].getInt
   let tipAt = win["tip"].getInt
 
-  let recorderVersion = "l3-" & shortHash(prov{"runtimeCommit"}.getStr)
-  let rRef = RecorderRef(id: recorderId,
-                         build: recorderBuildHash(recorderId, recorderVersion),
-                         version: recorderVersion)
+  # ---- WHICH RECORDER PRODUCED WHICH CONTAINER ------------------------------
+  #
+  # THIS USED TO BE ONE VALUE FOR THE WHOLE SNAPSHOT, AND THAT WAS A PROVENANCE
+  # DEFECT WITH A URL ATTACHED TO IT.
+  #
+  # `traceArtifactId` commits to `recorderBuild` deliberately — ids.nim says why:
+  # "changing the recorder must change the URL so a stale artifact cannot outlive
+  # a bug fix". Derived from `provenance.runtimeCommit`, that commitment holds
+  # only while a chain has been observed by exactly one recorder for its whole
+  # life. It has not been. A chain is watched for days by `follow-chain.mjs`, the
+  # recorder is improved during those days, and the snapshot then holds
+  # containers produced by two different builds. With one value per snapshot the
+  # only way to publish the newer container is to move the snapshot's commit —
+  # which re-derives the address of every OLDER container and files bytes that
+  # `29bd9cf` produced under a build that never ran them. That is precisely the
+  # misattribution the artifact id exists to make impossible, arrived at through
+  # the id's own front door.
+  #
+  # THE SNAPSHOT ALREADY KNEW. `follow-chain.mjs` has always written a
+  # `captures[]` entry per catch carrying that catch's own `runtimeCommit` and
+  # the `yielded[]` transactions it produced. The per-container truth was being
+  # recorded and then thrown away one field short of the publisher. So this reads
+  # it, and the fallback chain is ordered by how directly each source witnessed
+  # the recording:
+  #
+  #   1. `transactions[].recordedBy` — the row's own statement, which is what a
+  #      recorder that ran outside the follower (a re-record, a one-off) has to
+  #      be able to say for itself.
+  #   2. the `captures[]` entry that yielded this transaction — the follower's
+  #      contemporaneous note of which build was running when it caught it.
+  #   3. `provenance.runtimeCommit` — the snapshot-wide value, which is the right
+  #      answer for the transactions of the initial one-shot scan and the only
+  #      answer available for a snapshot written before `captures[]` existed.
+  #
+  # (3) IS WHY NOTHING ALREADY PUBLISHED MOVES. Every row of the committed
+  # captures resolves to the same commit under this rule as under the old one —
+  # by (2) for the 20 the follower caught, by (3) for the rest — so every derived
+  # id is byte-identical. The rule is not merely compatible with the existing
+  # tree by luck; (3) is the old behaviour, kept as the floor.
+  var recordedBy = initTable[string, string]()
+  let caps = snap{"captures"}
+  if caps != nil and caps.kind == JArray:
+    for c in caps:
+      let commit = c{"runtimeCommit"}.getStr
+      if commit.len == 0: continue
+      let yielded = c{"yielded"}
+      if yielded == nil or yielded.kind != JArray: continue
+      for y in yielded:
+        let h = y{"txHash"}.getStr
+        if h.len > 0: recordedBy[h] = commit
+  for t in snap["transactions"]:
+    let own = t{"recordedBy"}.getStr
+    if own.len > 0: recordedBy[t["txHash"].getStr] = own
+
+  let snapshotCommit = prov{"runtimeCommit"}.getStr
+
+  proc recorderFor(commit: string): RecorderRef =
+    ## The recorder ref for one runtime commit. Pure, so two containers from one
+    ## build get one ref and one `/t/**` prefix, and two from different builds
+    ## necessarily get two.
+    let v = "l3-" & shortHash(commit)
+    RecorderRef(id: recorderId, build: recorderBuildHash(recorderId, v),
+                version: v)
+
+  proc recorderForTx(txHash: string): RecorderRef =
+    recorderFor(if txHash in recordedBy: recordedBy[txHash] else: snapshotCommit)
+
+  # The chain's DEFAULT pin — see the registry note below for what it now means.
+  let rRef = recorderFor(snapshotCommit)
   let pRef = ProfileRef(name: profileName, hash: profileHash(profileName))
 
   # ---- registry: ADD this chain, never replace the file --------------------
@@ -628,15 +693,50 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # overwrote it would delete the other chain's recorder pin and turn every one
   # of its transactions into `unsupported` — a data-plane fact invented by a
   # build-order accident. So this reads what is there and adds one key.
+  #
+  # WHAT `recorder` MEANS NOW, AND IT IS NARROWER THAN IT WAS. It is the chain's
+  # DEFAULT — the recorder an overlay row is addressed under when the row names
+  # none of its own. Every row this ingest writes for a container DOES name one
+  # (see the overlay write), so the default is load-bearing only for rows
+  # published before that field existed. It is written from
+  # `provenance.runtimeCommit` and nothing else, which is exactly the value the
+  # old code used for every container, so a re-ingest of an existing snapshot
+  # writes the identical pin.
+  #
+  # `recorders` IS THE INVENTORY, and it exists so the mixed case is legible from
+  # the registry rather than only by walking every overlay row. A chain carrying
+  # two builds says so here, in one place, sorted so a regeneration is
+  # byte-identical.
   let regRel = "registry" / "chains.v" & $ContractVersion & ".json"
   var reg =
     if fileExists(cfg.outDir / regRel): parseJson(readFile(cfg.outDir / regRel))
     else: %*{"version": ContractVersion, "chains": {}}
-  reg["chains"][chain] = %*{
-    "recorder": {"id": rRef.id, "build": rRef.build, "version": rRef.version},
-    "profile": {"name": pRef.name, "hash": pRef.hash},
-    "traceSchema": traceSchema}
-  cfg.writeJson(regRel, reg)
+  # A DIFFERENT DEFAULT OVER A TREE THAT ALREADY HAS ONE IS REFUSED, and this is
+  # the structural half of the fix rather than a belt-and-braces check. Rows
+  # published by an older producer carry no recorder and are addressed by this
+  # pin alone; moving it re-derives every one of their `/t/**` addresses and
+  # leaves the containers stranded at the old ones. There is no version of that
+  # which is a smaller problem than refusing, so it refuses, and it names both
+  # builds because "the pin changed" without saying from what to what is not a
+  # diagnosis.
+  let incumbentPin = reg{"chains"}{chain}{"recorder"}{"build"}.getStr
+  if incumbentPin.len > 0 and incumbentPin != rRef.build:
+    raise newException(ValueError,
+      "chain '" & chain & "' is already pinned in " & regRel & " to recorder " &
+      "build '" & incumbentPin & "' and this snapshot's provenance would " &
+      "re-pin it to '" & rRef.build & "' (runtimeCommit " &
+      shortHash(snapshotCommit) & "). Every overlay row that names no recorder " &
+      "of its own is addressed under that pin, so moving it re-derives their " &
+      "trace addresses and attributes their containers to a build that did not " &
+      "produce them. Record the newer recorder per transaction instead — " &
+      "`transactions[].recordedBy`, or a `captures[]` entry that yields it.")
+  # THE INVENTORY IS FILLED BY THE TRANSACTION LOOP AND THE ROW IS WRITTEN AFTER
+  # IT, which is a deliberate reordering. `recorders` claims to list the builds
+  # that produced THE CONTAINERS THIS TREE PUBLISHES; computed up here it would
+  # instead list the builds named anywhere in the snapshot, including for
+  # transactions the curated window drops. Those are two different sets, and only
+  # one of them is checkable against the tree it describes.
+  var recorderInventory = initTable[string, RecorderRef]()
 
   # ---- blocks --------------------------------------------------------------
   # Every enumerated block is published, including the empty ones. A block list
@@ -972,6 +1072,13 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       let rec = t["recording"]
       let matched = t["effects"]["matched"].getInt
       let mismatched = t["effects"]["mismatched"].getInt
+      # THIS CONTAINER'S OWN RECORDER — resolved per transaction, from the
+      # fallback chain documented where `recordedBy` is built. Every use of a
+      # recorder below is this one: the id derivation, the manifest, and the
+      # overlay row. They must not be able to disagree, which is why there is one
+      # binding rather than three lookups.
+      let txRRef = recorderForTx(txHash)
+      recorderInventory[txRRef.build] = txRRef
       et = ExecTrace(selector: "public",
         availability: (if reproduced: taReady else: taDivergent),
         reason: (if reproduced: ""
@@ -988,13 +1095,20 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         # cannot present as strongly as one that matched everything.
         validation: ValidationSummary(
           status: (if reproduced: vsMatch else: vsDivergent),
-          strength: matched))
+          strength: matched),
+        # THE ROW STATES WHAT PRODUCED ITS CONTAINER, and this is the field that
+        # lets one chain carry two recorders without either being misfiled. The
+        # client derives the address from it (blocktracer_client/trace.nim); the
+        # validator checks the address against it. Where it equals the chain pin
+        # — which it does for every container in the committed captures — the
+        # derived id is unchanged, so publishing it re-addresses nothing.
+        hasRecorder: true, recorder: txRRef)
       inc withTrace
       if not reproduced: inc divergentCount
       inc totalContainerBytes, t["containerBytes"].getInt
 
       # ---- the artifact: manifest + the real container --------------------
-      let tid = deriveTraceArtifactId(execInputId, rRef.id, rRef.build,
+      let tid = deriveTraceArtifactId(execInputId, txRRef.id, txRRef.build,
                                       pRef.hash, traceSchema)
       let shards = traceShards(tid)
       let dir = "t" / shards.a / shards.b / tid
@@ -1372,7 +1486,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       let manifest = TraceManifest(
         schema: ContractVersion, traceArtifactId: tid,
         executionInputId: execInputId, chain: chain, tx: txHash,
-        recorder: rRef, profile: pRef,
+        recorder: txRRef, profile: pRef,
         # EMPTY IS THE HONEST ANSWER FOR A RUNG-3 RECORDING, and it is empty by
         # construction rather than by decision: `bundles` is only ever filled on
         # the branch above, which cannot be taken unless the capture measured
@@ -1430,6 +1544,31 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     cfg.writeJson("d" / chain / "ts" / tsv / sh / txHash & ".json", overlay.toJson)
 
     for r in roles: participate(r.address, height, txHash)
+
+  # ---- registry row, now that the published set is known -------------------
+  # See the block above where `reg` was read and the incumbent pin checked. The
+  # WRITE waits until here because `recorders` describes the containers this
+  # ingest actually published, and that set is not known until the loop that
+  # publishes them has run.
+  #
+  # THE DEFAULT PIN IS IN THE INVENTORY WHETHER OR NOT A CONTAINER USED IT. A
+  # chain whose every container names a newer recorder still addresses its
+  # older, recorder-less rows under the default, so a list that dropped it would
+  # be describing a smaller tree than the one on disk.
+  recorderInventory[rRef.build] = rRef
+  var inventoryBuilds: seq[string]
+  for b in recorderInventory.keys: inventoryBuilds.add b
+  inventoryBuilds.sort()
+  var recordersNode = newJArray()
+  for b in inventoryBuilds:
+    let r = recorderInventory[b]
+    recordersNode.add %*{"id": r.id, "build": r.build, "version": r.version}
+  reg["chains"][chain] = %*{
+    "recorder": {"id": rRef.id, "build": rRef.build, "version": rRef.version},
+    "recorders": recordersNode,
+    "profile": {"name": pRef.name, "hash": pRef.hash},
+    "traceSchema": traceSchema}
+  cfg.writeJson(regRel, reg)
 
   # ---- address history -----------------------------------------------------
   addrOrder.sort()

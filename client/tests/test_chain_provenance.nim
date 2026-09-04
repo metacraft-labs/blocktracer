@@ -27,7 +27,7 @@
 ## `ingestSnapshot` — over the committed capture, so what is graded is the
 ## shipping path and not a lookalike.
 
-import std/[unittest, os, json, strutils, algorithm, options, sequtils]
+import std/[unittest, os, json, strutils, algorithm, options, sequtils, tables]
 
 import ../src/ssr
 import ../src/reader
@@ -43,6 +43,10 @@ import blocktracer/chain/ingest
 # than against a restatement of its rules here — the same reasoning that makes
 # this suite build its trees with the real producers.
 import blocktracer/validator
+# `hexShard` and `recorderBuildHash` — suite 14 addresses overlay rows and
+# recomputes recorder builds the way the contract does, rather than hard-coding
+# a shard layout or a hash this repository already owns one spelling of.
+import blocktracer/contract/ids
 
 let
   clientRoot = currentSourcePath().parentDir.parentDir
@@ -3426,3 +3430,278 @@ suite "13 — a transaction list says which transactions can be debugged fully":
 
   test "assertion count":
     expectCount(136)
+
+# ───────────────────────────────────────────────────────────────────────────
+# SUITE 14 — ONE CHAIN, TWO RECORDERS, NEITHER MISFILED
+# ───────────────────────────────────────────────────────────────────────────
+#
+# THE DEFECT THIS SUITE EXISTS FOR, and it is a provenance defect rather than an
+# availability one — which is what made it easy to take the wrong fix and
+# impossible to see afterwards.
+#
+# `traceArtifactId` commits to `recorderBuild` on purpose: ids.nim says
+# "changing the recorder must change the URL so a stale artifact cannot outlive
+# a bug fix". The ingest derived that term from `provenance.runtimeCommit` — ONE
+# value for a whole snapshot — and the registry stored ONE recorder pin per
+# chain. A chain is watched for days while the recorder is improved, so the
+# moment a container from a newer build had to be published, the only lever was
+# to move the chain's commit. That re-derives the address of every container the
+# OLD build produced and files their bytes under a build that never ran them.
+#
+# NOTHING WOULD HAVE GONE RED. Pages resolve by transaction hash, so every one
+# of them would still have opened; the id would still have been content-derived;
+# the validator would still have agreed with the producer, because both read the
+# same single pin. The only casualty is the one thing the artifact id is FOR.
+# That is why the checks below are about what each container SAYS PRODUCED IT
+# and not about whether it loads.
+#
+# THE SUBJECT IS BUILT BY THE REAL INGEST over the committed capture with its
+# per-container provenance filled in — the two shapes a snapshot can state it in
+# (a `captures[]` entry that yielded the transaction, and the row's own
+# `recordedBy`) are both exercised, because both are load-bearing and only one
+# of them existed in the fixture.
+suite "14 — one chain carries containers from two recorders, each filed as its own":
+  asserted = 0
+
+  const
+    # A second recorder, standing in for the frames-carrying build. Any commit
+    # that is not the capture's own will do; what matters is that it is
+    # different, because the whole claim is that difference survives publishing.
+    FramesCommit = "f4a3e5c17b2d9e0a6c8b1f3d5e7a9c2b4d6f8a01"
+    IncumbentCommit = "29bd9cfd5b01ea45d9d35ab82c24d1da683dd061"
+
+  let rd = getTempDir() / ("bt-rec-prov-" & $getCurrentProcessId())
+  removeDir(rd); createDir(rd)
+
+  proc manifestsByTx(tree: string): Table[string, JsonNode] =
+    ## Every published manifest in `tree`, keyed by the transaction it is about.
+    ##
+    ## READ BACK OFF DISK, which is the point. Asserting against the values the
+    ## ingest computed would be asking the code that wrote the tree whether it
+    ## wrote it correctly; these are the bytes a browser would fetch.
+    result = initTable[string, JsonNode]()
+    for path in walkDirRec(tree / "t"):
+      if path.endsWith("manifest.json"):
+        let m = parseJson(readFile(path))
+        result[m["tx"].getStr] = m
+
+  proc overlayRecorderOf(tree, chain, txHash: string): JsonNode =
+    ## The `recorder` an overlay row names, or nil where it names none.
+    let p = tree / "d" / chain / "ts" / "1" / hexShard(txHash) / (txHash & ".json")
+    if not fileExists(p): return nil
+    parseJson(readFile(p)){"trace"}{"recorder"}
+
+  # ── the control: the capture exactly as committed, one recorder ───────────
+  let oneTree = rd / "one"
+  createDir(oneTree)
+  discard ingestSnapshot(IngestConfig(outDir: oneTree, snapshotDir: snapshotDir))
+  let oneManifests = manifestsByTx(oneTree)
+
+  # ── the subject: the same capture, with SOME containers attributed to a
+  #    second recorder, stated in both of the two ways a snapshot may state it ─
+  let mixedCap = rd / "cap"
+  copyDir(snapshotDir, mixedCap)
+  var mixedDoc = parseJson(readFile(mixedCap / "snapshot.json"))
+  var viaCapturesTx, viaRecordedByTx = ""
+  block attribute:
+    # Two recorded transactions, chosen from the capture's own JSON in a stable
+    # order so the subject is the same on every run.
+    var recorded: seq[string]
+    for t in mixedDoc["transactions"]:
+      if t["outcome"].getStr in ["replayed", "divergent"]:
+        recorded.add t["txHash"].getStr
+    recorded.sort()
+    doAssert recorded.len >= 2,
+      "the capture must hold at least two containers for this suite to be " &
+      "about a MIXED chain; it holds " & $recorded.len
+    viaCapturesTx = recorded[0]
+    viaRecordedByTx = recorded[1]
+    # (a) a `captures[]` entry — the follower's own contemporaneous note of
+    #     which build was running when it caught this transaction.
+    for c in mixedDoc["captures"]:
+      for y in c{"yielded"}:
+        if y{"txHash"}.getStr == viaCapturesTx:
+          c["runtimeCommit"] = %FramesCommit
+    # (b) the row's own `recordedBy` — what a recorder running outside the
+    #     follower has to be able to say for itself.
+    for t in mixedDoc["transactions"]:
+      if t["txHash"].getStr == viaRecordedByTx:
+        t["recordedBy"] = %FramesCommit
+  writeFile(mixedCap / "snapshot.json", mixedDoc.pretty)
+
+  let mixedTree = rd / "mixed"
+  createDir(mixedTree)
+  discard ingestSnapshot(IngestConfig(outDir: mixedTree, snapshotDir: mixedCap))
+  let mixedManifests = manifestsByTx(mixedTree)
+
+  let framesBuild = recorderBuildHash("aztec-avm", "l3-" & FramesCommit[0 .. 9] & "…")
+  let incumbentBuild = recorderBuildHash("aztec-avm",
+                                         "l3-" & IncumbentCommit[0 .. 9] & "…")
+
+  test "the fixture really is mixed — two recorders, both with containers":
+    # THE POSITIVE CONTROL, and this suite needs it more than most: every
+    # assertion below is a universal over "the containers from recorder X", and
+    # a subject where one of those sets is empty satisfies all of them
+    # vacuously (Verification-Harness-Traps §4).
+    ck framesBuild != incumbentBuild
+    var fromFrames, fromIncumbent = 0
+    for _, m in mixedManifests:
+      let b = m["recorder"]["build"].getStr
+      if b == framesBuild: inc fromFrames
+      elif b == incumbentBuild: inc fromIncumbent
+    ck fromFrames == 2                       # the two attributed above
+    ck fromIncumbent == mixedManifests.len - 2
+    ck fromIncumbent > 0
+
+  test "every container reports the recorder that produced it, read back off disk":
+    # The claim, stated over the published bytes rather than over the ingest's
+    # variables. `viaCapturesTx` and `viaRecordedByTx` are the two attribution
+    # SHAPES; both must land, because a fix that honoured only one would leave
+    # the other silently inheriting the chain's pin.
+    ck mixedManifests[viaCapturesTx]["recorder"]["build"].getStr == framesBuild
+    ck mixedManifests[viaRecordedByTx]["recorder"]["build"].getStr == framesBuild
+    var checkedIncumbent = 0
+    for tx, m in mixedManifests:
+      if tx in [viaCapturesTx, viaRecordedByTx]: continue
+      ck m["recorder"]["build"].getStr == incumbentBuild
+      inc checkedIncumbent
+    ck checkedIncumbent == mixedManifests.len - 2
+
+  test "the overlay tells a browser the SAME recorder the manifest names":
+    # The two are separate files written on separate paths, and they are the two
+    # ends of one derivation: the overlay's `recorder` is what a client feeds to
+    # `deriveTraceArtifactId`, and the manifest at the resulting address is what
+    # it finds. If they can disagree, a page derives an address for a container
+    # that is not there and reports a failed fetch for a container sitting on
+    # disk. Nothing else in the tree compares them.
+    var compared = 0
+    for tx, m in mixedManifests:
+      let o = overlayRecorderOf(mixedTree, "aztec-testnet", tx)
+      ck o != nil
+      if o == nil: continue
+      ck o["build"].getStr == m["recorder"]["build"].getStr
+      ck o["id"].getStr == m["recorder"]["id"].getStr
+      inc compared
+    ck compared == mixedManifests.len
+
+  test "a second recorder does not re-address the first recorder's containers":
+    # THE WHOLE POINT, AND THE THING THE WRONG FIX GETS WRONG. Publishing a
+    # container from a newer build must leave every older container at the
+    # address it already has. Compared against the CONTROL tree — the same
+    # capture ingested with no second recorder in it — so this is a before/after
+    # over bytes and not a restatement of the rule.
+    var unchanged = 0
+    for tx, m in mixedManifests:
+      if tx in [viaCapturesTx, viaRecordedByTx]: continue
+      ck tx in oneManifests
+      ck m["traceArtifactId"].getStr == oneManifests[tx]["traceArtifactId"].getStr
+      ck m["container"]["hash"].getStr == oneManifests[tx]["container"]["hash"].getStr
+      inc unchanged
+    ck unchanged == mixedManifests.len - 2
+    # …and the two that DID change recorder moved, because `recorderBuild` is a
+    # term of the id. An id that did not move would mean the term is not
+    # actually load-bearing, which is the other way this contract can be broken.
+    ck mixedManifests[viaCapturesTx]["traceArtifactId"].getStr !=
+       oneManifests[viaCapturesTx]["traceArtifactId"].getStr
+    ck mixedManifests[viaRecordedByTx]["traceArtifactId"].getStr !=
+       oneManifests[viaRecordedByTx]["traceArtifactId"].getStr
+
+  test "the registry states the chain's inventory of recorders, not just its default":
+    let reg = parseJson(readFile(mixedTree / "registry" / "chains.v1.json"))
+    let row = reg["chains"]["aztec-testnet"]
+    # The DEFAULT is unmoved: it is what rows naming no recorder are addressed
+    # under, and every such row was published by an older producer.
+    ck row["recorder"]["build"].getStr == incumbentBuild
+    var builds: seq[string]
+    for r in row["recorders"]: builds.add r["build"].getStr
+    ck builds.len == 2
+    ck incumbentBuild in builds
+    ck framesBuild in builds
+
+  test "a CLIENT resolves each container through the row's own recorder":
+    # Read back through the shipping consumer rather than through this file's
+    # idea of the contract: `traceView` runs the client SDK's `resolveExec`,
+    # which derives the address and fetches the manifest there. A client that
+    # ignored the row's recorder would derive the incumbent's address for the
+    # frames containers, find nothing, and report a failed fetch — so a
+    # resolution that lands at all is the assertion.
+    let mixedRoot = newDataRoot(mixedTree)
+    let info = mixedRoot.chainInfo("aztec-testnet")
+    var resolved = 0
+    for tx, m in mixedManifests:
+      let tv = mixedRoot.traceView(info, tx)
+      ck tv.outcome == tvReplayable
+      # The path a browser would GET, and it must be the one this container is
+      # published at — which is the manifest's own id.
+      ck m["traceArtifactId"].getStr in tv.containerPath
+      ck tv.contentHash == m["container"]["hash"].getStr
+      inc resolved
+    ck resolved == mixedManifests.len
+
+  test "MUTATION BITE: collapsing the chain onto one shared pin is refused by name":
+    # THE WRONG FIX, DRIVEN THROUGH THE REAL INGEST. "Re-pin the chain to the
+    # new recorder" is the one-line change that makes the frames container
+    # publishable, keeps every page working, and silently re-addresses the 25
+    # containers the old build produced. It costs provenance truth and nothing
+    # a test of availability would notice, which is exactly why the refusal has
+    # to be in the producer and has to be exercised.
+    #
+    # The shape: a tree that already pins the incumbent, and a snapshot whose
+    # snapshot-wide provenance names the frames build — i.e. the state a
+    # follower leaves behind when it overwrites `provenance.runtimeCommit` on a
+    # catch, which is what it used to do unconditionally.
+    let repinCap = rd / "repin"
+    copyDir(snapshotDir, repinCap)
+    var doc = parseJson(readFile(repinCap / "snapshot.json"))
+    doc["provenance"]["runtimeCommit"] = %FramesCommit
+    writeFile(repinCap / "snapshot.json", doc.pretty)
+    var raised = false
+    var msg = ""
+    try:
+      # `oneTree` already carries the incumbent pin and its 25 containers.
+      discard ingestSnapshot(IngestConfig(outDir: oneTree, snapshotDir: repinCap))
+    except ValueError as e:
+      raised = true
+      msg = e.msg
+    ck raised
+    # NAMING WHAT IT FOUND, not merely refusing. "the pin changed" leaves a
+    # reader to go and find out from what to what; both builds are in the
+    # sentence, and so is the remedy that does not lose the provenance.
+    ck incumbentBuild in msg
+    ck framesBuild in msg
+    ck "recordedBy" in msg
+    ck "did not" in msg and "produce them" in msg
+
+  test "and the refusal is about a CHANGED pin, not about re-ingesting at all":
+    # The control for the mutation above: every build regenerates in place, so a
+    # guard that refused a re-ingest of the same snapshot would make the
+    # determinism check impossible to run. This is the arm that proves the
+    # refusal keys on the recorder rather than on the slug being occupied.
+    discard ingestSnapshot(IngestConfig(outDir: oneTree, snapshotDir: snapshotDir))
+    ck true
+    # …and it stays green over the MIXED capture too, whose snapshot-wide
+    # provenance is still the incumbent and whose second recorder is stated per
+    # container — which is the shape this whole change exists to make publishable.
+    discard ingestSnapshot(IngestConfig(outDir: oneTree, snapshotDir: mixedCap))
+    ck true
+    let reg = parseJson(readFile(oneTree / "registry" / "chains.v1.json"))
+    var builds: seq[string]
+    for r in reg["chains"]["aztec-testnet"]["recorders"]: builds.add r["build"].getStr
+    ck builds.len == 2
+
+  test "assertion count":
+    # Written from a run, and expressed against the SIZE OF THE FIXTURE rather
+    # than as a bare number, because most of the assertions above are per
+    # container. A literal total would go red the next time the capture grows,
+    # and the repair for that red is to edit the number — which is how a suite
+    # comes to certify a smaller sweep than it used to (see the note on suite
+    # 12's total). The two terms are named so the count can be re-derived by
+    # reading rather than by running:
+    #
+    #   * 24 assertions that do not depend on how many containers there are;
+    #   * 7 per container beyond the two attributed to the second recorder
+    #     (1 in "every container reports…", 3 in "does not re-address…",
+    #      3 of the 6 below), and 6 per container over the whole set
+    #     ("the overlay tells…" ×3 and "a CLIENT resolves…" ×3).
+    let n = mixedManifests.len
+    expectCount(24 + (n - 2) * 4 + n * 6)

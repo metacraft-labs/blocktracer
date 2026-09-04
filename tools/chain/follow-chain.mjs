@@ -355,6 +355,17 @@ async function main() {
         firstInBlock: true,
         capturedAt,
         capturedWindow: { tip, finalized, replayableFrom: finalized + 1, replayableTo: tip },
+        // WHICH BUILD RECORDED THIS CONTAINER, stamped on the row that carries it.
+        //
+        // A follow runs for days and the recorder is improved during those days, so a
+        // snapshot accumulates containers from more than one build. `provenance.runtimeCommit`
+        // is ONE value for the whole file and cannot say that; used as the answer it makes
+        // publishing a container from a newer build require moving the snapshot's commit,
+        // which re-derives the `/t/**` address of every container an older build produced
+        // and files their bytes under a build that never ran them. `ingest.nim` derives
+        // `recorderVersion` from this field first for exactly that reason — grep
+        // `recordedBy` there for the full fallback chain.
+        recordedBy: runtimeCommit,
         ...decided,
       };
       snap.transactions.push(row);
@@ -384,11 +395,23 @@ async function main() {
         l1ChainId: nodeInfo.l1ChainId,
         rollupVersion: nodeInfo.rollupVersion,
         rollupAddress: nodeInfo.l1ContractAddresses?.rollupAddress ?? '',
-        // `runtimeCommit` is REQUIRED by `ingest.nim`'s `ingestSnapshot`, which derives the
-        // published `recorderVersion` from it (grep `recorderVersion = "l3-"` there).
-        // A follower that grew a snapshot without it would
-        // write a fixture the exporter cannot read.
-        runtimeCommit,
+        // `runtimeCommit` IS PINNED TO THE FIRST BUILD THAT WROTE THIS SNAPSHOT, and it
+        // is pinned the same way and for the same reason as `firstCapturedAt` above.
+        //
+        // IT USED TO BE OVERWRITTEN ON EVERY CATCH, and that was a provenance defect one
+        // recorder upgrade away from firing. `ingest.nim` reads this as the FALLBACK for a
+        // container that names no recorder of its own — the transactions of the initial
+        // one-shot scan, and every row written before `recordedBy` existed. Moving it
+        // re-derives their `/t/**` addresses under a build that did not record them, which
+        // is precisely what `traceArtifactId`'s commitment to `recorderBuild` exists to
+        // prevent. So the fallback stays where it was and the moving value is stated per
+        // container by `recordedBy` above, and per catch by `captures[].runtimeCommit`.
+        //
+        // `latestRuntimeCommit` keeps the thing the old assignment was actually useful for
+        // — "which build was running most recently" — without it being load-bearing for
+        // any address.
+        runtimeCommit: snap.provenance?.runtimeCommit ?? runtimeCommit,
+        latestRuntimeCommit: runtimeCommit,
         tool: 'tools/chain/follow-chain.mjs',
       };
       snap.window = { tip, finalized, replayableFrom: finalized + 1, replayableTo: tip,

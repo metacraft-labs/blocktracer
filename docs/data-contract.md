@@ -75,10 +75,71 @@ direction, one source) is the additive way to add it without a second truth.
   name shards decode, place their terms correctly and carry provenance (§ D4–D6).
 
 The `traceArtifactId` is *derived* (not stored in the overlay), exactly as the
-browser derives it: `H(executionInputId ‖ recorder pin ‖ profile ‖ traceSchema)`.
+browser derives it: `H(executionInputId ‖ recorder ‖ profile ‖ traceSchema)`.
 `executionInputId` comes from the immutable facts (`executions[].executionInputId`)
-and the recorder pin from `/registry/chains.v1.json` — so the validator finds each
-artifact with **no lookup**, the same property the client relies on.
+and the profile and `traceSchema` from `/registry/chains.v1.json` — so the
+validator finds each artifact with **no lookup**, the same property the client
+relies on.
+
+### The recorder term is per container, not per chain
+
+**The address commits to `recorderBuild` on purpose** — "changing the recorder
+must change the URL so a stale artifact cannot outlive a bug fix"
+(`contract/ids.nim`). Read from a single per-chain pin, that commitment holds only
+while a chain has been observed by exactly one recorder for its whole life, and a
+real chain has not been: it is followed for days while the recorder is improved,
+so it accumulates containers from more than one build. With one pin per chain the
+only way to publish a container from a newer build is to re-pin the chain — which
+re-derives the address of every container the older build produced and files their
+bytes under a build that never ran them. That is the exact misattribution the
+artifact id exists to prevent, reached through the id's own front door. It is also
+**invisible**: pages resolve by transaction hash and keep working, the ids stay
+content-derived, and producer and validator go on agreeing because both read the
+same wrong pin.
+
+So the recorder is stated **per execution row of the TraceSelection overlay**:
+
+```jsonc
+// /d/{chain}/ts/{v}/{h0h1}/{txHash}.json
+{ "chain": "…", "tx": "0x…",
+  "trace": {
+    "availability": "ready",
+    "bytes": 188416,
+    "validation": { "status": "match", "strength": 7 },
+    // OPTIONAL. Present => this row's address is derived under THIS recorder.
+    // Absent  => derived under the chain's registry pin, which is what every
+    //            row published before this field existed means.
+    "recorder": { "id": "aztec-avm", "build": "sha1:…", "version": "l3-…" }
+  } }
+```
+
+Still **no `artifactId` in the overlay** — the address remains derived, never
+carried. What may now be carried is one of its *inputs*, and the difference is
+load-bearing: a published id would make the overlay authoritative over the
+derivation and end content-addressing, whereas a published input leaves the
+derivation where it is and only corrects where one of its terms is read from.
+
+`profile` and `traceSchema` stay chain-scoped. They describe what a chain's
+producer publishes rather than what any one run recorded, and both producers hold
+them constant.
+
+**The registry row keeps `recorder` as the chain's default** — what a row naming
+no recorder of its own is addressed under — and gains `recorders[]`, the inventory
+of builds that produced the containers actually published for that chain. Both
+producers may leave `recorders` out; a chain with one recorder is fully described
+without it.
+
+**Consumers.** All three derivation sites take the row's recorder when it names
+one and the chain pin otherwise: `blocktracer_client/trace.nim` (`resolveExec`),
+`blocktracer/validator.nim` (`checkExecTrace`), and `blocktracer/chain/ingest.nim`
+on the producing side. The validator additionally checks that the overlay and the
+manifest at the derived address name the **same** recorder — they are two files
+written on separate paths and they are the two ends of one derivation.
+
+**Backward compatibility is total in both directions.** A consumer that finds no
+`recorder` on a row behaves exactly as it did; a producer that writes the chain's
+own pin there derives the identical id. That is what makes this additive over an
+already-published tree rather than a migration of it.
 
 ## Deliberately NOT built in this slice
 
