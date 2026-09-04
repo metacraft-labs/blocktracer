@@ -185,6 +185,25 @@ jobs:
       - name: And the guard bites — every planted hole reported, and only those
         run: bash ci/test/ci-coverage-test.sh
 
+      # A REFUSAL MUST NOT BE ABLE TO FIRE BEFORE THE CODE THAT NUMBERS IT.
+      #
+      # `run.mjs` separates DID NOT RUN (2) from FAILED (1) in `main().catch`,
+      # and anything at module scope evaluates before `main` exists — so its
+      # `exitCode` is dropped and node exits 1. Measured: with
+      # `tools/capture/node_modules` absent, `node tools/journeys/run.mjs`
+      # exited 1 while `lib/probe.mjs` was throwing an error tagged 2.
+      #
+      # IT IS STATIC BECAUSE IT HAS TO BE. The state that exposes it is "the
+      # dependency is missing", and this job installs the dependency — so a
+      # runtime regression test would pass here forever, for the wrong reason,
+      # while guarding the exact defect class this repository is auditing.
+      # Milliseconds, no browser, no install.
+      - name: A refusal keeps its exit code — no import-time work at module scope
+        run: bash ci/test/journeys-refusal-exit-code.sh
+
+      - name: And that guard bites — proved against the commit that had the defect
+        run: bash ci/test/journeys-refusal-exit-code-test.sh
+
   # The two gates that stand between a build and production, and the proof that
   # either of them can go red.
   #
