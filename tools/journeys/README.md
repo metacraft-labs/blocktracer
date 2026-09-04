@@ -364,8 +364,10 @@ the run producing them had never reached its summary. Each is now attributable:
   **THIS WAS OPEN, AND RE-FETCHING WAS NOT THE REMEDY.** Two engine builds were
   taken from the publisher four hours apart on the same day —
   `3009b9892fa181cf…` and `2250e91aec39d2a6…` — and **both refuse this corpus**,
-  in the same place, with the same message. `just journeys-engine` will fetch a
-  third and may well fetch a fourth that also refuses. Until an engine that
+  in the same place, with the same message. When this was written
+  `just journeys-engine` would fetch a third and might well have fetched a
+  fourth that also refused; since the pin it re-fetches the SAME engine every
+  time, so "run it again" is not a move at all any more. Until an engine that
   reads `C0DE72ACE2 04 0001` is published, the way to get a verdict out of this
   suite is to stage one that does:
 
