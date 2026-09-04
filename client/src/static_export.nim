@@ -57,6 +57,86 @@ proc copyFonts() =
       if kind == pcFile:
         copyFile(path, dest / extractFilename(path))
 
+const MtimeFloor = 315_532_800'i64
+  ## 1980-01-01T00:00:00Z. Nix writes every file in the store with mtime 1, on
+  ## purpose, so an mtime read off a store path is not OLD — it is ABSENT, and
+  ## reporting "stale" about it would be a confident wrong answer. Same constant
+  ## and same sentence as `tools/capture/lib/build-freshness.mjs`'s
+  ## `MTIME_FLOOR_MS`, which asks this question on the CONSUMER side.
+
+proc newestSourceIn(dirs: openArray[string]): tuple[path: string, at: Time] =
+  ## The most recently modified compilable input under `dirs`.
+  ##
+  ## `.nim`/`.nims`/`.cfg` only. The three bundles this file installs are `.js`
+  ## written INTO two of these directories, so a walk that counted them would
+  ## compare a build against itself and could never report stale. `nimcache*`
+  ## is skipped for the same reason.
+  result = ("", fromUnix(0))
+  for d in dirs:
+    if not dirExists(d): continue
+    for path in walkDirRec(d):
+      let (dir, _, ext) = splitFile(path)
+      if ext notin [".nim", ".nims", ".cfg"]: continue
+      if "nimcache" in dir: continue
+      let at = try: getLastModificationTime(path) except CatchableError: continue
+      if at > result.at: result = (path, at)
+
+proc requireFreshBundle(built: string; sourceDirs: openArray[string];
+                        what, remedy: string) =
+  ## The half `fileExists` could not ask: is this bundle OF THIS SOURCE?
+  ##
+  ## ## Why the three call sites needed more than an existence test
+  ##
+  ## Each of them reasons, correctly and at length, about a `<script>` that
+  ## 404s — the affordance-that-lies defect with a build error's cause — and
+  ## each answers it with `fileExists` and the message "Build it first". That
+  ## remedy names EXACTLY the condition the guard cannot detect: once the
+  ## bundle has been built once, `fileExists` is true forever. All three are
+  ## gitignored outputs written in place by `nim js`, and nothing cleans them.
+  ##
+  ## So a bundle compiled from an older `hydrate.nim` is copied into the
+  ## published site under the current name, and every downstream gate then
+  ## passes — `check-assets.mjs` because the reference resolves and the file is
+  ## non-empty, `check-freshness.mjs` because the staged byte IS the built byte
+  ## (the build step faithfully copied a stale input), the capture corpus
+  ## because it photographs whatever the page does. The page does not 404. It
+  ## hydrates into last week's behaviour, silently, which is worse: a 404 is
+  ## visible in a console and this is not.
+  ##
+  ## THE ASYMMETRY THIS CLOSES. `tools/capture/lib/build-freshness.mjs`'s
+  ## `SITE_ARTEFACTS` lists these three paths by name as the artefacts a rebuild
+  ## must have rewritten — the CONSUMERS have asked this question since the
+  ## capture sweep. The PRODUCER, which is the last place the bundle can still
+  ## be refused before it is published, did not.
+  ##
+  ## ## The three answers that are not "stale"
+  ##
+  ## Refuses only when it can say so. A store-epoch mtime means the question
+  ## cannot be asked (`nix build` is hermetic and its inputs carry mtime 1), and
+  ## an empty source walk means the same; both continue, and say which sentence
+  ## they mean, because a gate that cried wolf on the ordinary hermetic build
+  ## would be deleted within a day and then absent for the real case.
+  let builtAt = getLastModificationTime(built)
+  if builtAt.toUnix < MtimeFloor:
+    echo "  ~ ", what, ": mtime ", $builtAt, " is the epoch stamp Nix gives store files, ",
+         "so freshness cannot be judged here. Copying it."
+    return
+  let newest = newestSourceIn(sourceDirs)
+  if newest.path.len == 0:
+    echo "  ~ ", what, ": no .nim/.nims/.cfg found under ", sourceDirs.join(", "),
+         " — freshness cannot be judged here. Copying it."
+    return
+  if newest.at <= builtAt: return
+  stderr.writeLine what & " is stale: " & built
+  stderr.writeLine "  built   " & $builtAt
+  stderr.writeLine "  but     " & newest.path & " changed " & $newest.at
+  stderr.writeLine "  Publishing it would ship a page that hydrates into the behaviour of an"
+  stderr.writeLine "  older source, under the current name. Nothing downstream can see that:"
+  stderr.writeLine "  the reference resolves, the file is not empty, and the staged byte IS the"
+  stderr.writeLine "  built byte. A 404 would at least be visible."
+  stderr.writeLine "  " & remedy
+  quit 2
+
 proc installHydrationBundle() =
   ## Put the built hydration bundle where the pages say it is — or fail.
   ##
@@ -81,6 +161,12 @@ proc installHydrationBundle() =
                      ", so every debug page carries a <script> for it."
     stderr.writeLine "  Build it first (cd client && just hydrate) or drop the define."
     quit 2
+  requireFreshBundle(built,
+                     [repoRoot() / "client" / "hydrate",
+                      repoRoot() / "client" / "src",
+                      repoRoot() / "src"],
+                     "hydration bundle",
+                     "Build it first (cd client && just hydrate) or drop the define.")
   let dest = OutputDir / HydrationBundle.strip(chars = {'/'})
   ensureDir(parentDir(dest))
   copyFile(built, dest)
@@ -206,6 +292,12 @@ proc installSearchBundle() =
                      ", so /search carries a <script> for it."
     stderr.writeLine "  Build it first (cd client && just search-bundle) or drop the define."
     quit 2
+  requireFreshBundle(built,
+                     [repoRoot() / "client" / "searchboot",
+                      repoRoot() / "client" / "src",
+                      repoRoot() / "src"],
+                     "search bundle",
+                     "Build it first (cd client && just search-bundle) or drop the define.")
   let dest = OutputDir / SearchBundle.strip(chars = {'/'})
   ensureDir(parentDir(dest))
   copyFile(built, dest)
@@ -231,6 +323,12 @@ proc installSettingsBundle() =
                      ", so /settings carries a <script> for it."
     stderr.writeLine "  Build it first (cd client && just settings-bundle) or drop the define."
     quit 2
+  requireFreshBundle(built,
+                     [repoRoot() / "client" / "settingsboot",
+                      repoRoot() / "client" / "src",
+                      repoRoot() / "src"],
+                     "settings bundle",
+                     "Build it first (cd client && just settings-bundle) or drop the define.")
   let dest = OutputDir / SettingsBundle.strip(chars = {'/'})
   ensureDir(parentDir(dest))
   copyFile(built, dest)

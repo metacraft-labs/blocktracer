@@ -502,6 +502,43 @@ async function main() {
   if (!existsSync(opts.dist)) {
     throw new Error(`no built site at ${opts.dist} (run the exporter, or pass --dist)`);
   }
+  // AND THE SAME QUESTION THE OTHER TWO BRANCHES ASK. `existsSync` above was
+  // the last place in this file where presence decided that a tree could be
+  // photographed — the sibling of the exporter-failed fallback and of the
+  // `--no-build` hydrated branch, both of which now call `staleness()` and
+  // neither of which covers THIS tree. It is the one that matters most: every
+  // one of the ~79 graded views is photographed over `opts.dist`, while
+  // `dist-hydrated` carries about 32 of them.
+  //
+  // Only on the `--no-build` path, because `runExporter` above just wrote it.
+  // `--no-build` is a first-class documented invocation (`just capture-nb`,
+  // README, `check-canary.mjs`), `client/dist` is gitignored and written in
+  // place, and nothing cleans it — so without this, `just capture-nb` after a
+  // branch switch photographs the other branch's site and the manifest records
+  // `fixture.rebuilt=false` with no verdict beside it.
+  if (!opts.build) {
+    const stale = staleness(opts.dist, REPO_ROOT);
+    if (stale !== null && stale.why === "stale") {
+      throw new Error(
+        `--no-build was given and ${opts.dist} is not a tree this source could have produced:\n` +
+          `  ${stale.message}\n` +
+          `  Every graded image would be a true photograph of the wrong build, and the run\n` +
+          `  would exit 0. Re-export (drop --no-build), or pass --dist at a tree you mean.`,
+      );
+    }
+    if (stale !== null) {
+      // NOT "stale". Three of `staleness`'s four answers mean the question
+      // could not be asked — a Nix store path's epoch mtimes, unreadable source
+      // roots, a tree holding none of the artefacts — and printing "stale" for
+      // any of them would be a confident wrong answer in the alarming
+      // direction, which is how a gate gets switched off.
+      console.warn(
+        `! --no-build: could not judge whether ${opts.dist} is of this source (${stale.why})\n` +
+          `!   ${stale.message}\n` +
+          `!   Photographing it anyway. The manifest records fixture.rebuilt=false.`,
+      );
+    }
+  }
   const fixture = await digestTree(opts.dist);
 
   // 2. Resolve the entity-backed routes.

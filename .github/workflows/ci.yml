@@ -273,6 +273,27 @@ jobs:
         # Offline, node-and-bash only, for this job's stated reason.
         run: node tools/deploy/engine-pin-selftest.mjs
 
+      - name: Does the freshness question get asked? (existence standing in for currency)
+        # ONE MECHANISM, EIGHT SITES in this repository. A guard tests that a
+        # built artefact is THERE and the decision made on the answer is that it
+        # is THIS SOURCE'S — `existsSync(dist)`, `fileExists(built)` — over
+        # directories that are gitignored, written in place, and never cleaned.
+        # A CI run in this repository's own history "fell back to capturing
+        # whatever was already in client/dist"; every image in it was a true
+        # photograph of the wrong build, and the run exited 0.
+        #
+        # Part 1 (9 arms) proves `lib/build-freshness.mjs` decides, including
+        # the three answers that must NOT be reported as "stale" — a Nix store
+        # path's epoch mtimes above all, since `nix build .#default` is a normal
+        # thing to point a checker at and a gate that reddened on it would be
+        # switched off within a day.
+        #
+        # Part 2 asserts the question is asked at all ten reuse decisions, and
+        # carries four VERBATIM pre-fix fixtures so the detector is shown to
+        # answer "no" as well as "yes" — a coverage check that can only say yes
+        # is a list.
+        run: node tools/capture/build-freshness-selftest.mjs
+
       - name: Does the deploy watchdog refuse the four worlds it must refuse?
         # `deploy-requeue.yml` spends a scarce shared runner pool with no human
         # in the loop, so the arms that matter are the REFUSALS: a genuine

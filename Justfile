@@ -431,6 +431,19 @@ journeys-engine:
 engine-pin-check:
     node tools/deploy/engine-pin-selftest.mjs
 
+# ── existence checked as freshness ─────────────────────────────────────────
+#
+# One mechanism, eight sites in this repository (re-measured 2026-09-05; the
+# register said fifteen across both repos and the tree said otherwise). A guard
+# tests that a built artefact is THERE and the decision made on the answer is
+# that it is THIS SOURCE'S. Every one of them carried a remedy — "build it
+# first", "run without --no-build first" — naming the exact condition an
+# existence test cannot detect.
+
+# Does the freshness question decide, and is it asked at every reuse decision?
+build-freshness-selftest:
+    node tools/capture/build-freshness-selftest.mjs
+
 # Move the pin to the engine the publisher is serving NOW, and print the diff.
 # Deliberately manual: a pin a script updates on its own is the unpinned state
 # wearing a file. Review the diff, reconcile ReplayEngineWasmBytes, commit both.

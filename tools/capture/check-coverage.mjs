@@ -70,6 +70,7 @@ import { join, dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { buildEntityIndex } from "./lib/entities.mjs";
+import { staleness } from "./lib/build-freshness.mjs";
 
 import {
   VIEWS,
@@ -209,8 +210,29 @@ async function main() {
   report.chains = { status: "not-run" };
   report.subjects = { status: "not-run", reason: "assertion E did not run, so there was no resolved tree to compare the corpus against" };
   const distDir = resolvePath(REPO_ROOT, "client", "dist");
+  // AND THE COMMENT ABOVE IS A FRESHNESS CLAIM THE CODE DID NOT MAKE. "Read
+  // from the same `dist/` the capture ran against, so a chain that exists only
+  // in someone's intention does not count" is a statement about WHICH build,
+  // and the only question asked was whether a file was there. A `dist/` from
+  // before a chain was added, renamed or removed makes E report full coverage
+  // of a chain set the site no longer publishes — and the failure direction is
+  // GREEN, which is precisely what A's by-name list did before E was written to
+  // replace it.
+  //
+  // The paragraph above already argues that NOT RUN beats a vacuous pass when
+  // there is nothing to inspect. The same argument applies, unchanged, to a
+  // tree that is present and is not this source's, and it was not made.
+  const distStale = existsSync(distDir) ? staleness(distDir, REPO_ROOT) : null;
   if (!existsSync(join(distDir, "registry", "chains.v1.json"))) {
     report.chains = { status: "not-run", reason: `no built data plane at ${distDir}` };
+  } else if (distStale !== null && distStale.why === "stale") {
+    report.chains = {
+      status: "not-run",
+      reason:
+        `the data plane at ${distDir} is not one this source could have produced — ` +
+        `${distStale.message}. Reading it would grade the corpus against a chain set the ` +
+        `site no longer publishes, and would report full coverage. Re-export first.`,
+    };
   } else {
     const ix = buildEntityIndex(distDir);
     const readyViews = VIEWS.filter((v) => v.status === "ready");

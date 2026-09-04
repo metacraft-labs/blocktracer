@@ -1,8 +1,16 @@
 // IS THIS BUILT TREE OF THIS SOURCE TREE? — one implementation, three callers.
 //
-// WHY THIS FILE EXISTS. An audit of both repositories found the same defect in
-// fifteen places and it has one shape: an EXISTENCE test standing in for a
+// WHY THIS FILE EXISTS. An audit of both repositories found the same defect
+// repeatedly, and it has one shape: an EXISTENCE test standing in for a
 // FRESHNESS claim.
+//
+// THE COUNT, RE-MEASURED. This said "fifteen places", which was a figure from a
+// register rather than from the tree. Swept again by the MECHANISM on
+// 2026-09-05: EIGHT sites in this repository — the three closed by `ed15fa7`
+// (this file's first three callers) and five more that survived it, all fixed
+// on the same day this line was corrected. The codetracer half was counted
+// separately and is not this file's to state. The number went UP, not down;
+// nobody should reconcile a future sweep back to fifteen.
 //
 //     if (existsSync(dist)) { /* capture it / reuse it / skip the build */ }
 //

@@ -90,6 +90,7 @@ import { fileURLToPath } from "node:url";
 
 import { VIEWS } from "./views.mjs";
 import { buildEntityIndex } from "./lib/entities.mjs";
+import { staleness, when } from "./lib/build-freshness.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolvePath(HERE, "..", "..");
@@ -232,6 +233,43 @@ function measureRoutes() {
         `builds both`,
     };
   }
+  // BOTH TREES, AND EXISTENCE IS NOT ENOUGH FOR EITHER.
+  //
+  // H1's whole claim is a COMPARISON OF TWO TREES, and until now the only
+  // question it asked of either was whether it was there. Both are gitignored,
+  // written in place, and never cleaned, so H1 could compare a plain tree from
+  // one commit against a hydrated tree from another and report a divergence set
+  // that is an artefact of the mismatch rather than a property of the product.
+  //
+  // The consequence is not confined to a console: `--write` puts this verdict
+  // into `tools/capture/hydration-divergence.json`, which IS COMMITTED. A
+  // wrong answer here becomes a checked-in fact.
+  //
+  // And note the remedy the message above names — "`just capture \"\"` builds
+  // both" — is precisely the condition an existence test cannot detect: after
+  // it has been run once, both directories exist forever.
+  const notes = [];
+  for (const [label, root] of [["plain", DIST], ["hydrated", DIST_HYDRATED]]) {
+    const stale = staleness(root, REPO_ROOT);
+    if (stale !== null && stale.why === "stale") {
+      return {
+        ok: false,
+        reason:
+          `the ${label} build at ${root} is not one this source could have produced — ` +
+          `${stale.message}. Comparing it would describe the gap between two commits and ` +
+          `report it as the gap between the two rendering paths. Rebuild both ` +
+          `(\`just capture ""\`).`,
+      };
+    }
+    if (stale !== null) {
+      // The three not-stale not-fresh answers. Reported, not refused: they mean
+      // the mtime question cannot be asked here, which is a different sentence
+      // from "these trees disagree" and must not be printed as if it were.
+      notes.push(
+        `  ~ freshness of the ${label} tree could not be judged (${stale.why}): ${stale.message}`,
+      );
+    }
+  }
   const index = buildEntityIndex(DIST);
   const rows = [];
   const unresolved = [];
@@ -257,7 +295,7 @@ function measureRoutes() {
     });
   }
   rows.sort((a, b) => a.id.localeCompare(b.id));
-  return { ok: true, rows, unresolved };
+  return { ok: true, rows, unresolved, notes };
 }
 
 /** The map, in the shape `render-brief.mjs` reads. */
@@ -337,6 +375,7 @@ function main(argv) {
           `${hydratedArm.length} on the hydrated arm`,
       );
     }
+    for (const n of measured.notes ?? []) out.push(n);
     for (const u of measured.unresolved) out.push(`  ! unresolved: ${u.id} — ${u.reason}`);
     if (diverging.length) {
       out.push(`  the ${diverging.length} views whose image is not the page a visitor loads:`);
@@ -345,13 +384,54 @@ function main(argv) {
   }
 
   // H2
+  //
+  // EXISTENCE IS NOT FRESHNESS HERE EITHER, AND THE FAILURE DIRECTION IS GREEN.
+  // H2 reads class literals out of the BUILT bundle and asserts the stylesheet
+  // draws them. A `hydrate.js` older than `hydrate.nim` yields a confident "no
+  // undrawn classes" over a class set the current source no longer emits —
+  // exactly the affordance-that-lies defect this assertion exists to catch,
+  // wearing a pass. `build.sh` writes the bundle in place and nothing cleans
+  // it, and the remedy the NOT RUN message names (`just hydrate`) is the
+  // condition an `existsSync` cannot see once it has been run once.
+  const bundleStale = existsSync(BUNDLE)
+    ? staleness(dirname(BUNDLE), REPO_ROOT, { artefacts: [["hydrate.js"]] })
+    : null;
   if (!existsSync(BUNDLE)) {
     notRun++;
     out.push(
       `~ H2  NOT RUN — no built bundle at ${BUNDLE} (\`cd client && just hydrate\`)`,
     );
+  } else if (bundleStale !== null && bundleStale.why === "stale") {
+    // NOT RUN, not FAIL. A stale bundle is a statement about this checkout's
+    // build state, not about the product, and reddening the assertion would
+    // file it against the page. `notRun` is already the verdict this file uses
+    // for "the question could not be asked", and it is counted.
+    notRun++;
+    out.push(
+      `~ H2  NOT RUN — ${BUNDLE} was built ${when(bundleStale.built.mtimeMs)}, but ` +
+        `${bundleStale.source.path} changed ${when(bundleStale.source.mtimeMs)}. Reading it ` +
+        `would assert over classes the current hydrate.nim no longer emits, and would PASS. ` +
+        `\`cd client && just hydrate\``,
+    );
   } else {
-    const sheet = inlinedStylesheet(existsSync(DIST_HYDRATED) ? DIST_HYDRATED : DIST);
+    // AND THE STYLESHEET IS CHOSEN BY FRESHNESS, NOT BY EXISTENCE. This read
+    // `existsSync(DIST_HYDRATED) ? DIST_HYDRATED : DIST`, so a leftover
+    // `dist-hydrated` silently outranked a freshly-exported `dist` — a
+    // preference expressed as a presence test. The hydrated tree is still
+    // preferred when it is usable, because it is the tree whose pages ship the
+    // bundle; it is simply no longer preferred merely for being there.
+    const hydratedUsable =
+      existsSync(DIST_HYDRATED) && (staleness(DIST_HYDRATED, REPO_ROOT)?.why ?? null) !== "stale";
+    const sheetRoot = hydratedUsable ? DIST_HYDRATED : DIST;
+    if (existsSync(DIST_HYDRATED) && !hydratedUsable) {
+      out.push(
+        `  ~ H2 read the stylesheet from ${DIST} — ${DIST_HYDRATED} is present but stale`,
+      );
+    }
+    const sheet = inlinedStylesheet(sheetRoot);
+    if (bundleStale !== null) {
+      out.push(`  ~ H2 could not judge the bundle's freshness (${bundleStale.why}): ${bundleStale.message}`);
+    }
     if (!sheet) {
       notRun++;
       out.push("~ H2  NOT RUN — no built page to read the inlined stylesheet from");
