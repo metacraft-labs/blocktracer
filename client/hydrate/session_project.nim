@@ -608,13 +608,27 @@ proc selectCalltraceFrame*(s: LiveSession; anchor: string): bool =
   ## anchor is a call PATH, both producers derive it from the same function, and
   ## it survives both.
   ##
-  ## `false` when the anchor names no frame in the live pane — a click on a
-  ## served row the engine's window does not currently hold. The caller keeps
-  ## the seek it was going to do anyway, so a row still moves the session; it
-  ## just cannot also claim to have selected a frame that is not there.
+  ## ## A miss CLEARS, and that is the same contract one layer down
+  ##
+  ## `false` when the anchor names no frame in the live pane: an event-log row,
+  ## whose anchor is a `log:` or `sw:` and names no frame by construction; a
+  ## flow segment, which carries none at all; or a served call-trace row the
+  ## engine's window does not currently hold. In every one of those the reader
+  ## has navigated by something that is not a frame, so the previous selection
+  ## stops describing where they are — and a mark left behind would go on
+  ## asserting a frame the reader has since navigated away from. It is retired
+  ## rather than kept, which is `deeplink_landing.selectFrame`'s rule ("EVERY
+  ## OTHER FRAME IS CLEARED FIRST, including when the lookup then fails") at the
+  ## live layer, so the two cannot drift into disagreeing about what a miss
+  ## means.
+  ##
+  ## The caller keeps the seek it was going to do anyway, so a row still moves
+  ## the session; it just cannot also claim to have selected a frame.
   let pane = projectCalltrace(s.calltrace)
   let i = frameOfAnchor(pane, anchor)
-  if i < 0: return false
+  if i < 0:
+    s.calltrace.selectEntry(none(int64))
+    return false
   # The projection walks `visibleLines` in order and appends one frame per line,
   # so frame `i` IS line `i`. Re-read here rather than carried through the pane
   # because `CallFrame` has no entry index and must not grow one: the index is

@@ -2182,8 +2182,13 @@ proc bindGestures(h: Hydration) =
       # a frame says which one the reader means; it does not move the session,
       # and a row whose anchor the live window does not hold must still take the
       # visitor to its coordinate rather than becoming inert.
-      let anchor = attr(row, "data-anchor")
-      if anchor.len > 0: discard h.session.selectCalltraceFrame(anchor)
+      #
+      # Called for EVERY navigation row and not only for a call-trace one. An
+      # event-log row and a flow segment name no frame, and the answer to "which
+      # frame did the reader choose" after clicking one is "none" — which is a
+      # real answer and has to be written, or the mark from the last call-trace
+      # click would sit there describing a frame the reader has left.
+      discard h.session.selectCalltraceFrame(attr(row, "data-anchor"))
       # The row IS a link in a hydrated page, and its href is a real, valid
       # §6.0a URL — which is what makes middle-click, "open in new tab" and
       # copy-link-address all work, and what makes Enter activate it without a
