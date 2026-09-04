@@ -63,6 +63,11 @@
 #   DEADLINE_MIN=…  minutes per arm                    (default 360)
 #   INTERVAL_S=…    seconds between polls              (default 60)
 #   STOP_FILE=…     touch this to end the watch        (default <log>.stop)
+#
+#   exit 0  the watch ended for a reason it names (stop file, arm bound, target met)
+#   exit 2  the follower refused on preflight or configuration; re-arming cannot fix it
+#   exit 3  REFUSED TO START — the stop file was already there. Nothing was watched, and
+#           that must not read as a watch that ended. See the branch below.
 set -u
 
 LOG="${1:?usage: watch-chain.sh <log> [max-arms]}"
@@ -92,7 +97,39 @@ say "\"event\":\"supervisor-start\",\"pid\":$$,\"maxArms\":$MAX_ARMS,\"deadlineM
 ARM=0
 while : ; do
   if [ -e "$STOP_FILE" ]; then
-    say "\"event\":\"supervisor-done\",\"reason\":\"stop-file\",\"arms\":$ARM"
+    # A STOP FILE THAT WAS ALREADY THERE IS NOT THIS WATCH BEING STOPPED.
+    #
+    # `STOP_FILE` defaults to `$LOG.stop`, so it OUTLIVES the run that was stopped
+    # by it: start a second watch on the same log and the file from the first one
+    # is still sitting there. Both cases used to write the same
+    # `"reason":"stop-file"` and exit 0, and the only thing separating "we watched
+    # the chain for six hours and you stopped us" from "we never looked at the
+    # chain at all" was `"arms":0` — a field nobody greps for, on a run that
+    # reported success. An entire capture skipped, and the log said done.
+    #
+    # NOT `rm -f` AT STARTUP, which is the obvious fix and is wrong twice. It
+    # deletes an operator's signal: touch the file to stop a running watch, start
+    # another watch on the same log before the first notices, and the first never
+    # stops. And it would silently convert this into a normal start, which throws
+    # away the fact that somebody meant this log to be finished.
+    #
+    # So nothing is deleted and nothing is guessed. The two cases are TOLD APART,
+    # and the one that captured nothing stops reading as success: exit 3, the code
+    # `gate-selftest` uses for PRECONDITION ABSENT, because a refusal to start is
+    # not a watch that ended.
+    if [ "$ARM" -eq 0 ]; then
+      stop_at=$(date -r "$STOP_FILE" -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)
+      say "\"event\":\"supervisor-refused\",\"reason\":\"stop-file-present-at-start\",\"arms\":0,\"stopFile\":\"$STOP_FILE\",\"stopFileWritten\":\"$stop_at\",\"stillWatching\":false"
+      {
+        printf 'watch-chain.sh: refusing to start — the stop file already exists.\n'
+        printf '  %s   (written %s, before this watch began)\n' "$STOP_FILE" "$stop_at"
+        printf '  Treating it as this run own stop would exit 0 having captured nothing,\n'
+        printf '  which is indistinguishable in the log from a watch that ran and was stopped.\n'
+        printf '  remedy: rm %s   (or point STOP_FILE at a path of this run own)\n' "$STOP_FILE"
+      } >&2
+      exit 3
+    fi
+    say "\"event\":\"supervisor-done\",\"reason\":\"stop-file\",\"arms\":$ARM,\"stillWatching\":false"
     exit 0
   fi
   if [ "$MAX_ARMS" -gt 0 ] && [ "$ARM" -ge "$MAX_ARMS" ]; then

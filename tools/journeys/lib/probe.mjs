@@ -38,28 +38,120 @@ import { dirname, join } from "node:path";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const captureRequire = createRequire(pathToFileURL(join(HERE, "..", "..", "capture", "package.json")));
-// `require`, not `await import`: playwright ships CommonJS, and its named
-// exports are only sometimes recovered by the ESM-CJS interop — `chromium` came
-// back `undefined` here on the first attempt, which fails much later and much
-// less clearly than a resolve error.
-let chromium;
-try {
-  ({ chromium } = captureRequire("playwright"));
-  if (!chromium) throw new Error("playwright resolved but exports no `chromium`");
-} catch (err) {
+
+/**
+ * RESOLVED WHEN A BROWSER IS ASKED FOR, NOT WHEN THIS MODULE IS EVALUATED — and
+ * the difference is an exit code, which is to say the difference between a
+ * refusal and a verdict.
+ *
+ * THE DEFECT THIS REPLACES. The resolution used to sit at module scope, in a
+ * bare `try`/`catch` that threw an Error carrying `exitCode = 2`. That code is
+ * only ever honoured in ONE place — `run.mjs`'s `main().catch`, which reads
+ * `err.exitCode` off the error and assigns `process.exitCode`. A module-scope
+ * throw happens while the ESM graph is being EVALUATED, before `main` exists, so
+ * it never reached that handler: node printed the stack and exited 1.
+ *
+ * Measured on a host with no `tools/capture/node_modules`:
+ *
+ *     $ node tools/journeys/run.mjs ; echo $?
+ *     Error: playwright is not installed.
+ *     1
+ *
+ * One. The same code a RED JOURNEY exits with. So the most basic "this gate did
+ * not run" condition in the whole layer — the browser is not installed —
+ * reported itself, to every caller, as "the product is broken". That is this
+ * repository's signature defect wearing the uniform of the machinery built
+ * against it: `README.md` states exit 2 for a refusal, `site.mjs` raises exit 2
+ * for four of them, `gate-selftest` went to the trouble of a THIRD code (3) for
+ * a precondition, and evaluation order quietly discarded the distinction for the
+ * one condition that fires before anything else can.
+ *
+ * WHY DEFERRED HERE RATHER THAN WRAPPED IN `run.mjs`. Wrapping the import at the
+ * one call site would fix one caller. Twenty-six journey files, `selftest.mjs`
+ * and this module's other three consumers import it too, and the failure has to
+ * arrive the same way for all of them. Deferring also restores a property
+ * `run.mjs`'s own footer claims and did not have — that `discover()` can be
+ * exercised without a browser — because importing it no longer requires one.
+ *
+ * IT IS NOT A SILENT SKIP AND MUST NEVER BECOME ONE. Nothing here returns null,
+ * degrades, or reports "no browser available" as a state. The same Error, with
+ * the same text and the same `exitCode`, is thrown from the first `openBrowser`
+ * — which `run.mjs` calls before it judges anything and inside the `try` whose
+ * rejection `main().catch` reads. Later, louder, and with its code intact.
+ *
+ * Memoised on the FAILURE as well as the success: a second `openBrowser` (journey
+ * 14 opens its own) must not re-run a resolve that already failed and report a
+ * different sentence than the first one did.
+ */
+let resolved = null;
+
+function requirePlaywright() {
+  if (resolved === null) {
+    // `require`, not `await import`: playwright ships CommonJS, and its named
+    // exports are only sometimes recovered by the ESM-CJS interop — `chromium`
+    // came back `undefined` here on the first attempt, which fails much later
+    // and much less clearly than a resolve error.
+    try {
+      const { chromium } = captureRequire("playwright");
+      if (!chromium) throw new Error("playwright resolved but exports no `chromium`");
+      resolved = { chromium };
+    } catch (err) {
+      resolved = { why: err && err.message ? err.message : String(err) };
+    }
+  }
+  if (resolved.chromium) return resolved.chromium;
   const e = new Error(
     "playwright is not installed.\n" +
       "  This layer uses the single pinned install in tools/capture.\n" +
       "  remedy: just capture-setup\n" +
-      `  (resolver said: ${err && err.message ? err.message : err})`,
+      `  (resolver said: ${resolved.why})`,
   );
   e.exitCode = 2;
   throw e;
 }
 
-/** Launch one browser for a whole run. Journeys share it; each gets a fresh page. */
+/**
+ * Launch one browser for a whole run. Journeys share it; each gets a fresh page.
+ *
+ * THE PACKAGE AND THE BINARY ARE TWO ARTEFACTS, AND BOTH ABSENCES ARE REFUSALS.
+ * Fixing the module-scope throw above exposed the same defect one layer down and
+ * it was found by measuring, not by reading: with the pinned package installed
+ * and `PLAYWRIGHT_BROWSERS_PATH` naming a bundle built for a different playwright
+ * (chromium-1194 where 1.61.1 wants 1228 — exactly the skew
+ * `tools/capture/lib/pinned-env.mjs` refuses rather than hashes), `launch()`
+ * rejects with playwright's own "Executable doesn't exist … npx playwright
+ * install". That error carries no `exitCode`, so `main().catch` fell to its `: 1`
+ * branch and a host with no browser reported the same code as a product defect.
+ *
+ * Measured, before this wrapper:
+ *
+ *     $ PLAYWRIGHT_BROWSERS_PATH=<bundle for another playwright> \
+ *       node tools/journeys/run.mjs --dist <a valid tree> ; echo $?
+ *     Error: Executable doesn't exist at …/chromium_headless_shell-1228/…
+ *     1
+ *
+ * The original message is preserved verbatim — it names the exact path and
+ * revision, which is the whole diagnosis — and only the classification is added.
+ * Nothing is swallowed and nothing degrades: no journey runs, and the run says
+ * why.
+ */
 export async function openBrowser() {
-  return chromium.launch({ chromiumSandbox: false });
+  const chromium = requirePlaywright();
+  try {
+    return await chromium.launch({ chromiumSandbox: false });
+  } catch (err) {
+    const e = new Error(
+      "the pinned browser did not launch, so nothing can be judged.\n" +
+        "  The playwright PACKAGE resolved; its BROWSER did not. These are two artefacts\n" +
+        "  and a version-matched pair — see tools/capture/lib/pinned-env.mjs, which refuses\n" +
+        "  a skew rather than hashing it.\n" +
+        "  remedy: run inside the project shell, which supplies both and the fontconfig\n" +
+        "          Arm I needs:  nix run .#capture-env -- node tools/journeys/run.mjs …\n" +
+        `  (playwright said: ${err && err.message ? err.message : err})`,
+    );
+    e.exitCode = 2;
+    throw e;
+  }
 }
 
 /**

@@ -104,16 +104,51 @@ bite 'mutation: the same bound with rc 0 did not stop after one arm' \
 
 echo
 echo 'case 4 — the stop file ends it, and says so'
+#
+# TWO CASES, NOT ONE, AND THE POINT IS THAT THEY ARE TOLD APART.
+#
+# `STOP_FILE` defaults to `$LOG.stop` and outlives the run it stopped, so a second
+# watch on the same log meets a file it did not write. That used to produce the
+# SAME `"reason":"stop-file"` and the SAME exit 0 as a watch that ran for hours and
+# was stopped on purpose — success, over a capture that never happened. Only
+# `"arms":0` distinguished them, and this case asserted just the half that could
+# not tell the difference.
 rm -f "$TMP/log" "$TMP/arms"; echo 1 > "$TMP/rc"; echo 0 > "$TMP/arms"
 touch "$TMP/log.stop"
 RCDIR="$TMP" WT="$TMP/wt" RUNTIME="$TMP" NODE_BIN="$TMP/fakenode" \
   AVM_WASM_PATH="$TMP/a" CT_WRITER_WASM_PATH="$TMP/c" \
   DEADLINE_MIN=1 INTERVAL_S=1 STOP_FILE="$TMP/log.stop" \
   sh "$SUP" "$TMP/log" 0 >/dev/null 2>&1
+pre_rc=$?
 ck 'control: a pre-existing stop file prevents even the first arm' \
    "$([ "$(countOf "$TMP/log" '"event":"supervisor-arm"')" = 0 ] && echo yes || echo no)"
-ck 'control: and the reason is the stop file, not a silent return' \
+ck 'control: it is REFUSED, not done — a run that watched nothing is not a run that ended' \
+   "$(has "$TMP/log" '"event":"supervisor-refused"')"
+ck 'control: the reason names WHEN the file appeared, not just that it exists' \
+   "$(has "$TMP/log" '"reason":"stop-file-present-at-start"')"
+ck 'control: and it does NOT exit 0, which is what made a skipped capture read as success' \
+   "$([ "$pre_rc" -eq 3 ] && echo yes || echo no)"
+
+# THE OTHER DIRECTION, which nothing asserted before: a stop file that arrives
+# DURING the watch is a legitimate stop, and must still be exit 0 with arms > 0.
+# Without this the fix above could be "refuse on any stop file", which would break
+# the only way an operator has to end a watch.
+rm -f "$TMP/log" "$TMP/arms" "$TMP/log.stop"; echo 1 > "$TMP/rc"; echo 0 > "$TMP/arms"
+( sleep 2; touch "$TMP/log.stop" ) &
+RCDIR="$TMP" WT="$TMP/wt" RUNTIME="$TMP" NODE_BIN="$TMP/fakenode" \
+  AVM_WASM_PATH="$TMP/a" CT_WRITER_WASM_PATH="$TMP/c" \
+  DEADLINE_MIN=1 INTERVAL_S=1 STOP_FILE="$TMP/log.stop" \
+  sh "$SUP" "$TMP/log" 0 >/dev/null 2>&1
+mid_rc=$?
+wait
+ck 'control: a stop file that ARRIVES mid-watch still ends it' \
    "$(has "$TMP/log" '"reason":"stop-file"')"
+ck 'control: it ran at least one arm first, so this is a watch that ended' \
+   "$([ "$(countOf "$TMP/log" '"event":"supervisor-arm"')" -ge 1 ] && echo yes || echo no)"
+ck 'control: and THAT one exits 0 — the two stop-file cases carry different codes' \
+   "$([ "$mid_rc" -eq 0 ] && echo yes || echo no)"
+bite 'mutation: the old rule gave both cases the same code; 3 and 0 are not equal' \
+     "$([ "$pre_rc" -ne "$mid_rc" ] && echo yes || echo no)"
 
 echo
 echo 'case 5 — the start line records the configuration the watch is running under'
@@ -141,8 +176,8 @@ bite 'mutation: the same rc 0 with no target re-arms rather than finishing' \
      "$(run_sup 0 5 0; [ "$(countOf "$TMP/log" '"event":"supervisor-arm"')" = 5 ] && echo yes || echo no)"
 
 echo
-if [ "$asserted" -ne 18 ]; then
-  echo "ASSERTION COUNT IS $asserted, EXPECTED 18 — a case was added, removed or skipped."
+if [ "$asserted" -ne 24 ]; then
+  echo "ASSERTION COUNT IS $asserted, EXPECTED 24 — a case was added, removed or skipped."
   failed=$((failed + 1))
 else
   echo "assertion count: $asserted (as declared)"

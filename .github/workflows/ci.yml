@@ -963,9 +963,36 @@ jobs:
             vd0-capture-env bash tools/journeys/selftest-verdict-test.sh
 
       - name: The journeys, over the deployed artefact
+        # THE EXIT CODE IS READ, NOT JUST PROPAGATED.
+        #
+        # `run.mjs` reports THREE verdicts and only two exit codes matter to a
+        # shell: 1 is a claim about the product, 2 is a refusal to make one
+        # ("this gate did not run" — no browser, no exported site, a tree from
+        # another commit, an engine that cannot open the corpus). Until this
+        # step read them, nothing did: every caller — this job and every `just
+        # journeys*` recipe — treated non-zero uniformly, so the distinction the
+        # README states, that `site.mjs` raises four times and that
+        # `selftest-verdict-test.sh` exists to protect one layer down, was
+        # decorative at the only place a human meets it. A red X that means
+        # "BlockTracer is broken" and a red X that means "the runner had no
+        # browser" sent the reader to different files, and the job said nothing
+        # about which.
+        #
+        # `set -uo pipefail` WITHOUT `-e`, deliberately: with `-e` the shell
+        # aborts on the failing command and `code=$?` is never reached, which is
+        # how a wrapper like this ends up reporting nothing at all. The original
+        # code is re-raised unchanged, so the job still fails exactly as before.
         run: |
+          set -uo pipefail
           nix run .#capture-env -- node tools/journeys/run.mjs \
             --dist .journey-site --json journey-report.json
+          code=$?
+          case "$code" in
+            0) ;;
+            2) echo "::error title=Journeys DID NOT RUN::exit 2 is a REFUSAL, not a verdict about BlockTracer. An input the suite needs was absent, stale, or from another commit — the reason is printed above. Nothing was judged, so this is not evidence the product is broken." ;;
+            *) echo "::error title=Journeys FAILED::exit $code — the suite ran and a journey did not reach its claim. This IS a statement about the product; journey-report.json has the per-assertion records." ;;
+          esac
+          exit "$code"
 
       - name: Evidence
         if: always()
