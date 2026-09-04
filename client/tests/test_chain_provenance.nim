@@ -1303,10 +1303,18 @@ suite "8 — a curated chain publishes only transactions that open":
         if tr.outcome == tvReplayable: inc replayable
         if tr.containerBytes > 0: inc withBytes
         if fileExists(cd / tr.containerPath.strip(chars = {'/'})): inc onDisk
-    # A FLOOR, from the fixture that does not move: the committed testnet
-    # capture publishes six. A tree that stopped publishing transactions cannot
-    # pass this test by having nothing to check.
-    ck checked >= 6
+    # A FLOOR, so a tree that stopped publishing transactions cannot pass this
+    # test by having nothing to check.
+    #
+    # It used to read `>= 6`, "the committed testnet capture publishes six", and
+    # the parenthetical was the part that moved: `curationWindow` now prefers
+    # the run holding a source-resolving recording, so testnet publishes the
+    # three transactions of 67010–67018 rather than the six of 63642–63675. The
+    # floor is what this test needs — the relations below are the assertions —
+    # so it is restated at what the fixtures actually publish rather than raised
+    # back by widening the window, which would trade the only source-level
+    # transaction on the site for a larger number here.
+    ck checked >= 5
     ck headlined == checked
     ck replayable == checked
     ck withBytes == checked
@@ -1560,7 +1568,9 @@ suite "8 — a curated chain publishes only transactions that open":
     ck ing.withTrace == 0
 
   test "assertion count":
-    expectCount(69)
+    # 69 + 3: the banner now discloses the criterion its window was chosen on
+    # and the count that stops it reading as a claim about the corpus.
+    expectCount(72)
 
 # ── 9 — the home page features a session that can actually be shown ──────────
 #
@@ -1775,7 +1785,9 @@ suite "9 — the home page features a session that can actually be shown":
     ck chainInfo(root, s.chain).provenanceLabel in markup(home)
 
   test "assertion count":
-    expectCount(47)
+    # 47 + 11: "a PARTLY positioned recording renders real source, not a
+    # bytecode listing" — the arm that pins the `positions.json` consumer.
+    expectCount(58)
 
 # ── 10 — a real recording's step count is its own ────────────────────────────
 #

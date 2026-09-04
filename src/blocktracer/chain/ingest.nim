@@ -1058,7 +1058,38 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # doing so. Raising there would turn a new capability into a new way for
       # an old snapshot to fail its build — which is exactly what it did, on
       # suite 13's fixture, before this line read as it does.
-      let capturedPositions = t{"recording"}{"stepsPositioned"}.getInt(0) > 0
+      # ── WHICH PER-STEP POSITION STREAM, RESOLVED BEFORE ANYTHING USES IT ──────
+      # Hoisted above the bundle block because the bundle's own gate depends on
+      # it: text is published exactly when there are positions to point into it,
+      # and that question cannot be answered after the text has been written.
+      #
+      # The CAPTURE'S OWN STREAM OUTRANKS THE RECONSTRUCTION. A container
+      # recorded at rung 2 or better wrote `(path, line)` on every step it could
+      # place, while the session was running and against an artifact it had
+      # already proved — `derive-positions.mjs` reads that out into
+      # `positions/<txHash>.json`. There is nothing post-hoc about it, so where
+      # both exist the recorded one wins and `measuredPostHoc` follows the file
+      # rather than being hard-coded true as it was when only one producer
+      # existed.
+      var posSource: JsonNode = nil
+      var posIsPostHoc = true
+      let capturedPosPath = cfg.snapshotDir / "positions" / (txHash & ".json")
+      if fileExists(capturedPosPath):
+        posSource = parseJson(readFile(capturedPosPath))
+        posIsPostHoc = posSource{"measuredPostHoc"}.getBool
+      elif txHash in postHocPositions:
+        posSource = postHocPositions[txHash]
+
+      # …AND IT REQUIRES A POSITION STREAM, not merely a non-zero count. The
+      # count says the RECORDING placed steps; it does not say this tree can
+      # show where. A transaction that entered two contracts has no publishable
+      # stream at all — `resolve-frozen-artifacts.mjs` refuses to attribute a pc
+      # when the step stream does not say which contract executed it — so a
+      # count-only gate published a `/src` subtree and a `sourceBundles` entry
+      # that nothing could ever point into. Text with no positions behind it is
+      # the mirror of the refusal ten lines down, and just as wrong.
+      let capturedPositions = t{"recording"}{"stepsPositioned"}.getInt(0) > 0 and
+                              posSource != nil
       if measuredSourceLevel or hasPostHocPositions or
          (capturedPositions and fileExists(srcPath)):
         # THE REASON IS NAMED, because there are now two ways to get here and they are
@@ -1184,23 +1215,6 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # proved against the chain's commitment to the class — `resolve-frozen-artifacts.mjs`
       # does the join with the recorder's own `ContractSourceMap`. `sourceLevel` is
       # untouched by it and stays what the capture measured.
-      #
-      # AND THE CAPTURE'S OWN STREAM OUTRANKS THE RECONSTRUCTION. A container
-      # recorded at rung 2 or better wrote `(path, line)` on every step it could
-      # place, while the session was running and against an artifact it had
-      # already proved — `derive-positions.mjs` reads that out into
-      # `positions/<txHash>.json`. There is nothing post-hoc about it, so where
-      # both exist the recorded one wins and `measuredPostHoc` follows the file
-      # rather than being hard-coded true as it was when only one producer
-      # existed.
-      var posSource: JsonNode = nil
-      var posIsPostHoc = true
-      let capturedPosPath = cfg.snapshotDir / "positions" / (txHash & ".json")
-      if fileExists(capturedPosPath):
-        posSource = parseJson(readFile(capturedPosPath))
-        posIsPostHoc = posSource{"measuredPostHoc"}.getBool
-      elif txHash in postHocPositions:
-        posSource = postHocPositions[txHash]
       if posSource != nil:
         let pos = posSource
         let carried = pos{"steps"}.getInt(-1)
