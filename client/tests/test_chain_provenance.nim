@@ -2525,40 +2525,78 @@ suite "12 — a source-level capture publishes source; a rung-3 one publishes no
     # is keyed by exactly that AVM byte offset, so the position is a JOIN over data
     # that already exists. `resolve-frozen-artifacts.mjs --write` computes it with
     # the recorder's own `ContractSourceMap`; this asserts the tree carries it.
+    #
+    # THERE ARE NOW TWO PRODUCERS, AND EVERY FILE IS GRADED. `derive-positions.mjs`
+    # reads the positions a rung-2 container wrote WHILE it ran, so the tree
+    # publishes `positions.json` by two routes that are the same shape and are not
+    # the same claim. This used to fold the whole walk into one `doc` and assert on
+    # whichever file the directory yielded LAST: with one producer that was merely
+    # loose, with two it graded an arbitrary one of them and the answer changed
+    # with the filesystem — green on macOS, red on Linux, off the same tree. Every
+    # file is now counted, and the counters are what the assertions are taken over,
+    # so the arithmetic below is independent of how many transactions position.
     var found = 0
-    var steps, positioned = 0
-    var doc: JsonNode = nil
+    var unpositioned = 0     # a file claiming no placed step at all
+    var fullyPositioned = 0  # `positioned == steps` — rung 1, which none of these is
+    var badShape = 0         # a column whose length is not the recording's step count
+    var badIds = 0           # a path id indexing no interned path
+    var recorded, postHoc = 0
+    var badProvenance = 0    # a flag that disagrees with the file's producer
+    var badStamp = 0         # a moment present without the claim, or missing with it
     for path in walkDirRec(workDir / "t"):
       if path.extractFilename != "positions.json": continue
       inc found
-      doc = parseJson(readFile(path))
-      steps = doc{"steps"}.getInt
-      positioned = doc{"positioned"}.getInt
-    # NON-VACUITY FIRST. Everything below is a statement about a file, and a run
+      let doc = parseJson(readFile(path))
+      let steps = doc{"steps"}.getInt
+      let positioned = doc{"positioned"}.getInt
+      if positioned <= 0: inc unpositioned
+      # A PARTIAL POSITIONING IS THE POINT. `positioned == steps` would be rung 1
+      # and the capture would have said so itself; this is the state the corpus
+      # previously could not express — an artifact that maps every pc it keys,
+      # over an execution that walks pcs it does not key.
+      if positioned >= steps: inc fullyPositioned
+      # The columns are per-step and are refused at publish time if they are not,
+      # so a marker can never land on a row it was not measured for.
+      if doc{"pathId"}.len != steps or doc{"line"}.len != steps or
+         doc{"column"}.len != steps: inc badShape
+      # Every path id indexes a real path, counted rather than asserted per row.
+      for i in 0 ..< min(steps, doc{"pathId"}.len):
+        let pid = doc["pathId"][i]
+        if pid.kind == JNull: continue
+        if pid.getInt < 0 or pid.getInt >= doc{"paths"}.len: inc badIds
+      # THE FLAG IS PINNED TO THE PRODUCER, which is what it means and is a
+      # stronger statement than the constant this line used to assert. A capture
+      # that shipped `positions/<tx>.json` measured those coordinates itself,
+      # while it ran, against an artifact it had already proved — nothing about it
+      # is post-hoc and `measuredPostHoc` is FALSE (derive-positions.mjs, and
+      # CHAIN-CAPTURE.md §6.2b for why the stamp matters). Everything else in the
+      # tree got its coordinates from the join, and is TRUE. So the check is that
+      # each file's flag agrees with which of the two wrote it, per file, rather
+      # than that some one file answers a fixed way.
+      let isPostHoc = doc{"measuredPostHoc"}.getBool
+      var carried = false
+      for d in captureDirs:
+        if fileExists(d / "positions" / (doc{"tx"}.getStr & ".json")): carried = true
+      if isPostHoc: inc postHoc else: inc recorded
+      if isPostHoc == carried: inc badProvenance
+      # …AND NEVER ANONYMOUSLY. §6.2b requires the post-hoc answer to record when
+      # it was taken; the recording's own measurement has no separate moment to
+      # record, so the stamp is present exactly when the claim is.
+      if isPostHoc != (doc{"measuredAt"}.kind == JString): inc badStamp
+    # NON-VACUITY FIRST. Everything above is a statement about a file, and a run
     # that published none would satisfy all of it by having nothing to check.
     ck found > 0
-    ck steps > 0
-    ck positioned > 0
-    # AND IT IS A PARTIAL POSITIONING, WHICH IS THE POINT. `positioned == steps`
-    # would be rung 1 and the capture would have said so itself; this is the state
-    # the corpus previously could not express — an artifact that maps every pc it
-    # keys, over an execution that walks pcs it does not key.
-    ck positioned < steps
-    # The columns are per-step and are refused at publish time if they are not, so
-    # a marker can never land on a row it was not measured for.
-    ck doc{"pathId"}.len == steps
-    ck doc{"line"}.len == steps
-    ck doc{"column"}.len == steps
-    # Every path id indexes a real path, counted rather than asserted per row.
-    var badIds = 0
-    for i in 0 ..< steps:
-      let pid = doc["pathId"][i]
-      if pid.kind == JNull: continue
-      if pid.getInt < 0 or pid.getInt >= doc{"paths"}.len: inc badIds
+    # BOTH PRODUCERS ARE REPRESENTED. Without these two the provenance check above
+    # would be satisfied by a tree that had quietly lost one of the routes — which
+    # is the shape the single-`doc` version failed in, one step earlier.
+    ck postHoc > 0
+    ck recorded > 0
+    ck unpositioned == 0
+    ck fullyPositioned == 0
+    ck badShape == 0
     ck badIds == 0
-    # It says it was measured after the fact, on the file itself, so a reader who
-    # opens it never has to know which tool wrote it to know what it is.
-    ck doc{"measuredPostHoc"}.getBool
+    ck badProvenance == 0
+    ck badStamp == 0
     # AND THE MANIFEST STILL DOES NOT CLAIM SOURCE LEVEL. This is the assertion
     # that keeps the whole feature honest: positions are published, text is
     # published, and the capture's own all-or-nothing measurement is untouched.
