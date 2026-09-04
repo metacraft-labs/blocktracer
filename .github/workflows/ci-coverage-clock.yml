@@ -74,39 +74,88 @@ jobs:
         run: |
           set -uo pipefail
 
-          # `dev` ONLY, and this is a narrower list than `deploy.yml`'s on
-          # purpose. It was `dev staging live` and that was wrong.
+          # EVERY BRANCH `deploy.yml` SHIPS FROM. Restored 2026-09-04 after
+          # being narrowed to `dev` alone in `4c2d149`, on a measurement that
+          # said the opposite of what it was read as saying.
           #
-          # WHAT THIS LANE IS FOR. Not "coverage on every mainline" — it is the
-          # remedy for ONE mechanism: `ci.yml`'s `cancel-in-progress` evicting a
-          # run that has not started yet, which only happens when a SECOND push
-          # to the SAME branch lands before the first run places a job. That is
-          # a description of `dev`, where several agents push every few minutes.
+          # WHAT 4c2d149 ARGUED. That this lane is not "coverage on every
+          # mainline" but the remedy for ONE mechanism — `ci.yml`'s
+          # `cancel-in-progress` evicting a run before it places a job, which
+          # needs a second push to the same branch within that window. That
+          # describes `dev`, where several agents push every few minutes; it
+          # does not describe `staging` or `live`, which move only on a
+          # promotion. It then cited, "measured 2026-09-04 02:06, with the
+          # fleet fully saturated: `33826220152` (staging, push) was
+          # in_progress and `33826222157` (live, push) queued and intact."
           #
-          # It is not a description of `staging` or `live`. Those move only when
-          # the lead promotes, one push at a time, and their push runs are not
-          # evicted — measured 2026-09-04 02:06, with the fleet fully saturated:
-          # `33826220152` (staging, push) was in_progress and `33826222157`
-          # (live, push) queued and intact. A branch whose push run survives to
-          # a verdict does not need a second lane to produce one; dispatching it
-          # anyway buys nothing and spends a scarce runner twice.
+          # BOTH OF THOSE RUNS WERE CANCELLED, at the very minute they were
+          # cited as healthy. Re-read from the API:
           #
-          # AND THE COST IS NOT SMALL ANY MORE. Since `journeys-bite` became a
-          # 4-way matrix a `ci` run is TEN `eph-linux-x64` jobs, not six. At
-          # three refs that is thirty queued jobs against a pool observed
-          # running four at a time — this clock would then be the largest single
-          # consumer of the capacity it exists to get a verdict out of, and the
-          # dev verdict it is actually for would queue behind two it is not.
+          #   33826220152  staging  ci  push  completed/cancelled  02:06:23Z
+          #   33826222157  live     ci  push  completed/cancelled  02:06:07Z
           #
-          # WHEN TO ADD ONE BACK: if `staging` or `live` ever starts taking
-          # rapid successive pushes, its push runs will begin cancelling each
-          # other exactly as `dev`'s did, and it belongs here. The symptom to
-          # look for is the one this whole lane was built from — cancelled runs
-          # outnumbering conclusions on that branch.
-          refs="dev"
+          # The commit was authored 02:07:19Z — about a minute after the two
+          # runs it named as survivors had been evicted. The observation was
+          # true when taken and false when written down, which is why a status
+          # read once mid-flight cannot carry a conclusion about whether runs
+          # SURVIVE. The mechanism is also not what the argument assumed:
+          # `staging` and `live` do not evict themselves with rapid pushes,
+          # they are evicted by whatever else the saturated pool is doing.
+          #
+          # THE FILE'S OWN RE-ADD CONDITION IS MET, and it is written three
+          # paragraphs down: "cancelled runs outnumbering conclusions on that
+          # branch". Measured 2026-09-04 over each branch's last 60 `ci` runs:
+          #
+          #   branch    cancelled   failure   success
+          #   dev              51         7         0
+          #   staging          22         7         2
+          #   live             19         5         2
+          #
+          # `live` took 8 promotions between 08:24Z and 14:08Z. Neither branch
+          # has produced a success since 2026-09-02T08:29Z. So the premise the
+          # narrowing rested on — "their push runs reach verdicts on their own"
+          # — is not what the branches do.
+          #
+          # THE COST ARGUMENT WAS RIGHT, AND IS ANSWERED BELOW RATHER THAN
+          # OVERRULED. A `ci` run really is TEN `eph-linux-x64` jobs since
+          # `journeys-bite` became a 4-way matrix (counted from the file, not
+          # remembered: contract, client-sdk, visual-design-canary, viewmodels,
+          # debug-route, journeys, journeys-bite×4). Three refs dispatched
+          # blindly every two hours against a pool observed running four at a
+          # time would make this clock the biggest consumer of the capacity it
+          # exists to extract a verdict from.
+          #
+          # What made that true was dispatching on a TIMER rather than on a
+          # NEED. `staging` and `live` change only on a promotion, so a
+          # two-hourly dispatch would re-run `ci` over an unchanged tip about
+          # twelve times a day and learn the same thing each time. The tip-SHA
+          # check below is the fix: a ref whose CURRENT tip already has a
+          # conclusive `ci` run is skipped. Each ref then costs at most one
+          # coverage run PER COMMIT rather than per tick — which is the number
+          # that was actually wanted, and it is lower for `staging` and `live`
+          # than the old `dev`-only lane cost by itself.
+          #
+          # WHEN A REF COULD LEAVE THIS LIST, stated so the next narrowing has a
+          # bar to clear rather than an argument to make: when its PUSH runs
+          # reach conclusions on their own — cancellations no longer
+          # outnumbering `success` plus `failure` on that branch, over a window
+          # long enough to contain several pushes. Read that from the API and
+          # PASTE THE COUNTS, the way the table above does. The reason to insist
+          # on a tally rather than a spot check is written into the history of
+          # this file: `4c2d149` removed two refs on two run statuses read once,
+          # mid-flight, and both had been cancelled by the time it was committed.
+          # A single status says what a run was doing, never whether runs on
+          # that branch survive.
+          #
+          # And a ref that leaves this list must not leave silently: the list is
+          # meant to equal `deploy.yml`'s, so removing one means accepting that
+          # a branch this repository PUBLISHES has no verdict lane, which is a
+          # thing to say out loud in the commit that does it.
+          refs="dev staging live"
 
           fired=0
           skipped=0
+          covered=0
           pending=0
           missing=0
 
@@ -149,6 +198,66 @@ jobs:
               continue
             fi
 
+            # DISPATCH ON A NEED, NOT ON A TIMER.
+            #
+            # This is what makes covering all three refs affordable, and it is
+            # the answer to the cost argument in the block above rather than a
+            # dismissal of it. A ref whose CURRENT TIP has already reached a
+            # verdict does not need another run: `ci` over the same commit
+            # answers the same question and spends ten scarce jobs doing it.
+            #
+            # It matters most exactly where the cost objection bit hardest.
+            # `staging` and `live` move only on a promotion, so on most ticks
+            # their tips are unchanged and this skips them outright; they cost
+            # one coverage run per PROMOTION instead of twelve a day. `dev`
+            # moves constantly, so it is rarely skipped here — which is the
+            # correct distribution, and the opposite of the one a timer gives.
+            #
+            # SUCCESS OR FAILURE ONLY. A cancelled run is not a verdict — it is
+            # precisely the non-answer this whole lane exists because of — so
+            # it must not satisfy this test. `in_progress` and `queued` are
+            # handled above and deliberately not repeated here.
+            # `|| true` ON THE PIPELINE, for the reason spelled out further
+            # down about `gh workflow run`: this step runs under `bash -e {0}`,
+            # and `set -uo pipefail` does not take that away. A bare
+            # `tip="$(git ls-remote ... | cut -f1)"` whose pipeline failed —
+            # a network blip is enough — would abort the whole step before any
+            # ref was dispatched, turning a transient error into a tick that
+            # covers nothing. Empty `tip` is handled just below instead.
+            tip="$(
+              git ls-remote "https://github.com/${GH_REPO}.git" \
+                "refs/heads/${ref}" 2>/dev/null | cut -f1 || true
+            )"
+            if [ -n "${tip}" ]; then
+              # A COUNT, NOT A BOOLEAN, and `|| echo 0` so that an API hiccup
+              # reads as "no verdict known" and dispatches. Failing OPEN is the
+              # right direction for this one: a spurious extra coverage run
+              # costs runner time, while a spurious skip costs the verdict, and
+              # the verdict is the entire product of this file.
+              verdicts="$(
+                gh run list --workflow ci.yml --branch "${ref}" --limit 50 \
+                  --json headSha,conclusion \
+                  --jq "[.[] | select(.headSha == \"${tip}\")
+                          | select(.conclusion == \"success\"
+                                or .conclusion == \"failure\")] | length" \
+                  2>/dev/null || echo 0
+              )"
+              # Force it to a number before comparing. `gh` failing halfway can
+              # leave non-numeric text here, and `[ "abc" -gt 0 ]` does not
+              # return false — it errors, which under `bash -e` aborts the step
+              # and costs every ref its dispatch.
+              case "${verdicts}" in
+                ''|*[!0-9]*) verdicts=0 ;;
+              esac
+              if [ "${verdicts}" -gt 0 ]; then
+                echo "${ref}: tip ${tip} already has a conclusive ci run — nothing to cover"
+                covered=$((covered + 1))
+                continue
+              fi
+            else
+              echo "::warning::${ref}: could not read the remote tip, so dispatching without the already-covered check"
+            fi
+
             # ASK, DO NOT PREDICT.
             #
             # The first draft of this decided whether a ref could accept a
@@ -189,19 +298,27 @@ jobs:
           done
 
           echo
-          echo "dispatched ${fired}, skipped ${skipped} (already running), ${pending} awaiting the trigger, failed ${missing}"
+          echo "dispatched ${fired}, skipped ${skipped} (already running), ${covered} (tip already has a verdict), ${pending} awaiting the trigger, failed ${missing}"
 
           if [ "${missing}" -gt 0 ]; then
             exit 1
           fi
 
-          # A tick that fired nothing AND skipped nothing has done nothing for
-          # any branch that COULD have been covered — and in the run list that
-          # is indistinguishable from a clock that is working. `pending` does
-          # not count towards doing something: if every mainline were pending,
-          # this clock would be producing no verdicts at all while reporting
-          # success, which is the exact failure it exists to end.
-          if [ "${fired}" -eq 0 ] && [ "${skipped}" -eq 0 ]; then
-            echo "::error::this tick dispatched nothing and skipped nothing — no mainline is being covered by this clock"
+          # A tick that accounted for NO branch in any of the three healthy ways
+          # has done nothing for any branch that could have been covered — and
+          # in the run list that is indistinguishable from a clock that works.
+          #
+          # THE THREE THAT COUNT, and why each is coverage rather than an
+          # excuse. `fired`: a run was started. `skipped`: one is still going,
+          # so this branch is being covered right now. `covered`: its tip has
+          # already reached a verdict, which is the outcome this lane exists to
+          # produce — arriving at it without spending a runner is the lane
+          # succeeding, not idling.
+          #
+          # `pending` still does not count. If every mainline were awaiting the
+          # trigger this clock would produce no verdicts at all while reporting
+          # success, which is the exact failure it was written to end.
+          if [ "${fired}" -eq 0 ] && [ "${skipped}" -eq 0 ] && [ "${covered}" -eq 0 ]; then
+            echo "::error::this tick dispatched nothing, skipped nothing and found no covered tip — no mainline is being covered by this clock"
             exit 1
           fi
