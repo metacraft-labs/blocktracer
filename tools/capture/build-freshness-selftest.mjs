@@ -248,8 +248,15 @@ const SITES = [
   },
   {
     file: "tools/journeys/lib/engine.mjs",
-    anchor: "CACHE_DIRNAME",
+    // The DECISION, not the declaration. Anchored on `stageEngine` itself
+    // rather than on `CACHE_DIRNAME` near the top of the file: `identityOf` is
+    // declared at module scope, so a loose anchor would have found its
+    // definition and passed over a `stageEngine` that had gone back to
+    // `existsSync(dest)`. An anchor that matches a definition instead of a use
+    // is the coverage check making the same mistake as the code it grades.
+    anchor: "export async function stageEngine(",
     decides: "whether an engine already at the destination counts as staged",
+    window: 10,
   },
   {
     file: "client/src/static_export.nim",
