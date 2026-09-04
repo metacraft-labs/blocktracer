@@ -166,10 +166,20 @@ export { CACHE_DIRNAME as cacheDirName };
  *
  * A verdict from this suite is a statement about three artefacts, and until now
  * it named two: the built site, and (since `hydrate/build.sh` learned to print
- * its own bytes) the hydration bundle. The third is the replay engine, and it is
- * the one nothing in this repository pins — `fetch-engine.sh` deliberately takes
- * whatever the publisher is serving, for the reason its header gives, so it can
- * and does change under a run.
+ * its own bytes) the hydration bundle. The third is the replay engine.
+ *
+ * IT USED TO BE THE ONE NOTHING PINNED. `fetch-engine.sh` took whatever the
+ * publisher was serving, so the engine changed under a run without a commit —
+ * which is the whole reason these hashes are printed. That is fixed at the
+ * source now (`client/hydrate/engine-pin.txt`, asserted file by file), so two
+ * runs of `just journeys-engine` a week apart get the same engine or an error.
+ *
+ * The hashes stay, and are not redundant. The pin governs what the FETCH
+ * produces; this function reports what THIS RUN actually staged, which can
+ * still differ — an `--engine-cache` pointing at a hand-built engine, a cache
+ * populated before the pin moved, a directory someone edited. The pin makes
+ * the default path deterministic; the hashes are how a transcript proves which
+ * engine a verdict was reached against, and that is what was missing below.
  *
  * IT CHANGED UNDER THIS SUITE AND COST A FULL DIAGNOSIS. Journey 07
  * (`a-value-can-be-traced-to-its-origin`) was RED for three consecutive runs on

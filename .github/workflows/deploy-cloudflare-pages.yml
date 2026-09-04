@@ -170,6 +170,29 @@ jobs:
         # The build itself stays hermetic: `nix build` cannot reach the
         # network, so the engine is added HERE, to the staged `site/` dir,
         # after the flake package is built and before wrangler uploads it.
+        #
+        # WHICH ENGINE — the half this step was missing until 2026-09-05
+        #
+        # Everything above pins the page and the engine TOGETHER. Nothing
+        # pinned the engine itself: `fetch-engine.sh` pulled three fixed paths
+        # from the publisher's Pages ROOT, which always serves that project's
+        # current production deployment, and then RECORDED their hashes. So
+        # "the page and its engine are pinned together" was true of the pairing
+        # and false of the artefact — two runs an hour apart on 2026-09-04
+        # legitimately vendored `e63dd40a…`/18,117,700 and
+        # `22acb8e1…`/18,117,658 bytes, and both manifests were faithful.
+        #
+        # `client/hydrate/engine-pin.txt` now names the bytes and the fetch
+        # asserts them. This is a CONTENT pin against content-addressed URLs,
+        # which is not the version pin the surrounding comments declined to
+        # adopt: an unrelated CodeTracer release does not change what a pinned
+        # URL returns, it only makes this repository's next MOVE a deliberate
+        # one. `just engine-pin-update` writes the diff; the deploy fails until
+        # it is committed, which is the intended and stated cost.
+        #
+        # `vars.REPLAY_ENGINE_BASE` still redirects the ORIGIN. It cannot
+        # redirect the bytes — a base serving a different engine now fails here
+        # naming both hashes, instead of publishing it.
         env:
           ENGINE_BASE: ${{ vars.REPLAY_ENGINE_BASE || 'https://web-codetracer.pages.dev' }}
         run: |
@@ -232,6 +255,25 @@ jobs:
                       client/src/debugger/replay_engine.nim |
                       grep -oE '[0-9_]+$' | tr -d '_')"
           echo "engine wasm: vendored ${actual} bytes; page declares ${declared:-<unknown>}"
+
+          # SINCE THE PIN, THESE TWO ARE EQUAL BY CONSTRUCTION, so the exact
+          # comparison the comment above declined to make is now free and
+          # cannot fire on an unrelated upstream bump. The fetch asserted
+          # vendored == pinned; engine-pin-selftest.mjs's R3 asserts
+          # pinned == declared; so anything reaching here unequal happened
+          # BETWEEN the fetch and this line — a copy into site/ that went
+          # wrong, or an edit to the constant without a re-pin. F5's
+          # approxMegabytes comparison stays as the claim about what the PAGE
+          # renders; this is the claim about what it SHIPS, and 163,703 bytes
+          # of divergence once passed F5 for months because "18 MB" is true of
+          # both.
+          if [ -n "${declared:-}" ] && [ "${actual}" != "${declared}" ]; then
+            echo "  ERROR: the staged wasm is ${actual} bytes but replay_engine.nim" >&2
+            echo "  declares ${declared}. The pin asserted the fetch, so these agreed" >&2
+            echo "  a moment ago; something between the fetch and the publish dir" >&2
+            echo "  did not. Do NOT reconcile by editing the constant." >&2
+            exit 1
+          fi
 
       - name: Verify every script a published page asks for was published
         # The general form of the step above. `/replay-engine/` was one asset

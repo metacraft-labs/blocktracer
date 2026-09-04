@@ -271,10 +271,16 @@ async function instrumentArm(browser) {
  * ARM II — PROVE THE ENGINE CAN OPEN THIS CORPUS, THEN JUDGE THE PRODUCT.
  *
  * Arm I refuses to judge when the BROWSER cannot render. This is the same
- * refusal for the third artefact, and it exists because that artefact is the
- * one nothing in this repository pins: `client/hydrate/fetch-engine.sh` takes
- * whatever the publisher is serving, deliberately, so the engine changes under
- * this suite without a commit.
+ * refusal for the third artefact, and it exists because that artefact used to
+ * be the one nothing in this repository pinned: `client/hydrate/fetch-engine.sh`
+ * took whatever the publisher was serving, so the engine changed under this
+ * suite without a commit. It is pinned now
+ * (`client/hydrate/engine-pin.txt`) — but this arm is NOT thereby obsolete,
+ * for two reasons. A pinned engine can still be the wrong engine for this
+ * corpus, which is exactly the container-format mismatch below; and the staged
+ * engine is not always the fetched one (`--engine-cache`, a stale cache, a
+ * hand-built engine). The pin removes the accident. This arm still refuses to
+ * grade the product with an engine that cannot open it.
  *
  * WHAT IT COST TO NOT HAVE THIS. Measured at `8d1efe1a`, one tree, one bundle,
  * one corpus, two engines:
@@ -505,13 +511,16 @@ async function main() {
         console.error("  panes and absent values — in the PRODUCT's vocabulary, for a reason");
         console.error("  that is not the product's. Nothing is judged.");
         console.error("");
-        console.error("  This is the one artefact this repository does not pin: fetch-engine.sh");
-        console.error("  takes what the publisher is serving. So the first question is which");
-        console.error("  engine, and the hashes are printed above.");
+        console.error("  So the first question is WHICH engine, and the hashes are printed above.");
+        console.error("  Compare them against client/hydrate/engine-pin.txt: if they match, this");
+        console.error("  is the pinned engine and the mismatch is real rather than accidental.");
+        console.error("  If they do not, something staged an engine that was not fetched — a");
+        console.error("  stale --engine-cache, or a cache filled before the pin last moved.");
         console.error("  remedy: stage an engine that reads this corpus");
         console.error("          (node tools/journeys/run.mjs --engine-cache <dir>), or fix the");
         console.error("          container format mismatch upstream. `just journeys-engine`");
-        console.error("          re-fetches, and may re-fetch the same broken one.");
+        console.error("          re-fetches the PINNED engine, so it will fetch the same one");
+        console.error("          until client/hydrate/engine-pin.txt is deliberately moved.");
         process.exitCode = 2;
         return;
       }

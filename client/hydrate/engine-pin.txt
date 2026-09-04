@@ -1,0 +1,88 @@
+# engine-pin.txt — WHICH replay engine this repository fetches, by name AND by bytes.
+#
+# ── The defect this file closes ────────────────────────────────────────────
+#
+# `fetch-engine.sh` used to pull three fixed paths from the ROOT of the
+# `web-codetracer` Cloudflare Pages project:
+#
+#     /worker.js
+#     /pkg/db_backend.js
+#     /pkg/db_backend_bg.wasm
+#
+# A Pages project's root always serves its CURRENT PRODUCTION DEPLOYMENT. So
+# those three paths do not name an artefact; they name "whatever CodeTracer
+# published most recently". Two agents fetching an hour apart on 2026-09-04
+# legitimately received different engines — sha256 `e63dd40a…`/18,117,700 bytes
+# and `22acb8e1…`/18,117,658 bytes — and neither was wrong, because nothing
+# anywhere claimed they should agree. That cost two like-for-like comparisons.
+#
+# The script DID compute sha256s afterwards, but wrote them into a manifest as
+# a RECORD of what this run downloaded. A record of drift is not a check
+# against drift, which is why nobody noticed for as long as it existed.
+#
+# ── What is pinned, and how ────────────────────────────────────────────────
+#
+# `deploy-web-codetracer.yml` publishes each Noir Studio asset under
+# `<name>.<first 16 hex of its sha256>.<ext>` with
+# `cache-control: public, max-age=31536000, immutable`. Two of the three files
+# this repository needs are in that set, so for them the URL IS the content:
+# a fetch of `assets/db_backend_bg.22acb8e1ccf2d7aa.wasm` either returns those
+# exact bytes or returns 404. It cannot return different bytes.
+#
+# `worker.js` has NO content-addressed twin. `assets/replay-worker.<hash>.js`
+# is a DIFFERENT file — the Studio's own host for the engine, written because
+# it cannot use the engine's static `import "./pkg/db_backend.js"` — so it is
+# not a hashed copy of `worker.js` and must not be substituted for one. Its
+# URL therefore stays mutable, and the sha256 column below is the only thing
+# holding it: a changed `worker.js` fails the fetch by name instead of being
+# copied in silently.
+#
+# ── The cost, stated ───────────────────────────────────────────────────────
+#
+# An upstream engine release makes this file stale, and a stale pin FAILS the
+# fetch — it does not fall back. That is the same cost the deploy workflow's
+# engine step already accepts in writing ("an engine fix now needs a
+# BlockTracer redeploy"), plus one reviewable commit. The remedy is one
+# command and the diff is four numbers:
+#
+#     just engine-pin-update      # re-fetches from the project root, rewrites
+#                                 # this file, prints the diff for review
+#
+# It is deliberately NOT automatic. A pin a script can update on its own is a
+# pin that updates itself in CI, which is the unpinned state wearing a file.
+#
+# ── Format ─────────────────────────────────────────────────────────────────
+#
+# One record per line, whitespace separated, `#` comments and blank lines
+# ignored. Plain text rather than JSON because `fetch-engine.sh` is bash and a
+# bash JSON parser is a bug with a schema.
+#
+#   <dest-path>  <source-path>  <sha256>  <bytes>  <mutability>
+#
+#   dest-path    where the file is written under the destination directory.
+#                This layout is the PUBLISHER'S and must not be flattened:
+#                `worker.js` resolves `./pkg/db_backend.js` and the wasm
+#                against `import.meta.url`.
+#   source-path  what to fetch, relative to the base URL. Content-addressed
+#                where one exists.
+#   sha256       asserted after the fetch. Not recorded — asserted.
+#   bytes        asserted after the fetch, and asserted AGAINST THE SOURCE for
+#                the wasm: `ReplayEngineWasmBytes` in
+#                `client/src/debugger/replay_engine.nim` must equal the wasm's
+#                figure here, because that constant is rendered to a visitor.
+#   mutability   `immutable` — the source-path is content-addressed, so the
+#                origin cannot serve other bytes under it.
+#                `mutable` — the source-path is a moving target and the sha256
+#                is the only thing pinning it.
+#
+# ── Provenance ─────────────────────────────────────────────────────────────
+#
+# origin       https://web-codetracer.pages.dev
+# measured     2026-09-05, against the production deployment of that day
+# descriptor   the hashed names are read from that deployment's own entry
+#              document, which is where `deploy-web-codetracer.yml` records
+#              them; they are not guessed from the hashes below.
+
+worker.js               worker.js                                    ad2e6ce0ac902ba18d0d208a56900f29f4c6c46986017d92d22ed2f42806e01d  12180     mutable
+pkg/db_backend.js       assets/db_backend.f28f99e30356aebd.js        f28f99e30356aebd3239fd4cf7596c7fd30f2ac4bd92ce3c2e3fe2391b0fae08  18674     immutable
+pkg/db_backend_bg.wasm  assets/db_backend_bg.22acb8e1ccf2d7aa.wasm   22acb8e1ccf2d7aa0660143e78ad26088d61ec3c8168c28d57306715c37c685e  18117658  immutable

@@ -253,6 +253,26 @@ jobs:
         # was written for ships with it nominally in place.
         run: node tools/deploy/check-freshness-selftest.mjs
 
+      - name: Does the engine pin bite? (identity — WHICH engine, not merely a fresh one)
+        # The gate freshness could not give. `check-freshness.mjs` asks whether
+        # the staged engine is the one THIS RUN fetched; it cannot ask whether
+        # the run fetched the right engine, because until 2026-09-05 nothing in
+        # this repository had an opinion about which engine was right. The fetch
+        # took whatever the publisher's Pages root was serving and RECORDED the
+        # hashes, so two agents an hour apart got two engines and both manifests
+        # were faithful.
+        #
+        # Nine arms drive the real `fetch-engine.sh` against a synthetic origin
+        # over `file://` and demand a refusal for each way the bytes can be
+        # wrong — including the one that will actually happen, a
+        # content-addressed path that 404s because CodeTracer released. Five
+        # more assert that the pin, `ReplayEngineWasmBytes` and this workflow's
+        # own three literal paths describe ONE artefact; R3 was red when it was
+        # written, at 18281361 against a pinned 18117658.
+        #
+        # Offline, node-and-bash only, for this job's stated reason.
+        run: node tools/deploy/engine-pin-selftest.mjs
+
       - name: Does the deploy watchdog refuse the four worlds it must refuse?
         # `deploy-requeue.yml` spends a scarce shared runner pool with no human
         # in the loop, so the arms that matter are the REFUSALS: a genuine

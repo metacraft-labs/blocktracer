@@ -409,9 +409,33 @@ capture-gate:
 # NOT into client/dist: the exporter removes that directory and writes it again,
 # so an engine staged inside it is destroyed by the next export.
 
-# Fetch the replay engine into client/.replay-engine-cache, once (18 MB).
+# Fetch the PINNED replay engine into client/.replay-engine-cache, once (18 MB).
 journeys-engine:
     ./client/hydrate/fetch-engine.sh client/.replay-engine-cache
+
+# ── the engine pin ─────────────────────────────────────────────────────────
+#
+# The engine is the one artefact this repository consumes and does not build,
+# from an origin that always serves its publisher's latest deployment. It used
+# to be taken unpinned: two agents an hour apart on 2026-09-04 received
+# different engines (`e63dd40a…`/18,117,700 and `22acb8e1…`/18,117,658 bytes)
+# and lost a like-for-like comparison to it, and the sha256 block that would
+# have caught it was RECORDING the hashes rather than checking them.
+#
+# `client/hydrate/engine-pin.txt` now names the bytes; `fetch-engine.sh`
+# asserts them; and these two recipes are the check and the deliberate bump.
+
+# Does the pin bite? Nine refusals over a synthetic origin, plus the three
+# places that describe the engine (pin, Nim constant, deploy workflow) agreeing.
+# Offline — a gate that needs the publisher to be up gets skipped.
+engine-pin-check:
+    node tools/deploy/engine-pin-selftest.mjs
+
+# Move the pin to the engine the publisher is serving NOW, and print the diff.
+# Deliberately manual: a pin a script updates on its own is the unpinned state
+# wearing a file. Review the diff, reconcile ReplayEngineWasmBytes, commit both.
+engine-pin-update:
+    ./client/hydrate/update-engine-pin.sh
 
 # Run the journeys over an already-built site (client/dist).
 journeys *ARGS:

@@ -104,8 +104,26 @@ nimcache/
 # 18,284,951 bytes against the publishing origin's 18,285,036 — and telling a
 # stale deploy from a code defect needs both on disk at once.
 #
+# ASKING THE QUESTION is now one command, because `fetch-engine.sh` asserts the
+# pin rather than recording it. Pointed at the deploy, it succeeds exactly when
+# the deploy is serving the pinned engine, and otherwise prints expected-vs-got
+# per file — which is the comparison this directory used to exist to make by
+# hand. Note it fetches by the PIN's source paths, so `/replay-engine/` must
+# mirror the publisher's layout, which the deploy's vendoring step guarantees:
+#
 #   ./client/hydrate/fetch-engine.sh client/.replay-engine-live \
 #       https://blocktracer.org/replay-engine
+#
+# GETTING THE DIVERGENT BYTES ON DISK is a different act and no longer this
+# script's: it refuses to write an engine that is not the pinned one, on
+# purpose. Download them plainly instead —
+#
+#   for f in worker.js pkg/db_backend.js pkg/db_backend_bg.wasm; do
+#     curl -fsSL --create-dirs -o "client/.replay-engine-live/$f" \
+#       "https://blocktracer.org/replay-engine/$f"; done
+#
+# — and stage the result with `run.mjs --engine-cache`, which is the supported
+# way to drive the journeys against an engine this repository did not pin.
 /client/.replay-engine-live/
 
 # The journey selftest's per-arm report, read back to decide whether the arm

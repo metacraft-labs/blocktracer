@@ -97,16 +97,34 @@ const HydrationBundle* {.strdefine: "hydrationBundle".} = ""
   ## which build the bundle first:
   ##   nim c -d:hydrationBundle=/assets/hydrate.js … src/static_export.nim
 
-const ReplayEngineWasmBytes* = 18_281_361
-  ## The measured size of `pkg/db_backend_bg.wasm` as published.
+const ReplayEngineWasmBytes* = 18_117_658
+  ## The size of `pkg/db_backend_bg.wasm`, **as pinned**.
   ##
-  ## Re-measured 2026-08-30 against the engine this site now vendors (the
-  ## `web-codetracer` deploy of `codetracer` `cloud`@82f8f5e7; the previous
-  ## value, 18_094_114, was the build that predated the pure-Rust new-format
-  ## reader and the `wall_clock` shim). It is shown to the visitor only through
-  ## `approxMegabytes`, so drift of a few hundred KB changes no rendered text —
-  ## the deploy's engine step prints both numbers so a real divergence is
-  ## visible without making an unrelated engine bump fail this repository's CI.
+  ## ## It is no longer a measurement, and that is the fix
+  ##
+  ## This constant was a number somebody re-measured by hand, and on 2026-09-05
+  ## it was the THIRD disagreeing description of one artefact. It read
+  ## 18_281_361 ("re-measured 2026-08-30 against `codetracer` `cloud`@82f8f5e7").
+  ## Meanwhile `client/hydrate/fetch-engine.sh` was fetching whatever the
+  ## publisher's Pages root happened to serve — 18_117_700 bytes to one agent
+  ## and 18_117_658 to another an hour later — and RECORDING the hashes rather
+  ## than checking them. Three places, three numbers, no comparison anywhere.
+  ##
+  ## The engine is now pinned by content in `client/hydrate/engine-pin.txt`,
+  ## and this constant is **the pinned wasm's byte count**, not an independent
+  ## observation of it. `tools/deploy/engine-pin-selftest.mjs`'s R3 asserts the
+  ## two are equal and fails naming both numbers — it is what caught the
+  ## divergence above. Re-pinning (`just engine-pin-update`) therefore changes
+  ## this line too, and the gate is what makes forgetting it a red build rather
+  ## than a page quoting a size for an engine it does not ship.
+  ##
+  ## The old comment's reasoning for leaving it unasserted — that a byte-exact
+  ## check would make an unrelated engine bump fail this repository's CI — was
+  ## answered by pinning rather than by loosening: an unrelated bump does not
+  ## reach a pinned fetch at all. What still holds is the granularity argument:
+  ## `approxMegabytes` renders "18 MB" across the whole range these numbers have
+  ## ever taken, so `check-freshness.mjs`'s F5 goes on asserting the claim the
+  ## PAGE makes, and R3 asserts the claim this FILE makes. Different claims.
   ##
   ## Recorded because it is a **design constraint, not a statistic**: 18 MB on
   ## the critical path is why Page-Descriptions §7.0 makes the transaction page

@@ -43,17 +43,33 @@
 //             after it was built.
 //
 //   VENDORED  `/replay-engine/**`. Built by ANOTHER REPOSITORY and fetched at
-//             deploy time. This repo cannot say which engine is correct, and a
-//             version pin here would make an unrelated CodeTracer release
-//             break this repository's deploy — the exact trap the engine step
-//             in `deploy-cloudflare-pages.yml` declined to walk into, for good
-//             reason. So freshness is identity with WHAT THIS RUN FETCHED,
-//             recorded by `fetch-engine.sh` at fetch time. A NEW engine
-//             changes those hashes and passes. A STALE one — a leftover
-//             directory, a half-written file, an edge that served the runner a
-//             previous deployment — does not match and fails. That is the
-//             whole shape of the judgement: the check catches staleness
-//             without ever having an opinion about version.
+//             deploy time. Freshness here is identity with WHAT THIS RUN
+//             FETCHED, recorded by `fetch-engine.sh` at fetch time. A STALE
+//             engine — a leftover directory, a half-written file, an edge that
+//             served the runner a previous deployment — does not match and
+//             fails.
+//
+//             THIS CLASS IS NOT SELF-SUFFICIENT, and the reason is worth
+//             stating because this file used to claim the opposite. It said
+//             the check "catches staleness without ever having an opinion
+//             about version", and that a version pin "would make an unrelated
+//             CodeTracer release break this repository's deploy". The first
+//             half was true and the second was the wrong conclusion drawn from
+//             it: identity-with-what-this-run-fetched is vacuous about WHICH
+//             engine was fetched, and on 2026-09-04 two runs an hour apart
+//             fetched `e63dd40a…`/18,117,700 bytes and `22acb8e1…`/18,117,658
+//             bytes. Both manifests were faithful. Both passed here. A
+//             like-for-like comparison was lost anyway.
+//
+//             So the identity question is now answered one layer down, by
+//             `client/hydrate/engine-pin.txt` and the assertions in
+//             `fetch-engine.sh` — a CONTENT pin against content-addressed URLs,
+//             which is not the version pin the old paragraph feared and does
+//             not break on an unrelated release. This file's job is unchanged
+//             and still necessary: the pin governs the FETCH, and everything
+//             between the fetch and the visitor — the copy into `site/`, the
+//             upload, what the origin ends up serving — is what these checks
+//             see and the pin cannot.
 //
 //   FROZEN    `/t/**/*.ct`, the captured trace containers. These are the
 //             opposite of fresh: they were captured from a chain, committed,

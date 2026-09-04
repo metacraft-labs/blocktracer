@@ -350,10 +350,14 @@ the run producing them had never reached its summary. Each is now attributable:
   refusal is retired and a different failure is underneath it, which is the
   normal way a masked problem surfaces.
 
-  **THE ENGINE IS STILL UNPINNED, so this can come back without a commit** —
-  that is the deliberate choice `fetch-engine.sh` documents, and Arm II is
-  exactly the instrument for noticing. The paragraph that follows is what to do
-  if it does.
+  **THE ENGINE IS PINNED NOW, so this can no longer come back without a
+  commit.** When this was written it could: `fetch-engine.sh` took whatever the
+  publisher was serving, and Arm II was the only instrument for noticing. Since
+  2026-09-05 `client/hydrate/engine-pin.txt` names the bytes and the fetch
+  asserts them, so the engine changes when this repository decides it does and
+  the decision is a reviewable diff. Arm II is kept — a pinned engine can still
+  be the wrong engine for a corpus, which is precisely the case below, and the
+  pin cannot know that. The paragraph that follows is what to do when it is.
 
   ---
 
@@ -371,8 +375,15 @@ the run producing them had never reached its summary. Each is now attributable:
 
   `cf79c4bf9854465b…` is such an engine and is what every measurement recorded
   above was taken on. The real fix belongs upstream, in whatever writes or reads
-  those containers; nothing in this repository can pin its way out of it, and
-  `fetch-engine.sh`'s header explains at length why it should not try.
+  those containers.
+
+  Pinning does not resolve this and was never claimed to: the pin makes "which
+  engine" a decided question rather than an accident, and the decided answer can
+  still be an engine that refuses this corpus. What it does change is the shape
+  of the search — re-running no longer draws a fresh engine from the publisher,
+  so "try again and see" is no longer a move, and choosing an engine that reads
+  `C0DE72ACE2 04 0001` means moving `client/hydrate/engine-pin.txt` to one, on
+  purpose, in a commit.
 * `O4` — the same journey's red, arriving as a **vacuity**. The detail reads
   `counted 0, the claim says 0`. The assertion is `countIs(naming.length,
   shownHere.originControls)`, and its own comment argues it cannot pass vacuously

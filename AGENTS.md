@@ -176,6 +176,20 @@ deploy either copies them to its own origin (`just replay-engine`) or points
 `-d:replayEngineBase` at an origin that already serves them. With neither,
 hydration reports that it could not start and the served page stands.
 
+**Not vendored is not unpinned.** The copy is made by
+`client/hydrate/fetch-engine.sh` against `client/hydrate/engine-pin.txt`, which
+names each file's sha256 and byte count and — for the two that the publisher
+serves under content-addressed names — the exact immutable URL. The fetch
+ASSERTS those, file by file, and refuses rather than writing anything else. It
+did not until 2026-09-05, and the cost of that was measured: two agents an hour
+apart received `e63dd40a…`/18,117,700 and `22acb8e1…`/18,117,658 bytes, both
+correctly, and a like-for-like comparison was lost. `ReplayEngineWasmBytes` in
+`client/src/debugger/replay_engine.nim` is the pinned wasm's byte count and
+nothing else; `tools/deploy/engine-pin-selftest.mjs` asserts they agree.
+
+Moving to a new engine is `just engine-pin-update`, a diff, and a commit — not
+a re-run.
+
 ### The artefact you photograph is not the artefact the visitor loads
 
 `cd client && just export` writes `client/dist` and it contains **zero
