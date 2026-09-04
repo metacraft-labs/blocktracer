@@ -148,7 +148,10 @@ proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
   # its per-step positions are both published and both were going unread. This
   # takes the pane only when the one above it did not, for the same coexistence
   # reason the listing does: whatever won keeps the pane.
-  withSourcePositions(result, t.sourceBundle, t.positions)
+  # The capture's own two counts travel with the stream, so a derived one can be
+  # checked against what the recording session measured rather than trusted.
+  withSourcePositions(result, t.sourceBundle, t.positions,
+                      v.sources.positionedSteps, v.sources.totalSteps)
   # …and the floor, AFTER it and never over it. A pane that ended up with source
   # keeps source; one that did not gets the program counters the recording
   # carries instead of a paragraph describing them. The order is the coexistence

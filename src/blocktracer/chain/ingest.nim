@@ -348,7 +348,8 @@ type
     why*: string   ## the rule that produced it, in words, for the banner
 
 proc curationWindow*(blockHeights: seq[int];
-                     recorded, traceless: seq[int]): CurationWindow =
+                     recorded, traceless: seq[int];
+                     positioned: seq[int] = @[]): CurationWindow =
   ## The window in which EVERY transaction carries a trace.
   ##
   ## `blockHeights` ascending; `recorded` are the heights of transactions that
@@ -401,24 +402,61 @@ proc curationWindow*(blockHeights: seq[int];
         runs[key] = @[]
         order.add key
       runs[key].add h
+    # WHICH RUN, AND THE ORDER OF THE THREE QUESTIONS. `positioned` names the
+    # heights whose recording resolves to SOURCE — real (path, line, column) on
+    # its steps — and a run holding one wins over a run that does not, however
+    # many more recordings that other run has.
+    #
+    # This is a refinement of "most recordings wins", not a weakening of it. The
+    # invariant is untouched: runs are still delimited by the traceless
+    # transactions, every transaction in the chosen window still opens a
+    # container that steps, and `ingestSnapshot` still re-checks that over what
+    # it is about to write. What changes is only WHICH satisfying run is
+    # published, and the count was always a proxy for "the richest exhibit"
+    # rather than a value in itself.
+    #
+    # It was measured deciding the wrong way. The 2026-09-02 testnet capture
+    # recorded twenty transactions in two runs split by a refusal at 67019:
+    # three below it — including 0x20ed5b91…, the only transaction this
+    # repository has ever captured from a real chain that positions steps
+    # against real Noir — and sixteen above it, every one of them rung 3 over a
+    # contract with no published artifact. Sixteen beat three, so the site
+    # published the sixteen and dropped the one thing a visitor could open the
+    # source of. A demo choosing the larger pile of identical bytecode listings
+    # over its only source-level recording is the count being read as the goal.
     var bestKey = ""
     var bestCount = 0
     var bestHi = 0
+    var bestSource = false
+    var isPositioned = initTable[int, bool]()
+    for h in positioned: isPositioned[h] = true
     for key in order:
       let hs = runs[key]
       var hi = hs[0]
-      for h in hs: hi = max(hi, h)
-      # Most recordings wins; the newest run breaks a tie.
-      if hs.len > bestCount or (hs.len == bestCount and hi > bestHi):
+      var hasSource = false
+      for h in hs:
+        hi = max(hi, h)
+        if isPositioned.getOrDefault(h, false): hasSource = true
+      # Source first; then most recordings; then the newest breaks the tie.
+      let better =
+        if hasSource != bestSource: hasSource
+        elif hs.len != bestCount: hs.len > bestCount
+        else: hi > bestHi
+      if bestKey.len == 0 or better:
         bestKey = key
         bestCount = hs.len
         bestHi = hi
+        bestSource = hasSource
     var lo = bestHi
     for h in runs[bestKey]: lo = min(lo, h)
     result = CurationWindow(lo: lo, hi: bestHi, found: true,
       why: "This chain publishes the blocks its recordings span — blocks " &
            $lo & "–" & $bestHi & " — so that every transaction on it opens a " &
-           "container that steps.")
+           "container that steps." &
+           (if bestSource:
+              " This span was chosen over a longer one because a transaction " &
+              "in it resolves to source."
+            else: ""))
     return
 
   # NOTHING RECORDED. Every maximal run of consecutive blocks that settled no
@@ -600,10 +638,18 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # pointer — is written over the published set rather than over the enumerated
   # one and then trimmed. A tree trimmed afterwards is a tree with two answers to
   # "what is on this chain" in it.
-  var recordedHeights, tracelessHeights: seq[int]
+  var recordedHeights, tracelessHeights, positionedHeights: seq[int]
   for t in snap["transactions"]:
     let o = t["outcome"].getStr
-    if o == "replayed" or o == "divergent": recordedHeights.add t["blockNumber"].getInt
+    if o == "replayed" or o == "divergent":
+      recordedHeights.add t["blockNumber"].getInt
+      # READ OFF THE CAPTURE'S OWN MEASUREMENT and nothing else — the same field
+      # `reader.sourcesView` reads, for the same reason. A post-hoc artifact
+      # resolution can prove a class's source without the recording having
+      # positioned a single step, and a window chosen on that would publish a
+      # block whose transaction still opens a bytecode listing.
+      if t{"recording"}{"stepsPositioned"}.getInt(0) > 0:
+        positionedHeights.add t["blockNumber"].getInt
     else: tracelessHeights.add t["blockNumber"].getInt
   var allHeights: seq[int]
   for b in blockRows: allHeights.add b.height
@@ -611,7 +657,8 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
                               hi: (if allHeights.len > 0: allHeights[^1] else: 0),
                               found: true, why: "")
   if cfg.scope == isCurated:
-    window = curationWindow(allHeights, recordedHeights, tracelessHeights)
+    window = curationWindow(allHeights, recordedHeights, tracelessHeights,
+                            positionedHeights)
     if not window.found:
       raise newException(ValueError,
         "a curated ingest of '" & chain & "' found no window in which every " &
@@ -663,6 +710,10 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
 
   # ---- transactions --------------------------------------------------------
   var txCount, withTrace, divergentCount, prunedCount, totalContainerBytes = 0
+  var withSourcePositions = 0
+    ## How many PUBLISHED transactions open into source — counted over the
+    ## windowed set, not the watched one, because it is the published set the
+    ## page's sentence is about.
   # REFUSALS ARE COUNTED SEPARATELY FROM PRUNING, because they are opposite facts
   # about the same window and the page must not merge them. A pruned transaction was
   # never replayable when it was reached; a REFUSED one was — its body was still
@@ -904,6 +955,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           status: (if reproduced: vsMatch else: vsDivergent),
           strength: matched))
       inc withTrace
+      if t{"recording"}{"stepsPositioned"}.getInt(0) > 0: inc withSourcePositions
       if not reproduced: inc divergentCount
       inc totalContainerBytes, t["containerBytes"].getInt
 
@@ -960,12 +1012,55 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # TEXT to put behind the positions, and the answer is yes exactly when some step has
       # a position to put in it.
       let hasPostHocPositions = txHash in postHocPositions
-      if measuredSourceLevel or hasPostHocPositions:
-        # The row names the file; the conventional path is the fallback, so a
-        # capture written before the row carried the key still resolves.
-        var srcRel = t{"sourceBundles"}.getStr
-        if srcRel.len == 0: srcRel = "sources" / (txHash & ".json")
-        let srcPath = cfg.snapshotDir / srcRel
+      # …AND A THIRD WAY IN, which is the one a LIVE capture takes. The two arms
+      # above are "the capture measured every step positioned" and "a post-hoc
+      # tool computed positions for a container that recorded none". Neither
+      # describes a recording that positioned MOST of its steps while it ran —
+      # `sourceLevel` is false, so the first declines, and nothing about it is
+      # post-hoc, so the second does not apply. That is exactly the 2026-09-02
+      # testnet capture: 86 of 108 steps positioned against a proved FeeJuice
+      # artifact, a 32-file Noir bundle sitting in `sources/` beside it, and not
+      # one byte of it reaching the tree.
+      #
+      # Publishing the text is not a claim that every step is positioned. The
+      # claim stays where it was — `measuredSourceLevel`, read from the capture
+      # — and this only answers "is there text to put behind the positions this
+      # recording does have".
+      # The row names the file; the conventional path is the fallback, so a
+      # capture written before the row carried the key still resolves.
+      var srcRel = t{"sourceBundles"}.getStr
+      if srcRel.len == 0: srcRel = "sources" / (txHash & ".json")
+      let srcPath = cfg.snapshotDir / srcRel
+      # …AND A THIRD WAY IN, which is the one a LIVE capture takes. The two arms
+      # above are "the capture measured every step positioned" and "a post-hoc
+      # tool computed positions for a container that recorded none". Neither
+      # describes a recording that positioned MOST of its steps while it ran —
+      # `sourceLevel` is false, so the first declines, and nothing about it is
+      # post-hoc, so the second does not apply. That is exactly the 2026-09-02
+      # testnet capture: 86 of 108 steps positioned against a proved FeeJuice
+      # artifact, a 32-file Noir bundle sitting in `sources/` beside it, and not
+      # one byte of it reaching the tree.
+      #
+      # Publishing the text is not a claim that every step is positioned. The
+      # claim stays where it was — `measuredSourceLevel`, read from the capture
+      # — and this only answers "is there text to put behind the positions this
+      # recording does have".
+      #
+      # IT REQUIRES THE BUNDLE TO EXIST RATHER THAN DEMANDING THAT IT SHOULD,
+      # which is the one asymmetry between this arm and the two above it. Those
+      # two are entered by a CLAIM — a capture that said "source level", a tool
+      # that said "here are coordinates" — and a claim with no text behind it is
+      # a producer that is broken, so they refuse. This arm is entered by a
+      # MEASUREMENT, and `stepsPositioned > 0` says nothing about whether anyone
+      # shipped source: a capture is perfectly entitled to count the steps it
+      # placed and publish no bundle, and every such recording rendered a
+      # correct instruction-level page before this arm existed and must go on
+      # doing so. Raising there would turn a new capability into a new way for
+      # an old snapshot to fail its build — which is exactly what it did, on
+      # suite 13's fixture, before this line read as it does.
+      let capturedPositions = t{"recording"}{"stepsPositioned"}.getInt(0) > 0
+      if measuredSourceLevel or hasPostHocPositions or
+         (capturedPositions and fileExists(srcPath)):
         # THE REASON IS NAMED, because there are now two ways to get here and they are
         # different facts. A capture that MEASURED source level and shipped no bundle is a
         # broken capture; a post-hoc positioning with no text is a tool that computed
@@ -974,6 +1069,9 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         let why =
           if measuredSourceLevel:
             "the capture measured " & txHash & " as source level"
+          elif capturedPositions:
+            "the capture positioned " &
+            $t{"recording"}{"stepsPositioned"}.getInt(0) & " step(s) of " & txHash
           else:
             "source positions were computed for " & txHash
         if not fileExists(srcPath):
@@ -1086,8 +1184,25 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # proved against the chain's commitment to the class — `resolve-frozen-artifacts.mjs`
       # does the join with the recorder's own `ContractSourceMap`. `sourceLevel` is
       # untouched by it and stays what the capture measured.
-      if txHash in postHocPositions:
-        let pos = postHocPositions[txHash]
+      #
+      # AND THE CAPTURE'S OWN STREAM OUTRANKS THE RECONSTRUCTION. A container
+      # recorded at rung 2 or better wrote `(path, line)` on every step it could
+      # place, while the session was running and against an artifact it had
+      # already proved — `derive-positions.mjs` reads that out into
+      # `positions/<txHash>.json`. There is nothing post-hoc about it, so where
+      # both exist the recorded one wins and `measuredPostHoc` follows the file
+      # rather than being hard-coded true as it was when only one producer
+      # existed.
+      var posSource: JsonNode = nil
+      var posIsPostHoc = true
+      let capturedPosPath = cfg.snapshotDir / "positions" / (txHash & ".json")
+      if fileExists(capturedPosPath):
+        posSource = parseJson(readFile(capturedPosPath))
+        posIsPostHoc = posSource{"measuredPostHoc"}.getBool
+      elif txHash in postHocPositions:
+        posSource = postHocPositions[txHash]
+      if posSource != nil:
+        let pos = posSource
         let carried = pos{"steps"}.getInt(-1)
         let declared = t["recording"]["steps"].getInt
         # THE SAME REFUSAL THE LISTING MAKES, for the same defect: a position array of a
@@ -1115,8 +1230,9 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           # difference is the whole finding: the artifact maps every pc it keys, and this
           # recording walks 22 the artifact does not key.
           "artifactRung": orNull(pos{"artifactRung"}),
-          "measuredPostHoc": true,
-          "measuredAt": (if postHocMeasuredAt.len > 0: %postHocMeasuredAt else: newJNull()),
+          "measuredPostHoc": posIsPostHoc,
+          "measuredAt": (if posIsPostHoc and postHocMeasuredAt.len > 0:
+                           %postHocMeasuredAt else: newJNull()),
           "paths": pos{"paths"},
           "pathId": pos{"pathId"},
           "line": pos{"line"},
@@ -1394,12 +1510,38 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   let seenAndKept =
     "Of the " & $observedTransactions & " transactions seen while watching " &
     "this chain, " & $txCount & " could be recorded."
+  # WHY THIS SPAN, WHEN THE SPAN WAS CHOSEN FOR WHAT IS IN IT.
+  #
+  # `curationWindow` prefers a run holding a recording that resolves to source,
+  # and that preference is the reason this window is on the page rather than a
+  # longer one — the user asked for exactly that ("at least one of these
+  # transactions ends up on the first page you see"). A selection made on a
+  # criterion the page does not state is a selection a reader will generalise
+  # from, and the generalisation here is the false one: source resolves for a
+  # SMALL MINORITY of what this chain carries — 1 of the 25 recordings in this
+  # snapshot, because Aztec publishes a commitment to a contract's artifact
+  # rather than the artifact, and almost no class on testnet has one published.
+  #
+  # So the sentence names its own criterion and gives the count out of the
+  # published set. "1 of these 3" cannot be read as "sources are generally
+  # available here", which is the reading the surfacing would otherwise invite
+  # and which is false of the corpus as a whole.
+  let sourceNote =
+    if withSourcePositions == 0: ""
+    else:
+      $withSourcePositions & " of these " & $txCount & " open" &
+      (if withSourcePositions == 1: "s" else: "") & " into the contract's own " &
+      "Noir source; this span was chosen over a longer one for that reason. " &
+      "Source is the exception on this chain rather than the rule — Aztec " &
+      "publishes a commitment to a contract's compiled artifact and not the " &
+      "artifact, so it resolves only where someone has published one. "
   let curatedMiddle =
     if withTrace > 0:
       "This is a selection rather than the whole chain: " & $txCount &
       " transaction" & (if txCount == 1: "" else: "s") & " from blocks " &
       $window.lo & "–" & $window.hi & ", each one re-run and recorded so you " &
-      "can step through it. A transaction can only be replayed for a short " &
+      "can step through it. " & sourceNote &
+      "A transaction can only be replayed for a short " &
       "time after it settles. " & seenAndKept & " "
     else:
       "This is a selection rather than the whole chain: blocks " & $window.lo &

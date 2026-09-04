@@ -767,7 +767,8 @@ proc decodeStepPositions*(node: JsonNode): StepPositions =
   result.has = true
 
 proc withSourcePositions*(session: var DebugSessionView;
-                          bundle, positions: JsonNode) =
+                          bundle, positions: JsonNode;
+                          capturedPositioned, capturedSteps: int) =
   ## Render REAL SOURCE for a recording that positions some of its steps.
   ##
   ## ## The gap this closes
@@ -814,30 +815,40 @@ proc withSourcePositions*(session: var DebugSessionView;
   if session.editor.documents.len > 0: return
   let pos = decodeStepPositions(positions)
   if not pos.has or pos.positioned <= 0: return
-  # ── AND A FOURTH REFUSAL: POST-HOC POSITIONS DO NOT LIGHT THE PANE ──────────
+  # ── AND A FOURTH: POST-HOC POSITIONS MUST BE CORROBORATED BY THE CAPTURE ────
   #
-  # `resolve-frozen-artifacts.mjs` can ask a FROZEN container's question after
-  # the fact — the artifact comes from npm, the program counters are in the
-  # `.ct`, and CHAIN-CAPTURE.md §6.2b measured that 86 of the frozen FeeJuice
-  # transaction's 108 steps "would position", at real Noir lines. The mapping is
-  # sound. The refusal is not about the mapping.
+  # `resolve-frozen-artifacts.mjs` re-asks a container's question after the
+  # fact — the artifact comes from npm, the program counters are in the `.ct`,
+  # and the answer is a full per-step stream. It is the ONLY producer of that
+  # stream: a live capture publishes the two COUNTS in `recording`
+  # (`stepsPositioned` / `stepsUnpositioned`) and not the coordinates behind
+  # them, so even a recording that positioned its own steps while it ran needs
+  # this tool to say WHERE.
   #
-  # It is that the tree states this separation deliberately and in two places,
-  # and one pane may not quietly settle it. `reader.sourcesView` reads
-  # `stepsPositioned` out of the CAPTURE and out of nothing else, so "the
-  # artifact is provable" and "this recording shows it" stay apart — a frozen
-  # rung-3 row therefore reads `Source not recorded` no matter how good the
-  # retroactive answer is. Rendering source over that badge would not be a
-  # stronger page; it would be a page disagreeing with itself, and §6.2b names
-  # the combination it creates — `scAll` with `sourceLevel: false` — as one "the
-  # live pipeline never produces and the product has no copy for… a deliberate
-  # product decision… written down here rather than taken unilaterally."
+  # That makes "post-hoc" the wrong axis to refuse on, and the right one is
+  # AGREEMENT. A derived stream whose positioned count equals the number the
+  # recording session itself measured is not a new claim about the recording —
+  # it is the detail behind a number the recording already published, and the
+  # two were produced by different code from different inputs. Where they
+  # disagree, the derivation is describing something the recording did not do.
   #
-  # So this shows source only for a recording that MEASURED ITS OWN POSITIONS
-  # while it ran, where the badge already agrees with the pane. Deleting this
-  # one line is all that stands between the frozen captures and a source view,
-  # and that is the shape the decision should have when someone takes it.
-  if pos.postHoc: return
+  # The two cases this separates are both real and both in the tree:
+  #
+  #   * frozen `0x12525d6d…` — capture says `stepsPositioned: 0` (its runtime
+  #     predated artifact resolution and never looked), derivation says 86.
+  #     REFUSED. CHAIN-CAPTURE.md §6.2b measured that derivation as sound and
+  #     still concluded the container stays rung 3; `reader.sourcesView` reads
+  #     the capture and nothing else, so the badge says "Source not recorded",
+  #     and a pane rendering source over it would be a page disagreeing with
+  #     itself. §6.2b names the combination — `scAll` with `sourceLevel: false`
+  #     — as a product decision to be taken by a person, and this keeps it one.
+  #   * live `0x20ed5b91…` — capture says `stepsPositioned: 86` of 108,
+  #     derivation says 86 of 108. ADMITTED. The recording measured its own
+  #     positions against a proved artifact while it ran, and this is where
+  #     they are.
+  if pos.postHoc and
+     not (capturedPositioned > 0 and capturedPositioned == pos.positioned and
+          capturedSteps == pos.steps): return
   let docs = sourceDocumentsFromBundle(bundle)
   if docs.len == 0: return
 
@@ -902,6 +913,44 @@ proc withSourcePositions*(session: var DebugSessionView;
     return
   focus(pane, path, pos.line[landed])
   session.editor = pane
+
+  # ── AND THE PROSE THAT WAS WRITTEN FOR THE OTHER OUTCOME ────────────────────
+  #
+  # `demoSession`'s instruction-level branch sets three pane notes, and two of
+  # them assert the thing this proc has just disproved. The Call Trace note read
+  # "Nothing resolved a source position, so they carry no file or line" on a page
+  # whose Code pane is showing `avm.nr:103` — a sentence that is not merely stale
+  # but visibly contradicted by the panel beside it. The Event Log's read
+  # "recorded against program counters rather than source lines".
+  #
+  # Corrected HERE rather than at the branch that wrote them, because the branch
+  # cannot know: it runs before the positions are read, and on the recordings
+  # that get no positions both sentences are exactly right. This is the first
+  # point at which the answer is known.
+  #
+  # The State note keeps its FIRST clause and loses its second. "This recording
+  # carries no variable names" stays: the container's five — `contractAddress`,
+  # `opcode`, `contextId`, `l2Gas`, `daGas` — are the AVM's machine columns and
+  # not program locals, which is what the pane means by a name. But the reason
+  # it gave, "none resolved for this contract", is exactly what has just stopped
+  # being true, and it would be sitting under a badge reading "Sources
+  # available". The real reason is one level in: the artifact resolved AND its
+  # debug symbols carry no variable table. Measured on the FeeJuice artifact
+  # this transaction proved — `debug_info.variables`, `.functions` and `.types`
+  # are each `{}`, empty objects, in the published `public_dispatch`.
+  session.calltrace.note =
+    "Frames are recorded and carry the names this recording gives them. " &
+    "They are listed once the session is live."
+  session.state.note =
+    "This recording carries no variable names. The contract's artifact " &
+    "resolved and its debug symbols carry the source map, but their variable " &
+    "table is empty — Aztec publishes these contracts compiled without " &
+    "variable debug information, so there are no locals to name."
+  session.eventLog.note =
+    "Calls and storage writes are recorded against the step they happened on. " &
+    $pos.positioned & " of this recording's " & $pos.steps & " steps carry a " &
+    "source position; the rest are compiler-generated code the artifact maps " &
+    "no line for."
 
 proc withInstructionListing*(session: var DebugSessionView; node: JsonNode) =
   ## Give an instruction-level pane the instructions.

@@ -407,24 +407,194 @@ records `declaredRung: 3`, `sourceLevel: false`, `stepsPositioned: 0`. **That is
 now a measured ceiling rather than an unasked question, which is the entire
 difference from §6's opening paragraph.**
 
-### 6.2a Rung 1 is reachable; this capture did not reach it
+### 6.2a ~~Rung 1 is reachable; this capture did not reach it~~ — WITHDRAWN
 
-Stated separately because they are separate claims and only the first is
-demonstrated end to end:
+**This section was wrong, and §6.5 replaces it.** Its closing sentence — "it is
+one FeeJuice-executing transaction inside the window away from being false" —
+was tested directly on 2026-09-02 by capturing exactly that transaction. The
+transaction resolved, positioned 86 of its 108 steps against real Noir, and came
+out at **rung 2**. Rung 1 is not one transaction away. It is not reachable at
+all on this chain, and the reason is structural rather than statistical.
 
-* the **resolution** half is demonstrated on this corpus — §6.1's FeeJuice;
-* the **recording** half is demonstrated in the runtime's own L5 arms, which
-  produce `declaredRung: 1, sourceLevel: true, stepsPositioned: 64/64` over that
-  same proved artifact with real Noir positions (`main.nr:203:12`, `avm.nr:85:5`,
-  `poseidon2.nr:68:17`);
-* **no transaction captured live here has been both.** A live rung-1 recording
-  needs a transaction whose first-in-block public execution enters a contract
-  whose artifact resolves, and that is a matter of what the chain happens to
-  carry inside the replay window.
+What the section got right, and §6.5 keeps: the resolution half is demonstrated
+(§6.1's FeeJuice), and "everything is rung 3 on Aztec" was indeed the wrong
+sentence — it is now measurably false.
 
-Do not report "everything is rung 3 on Aztec" from this. The correct sentence is
-that these particular contracts have no published artifact, and it is one
-FeeJuice-executing transaction inside the window away from being false.
+What it got wrong is the second bullet. The runtime's L5 arms do produce
+`declaredRung: 1, sourceLevel: true, stepsPositioned: 64/64` — **over a step
+stream built from the artifact's own mapped program counters.**
+`run_l5_recording_arms.mjs` takes `mappedPcs.slice(0, 64)`, so 64/64 holds by
+construction and cannot fail. The file says so itself: "the step stream here is
+synthetic… It is NOT the milestone's evidence that a real chain execution
+reaches rung 1." Reading it as the recording half being demonstrated is what
+made rung 1 look like a matter of luck.
+
+### 6.5 Rung 1 is structurally unreachable on Aztec, and what was actually blocking the product
+
+Two findings, and they point in opposite directions. The first closes a
+milestone; the second retires one that could never have been met.
+
+#### The capture happened, and it is rung 2
+
+A watch armed at 21:00Z on 2026-09-02 caught **`0x20ed5b91…` in testnet block
+67011** two minutes later — the first transaction this repository has captured
+from a real chain that positions steps against real source.
+
+| | |
+| --- | --- |
+| contract | **FeeJuice** at `0x…03`, class `0x1f85d8b901a8…` |
+| artifact | `npm:@aztec/protocol-contracts@5.3.0-nightly.20260819`, proved against the class's `artifactHash` `0x1a57ff2a…` |
+| positions | **86 of 108 executed steps**, at real `(path, line, column)` |
+| bundle | 32 Noir files, 283 KB, keyed at the paths the container interned |
+| verdict | `declaredRung: 2`, `sourceLevel: false`, effects reproduced, 0 divergent |
+| corroboration | `single-distributor` — npm alone attests the debug symbols |
+
+Its body pruned within the hour, re-measured 2026-09-04: `getTxByHash` returns
+null. So this container is as irreplaceable as the frozen eight, and §1 applies
+to it in full.
+
+#### Why the last 22 steps can never be positioned
+
+The 22 unpositioned steps are **not** a transpiler keying bug, and the rung-2
+reason string this capture recorded is misattributed — it blames
+`avm-transpiler transpile.rs:489,505`, which is the `MultiScalarMul` path.
+That is the transpiler's *only* procedure, FeeJuice's `public_dispatch`
+contains no MSM, and it therefore contributed **zero** of the 22.
+
+The real cause is one branch in Noir,
+`compiler/noirc_evaluator/src/brillig/brillig_ir/artifact.rs:335-340`:
+
+```rust
+pub(crate) fn push_opcode(&mut self, opcode: BrilligOpcode<F>) {
+    if !self.call_stack_id.is_root() {
+        self.locations.insert(self.index_of_next_opcode(), self.call_stack_id);
+    }
+    self.byte_code.push(opcode);
+}
+```
+
+A location is recorded **only** when the call stack is non-root. A procedure
+context built by `BrilligContext::new_for_procedure` never has a Noir call
+stack, so **compiler-generated code carries no source location by
+construction** — there is no Noir line for it to point at, because there is no
+Noir behind it. This is not a bug to be fixed upstream; it is what "compiler-
+generated" means.
+
+Disassembled against blocktracer's own opcode table, FeeJuice's 1,947-byte
+`public_dispatch` is 377 instructions, 314 mapped, **63 unmapped**:
+
+| region | instrs | unmapped | what it is |
+| --- | --- | --- | --- |
+| prologue `[0,130)` | 17 | **17** | entry point + globals init |
+| main body `[130,1785]` | 331 | 17 | block-terminator jumps, constant `SET` runs |
+| tail `(1785,1947)` | 29 | **29** | `RevertWithString` ×6, `MemCopy` |
+
+**Every Aztec public transaction enters through `public_dispatch`**, so its
+17-instruction prologue alone guarantees ≥17 unpositioned steps on every public
+transaction of every contract, forever. `sourceLevel` requires *every* executed
+step positioned (`recording.ts:618`), and rung 1 is equivalent to it, so:
+
+> **Rung 1 cannot be recorded from any real Aztec chain transaction.** Not with
+> a better contract, not with a longer watch, not with an upstream
+> `avm-transpiler` fix. The ladder's top rung asks for something the compiler
+> does not emit.
+
+`brillig_procedure_locs` does not rescue it: it is keyed in brillig opcode
+indices rather than AVM pcs, covers 14 of the 63, drops five of the six
+`RevertWithString` ranges to a `ProcedureId` collision, and yields a *procedure
+name* rather than a `(path, line, column)` even so. `avm-transpiler` is
+byte-identical at `upstream/next`.
+
+**So do not set rung 1 as a target for chain capture.** The honest target is
+rung 2 with high coverage, and the missing concept is a rung meaning "positioned
+everywhere source exists" — which needs the transpiler to *partition* the
+unpositioned set rather than merely count it.
+
+#### What was actually keeping source off the page
+
+None of the above was what the user hit. **The tree was already publishing the
+source and the product was rendering bytecode over it.**
+
+`ingest.nim` published the 32-file bundle and a 108-row `positions.json` beside
+the container — and `positions.json` had **no consumer anywhere in the client**.
+The one question the debug route could ask was
+`manifest.execution.sourceLevel`, the all-or-nothing bit that §6.5 has just
+shown is permanently false. So a transaction with 86 real Noir positions
+rendered an instruction listing, under a badge reading "Sources available".
+
+Fixed by `demo_session.withSourcePositions`, which reads the per-step stream
+directly: real files, the step's real line, a gutter built from the recording's
+own visited set, and the coverage carried on the pane so the frame states which
+number it is showing. Three rules keep it honest:
+
+* it takes the pane only where `withPublishedSources` did not, so a manifest
+  that genuinely claims source level still outranks it;
+* it lands the session on a step that **has** a position — the unpositioned ones
+  are the dispatch prologue and sit at the front of the stream, so an arithmetic
+  mid-point would open on the one region with nothing to show;
+* **a post-hoc position stream is admitted only when the capture's own
+  `stepsPositioned` agrees with it.** `resolve-frozen-artifacts.mjs` is the only
+  producer of per-step coordinates — a live capture publishes the counts and not
+  the coordinates — so refusing post-hoc outright would refuse everything. What
+  is refused instead is *disagreement*: frozen `0x12525d6d…` says 0 and derives
+  86, so it keeps its listing and its "Source not recorded" badge, exactly as
+  §6.2b concluded; live `0x20ed5b91…` says 86 and derives 86, so the detail
+  behind a number the recording already published is shown.
+
+### 6.6 The Call Trace and Values panes are still empty, and they have DIFFERENT causes
+
+Recorded because the obvious reading — "the panes are empty, so the pane
+plumbing is broken" — is wrong for both, and the two need different work by
+different owners. Neither blocks the source view above.
+
+**Call Trace: nothing is missing from the recording.** The container carries the
+frames. Measured on `0x20ed5b91…`: two `Function` events (`<toplevel>`,
+`enqueued-call-0`) and two `Call` events, the second carrying the contract
+address as its argument. They are absent from the STATICALLY EXPORTED page only
+because that page has no CTFS reader — the site build is hermetic and cannot
+depend on `codetracer-trace-format-nim` (§Justfile `chain-instructions`). The
+pane's note is therefore accurate as it stands: *"They are listed once the
+session is live."* A hydrated session with the replay engine lists them. **No
+recorder change is needed; this is a static-export limitation with a working
+live path.**
+
+**Values: the artifact has no variable table, and this is upstream of us.** The
+container carries five `VariableName` events and 541 `Value`s — but the five are
+`contractAddress`, `opcode`, `contextId`, `l2Gas`, `daGas`, which are the AVM's
+machine columns and not program locals. Naming a local needs the artifact's
+variable debug tables, and **the published artifact has none**. Decoded from
+`npm:@aztec/protocol-contracts`' FeeJuice `public_dispatch` (`debug_symbols` is
+raw-deflate base64, not gzip):
+
+```
+debug_info keys: brillig_locations, location_tree, acir_locations,
+                 variables, functions, types, brillig_procedure_locs
+  variables = {}      ← empty
+  functions = {}      ← empty
+  types     = {}      ← empty
+```
+
+So the source map is fully populated and the variable side is fully absent. This
+is the *release* build: Noir emits those tables from its debug instrumentation
+(`tooling/noirc_artifacts/src/debug_vars.rs`), and Aztec does not ship contracts
+compiled with it.
+
+**Two changes are needed, in this order, and neither is a front-end fix:**
+
+1. **Aztec** would have to publish protocol-contract artifacts compiled with
+   variable debug information, so `debug_info.variables` / `.functions` /
+   `.types` are non-empty. Until this happens nothing downstream can name a
+   local, however good the recorder is — there is no name to read.
+2. **The AVM replay recorder** (`aztec-avm-runtime`) would then have to resolve
+   those tables against AVM memory at each step and emit one
+   `VariableName`/`Value` pair per live local, instead of only its five machine
+   columns. That is the same join `positions.json` already does for
+   `(path, line)`, one table over.
+
+Until (1), the honest render is the one the pane now gives: the recording's
+names are machine state, the artifact resolved, and its variable table is empty.
+Do not read the empty Values pane as evidence that source resolution failed —
+on this transaction it succeeded.
 
 ### 6.2b Can the frozen FeeJuice transaction be upgraded to rung 1 in place?
 

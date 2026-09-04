@@ -1339,8 +1339,24 @@ suite "8 — a curated chain publishes only transactions that open":
     # THE TWO FACTS A READER USES, and no longer the four paragraphs around them:
     # this is a selection, and here is the range it was selected from.
     ck "selection rather than the whole chain" in d
-    ck "blocks 63642–63675" in d
-    ck "Of the 32 transactions seen while watching this chain, 6 could be recorded." in d
+    ck "blocks 67010–67018" in d
+    ck "Of the 866 transactions seen while watching this chain, 3 could be recorded." in d
+    # THE WINDOW MOVED, AND IT MOVED FOR A STATED REASON. It used to be
+    # 63642–63675 out of 32 watched. The 2026-09-02 capture added twenty
+    # transactions and `backfill-blocks.mjs` completed the block record they sit
+    # in, so the watch is now 866 transactions deep — and `curationWindow`
+    # prefers the run holding a recording that resolves to SOURCE, which is
+    # 67010–67018. Both numbers are asserted rather than relaxed because the
+    # banner's whole job is to be checkable against the page it sits on.
+    #
+    # AND THE SURFACING DISCLOSES ITSELF. A window chosen because one
+    # transaction in it opens into source must say so and say how many, or a
+    # reader generalises from a selection to the corpus — "sources are available
+    # on this chain" — which is false of 24 of the 25 recordings here. The count
+    # and the criterion are one sentence so neither can be dropped alone.
+    ck "1 of these 3 opens into the contract's own Noir source" in d
+    ck "this span was chosen over a longer one for that reason" in d
+    ck "Source is the exception on this chain rather than the rule" in d
     # The shouting is gone, and so is the arrival-density analysis nobody asked
     # for — two sentences of gap statistics on a banner a visitor reads to find
     # out what they are looking at.
@@ -1620,6 +1636,55 @@ suite "9 — the home page features a session that can actually be shown":
     ck "carries no variable names" notin markup(home)
     ck "Nothing resolved a source position, so they carry no file or line." notin
        markup(home)
+
+  test "a PARTLY positioned recording renders real source, not a bytecode listing":
+    # THE DEFECT THIS PINS, in one sentence: the tree published a 32-file Noir
+    # bundle and a 108-row `positions.json` for this transaction, and the page
+    # rendered an instruction listing over the top of both.
+    #
+    # The cause was that `manifest.execution.sourceLevel` was the only question
+    # the route could ask, and it is an ALL-OR-NOTHING bit — every executed step
+    # positioned. No real chain capture has ever set it and none ever can: every
+    # Aztec public transaction enters through `public_dispatch`, whose prologue
+    # is compiler-generated code that carries no source location by construction
+    # (CHAIN-CAPTURE.md §6.5). So gating the text on it discarded all 86 real
+    # positions, permanently.
+    #
+    # Subject chosen out of the snapshot, like every other subject in this file:
+    # the first transaction whose CAPTURE measured positioned steps. If a future
+    # snapshot has none the test skips rather than passing vacuously — a green
+    # assertion over an empty set is what §6.2 keeps calling out.
+    var positionedTx = ""
+    for t in snap["transactions"]:
+      if t{"recording"}{"stepsPositioned"}.getInt(0) > 0:
+        positionedTx = t["txHash"].getStr
+        break
+    if positionedTx.len == 0:
+      skip()
+    else:
+      let s = debugSessionFor(root, RealChain, positionedTx)
+      # It is at SOURCE level and standing on a real line of a real file…
+      ck s.editor.availability == srcSourceLevel
+      ck s.editor.documents.len > 0
+      ck s.editor.currentLine > 0
+      ck s.editor.listingCaption.len == 0     # …not a listing wearing source's clothes
+      ck activeDocument(s.editor).path.endsWith(".nr")
+      # …and it says how much of the recording it can place, which is what keeps
+      # "shows source" from being read as "positions everything".
+      ck s.editor.positionedSteps > 0
+      ck s.editor.positionedSteps < s.editor.positionedOf
+      # A partial recording may NOT headline: CHAIN-CAPTURE.md §6.2 keeps the
+      # home page's exhibit a person's choice, not whatever the tree produced.
+      ck not canHeadline(s)
+      # The page carries the text, and the two notes written for the OTHER
+      # outcome are gone. A pane saying "Nothing resolved a source position"
+      # beside a pane showing a Noir line is the product contradicting itself
+      # on one screen, which is exactly what shipped before this.
+      let body = renderRoute(root, "/" & RealChain & "/tx/" & positionedTx &
+                             "/debug").body
+      ck "Nothing resolved a source position, so they carry no file or line." notin body
+      ck "none resolved for this contract" notin body
+      ck "their variable table is empty" in body
 
   test "MUTATION BITE: every clause of the rule is load-bearing":
     # One removal per clause, each from the SAME qualifying session, each

@@ -213,6 +213,16 @@ type
       ## during it. Folded from the entries' `measuredPostHoc`, and true only
       ## when EVERY resolved entry carries it — a mixed record makes the
       ## weaker, and therefore honest, claim about the transaction as a whole.
+    positionedSteps*, totalSteps*: int
+      ## THE COUNT BEHIND `positioned`, kept because a later reader needs to
+      ## compare it rather than merely test it.
+      ##
+      ## `positioned` answers "did this recording position anything". These two
+      ## answer "how much, out of how much", which is what lets a per-step
+      ## position stream published beside the container be CORROBORATED against
+      ## the capture's own measurement instead of being taken on trust — see
+      ## `demo_session.withSourcePositions`. Both 0 on a recording older than
+      ## the fields, which compares equal to nothing and so admits nothing.
 
   TxRow* = object
     ## One row of the shared transactions table (block detail, tx list).
@@ -492,6 +502,11 @@ proc sourceCoverage*(native: JsonNode): SourceCoverageView =
   result.positioned =
     if sp != nil and sp.kind == JInt: sp.getInt > 0
     else: replay{"sourceLevel"}.getBool
+  if sp != nil and sp.kind == JInt:
+    result.positionedSteps = sp.getInt
+    let su = replay{"stepsUnpositioned"}
+    result.totalSteps =
+      sp.getInt + (if su != nil and su.kind == JInt: su.getInt else: 0)
   let artifacts = replay{"artifacts"}
   if artifacts.isNil or artifacts.kind != JArray:
     result.state = scUnchecked

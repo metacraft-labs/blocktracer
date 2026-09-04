@@ -107,6 +107,35 @@ function streamOf(events) {
         names.push(e.name);
         break;
       case "Step":
+        // `PC_OF` READS `line`, AND `line` IS ONLY A PROGRAM COUNTER ON THE
+        // PSEUDO-PATH. The recorder interns `/aztec/<txHash>.avm` at path id 0
+        // and files an unpositionable step there with its pc in `line`; a step
+        // it COULD position gets a real path id and a real source line in the
+        // same field. So on a rung-2 container this function was reading Noir
+        // line numbers and publishing them as program counters.
+        //
+        // It was not a theoretical mistake. Run against testnet 0x20ed5b91…,
+        // the derived `pc` column came out
+        // `[0,5,12,17,65,74,83,92,129,22,27,32,40,44,203,223,223,…]` — the
+        // first fourteen are its genuine prologue pcs and everything after is
+        // `main.nr:203`, `main.nr:223`. `resolve-frozen-artifacts.mjs` then
+        // joined those against `brillig_locations`, matched nothing, and
+        // reported the transaction as positioning zero steps — the one
+        // transaction in the corpus that positions 86.
+        //
+        // A positioned step HAS no pc to publish here: the container spent the
+        // field on something better. Raising is the only correct answer, since
+        // both alternatives — a null in the column, or the line number — are a
+        // listing that reads as a pc and is not one.
+        if (e.path_id !== 0) {
+          throw new Error(
+            `this container positions its steps (step ${steps.length} is on ` +
+              `interned path ${e.path_id}, not the .avm pseudo-path at 0), so its ` +
+              `'line' field carries a SOURCE LINE and not a program counter. An ` +
+              `instruction listing cannot be derived from it. Its per-step source ` +
+              `positions are what it has: use tools/chain/derive-positions.mjs.`,
+          );
+        }
         cur = { pc: PC_OF(e), v: {} };
         steps.push(cur);
         break;
@@ -178,6 +207,7 @@ for (const t of snapshot.transactions ?? []) {
 }
 
 let written = 0;
+let skipped = 0;
 for (const file of readdirSync(ctDir).sort()) {
   if (!file.endsWith(".ct")) continue;
   const txHash = file.slice(0, -3);
@@ -189,7 +219,24 @@ for (const file of readdirSync(ctDir).sort()) {
   });
   const events = JSON.parse(stdout);
   const paths = events.filter((e) => e.type === "Path").map((e) => e.name);
-  const steps = streamOf(events);
+  // A POSITIONED CONTAINER IS SKIPPED, NOT FATAL. `streamOf` refuses it because
+  // it cannot honestly produce a pc column (see its `Step` case), and that
+  // refusal is right — but a snapshot may hold both kinds at once, and one
+  // rung-2 recording must not stop the other twenty-four from getting a
+  // listing. What it gets instead is `positions/<txHash>.json`, which is
+  // strictly more than a listing rather than less.
+  let steps;
+  try {
+    steps = streamOf(events);
+  } catch (err) {
+    if (/positions its steps/.test(String(err.message))) {
+      console.error(`derive-instructions: ${txHash.slice(0, 10)}… skipped — ` +
+        `this recording positions its steps; derive-positions.mjs covers it`);
+      skipped += 1;
+      continue;
+    }
+    throw err;
+  }
 
   // THE COUNT THE SNAPSHOT ALREADY PUBLISHED HAS TO AGREE. `recording.steps` is what
   // the capture measured and what the manifest publishes as `execution.steps`; the
@@ -228,4 +275,5 @@ for (const file of readdirSync(ctDir).sort()) {
   );
 }
 
-console.error(`derive-instructions: wrote ${written} listing(s) to ${outDir}`);
+console.error(`derive-instructions: wrote ${written} listing(s) to ${outDir}` +
+  (skipped ? `, skipped ${skipped} positioned recording(s)` : ""));

@@ -594,6 +594,38 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
     return renderPositionHead(pos) & none
   let doc = activeDocument(p)
 
+  # THE SHORTEST TAIL OF EACH PATH THAT IS STILL UNIQUE, and it is a real defect
+  # this fixes rather than a tidy-up.
+  #
+  # The strip used to label a tab with `d.path` entire. On the demo fixture that
+  # is `src/shield.nr` and it reads well. On the first REAL source bundle — the
+  # 32 Noir files of Aztec's FeeJuice, keyed at the absolute CI paths the
+  # container interned — each label is 96 characters like
+  # `/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/avm.nr`,
+  # every one wraps to two lines, and the strip took roughly six sevenths of the
+  # pane. The source the whole page exists to show was four visible lines at the
+  # bottom. A tab strip that crowds out the document is not a smaller version of
+  # a tab strip.
+  #
+  # Not the basename, which would be wrong rather than merely short: a real Noir
+  # bundle has `std/field/mod.nr` and `std/hash/mod.nr` in it, and two tabs both
+  # labelled `mod.nr` is a control a reader cannot use. So each label grows by
+  # whole path segments until nothing else in the set shares it, which gives
+  # `avm.nr` where that is unambiguous and `field/mod.nr` where it is not. The
+  # full path stays on `title`, and the anchor is unchanged: this renames the
+  # LABEL and nothing about identity.
+  func tabLabel(path: string; all: seq[string]): string =
+    let segs = path.split('/')
+    for take in 1 .. segs.len:
+      let tail = segs[segs.len - take .. ^1].join("/")
+      var shared = 0
+      for other in all:
+        let os = other.split('/')
+        if take > os.len: continue
+        if os[os.len - take .. ^1].join("/") == tail: inc shared
+      if shared == 1: return tail
+    path
+
   proc tabStrip(activePath: string): string =
     ## The strip, rendered once PER PANEL with that panel's own tab marked.
     ##
@@ -612,12 +644,15 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
     if p.listingCaption.len > 0:
       return ui:
         p(class = "instrcap"): text p.listingCaption
+    var allPaths: seq[string]
+    for d in p.documents: allPaths.add d.path
     ui:
       nav(class = "srctabs"):
         for d in p.documents:
           a(class = "srctab" & (if d.path == activePath: " on" else: ""),
-            href = "#" & docAnchor(d.path)):
-            text d.path
+            href = "#" & docAnchor(d.path),
+            title = d.path):
+            text tabLabel(d.path, allPaths)
 
   proc body(d: SourceDocument): string =
     ## One document's lines, plus the notice when the pane opens part-way in.

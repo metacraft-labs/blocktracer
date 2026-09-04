@@ -438,7 +438,15 @@ html[data-register="debugger"],
 .srcdoc.alt{display:none}
 .srcdoc.alt:target{display:flex}
 .srcdoc.alt:target ~ .srcdoc.def{display:none}
+/* IT WRAPS, BUT IT MAY NOT GROW WITHOUT BOUND. A 32-file bundle wrapped to
+   twenty-odd rows of tabs and left the document four lines tall — the strip is
+   a way IN to the source, so a strip that displaces the source has inverted its
+   own purpose. Capped at a share of the pane and scrolled past that, which
+   keeps every tab reachable (they are real links, and the cap is on the
+   container rather than on the count) while guaranteeing the document the rest
+   of the height. */
 .srctabs{display:flex;gap:var(--bt-space-3xs);flex-wrap:wrap;flex:0 0 auto;
+  max-height:22vh;overflow-y:auto;overscroll-behavior:contain;
   padding:var(--bt-space-3xs) var(--bt-density-cell-x);
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
   background:var(--bt-surface-sunken)}
