@@ -328,6 +328,49 @@ while read -r entry; do
 	fi
 done <<<"${known_dark}"
 
+# ONLY ONE KIND OF DARKNESS IS ALLOWED IN, and this is where that is decided.
+#
+#   LEGITIMATE — a capability the gate needs genuinely does not exist yet. The
+#   entry must NAME it, so the register records what would have to become true
+#   for the line to go.
+#   NOT LEGITIMATE — the gate could run and nobody wired it. That is an unwired
+#   gate, not a dark one, and it does not land.
+#
+# The two are indistinguishable in a bare list of filenames, which is exactly
+# how a register slides from "known holes, with their causes" into "the place
+# you put a gate you did not want to think about". Requiring the capability to
+# be named is what keeps the first kind first: you cannot write the line without
+# stating the thing that is missing, and a stated thing can be checked and
+# eventually discharged.
+#
+# The rule is mechanical rather than social — a convention nobody checks is how
+# the second kind gets in. Each entry's preceding comment block must carry a
+# `MISSING CAPABILITY:` line; `ci-coverage-test.sh` plants one without and
+# requires this to fail.
+if [ -n "${known_dark}" ]; then
+	while read -r entry_and_cap; do
+		[ -n "${entry_and_cap}" ] || continue
+		entry="${entry_and_cap%% *}"
+		has_cap="${entry_and_cap##* }"
+		if [ "${has_cap}" = "yes" ]; then
+			ok "known-dark '${entry}' names the capability it is waiting on"
+		else
+			register_problems=$((register_problems + 1))
+			bad "ci/test/ci-coverage.known-dark.txt lists '${entry}' with no 'MISSING CAPABILITY:' line above it — a gate nobody wired is not a dark gate, so either name what is missing or write the job"
+		fi
+	done < <(
+		awk '
+			/^[[:space:]]*#/ { if ($0 ~ /MISSING CAPABILITY:/) cap = 1; next }
+			/^[[:space:]]*$/ { next }
+			{
+				sub(/#.*/, ""); gsub(/[[:blank:]]/, "")
+				if ($0 != "") print $0, (cap ? "yes" : "no")
+				cap = 0
+			}
+		' "${known_dark_file}"
+	)
+fi
+
 if [ "${known_dark_count}" -gt 0 ] && [ "${register_problems}" -eq 0 ]; then
 	ok "${known_dark_count} gate(s) recorded as known-dark, and each is still dark and still present"
 fi

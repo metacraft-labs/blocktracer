@@ -908,45 +908,29 @@ jobs:
       - name: Build the hydration bundle in the working tree
         run: nix develop .#capture --command bash -c 'cd client && just hydrate'
 
-      - name: Do the journeys bite?
-        # BEFORE the verdict, never after. Six mutations in real product source,
-        # each aimed at one named assertion. A suite whose assertions cannot fail
-        # would otherwise report a clean sweep over anything at all — and this
-        # step runs the local exporter, so it also proves that build still works.
-        #
-        # `.#capture` and not `.#capture-env`: the arms REBUILD, so this needs the
-        # Nim toolchain as well as the pinned browser, and `.#capture` is the
-        # shell that is "the same environment, PLUS the Nim toolchain" for exactly
-        # this reason. Measured on the first real run of this job: under
-        # `capture-env` alone every arm reported DID-NOT-BUILD, because `nim` was
-        # not on PATH. The harness was right to call that "never ran" rather than
-        # a kill — an arm that cannot compile has demonstrated nothing.
-        #
-        # BOUNDED, and the bound is the point rather than the number. Without
-        # `timeout-minutes` a step inherits the job's 360, and a suite that
-        # stalls burns six hours and is then CANCELLED — which prints no
-        # `RESULT` line and reads, in the log, exactly like a suite nobody ran.
-        # That is the state this suite has actually been observed in. A step
-        # timeout arrives as a signal, which `selftest.mjs` now catches: it
-        # prints `RESULT: DID NOT RUN`, names the arm it was on, and puts the
-        # mutated file back. 150 against a measured ~100 minutes for 62 arms,
-        # where each arm rebuilds the tree and reruns its journey three times.
-        timeout-minutes: 150
-        run: |
-          nix develop .#capture --command \
-            vd0-capture-env node tools/journeys/selftest.mjs
-
-      - name: Does it say when it did NOT run?
-        # Machinery that reports an ENDING is only exercised by an ending, so
-        # the step above covers none of it — which is how it would rot with
+      - name: Does it say when it did NOT run — and does the sharding partition?
+        # Machinery that reports an ENDING is only exercised by an ending, so an
+        # ordinary sweep covers none of it — which is how it would rot with
         # nobody noticing, in the one tool whose job is to certify that every
-        # other instrument is honest. Four real endings, each demanded to name
-        # itself. Cheap (one arm, four short runs) and it needs exactly the
-        # environment this job already has.
+        # other instrument is honest. Six probes now, sixteen assertions: four
+        # real endings, each demanded to name itself, plus the two that guard
+        # the sharding.
         #
-        # AFTER the run above and not before: it deliberately leaves a journal
-        # describing an unfinished run, which the next full run would then
-        # report as a previous failure that never happened.
+        # PROBES 5 AND 6 ARE WHY THIS STEP MATTERS MORE THAN IT USED TO. The
+        # sweep is now split across four `journeys-bite` shards, and that trade
+        # is only safe if the four are a PARTITION — every arm in exactly one,
+        # their union the whole list. A sharded sweep that silently drops an arm
+        # is strictly worse than the timeout it replaced: a timeout is loud, and
+        # a missing arm is not. Probe 5 proves the partition through `shardOf`,
+        # the same function the runs slice with, in about a second and without
+        # executing an arm. Probe 6 proves `--combine` REFUSES a broken one — a
+        # dropped arm, a duplicated arm, a stale arm, a shard that never ran,
+        # and a survivor — because a defence nobody has watched fail is
+        # indistinguishable from no defence.
+        #
+        # It no longer has to run after the sweep. That ordering existed because
+        # both wrote `.selftest-journal.json`; the shards write
+        # `.selftest-journal.shard-IofN.json`, so they no longer collide.
         timeout-minutes: 20
         run: |
           nix develop .#capture --command \
@@ -964,3 +948,140 @@ jobs:
           name: journey-report
           path: journey-report.json
           if-no-files-found: warn
+
+  # ── The bite sweep, in four shards ──────────────────────────────────────────
+  #
+  # WHY THIS IS NOT A STEP ON `journeys` ANY MORE.
+  #
+  # It was, bounded at `timeout-minutes: 150`, and it could not pass. Measured
+  # twice, killed at the bound both times to the second — 33739737152 at 150m13s
+  # and 33814944100 at 150m12s. The second got 40 of the 64 arms started and 33
+  # KILLED before it was cut off, which puts the full sweep at 230-280 minutes.
+  # One runner was being parked for 150 minutes to produce a guaranteed failure.
+  #
+  # FOUR SHARDS AND NOT A BIGGER BOUND. The runner-hours are about the same
+  # either way (4 x ~70 min against 1 x ~5 h) but the WALL CLOCK is not, and on a
+  # pool that has been at zero idle a single job holding one runner for five
+  # hours blocks deploys for the whole window. A five-hour bound would also be a
+  # guess: 230-280 is a range, and its upper end plus variance sits close enough
+  # to five hours that the bound would be set from an estimate that fails at the
+  # top of its own range — the same defect one size up. Four shards is also what
+  # the only complete pass this suite has ever recorded actually used.
+  #
+  # `fail-fast: false` IS LOAD-BEARING. With the default, one red shard cancels
+  # its three siblings, they leave no journals, and `--combine` reports DID NOT
+  # RUN — turning a specific, named, surviving arm into "the sweep did not
+  # finish". The failure that matters would be hidden by the mechanism reporting
+  # it.
+  #
+  # A SHARD IS NOT A VERDICT. Its journal is a claim about the arms it holds;
+  # the claim about the suite is made by `journeys-combine` below, and only
+  # there.
+  journeys-bite:
+    runs-on: eph-linux-x64
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Nix
+        uses: metacraft-labs/nixos-modules/.github/setup-nix@main
+        with:
+          trusted-public-keys: ${{ vars.TRUSTED_PUBLIC_KEYS }}
+          substituters: ${{ vars.SUBSTITUTERS }}
+          nix-github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: What the pinned browser environment fixes
+        run: nix run .#capture-env -- --print-pin
+
+      - name: Install the pinned Playwright npm package
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: nix develop .#capture --command npm --prefix tools/capture ci --no-audit --no-fund
+
+      - name: Fetch the replay engine into the cache
+        # The arms REBUILD into `client/dist`, and `lib/engine.mjs` copies this
+        # cache into whichever `--dist` it is given. Without it the hydration
+        # arms' journeys SKIP and the harness correctly reports NEVER RAN — an
+        # arm whose journey did not execute has demonstrated nothing.
+        #
+        # No `nix build .#default` and no `.journey-site` here: this job does
+        # not judge the deployed artefact, it mutates the working tree. That is
+        # the `journeys` job's work and it is not repeated four times.
+        run: ./client/hydrate/fetch-engine.sh client/.replay-engine-cache
+
+      - name: Build the hydration bundle in the working tree
+        # The selftest compiles against the WORKING TREE, and `nix build`
+        # produces its bundle inside the derivation. Without this the control
+        # arm correctly reports "the unmutated tree does not build; nothing
+        # below would mean anything".
+        run: nix develop .#capture --command bash -c 'cd client && just hydrate'
+
+      - name: Do the journeys bite? (shard ${{ matrix.shard }} of 4)
+        # 16 arms at ~3.8 min each is ~61 minutes; 90 is that plus headroom, and
+        # it is still a bound. `--shard i/n` slices by STRIDE rather than by
+        # contiguous block, deliberately: the expensive arms are adjacent in the
+        # list, so a contiguous shard would hold all of them and be the whole
+        # problem again.
+        timeout-minutes: 90
+        run: |
+          nix develop .#capture --command \
+            vd0-capture-env node tools/journeys/selftest.mjs --shard ${{ matrix.shard }}/4
+
+      - name: The shard's journal
+        # `always()`: a shard that was killed still leaves a journal saying it
+        # was running, and that is exactly what `--combine` needs in order to
+        # say WHICH shard did not finish instead of reporting a subset as a
+        # verdict.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: journey-selftest-journal-${{ matrix.shard }}
+          path: tools/journeys/.selftest-journal.shard-${{ matrix.shard }}of4.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ── ONE verdict over the four shards ────────────────────────────────────────
+  #
+  # `--combine` is not an OR of passes. It fails unless the shards' arms unioned
+  # are EXACTLY the arm list — every arm once, none missing, none twice, none
+  # left over from an older list — and every one of them killed. A shard that
+  # produced no journal is named, by index, as DID NOT RUN rather than as a
+  # failure: "three of four shards passed" is not a claim about the suite.
+  #
+  # `if: always()`: it must run even when a shard went red, because a red shard
+  # is precisely when the distinction between "an arm survived" and "a shard
+  # died" has to be drawn. Without this the matrix's own failure would be the
+  # only thing reported and the reason would be lost.
+  #
+  # `ubuntu-latest` and bare node: `--combine` reads JSON with node builtins and
+  # imports nothing else, so it needs neither the Nix runner nor a browser. A
+  # gate that needs the busy Nix pool to state its verdict is a gate that waits
+  # behind the thing it is judging.
+  journeys-combine:
+    needs: journeys-bite
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Collect every shard's journal
+        uses: actions/download-artifact@v4
+        with:
+          pattern: journey-selftest-journal-*
+          merge-multiple: true
+          path: tools/journeys
+
+      - name: What arrived
+        # Printed before the verdict, so a run whose combine says DID NOT RUN
+        # shows on its face whether the journal was absent or merely unfinished.
+        run: ls -la tools/journeys/.selftest-journal.shard-*of4.json || true
+
+      - name: Every arm, over the four shards, exactly once
+        run: node tools/journeys/selftest.mjs --combine 4

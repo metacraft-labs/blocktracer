@@ -17,9 +17,11 @@ name: Deploy
 # deployment; a PR (any non-`dev` branch) deployed to the dev project is a
 # preview.
 #
-# This is the Cloudflare PAGES (demo/static explorer) deploy — separate from the
-# R2 delta-publisher go-live path documented in DEPLOY.md. The existing
-# ci.yml (Nim conformance tests) is untouched.
+# This is the Cloudflare PAGES deploy, and it is the ONLY thing that publishes
+# any BlockTracer host, blocktracer.org included. DEPLOY.md's R2 delta-publisher
+# is an unexecuted plan — no bucket, no custom domain, no secrets, no workflow —
+# so nothing here is "separate from" a second path, because there is no second
+# path. The existing ci.yml (Nim conformance tests) is untouched.
 
 on:
   push:

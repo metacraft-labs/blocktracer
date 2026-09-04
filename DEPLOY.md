@@ -1,7 +1,23 @@
-# DEPLOY — making the fake-data site LIVE on blocktracer.org
+# DEPLOY — an unexecuted plan for serving blocktracer.org from R2
 
-This is the **credentialed** runbook for taking the demo (fake-data) BlockTracer
-tree live on **blocktracer.org**, served from Cloudflare R2 behind the CDN, and
+> **None of this is production, and none of it has been done.** blocktracer.org is
+> served by the **`blocktracer` Cloudflare Pages project**, with the apex as a
+> custom domain on it and `live` as its production branch — see
+> [`AGENTS.md`](./AGENTS.md). Promoting production means fast-forwarding `live`,
+> and needs no credential a deploy does not already hold.
+>
+> Every step below is undone: `data.json` declares no `blocktracer` R2 bucket,
+> `r2_custom_domains` is `{}`, the repository holds no `R2_*` secret, and no
+> publishing workflow has ever existed on any branch. `infra`'s own README says
+> the apex "is already served by its Pages project (apex CNAME + custom domain
+> added out-of-band)".
+>
+> This file described itself as production for long enough that readers could not
+> answer what serves blocktracer.org. Keep it as a plan; if it is ever carried
+> out, the sentence above is the one to change first.
+
+This is the **credentialed** runbook that *would* take the demo (fake-data)
+BlockTracer tree live on **blocktracer.org** from Cloudflare R2 behind the CDN,
 kept fresh by the M8 delta publisher (`blocktracer-publish`).
 
 Everything an **agent** can do is already done and merged on `feat/m8-publisher`:

@@ -92,8 +92,12 @@
 ## actually had. Both are answers about source that nobody measured, so neither
 ## is published.
 
-import std/[json, os, algorithm, strutils, tables]
+import std/[json, os, algorithm, strutils, tables, times]
 import ../contract/[model, ids, version]
+
+const MonthNames = ["January", "February", "March", "April", "May", "June",
+                    "July", "August", "September", "October", "November",
+                    "December"]
 
 proc readableDate*(iso: string): string =
   ## `2026-09-01T07:13:35.934Z` → `1 September 2026`.
@@ -106,18 +110,42 @@ proc readableDate*(iso: string): string =
   ##
   ## Anything that does not parse is returned unchanged rather than guessed at —
   ## a date this proc cannot read is a date it must not invent.
-  const months = ["January", "February", "March", "April", "May", "June",
-                  "July", "August", "September", "October", "November",
-                  "December"]
   if iso.len < 10: return iso
   try:
     let y = parseInt(iso[0 .. 3])
     let m = parseInt(iso[5 .. 6])
     let d = parseInt(iso[8 .. 9])
     if m < 1 or m > 12 or d < 1 or d > 31: return iso
-    result = $d & " " & months[m - 1] & " " & $y
+    result = $d & " " & MonthNames[m - 1] & " " & $y
   except ValueError:
     return iso
+
+proc readableSpan*(firstUnix, lastUnix: int64): string =
+  ## The timespan a block record covers, written the way `readableDate` writes a
+  ## date: `30 August to 1 September 2026`, or `31 August 2026` when both ends
+  ## fall on one day.
+  ##
+  ## THE SNAPSHOT'S BLOCKS CARRY UNIX SECONDS, NOT ISO, so this is a second entry
+  ## point to the same words rather than a second format — a page that wrote the
+  ## capture's dates one way and the coverage another would read as two products.
+  ##
+  ## THE YEAR IS PRINTED ONCE WHEN BOTH ENDS SHARE IT. `30 August 2026 to 1
+  ## September 2026` is the same fact said with a redundancy a person does not
+  ## write, and this sentence is read by visitors.
+  ##
+  ## The ends are ordered here rather than trusted from the caller: a block
+  ## record is sorted by height, and height is not time on a chain that ever
+  ## reorged. A span printed backwards is the shape of wrongness this module has
+  ## published before (a negative block distance) and it costs one comparison.
+  let lo = utc(fromUnix(min(firstUnix, lastUnix)))
+  let hi = utc(fromUnix(max(firstUnix, lastUnix)))
+  let loDay = $lo.monthday & " " & MonthNames[ord(lo.month) - 1]
+  let hiDay = $hi.monthday & " " & MonthNames[ord(hi.month) - 1]
+  if lo.year == hi.year:
+    if loDay == hiDay: loDay & " " & $hi.year
+    else: loDay & " to " & hiDay & " " & $hi.year
+  else:
+    loDay & " " & $lo.year & " to " & hiDay & " " & $hi.year
 
 type
   IngestScope* = enum
@@ -615,13 +643,24 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # showing only the blocks that did work would misrepresent this chain: Aztec
   # testnet is mostly empty blocks, and hiding them would turn a ~1-in-11
   # heartbeat into an apparently continuous stream of activity.
-  var blockRows: seq[tuple[hash: string, height: int, parent: string, txs: seq[string]]]
+  # `time` IS CARRIED ON THE ROW, and it is the only field here that no
+  # published file reads. `BlockDetail` has no timestamp — the block list says
+  # so in its Age column — so this exists for one consumer: the coverage span in
+  # "About this data". It rides on the row rather than being looked up later
+  # because the span has to be measured over THE PUBLISHED SET, and the
+  # published set is this seq after the curation narrowing below. A second
+  # height→time table read afterwards would be a second answer to "which blocks
+  # is this about", which is the disagreement the curated/uncurated arms used to
+  # institutionalise.
+  var blockRows: seq[tuple[hash: string, height: int, parent: string,
+                           txs: seq[string], time: int64]]
   var byHeight = initTable[int, string]()
   for b in snap["blocks"]:
     let h = b["number"].getInt
     var txs: seq[string]
     for t in b["transactions"]: txs.add t.getStr
-    blockRows.add (b["hash"].getStr, h, b["parentArchiveRoot"].getStr, txs)
+    blockRows.add (b["hash"].getStr, h, b["parentArchiveRoot"].getStr, txs,
+                   b{"timestamp"}.getBiggestInt)
     byHeight[h] = b["hash"].getStr
   # Ascending by height: the published maps and the block list are ordered by
   # the chain's own ordering, not by the order the capture happened to walk.
@@ -710,10 +749,6 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
 
   # ---- transactions --------------------------------------------------------
   var txCount, withTrace, divergentCount, prunedCount, totalContainerBytes = 0
-  var withSourcePositions = 0
-    ## How many PUBLISHED transactions open into source — counted over the
-    ## windowed set, not the watched one, because it is the published set the
-    ## page's sentence is about.
   # REFUSALS ARE COUNTED SEPARATELY FROM PRUNING, because they are opposite facts
   # about the same window and the page must not merge them. A pruned transaction was
   # never replayable when it was reached; a REFUSED one was — its body was still
@@ -955,7 +990,6 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           status: (if reproduced: vsMatch else: vsDivergent),
           strength: matched))
       inc withTrace
-      if t{"recording"}{"stepsPositioned"}.getInt(0) > 0: inc withSourcePositions
       if not reproduced: inc divergentCount
       inc totalContainerBytes, t["containerBytes"].getInt
 
@@ -1359,23 +1393,18 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # THE PROVENANCE IS PUBLISHED DATA, not a template decision. Every page of this
   # chain renders its banner from here, so "is what I am looking at real?" is
   # answered by the tree rather than by which template happened to be used.
-  # WHY A ZERO-TRACE CAPTURE CAME OUT ZERO — measured, not averaged.
+  # THE ARRIVAL-DENSITY NUMBERS ARE STILL MEASURED, AND THEY ARE NO LONGER PROSE.
   #
-  # The obvious sentence to generate here is a RATE: "one transaction per N
-  # blocks against an M-block window, so most captures catch none." It would
-  # have been wrong on the first mainnet capture and wrong in the confident
-  # direction. That capture found 20 transactions in 400 blocks — one per 20,
-  # against a 25-block window, which as a rate predicts roughly one catch per
-  # capture. It caught none, because the arrivals are BURSTY and not spread: 18
-  # of the 20 fell inside a 53-block span, then nothing at all for 309 blocks.
-  # An average over a bursty series is a number that is true and predicts the
-  # wrong thing, which is precisely the shape of claim this product may not
-  # publish.
-  #
-  # So the page states what was observed: how many, over what range, the longest
-  # silence inside it, and how far the most recent transaction sat from the
-  # window it missed. Those are facts a reader can check against the block list
-  # on the same site.
+  # `longestRunWithoutTx` and `mostRecentTxBlock` below were computed for a
+  # sentence the banner used to carry, and the reason they are measured rather
+  # than averaged is worth keeping where they are: the obvious thing to publish
+  # is a RATE — "one transaction per N blocks against an M-block window" — and it
+  # would have been wrong on the first mainnet capture in the confident
+  # direction. That capture found 20 transactions in 400 blocks, which as a rate
+  # predicts roughly one catch per 25-block window; it caught none, because the
+  # arrivals are BURSTY (18 of the 20 inside a 53-block span, then nothing for
+  # 309 blocks). They stay in `summary.json`, where a consumer that wants them
+  # can read them without a page having to narrate them.
   var txHeights: seq[int]
   for t in snap["transactions"]: txHeights.add t["blockNumber"].getInt
   txHeights.sort()
@@ -1397,187 +1426,106 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     else: "Real chain data"
 
   let summaryRel = "d" / chain / "g" / gen / "summary.json"
-  # The endpoint WITHOUT its scheme. `summary.json` keeps the full URL, which is
-  # where a machine-readable endpoint belongs; the rendered sentence names the
-  # host only. A page that printed `https://…` in prose would be indistinguish-
-  # able, to `test_explorer_breadth`'s external-reference scanner, from a page
-  # that FETCHED from that origin — the scanner reads characters rather than
-  # markup — and the right response to a check that cannot tell a mention from a
-  # fetch is to stop putting fetchable-looking strings in prose, not to teach the
-  # check to ignore a class of them.
-  # WHAT WAS CAPTURED, AND — WHEN IT IS NOTHING — THAT IT WAS NOTHING.
+
+  # ── WHAT THIS DATA IS, IN THREE FACTS AND NOTHING ELSE ─────────────────────
   #
-  # A chain whose window held no replayable transaction is a real outcome, not a
-  # broken capture, and it is the outcome a sparse chain will USUALLY produce:
-  # if transactions arrive further apart than the window is wide, most captures
-  # catch none. The sentence has to say that in the same breath as the numbers,
-  # because a reader who sees real blocks and real transactions and no traces
-  # will otherwise reasonably conclude the site is broken.
+  # A user read the previous version and asked for exactly this: say the data is
+  # real, say it is limited to a preliminary export, and cite the timespan that
+  # is covered. The word in the request was "just" — a section to SHRINK, not to
+  # rewrite at the same length — so what follows is one pair of short sentences
+  # and no arms.
   #
-  # The two arms differ only in the middle clause. Both state the window, both
-  # state the pruning boundary, and neither apologises: "no transaction inside
-  # the window was replayable" is a measurement, and the density that explains
-  # it is published beside it.
+  # WHAT WENT, AND WHERE IT WENT INSTEAD. Four generated paragraphs: a capture
+  # date, a per-outcome middle clause (how many were re-run, or how many the
+  # runtime refused "because of a fault on our side", or that none was reached in
+  # time), a curated clause naming the published window and the watch it was
+  # chosen out of, and a pruning sentence naming the finalized boundary. Every
+  # one of them was true. None of them is what a visitor arrives asking, and the
+  # last three restate — with different numbers — what the block list, the
+  # transaction list and each transaction's own page already say at the point the
+  # reader meets them. The facts stay published beside this in `summary.json`
+  # (`capturedAt`, `tracesPublished`, `publishedWindow`, `observedBlocks`,
+  # `observedTransactions`, `finalizedAtCapture`, `longestRunWithoutTx`), which is
+  # where a consumer that wants them should read them.
   #
-  let lastAt = prov{"capturedAt"}.getStr
-  # THE THREE CAPTURE TENSES ARE GONE, AND `frozen` NO LONGER CHANGES THE PROSE.
+  # THERE IS NO SCOPE BRANCH AND NO OUTCOME BRANCH ANY MORE. A reader's question
+  # is the same whichever way this build was configured, and the two arms this
+  # module used to carry are the mechanism by which a page came to describe a
+  # chain in numbers that disagreed with the counts above them. One expression
+  # over the published set answers for every scope: a curated build states a
+  # narrower span than a full one because it publishes less, not because a second
+  # arm was written to say so.
   #
-  # There used to be three arms here — a frozen capture in the past tense naming
-  # every block "taken WHOLE", a running watch that "was last extended", and a
-  # one-shot scan "at that moment" — because each was true of a different
-  # snapshot and the wrong one quietly misled. All three narrated the CAPTURE,
-  # and a visitor does nothing with any of them; a user asked for prose written
-  # for a reader instead. One sentence now serves every snapshot, and suite 11
-  # of `test_chain_provenance` asserts a frozen and an unfrozen capture produce
-  # it identically, which is where a re-grown branch would show.
+  # WHAT "REAL" IS ALLOWED TO MEAN HERE. Taken from the live network — that, and
+  # deliberately not a word more. It does not claim the export is complete (it is
+  # not: this says so), and it does not claim a transaction can be read against
+  # its sources.
   #
-  # `frozen` still means what it meant — `tools/chain/freeze-snapshot.mjs`
-  # writes it only after re-reading every complete block from the chain — and it
-  # is still published in `summary.json`. It simply no longer picks a tense.
-  # THE FROZEN-WINDOW ARITHMETIC THAT USED TO LIVE HERE IS GONE WITH THE SENTENCE IT FED.
-  # It listed the complete blocks by number and recovered the replay window as it stood at
-  # the last catch rather than the last poll — a real correction, for a real defect, in a
-  # clause that no longer exists because no visitor was using it. `summary.json` still
-  # publishes `tipAtCapture`, `finalizedAtCapture` and `replayableWindowBlocks`, and the
-  # snapshot still carries the per-transaction `capturedWindow`, so nothing about the
-  # capture became unknowable — it stopped being narrated.
-  # WHEN IT WAS TAKEN, AND NOTHING ELSE.
+  # THE PARENTHETICAL THAT USED TO JUSTIFY THE SECOND HALF IS NOW FALSE, and it
+  # is removed rather than edited: it read "it cannot: every published recording
+  # is at instruction level". One is not. Testnet 0x20ed5b91… positions 86 of its
+  # 108 steps against a proved FeeJuice artifact and opens on real Noir
+  # (CHAIN-CAPTURE.md §6.5). The RULE is unchanged and is if anything better
+  # founded now — silence here is right precisely because source is the exception
+  # and not the rule, so a banner sentence about it would generalise one
+  # transaction to a chain. What changed is that the silence can no longer be
+  # defended by saying there is nothing to be silent about. Where a transaction
+  # does resolve, the place that says so is that transaction's own row and its
+  # own page, which is where a reader meets the claim they can check.
   #
-  # THIS PARAGRAPH USED TO DEFEND THE CAPTURE AND A USER ASKED FOR IT TO STOP.
-  # It named the endpoint host, the node version, two ISO-8601 instants, the
-  # replay window in blocks, and asserted that the capture "is complete and is
-  # not being extended" with `WHOLE` shouted in the middle of it. Every clause
-  # was true. None of it survives the question this site now asks of a sentence
-  # before publishing it: who is the reader, and what do they do with this?
+  # A sentence that implied either would be the confident-but-wrong answer this
+  # site exists to avoid. The chain's own name is not repeated because the label
+  # beside this — `provLabel`, "Real Aztec mainnet data" — is always rendered
+  # with it: the chip on a list page, the `Data` row on a transaction and in the
+  # debugger, and the prefix of this very paragraph on the chain overview.
   #
-  # A visitor does which of those? None. They reassure the author that the
-  # capture was done properly, which is a doubt the reader did not arrive with.
-  # The facts are not lost — `summary.json` beside this keeps `endpoint`,
-  # `nodeVersion`, `capturedAt`, `tipAtCapture`, `finalizedAtCapture` and
-  # `replayableWindowBlocks` verbatim, and that is where a machine or a curious
-  # reader should get them. What is left in prose is the one thing a visitor
-  # uses: this is a recording of a real chain, and here is when it was made.
-  let captured = "Captured on " & readableDate(lastAt) & ". "
-  let middle =
-    if withTrace > 0:
-      $withTrace & " transaction" & (if withTrace == 1: "" else: "s") &
-      " here " & (if withTrace == 1: "was" else: "were") &
-      " re-run and recorded, so " & (if withTrace == 1: "it steps" else: "they step") &
-      ". "
-    elif refusedCount > 0:
-      # THE HONEST DISTINCTION, and the reason this arm exists. The other arm says the
-      # window held nothing replayable — a fact about the CHAIN. That sentence was
-      # published over a snapshot in which two mainnet transactions had been caught
-      # inside the window with their bodies still served, and refused by the replay
-      # runtime for a toolchain reason on this side of the wire. Reporting that as "no
-      # transaction inside it was replayable" blames the chain for our own fault, and
-      # tells a reader the opposite of what happened: the follower reached them in time.
-      # THE REFUSAL STAYS, THE TYPE NAME GOES. `AvmToolchainRegression` was
-      # being rendered to visitors — an internal class name, reaching a product
-      # surface through a generator. What a reader can use is that these
-      # transactions were reached in time and still could not be recorded, and
-      # that it was not the chain's doing. The names are kept in `summary.json`
-      # and in the snapshot for anyone diagnosing it.
-      $refusedCount & " transaction" & (if refusedCount == 1: "" else: "s") &
-      " could not be recorded because of a fault on our side, not the chain's. " &
-      "Nothing on " & (if refusedCount == 1: "it" else: "them") & " can be " &
-      "stepped through. "
-    else:
-      "None of the transactions here could be re-run, so there is nothing to " &
-      "step through. A transaction can only be replayed for a short time after " &
-      "it settles, and none was reached in time. "
-  # THE CURATED PARAGRAPH IS A SEPARATE ARM, NOT AN EDIT TO THE ONE ABOVE.
+  # THE SPAN IS THE PUBLISHED SLICE'S, MEASURED OVER `blockRows`. `capturedAt` is
+  # one instant at one end of a watch and was the only date this section used to
+  # carry, which told a reader when the reading stopped and nothing about what
+  # period the data covers. The ends come from the timestamps the blocks
+  # themselves carry, so the sentence and the `Blocks` stat above it are two
+  # views of ONE set rather than two facts about two.
   #
-  # Every sentence in `middle` is a claim about the ENUMERATED range, and under
-  # `isCurated` the enumerated range is no longer what the page shows. Splicing a
-  # window clause into it would leave "across the N blocks enumerated here" next
-  # to a block list of 34, which is the shape of wrongness this module has
-  # already published twice (a nine-hour-stale window, and a negative distance).
-  # So the curated arm states the two ranges separately and says which is which:
-  # what is PUBLISHED, and what was WATCHED to choose it out of.
+  # THIS WAS `snap["blocks"]` FOR ONE COMMIT AND IT WAS THE WRONG SET. The
+  # reasoning for it — the subject of "preliminary export" is the export, so
+  # quote the export's own ends — is coherent and it loses to the reader:
+  # "covered" is covered by what is in front of them. On `/aztec` that is 170
+  # blocks, and a span belonging to the 1563 the snapshot enumerated overstates
+  # it nearly tenfold while naming days the reader cannot browse to. "Preliminary
+  # export" already says this is a slice; the dates have to say WHICH slice or
+  # they say nothing anyone can act on.
   #
-  # It also states the zero explicitly instead of relying on a universal over an
-  # empty set. "Every transaction here opens a container" is true and useless of a
-  # chain with no transactions on it, and a reader who counts zero rows under that
-  # sentence has been told nothing.
-  # WHY THERE ARE SO FEW, IN ONE SENTENCE A READER CAN USE.
+  # It is also, more seriously, the disagreement this whole change deleted,
+  # re-entering through the back door. The curated and uncurated arms existed
+  # because a claim about the published set is false of the enumerated set and
+  # the reverse, and that is exactly what a span over the enumerated set printed
+  # above a count of the curated one is. `curationWindow` narrows to a contiguous
+  # height range and `blockRows` is narrowed to it in place, so measuring the
+  # rows costs nothing and cannot drift from what the page lists.
   #
-  # What this replaced: "Over the whole watch — 1563 blocks, 33 transaction(s),
-  # blocks 66745–68307 — they did not arrive evenly: the longest run with none
-  # was 309 blocks. Of the 31 not published here, 6 WERE still replayable when
-  # the capture reached them and the replay runtime refused them
-  # (AvmToolchainRegression, TypeError, unknown), which is a failure on the
-  # recording side and not a property of this chain; 25 had already been pruned
-  # when they were first seen."
+  # AND IT IS MEASURED UNCONDITIONALLY, WITH NO SCOPE TEST. Under `isFull` the
+  # narrowing is a no-op and these rows ARE the enumerated set, so one expression
+  # gives both answers. A `if cfg.scope == isCurated` here to pick which set to
+  # measure would be a third arm of precisely the kind just removed.
   #
-  # Two whole sentences of arrival-density statistics nobody asked for, and an
-  # internal error type printed to visitors. The reader's question is "why are
-  # there only two", and the answer is the replay window — so that is what is
-  # said, with the numbers that make it concrete and nothing else.
-  #
-  # IT DOES NOT BLAME THE CHAIN FOR OUR FAULTS, which is the trap the long
-  # version was built to avoid and the reason it grew. "They were pruned" is
-  # false of a refusal: those were reached in time and the runtime declined. So
-  # the short version says how many WERE recorded out of how many were seen and
-  # attributes nothing — true of both causes, and it needs no clause to stay
-  # true when a third cause appears.
-  let seenAndKept =
-    "Of the " & $observedTransactions & " transactions seen while watching " &
-    "this chain, " & $txCount & " could be recorded."
-  # WHY THIS SPAN, WHEN THE SPAN WAS CHOSEN FOR WHAT IS IN IT.
-  #
-  # `curationWindow` prefers a run holding a recording that resolves to source,
-  # and that preference is the reason this window is on the page rather than a
-  # longer one — the user asked for exactly that ("at least one of these
-  # transactions ends up on the first page you see"). A selection made on a
-  # criterion the page does not state is a selection a reader will generalise
-  # from, and the generalisation here is the false one: source resolves for a
-  # SMALL MINORITY of what this chain carries — 1 of the 25 recordings in this
-  # snapshot, because Aztec publishes a commitment to a contract's artifact
-  # rather than the artifact, and almost no class on testnet has one published.
-  #
-  # So the sentence names its own criterion and gives the count out of the
-  # published set. "1 of these 3" cannot be read as "sources are generally
-  # available here", which is the reading the surfacing would otherwise invite
-  # and which is false of the corpus as a whole.
-  let sourceNote =
-    if withSourcePositions == 0: ""
-    else:
-      $withSourcePositions & " of these " & $txCount & " open" &
-      (if withSourcePositions == 1: "s" else: "") & " into the contract's own " &
-      "Noir source; this span was chosen over a longer one for that reason. " &
-      "Source is the exception on this chain rather than the rule — Aztec " &
-      "publishes a commitment to a contract's compiled artifact and not the " &
-      "artifact, so it resolves only where someone has published one. "
-  let curatedMiddle =
-    if withTrace > 0:
-      "This is a selection rather than the whole chain: " & $txCount &
-      " transaction" & (if txCount == 1: "" else: "s") & " from blocks " &
-      $window.lo & "–" & $window.hi & ", each one re-run and recorded so you " &
-      "can step through it. " & sourceNote &
-      "A transaction can only be replayed for a short " &
-      "time after it settles. " & seenAndKept & " "
-    else:
-      "This is a selection rather than the whole chain: blocks " & $window.lo &
-      "–" & $window.hi & ", which settled no transactions. A transaction can " &
-      "only be replayed for a short time after it settles, and none was " &
-      "reached in time. " & seenAndKept & " "
-  # THE PRUNING SENTENCE IS FOR THE SCOPE THAT SHOWS PRUNED TRANSACTIONS.
-  #
-  # It used to be unconditional, so a curated chain — where every transaction on
-  # the page steps, by construction — closed with a paragraph about
-  # transactions it does not show. Under `isFull` those rows are on the page and
-  # a reader who clicks one needs to know why it has no trace, so it stays there
-  # and stays plain.
-  let pruningNote =
-    if cfg.scope == isCurated: ""
-    else:
-      "Transactions below block " & $finalizedAt & " can still be seen on the " &
-      "network, but they can no longer be re-run, so there is nothing to step " &
-      "through."
+  # min/max over the rows rather than the first and last of them: `blockRows` is
+  # sorted by HEIGHT, and height is not time on a chain that ever reorged.
+  var firstBlockAt, lastBlockAt = int64(0)
+  for b in blockRows:
+    if b.time <= 0: continue
+    if firstBlockAt == 0 or b.time < firstBlockAt: firstBlockAt = b.time
+    if b.time > lastBlockAt: lastBlockAt = b.time
+  # A snapshot whose blocks carry no readable time gets no span rather than an
+  # invented one — the same rule `readableDate` follows for a date it cannot
+  # parse. The claim that survives is the one that needs no clock.
   let provDetail =
-    (captured & (if cfg.scope == isCurated: curatedMiddle else: middle) &
-     pruningNote).strip()
+    if lastBlockAt > 0:
+      "Blocks and transactions taken from the live network. This is a " &
+      "preliminary export covering " & readableSpan(firstBlockAt, lastBlockAt) & "."
+    else:
+      "Blocks and transactions taken from the live network. This is a " &
+      "preliminary export."
+
   cfg.writeJson(summaryRel, %*{
     "chain": chain, "generation": gen,
     "counters": {"blocks": blockRows.len, "transactions": txCount},

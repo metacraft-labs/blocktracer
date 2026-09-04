@@ -250,7 +250,13 @@ arm "2/orphaned shell gate" "a-gate-nobody-runs.sh' exists and NO CI job runs it
 # `[DARK]` note rather than a silent [OK].
 mutate_listed_orphan_is_still_reported() {
 	printf '#!/usr/bin/env bash\nexit 0\n' >"${work}/arm/ci/test/a-gate-nobody-runs.sh"
-	printf '\na-gate-nobody-runs.sh\n' >>"${work}/arm/ci/test/ci-coverage.known-dark.txt"
+	# WITH a `MISSING CAPABILITY:` line, because that is now required of every
+	# entry and this arm is not the one testing that rule — 3d and 3e are. An
+	# arm whose planted state is rejected for a reason it was not aimed at
+	# measures the wrong thing; this one failed exactly that way when the rule
+	# landed, and it is a kill by the wrong check rather than a kill.
+	printf '\n# MISSING CAPABILITY: a runner that does not exist.\na-gate-nobody-runs.sh\n' \
+		>>"${work}/arm/ci/test/ci-coverage.known-dark.txt"
 	grep -q 'a-gate-nobody-runs.sh' "${work}/arm/ci/test/ci-coverage.known-dark.txt"
 }
 # This one is EXPECTED TO PASS the guard — the hole is recorded — so it cannot
@@ -289,6 +295,47 @@ mutate_register_names_a_ghost() {
 arm "3c/an entry naming a gate that is gone" \
 	"which does not exist in ci/test/ — delete that line" \
 	mutate_register_names_a_ghost
+
+# ARM 3d — AN ENTRY THAT DOES NOT SAY WHAT IS MISSING.
+#
+# The register admits exactly one kind of darkness: a capability that genuinely
+# does not exist yet, NAMED. A gate nobody wired is not a dark gate, and the two
+# are indistinguishable in a bare list of filenames — which is how a register
+# slides from "known holes, with their causes" into "the place you put a gate
+# you did not want to think about".
+#
+# So the entry is planted the lazy way: a real, genuinely unwired gate, listed,
+# with a plausible-looking comment that never says what is missing. The guard
+# must refuse it. This is the arm that keeps the bar where it is now rather than
+# where a long register's oldest entries would put it.
+mutate_register_entry_without_a_capability() {
+	printf '#!/usr/bin/env bash\nexit 0\n' >"${work}/arm/ci/test/a-gate-nobody-wired.sh"
+	printf '\n# Not run yet. TODO: wire this up at some point.\na-gate-nobody-wired.sh\n' \
+		>>"${work}/arm/ci/test/ci-coverage.known-dark.txt"
+	grep -q 'a-gate-nobody-wired.sh' "${work}/arm/ci/test/ci-coverage.known-dark.txt"
+}
+arm "3d/a register entry that never says what is missing" \
+	"with no 'MISSING CAPABILITY:' line above it" \
+	mutate_register_entry_without_a_capability
+
+# ARM 3e — THE CONTROL FOR 3d. A `MISSING CAPABILITY:` line must actually be
+# what rescues the entry, and not something incidental about how it was added.
+# Same gate, same list, one line of comment different: the guard must now accept
+# it and report it as DARK. Without this, 3d could be passing because the guard
+# rejects every new entry for some other reason, and the rule would be untested
+# in the direction that matters.
+stage "${work}/arm"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${work}/arm/ci/test/a-gate-nobody-wired.sh"
+printf '\n# MISSING CAPABILITY: a thing that does not exist yet.\na-gate-nobody-wired.sh\n' \
+	>>"${work}/arm/ci/test/ci-coverage.known-dark.txt"
+out3e="$(run_guard "${work}/arm")"
+if printf '%s' "${out3e}" | grep -q 'RESULT: OK' &&
+	printf '%s' "${out3e}" | grep -qF "[DARK]   shell gate 'ci/test/a-gate-nobody-wired.sh'"; then
+	ok "3e/the same entry WITH a named capability is accepted, and still reported DARK"
+else
+	bad "3e: naming the missing capability did not rescue the entry — 3d may be passing for the wrong reason"
+	printf '%s\n' "${out3e}" | grep -E '^\s+\[FAILED\]' | head -3 | sed 's/^/           /'
+fi
 
 # ARM 3 — a branch that is deployed and not gated. THIS IS THE DEFECT THAT WAS
 # LIVE: ci.yml triggered on `main` while dev/staging/live were deployed.

@@ -1534,14 +1534,34 @@ const log = (s = "") => console.log(s);
 // the combine says which one, as DID NOT RUN rather than as a failure. That is
 // the same three-verdict rule one level up: "n-1 shards passed" is not a claim
 // about the suite.
-const shardIdx = process.argv.indexOf("--shard");
-const shard = (() => {
-  if (shardIdx < 0) return null;
-  const m = /^(\d+)\/(\d+)$/.exec(process.argv[shardIdx + 1] ?? "");
+// `i/n` -> {i, of}, or null. ONE parser, used by `--shard` and `--list-shard`,
+// for the same reason there is one `shardOf`: a second copy could accept an
+// argument the first rejects, and then the partition proof and the run would be
+// talking about different slices.
+const shardArg = (s) => {
+  const m = /^(\d+)\/(\d+)$/.exec(s ?? "");
   if (!m) return null;
   const [i, of] = [Number(m[1]), Number(m[2])];
   return i >= 1 && i <= of ? { i, of } : null;
-})();
+};
+
+const shardIdx = process.argv.indexOf("--shard");
+const shard = shardIdx < 0 ? null : shardArg(process.argv[shardIdx + 1]);
+
+// Set by the `--list-*` modes. See the `process.on("exit")` hook: a query must
+// not leave a journal behind, and must not print a verdict onto output the
+// caller is reading as data.
+let queryMode = false;
+
+// THE SLICE, AS ONE EXPRESSION IN ONE PLACE.
+//
+// `main` slices the arms with this, and `--list-shard` reports the slice with
+// it. Written twice, the report would be a MODEL of the slice rather than the
+// slice, and a partition proof over a model proves nothing about what runs —
+// the two could drift and every check would still pass. Whatever is wrong with
+// this function is wrong in both directions at once, which is the property that
+// makes the proof in `selftest-verdict-test.sh` worth having.
+const shardOf = (arms, s) => arms.filter((_, i) => i % s.of === s.i - 1);
 
 const journalPath = shard
   ? JOURNAL.replace(/\.json$/, `.shard-${shard.i}of${shard.of}.json`)
@@ -1658,6 +1678,14 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
 }
 
 process.on("exit", () => {
+  // A QUERY IS NOT A RUN. `--list-shard` and `--list-arms` mutate nothing,
+  // build nothing and judge nothing; they answer a question about the arm list
+  // and return. Without this line the hook below treated them as a run that
+  // ended without a verdict — printing `RESULT: DID NOT RUN` onto the stdout
+  // the caller is parsing as arm ids, AND overwriting the journal of whatever
+  // real run last happened. Caught by the partition proof itself: the union of
+  // four shards came to 72 lines against a 64-arm list.
+  if (queryMode) return;
   if (verdictPrinted) return;
   // A `throw`, a dependency calling `process.exit`, or any path that reached
   // the end without going through `finish`. Printing here is the difference
@@ -2097,6 +2125,36 @@ async function main() {
     return;
   }
 
+  // `--list-shard i/n` — the arm ids this shard WOULD run, one per line, and
+  // nothing else. No mutation, no build, no browser.
+  //
+  // It exists so that "every arm runs in exactly one shard, and the union is
+  // the whole set" can be PROVED rather than trusted, in a second, without a
+  // 280-minute sweep. `--combine` already refuses a union that is not exactly
+  // the arm list, but that check only speaks after four shards have run — and
+  // a partition defect discovered then has already cost the runner-hours. This
+  // answers the same question before anything is spent, and it answers it
+  // through `shardOf`, which is the function that does the slicing.
+  //
+  // `--list-arms` prints the full list, so the union can be compared against
+  // the arm list itself rather than against a number.
+  const listIdx = process.argv.indexOf("--list-shard");
+  if (listIdx >= 0) {
+    queryMode = true;
+    if (!shardArg(process.argv[listIdx + 1])) {
+      console.error("--list-shard needs `i/n` with 1 <= i <= n, e.g. `--list-shard 2/4`");
+      process.exitCode = 2;
+      return;
+    }
+    for (const a of shardOf(ARMS, shardArg(process.argv[listIdx + 1]))) console.log(a.id);
+    return;
+  }
+  if (process.argv.includes("--list-arms")) {
+    queryMode = true;
+    for (const a of ARMS) console.log(a.id);
+    return;
+  }
+
   log("=== journey selftest — do the journeys bite? ===");
   log("    One mutation per arm, in real product source, each aimed at ONE");
   log("    assertion. An arm passes only if THAT assertion flips, and only if");
@@ -2187,7 +2245,7 @@ async function main() {
     }
   }
   if (shard) {
-    arms = arms.filter((_, i) => i % shard.of === shard.i - 1);
+    arms = shardOf(arms, shard);
     log(`--shard ${shard.i}/${shard.of}: running ${arms.length} of ${ARMS.length} arm(s)`);
     log(`  A SHARD IS NOT A RUN. Its verdict is about the arms it holds, and the`);
     log(`  suite's claim is the full set — \`--combine ${shard.of}\` makes it, or says`);
