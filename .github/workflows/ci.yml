@@ -1061,7 +1061,28 @@ jobs:
         with:
           name: journey-selftest-journal-${{ matrix.shard }}
           path: tools/journeys/.selftest-journal.shard-${{ matrix.shard }}of4.json
-          if-no-files-found: warn
+          # THE JOURNAL'S NAME BEGINS WITH A DOT, and `upload-artifact@v4`
+          # excludes hidden files BY DEFAULT. Every one of the four uploads in
+          # run 33826955858 therefore did nothing, and said so at warning level:
+          #
+          #     ##[warning]No files were found with the provided path:
+          #     tools/journeys/.selftest-journal.shard-2of4.json.
+          #     No artifacts will be uploaded.
+          #
+          # The run's artifact list held `visual-design-canary` and
+          # `journey-report` and no journal at all.
+          include-hidden-files: true
+          # `error`, NOT `warn`. A shard with no journal is not a cosmetic
+          # problem — it is precisely the state that leaves `--combine` unable
+          # to judge, and at `warn` it was reported two hours later, in another
+          # job, as "4 of 4 shard(s) produced no verdict". The combine was right
+          # and it was the wrong place to find out. A missing journal must be
+          # loud in the job that failed to produce it.
+          #
+          # Safe as an error: `selftest.mjs` writes the journal before the first
+          # arm runs and rewrites it as it goes, so by the time this step
+          # executes the file exists even for a sweep killed at its bound.
+          if-no-files-found: error
           retention-days: 7
 
   # ── ONE verdict over the four shards ────────────────────────────────────────
