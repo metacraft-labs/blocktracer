@@ -931,6 +931,40 @@ jobs:
         # prints `RESULT: DID NOT RUN`, names the arm it was on, and puts the
         # mutated file back. 150 against a measured ~100 minutes for 62 arms,
         # where each arm rebuilds the tree and reruns its journey three times.
+        #
+        # ── BOTH CLAIMS ABOVE ARE NOW KNOWN TO BE FALSE. MEASURED TWICE. ─────
+        #
+        # THE BUDGET. `~100 minutes for 62 arms` does not reproduce. Two runs
+        # have reached this step with an engine that can open the corpus, and
+        # BOTH were killed at the bound, to the second:
+        #
+        #   33739737152  09:42:24 -> 12:12:37   150m13s   timed out
+        #   33814944100  22:56:25 -> 01:26:37   150m12s   timed out
+        #
+        # The second one's log says what it was doing: 40 of the 62 arms
+        # started, 33 KILLED, 0 survived, 0 never ran, cut off partway through
+        # `V/only-the-clicked-line-is-sent`. That is ~3.8 min/arm, so the full
+        # sweep needs roughly 230-280 minutes and this bound is about 60% of
+        # the job. The old number was almost certainly taken over an engine
+        # that was REFUSING part of the corpus, where every arm bails in its
+        # prologue and costs 6-9 s instead of minutes — runs 33787492601 and
+        # 33756901770 did all 62 in 437 s and reported 62 NEVER RAN.
+        #
+        # THE ENDING. "A step timeout arrives as a signal, which selftest.mjs
+        # now catches: it prints RESULT: DID NOT RUN" — it does not. Run
+        # 33814944100's log contains ZERO `RESULT:` lines and zero `DID NOT
+        # RUN`. The only ending in it is GitHub's own `has timed out after 150
+        # minutes`, which is exactly the state the paragraph above says this
+        # bound exists to avoid.
+        #
+        # NOT CHANGED HERE, DELIBERATELY. The two ways out are to raise the
+        # bound past ~300 — which parks a scarce `eph-linux-x64` runner for
+        # five hours per coverage run — or to SHARD: `selftest.mjs --shard`
+        # exists, and the only complete pass this suite has ever recorded used
+        # four of them ("62 arm(s) over 4 shard(s): 57 killed, 3 survived, 2
+        # never ran", tools/journeys/README.md). Which of those the fleet can
+        # afford is the suite owner's call, not a passing guard author's. What
+        # is done here is making the number impossible to lose.
         timeout-minutes: 150
         run: |
           nix develop .#capture --command \

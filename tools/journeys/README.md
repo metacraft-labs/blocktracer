@@ -322,7 +322,35 @@ the run producing them had never reached its summary. Each is now attributable:
   it exits 2 rather than 1 — a red journey is a claim about the product, and
   this is a refusal to make one.
 
-  **THIS IS OPEN, AND RE-FETCHING IS NOT THE REMEDY.** Two engine builds were
+  **CLOSED 2026-09-04 — AN ENGINE THAT READS THIS CORPUS HAS BEEN PUBLISHED.**
+  The paragraph below stood while it was true and is kept because the reasoning
+  in it is still the reasoning; what changed is the artefact, not the argument.
+
+  `a9aef73f3c2c463a…` (18053463 bytes), fetched from the publisher, opens
+  **41/41** containers in this corpus — the 16 `C0DE72ACE2 03 0000` chain
+  captures *and* all 25 `C0DE72ACE2 04 0001` Noir recordings — through the
+  production `worker.js`, over the same `trace/trace.ct` VFS path and the same
+  `launch`/`threads` sequence Arm II asks. No `CTFS from_bytes failed`.
+
+  Confirmed in CI, not only on a bench: run **33814944100** on `dev`. Arm II
+  passed and the selftest went on to run real arms — 40 started, 33 killed, 0
+  survived, 0 never ran. Compare the two runs that produced the refusal
+  (33787492601, 33756901770): **62 arms, 0 killed, 62 NEVER RAN**, the whole
+  sweep in 437 s because every `run.mjs` bailed in its prologue.
+
+  Note what that means for the shape of the red. It did NOT become green: the
+  step now runs long enough to hit its 150-minute bound (see ci.yml). The
+  refusal is retired and a different failure is underneath it, which is the
+  normal way a masked problem surfaces.
+
+  **THE ENGINE IS STILL UNPINNED, so this can come back without a commit** —
+  that is the deliberate choice `fetch-engine.sh` documents, and Arm II is
+  exactly the instrument for noticing. The paragraph that follows is what to do
+  if it does.
+
+  ---
+
+  **THIS WAS OPEN, AND RE-FETCHING WAS NOT THE REMEDY.** Two engine builds were
   taken from the publisher four hours apart on the same day —
   `3009b9892fa181cf…` and `2250e91aec39d2a6…` — and **both refuse this corpus**,
   in the same place, with the same message. `just journeys-engine` will fetch a
