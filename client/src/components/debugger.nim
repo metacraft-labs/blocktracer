@@ -646,13 +646,80 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
         p(class = "instrcap"): text p.listingCaption
     var allPaths: seq[string]
     for d in p.documents: allPaths.add d.path
+
+    # ONE ROW, AND THE WRAP BECOMES A DISCLOSURE.
+    #
+    # The strip used to wrap. On the 32-file FeeJuice bundle it wrapped to SEVEN
+    # rows at 1280 (172px of a 672px pane — a quarter of the document's height
+    # spent on chrome), six at 1440 and five at 1920. That is the defect: a tab
+    # strip is a way IN to the document beneath it, so a strip that displaces the
+    # document has inverted its own purpose, and capping its height only bounded
+    # how much it could take rather than stopping it taking it.
+    #
+    # So the row no longer wraps — it scrolls sideways — and the wrapped,
+    # capped, scrolling grid it used to be ALL THE TIME is now what this control
+    # opens ON DEMAND. Nothing was removed: the same 32 anchors are the same 32
+    # anchors in both states, which is why "every file stays reachable" is a
+    # property of one list rather than an agreement between two.
+    #
+    # WHY A DISCLOSURE AND NOT A DROPDOWN MENU. A menu would need a SECOND copy
+    # of all 32 links, and the strip is rendered once per panel — 32 panels — so
+    # the menu form costs 1024 extra anchors on a page that already carries every
+    # line of every document. It would also have to duplicate the active tab,
+    # and `tools/journeys/lib/frame.mjs` reads `.srctab.on` with `querySelector`
+    # on the assumption that exactly one exists per visible panel. Unfolding the
+    # list the reader already has costs no markup and breaks no reader.
+    #
+    # WHY A CHECKBOX AND NOT `<details>`. `:target` is already spent on choosing
+    # the document, so the open state cannot be a fragment; and a `<details>`
+    # that must show its contents while CLOSED depends on overriding the UA's
+    # own hiding, which is exactly the kind of thing that differs between
+    # engines. A checkbox with a `<label>` is the plain CSS-only toggle this
+    # codebase already uses for the shortcut presets, and it is a real form
+    # control, so it is focusable and operable from the keyboard for free.
+    #
+    # IT IS EMITTED ONLY WHEN THE ROW CANNOT BE ASSUMED TO HOLD THE BUNDLE.
+    # Measured on the narrowest viewport the debugger is designed for: at 1280
+    # the Code pane is 604px and the 32 tabs measure ~4200px unwrapped, so a tab
+    # averages ~131px and about four of them fit. Below that count the control
+    # would open onto the row the reader is already looking at — a control with
+    # nothing to do — so the two-file demo bundle does not get one.
+    const tabsOneRowFits = 4
+    let allId = "srcall-" & docAnchor(activePath)
+    # BUILT AS STRINGS AND `raw`-ed IN, not written as a top-level `if` inside
+    # the `ui:` body — that form evaporates, which `renderPresetChooser` in
+    # `shortcut_list.nim` records having shipped twice.
+    var toggle, opener = ""
+    if p.documents.len > tabsOneRowFits:
+      toggle = ui:
+        input(class = "srcallt", `type` = "checkbox", id = allId)
+      opener = ui:
+        label(class = "srcall", `for` = allId, role = "button"):
+          # `role="button"` is load-bearing rather than decorative: journey
+          # `12-a-clickable-surface-shows-the-hand` counts every element that
+          # computes `cursor:pointer` and has no clickable ancestor as an
+          # orphan, and requires zero of them. A bare `<label>` matches none of
+          # its selectors; with the role it is a subject of that sweep instead
+          # of a violation of it.
+          span(class = "srcallmore"): text "All " & $p.documents.len & " files"
+          span(class = "srcallless"): text "Fewer"
     ui:
-      nav(class = "srctabs"):
-        for d in p.documents:
-          a(class = "srctab" & (if d.path == activePath: " on" else: ""),
-            href = "#" & docAnchor(d.path),
-            title = d.path):
-            text tabLabel(d.path, allPaths)
+      # `class="srctabs"` STAYS EXACTLY THAT, alone in its attribute. Four suites
+      # match the literal `class="srctabs"` — `test_instruction_listing` asserts
+      # it occurs zero times over a listing and more than zero over source, and
+      # `test_chain_provenance` asserts its absence — so appending a modifier to
+      # it would fail one of them and silently make the other two vacuous. The
+      # scrolling behaviour therefore goes on `.srctabs` itself and the new
+      # parts get a wrapper of their own.
+      tdiv(class = "srcstrip"):
+        raw toggle
+        nav(class = "srctabs"):
+          for d in p.documents:
+            a(class = "srctab" & (if d.path == activePath: " on" else: ""),
+              href = "#" & docAnchor(d.path),
+              title = d.path):
+              text tabLabel(d.path, allPaths)
+        raw opener
 
   proc body(d: SourceDocument): string =
     ## One document's lines, plus the notice when the pane opens part-way in.

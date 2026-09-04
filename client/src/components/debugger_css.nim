@@ -438,31 +438,108 @@ html[data-register="debugger"],
 .srcdoc.alt{display:none}
 .srcdoc.alt:target{display:flex}
 .srcdoc.alt:target ~ .srcdoc.def{display:none}
-/* IT WRAPS, BUT IT MAY NOT GROW WITHOUT BOUND. A 32-file bundle wrapped to
-   twenty-odd rows of tabs and left the document four lines tall — the strip is
-   a way IN to the source, so a strip that displaces the source has inverted its
-   own purpose. Capped at a share of the pane and scrolled past that, which
-   keeps every tab reachable (they are real links, and the cap is on the
-   container rather than on the count) while guaranteeing the document the rest
-   of the height. The cap is a token because the quantity it bounds is the
-   reader's viewport and not this pane — see D-11. */
-.srctabs{display:flex;gap:var(--bt-space-3xs);flex-wrap:wrap;flex:0 0 auto;
-  max-height:var(--bt-layout-tabstrip-max-height);
-  overflow-y:auto;overscroll-behavior:contain;
-  padding:var(--bt-space-3xs) var(--bt-density-cell-x);
+/* IT NO LONGER WRAPS BY DEFAULT — IT IS ONE ROW THAT SCROLLS, AND THE WRAP IS
+   NOW A DISCLOSURE.
+
+   The strip wrapped, and capping its height only bounded how much of the
+   document it could take rather than stopping it taking it: on the 32-file
+   FeeJuice bundle it wrapped to SEVEN rows at 1280 (172px of a 672px pane),
+   six at 1440 and five at 1920. A tab strip is a way IN to the source, so a
+   strip that displaces the source has inverted its own purpose, and the honest
+   fix is for it to stop occupying the document's height at all rather than to
+   occupy a bounded share of it.
+
+   THE ROW IS THE RESTING STATE AND THE WRAPPED GRID IS THE OPENED ONE. The
+   surface, the border and the padding move to `.srcstrip`, which is the row's
+   outer box and holds the tabs and the disclosure side by side; `.srctabs`
+   keeps its name — four suites match its class attribute as an exact string,
+   so it may not gain a modifier — and becomes the horizontally scrolling part
+   of it.
+
+   AND THAT SENTENCE MAY NOT SPELL THE ATTRIBUTE OUT, which is not pedantry:
+   this comment SHIPS. Stylesheet comments are inlined into every page, two of
+   those four suites assert that the attribute does not occur on an
+   instruction-listing page, and an earlier draft of this paragraph quoted it
+   literally — which put one occurrence on every listing page in the build and
+   turned a comment into a red suite. */
+.srcstrip{display:flex;align-items:stretch;flex:0 0 auto;min-width:0;
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
   background:var(--bt-surface-sunken)}
+.srctabs{display:flex;gap:var(--bt-space-3xs);flex-wrap:nowrap;
+  flex:1 1 auto;min-width:0;
+  overflow-x:auto;overscroll-behavior:contain;
+  padding:var(--bt-space-3xs) var(--bt-density-cell-x)}
 /* A tab is a real link to its document, so it gets a real hit area and a real
    hover — the strip used to be four inert `<span>`s naming four files of which
-   one was reachable. */
-.srctab{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
+   one was reachable. `flex:0 0 auto` and `nowrap` because a flex item in a
+   scrolling row shrinks to nothing rather than overflowing by default, which
+   would turn 32 tabs into 32 slivers instead of a row that scrolls. */
+.srctab{flex:0 0 auto;white-space:nowrap;
+  font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
   font-size:var(--bt-type-label-size);color:var(--bt-text-subtle);
   padding:var(--bt-space-3xs) var(--bt-space-xs);
   border-radius:var(--bt-radius-xs);
   border-bottom:var(--bt-stroke-thick) solid transparent;
   transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
 .srctab:hover{color:var(--bt-text-default);background:var(--bt-surface-hover)}
-.srctab.on{color:var(--bt-text-strong);border-bottom-color:var(--bt-mark-view)}
+/* THE ACTIVE TAB IS STICKY, AND THAT IS THE WHOLE GUARANTEE THAT THE FILE YOU
+   ARE READING IS NAMED ON SCREEN.
+
+   A one-row strip that merely scrolls is a WORSE defect than the wrap it
+   replaces: each panel carries its own strip, a freshly revealed panel starts
+   at `scrollLeft:0`, and the active tab of a 32-file bundle is then somewhere
+   off to the right — measured off-screen for the 18th tab onward. Three CSS-only
+   remedies were tried against a real browser and two of them fail:
+   `scroll-snap-type:x mandatory` with the active tab as the only snap area DOES
+   position it, but it then TRAPS the scroll — the wheel moves nothing and every
+   other tab becomes unreachable; `proximity`, and snapping every tab, do not
+   position it at all.
+
+   Sticky is the only one that touches no scroll mechanics. The tab sits in its
+   natural place while it is in view and pins itself to whichever edge it would
+   otherwise leave, so it is on screen at EVERY scroll position rather than only
+   at the one the panel opened on — a stronger property than the snap that was
+   rejected. It needs the strip's own surface to occlude the tabs sliding under
+   it, which is `--bt-surface-sunken` and not a new colour: it is the same
+   surface it is already sitting on, so a tab in its natural position looks
+   exactly as it did. */
+.srctab.on{position:sticky;left:0;right:0;z-index:1;
+  background:var(--bt-surface-sunken);
+  color:var(--bt-text-strong);border-bottom-color:var(--bt-mark-view)}
+/* THE DISCLOSURE. The checkbox is the state and the label is the control; the
+   input is zero-sized rather than `display:none` because a hidden input is not
+   focusable and this has to stay operable from the keyboard. Bare `0` is not a
+   length, so this stays inside A2 without inventing a token for "no size". */
+.srcallt{appearance:none;-webkit-appearance:none;
+  width:0;height:0;margin:0;padding:0;border:0;background:none;flex:0 0 auto}
+/* The label carries the focus ring, because the ring the global
+   `:focus-visible` rule puts on the input itself would be drawn around nothing.
+   No new tokens — the same three the global rule uses. */
+.srcallt:focus-visible ~ .srcall{outline:var(--bt-focus-width) solid var(--bt-focus-ring);
+  outline-offset:var(--bt-focus-offset)}
+.srcall{flex:0 0 auto;align-self:center;cursor:pointer;white-space:nowrap;
+  font-size:var(--bt-type-label-size);color:var(--bt-text-subtle);
+  padding:var(--bt-space-3xs) var(--bt-density-cell-x);
+  border-left:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
+  transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
+.srcall:hover{color:var(--bt-text-default);background:var(--bt-surface-hover)}
+/* Which of the two words the control shows is the toggle's only other job. */
+.srcallless{display:none}
+.srcallt:checked ~ .srcall > .srcallmore{display:none}
+.srcallt:checked ~ .srcall > .srcallless{display:inline}
+/* OPENED: EXACTLY THE STRIP THIS USED TO BE, AND THIS IS WHERE THE CAP LIVES
+   NOW. The wrapped, height-capped, scrolling grid is unchanged in every respect
+   except that a reader now asks for it, so `--bt-layout-tabstrip-max-height`
+   still bounds the one state that can displace the document — see D-11, whose
+   reasoning is untouched: the quantity being bounded is the reader's viewport
+   and not this pane. The sticky pin is released here because there is no
+   horizontal scroll left for it to defend against, and a box that is sticky on
+   both inline edges of a container that does not scroll them just sits still
+   anyway — saying so is cheaper than relying on it. */
+.srcallt:checked ~ .srctabs{flex-wrap:wrap;
+  overflow-x:hidden;overflow-y:auto;
+  max-height:var(--bt-layout-tabstrip-max-height)}
+.srcallt:checked ~ .srctabs > .srctab.on{position:static}
 /* THE INSTRUCTION LISTING'S CAPTION — the strip a listing gets where source
    gets its tab strip.
 
