@@ -1405,24 +1405,43 @@ proc noteFor*`,
   },
 
   // A THIRD ARM WAS TRIED AND WITHDRAWN TOO — `flow_view.applyFlow`'s rule 1,
-  // `if pane.availability != srcSourceLevel: return`, aimed at the journey's
-  // absence arms (the assertion was then spelled "REAL: an instruction-level
-  // session is given no values overlay"; it is now "REAL:"/"SOURCE-SHOWN: a
-  // session that recorded no values is given no values overlay", one per arm,
-  // since the journey gained a second absence subject — the rung-2 capture that
-  // DISPLAYS SOURCE and recorded nothing on it). It
-  // SURVIVES, and for a reason worth writing down rather than working around:
-  // the gate is doubled. `session_project.projectReplayPanes` only calls
-  // `applyLiveFlow` inside `if result.editor.availability == srcSourceLevel`,
-  // so removing rule 1 leaves the outer gate holding, and removing the outer
-  // gate leaves rule 1 holding. No single edit reaches it, which is what
-  // "belt and braces" means when it is true rather than claimed — and it is
-  // deliberate on both sides: one producer is the static export's and one is
-  // hydration's, and `applyFlow`'s header states the rule for both.
+  // `if pane.availability != srcSourceLevel: return`, aimed at what is now the
+  // journey's two absence assertions ("REAL:" and "SOURCE-SHOWN: a session that
+  // recorded no values is given no values overlay"; it was one arm and one
+  // assertion, spelled "REAL: an instruction-level session is given no values
+  // overlay", before the journey gained its second absence subject).
   //
-  // The assertion is kept unarmed rather than weakened. An arm that mutated
-  // both sites at once would be testing that two `if`s can both be deleted,
-  // which nothing needs to know.
+  // IT SURVIVES ON BOTH, AND THE REASON RECORDED HERE FOR THE FIRST ONE WAS
+  // WRONG. It read: "the gate is doubled — `session_project.projectReplayPanes`
+  // only calls `applyLiveFlow` inside `if result.editor.availability ==
+  // srcSourceLevel`". There is no such `if`. `projectReplayPanes` calls
+  // `applyLiveFlow` unconditionally and branches on its RETURN VALUE, which is
+  // a different arrangement with a different reason (see `applyLiveFlow`'s
+  // header: calling `applyFlow` unconditionally would clear the rail on every
+  // position whose window has not landed).
+  //
+  // WHAT ACTUALLY HOLDS EACH ONE, MEASURED on the built site with the worker
+  // wrapped, five `step-forward`s per subject:
+  //
+  //   * the instruction listing — `pane.availability` is not `srcSourceLevel`,
+  //     so rule 1 is genuinely the gate, and it is the ONLY one. This arm would
+  //     bite here. It stays withdrawn because it cannot bite on the other
+  //     subject, and an arm that kills one of two assertions written against
+  //     one claim reads as covering both.
+  //
+  //   * the rung-2 capture — `availability` IS `srcSourceLevel` (the page
+  //     declares it: the source island holds 32 resolved Noir files), so rule 1
+  //     does not fire at all. Two other things hold the overlay empty, and both
+  //     are absences of DATA rather than refusals: the engine answers
+  //     `ct/load-flow` with 13 steps carrying ZERO values, and the window's path
+  //     is the `.avm` instruction pseudo-file, which matches none of the pane's
+  //     Noir documents, so `applyFlow` returns at `index < 0`.
+  //
+  // That second reading is why the SOURCE-SHOWN assertion is not a tautology.
+  // Nothing in the product refuses to draw an overlay on that page; if the
+  // engine ever answered it with values keyed to a Noir document, they WOULD be
+  // drawn on lines whose values were never recorded, and the assertion goes red.
+  // It guards a real direction, and no single-line mutation can simulate it.
   {
     id: "O4/the-control-does-not-say-what-it-would-answer",
     why:
@@ -2036,6 +2055,47 @@ async function rebuild({ hydration = false } = {}) {
     } catch (err) {
       return { built: false, log: String(err.stderr ?? err.stdout ?? err).slice(-1500) };
     }
+    // THE OTHER TWO BUNDLES `export-hydrated` BUILDS, AND WHY THEIR ABSENCE IS
+    // NOT A COSMETIC GAP.
+    //
+    // `client/Justfile`'s deployed recipe is `export-hydrated: hydrate
+    // search-bundle settings-bundle`. This function rebuilt the first and the
+    // exporter, and never the other two — which was survivable only for as long
+    // as nothing checked. `lib/site.mjs` now checks: `settingsChooserLive`
+    // refuses a tree whose /settings chooser is served `hidden` with no bundle
+    // to unhide it, with EXIT 2, because driving such a tree would judge
+    // /settings broken when what is broken is the build that wrote it.
+    //
+    // The two landed in the same commit (182404c, "export-hydrated never built
+    // the settings bundle, so /settings shipped a dead control"), and from that
+    // commit every arm in this file scored NEVER RAN — `verdictFor` runs
+    // `run.mjs`, `run.mjs` refuses the tree before judging anything, no report
+    // is written, and "no single assertion matched that name on the unmutated
+    // tree" is what a refusal looks like from in here. 65 arms, 0 killed, 0
+    // survived, and a RESULT: FAILED that named none of the cause.
+    //
+    // Built HERE and not per-arm on purpose: they are inputs the exporter copies
+    // rather than code any arm mutates, and the baseline build passes
+    // `hydration: true`, so one build serves every arm that follows. An arm that
+    // ever mutates `settingsboot/` or the search bundle's sources has to rebuild
+    // them itself, and should say so.
+    //
+    // BUILDING THEM IS HALF THE FIX AND THE DEFINES BELOW ARE THE OTHER HALF.
+    // These two recipes only write `client/settingsboot/settings.js` and the
+    // search bundle; whether the EXPORTER copies them into `dist/assets` and
+    // writes the `<script>` that loads them is decided by `-d:settingsBundle`
+    // and `-d:searchBundle`. On this machine the files already existed from an
+    // earlier `just export-hydrated`, so the missing piece was only ever the
+    // defines — but on a fresh checkout the exporter would `quit 2` on a define
+    // whose file was never built, so both halves belong here.
+    try {
+      await run("just", ["search-bundle", "settings-bundle"], {
+        cwd: CLIENT,
+        maxBuffer: 64 * 1024 * 1024,
+      });
+    } catch (err) {
+      return { built: false, log: String(err.stderr ?? err.stdout ?? err).slice(-1500) };
+    }
   }
   try {
     await run(
@@ -2047,6 +2107,23 @@ async function rebuild({ hydration = false } = {}) {
         "-d:isServer",
         "-d:release",
         "-d:hydrationBundle=/assets/hydrate.js",
+        // THE OTHER TWO DEFINES `client/Justfile`'s `export-hydrated` passes.
+        // Without them `SettingsBundle`/`SearchBundle` are "" and
+        // `installSettingsBundle` returns before copying anything — so the tree
+        // this file builds carried a /settings page whose chooser is served
+        // `hidden` with no bundle to unhide it. `lib/site.mjs`'s
+        // `settingsChooserLive` refuses exactly that tree with EXIT 2, and it
+        // began doing so in 182404c, the same commit that added the define to
+        // the recipe and did not add it here.
+        //
+        // THE FAILURE MODE IS WHY THIS COMMENT IS LONG. `run.mjs` refused before
+        // judging anything, wrote no report, and `verdictFor` turned "no report"
+        // into "no single assertion matched that name on the unmutated tree" —
+        // so all 65 arms scored NEVER RAN, in about a second, and the run
+        // reported FAILED while naming none of it. A mutation layer that cannot
+        // run looks, from its own summary, almost exactly like one that ran.
+        "-d:searchBundle=/assets/search.js",
+        "-d:settingsBundle=/assets/settings.js",
         "--hints:off",
         // A NIMCACHE INSIDE THIS WORKTREE, and it is not a speed setting.
         //
