@@ -674,16 +674,34 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
     #   A second `<nav>` listing the files would cost a SECOND copy of the
     #   anchors, and the strip is rendered once per panel over 32 panels, so the
     #   duplicating form costs 1024 extra anchors on a page that already carries
-    #   every line of every document. Measured on the built page, that page is
-    #   4.04 MB with 1024 tab anchors in it, so the duplicating menu is a ~40%
-    #   markup increase on the largest page the site serves.
+    #   every line of every document.
+    #
+    #   THAT ESTIMATE WAS RIGHT ABOUT THE COUNT AND IT IS WORTH SAYING WHAT THE
+    #   COUNT IS WORTH, because "1024 extra anchors" reads like a verdict and is
+    #   only a quantity. Measured on the built page: it is 4.04 MB, its 1024 tab
+    #   anchors are 233,856 bytes of it, and they average 228 bytes each — most
+    #   of that the interned CI path repeated in `href` and `title`. So a
+    #   duplicating menu is +5.8% of the page's bytes and a DOUBLING of its tab
+    #   markup, on the largest page the site serves. Not the catastrophe the bare
+    #   count suggests, and not nothing either: it is a real cost that buys
+    #   nothing, which is the reason to decline it rather than the size of it.
     #
     #   So nothing is duplicated. There is ONE `<nav class="srctabs">` per panel
     #   holding one anchor per document, exactly as before, and the open state is
     #   that same element laid out as a vertical overlay panel — `position`,
     #   `flex-direction` and a surface, which is CSS over markup that already
-    #   exists. The anchor count is UNCHANGED at 1024 and the page is unchanged
-    #   in size to within the length of the label's text.
+    #   exists. The anchor count is UNCHANGED at 1024, and the page's markup
+    #   grows by the length of the trigger's label and nothing else.
+    #
+    #   WHICH IS WHY THE MENU HOLDS EVERY FILE AND NOT ONLY THE OVERFLOW. The
+    #   report said "the tabs that don't fit", and a menu holding only those
+    #   would be the smaller thing — but only against the DUPLICATING form,
+    #   where every item in it is a second copy and fewer items is less copying.
+    #   Here there are no copies to count, so the cheaper menu and the complete
+    #   one are the same menu. And CSS cannot know what fits: a static split
+    #   would have to be sized for the narrowest width the debugger supports and
+    #   would then hide, at 1920, files there was room for — a menu that is
+    #   wrong about its own name in the direction that costs the reader.
     #
     #   It also settles the second objection by construction rather than by
     #   care. `tools/journeys/lib/frame.mjs` and `lib/probe.mjs` read
@@ -705,7 +723,7 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
     #
     # IT IS EMITTED ONLY WHEN THE ROW CANNOT BE ASSUMED TO HOLD THE BUNDLE.
     # Measured on the narrowest viewport the debugger is designed for: at 1280
-    # the strip is 529px and the 32 tabs measure 3623px unwrapped, so a tab
+    # the strip is 520px and the 32 tabs measure 3623px unwrapped, so a tab
     # averages ~113px and about four of them fit. Below that count the menu would
     # open onto the row the reader is already looking at — a control with nothing
     # to do — so the small demo bundles do not get one.

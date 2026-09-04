@@ -463,9 +463,7 @@ html[data-register="debugger"],
    POSITIONED ancestor the open menu hangs from. The list itself keeps its name
    — four suites match its class attribute as an exact string, so it may not
    gain a modifier — and it is the SAME element in both states: a scrolling row
-   at rest, an overlay column when open. One list, one anchor per file, so the
-   menu costs no markup at all and cannot disagree with the row about which tab
-   is the marked one.
+   at rest, an overlay column when open.
 
    AND THAT SENTENCE MAY NOT SPELL THE ATTRIBUTE OUT, which is not pedantry:
    this comment SHIPS. Stylesheet comments are inlined into every page, two of
@@ -554,16 +552,19 @@ html[data-register="debugger"],
    trigger's own left border becomes the row's full-height divider rather than a
    stub that stopped where a two-pixel padding did.
 
-   AND IT CARRIES A TAB'S OWN TRANSPARENT UNDERLINE, which is the last two
-   pixels of that sum and was measured rather than reasoned: a tab's box is its
-   padding PLUS the `thick` rule it reserves for the active mark, and a trigger
-   without one closed the row from 27px to 25px the moment the list left flow —
-   a 2px jump of the whole document, on the one interaction whose entire claim
-   is that it does not move the document. Reserving the same rule here makes the
-   two boxes identical by construction instead of by arithmetic that happened to
-   agree. Transparent, so nothing is drawn: the trigger is not a tab and does not
-   claim to be selectable. */
-.srcall{flex:0 0 auto;cursor:pointer;white-space:nowrap;
+   AND IT RESERVES A TAB'S OWN TRANSPARENT UNDERLINE, the last two pixels of
+   that sum and measured rather than reasoned: a tab's box is its padding PLUS
+   the `thick` rule it holds for the active mark, and a trigger without one shrank
+   the row 27px to 25px the moment the list left flow — a 2px jump of the whole
+   document, on the one interaction whose entire claim is that it moves nothing.
+
+   `margin-left:auto` PINS IT TO THE END OF THE ROW IN BOTH STATES, also caught
+   in the screenshots. Closed, the list is a `1 1 auto` item that fills the row
+   and pushes the trigger right on its own; open, the list is out of flow and the
+   trigger is the row's only item, so it fell back to the start and JUMPED to the
+   left edge under a menu still anchored right. Neither position may depend on a
+   sibling that is sometimes there. */
+.srcall{flex:0 0 auto;margin-left:auto;cursor:pointer;white-space:nowrap;
   display:flex;align-items:center;
   font-size:var(--bt-type-label-size);color:var(--bt-text-subtle);
   padding:var(--bt-space-2xs) var(--bt-density-cell-x);
@@ -582,34 +583,28 @@ html[data-register="debugger"],
 .srcallt:checked ~ .srcall > .srcallless{display:inline}
 /* OPENED: THE SAME LIST, DRAWN AS A MENU OVER THE SOURCE.
 
-   Not a second list. Every anchor here is the anchor that was in the row a
-   moment ago, so the menu adds no markup to a page that already carries every
-   line of every document — the 32-file bundle's page holds 1024 tab anchors
-   across its 32 panels and holds exactly 1024 with the menu. It is also why
-   `.srctab.on` still matches once per visible panel, which
-   `tools/journeys/lib/frame.mjs` and `lib/probe.mjs` both depend on.
+   Not a second list — the same one, so the menu costs no markup and cannot
+   disagree with the row about which tab is marked. `tabStrip` in debugger.nim
+   carries that argument; it is about the MARKUP and its home is there, which
+   also keeps it out of a stylesheet that ships inlined into every page.
 
    `position:absolute` IS THE FIX, not a detail of it. Out of flow, the list
    cannot push the document down, which is precisely what the disclosure it
    replaces did — 196px of it at 1280. `top:100%` hangs it off the row's bottom
    border and `right:0` aligns it under the trigger it came from rather than at
-   the far end of the pane. `width:max-content` with `max-width:100%` sizes it
-   to the longest filename it holds and no wider, and clamps it to the pane when
-   that is too wide.
+   the far end of the pane; `width:max-content` with `max-width:100%` sizes it to
+   the longest filename it holds and clamps it to the pane.
 
-   THE CAP IS `--bt-layout-tabmenu-max-height` AND ITS SUBJECT CHANGED WITH THE
-   CONTROL — see D-11. It used to bound how much of the DOCUMENT an in-flow list
-   could take, so it had to be small; an overlay takes none of the document, so
-   what it bounds now is only whether the menu outruns the reader's screen, and
-   it is set to show most of a 32-file bundle at once instead of six of it. The
-   list scrolls past the cap, so no file is ever removed from it.
+   THE CAP'S SUBJECT CHANGED WITH THE CONTROL — see D-11. It used to bound how
+   much of the DOCUMENT an in-flow list could take, so it had to be small; an
+   overlay takes none of the document, so what is left to bound is only whether
+   the menu outruns the screen, and 22vh showed six files of thirty-two. The list
+   scrolls past the cap, so no file is ever removed from it.
 
-   The sticky pin is released here: there is no horizontal scroll left for it to
-   defend against, and the halo it carries is a mask for tabs sliding underneath
-   it, which in a column is nothing. The marked file is instead named the way a
-   menu names its current item — a filled row with a leading mark — and every
-   item carries the same transparent leading border so that mark costs no
-   alignment. */
+   The sticky pin is released here: its halo is a mask for tabs sliding under it,
+   which in a column is nothing. The marked file is named the way a menu names
+   its current item — a filled row with a leading mark — and every item reserves
+   the same transparent leading border so that mark costs no alignment. */
 .srcallt:checked ~ .srctabs{position:absolute;top:100%;right:0;z-index:2;
   flex-direction:column;flex-wrap:nowrap;align-items:stretch;
   width:max-content;max-width:100%;
