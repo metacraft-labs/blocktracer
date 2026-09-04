@@ -213,9 +213,49 @@ console.log("");
   mustRefuse("an upstream release is named, not mistaken for a network failure",
     { ...w, dest: nextDest() }, [
       "CONTENT-ADDRESSED path",
-      "deployed a",
+      "the publisher has deployed",
+      "nor the publisher's layout path",
       "engine-pin-update",
     ]);
+}
+
+// ── 4b/4c. A BASE THAT SERVES ONLY THE PUBLISHER'S LAYOUT ──────────────────
+//
+// The content-addressed URL exists on the publisher's origin and nowhere else,
+// and this script is legitimately pointed at bases that serve only the three
+// legacy paths — `vars.REPLAY_ENGINE_BASE`, and the deployed site's own
+// `/replay-engine/`, which is how "is this deploy serving the pinned engine?"
+// is asked. So the hashed path falling back to the layout path must WORK when
+// the bytes are right, and must still REFUSE when they are not. Without both
+// arms the fallback is either a broken feature or a hole in the pin.
+{
+  const w = world(mkdtempSync(join(ROOT, "w4b-")));
+  // A publisher-layout-only origin: no `assets/`, just the three real paths.
+  mkdirSync(join(w.origin, "legacy", "pkg"), { recursive: true });
+  writeFileSync(join(w.origin, "legacy", "worker.js"), WORKER);
+  writeFileSync(join(w.origin, "legacy", "pkg", "db_backend.js"), GLUE);
+  writeFileSync(join(w.origin, "legacy", "pkg", "db_backend_bg.wasm"), WASM);
+  const dest = nextDest();
+  const r = runFetch({ origin: join(w.origin, "legacy"), pin: w.pin, dest });
+  if (r.code !== 0) {
+    bad("a layout-only origin is served by the fallback", `exit ${r.code}\n${indent(`${r.out}\n${r.err}`)}`);
+  } else if (!r.out.includes("fallback")) {
+    bad("a layout-only origin is served by the fallback",
+      `it passed without saying which path answered — a fetch that silently changes source is the ` +
+      `thing this pin exists to stop\n${indent(r.out)}`);
+  } else ok("a layout-only origin is served by the fallback", "and the run says which path answered");
+}
+{
+  const w = world(mkdtempSync(join(ROOT, "w4c-")));
+  const flipped = Buffer.from(WASM);
+  flipped[500_000] ^= 0xff;
+  mkdirSync(join(w.origin, "legacy", "pkg"), { recursive: true });
+  writeFileSync(join(w.origin, "legacy", "worker.js"), WORKER);
+  writeFileSync(join(w.origin, "legacy", "pkg", "db_backend.js"), GLUE);
+  writeFileSync(join(w.origin, "legacy", "pkg", "db_backend_bg.wasm"), flipped);
+  mustRefuse("the fallback is not a hole — it asserts the same hash",
+    { origin: join(w.origin, "legacy"), pin: w.pin, dest: nextDest() },
+    ["pkg/db_backend_bg.wasm is not the pinned engine", sha256(WASM), sha256(flipped)]);
 }
 
 // ── 5. a captive portal answered with a page ───────────────────────────────

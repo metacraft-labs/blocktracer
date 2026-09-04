@@ -187,21 +187,48 @@ for i in "${!dests[@]}"; do
 	out="${dest}/${d}"
 	mkdir -p "$(dirname "${out}")" || exit 1
 
+	# THE CONTENT-ADDRESSED PATH FIRST, THE PUBLISHER'S LAYOUT SECOND.
+	#
+	# The hashed URL is what makes an upstream release harmless: it either
+	# returns the pinned bytes or 404s, so it can never hand back a different
+	# engine. But it only exists on the PUBLISHER's origin, and this script is
+	# legitimately pointed at other bases that serve only the three legacy paths
+	# — `vars.REPLAY_ENGINE_BASE`, and the deployed site's own
+	# `/replay-engine/`, which is how "is the deploy serving the pinned engine?"
+	# is asked (see `.gitignore`'s `.replay-engine-live` note).
+	#
+	# So a 404 on the hashed path falls back to `${d}`, the publisher's layout
+	# path, and the sha256 below is asserted either way. NOTHING IS RELAXED BY
+	# THIS: the hash is the pin, and the content-addressed URL is the thing that
+	# stops an unrelated release from ever reaching the assertion. The fallback
+	# only changes WHICH message you get when the engine has moved.
+	from="${srcs[$i]}"
 	if ! curl -fsSL "${url}" -o "${out}"; then
-		if [ "${muts[$i]}" = "immutable" ]; then
-			echo "fetch-engine.sh: could not fetch ${url}" >&2
-			echo "" >&2
-			echo "  This is a CONTENT-ADDRESSED path, so a 404 here does not mean the" >&2
-			echo "  network failed — it most likely means the publisher has deployed a" >&2
-			echo "  NEW engine and this pin now names bytes that are no longer served." >&2
-			echo "  That is the pin working: this repository will not silently take a" >&2
-			echo "  different engine than the one it was measured against." >&2
-			echo "" >&2
-			echo "  remedy: just engine-pin-update   (re-pins, prints the diff to review" >&2
-			echo "                                    and commit)" >&2
-			fail "  pinned path: ${srcs[$i]}"
+		fell_back=0
+		if [ "${muts[$i]}" = "immutable" ] && [ "${srcs[$i]}" != "${d}" ]; then
+			if curl -fsSL "${base}/${d}" -o "${out}"; then
+				fell_back=1
+				from="${d} (fallback; ${srcs[$i]} is not served here)"
+				url="${base}/${d}"
+			fi
 		fi
-		fail "fetch-engine.sh: could not fetch ${url}"
+		if [ "${fell_back}" -eq 0 ]; then
+			if [ "${muts[$i]}" = "immutable" ]; then
+				echo "fetch-engine.sh: could not fetch ${url}" >&2
+				echo "  nor the publisher's layout path ${base}/${d}" >&2
+				echo "" >&2
+				echo "  The first is a CONTENT-ADDRESSED path, so a 404 there does not mean" >&2
+				echo "  the network failed — it most likely means the publisher has deployed" >&2
+				echo "  a NEW engine and this pin now names bytes that are no longer served." >&2
+				echo "  That is the pin working: this repository will not silently take a" >&2
+				echo "  different engine than the one it was measured against." >&2
+				echo "" >&2
+				echo "  remedy: just engine-pin-update   (re-pins, prints the diff to review" >&2
+				echo "                                    and commit)" >&2
+				fail "  pinned path: ${srcs[$i]}"
+			fi
+			fail "fetch-engine.sh: could not fetch ${url}"
+		fi
 	fi
 
 	got_bytes="$(bytes_of "${out}")"
@@ -244,7 +271,7 @@ for i in "${!dests[@]}"; do
 		fail "  pinned path: ${srcs[$i]}"
 	fi
 
-	echo "  + ${d} (${got_bytes} bytes, sha256 ${got_sha:0:16}…, ${muts[$i]} at ${srcs[$i]})"
+	echo "  + ${d} (${got_bytes} bytes, sha256 ${got_sha:0:16}…, ${muts[$i]} at ${from})"
 done
 
 echo "--- the engine at ${dest} is the pinned one, asserted file by file"

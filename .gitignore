@@ -108,8 +108,9 @@ nimcache/
 # pin rather than recording it. Pointed at the deploy, it succeeds exactly when
 # the deploy is serving the pinned engine, and otherwise prints expected-vs-got
 # per file — which is the comparison this directory used to exist to make by
-# hand. Note it fetches by the PIN's source paths, so `/replay-engine/` must
-# mirror the publisher's layout, which the deploy's vendoring step guarantees:
+# hand. It tries the pin's content-addressed path first and falls back to the
+# publisher's layout path — which is what a vendored `/replay-engine/` serves —
+# asserting the same sha256 either way:
 #
 #   ./client/hydrate/fetch-engine.sh client/.replay-engine-live \
 #       https://blocktracer.org/replay-engine
