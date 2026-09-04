@@ -170,6 +170,47 @@ const writeCount = (page) => page.evaluate(() => window.__repaint.writes.length)
 const writesSince = (page, from) =>
   page.evaluate((n) => window.__repaint.writes.slice(n), from);
 
+/**
+ * The per-position frame floor the INSTRUMENT arm asserts, and the number
+ * `dwell` holds still to satisfy. Hoisted to module scope because it is now two
+ * facts about the same quantity: what the walk must PRODUCE and what the verdict
+ * REQUIRES, and they must not be able to drift apart.
+ */
+const FRAMES_PER_POSITION_FLOOR = 30;
+
+/**
+ * Hold the session still until the sampler has taken `n` frames AT THE POSITION
+ * IT IS AT — never a fixed sleep, for the reason `step` states below: a harness
+ * that sleeps measures the machine it runs on.
+ *
+ * WHY THE WALK NEEDS THIS AT ALL. Every position the walk STOPS at is sampled
+ * for as long as the engine takes to answer a step — hundreds of frames. The
+ * first and last positions are not stopped at; they are sampled in whatever
+ * slivers exist before the first step and after the last, and those slivers are
+ * a property of where the position sits in the loop rather than of anything the
+ * verdict is about. Measured, same tree, same commit: 0:9 1:96 2:110 3:112 4:111
+ * 5:115 6:94 locally, and 0:19 1:412 2:496 3:500 4:484 5:484 6:45 on the runner.
+ * The landing is an order of magnitude below its neighbours on BOTH, which is
+ * why this was never load flake.
+ *
+ * Returns the count reached, or -1 if the floor was not met in time — which is
+ * left to the INSTRUMENT assertion to report rather than thrown, because "the
+ * sampler could not be made to run" is exactly that assertion's subject.
+ */
+async function dwell(page, n, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  let have = 0;
+  while (Date.now() < deadline) {
+    have = await page.evaluate(() => {
+      const at = document.querySelector(".dbg")?.getAttribute("data-step") ?? "";
+      return window.__repaint.frames.filter((f) => f.step === at).length;
+    });
+    if (have >= n) return have;
+    await page.waitForTimeout(100);
+  }
+  return -1;
+}
+
 /** Step once and wait for the position to move, then for the pane to settle. */
 async function step(page) {
   const before = await readFacts(page);
@@ -368,6 +409,13 @@ export async function run({ browser, site, j }) {
 
     // ── THE WALK ────────────────────────────────────────────────────────────
     await call(page, "startSampling");
+    // THE LANDING IS SAMPLED BEFORE IT IS READ, and this is the fix to the
+    // instrument rather than to the verdict. The blink verdict ranges over every
+    // position in `settledRowsAt`; the landing is in it whenever the landing
+    // carries values, and on this corpus it does. Without a dwell it was the one
+    // member of that set the floor could never be met for — not because the
+    // sampler was starved but because nothing had asked it to stay.
+    const landingFrames = await dwell(page, FRAMES_PER_POSITION_FLOOR * 2);
     const walkFrom = await writeCount(page);
     const readings = [await readFacts(page)];
     const perStep = [];
@@ -383,6 +431,12 @@ export async function run({ browser, site, j }) {
       });
       readings.push(facts);
     }
+    // …AND SO IS THE POSITION THE WALK ENDS ON, for the same structural reason
+    // at the other end: nothing follows the last step, so the last position is
+    // sampled only for as long as the two reads after the loop take. It cleared
+    // the floor by 15 frames on the runner (45 against 30), which is a margin
+    // that decides a verdict by scheduling.
+    const finalFrames = await dwell(page, FRAMES_PER_POSITION_FLOOR * 2);
     const walkWrites = await writesSince(page, walkFrom);
     const frames = await page.evaluate(() => {
       window.__repaint.sampling = false;
@@ -560,22 +614,30 @@ export async function run({ browser, site, j }) {
     // the machine was fast, it is that the sampler was awake often enough for
     // its silence to mean something. A starved run now REDDENS HERE, naming the
     // instrument, instead of passing quietly below.
-    // SCOPED TO THE POSITIONS THE BLINK CLAIM RANGES OVER, and that scoping is
-    // itself a measurement rather than a convenience. The LANDING position is
-    // sampled only in the moment before the first step — measured at 10 frames
-    // against 128–321 for every position the walk stops at — and it carries no
+    // SCOPED TO THE POSITIONS THE BLINK CLAIM RANGES OVER — every one of them,
+    // which it now is. THE PARAGRAPH THAT STOOD HERE WAS WRONG, and it was wrong
+    // in the direction that cost a mainline red. It read: the landing "carries no
     // values, so it is not in `settledRowsAt` and no blink at it could ever be
-    // counted. Holding it to the same floor would redden this instrument for a
-    // position the verdict below does not look at, which is the false-RED
-    // direction that gets a gate switched off.
-    const FRAMES_PER_POSITION_FLOOR = 30;
+    // counted", and concluded that holding it to this floor would be a false RED
+    // for a position the verdict does not look at. The premise is false on this
+    // corpus. The landing DOES settle with values — the note below counts seven
+    // such positions and the landing is one — so it is in `settledRowsAt`, the
+    // blink verdict DOES range over it, and it was being held to a floor its
+    // sampling window could not meet. Excluding it, which is what that paragraph
+    // argues for, would have left a position inside the verdict and outside the
+    // instrument that certifies the verdict: the exact vacuity this arm exists to
+    // refuse, one level up. So the WALK was fixed instead — `dwell` gives the
+    // landing and the final position a sampling window of their own — and the
+    // floor is left applying to every position the blink claim ranges over.
     const perPosition = new Map([...settledRowsAt.keys()].map((p) => [p, 0]));
     for (const f of frames) if (perPosition.has(f.step)) perPosition.set(f.step, perPosition.get(f.step) + 1);
     const starved = [...perPosition].filter(([, n]) => n < FRAMES_PER_POSITION_FLOOR);
     j.note(
       `frames per position: ` +
         [...perPosition].map(([p, n]) => `${p}:${n}`).join(" ") +
-        ` (floor ${FRAMES_PER_POSITION_FLOOR})`,
+        ` (floor ${FRAMES_PER_POSITION_FLOOR}` +
+        `; dwell landing=${landingFrames === -1 ? "TIMED OUT" : landingFrames}` +
+        ` final=${finalFrames === -1 ? "TIMED OUT" : finalFrames})`,
     );
     j.countIs(
       starved.length,
