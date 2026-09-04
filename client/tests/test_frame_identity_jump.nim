@@ -196,13 +196,13 @@ suite "3 — THE LANDING: an anchor resolves to a FRAME, not merely to a tick":
   test "each of the six anchors finds its own frame":
     for fn in Six:
       let i = indexOfFn(pane, fn, 59)
-      ck frameOfAnchor(pane, pane.frames[i].anchor) == i
+      ck frameOfAnchor(pane.frames, pane.frames[i].anchor) == i
 
   test "…so the six land on six DIFFERENT frames":
     ## The check the coordinate fails. Six anchors in, six distinct frame
     ## indices out; six steps in, one value out.
     var found: HashSet[int]
-    for fn in Six: found.incl frameOfAnchor(pane, pane.frames[indexOfFn(pane, fn, 59)].anchor)
+    for fn in Six: found.incl frameOfAnchor(pane.frames, pane.frames[indexOfFn(pane, fn, 59)].anchor)
     ck found.len == 6
 
   test "…and on six DIFFERENT source positions":
@@ -210,7 +210,7 @@ suite "3 — THE LANDING: an anchor resolves to a FRAME, not merely to a tick":
     ## that used to open the same file at the same line now open six.
     var positions: HashSet[string]
     for fn in Six:
-      let i = frameOfAnchor(pane, pane.frames[indexOfFn(pane, fn, 59)].anchor)
+      let i = frameOfAnchor(pane.frames, pane.frames[indexOfFn(pane, fn, 59)].anchor)
       positions.incl pane.frames[i].module & ":" & $pane.frames[i].line
     ck positions.len == 6
 
@@ -226,13 +226,13 @@ suite "3 — THE LANDING: an anchor resolves to a FRAME, not merely to a tick":
       "Poseidon2::hash_internal": ("poseidon2.nr", 68),
     }.toTable
     for fn in Six:
-      let i = frameOfAnchor(pane, pane.frames[indexOfFn(pane, fn, 59)].anchor)
+      let i = frameOfAnchor(pane.frames, pane.frames[indexOfFn(pane, fn, 59)].anchor)
       ck pane.frames[i].module.extractFilename == Want[fn][0]
       ck pane.frames[i].line == Want[fn][1]
 
   test "an anchor no frame carries resolves to nothing, and does not guess":
-    ck frameOfAnchor(pane, "call:0.0.0.9.9.9") == -1
-    ck frameOfAnchor(pane, "") == -1
+    ck frameOfAnchor(pane.frames, "call:0.0.0.9.9.9") == -1
+    ck frameOfAnchor(pane.frames, "") == -1
 
   test "COUNTED":
     check asserted == 22
@@ -333,7 +333,7 @@ suite "5 — CONTROL: a recording whose coordinates do NOT collide":
 
   test "CONTROL: every frame resolves to itself":
     for i in 0 ..< distinctPane.frames.len:
-      ck frameOfAnchor(distinctPane, distinctPane.frames[i].anchor) == i
+      ck frameOfAnchor(distinctPane.frames, distinctPane.frames[i].anchor) == i
 
   test "CONTROL: selecting any frame marks that frame and only that frame":
     for i in 0 ..< distinctPane.frames.len:
@@ -376,7 +376,7 @@ suite "6 — MUTATION BITE: with the identity discarded, none of this holds":
   test "BITE: with no anchors, no frame can be found":
     let p = anchorless(pane)
     for fn in Six:
-      ck frameOfAnchor(p, pane.frames[indexOfFn(pane, fn, 59)].anchor) == -1
+      ck frameOfAnchor(p.frames, pane.frames[indexOfFn(pane, fn, 59)].anchor) == -1
 
   test "BITE: …and selecting marks nothing at all":
     for fn in Six:

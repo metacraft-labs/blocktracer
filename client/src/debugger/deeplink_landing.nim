@@ -124,8 +124,17 @@ proc withCallAnchors*(p: var CallTracePane) =
 # under both numbering conventions, so this seam does not have to wait for that
 # disagreement to be settled.
 
-func frameOfAnchor*(ct: CallTracePane; anchor: string): int =
+func frameOfAnchor*(frames: openArray[CallFrame]; anchor: string): int =
   ## The INDEX of the frame `anchor` names, or `-1` when no frame carries it.
+  ##
+  ## `openArray` and not `CallTracePane`, so a caller can pass the frames it
+  ## already holds without handing over a whole pane — and, under `nim js`,
+  ## without the by-value copy of every frame and every string on it that a
+  ## `CallTracePane` parameter would mean. (Measured: this shape is not where
+  ## this feature's bundle cost went — see the note on `selectEntry` in
+  ## `session_project.selectCalltraceFrame` for where it did. It is still the
+  ## right signature, because the question is about frames and not about a
+  ## pane.)
   ##
   ## An index and not a coordinate, because the index is what identifies the
   ## row: two frames may share a step, and on this corpus most of them do.
@@ -134,8 +143,8 @@ func frameOfAnchor*(ct: CallTracePane; anchor: string): int =
   ## questions over the same rows.
   result = -1
   if anchor.len == 0: return
-  for i in 0 ..< ct.frames.len:
-    if ct.frames[i].anchor.len > 0 and ct.frames[i].anchor == anchor:
+  for i in 0 ..< frames.len:
+    if frames[i].anchor.len > 0 and frames[i].anchor == anchor:
       return i
 
 proc selectFrame*(p: var CallTracePane; anchor: string): int =
@@ -158,7 +167,7 @@ proc selectFrame*(p: var CallTracePane; anchor: string): int =
   result = -1
   for i in 0 ..< p.frames.len:
     p.frames[i].current = false
-  let i = frameOfAnchor(p, anchor)
+  let i = frameOfAnchor(p.frames, anchor)
   if i < 0: return
   p.frames[i].current = true
   result = i
@@ -368,7 +377,7 @@ proc resolveLanding*(payload: string;
   # weaker claim as the stronger one — the precedence keeps them in two
   # sentences and this keeps them in two states.
   if found.exactFound:
-    result.frame = frameOfAnchor(calltrace, anchorWire(link.anchor))
+    result.frame = frameOfAnchor(calltrace.frames, anchorWire(link.anchor))
   result.notice = PositionNotice(outcome: $decision.outcome,
                                  statement: decision.statement)
   # §6.0a: "Every branch below (2) is visible." The SDK decides which those are

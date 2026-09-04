@@ -624,18 +624,60 @@ proc selectCalltraceFrame*(s: LiveSession; anchor: string): bool =
   ##
   ## The caller keeps the seek it was going to do anyway, so a row still moves
   ## the session; it just cannot also claim to have selected a frame.
-  let pane = projectCalltrace(s.calltrace)
-  let i = frameOfAnchor(pane, anchor)
+  ## ## The anchors are recomputed here rather than taken from `projectCalltrace`
+  ##
+  ## This used to call the full projection and match against its frames.
+  ## `projectCalltrace` is a much larger function than it looks: it fills every
+  ## pane field and builds a §6.0a URL per frame through `positionQuery`, so a
+  ## click was minting forty-six deep links in order to throw all forty-six
+  ## away. That is a per-click waste rather than a bundle one — measured, the
+  ## bundle is the same size either way — and it is removed because a gesture on
+  ## the 16 ms path should not build URLs nobody reads.
+  ##
+  ## An anchor is a function of the DEPTHS and nothing else — `callPath` reads
+  ## no other field — so this builds the one column it needs and stamps it with
+  ## the same shared `withCallAnchors` both producers use. The paths are
+  ## therefore identical to the ones the pane renders, by construction rather
+  ## than by coincidence, which is the property `withCallAnchors` exists to
+  ## guarantee; if this derived them a second way, a click could disagree with
+  ## the row it clicked.
+  let lines = s.calltrace.visibleLines.val
+  var probe = CallTracePane(frames: newSeq[CallFrame](lines.len))
+  for k in 0 ..< lines.len:
+    probe.frames[k].depth = lines[k].depth
+  withCallAnchors(probe)
+  let i = frameOfAnchor(probe.frames, anchor)
   if i < 0:
     s.calltrace.selectEntry(none(int64))
     return false
-  # The projection walks `visibleLines` in order and appends one frame per line,
-  # so frame `i` IS line `i`. Re-read here rather than carried through the pane
-  # because `CallFrame` has no entry index and must not grow one: the index is
+  # `visibleLines` is what the anchors were derived from just above, so frame
+  # `i` IS line `i`. The index is read off the line rather than carried on the
+  # frame because `CallFrame` has no entry index and must not grow one: it is
   # the live ViewModel's private numbering, and putting it on the shared pane
   # type would hand the static producer a field it can only fill with a lie.
-  let lines = s.calltrace.visibleLines.val
   if i >= lines.len: return false
+  # THE SDK'S SETTER, AND IT COSTS 140,588 BYTES OF BUNDLE — 8% — WHICH IS
+  # ACCEPTED RATHER THAN UNNOTICED.
+  #
+  # Measured three ways on the same three pins, changing one call site at a
+  # time: 1,746,191 bytes with this whole proc unreachable, 1,749,615 with it
+  # reachable but writing `selectedEntry.val` directly, 1,890,203 through
+  # `selectEntry`. The difference is not this proc — it is `CalltraceVM.
+  # selectEntry`'s first branch, `collabCore.dispatchLocalViewOp(
+  # vokSetCalltraceSelection, …)`, which pulls the whole local-view-op and
+  # collaboration graph into a bundle that has no collaboration in it: this
+  # product never constructs a `collabCore`, so that branch cannot be taken here
+  # and every byte of it is dead at runtime.
+  #
+  # It is still called, because the alternative is writing a public Signal
+  # behind its own setter's back. `selectEntry` is the API `CalltraceVM`
+  # publishes for exactly this, and a consumer that assigns the field directly
+  # silently opts out of whatever that setter is next taught to do — the
+  # dead-code saving would be paid for with a seam that breaks without a
+  # symptom. The 140 KB is also 0.8% of what this route already fetches, since
+  # the same page pulls an 18 MB replay engine. If it ever matters, the fix
+  # belongs in the SDK — a `selectEntry` whose collab branch is behind a
+  # compile-time switch — and not in a local bypass here.
   s.calltrace.selectEntry(some(lines[i].index))
   true
 
