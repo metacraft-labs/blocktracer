@@ -2055,7 +2055,22 @@ suite "9 — the home page features a session that can actually be shown":
   test "assertion count":
     # 47 + 11: "a PARTLY positioned recording renders real source, not a
     # bytecode listing" — the arm that pins the `positions.json` consumer.
-    expectCount(58)
+    #
+    # 58 → 74 for the Call Trace's frames: −2 + 18.
+    #
+    #   −2  "the three sentences stay on that transaction's OWN page" loses the
+    #       two that quoted "…so they carry no file or line" as page text. The
+    #       pane prints its note only when it has no frames, and it has frames
+    #       now, so both assertions were pinning the emptiness.
+    #   +5  "the served Call Trace lists the frames the recording opened"
+    #   +6  "the frames the page lists agree with the manifest's own count" —
+    #       2 fixed, plus 2 per frame over the 2 frames this recording opens.
+    #       That arm is LOOP-DERIVED, which is the §4b hazard this counter
+    #       exists for: were the frames to stop reaching the page the loop
+    #       would run zero times, every assertion in it would vanish, and this
+    #       number is what goes red instead of the suite going quietly green.
+    #   +7  "MUTATION BITE: a call trace the manifest's frame count contradicts"
+    expectCount(74)
 
 # ── 10 — a real recording's step count is its own ────────────────────────────
 #
