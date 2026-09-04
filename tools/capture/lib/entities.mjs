@@ -512,7 +512,39 @@ export const witnessOf = (tx) => {
 export const staleWitnessOf = (tx) => {
   const w = witnessOf(tx);
   if (w.length === 0) throw new Error(`${tx.hash}: no content witness to stale`);
-  return [...w].map((c) => "123456789abcdef0"["0123456789abcdef".indexOf(c)]).join("");
+  //  A NOT-FOUND SENTINEL THAT SILENTLY SHORTENS THE RESULT.
+  //
+  //  `"0123456789abcdef".indexOf(c)` returns -1 for any character that is not a
+  //  lowercase hex digit, `"123456789abcdef0"[-1]` is `undefined`, and
+  //  `join("")` renders `undefined` as the EMPTY STRING. So the digit does not
+  //  become wrong — it disappears, and the witness comes back SHORTER:
+  //
+  //      "ABC123" -> "234"      (three characters silently dropped)
+  //      "0xzz"   -> "1"
+  //
+  //  `witnessOf` lowercases, so nothing reaches this today. The damage if
+  //  anything ever did is precisely what this function's own doc comment exists
+  //  to prevent: the value is documented as WELL-FORMED and disagreeing, and a
+  //  short one is malformed. A view handed it could reject it as malformed
+  //  rather than report `differs`, and the arm would be graded green for a
+  //  sentence that was correctly absent — for the wrong reason.
+  //
+  //  Verification-Harness-Traps.md trap 5: a sentinel that collides with a
+  //  legitimate value. Here -1 collides with "the last character", and the
+  //  collision is silent because `join` swallows the `undefined`.
+  return [...w]
+    .map((c) => {
+      const i = "0123456789abcdef".indexOf(c);
+      if (i < 0) {
+        throw new Error(
+          `${tx.hash}: content witness ${JSON.stringify(w)} contains ${JSON.stringify(c)}, ` +
+            `which is not a lowercase hex digit. Advancing it would drop the character and ` +
+            `return a SHORTER witness, which is malformed rather than merely different.`,
+        );
+      }
+      return "123456789abcdef0"[i];
+    })
+    .join("");
 };
 
 /** The `call:` anchor of the frame the session is served AT — the anchor a
