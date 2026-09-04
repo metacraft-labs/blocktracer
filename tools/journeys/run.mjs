@@ -26,6 +26,15 @@
 //    bundle, and on the debug route the two DISAGREE. `lib/site.mjs` refuses a
 //    tree that is not the deployed shape, with exit 2.
 //
+//    AND THE RIGHT SHAPE IS NOT THE RIGHT TREE. `client/dist` is shared,
+//    gitignored, and built by whoever ran an export last; this runner never
+//    builds it. `lib/site.mjs:bundleProvenance` now asserts WHICH SOURCE the
+//    bytes are of — a stamped commit against HEAD where a stamp exists, and
+//    otherwise that every built artefact post-dates the newest source it is a
+//    function of — and refuses with the same exit 2. Its header states exactly
+//    which of those two grades a given run reached and what is missing from the
+//    build that would make the strong one always available.
+//
 // 2. ASSERT THE ARTEFACT, NEVER A CHAIN OF SUCCESSES. A DAP server once
 //    answered `success: true` to four requests over a session with no trace
 //    open. Journey 03 is written against the local form of this: a step that
@@ -390,10 +399,27 @@ async function main() {
   // removes `dist/` and writes it again, so an export taken after a fetch
   // silently un-does the fetch — see lib/engine.mjs.
   const staged = await stageEngine(args.dist, args.engineCache);
+  // TWO DIFFERENT ENGINES, AND NOTHING SAYS WHICH. Exit 2, beside every other
+  // "did not run" this file has: it is a refusal to make a claim, not a claim
+  // about the product. `stageEngine` used to settle this by reusing whichever
+  // one happened to be in the site tree, on an `existsSync` — see its header.
+  if (staged.conflict) {
+    console.error(`  ENGINE REFUSED: ${staged.conflict.why}`);
+    console.error("");
+    console.error("  Nothing is judged.");
+    process.exitCode = 2;
+    return;
+  }
 
   const site = await openSite(args.dist, REPO);
   console.log(`  artefact:      ${site.root}`);
   console.log(`  build:         HYDRATED — the shape flake.nix packages.default deploys`);
+  // WHICH SOURCE THE ARTEFACT IS OF, and at which grade that was established.
+  // `openSite` has already REFUSED, with exit 2, if the answer was "a different
+  // commit", "older than its own source" or "unknowable"; this line is the
+  // record of the answer it accepted, so a transcript says which of the two
+  // grades a green run reached. See lib/site.mjs's header for why there are two.
+  console.log(`  provenance:    ${site.provenance.signal.toUpperCase()} — ${site.provenance.detail}`);
   // THE BUNDLE NAMES ITSELF, for the reason `lib/engine.mjs:bundleIdentity`
   // gives: this runner does not rebuild, so the only honest statement about
   // which bytes were judged is a hash taken here, off the tree about to be
@@ -438,7 +464,7 @@ async function main() {
   let browser = null;
   let failures = 0;
   let checks = 0;
-  const report = { artefact: site.root, hydrated: true, engine: site.engine, engineIdentity: engineId, bundleIdentity: bundleId, journeys: [] };
+  const report = { artefact: site.root, hydrated: true, provenance: site.provenance, engine: site.engine, engineIdentity: engineId, bundleIdentity: bundleId, journeys: [] };
 
   try {
     browser = await openBrowser();

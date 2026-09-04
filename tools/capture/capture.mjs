@@ -45,6 +45,7 @@ import {
 } from "./lib/determinism.mjs";
 import { describePinnedEnv } from "./lib/pinned-env.mjs";
 import { engineScenario, describeScenarios } from "./lib/engine-stubs.mjs";
+import { staleness } from "./lib/build-freshness.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolvePath(HERE, "..", "..");
@@ -158,11 +159,38 @@ function runExporter(distDir) {
   );
   if (r.error || r.status !== 0) {
     const why = r.error ? r.error.message : (r.stderr || "").trim().split("\n").slice(-5).join("\n");
-    if (existsSync(distDir)) {
-      console.warn(`! static exporter did not run (${why})\n! capturing the existing ${distDir} instead`);
+    // EXISTENCE IS NOT FRESHNESS, and this branch was the purest instance of it
+    // in the tree: `existsSync(distDir)` deciding that a FAILED build may be
+    // photographed anyway. `client/dist` is written in place and nothing cleans
+    // it, so the fallback accepted yesterday's export, another branch's export,
+    // or a tree built from a different fixture — and every one of the ~79
+    // graded images was then a true photograph of the wrong build, with the run
+    // exiting 0. That is not hypothetical: a CI run recorded exactly it
+    // ("fell back to capturing whatever was already in client/dist").
+    //
+    // The fallback survives, because there is a real case for it — the exporter
+    // needs `nim`, and a reviewer regenerating a brief outside the flake should
+    // not be blocked by that. But it is now conditional on the tree being one
+    // this source could have produced, and the answer is printed either way.
+    // A healthy run never reaches this code at all, so the only runs this can
+    // newly redden are runs whose exporter is already broken.
+    const stale = existsSync(distDir) ? staleness(distDir, REPO_ROOT) : { why: "absent" };
+    if (stale === null) {
+      console.warn(
+        `! static exporter did not run (${why})\n` +
+          `! capturing the existing ${distDir} instead — it post-dates every source it is built\n` +
+          `! from, so it is a tree THIS checkout could have produced. It is not proven to BE one:\n` +
+          `! nothing stamps a commit into a local export. The manifest records fixture.rebuilt=false.`,
+      );
       return false;
     }
-    throw new Error(`static exporter failed and there is no existing dist to fall back to:\n${why}`);
+    throw new Error(
+      `static exporter failed, and ${distDir} may not be captured in its place:\n` +
+        `  ${stale.why === "absent" ? "there is no existing dist to fall back to" : stale.message}\n` +
+        `  ${why}\n` +
+        `  Capturing it would produce a corpus of true photographs of a build this source did not make,\n` +
+        `  and the run would exit 0. Fix the exporter, or re-export by hand first.`,
+    );
   }
   return true;
 }
@@ -493,7 +521,31 @@ async function main() {
       hydratedBuild = runHydratedExporter(opts.distHydrated);
       if (!hydratedBuild.ok) console.warn(`! no hydrated build: ${hydratedBuild.reason}`);
     } else if (existsSync(opts.distHydrated)) {
-      hydratedBuild = { ok: true, reused: true };
+      // `ok: true` IS THE STRONGEST VERDICT THIS VARIABLE TAKES, and it used to
+      // be reached by `existsSync` alone. That made a leftover `dist-hydrated`
+      // — from a build against a different Embed SDK pin, a different
+      // `hydrate.js`, or a defect that has since been fixed — fully eligible to
+      // be photographed for the ~32 hydration-only views, which are the entire
+      // live-session register. `assertSameFixture` below cannot see it: it
+      // compares `{primaryChain, tx hashes}`, and a stale BUNDLE is exactly the
+      // axis those views differ on. This file's own header names the risk ("a
+      // stale `dist-hydrated` left behind by `--no-build`"); the check it
+      // pointed at did not cover it.
+      //
+      // Not a throw: a hydrated tree that cannot be trusted is the same
+      // situation as one that is absent, which this function already reports and
+      // the caller already handles. It is now reported with its evidence.
+      const stale = staleness(opts.distHydrated, REPO_ROOT);
+      hydratedBuild =
+        stale === null
+          ? { ok: true, reused: true }
+          : {
+              ok: false,
+              reason:
+                `--no-build was given and the tree at ${opts.distHydrated} is not one this source ` +
+                `could have produced: ${stale.message}`,
+            };
+      if (!hydratedBuild.ok) console.warn(`! no hydrated build: ${hydratedBuild.reason}`);
     } else {
       hydratedBuild = {
         ok: false,

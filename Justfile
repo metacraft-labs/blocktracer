@@ -436,7 +436,14 @@ journeys-deployed:
     rm -rf .journey-site && mkdir -p .journey-site
     cp -R result/. .journey-site/
     chmod -R u+w .journey-site
-    ./client/hydrate/fetch-engine.sh .journey-site/replay-engine
+    # INTO THE CACHE, and let the runner stage from there — which is what the
+    # `journeys` CI job already does, and what `lib/engine.mjs` is written for.
+    # Fetching straight into `.journey-site/replay-engine` made this the only
+    # path that could present `stageEngine` with two complete-but-different
+    # engines (a fetched one in the tree, an older one in the cache), which it
+    # now REFUSES rather than silently picking between. One fetch, one cache,
+    # one engine, and `--engine-cache` stays the only way to name a different one.
+    ./client/hydrate/fetch-engine.sh client/.replay-engine-cache
     node tools/journeys/run.mjs --dist .journey-site
 
 # Each mutation is restored byte-for-byte, and the assertion is proved green
