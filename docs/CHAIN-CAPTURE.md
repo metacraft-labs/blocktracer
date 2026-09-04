@@ -171,11 +171,27 @@ running watch that "was last extended", a one-shot scan "at that moment" — eac
 true of a different snapshot, with a mutation arm pinning the difference. A user
 read the result and asked for prose that is "more user friendly and simpler",
 with the things "real users are unlikely to care about" removed, and all three
-narrated the capture rather than the chain. There is one sentence now,
-`Captured on <date>`, for every snapshot; suite 11 asserts a frozen and an
-unfrozen capture produce it **identically**, which is where a re-grown branch
-would show. The flag still gates what it always gated and is still published in
+narrated the capture rather than the chain. Suite 11 asserts a frozen and an
+unfrozen capture read **identically**, which is where a re-grown branch would
+show. The flag still gates what it always gated and is still published in
 `summary.json` — it simply no longer picks a tense.
+
+`Captured on <date>` replaced those three tenses and did not survive the next
+round either. A user asked the "About this data" section to "just say that the
+data is real, but limited to a preliminary export while citing the timespan that
+is covered", and a capture date is one END of a watch: it says when the reading
+stopped and nothing about what period the data covers. The section is now two
+sentences for every snapshot and every ingest scope —
+
+> Blocks and transactions taken from the live network. This is a preliminary
+> export covering 30 August to 1 September 2026.
+
+— with the span read from the timestamps the **blocks** carry, over every block
+the snapshot enumerated, so it cannot go stale against the data it describes.
+`capturedAt` is still published verbatim in `summary.json`, along with
+`tracesPublished`, `publishedWindow`, `observedBlocks`, `observedTransactions`,
+`finalizedAtCapture` and `longestRunWithoutTx` — every number the four
+paragraphs this replaced used to narrate.
 
 ---
 

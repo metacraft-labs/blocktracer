@@ -54,6 +54,24 @@ let
   snapshotDir = chainFixtures / "aztec-testnet"
   workDir = getTempDir() / ("blocktracer-chain-prov-" & $getCurrentProcessId())
 
+const
+  FixtureBlockTime = 1788000000   ## 29 August 2026, 10:40 UTC
+    ## THE CLOCK EVERY CONSTRUCTED SNAPSHOT IN THIS FILE IS SET BY, and it is a
+    ## plausible instant rather than the `1000 + n` these fixtures used to carry.
+    ##
+    ## That was harmless while nothing published a block's time: `BlockDetail`
+    ## has no timestamp field and the block list says so in its Age column. The
+    ## "About this data" section reads the block record's ends to state the
+    ## timespan the export covers, so a fixture second-count now reaches a
+    ## rendered page — and every constructed chain here was announcing itself as
+    ## a preliminary export covering 1 January 1970.
+    ##
+    ## Every offset added to it below keeps the whole constructed chain inside
+    ## one UTC day, so these fixtures exercise the same-day arm of
+    ## `readableSpan`; the multi-day and multi-year arms are driven directly in
+    ## suite 6, where they can be stated as inputs and outputs instead of being
+    ## smuggled in through a block loop.
+
 doAssert fileExists(snapshotDir / "snapshot.json"),
   "no chain snapshot at " & snapshotDir & " — every assertion below would " &
   "pass vacuously over a tree with one chain in it, so this is a refusal " &
@@ -386,51 +404,34 @@ suite "2c — a chain with NO replayable transaction says so":
       check info.provenanceKind == "live-capture"
       discard containers
 
-  test "its banner states the zero rather than omitting it":
+  test "its banner blames nothing and still says what the data is":
     var zero: IngestResult
     for r in ingests:
       if r.withTrace == 0: zero = r
     if zero.chain.len == 0: skip()
     else:
       let detail = chainInfo(root, zero.chain).provenanceDetail
-      # WHICH SENTENCE IS CORRECT DEPENDS ON THE DATA, so the assertion reads the data
-      # rather than pinning one arm. A chain with no traces has two distinct reasons for
-      # it and they are opposite claims: nothing in the window was replayable (a fact
-      # about the CHAIN), or something was and the replay refused (a fact about the
-      # RECORDER). Asserting the first unconditionally is what made this test fail the
-      # moment the follower caught two transactions and the runtime refused them — the
-      # test was demanding the page keep saying the thing that had stopped being true.
-      let snapZero = parseJson(readFile(
-        chainFixtures / (if zero.chain == "aztec": "aztec" else: zero.chain) /
-        "snapshot.json"))
-      var refused = 0
-      for t in snapZero["transactions"]:
-        if t{"outcome"}.getStr == "refused": inc refused
-      if refused > 0:
-        check "WERE still replayable and were caught in time" in detail
-        check "failure on the recording side" in detail
-        check "NO TRANSACTION INSIDE IT WAS REPLAYABLE" notin detail
-      else:
-        check "NO TRANSACTION INSIDE IT WAS REPLAYABLE" in detail
-        check "not a failure to record" in detail
-        check "the most recent one settled in block " in detail
-        check "follower" in detail
-      # Measured facts, and NOT a bare average — which on a bursty chain is true and
-      # predicts the wrong thing. Present in both arms.
-      check "longest run with none was" in detail
-      # A GROWN SNAPSHOT MUST NOT PUBLISH A NEGATIVE DISTANCE.
+      # WHAT THIS USED TO GRADE, AND WHY IT IS THE OPPOSITE NOW. A chain with no
+      # traces has two opposite causes — nothing in the window was replayable (a
+      # fact about the CHAIN), or something was and the replay refused (a fact
+      # about the RECORDER) — and this test used to read the snapshot to decide
+      # which sentence the banner owed, because publishing the wrong one blames
+      # the network for a fault on this side of the wire.
       #
-      # The clause used to be an unguarded `replayableFrom - mostRecentTxBlock`, which
-      # holds only while a snapshot is a single scan: the newest transaction is then at
-      # or below the tip that scan read. `follow-chain.mjs` keeps extending the block
-      # record, so the newest transaction can sit far ABOVE the window recorded at the
-      # last catch — and the first watched mainnet snapshot published "settled in block
-      # 67511 — -391 block(s) below the window" on the one element of the page whose
-      # whole job is to be believed.
-      #
-      # This arm only ever sees one of the three shapes, so it is a REGRESSION witness
-      # rather than the proof; suite 6 builds all three deliberately.
-      check "- block(s)" notin detail
+      # The banner now attributes NOTHING to anyone, so the hazard is closed by
+      # construction rather than by a branch that has to pick right: there is no
+      # cause on the page to be the wrong one. What is asserted is that the
+      # section still states what the data IS on a chain with nothing to step
+      # through — the state in which a page that fell silent would read as
+      # broken — and that neither cause has re-grown.
+      check "taken from the live network" in detail
+      check "preliminary export" in detail
+      for cause in ["WERE still replayable", "failure on the recording side",
+                    "NO TRANSACTION INSIDE IT WAS REPLAYABLE",
+                    "not a failure to record", "a fault on our side",
+                    "the most recent one settled in block ", "follower",
+                    "longest run with none was", "- block(s)"]:
+        check cause notin detail
 
   test "and no page of that chain offers a trace it does not have":
     var zero: IngestResult
@@ -518,33 +519,73 @@ suite "3 — real and synthetic are tellable apart, on the page":
     check pages > 0                 # the scan reached the tree
     check markers == pages          # …and every page has one, and only one
 
-  test "the real banner says what it is, when, and that it is a selection":
-    # THIS USED TO REQUIRE THE ENDPOINT HOST AND THE REPLAY WINDOW, and a user
-    # asked for both to go: "too technical and contains a lot of information
-    # that real users are unlikely to care about". A visitor does nothing with
-    # `aztec-testnet.drpc.org` or with "the replay window was blocks 63629–63678
-    # (50 blocks)". They are still published in `summary.json`, which is where a
-    # machine-readable endpoint and window belong.
+  test "the real banner says it is real, that it is preliminary, and over what":
+    # THREE FACTS, AND THE ASSERTION IS THAT THERE IS NOTHING ELSE. A user read
+    # the four generated paragraphs this used to grade — a capture date, a
+    # per-outcome clause, the curated window with the watch it came out of, and
+    # a pruning boundary — and asked to "just say that the data is real, but
+    # limited to a preliminary export while citing the timespan that is
+    # covered". The word was "just": a section to shrink.
     #
-    # What a reader DOES need is asserted instead: that the data is real, when
-    # it was taken, and that they are looking at a selection rather than the
-    # whole chain — the second of which decides whether every count on the page
-    # is read correctly.
-    # `root` is the UNCURATED tree — suite 10 grades the curated banner, which
-    # is the one the deployed site serves and the one that says "selection".
+    # WHAT USED TO BE REQUIRED HERE AND IS NOW FORBIDDEN. `Captured on <date>`
+    # and `re-run and recorded` were both asserted PRESENT by the version of
+    # this test before the sweep, and both are asserted absent below. The first
+    # dated the end of the watch and told a reader nothing about what it covers;
+    # the second is a per-transaction fact that each transaction's own page
+    # already states at the point the reader meets it.
+    #
+    # `root` is the UNCURATED tree, and the sentence is now scope-independent —
+    # suite 8 asserts the curated tree produces the SAME shape, which is the
+    # property the two arms this replaced did not have.
     let detail = chainInfo(root, RealChain).provenanceDetail
-    check "Captured on " in detail
-    check "re-run and recorded" in detail
+    # It is real: taken from the live network, and no stronger word than that.
+    check "taken from the live network" in detail
+    # It is a slice, in the user's own words.
+    check "preliminary export" in detail
+    # …and the span, from the block record rather than from `capturedAt`. The
+    # committed testnet capture runs 63459–63678, wholly inside 31 August 2026.
+    check "covering 31 August 2026." in detail
+    # SHORT, and this is the assertion the request was actually about. Two
+    # sentences; the version this replaced ran to four paragraphs.
+    check detail.count('.') == 2
+    check detail.len < 160
     # A date a person reads, not an instant a machine emits.
     check "T07:" notin detail and "Z." notin detail
     # …and no fetchable URL: a scheme in prose is indistinguishable, to the
     # external-reference scanner, from an origin this page depends on.
     check "://" notin detail
-    # The things the user named, gone from the product surface.
-    check "drpc.org" notin detail
-    check "replay window" notin detail
-    check "WHOLE" notin detail
-    check "CURATED WINDOW" notin detail
+    # Every phrase the shrink removed, asserted gone rather than assumed gone.
+    for phrase in ["Captured on ", "re-run and recorded", "drpc.org",
+                   "replay window", "WHOLE", "CURATED WINDOW",
+                   "selection rather than the whole chain",
+                   "could be recorded", "a fault on our side",
+                   "Transactions below block"]:
+      check phrase notin detail
+
+  test "EVERY captured chain says it, over ITS OWN span, mainnet included":
+    # THE TEST ABOVE GRADES ONE CHAIN and this one grades all of them, because
+    # the section is generated and a generator with one fixture behind it is a
+    # generator that has been checked in one shape. `ingests` holds every capture
+    # in `client/fixtures/chain/`, ingested exactly as `static_export` does.
+    var checked = 0
+    for r in ingests:
+      let d = chainInfo(root, r.chain).provenanceDetail
+      check "taken from the live network" in d
+      check "preliminary export covering " in d
+      check "Captured on " notin d
+      inc checked
+    check checked >= 2                      # two captures, not one read twice
+
+    # THE MAINNET CAPTURE IS THE MULTI-DAY ARM, reached by committed data rather
+    # than only by the unit assertions in suite 6. It enumerates 1563 blocks
+    # running 66745–68307, whose timestamps span 2026-08-30T23:20:47Z to
+    # 2026-09-01T07:13:35Z — two calendar months, one year, so the span is
+    # written with the year said once.
+    check "This is a preliminary export covering 30 August to 1 September 2026." in
+      chainInfo(root, "aztec").provenanceDetail
+    # …and the testnet capture is the same-day arm, from the same generator.
+    check "This is a preliminary export covering 31 August 2026." in
+      chainInfo(root, "aztec-testnet").provenanceDetail
 
   test "the synthetic banner says the trace is not this transaction's":
     let detail = chainInfo(root, DemoChain).provenanceDetail
@@ -931,7 +972,7 @@ suite "6 — a watched snapshot says something true about both ends":
     # of the one the case is named for, and passes for the wrong reason.
     for n in min(txBlock, tip - 3) .. tip:
       var b = %*{"number": n, "hash": "0x" & align($n, 40, '0'),
-                 "timestamp": 1000 + n, "totalManaUsed": "0x0",
+                 "timestamp": FixtureBlockTime + n * 36, "totalManaUsed": "0x0",
                  "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
                  "archiveRoot": "0x" & repeat('2', 40),
                  "parentArchiveRoot": "0x" & repeat('3', 40),
@@ -964,8 +1005,8 @@ suite "6 — a watched snapshot says something true about both ends":
   let wd = getTempDir() / ("bt-watched-" & $getCurrentProcessId())
   removeDir(wd); createDir(wd)
 
-  test "the capture is dated in words a reader reads, and the same way every time":
-    # WHAT THESE FOUR TESTS USED TO GRADE, and why they are one.
+  test "the coverage is dated in words a reader reads, and the same way every time":
+    # WHAT THESE FIVE TESTS USED TO GRADE, and why they are one.
     #
     # The banner used to carry a `recency` clause ("the most recent one settled
     # in block 150 — 31 block(s) below that window") and three different capture
@@ -981,23 +1022,47 @@ suite "6 — a watched snapshot says something true about both ends":
     # is no arithmetic left to go negative, which is a stronger guarantee than
     # the arm that used to check the sign.
     #
-    # What replaces them is the property the remaining sentence has to keep: one
-    # date, written for a person, and the SAME for a watched and a one-shot
-    # capture — the three phrasings existed to distinguish cases a reader was
-    # never deciding between.
+    # `Captured on <date>` survived that round and did not survive this one. It
+    # dated ONE END of the watch, which is what a reader has least use for: the
+    # question is what period the data covers, and the answer was on the page
+    # nowhere. So the date this suite grades is now the SPAN, read from the
+    # timestamps the blocks carry — and the property that made the old arms
+    # worth having is unchanged and asserted below: a watched capture and a
+    # one-shot capture are written the same way, because the distinction was one
+    # a reader was never making.
     let watched = detailOf(snapshotWith(wd, tip = 200, finalized = 180,
                                         txBlock = 150,
                                         firstCapturedAt = "2026-08-31T07:39:12.420Z"))
     let oneShot = detailOf(snapshotWith(wd, tip = 200, finalized = 180,
                                         txBlock = 199, firstCapturedAt = ""))
-    ck "Captured on 31 August 2026." in watched
-    ck "Captured on 31 August 2026." in oneShot
-    # No instant, no window, no block-distance clause on either.
+    # Both constructed chains sit inside one UTC day — see `FixtureBlockTime` —
+    # so both take the same-day arm, and neither says it twice.
+    ck "preliminary export covering 29 August 2026." in watched
+    ck "preliminary export covering 29 August 2026." in oneShot
+    # No instant, no window, no block-distance clause, and no capture date on
+    # either: `capturedAt` differs between these two and the sentence must not.
     for d in [watched, oneShot]:
       ck "2026-08-31T" notin d
       ck "replay window" notin d
       ck "block(s) below" notin d
-    # And the helper is the thing under test, not the banner's spelling of it.
+      ck "Captured on" notin d
+    # THE HELPERS ARE THE THING UNDER TEST, not the banner's spelling of them.
+    #
+    # `readableSpan` has three arms and the block loop above can only ever reach
+    # one, so the other two are driven here as inputs and outputs rather than
+    # being smuggled through a fixture. Verification-Harness-Traps §4: an arm no
+    # input reaches passes whether it is right or not.
+    ck readableSpan(1788000000, 1788000000) == "29 August 2026"        # one instant
+    ck readableSpan(1788000000, 1788007200) == "29 August 2026"        # one day
+    ck readableSpan(1788132047, 1788246815) == "30 August to 1 September 2026"
+    ck readableSpan(1767182400, 1767268800) ==
+       "31 December 2025 to 1 January 2026"                            # across a year
+    # Backwards ends are ordered rather than printed backwards. A block record is
+    # sorted by height and height is not time, and a span printed the wrong way
+    # round is the shape of wrongness this module has published before.
+    ck readableSpan(1788246815, 1788132047) == "30 August to 1 September 2026"
+    # `readableDate` is still the ISO entry point, still exported, and still
+    # writes the same words — the two must not drift into two date formats.
     ck readableDate("2026-09-01T07:13:35.934Z") == "1 September 2026"
     ck readableDate("2026-01-31T00:00:00Z") == "31 January 2026"
     # A date it cannot read is returned untouched rather than guessed at.
@@ -1018,7 +1083,7 @@ suite "6 — a watched snapshot says something true about both ends":
       "window": {"tip": 200, "finalized": 180, "replayableFrom": 181,
                  "replayableTo": 200, "blocks": 20},
       "blocks": [{"number": 199, "hash": "0x" & align("199", 40, '0'),
-                  "timestamp": 1199, "totalManaUsed": "0x2710",
+                  "timestamp": FixtureBlockTime + 1199, "totalManaUsed": "0x2710",
                   "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
                   "archiveRoot": "0x" & repeat('2', 40),
                   "parentArchiveRoot": "0x" & repeat('3', 40),
@@ -1032,36 +1097,46 @@ suite "6 — a watched snapshot says something true about both ends":
                   "refused with AvmToolchainRegression. No trace was recorded for it."}]}))
     dest
 
-  test "a refusal is NOT reported as 'no transaction was replayable'":
-    # The defect this arm exists for. Two mainnet transactions were caught INSIDE the
-    # window with their bodies still served and refused by the replay runtime, and the
-    # page said "NO TRANSACTION INSIDE IT WAS REPLAYABLE ... not a failure to record".
-    # That blames the chain for a fault on the recording side and tells the reader the
-    # opposite of what happened: the follower reached them in time.
+  test "a refusal is NOT reported as the chain having nothing replayable":
+    # THE DEFECT THIS ARM EXISTS FOR, AND WHY IT IS NOW CLOSED BY CONSTRUCTION.
+    # Two mainnet transactions were caught INSIDE the window with their bodies
+    # still served and refused by the replay runtime, and the page said "NO
+    # TRANSACTION INSIDE IT WAS REPLAYABLE ... not a failure to record". That
+    # blames the chain for a fault on this side of the wire and tells the reader
+    # the opposite of what happened: the follower reached them in time.
+    #
+    # The fix at the time was a third arm that attributed the refusal correctly.
+    # The section no longer attributes anything to anyone, so there is no cause
+    # on the page that can be the wrong one — a stronger guarantee than an arm
+    # that has to keep picking right, and one that needs no fourth arm when a
+    # fourth outcome appears.
     let d = detailOf(refusedSnapshot(wd))
-    # THE CLAIM SURVIVES, THE WORDS CHANGED, AND THE TYPE NAME IS GONE.
-    # `AvmToolchainRegression` was being rendered to visitors — an internal
-    # class name reaching a product surface through a generator, which is the
-    # same defect as the `ASK` literal found on the About page. It is asserted
-    # ABSENT now, and the fact it carried is asserted present in words: these
-    # were our fault, not the chain's.
-    ck "a fault on our side, not the chain's" in d
-    ck "AvmToolchainRegression" notin d
-    # The negative that matters, and it has a positive twin two tests below:
-    # a refusal must not be reported as the chain having nothing replayable.
+    ck "NO TRANSACTION INSIDE IT WAS REPLAYABLE" notin d
     ck "None of the transactions here could be re-run" notin d
-
-  test "twin: a purely pruned window DOES still say nothing could be re-run":
-    # Without this, the negative above would be satisfied by an ingest that had
-    # stopped emitting the zero arm at all.
-    let d = detailOf(snapshotWith(wd, tip = 200, finalized = 180, txBlock = 150,
-                                  firstCapturedAt = ""))
-    ck "None of the transactions here could be re-run" in d
-    ck "only be replayed for a short time after it settles" in d
     ck "a fault on our side" notin d
+    # …and the internal type name that reached visitors through this clause is
+    # gone with the clause. It is still in the snapshot and in `summary.json`.
+    ck "AvmToolchainRegression" notin d
+
+  test "twin: a purely pruned window is written EXACTLY the same way":
+    # Without this, the negatives above would be satisfied by an ingest that had
+    # gone silent on a chain with nothing to step through — which is the page
+    # that reads as broken while being entirely correct.
+    #
+    # The two snapshots differ in the one fact the old arms branched on: this
+    # one's transaction was pruned before the capture reached it, the one above
+    # was reached in time and refused. Both now produce the same sentence, and
+    # asserting the EQUALITY rather than two phrase lists is what would catch a
+    # branch growing back with wording that happened to satisfy both lists.
+    let pruned = detailOf(snapshotWith(wd, tip = 200, finalized = 180,
+                                       txBlock = 150, firstCapturedAt = ""))
+    let refused = detailOf(refusedSnapshot(wd))
+    ck "taken from the live network" in pruned
+    ck "preliminary export covering " in pruned
+    ck pruned == refused
 
   test "assertion count":
-    expectCount(18)   # 13 + 2 + 3
+    expectCount(26)   # 19 + 4 + 3
 
 # ── 7 — one slug, one producer, enforced in BOTH directions ──────────────────
 #
@@ -1180,7 +1255,7 @@ suite "8 — a curated chain publishes only transactions that open":
       "window": {"tip": 200, "finalized": 180, "replayableFrom": 181,
                  "replayableTo": 200, "blocks": 20},
       "blocks": [{"number": 199, "hash": "0x" & align("199", 40, '0'),
-                  "timestamp": 1199, "totalManaUsed": "0x2710",
+                  "timestamp": FixtureBlockTime + 1199, "totalManaUsed": "0x2710",
                   "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
                   "archiveRoot": "0x" & repeat('2', 40),
                   "parentArchiveRoot": "0x" & repeat('3', 40),
@@ -1212,7 +1287,7 @@ suite "8 — a curated chain publishes only transactions that open":
     var blocks = newJArray()
     for n in 100 .. 120:
       var b = %*{"number": n, "hash": "0x" & align($n, 40, '0'),
-                 "timestamp": 1000 + n, "totalManaUsed": "0x0",
+                 "timestamp": FixtureBlockTime + n * 36, "totalManaUsed": "0x0",
                  "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
                  "archiveRoot": "0x" & repeat('2', 40),
                  "parentArchiveRoot": "0x" & repeat('3', 40),
@@ -1333,20 +1408,41 @@ suite "8 — a curated chain publishes only transactions that open":
       ck ing.transactions == ing.withTrace
     ck curated == 2
 
-  test "the banner states the window and the watch it was chosen out of":
-    let info = chainInfo(curatedRoot, RealChain)
-    let d = info.provenanceDetail
-    # THE TWO FACTS A READER USES, and no longer the four paragraphs around them:
-    # this is a selection, and here is the range it was selected from.
-    ck "selection rather than the whole chain" in d
-    ck "blocks 63642–63675" in d
-    ck "Of the 32 transactions seen while watching this chain, 6 could be recorded." in d
-    # The shouting is gone, and so is the arrival-density analysis nobody asked
-    # for — two sentences of gap statistics on a banner a visitor reads to find
-    # out what they are looking at.
-    ck "CURATED WINDOW" notin d
-    ck "did not arrive evenly" notin d
-    ck "longest run with none" notin d
+  test "the curated banner is the SAME sentence the uncurated one writes":
+    # WHAT THIS USED TO GRADE. The curated arm named the published window
+    # ("blocks 63642–63675"), the watch it was chosen out of ("Of the 32
+    # transactions seen while watching this chain, 6 could be recorded") and a
+    # per-outcome clause; the uncurated arm named the enumerated range and a
+    # pruning boundary instead. Two arms, because a claim about the published
+    # set is false of the enumerated one and the reverse — which is the
+    # mechanism by which this module twice published a number that disagreed
+    # with the counts printed above it (a nine-hour-stale window, a negative
+    # block distance).
+    #
+    # A user asked the section to say three things and stop: the data is real,
+    # it is a preliminary export, here is the timespan. None of the three
+    # depends on how much of the snapshot this build chose to publish, so the
+    # scope branch is gone — and the assertion is the EQUALITY rather than a
+    # phrase list, because two arms that happen to agree on this fixture would
+    # satisfy any list of phrases while leaving the hazard in place.
+    let curated = chainInfo(curatedRoot, RealChain).provenanceDetail
+    let full = chainInfo(root, RealChain).provenanceDetail
+    ck curated == full
+    ck "taken from the live network" in curated
+    # THE SPAN IS THE EXPORT'S, NOT THE PUBLISHED SLICE'S, and this fixture is
+    # exactly where the difference shows: the curated tree publishes blocks
+    # 63642–63675 out of an enumerated 63459–63678. Both fall inside 31
+    # August 2026, and the sentence describes the export.
+    ck "preliminary export covering 31 August 2026." in curated
+    ck chainInfo(curatedRoot, RealChain).blockCount <
+       chainInfo(root, RealChain).blockCount       # non-vacuous: it really is a slice
+    # Neither arm's vocabulary survived, in either tree.
+    for phrase in ["selection rather than the whole chain", "blocks 63642",
+                   "seen while watching this chain", "CURATED WINDOW",
+                   "did not arrive evenly", "longest run with none",
+                   "Transactions below block"]:
+      ck phrase notin curated
+      ck phrase notin full
 
   test "the curated banner attributes NO cause to the transactions it leaves out":
     # THIS REPLACES AN ARM THAT CHECKED THE ATTRIBUTION WAS SPLIT CORRECTLY, and
@@ -1374,8 +1470,11 @@ suite "8 — a curated chain publishes only transactions that open":
                                         scope: isCurated))
     let d = chainInfo(newDataRoot(tree), "mixed").provenanceDetail
     # Non-vacuous: the remainder really does hold both kinds, so a banner that
-    # named a cause would have had two to choose wrongly between.
-    ck "could be recorded." in d
+    # named a cause would have had two to choose wrongly between — and the
+    # section is not silent on this chain either.
+    ck "taken from the live network" in d
+    ck "preliminary export covering " in d
+    ck "could be recorded" notin d
     ck "had already been pruned" notin d
     ck "still replayable" notin d
     ck "AvmToolchainRegression" notin d
@@ -1391,7 +1490,7 @@ suite "8 — a curated chain publishes only transactions that open":
     var blocks = newJArray()
     for n in 100 .. 160:
       var b = %*{"number": n, "hash": "0x" & align($n, 40, '0'),
-                 "timestamp": 1000 + n, "totalManaUsed": "0x0",
+                 "timestamp": FixtureBlockTime + n * 36, "totalManaUsed": "0x0",
                  "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
                  "archiveRoot": "0x" & repeat('2', 40),
                  "parentArchiveRoot": "0x" & repeat('3', 40),
@@ -1440,7 +1539,7 @@ suite "8 — a curated chain publishes only transactions that open":
     # …and the producer's own paragraph is reachable ON this page, which is the
     # only page such a chain has: with no transaction there is no transaction
     # metadata surface, which is where `provenanceMetaRows` puts it.
-    ck "selection rather than the whole chain" in body
+    ck "preliminary export covering " in body
     ck "Real silent data" in body
     # THE TWIN. A chain that DOES publish transactions must not carry the
     # zero sentence — without this, an unconditional swap in the other
@@ -1544,7 +1643,7 @@ suite "8 — a curated chain publishes only transactions that open":
     ck ing.withTrace == 0
 
   test "assertion count":
-    expectCount(69)
+    expectCount(83)
 
 # ── 9 — the home page features a session that can actually be shown ──────────
 #
@@ -1881,13 +1980,18 @@ suite "11 — the banner states what a reader needs and not how it was captured"
     let mutIng = ingestSnapshot(IngestConfig(outDir: mutOut, snapshotDir: mutDir))
     let mutDetail = chainInfo(newDataRoot(mutOut), mutIng.chain).provenanceDetail
     let frozenDetail = chainInfo(root, RealChain).provenanceDetail
-    # Non-vacuity first: both really did produce a dated sentence.
-    ck "Captured on " in mutDetail
-    ck "Captured on " in frozenDetail
+    # Non-vacuity first: both really did produce the dated sentence, and the
+    # date in it is the SPAN the export covers rather than the instant the
+    # capture stopped — which is the fact `frozen` would have been most likely
+    # to move, since freezing is the last thing that touches `capturedAt`.
+    ck "preliminary export covering " in mutDetail
+    ck "preliminary export covering " in frozenDetail
+    ck "Captured on " notin mutDetail
+    ck "Captured on " notin frozenDetail
     ck mutDetail == frozenDetail
 
   test "assertion count":
-    expectCount(14)
+    expectCount(16)
 
 # ── 12 — source level is a MEASUREMENT, and a claim with no bundle is refused ─
 #
@@ -2037,7 +2141,7 @@ suite "12 — a source-level capture publishes source; a rung-3 one publishes no
       "window": {"tip": 110, "finalized": 90, "replayableFrom": 91,
                  "replayableTo": 110, "blocks": 20},
       "blocks": [{"number": 100, "hash": "0x" & align("100", 40, '0'),
-                  "timestamp": 1100, "totalManaUsed": "0x2710",
+                  "timestamp": FixtureBlockTime + 1100, "totalManaUsed": "0x2710",
                   "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
                   "archiveRoot": "0x" & repeat('2', 40),
                   "parentArchiveRoot": "0x" & repeat('3', 40),
@@ -2523,7 +2627,7 @@ suite "13 — a transaction list says which transactions can be debugged fully":
       "window": {"tip": 110, "finalized": 90, "replayableFrom": 91,
                  "replayableTo": 110, "blocks": 20},
       "blocks": [{"number": 100, "hash": "0x" & align("100", 40, '0'),
-                  "timestamp": 1100, "totalManaUsed": "0x2710",
+                  "timestamp": FixtureBlockTime + 1100, "totalManaUsed": "0x2710",
                   "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
                   "archiveRoot": "0x" & repeat('2', 40),
                   "parentArchiveRoot": "0x" & repeat('3', 40),
