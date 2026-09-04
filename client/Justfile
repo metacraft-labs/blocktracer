@@ -66,10 +66,26 @@ hydrate:
 # FIRST, and only then is the exporter compiled with a -d:hydrationBundle that
 # names it — so a page can never carry a <script> for a file that was not
 # produced. `installHydrationBundle` re-checks that and fails the build.
-export-hydrated: hydrate search-bundle
+#
+# `settings-bundle` IS A DEPENDENCY HERE FOR THE SAME REASON IT IS ONE OF
+# `export`, and its absence is a defect this recipe carried. `export` and
+# `flake.nix` both build the settings bundle and name it; this recipe built
+# neither, so the artefact the journeys drive — and `journeys-build` runs
+# exactly this — served `/settings` with its preset chooser `hidden` and no
+# script anywhere on the page to unhide it. That is the dead control
+# `installSettingsBundle`'s own comment says a build must never ship, reached
+# by the build accident it names, and it made journey 22 red against a product
+# that was correct: `nix build .#default` shipped the bundle the whole time.
+#
+# The three bundles are now built FIRST and named together, so this recipe and
+# `flake.nix` cannot disagree about what the deployed shape contains — which is
+# tools/journeys/README.md rule 1, the rule that gives a local journey run any
+# authority over what a visitor gets.
+export-hydrated: hydrate search-bundle settings-bundle
     nim c -r --mm:orc -d:isServer -d:release \
       -d:hydrationBundle=/assets/hydrate.js \
-      -d:searchBundle=/assets/search.js src/static_export.nim
+      -d:searchBundle=/assets/search.js \
+      -d:settingsBundle=/assets/settings.js src/static_export.nim
 
 # Copy the published replay engine into dist/replay-engine/ so a LOCAL preview
 # has a live session.

@@ -66,6 +66,61 @@ export async function hydrationTagPresent(root, debugIndex) {
   return tagged && (await exists(join(root, "assets", "hydrate.js")));
 }
 
+/**
+ * Is `/settings`'s preset chooser a control, or a dead one the build forgot?
+ *
+ * THE SECOND WAY THIS TREE CAN FAIL TO BE THE DEPLOYED SHAPE, and it cost a
+ * journey four hours of being read as a product defect. `renderPresetChooser`
+ * serves the chooser `hidden` UNCONDITIONALLY — it never consults
+ * `SettingsBundle` — and `client/settingsboot` is the only code that unhides
+ * it. So a build that omits the settings bundle ships a `/settings` whose only
+ * control cannot be seen or operated, which is exactly the page that was
+ * deleted from that address and exactly what `installSettingsBundle`'s comment
+ * says a build must never ship.
+ *
+ * `client/Justfile`'s `export-hydrated` omitted it while `flake.nix` and `just
+ * export` both shipped it, so the LOCAL build and the DEPLOYED build disagreed
+ * about `/settings` — the same class of divergence the hydration check above
+ * exists for, at a different address. Journey 22 then timed out waiting for a
+ * chooser that no script would ever unhide, and reported it as sixteen
+ * assertions of which seven ran: a `waitForSelector` timeout, which reads as
+ * "the product is broken" and was "this is not the artefact anyone deploys".
+ *
+ * `installSettingsBundle` cannot catch it, because its guard is
+ * `if SettingsBundle.len == 0: return` — it fires when the define names a file
+ * that was not built, not when the define is absent. And it must stay that
+ * way: CI's screenshot tier compiles the exporter with no bundle defines at
+ * all, on purpose. So the check belongs HERE, where the question is not "did
+ * this build do something illegal" but "is this tree the one a visitor gets".
+ *
+ * Asked of the served bytes, exactly as `hydrationTagPresent` is.
+ */
+export async function settingsChooserLive(root) {
+  const html = await readFile(join(root, "settings", "index.html"), "utf8").catch(() => "");
+  // No settings page, or no chooser on it: not a question this tree can be
+  // asked, and NOT a silent pass disguised as one — `applicable` says which.
+  if (!/data-kb-chooser/.test(html)) return { applicable: false, ok: true };
+
+  // Served live already (the debug route's dialog spelling). Nothing to unhide.
+  if (!/data-kb-chooser[^>]*\bhidden\b/.test(html))
+    return { applicable: true, ok: true, why: "the chooser is served live" };
+
+  const tag = html.match(/<script[^>]+src="([^"]*settings[^"]*\.js)"/);
+  if (!tag)
+    return {
+      applicable: true,
+      ok: false,
+      why: "the chooser is served `hidden` and the page carries no <script> for a settings bundle",
+    };
+  if (!(await exists(join(root, tag[1].replace(/^\/+/, "")))))
+    return {
+      applicable: true,
+      ok: false,
+      why: `the page carries <script src="${tag[1]}"> and the build did not write that file`,
+    };
+  return { applicable: true, ok: true };
+}
+
 export async function enginePresent(root) {
   return (
     (await exists(join(root, "replay-engine", "worker.js"))) &&
@@ -110,6 +165,25 @@ export async function openSite(root, repoRoot) {
         `  build — flake.nix packages.default — ships the hydration bundle, and the\n` +
         `  two DISAGREE about the debug route. Driving this one would judge a\n` +
         `  product no visitor is served.\n` +
+        `  remedy: cd client && just export-hydrated`,
+    );
+    e.exitCode = 2;
+    throw e;
+  }
+
+  // The same refusal as the hydration tag, at the other address the local and
+  // deployed builds were found to disagree about. Exit 2 — "this gate did not
+  // run" — because a journey that drives this tree is not driving the product.
+  const settings = await settingsChooserLive(root);
+  if (settings.applicable && !settings.ok) {
+    const e = new Error(
+      `the site at ${root} serves /settings with a chooser no script can unhide:\n` +
+        `  ${settings.why}.\n` +
+        `  \`renderPresetChooser\` serves it \`hidden\` and client/settingsboot is the\n` +
+        `  only code that unhides it, so this build ships a control a visitor can\n` +
+        `  neither see nor operate — while flake.nix packages.default, the artefact\n` +
+        `  CI deploys, ships the bundle. Driving this tree would judge /settings as\n` +
+        `  broken when what is broken is the build that wrote it.\n` +
         `  remedy: cd client && just export-hydrated`,
     );
     e.exitCode = 2;
