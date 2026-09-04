@@ -1509,6 +1509,41 @@ proc noteFor*`,
     journey: "a-long-file-list-fits-on-one-row",
     assertion: "opening the file list moves neither the source nor the row it opened from",
   },
+  {
+    id: "FJ1/the-landing-forgets-which-frame-it-resolved",
+    why:
+      "Discard the frame `resolveLanding` identified, keeping the coordinate —" +
+      " which is the state this path was in before frame identity landed, and" +
+      " the exact shape of 'the anchor is computed, rendered, and dropped at the" +
+      " moment of use'. The link still resolves, the notice still says where it" +
+      " landed, `?t=` still seeks; only WHICH FRAME is thrown away. On the" +
+      " subject journey 26 drives, six links share one coordinate, so a landing" +
+      " that keeps only the coordinate cannot tell them apart and the served" +
+      " mark stays on whichever frame the static producer chose.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: "  markServedFrame(root, result.frame)",
+    replace: "  markServedFrame(root, -1)",
+    journey: "a-link-to-a-frame-arrives-at-that-frame",
+    assertion: "the row each link marks is the row that link NAMED",
+  },
+  {
+    id: "FJ2/the-row-stops-carrying-its-anchor",
+    why:
+      "Stop rendering `data-anchor` on an ordinary call-trace row. This is the" +
+      " OTHER half of the same defect and it is aimed at a different assertion:" +
+      " FJ1 keeps the anchor and discards what it resolved to, this keeps the" +
+      " resolution and removes the anchor to resolve. `hydrate.rowsOf` reads the" +
+      " attribute to build the pane `resolveLanding` matches against, so a row" +
+      " without one is a row no `call:` link can name — and the mark never moves" +
+      " off the frame an unlinked visit marks. Written because the anchor was" +
+      " present, correct and unread once already; if it is reintroduced and then" +
+      " discarded again, this is what notices.",
+    file: join(CLIENT, "src", "components", "debugger.nim"),
+    find: "        tdiv(class = cls, `data-step` = $f.step, `data-anchor` = f.anchor,\n             title = tip, `data-module` = f.module):",
+    replace: "        tdiv(class = cls, `data-step` = $f.step, `data-anchor` = \"\",\n             title = tip, `data-module` = f.module):",
+    journey: "a-link-to-a-frame-arrives-at-that-frame",
+    assertion: "every one of them moved the mark off the row an unlinked visit marks",
+  },
 ];
 
 const log = (s = "") => console.log(s);
