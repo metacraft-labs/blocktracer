@@ -115,6 +115,12 @@ an entry whose gate becomes reachable, or stops existing, fails by name and
 demands the line be deleted. So when the engine findings are fixed upstream, the
 entry cannot quietly outlive them.
 
+**Only one kind of darkness may be recorded there**, and the guard enforces it:
+a capability the gate needs must genuinely not exist yet, and the entry must
+NAME it in a `MISSING CAPABILITY:` line. A gate that could run and that nobody
+wired is not a dark gate — it is an unwired one, and it does not land. Write the
+job. An entry without that line fails `ci-coverage.sh` by name.
+
 ## 1b. `client/hydrate/` — the debug route's live session
 
 The debug route ships a **second compilation**: `nim js` over

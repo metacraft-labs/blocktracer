@@ -193,6 +193,183 @@ else
 fi
 
 echo ""
+echo "=== probe 5: the SHARDING partitions the arm list, exactly ==="
+# CI runs this suite as four shards because one job cannot finish it inside any
+# bound worth setting. That trade is only safe if the four shards are a
+# PARTITION: every arm in exactly one of them, and their union the whole list.
+#
+# A sharded sweep that silently drops an arm is strictly worse than the timeout
+# it replaced. A timeout is loud — the step goes red and says it was killed. A
+# missing arm is silent, and it produces the shape this repository has already
+# been fooled by once: a clean-looking summary over a subset wearing the full
+# set's name.
+#
+# `--list-shard` reports the slice THROUGH `shardOf`, the same function `main`
+# slices with, so this is a proof about what runs and not about a model of it.
+SH=4
+rm -f "$LOGS"/shard-*
+all="$LOGS/all-arms"
+node tools/journeys/selftest.mjs --list-arms | sort > "$all"
+n_all=$(grep -c . "$all")
+
+# NON-EMPTY FIRST. Every assertion below quantifies over these lists, and two
+# empty files compare equal — a broken lister would otherwise report a perfect
+# partition of nothing (Verification-Harness-Traps.md §4).
+[ "$n_all" -ge 20 ]
+ck "the arm list is readable and non-trivial ($n_all arms)" $?
+
+union="$LOGS/union"
+: > "$union"
+empty_shard=0
+for i in $(seq 1 $SH); do
+  node tools/journeys/selftest.mjs --list-shard "$i/$SH" | sort > "$LOGS/shard-$i"
+  [ "$(grep -c . "$LOGS/shard-$i")" -gt 0 ] || empty_shard=$((empty_shard + 1))
+  cat "$LOGS/shard-$i" >> "$union"
+done
+[ "$empty_shard" -eq 0 ]
+ck "all $SH shards are non-empty (a shard holding nothing is a shard doing nothing)" $?
+
+sort "$union" -o "$union"
+diff -q "$all" "$union" >/dev/null
+ck "the union of the $SH shards IS the arm list — none missing, none invented" $?
+
+# Disjointness is a SEPARATE claim from the union. A list where one arm appears
+# twice and another is absent has the right length and the wrong contents; a
+# union compared as a SET would also hide the duplicate. So: compare the
+# multiset.
+dupes="$(sort "$union" | uniq -d)"
+[ -z "$dupes" ]
+dupes_rc=$?
+# `dupes_rc` on its own line, NOT `ck "...$(...)" $?`. Written that way the `$?`
+# is the status of the command substitution INSIDE the message, which runs
+# during argument expansion — so the check reported FAILED over a partition
+# with no duplicates in it. Caught here because probe 5's other five assertions
+# disagreed with it, which is the only reason it was not believed.
+ck "no arm is in two shards${dupes:+ (got: $(echo "$dupes" | tr '\n' ' '))}" "$dupes_rc"
+
+[ "$(wc -l < "$union")" -eq "$n_all" ]
+ck "the shards' arm COUNT sums to the arm list's ($(wc -l < "$union") vs $n_all)" $?
+
+# A query must not have left a journal or a mutation behind.
+[ ! -f "tools/journeys/.selftest-journal.shard-1of$SH.json" ]
+ck "listing a shard writes NO journal — a query is not a run" $?
+
+echo ""
+echo "=== probe 6: --combine REFUSES a broken partition ==="
+# The partition above is a property of today's arm list and stride. The combine
+# is what defends it at runtime, after four shards have really run — and a
+# defence nobody has watched fail is indistinguishable from no defence. Each
+# case below hands `--combine` a set of journals with ONE thing wrong and
+# demands it refuse for THAT reason.
+#
+# Synthetic journals, built from the real shard lists, so no arm is executed.
+mkjournals() { # mkjournals <dir-tag> ; writes $SH journals from $LOGS/shard-i
+  for i in $(seq 1 $SH); do
+    python3 - "$LOGS/shard-$i" "$i" "$SH" "tools/journeys/.selftest-journal.shard-${i}of${SH}.json" <<'PY'
+import json, sys
+src, i, of, dest = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
+ids = [l.strip() for l in open(src) if l.strip()]
+json.dump({
+    "startedAt": "2026-01-01T00:00:00.000Z",
+    "finishedAt": "2026-01-01T00:10:00.000Z",
+    "status": "done",
+    "planned": len(ids),
+    "armFilter": None,
+    "shard": {"i": i, "of": of},
+    "arms": [{"id": a, "verdict": "killed", "ms": 1000} for a in ids],
+    "lastArmStarted": None,
+}, open(dest, "w"))
+PY
+  done
+}
+cleanup_journals() { rm -f tools/journeys/.selftest-journal.shard-*of${SH}.json; }
+trap 'rm -rf "$LOGS"; cleanup_journals' EXIT
+
+# CONTROL. Without a combine that PASSES over an intact partition, every
+# refusal below is unattributable — it could be refusing the synthetic journals
+# themselves.
+mkjournals
+node tools/journeys/selftest.mjs --combine $SH > "$LOGS/c0" 2>&1
+grep -q "RESULT: OK" "$LOGS/c0"
+ck "CONTROL: an intact partition of killed arms combines to OK" $?
+
+# 6a — an arm no shard ran.
+mkjournals
+victim="$(head -1 "$LOGS/shard-2")"
+python3 - "tools/journeys/.selftest-journal.shard-2of${SH}.json" "$victim" <<'PY'
+import json, sys
+p, victim = sys.argv[1], sys.argv[2]
+j = json.load(open(p))
+j["arms"] = [a for a in j["arms"] if a["id"] != victim]
+json.dump(j, open(p, "w"))
+PY
+node tools/journeys/selftest.mjs --combine $SH > "$LOGS/c1" 2>&1
+grep -q "NOT RUN BY ANY SHARD  $victim" "$LOGS/c1"
+ck "6a/a dropped arm is named: NOT RUN BY ANY SHARD" $?
+grep -q "RESULT: DID NOT RUN" "$LOGS/c1"
+ck "6a/and it is DID NOT RUN, not a pass and not a failure" $?
+
+# 6b — an arm two shards both ran. The count still sums correctly if something
+# else went missing, which is why this is checked on its own.
+mkjournals
+dup="$(head -1 "$LOGS/shard-1")"
+python3 - "tools/journeys/.selftest-journal.shard-3of${SH}.json" "$dup" <<'PY'
+import json, sys
+p, dup = sys.argv[1], sys.argv[2]
+j = json.load(open(p))
+j["arms"].append({"id": dup, "verdict": "killed", "ms": 1000})
+json.dump(j, open(p, "w"))
+PY
+node tools/journeys/selftest.mjs --combine $SH > "$LOGS/c2" 2>&1
+grep -q "RUN BY MORE THAN ONE SHARD  $dup" "$LOGS/c2"
+ck "6b/an arm in two shards is named: RUN BY MORE THAN ONE SHARD" $?
+
+# 6c — a stale journal from an older arm list.
+mkjournals
+python3 - "tools/journeys/.selftest-journal.shard-4of${SH}.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+j = json.load(open(p))
+j["arms"].append({"id": "ZZ/an-arm-deleted-last-week", "verdict": "killed", "ms": 1})
+json.dump(j, open(p, "w"))
+PY
+node tools/journeys/selftest.mjs --combine $SH > "$LOGS/c3" 2>&1
+grep -q "AN ARM NO LONGER IN THIS FILE  ZZ/an-arm-deleted-last-week" "$LOGS/c3"
+ck "6c/an arm from a stale shard is named: AN ARM NO LONGER IN THIS FILE" $?
+
+# 6d — a shard that never ran at all. THE ONE THAT MATTERS MOST: this is what a
+# cancelled or timed-out matrix leg looks like, and "3 of 4 shards passed" must
+# never read as a verdict about the suite.
+mkjournals
+rm -f "tools/journeys/.selftest-journal.shard-2of${SH}.json"
+node tools/journeys/selftest.mjs --combine $SH > "$LOGS/c4" 2>&1
+rc=$?
+grep -q "shard 2/$SH: NO JOURNAL" "$LOGS/c4"
+ck "6d/a shard that never ran is named, by index" $?
+grep -q "RESULT: DID NOT RUN" "$LOGS/c4"
+ck "6d/and three passing shards do NOT combine to a pass" $?
+[ "$rc" -eq 2 ]
+ck "6d/exits 2 (did-not-run), not 0 and not 1 (got $rc)" $?
+
+# 6e — the arms are all present but one SURVIVED. The partition is fine and the
+# suite is not: this must be FAILED, distinct from every DID NOT RUN above.
+mkjournals
+python3 - "tools/journeys/.selftest-journal.shard-1of${SH}.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+j = json.load(open(p))
+j["arms"][0]["verdict"] = "survived"
+json.dump(j, open(p, "w"))
+PY
+node tools/journeys/selftest.mjs --combine $SH > "$LOGS/c5" 2>&1
+rc=$?
+grep -q "RESULT: FAILED" "$LOGS/c5"
+ck "6e/an intact partition with a SURVIVOR is FAILED, not DID NOT RUN" $?
+[ "$rc" -eq 1 ]
+ck "6e/exits 1 (got $rc)" $?
+cleanup_journals
+
+echo ""
 echo "$((pass + fail)) probe(s): $pass passed, $fail failed"
 if ! git diff --quiet -- "$MUT"; then
   echo "  $MUT IS STILL MUTATED after this script — that is a defect in this script."

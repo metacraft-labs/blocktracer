@@ -11,6 +11,30 @@
 # says: this IS a gate, it SHOULD run, nothing runs it today, and here is what
 # it would cost the person who wires it.
 #
+# ---------------------------------------------------------------------------
+#
+# ONLY ONE KIND OF DARKNESS BELONGS HERE.
+#
+#   LEGITIMATE — the gate cannot run because a capability it needs GENUINELY
+#   DOES NOT EXIST yet. The entry must NAME that capability, in a
+#   `MISSING CAPABILITY:` line, so the register says what would have to become
+#   true for the line to be deleted. That turns each entry into a claim someone
+#   can check and eventually discharge.
+#
+#   NOT LEGITIMATE — the gate could run and nobody wired it. That is not a dark
+#   gate, it is an unwired one, and it does not land. Write the job.
+#
+# The distinction is written down here while this file has TWO entries rather
+# than after it has fifteen, because a register whose bar is set once it is
+# already long gets the bar its longest-serving entries deserve. The codetracer
+# side has had three ceiling raises in a single day; this is the rule adopted
+# there and it applies here identically.
+#
+# `MISSING CAPABILITY:` IS ENFORCED, not requested. `ci/test/ci-coverage.sh`
+# fails on any entry whose preceding comment block does not carry one, and
+# `ci-coverage-test.sh` plants an entry without one and requires that failure.
+# A convention nobody checks is how the second kind of darkness gets in.
+#
 # Ported from codetracer's `ci/test/shell-gate-coverage.known-dark.txt`,
 # including the rule that is the reason this file exists rather than two more
 # workflow steps:
@@ -59,9 +83,17 @@
 #     so a runner missing an input gets a failure, not a skip. That is correct
 #     for the gate and it is the reason it cannot be added defensively.
 #
-# WHAT WOULD MAKE THIS ENTRY DELETABLE: the engine findings being fixed
-# upstream, or an owner deciding the lane runs `continue-on-error` as a
-# reported diagnostic. Either way the guard above will demand this line go.
+# MISSING CAPABILITY: a published wasm32 replay engine that answers the ten
+# checks this lane makes — and answers the request it currently drops, which is
+# what makes the lane exit 124 rather than merely go red. The engine is built
+# and published by the `codetracer` repository; nothing in THIS repository can
+# make the lane pass, which is precisely why it is dark rather than unwired.
+# (The engine is fetched unpinned, so this can change without a commit here —
+# the same property that retired the `journeys` Arm II refusal on 2026-09-04.)
+#
+# WHAT WOULD MAKE THIS ENTRY DELETABLE: that engine shipping. Re-run
+# `just noir-engine-dap` against the published artefact; when the ten checks go
+# green, wire the lane and delete this line — the guard above will demand it.
 noir-engine-dap.sh
 
 # The proof-of-bite for the lane above, and it inherits the lane's problem
@@ -70,4 +102,9 @@ noir-engine-dap.sh
 # cannot be judged by the exit code"), so it needs the same 18 MB engine, the
 # same Embed SDK and the same toolchain, and it is meaningful only where the
 # lane it proves is meaningful. It goes dark and comes back with its subject.
+#
+# MISSING CAPABILITY: the same engine as above. This gate's subject is the lane
+# above, and a proof-of-bite for a lane that cannot run has nothing to prove
+# against — its own baseline step is "capture the checks that are already red",
+# which is only meaningful once they are not.
 noir-engine-dap-test.sh
