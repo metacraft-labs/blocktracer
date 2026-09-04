@@ -502,9 +502,21 @@ html[data-register="debugger"],
    rejected. It needs the strip's own surface to occlude the tabs sliding under
    it, which is `--bt-surface-sunken` and not a new colour: it is the same
    surface it is already sitting on, so a tab in its natural position looks
-   exactly as it did. */
+   exactly as it did.
+
+   THE HALO IS WHAT MAKES THE PIN READ AS DELIBERATE. A sticky chip with a flat
+   background butts against the tab sliding under it and cuts it mid-glyph,
+   which looks like a rendering fault rather than a control — and on this
+   contract at 1280 that is the FIRST thing the pane shows, because the marked
+   file is the fifth tab and the row holds four. The shadow is the strip's own
+   surface rather than a colour of its own, so it is not a shadow in the visual
+   sense at all: it is a soft mask that fades the text approaching the chip
+   instead of clipping it, and it is invisible when the tab is in its natural
+   position with nothing underneath to fade. Same idiom as the code pane's
+   right-edge fade — one overflow treatment on this page, and it is the fade. */
 .srctab.on{position:sticky;left:0;right:0;z-index:1;
   background:var(--bt-surface-sunken);
+  box-shadow:0 0 var(--bt-space-xs) var(--bt-space-3xs) var(--bt-surface-sunken);
   color:var(--bt-text-strong);border-bottom-color:var(--bt-mark-view)}
 /* THE DISCLOSURE. The checkbox is the state and the label is the control; the
    input is zero-sized rather than `display:none` because a hidden input is not
@@ -517,7 +529,11 @@ html[data-register="debugger"],
    No new tokens — the same three the global rule uses. */
 .srcallt:focus-visible ~ .srcall{outline:var(--bt-focus-width) solid var(--bt-focus-ring);
   outline-offset:var(--bt-focus-offset)}
-.srcall{flex:0 0 auto;align-self:center;cursor:pointer;white-space:nowrap;
+/* `flex-start` and not `center`: opening the list makes the strip six times
+   taller, and a centred control slides down to the middle of what it just
+   opened — away from the pointer that opened it, and away from the row a
+   reader closes it from. It stays on the first row in both states. */
+.srcall{flex:0 0 auto;align-self:flex-start;cursor:pointer;white-space:nowrap;
   font-size:var(--bt-type-label-size);color:var(--bt-text-subtle);
   padding:var(--bt-space-3xs) var(--bt-density-cell-x);
   border-left:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
