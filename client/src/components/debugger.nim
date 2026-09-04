@@ -73,6 +73,55 @@ import ../debugger/keymap
 # it here would put a file reader on a browser bundle's import graph. The one
 # symbol this module used from it, `truncHash`, now lives in `session_view`.
 
+# ── appending rendered markup ──────────────────────────────────────────────
+
+proc addHtml(dest: var string; src: string) {.inline.} =
+  ## Append rendered markup that may be MEGABYTES long. Use this, and not
+  ## `dest.add src`, wherever `src` is a whole rendered pane, panel, document or
+  ## subtree rather than a class name or a few characters.
+  ##
+  ## ## WHY THIS EXISTS: `add` IS NOT SAFE ON THE JS BACKEND AT SCALE
+  ##
+  ## Nim's JS backend represents `string` as a JS ARRAY OF CHAR CODES, and
+  ## compiles `dest.add(src)` to:
+  ##
+  ##   dest.push.apply(dest, src)
+  ##
+  ## `Function.prototype.apply` passes every element of `src` as a separate
+  ## ARGUMENT, so appending an n-character string makes an n-argument call. Every
+  ## engine caps that at roughly 65k–125k arguments, and past the cap the call
+  ## throws `RangeError: Maximum call stack size exceeded`.
+  ##
+  ## This is ARGUMENT-COUNT exhaustion, NOT recursion depth. That distinction is
+  ## why the fix is here and not in the per-row loops: nothing was recursing.
+  ## The DSL's `for` bodies already accumulate row by row — a row is ~100
+  ## characters and appends fine — and the stack trace of the failure has ONE
+  ## frame, not thousands. Deepening the stack or trampolining the renderers
+  ## would have changed nothing.
+  ##
+  ## The failure it fixes was total rather than cosmetic. On the FeeJuice
+  ## transaction the source pane's document is 4,082,980 bytes; `renderSource`
+  ## threw on `panels.add`, the exception left `renderPanes` before the call
+  ## trace was written, and EVERY live pane stayed unhydrated. The statically
+  ## exported page was correct throughout — the static build is the C backend,
+  ## where `add` is an ordinary amortised append — so the whole defect was
+  ## invisible to anything that only read the served HTML.
+  ##
+  ## `&` compiles to `dest.concat(src)`, which takes the operand as ONE argument
+  ## and has no such cap; it is measured safe past 5 MB. It copies where `add`
+  ## appends in place, so this is reserved for the handful of call sites whose
+  ## operand is a whole rendered subtree and whose append count is small (panels
+  ## per layout node, documents per pane, folded groups per call trace) rather
+  ## than applied to the per-row loops, where in-place append is what keeps
+  ## rendering linear.
+  ##
+  ## The native backend keeps `add` — the static export renders every page on
+  ## the site and has no reason to pay for the copy.
+  when defined(js):
+    dest = dest & src
+  else:
+    dest.add src
+
 # ── weights → flex fractions ───────────────────────────────────────────────
 
 const MaxWeight* = 12
@@ -1067,7 +1116,7 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
       tdiv(class = "srcdoc alt", id = docAnchor(d.path), `data-path` = d.path):
         raw tabStrip(d.path)
         raw body(d)
-    panels.add alt
+    panels.addHtml alt
   let def = ui:
     # `data-path` carries the document's REAL path beside the anchor id.
     #
@@ -1081,7 +1130,7 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
     tdiv(class = "srcdoc def", id = docAnchor(doc.path), `data-path` = doc.path):
       raw tabStrip(doc.path)
       raw body(doc)
-  panels.add def
+  panels.addHtml def
   # CONCATENATED, not emitted from one `ui:` block. The rail's `:target`
   # anchors, the rail and the listing must be SIBLINGS — `#fit-3:target ~
   # .srcwrap .fv` is the only shape CSS offers for "a control up here changes
@@ -1364,7 +1413,7 @@ proc renderCallTrace*(p: CallTracePane): string =
           details(class = "ctfold"):
             raw head
             raw body
-        result.add wrapped
+        result.addHtml wrapped
         k = j
 
     ui:
@@ -2165,7 +2214,7 @@ proc renderStack(node: LayoutNode; s: DebugSessionView): string =
           span(class = "panetitle"): text child.title
         tdiv(class = "panebody"):
           raw paneBody(child.pane, s)
-    panels.add panel
+    panels.addHtml panel
   let tabs = ui:
     nav(class = "stacktabs"):
       for child in node.children:
@@ -2188,7 +2237,7 @@ proc renderLayout*(node: LayoutNode; s: DebugSessionView): string =
     renderStack(node, s)
   of lnRow, lnColumn:
     var kids = ""
-    for c in node.children: kids.add renderLayout(c, s)
+    for c in node.children: kids.addHtml renderLayout(c, s)
     ui:
       tdiv(class = "ln " & (if node.kind == lnRow: "row" else: "col") & " " &
                    weightClass(node.weight)):

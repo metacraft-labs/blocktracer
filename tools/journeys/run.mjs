@@ -65,7 +65,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
 import { Journey, renderJourney, nameCollisions } from "./lib/harness.mjs";
-import { openBrowser, readFacts, visit } from "./lib/probe.mjs";
+import { openBrowser, readFacts, visit, UNCAUGHT } from "./lib/probe.mjs";
 import { openSite, serveDist } from "./lib/site.mjs";
 import { stageEngine, engineIdentity, bundleIdentity } from "./lib/engine.mjs";
 import { transactions, landingOf } from "./lib/corpus.mjs";
@@ -628,6 +628,65 @@ async function main() {
   console.log(
     `  ${green} green, ${red} red, ${ledgeredRed} ledgered red, ${skipped} skipped`,
   );
+
+  // ---- THE UNCAUGHT-ERROR GATE ------------------------------------------
+  //
+  // A page that threw is a failed page, whatever the journey that loaded it
+  // went on to assert about its DOM. This runs over EVERY load the suite made,
+  // and it is not something a journey opts into — see `lib/probe.mjs:UNCAUGHT`
+  // for why it cannot be, and for the seven-per-load defect that established
+  // it.
+  //
+  // It is deliberately reported per PAGE and not per exception. Seven throws
+  // from one broken render is one defect, and a gate that printed a flat total
+  // would let a second, unrelated page hide inside a number that was already
+  // large. The count is still stated in full — it is what says how bad it is —
+  // but the grouping is what says how many things are wrong.
+  //
+  // NO ALLOWLIST, ON PURPOSE. There is no page in this product that is entitled
+  // to throw: §7.0's guarantee is that no state renders less than the
+  // pre-hydration page, and an uncaught exception is how that guarantee breaks.
+  // Whoever needs an exemption should have to add the mechanism and argue for
+  // it in the same commit, rather than find one already built and reach for it.
+  const byPage = new Map();
+  for (const e of UNCAUGHT) {
+    if (!byPage.has(e.path)) byPage.set(e.path, []);
+    byPage.get(e.path).push(e);
+  }
+  report.uncaught = { total: UNCAUGHT.length, pages: byPage.size, errors: UNCAUGHT };
+  if (UNCAUGHT.length > 0) {
+    console.log("");
+    console.log(
+      `  [FAILED] ${UNCAUGHT.length} uncaught page error(s) on ${byPage.size} page(s).`,
+    );
+    console.log(
+      `           A load that throws is a failed load. The panes that had not been`,
+    );
+    console.log(
+      `           written when the exception unwound are simply absent, and the`,
+    );
+    console.log(
+      `           statically exported markup underneath them looks identical to a`,
+    );
+    console.log(`           DOM query — which is why this is gated and not asserted.`);
+    for (const [p, es] of byPage) {
+      console.log("");
+      console.log(`  ── ${p}`);
+      console.log(`     ${es.length} uncaught error(s); first:`);
+      console.log(`     ${es[0].message}`);
+      const stack = es[0].stack || "<no stack on the error object>";
+      for (const line of stack.split("\n").slice(0, 12)) {
+        console.log(`       ${line}`);
+      }
+      const others = [...new Set(es.slice(1).map((e) => e.message))];
+      if (others.length) {
+        console.log(`     other distinct message(s) on this page:`);
+        for (const m of others) console.log(`       ${m}`);
+      }
+    }
+    failures += 1;
+  }
+
   if (args.json) await writeFile(args.json, JSON.stringify(report, null, 2));
 
   if (failures > 0) {

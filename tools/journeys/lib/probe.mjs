@@ -474,6 +474,50 @@ export async function visitWithoutScript(browser, origin, path, { timeoutMs = 45
   return facts;
 }
 
+// ---------------------------------------------------------------------------
+// THE RUN-WIDE UNCAUGHT-ERROR REGISTER
+//
+// Every uncaught exception thrown by any page this suite loads is recorded
+// here, whatever the journey that loaded it went on to assert. `run.mjs` reads
+// it after the last journey and fails the run over it.
+//
+// ## Why a register, and not one more assertion
+//
+// `pageErrors` has been returned by `visit` from the beginning, and four of the
+// thirty-one journeys assert it is empty. The other twenty-seven load pages
+// too, and for them an uncaught exception was simply not a result: it was
+// collected, handed back, and dropped on the floor.
+//
+// That is how SEVEN uncaught errors per load survived on the FeeJuice
+// transaction — the busiest page in the corpus and the one the product is
+// demonstrated on — for as long as anyone had been looking at it. `renderSource`
+// threw on a four-megabyte document, the exception unwound out of `renderPanes`
+// before the call-trace pane was written, and EVERY live pane stayed
+// unhydrated. Nothing went red, because the journeys that load that page assert
+// what is in the DOM, and the DOM still held the correct STATICALLY exported
+// markup underneath. A page that throws its way out of hydration and a page
+// that hydrated perfectly are the same page to a DOM query.
+//
+// So the check may not be opt-in. An assertion each journey has to remember is
+// an assertion that will be missing from the journey that needed it, which is
+// exactly the shape of what happened. This one cannot be forgotten: it is
+// wired into the act of loading a page, and a journey gets it by existing.
+//
+// ## The stack, not just the message
+//
+// The handler used to keep `e.message` alone. "Maximum call stack size
+// exceeded" names no file, no function and no line, and it is the same string
+// for every possible cause — so the one artefact that says WHERE was being
+// discarded at the moment of capture. The stack is kept now, and the gate
+// prints the first one in full, because the count tells you there is a defect
+// and only the stack tells you which.
+export const UNCAUGHT = [];
+
+/** Forget everything recorded so far. For the harness's own self-tests. */
+export function resetUncaught() {
+  UNCAUGHT.length = 0;
+}
+
 export async function visit(
   browser,
   origin,
@@ -540,7 +584,20 @@ export async function visit(
   const pageErrors = [];
   const consoleErrors = [];
   const consoleLines = [];
-  page.on("pageerror", (e) => pageErrors.push(String(e && e.message ? e.message : e)));
+  // `pageErrors` keeps the MESSAGES, unchanged, because journeys assert on it
+  // and several join it into their own failure text. The register beside it
+  // keeps the message AND the stack AND the page that produced them, which is
+  // what makes the run-wide gate able to name a culprit rather than a count.
+  page.on("pageerror", (e) => {
+    const message = String(e && e.message ? e.message : e);
+    pageErrors.push(message);
+    UNCAUGHT.push({
+      url: origin + path,
+      path,
+      message,
+      stack: (e && e.stack ? String(e.stack) : "").trim(),
+    });
+  });
   // EVERY LINE, not only the errors — this filter threw away the product's one
   // diagnostic channel.
   //
