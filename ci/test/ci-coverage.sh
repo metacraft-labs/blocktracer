@@ -40,17 +40,33 @@
 #      out of `just test`, for the same reason every `<subject>-test.sh` is its
 #      own CI step rather than part of `<subject>.sh`. Deliberately outside the
 #      aggregate is fine; run by nothing is not, and that is the distinction.
-#   2. Every `ci/test/*.sh` gate is run by some job, OR is recorded in
+#   2. Every shell gate is run by some job, OR is recorded in
 #      `ci/test/ci-coverage.known-dark.txt` with what it would cost to wire.
+#      "Every shell gate" means everything in `ci/test/` PLUS every test-shaped
+#      file anywhere in the tree; the scan's own comment says why, and why it
+#      used to be narrower.
 #      That register fails in both directions — a listed gate that becomes
 #      reachable, or that stops existing, fails by name — so an entry cannot
 #      outlive the hole it records. It is not an exemption list.
-#   3. ci.yml's push trigger covers every branch `deploy.yml` deploys from —
-#      those are the mainlines BY DEFINITION, so the two cannot disagree without
-#      a branch being deployed ungated.
+#   3. ci.yml has a PUSH TRIGGER for every branch `deploy.yml` deploys from —
+#      those are the mainlines by definition, so a branch deploy.yml ships and
+#      ci.yml does not even fire on is a hole nothing else would report.
+#
+#      READ THAT NARROWLY, BECAUSE THE WORD IT USED TO USE WAS "GATED" AND THAT
+#      CLAIMED SOMETHING THIS FILE DOES NOT CHECK. `deploy.yml` triggers
+#      straight off `push:`; it has no `needs:` on any ci job and no
+#      `workflow_run:` waiting on ci.yml, so the two workflows start TOGETHER
+#      and a deploy publishes whether ci passes, fails, or is cancelled before
+#      it places a job. What step 3 measures is that ci.yml FIRES on the branch.
+#      Whether it also PASSED, and whether anything waits for the answer, are
+#      different questions, and neither is asked here or anywhere else.
 #   4. Every branch ci.yml names in its push trigger actually EXISTS. A trigger
 #      on a branch nobody uses is indistinguishable, in the YAML, from a trigger
 #      that works.
+#   5. `ci-coverage-clock.yml` names every branch `deploy.yml` deploys from.
+#      Firing is not the same as answering: on a saturated pool a push run is
+#      evicted before it places a job, so the clock is what makes a verdict
+#      exist at all, and a deployed branch it does not name has no lane to one.
 #
 # Every check is COUNTED, and every subject list is asserted non-empty before
 # anything quantifies over it — a parser that silently matched nothing would
@@ -108,10 +124,54 @@ client_targets="$(
 )"
 client_count="$(printf '%s\n' "${client_targets}" | grep -c . || true)"
 
-# Every shell gate. `find`, not a list.
+# EVERY SHELL GATE, WHEREVER IT LIVES. `find`, not a list.
+#
+# THE SCAN USED TO BE `ci/test` ONLY, AND THAT MADE THIS GUARD BLIND BY
+# CONSTRUCTION. A gate outside that one directory was not "uncovered" as far as
+# this file was concerned — it was not a SUBJECT at all, so no amount of
+# darkness could ever produce a finding about it. Measured 2026-09-04:
+# `fixtures/trace/tour/check-corpus.sh` is a 270-line both-directions
+# known-failure register with its own `--selftest`, it is named by no workflow,
+# its only callers are two Justfile recipes nothing invokes — and this guard
+# printed `RESULT: OK` beside it every single run.
+#
+# That is this file's OWN founding defect, reproduced one level up. The header
+# says it: "a gate's SURFACE has a hole, and nothing measures the surface". The
+# surface being measured had a hole in it, and the thing measuring the surface
+# was the last place anyone would look for one.
+#
+# THE UNIVERSE IS TWO RULES, UNIONED:
+#
+#   * everything in `ci/test/`, exactly as before — that directory is gates by
+#     convention, whatever any individual file is called; PLUS
+#   * anything TEST-SHAPED anywhere in the tree: `*-test.sh`, `*-selftest.sh`,
+#     `check-*.sh`. This is codetracer's rule for `test-lane-coverage.sh`,
+#     already quoted in this file's header — "fails by name on any test-shaped
+#     file no lane claims" — and the reason to adopt the shape rule rather than
+#     "every .sh in the repo" is directly below.
+#
+# THE SHAPE RULE IS WHAT KEEPS THE SCAN HONEST. `client/hydrate/build.sh`,
+# `client/hydrate/fetch-engine.sh`, `fixtures/trace/tour/record.sh` and
+# `tools/chain/watch-chain.sh` are builders, fetchers, recorders and a chain
+# follower. They are not gates, they assert nothing, and demanding that CI
+# "run" them would be a category error that this register would then have to
+# excuse — turning the known-dark file into the dumping ground its own header
+# forbids. A gate that wants to be counted names itself like one.
+#
+# VENDORED TREES ARE PRUNED, and `node_modules` above all: it is absent from a
+# fresh checkout but PRESENT after any install step, so a scan that did not
+# prune it would pass here and produce findings about somebody else's package
+# on a runner. That difference between the two environments is exactly the kind
+# of thing this file exists to not be surprised by.
 shell_gates="$(
-	find "${repo_root}/ci/test" -maxdepth 1 -type f -name '*.sh' 2>/dev/null |
-		sed "s#^${repo_root}/##" | sort
+	{
+		find "${repo_root}/ci/test" -maxdepth 1 -type f -name '*.sh' 2>/dev/null
+		find "${repo_root}" \
+			\( -name .git -o -name node_modules -o -name dist -o -name target \
+			-o -name result -o -name .direnv -o -name vendor \) -prune -o \
+			-type f \( -name '*-test.sh' -o -name '*-selftest.sh' \
+			-o -name 'check-*.sh' \) -print 2>/dev/null
+	} | sed "s#^${repo_root}/##" | sort -u
 )"
 # This file and its own self-test are excluded: a guard that demanded a job for
 # itself before that job existed could never be landed, and the job that runs it
@@ -145,9 +205,22 @@ else
 	bad "parsed only ${client_count} suite(s) out of client/Justfile's \`test:\` aggregate — the parser is broken, and every per-suite check below would be vacuous"
 fi
 if [ "${shell_count}" -ge 5 ]; then
-	ok "ci/test/ carries ${shell_count} shell gates"
+	ok "the tree carries ${shell_count} shell gates"
 else
-	bad "found only ${shell_count} shell gate(s) in ci/test/ — the scan is broken"
+	bad "found only ${shell_count} shell gate(s) — the scan is broken"
+fi
+# THE POSITIVE CONTROL FOR THE WIDENED SCAN, and the thing that stops it being
+# quietly narrowed back. `ci/test`-only is not a wrong ANSWER, it is a wrong
+# UNIVERSE, and a wrong universe reports perfect coverage rather than a failure
+# — which is how `check-corpus.sh` stayed invisible while this gate ran green.
+# So the reach of the scan is asserted, not assumed: if no gate outside
+# `ci/test/` is ever found again, either the tree genuinely has none or the
+# scan stopped leaving the directory, and those two must not look alike here.
+outside_count="$(printf '%s\n' "${shell_gates}" | grep -vc '^ci/test/' || true)"
+if [ "${outside_count}" -ge 1 ]; then
+	ok "${outside_count} of them live OUTSIDE ci/test/, so the scan reaches past that directory"
+else
+	bad "every gate found is inside ci/test/ — the scan has been narrowed back to one directory, and any gate outside it is invisible rather than uncovered"
 fi
 if [ "${failures}" -gt 0 ]; then
 	echo
@@ -283,7 +356,22 @@ echo "    register below fails in BOTH directions so it cannot outlive it."
 #                             silently excusing a name that could come back.
 #   * unlisted and dark    -> FAILS, exactly as before.
 #
-# Basenames, matching codetracer's file, so the two registers read alike.
+# REPO-RELATIVE PATHS, not basenames.
+#
+# This register held basenames, "matching codetracer's file so the two read
+# alike". That was safe only while every gate lived in one directory, and the
+# scan above no longer works that way: with `ci/test/` and the test-shaped
+# files anywhere in the tree, two gates may share a basename, and an entry that
+# names one would silently excuse the other. The existence check had the same
+# assumption baked in from the other end — it looked the entry up under
+# `ci/test/` and nowhere else, so a path-keyed entry would have read as a
+# ghost.
+#
+# Changing the KEY rather than adding a second accepted form is deliberate: a
+# register that took both would have to guess which an entry meant, and every
+# call site would keep compiling against the old assumption. Changing the type
+# forces each one to be re-resolved, which is what the entries and the selftest
+# arms below have been.
 known_dark_file="${repo_root}/ci/test/ci-coverage.known-dark.txt"
 known_dark=""
 if [ -f "${known_dark_file}" ]; then
@@ -296,9 +384,8 @@ recorded_dark=0
 register_problems=0
 while read -r gate; do
 	[ -n "${gate}" ] || continue
-	base="$(basename "${gate}")"
 	listed=0
-	if [ -n "${known_dark}" ] && printf '%s\n' "${known_dark}" | grep -qxF -- "${base}"; then
+	if [ -n "${known_dark}" ] && printf '%s\n' "${known_dark}" | grep -qxF -- "${gate}"; then
 		listed=1
 	fi
 
@@ -322,9 +409,9 @@ done <<<"${shell_gates}"
 # names of deleted files is one that will one day excuse a file that comes back.
 while read -r entry; do
 	[ -n "${entry}" ] || continue
-	if [ ! -f "${repo_root}/ci/test/${entry}" ]; then
+	if [ ! -f "${repo_root}/${entry}" ]; then
 		register_problems=$((register_problems + 1))
-		bad "ci/test/ci-coverage.known-dark.txt names '${entry}', which does not exist in ci/test/ — delete that line"
+		bad "ci/test/ci-coverage.known-dark.txt names '${entry}', which does not exist — delete that line"
 	fi
 done <<<"${known_dark}"
 
@@ -377,9 +464,12 @@ fi
 echo
 
 # ---------------------------------------------------------------------------
-echo "Step 3: ci.yml gates every branch deploy.yml deploys from"
-echo "    Those branches are the mainlines by definition. A branch that is"
-echo "    deployed and not gated is the hole this file was written for."
+echo "Step 3: ci.yml has a push trigger for every branch deploy.yml deploys from"
+echo "    Those branches are the mainlines by definition, and a branch we ship"
+echo "    from that ci.yml does not even fire on is the hole this was written"
+echo "    for. NOT CHECKED, and not true today: that deploy WAITS for ci."
+echo "    deploy.yml triggers straight off push, with no needs: and no"
+echo "    workflow_run:, so it publishes alongside ci rather than after it."
 # ---------------------------------------------------------------------------
 # The push branch list of a workflow, as a newline-separated set. Read from the
 # `on: push: branches: [...]` line in either flow or inline form.
@@ -409,10 +499,13 @@ ungated=0
 while read -r b; do
 	[ -n "${b}" ] || continue
 	if printf '%s\n' "${ci_branches}" | grep -qx -- "${b}"; then
-		ok "branch '${b}' is deployed AND gated by ci.yml"
+		# "ci.yml fires on it", and deliberately not "it is gated". The deploy
+		# does not wait for the answer, so the strong word would be a promise
+		# this check has no way to keep.
+		ok "branch '${b}' is deployed, and ci.yml fires on it (fires — deploy does not wait for the result)"
 	else
 		ungated=$((ungated + 1))
-		bad "branch '${b}' is DEPLOYED by deploy.yml and NOT gated by ci.yml — every job in ci.yml is dark on it"
+		bad "branch '${b}' is DEPLOYED by deploy.yml and ci.yml does not fire on it at all — every job in ci.yml is dark on it"
 	fi
 done <<<"${deploy_branches}"
 echo
@@ -449,6 +542,63 @@ fi
 echo
 
 # ---------------------------------------------------------------------------
+echo "Step 5: the coverage clock names every branch deploy.yml deploys from"
+echo "    Steps 3 and 4 ask whether ci.yml FIRES on a branch. On a saturated"
+echo "    pool that is not the same as the branch getting an answer: a push run"
+echo "    can be evicted before it places a job, and 177 commits reached"
+echo "    blocktracer.org between 2026-09-02 and 2026-09-04 with no green ci on"
+echo "    any mainline. ci-coverage-clock.yml is the lane that produces a"
+echo "    verdict anyway, and a branch it does not name has no verdict lane."
+# ---------------------------------------------------------------------------
+# WHY THIS IS A GUARD AND NOT A SENTENCE IN THE CLOCK.
+#
+# The clock's ref list is a THIRD list of mainlines, beside `deploy.yml`'s and
+# `ci.yml`'s. This file exists because "adding a suite to two of three lists is
+# exactly how the five orphans happened" — and on 2026-09-04 the same thing
+# happened to this one: `4c2d149` narrowed the clock to `dev` alone, `staging`
+# and `live` kept deploying, and nothing anywhere reported that two published
+# branches had stopped having a way to reach a verdict. The clock said the
+# condition for putting them back in a comment. A condition in a comment is not
+# a check, and nobody re-read it.
+#
+# The mechanical form is the same one step 3 uses: A LIST MUST STAY, SO A GUARD
+# READS THE LIST.
+clock_workflow="${repo_root}/.github/workflows/ci-coverage-clock.yml"
+if [ ! -f "${clock_workflow}" ]; then
+	bad "there is no .github/workflows/ci-coverage-clock.yml — the lane that produces a mainline verdict when push runs are evicted does not exist"
+else
+	# Comments dropped BEFORE the match, for the reason this file has already
+	# been bitten by twice: the block above this line discusses `refs=` in
+	# prose, and a scan that read its subject's own documentation would be
+	# satisfied by the prose describing the list rather than the list.
+	clock_refs="$(
+		grep -vE '^[[:space:]]*#' "${clock_workflow}" |
+			grep -oE '^[[:space:]]*refs="[^"]*"' | head -1 |
+			sed 's/.*refs="//; s/"$//' | tr ' ' '\n' | grep -v '^$' | sort -u || true
+	)"
+	clock_count="$(printf '%s\n' "${clock_refs}" | grep -c . || true)"
+
+	# The positive control, before anything quantifies over the list.
+	if [ "${clock_count}" -ge 1 ]; then
+		ok "the coverage clock names ${clock_count} ref(s): $(printf '%s' "${clock_refs}" | tr '\n' ' ')"
+	else
+		bad "could not read the coverage clock's ref list — step 5 would be vacuous, which is worse than the hole it looks for"
+	fi
+
+	if [ "${clock_count}" -ge 1 ]; then
+		while read -r b; do
+			[ -n "${b}" ] || continue
+			if printf '%s\n' "${clock_refs}" | grep -qx -- "${b}"; then
+				ok "branch '${b}' is deployed AND has a coverage lane in ci-coverage-clock.yml"
+			else
+				bad "branch '${b}' is DEPLOYED by deploy.yml and the coverage clock does not name it — if its push runs are evicted, that branch reaches no verdict at all and nothing says so"
+			fi
+		done <<<"${deploy_branches}"
+	fi
+fi
+echo
+
+# ---------------------------------------------------------------------------
 # THE DARK COUNT IS PRINTED HERE, PASS OR FAIL.
 #
 # The old footer read "client suites: N declared, 0 uncovered" and nothing else,
@@ -472,6 +622,8 @@ if [ "${recorded_dark}" -gt 0 ]; then
 else
 	echo "  Every suite this repository has runs in CI, on every branch it deploys."
 fi
-echo "  NOT claimed: that those suites pass, or that they assert anything useful."
+echo "  NOT claimed: that those suites pass, or that they assert anything useful,"
+echo "  or that any deploy waits for them — deploy.yml triggers on push with no"
+echo "  needs: and no workflow_run:, so publishing does not depend on a verdict."
 echo "  This gate measures the SURFACE, and nothing else does."
 echo "RESULT: OK"

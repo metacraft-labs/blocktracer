@@ -57,8 +57,33 @@ stage() {
 	mkdir -p "${dest}/.github/workflows" "${dest}/client" "${dest}/ci/test"
 	cp "${repo_root}/.github/workflows/ci.yml" "${dest}/.github/workflows/"
 	cp "${repo_root}/.github/workflows/deploy.yml" "${dest}/.github/workflows/"
+	# The coverage clock, which step 5 reads. Without it the staged tree has no
+	# clock, step 5 reports the deployed branches as having no verdict lane, and
+	# the CONTROL below goes red — disabling every arm in this file.
+	cp "${repo_root}/.github/workflows/ci-coverage-clock.yml" "${dest}/.github/workflows/"
 	cp "${repo_root}/client/Justfile" "${dest}/client/"
 	cp "${repo_root}"/ci/test/*.sh "${dest}/ci/test/"
+	# THE GATES OUTSIDE ci/test/, which the guard's scan now also covers. They
+	# are copied as EMPTY STAND-INS at their real paths: the guard only ever
+	# asks whether a workflow names a path, never what the file contains, and
+	# staging the real 270-line corpus checker would put a script that shells
+	# out to `nargo` inside a throwaway tree for no gain.
+	#
+	# Without this the staged tree has no gate outside ci/test/ at all, the
+	# guard's own positive control for the widened scan goes red, and the
+	# CONTROL below would disable every arm in this file — a selftest made
+	# vacuous by the thing it is meant to be testing.
+	local g
+	while read -r g; do
+		[ -n "${g}" ] || continue
+		mkdir -p "${dest}/$(dirname "${g}")"
+		: >"${dest}/${g}"
+	done < <(cd "${repo_root}" && find . \
+		\( -name .git -o -name node_modules -o -name dist -o -name target \
+		-o -name result -o -name .direnv -o -name vendor \) -prune -o \
+		-type f \( -name '*-test.sh' -o -name '*-selftest.sh' \
+		-o -name 'check-*.sh' \) -print 2>/dev/null |
+		sed 's#^\./##' | grep -v '^ci/test/')
 	# The known-dark register. Without this the staged tree has no register at
 	# all, the two recorded Noir gates read as plain orphans, and the CONTROL
 	# below would be red — which would disable every arm in this file.
@@ -235,7 +260,46 @@ arm "1c/the by-name exemption, with the CI step taken away" \
 mutate_orphan_gate() {
 	printf '#!/usr/bin/env bash\nexit 0\n' >"${work}/arm/ci/test/a-gate-nobody-runs.sh"
 }
-arm "2/orphaned shell gate" "a-gate-nobody-runs.sh' exists and NO CI job runs it" mutate_orphan_gate
+arm "2/orphaned shell gate" "ci/test/a-gate-nobody-runs.sh' exists and NO CI job runs it" mutate_orphan_gate
+
+# ARM 2c — A DARK GATE OUTSIDE ci/test/. THE ARM FOR THE HOLE THAT WAS LIVE.
+#
+# Arm 2 only ever proved the guard sees an orphan in the ONE directory it used
+# to scan. That is not the same claim, and the difference had a name:
+# `fixtures/trace/tour/check-corpus.sh` — a 270-line both-directions
+# known-failure register with its own selftest — was run by no workflow while
+# this guard reported RESULT: OK, because it was never a subject. A blind spot
+# does not produce a wrong answer, it produces no question, and no arm here
+# could have caught that.
+#
+# So the mutation plants a test-shaped gate somewhere else entirely. The guard
+# must name it. If the scan is ever narrowed back to `ci/test/`, this arm goes
+# SURVIVED rather than the whole hole silently reopening.
+mutate_orphan_gate_outside_ci_test() {
+	mkdir -p "${work}/arm/tools/somewhere"
+	printf '#!/usr/bin/env bash\nexit 0\n' \
+		>"${work}/arm/tools/somewhere/check-nothing-runs-me.sh"
+}
+arm "2c/a dark gate OUTSIDE ci/test/" \
+	"tools/somewhere/check-nothing-runs-me.sh' exists and NO CI job runs it" \
+	mutate_orphan_gate_outside_ci_test
+
+# ARM 2d — THE SHAPE RULE'S OTHER SIDE. The scan takes test-shaped names, not
+# every `.sh`, so that builders and recorders are not swept in and then excused
+# in the register. That exclusion is a decision, and an exclusion nobody has
+# watched hold is indistinguishable from a scan that missed the file. Same
+# directory, same darkness, a name that is not gate-shaped: the guard must stay
+# GREEN. Longhand rather than `arm`, which demands a red.
+stage "${work}/arm"
+mkdir -p "${work}/arm/tools/somewhere"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${work}/arm/tools/somewhere/build-a-thing.sh"
+out2d="$(run_guard "${work}/arm")"
+if printf '%s' "${out2d}" | grep -q 'RESULT: OK'; then
+	ok "2d/a non-gate-shaped .sh outside ci/test/ is correctly NOT a subject"
+else
+	bad "2d: the scan swept in a builder — the shape rule is not holding, and the register will fill up with files that were never gates"
+	printf '%s\n' "${out2d}" | grep -E '^\s+\[FAILED\]' | head -3 | sed 's/^/           /'
+fi
 
 # ── THE KNOWN-DARK REGISTER, DRIVEN IN BOTH DIRECTIONS ──────────────────────
 #
@@ -255,7 +319,7 @@ mutate_listed_orphan_is_still_reported() {
 	# arm whose planted state is rejected for a reason it was not aimed at
 	# measures the wrong thing; this one failed exactly that way when the rule
 	# landed, and it is a kill by the wrong check rather than a kill.
-	printf '\n# MISSING CAPABILITY: a runner that does not exist.\na-gate-nobody-runs.sh\n' \
+	printf '\n# MISSING CAPABILITY: a runner that does not exist.\nci/test/a-gate-nobody-runs.sh\n' \
 		>>"${work}/arm/ci/test/ci-coverage.known-dark.txt"
 	grep -q 'a-gate-nobody-runs.sh' "${work}/arm/ci/test/ci-coverage.known-dark.txt"
 }
@@ -280,7 +344,7 @@ fi
 # So a listed gate that BECOMES REACHABLE must fail, by name, demanding the line
 # go. Here: list a gate that a CI job already runs.
 mutate_stale_register_entry() {
-	printf '\nflow-layout-vendor.sh\n' >>"${work}/arm/ci/test/ci-coverage.known-dark.txt"
+	printf '\nci/test/flow-layout-vendor.sh\n' >>"${work}/arm/ci/test/ci-coverage.known-dark.txt"
 }
 arm "3b/an entry that outlived its hole" \
 	"IS run by a CI job and is still listed in ci/test/ci-coverage.known-dark.txt — delete that line" \
@@ -290,10 +354,10 @@ arm "3b/an entry that outlived its hole" \
 # dead names is one that will one day silently excuse a file coming back under
 # a name somebody deleted years earlier.
 mutate_register_names_a_ghost() {
-	printf '\na-gate-that-was-deleted.sh\n' >>"${work}/arm/ci/test/ci-coverage.known-dark.txt"
+	printf '\nci/test/a-gate-that-was-deleted.sh\n' >>"${work}/arm/ci/test/ci-coverage.known-dark.txt"
 }
 arm "3c/an entry naming a gate that is gone" \
-	"which does not exist in ci/test/ — delete that line" \
+	"which does not exist — delete that line" \
 	mutate_register_names_a_ghost
 
 # ARM 3d — AN ENTRY THAT DOES NOT SAY WHAT IS MISSING.
@@ -310,7 +374,7 @@ arm "3c/an entry naming a gate that is gone" \
 # where a long register's oldest entries would put it.
 mutate_register_entry_without_a_capability() {
 	printf '#!/usr/bin/env bash\nexit 0\n' >"${work}/arm/ci/test/a-gate-nobody-wired.sh"
-	printf '\n# Not run yet. TODO: wire this up at some point.\na-gate-nobody-wired.sh\n' \
+	printf '\n# Not run yet. TODO: wire this up at some point.\nci/test/a-gate-nobody-wired.sh\n' \
 		>>"${work}/arm/ci/test/ci-coverage.known-dark.txt"
 	grep -q 'a-gate-nobody-wired.sh' "${work}/arm/ci/test/ci-coverage.known-dark.txt"
 }
@@ -326,7 +390,7 @@ arm "3d/a register entry that never says what is missing" \
 # in the direction that matters.
 stage "${work}/arm"
 printf '#!/usr/bin/env bash\nexit 0\n' >"${work}/arm/ci/test/a-gate-nobody-wired.sh"
-printf '\n# MISSING CAPABILITY: a thing that does not exist yet.\na-gate-nobody-wired.sh\n' \
+printf '\n# MISSING CAPABILITY: a thing that does not exist yet.\nci/test/a-gate-nobody-wired.sh\n' \
 	>>"${work}/arm/ci/test/ci-coverage.known-dark.txt"
 out3e="$(run_guard "${work}/arm")"
 if printf '%s' "${out3e}" | grep -q 'RESULT: OK' &&
@@ -344,7 +408,9 @@ mutate_ungated_branch() {
 	edit_line "${work}/arm/.github/workflows/ci.yml" \
 		'branches:[ ]*\[[^]]*\]' 'branches: [main]'
 }
-arm "3/a deployed branch nothing gates" "is DEPLOYED by deploy.yml and NOT gated" mutate_ungated_branch
+arm "3/a deployed branch ci.yml does not fire on" \
+	"is DEPLOYED by deploy.yml and ci.yml does not fire on it at all" \
+	mutate_ungated_branch
 
 # ARM 4 — a trigger naming a branch that does not exist.
 mutate_dead_branch() {
@@ -352,6 +418,56 @@ mutate_dead_branch() {
 		'(branches:[ ]*\[)([^]]*)(\])' '\1\2, a-branch-that-never-existed\3'
 }
 arm "4/a trigger on a dead branch" "which does not exist here" mutate_dead_branch
+
+# ARM 5 — A DEPLOYED BRANCH THE COVERAGE CLOCK DOES NOT NAME. THE DEFECT THAT
+# WAS LIVE ON 2026-09-04, and the one nothing anywhere reported.
+#
+# `4c2d149` narrowed the clock's list from `dev staging live` to `dev`. Both
+# other branches kept deploying; neither had produced a green `ci` since
+# 2026-09-02, and their push runs were being cancelled 22-to-9 and 19-to-7. The
+# clock had even written down the condition for putting a ref back — cancelled
+# runs outnumbering conclusions — and that condition was met on both while the
+# comment stating it sat unread. This arm is that comment turned into a check.
+#
+# The mutation is the narrowing itself, applied to the staged clock.
+mutate_clock_drops_a_deployed_branch() {
+	edit_line "${work}/arm/.github/workflows/ci-coverage-clock.yml" \
+		'refs="[^"]*"' 'refs="dev"' || return 1
+	# The mutation must have applied AND must actually have dropped something,
+	# or this arm passes on a tree where the clock already named `dev` alone.
+	grep -q 'refs="dev"' "${work}/arm/.github/workflows/ci-coverage-clock.yml"
+}
+arm "5/a deployed branch with no coverage lane" \
+	"and the coverage clock does not name it" \
+	mutate_clock_drops_a_deployed_branch
+
+# ARM 5b — THE CLOCK ITSELF GOING MISSING. Deleting the file must not read as
+# "no branches to check, all good". A guard whose subject can vanish into a
+# green result is the `main`-trigger defect once more: nothing is wrong because
+# nothing is looked at.
+mutate_clock_deleted() {
+	rm -f "${work}/arm/.github/workflows/ci-coverage-clock.yml"
+	[ ! -f "${work}/arm/.github/workflows/ci-coverage-clock.yml" ]
+}
+arm "5b/the coverage clock deleted entirely" \
+	"there is no .github/workflows/ci-coverage-clock.yml" \
+	mutate_clock_deleted
+
+# ARM 5c — THE CONTROL FOR STEP 5's PARSER. Arms 5 and 5b both go red, and both
+# would also go red if the `refs=` scan simply never matched anything — in which
+# case step 5 would be failing for a reason unrelated to its subject and would
+# keep failing after a real fix. So: leave the clock correct and require the
+# parser to have READ it, by name. This is the assertion that makes the two arms
+# above measurements rather than noise.
+stage "${work}/arm"
+out5c="$(run_guard "${work}/arm")"
+if printf '%s' "${out5c}" | grep -q 'RESULT: OK' &&
+	printf '%s' "${out5c}" | grep -qE 'the coverage clock names [1-9][0-9]* ref\(s\)'; then
+	ok "5c/step 5's parser actually reads the clock's ref list, so 5 and 5b are about their subject"
+else
+	bad "5c: step 5 never reported reading the clock's refs — arms 5 and 5b may be red because the parser matches nothing"
+	printf '%s\n' "${out5c}" | grep -E '^\s+\[FAILED\]' | head -3 | sed 's/^/           /'
+fi
 
 echo
 echo "${checks} check(s), ${failures} failure(s)"

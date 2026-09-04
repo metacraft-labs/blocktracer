@@ -1,4 +1,5 @@
-# Gates in ci/test/ that no CI job runs, with why each is still here.
+# Gates that no CI job runs, with why each is still here. Not just ci/test/'s:
+# the scan behind this register covers every test-shaped file in the tree.
 #
 # THIS FILE FAILS IN BOTH DIRECTIONS. A listed gate that stays dark is reported
 # and does not fail the run. A listed gate that BECOMES REACHABLE fails the run,
@@ -24,8 +25,8 @@
 #   NOT LEGITIMATE — the gate could run and nobody wired it. That is not a dark
 #   gate, it is an unwired one, and it does not land. Write the job.
 #
-# The distinction is written down here while this file has TWO entries rather
-# than after it has fifteen, because a register whose bar is set once it is
+# The distinction was written down here while this file was short rather than
+# after it had fifteen entries, because a register whose bar is set once it is
 # already long gets the bar its longest-serving entries deserve. The codetracer
 # side has had three ceiling raises in a single day; this is the rule adopted
 # there and it applies here identically.
@@ -45,7 +46,12 @@
 #     making five decisions that are not theirs. What is done here is making the
 #     number impossible to lose.
 #
-# Format: one basename per line. `#` comments and blank lines ignored.
+# Format: one REPO-RELATIVE PATH per line. `#` comments and blank lines ignored.
+#
+# Paths, not basenames, since 2026-09-04. The scan that feeds this register used
+# to be `ci/test/` alone, so a basename was unambiguous; it now covers every
+# test-shaped file in the tree, where two gates may share one. `ci-coverage.sh`
+# says more about why the key changed rather than gaining a second form.
 
 # ── the Noir DAP engine seam ────────────────────────────────────────────────
 #
@@ -94,7 +100,7 @@
 # WHAT WOULD MAKE THIS ENTRY DELETABLE: that engine shipping. Re-run
 # `just noir-engine-dap` against the published artefact; when the ten checks go
 # green, wire the lane and delete this line — the guard above will demand it.
-noir-engine-dap.sh
+ci/test/noir-engine-dap.sh
 
 # The proof-of-bite for the lane above, and it inherits the lane's problem
 # exactly: it captures a BASELINE of the already-red checks before any arm
@@ -107,4 +113,61 @@ noir-engine-dap.sh
 # above, and a proof-of-bite for a lane that cannot run has nothing to prove
 # against — its own baseline step is "capture the checks that are already red",
 # which is only meaningful once they are not.
-noir-engine-dap-test.sh
+ci/test/noir-engine-dap-test.sh
+
+# ── the Noir corpus's known-failure register ────────────────────────────────
+#
+# THE FIRST ENTRY HERE FROM OUTSIDE `ci/test/`, and it is here because it was
+# never visible to be dark. Until 2026-09-04 `ci-coverage.sh` enumerated
+# `ci/test/*.sh` and nothing else, so this file was not an uncovered gate — it
+# was not a subject. ci.yml's own `deploy-gates` job had already written the
+# same sentence about `tools/`: "not by `ci-coverage.sh`, whose enumeration
+# reaches `ci/test/*.sh` and `client/Justfile` and nothing under `tools/`".
+# The scan now covers every test-shaped file in the tree, and this is what that
+# turned up.
+#
+# WHAT IT IS. 270 lines over `fixtures/trace/tour/manifest.json`: three
+# toolchain programs pinned compile/error, and a both-directions known-failure
+# register carrying NR-02, NR-03a and NR-04. Its rule is the one the journeys
+# ledger states — a pinned defect that STOPS holding reports `NOW PASSING` and
+# FAILS the run, so a fix cannot land without the entry recording it being
+# deleted. `--selftest` drives both directions plus a base case. Its only
+# callers today are `just corpus-check` and `just corpus-selftest`, and no
+# workflow invokes either.
+#
+# IT PASSES. Measured 2026-09-04 on a workstation that has both binaries:
+# "corpus: 3 pinned, 3 known failure(s) still open, 0 unexpected, 0 newly
+# passing", exit 0. So this entry is NOT hiding a red — the gate is dark, not
+# broken, and that distinction is why it was worth running before writing this.
+#
+# MISSING CAPABILITY: `nargo` and `ct-print` on a CI runner. Neither is a build
+# dependency of this repository and neither can be produced by it. `nargo` is
+# the Noir compiler, a 43 MB release binary built from the `noir` checkout;
+# `ct-print` comes from `codetracer-trace-format-nim`. The script finds both by
+# walking UP from its own directory into sibling checkouts — a workstation
+# layout that does not exist on a runner — and `flake.nix`'s `ci` shell carries
+# `nim nimble just python3 wrangler nodejs_22`, none of which is either one.
+#
+# WHAT IT WOULD COST WHOEVER WIRES IT, and why it is not being wired here:
+#
+#   * ABSENT `NARGO` THE SCRIPT EXITS 2 BEFORE MEASURING ANYTHING, and absent
+#     `CT_PRINT` it counts the recording checks as `NOT RUN` and increments
+#     `fail`. Both are deliberate — its header argues a register that quietly
+#     checks nothing is worse than none — but both mean that adding this as an
+#     ordinary step on a runner without the binaries buys a PERMANENTLY RED
+#     job, which is the failure mode the two entries above are also about.
+#   * So it needs a skip path that does not exist yet, and the shape is known:
+#     skip LOUDLY, with skips counted separately from passes, so that "the
+#     toolchain was absent" can never be read as "the corpus passed". Whoever
+#     adds it must drive that branch in BOTH directions — present and absent —
+#     because a skip path nobody has watched trigger is how a gate goes green
+#     on an empty runner.
+#   * Pinning where `nargo` comes from is a decision with a cost that is not a
+#     guard author's to make: it is another repository's release artifact, and
+#     the corpus's whole point is to pin what THAT toolchain currently does.
+#
+# WHAT WOULD MAKE THIS ENTRY DELETABLE: either binary set reaching a runner —
+# a pinned `nargo` in the flake, or a published artifact the job can fetch.
+# Then wire it with the counted-skip shape above and delete this line; the
+# guard will demand it the moment the gate becomes reachable.
+fixtures/trace/tour/check-corpus.sh

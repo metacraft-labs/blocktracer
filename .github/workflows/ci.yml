@@ -178,7 +178,11 @@ jobs:
       - name: Every suite runs, on every branch we deploy
         run: bash ci/test/ci-coverage.sh
 
-      - name: And the guard bites — four planted holes, four reports
+      # No count in this name. It said "four planted holes, four reports" while
+      # nine arms ran, and would now say four while seventeen do — a sentence
+      # describing a check does not get corrected when the check does. The
+      # selftest counts and prints what actually executed.
+      - name: And the guard bites — every planted hole reported, and only those
         run: bash ci/test/ci-coverage-test.sh
 
   # The two gates that stand between a build and production, and the proof that
@@ -190,10 +194,16 @@ jobs:
   # deploy gate's own proof-of-bite was dead code, so the only evidence that
   # `check-assets.mjs` could fail was that someone had once watched it.
   #
-  # `ci-coverage.sh` did not catch it because it enumerates `ci/test/*.sh` and
-  # `client/Justfile`'s aggregate, and a selftest under `tools/` is in neither
-  # list. That is a real gap in the coverage guard rather than in this job, and
-  # it is left to the guard's owner; this job closes the immediate hole.
+  # `ci-coverage.sh` did not catch it because it enumerated `ci/test/*.sh` and
+  # `client/Justfile`'s aggregate, and a selftest under `tools/` was in neither
+  # list — a real gap in the coverage guard rather than in this job, left to
+  # the guard's owner while this job closed the immediate hole.
+  #
+  # THAT GAP IS CLOSED as of 2026-09-04: the guard's scan now covers `ci/test/`
+  # plus every test-shaped file anywhere in the tree, so the steps below are
+  # subjects of it rather than invisible to it. The first thing the widened
+  # scan found was `fixtures/trace/tour/check-corpus.sh`, run by nothing and
+  # recorded in `ci/test/ci-coverage.known-dark.txt` with what it would cost.
   #
   # `ubuntu-latest` and plain node: both selftests are pure Node with no repo
   # toolchain dependency, and a gate that needs the Nix runner to prove it can

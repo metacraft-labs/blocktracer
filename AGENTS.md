@@ -121,6 +121,28 @@ NAME it in a `MISSING CAPABILITY:` line. A gate that could run and that nobody
 wired is not a dark gate — it is an unwired one, and it does not land. Write the
 job. An entry without that line fails `ci-coverage.sh` by name.
 
+**The register's third entry is `fixtures/trace/tour/check-corpus.sh`, and the
+way it was found is the point.** Until 2026-09-04 the guard enumerated
+`ci/test/*.sh` and nothing else, so a gate anywhere else was not uncovered — it
+was **not a subject**, and no amount of darkness could produce a finding. The
+scan now covers `ci/test/` plus every **test-shaped** file in the tree
+(`*-test.sh`, `*-selftest.sh`, `check-*.sh`), and asserts it still reaches
+outside that one directory, so the universe cannot be quietly narrowed back.
+The corpus checker is a both-directions known-failure register over the Noir
+tour that **fails when a pinned defect starts passing**; it passes today where
+`nargo` and `ct-print` exist, and it is dark because neither is on a runner.
+**If you write a gate, name it test-shaped** — that is what makes it visible to
+the guard rather than invisible to it.
+
+**`ci-coverage.sh` step 5 reads `ci-coverage-clock.yml`'s ref list against
+`deploy.yml`'s branches.** Steps 3 and 4 only ask whether `ci.yml` *fires* on a
+branch, which on a saturated pool is not the same as the branch getting an
+answer — a push run is routinely evicted before it places a job. The clock is
+what makes a mainline verdict exist, so a branch this repository publishes and
+the clock does not name has no lane to a verdict at all. That is not
+hypothetical: it was the live state for `staging` and `live`, and nothing
+reported it.
+
 ## 1b. `client/hydrate/` — the debug route's live session
 
 The debug route ships a **second compilation**: `nim js` over
