@@ -26,7 +26,7 @@
 // name what it found. An arm that does not kill is itself a failure here, which
 // is what stops this file from becoming a list of mutations that stopped biting.
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 
@@ -41,8 +41,31 @@ const read = (p) => JSON.parse(readFileSync(p, 'utf8'));
 
 const folded = read(join(fixtures, 'calltrace', `${TX}.json`));
 const unfolded = read(join(fixtures, 'calltrace-unfolded', `${TX}.json`));
-const control = read(join(repo, 'client', 'fixtures', 'chain', 'aztec-testnet',
-  'calltrace', `${TX}.json`));
+
+// ── THE CONTROL IS NO LONGER `TX`, AND THAT IS THE POINT ────────────────────
+//
+// `TX` used to be its own control: the published capture held the OLD recorder's
+// two-frame container for it, so one hash served as both the frames subject (out
+// of `client/fixtures/noir-frames/`) and the frameless one (out of the capture).
+// That coincidence ended when the frames container was published for `TX` — the
+// capture now carries forty-six frames for it, and a control read from there
+// would be asserting the subject against itself.
+//
+// So the control is chosen FROM THE CORPUS rather than named: the published
+// aztec-testnet capture's two-frame containers, of which there are many, taken in
+// sorted order so the pick is stable across runs and machines. §3 asserts the
+// population it was drawn from, because "the majority shape" is the control's
+// whole premise and a premise nobody counts is a premise that quietly stops
+// being true — the corpus going all-frames would otherwise leave this suite
+// green with no control at all.
+const captureCalltrace = join(repo, 'client', 'fixtures', 'chain', 'aztec-testnet',
+  'calltrace');
+const corpus = readdirSync(captureCalltrace).filter((f) => f.endsWith('.json')).sort()
+  .map((f) => ({ tx: f.slice(0, -5), doc: read(join(captureCalltrace, f)) }));
+const frameless = corpus.filter((c) => c.doc.frames === 2);
+const withFrames = corpus.filter((c) => c.doc.frames > 2);
+const CONTROL_TX = frameless.length > 0 ? frameless[0].tx : null;
+const control = CONTROL_TX === null ? null : frameless[0].doc;
 
 let asserted = 0;
 let failed = 0;
@@ -344,9 +367,34 @@ arm('return-with-nothing-open',
 // ---------------------------------------------------------------------------
 console.log('== 3. the control: a container with no Noir frames is untouched by all of it');
 // ---------------------------------------------------------------------------
-// The published corpus's own shape, and the majority one. The policy must not
-// invent a fold where there is no library code, and must not disturb the two
+// The published corpus's own shape, and still the majority one. The policy must
+// not invent a fold where there is no library code, and must not disturb the two
 // rows the pane has always shown.
+//
+// THE POPULATION IS ASSERTED BEFORE THE CONTROL IS USED. A suite that picked its
+// control out of a list could be handed an empty list and report nothing wrong;
+// counting both halves means the day the corpus stops carrying a frameless
+// container is the day this says so, rather than the day it silently stops
+// controlling anything.
+ok('the published capture still carries a frameless container to control against',
+  CONTROL_TX !== null,
+  `${corpus.length} published calltrace sidecar(s), none of them two-frame`);
+ok(`corpus split: ${frameless.length} frameless, ${withFrames.length} with Noir frames`,
+  frameless.length > 0 && withFrames.length > 0,
+  `${frameless.length} frameless / ${withFrames.length} with frames — the suite needs one of each`);
+ok(`the frames container in the corpus is ${TX.slice(0, 14)}…`,
+  withFrames.some((c) => c.tx === TX),
+  `containers with frames: ${withFrames.map((c) => `${c.tx.slice(0, 14)}…`).join(', ') || '(none)'}`);
+// NO CONTROL IS A HARD STOP, not a skipped section. The three assertions above
+// have already been counted as failures; running on would throw a TypeError and
+// bury them under a stack trace, so this reports and exits with the count intact.
+if (CONTROL_TX === null) {
+  console.log(`\ncalltrace-fold-selftest: ${asserted} assertion(s), ${failed} failure(s)`);
+  process.exit(1);
+}
+console.log(`  control is ${CONTROL_TX.slice(0, 14)}…, drawn from `
+  + `${frameless.length} frameless container(s) in the published capture`);
+
 const controlStream = streamOf(control);
 const controlBuilt = buildFrames(controlStream, { rules: DEFAULT_FOLD_RULES, foldRuleFor });
 eq('two frames', controlBuilt.frames.map((f) => f.name), ['<toplevel>', 'enqueued-call-0']);

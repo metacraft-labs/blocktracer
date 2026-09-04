@@ -651,11 +651,20 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   #      answer for the transactions of the initial one-shot scan and the only
   #      answer available for a snapshot written before `captures[]` existed.
   #
-  # (3) IS WHY NOTHING ALREADY PUBLISHED MOVES. Every row of the committed
-  # captures resolves to the same commit under this rule as under the old one —
-  # by (2) for the 20 the follower caught, by (3) for the rest — so every derived
-  # id is byte-identical. The rule is not merely compatible with the existing
-  # tree by luck; (3) is the old behaviour, kept as the floor.
+  # (3) IS WHY NOTHING MOVES THAT DID NOT ASK TO. When this rule landed, every row
+  # of the committed captures resolved to the same commit under it as under the
+  # old one — by (2) for the 20 the follower caught, by (3) for the rest — so
+  # every derived id was byte-identical. The rule is not merely compatible with
+  # the existing tree by luck; (3) is the old behaviour, kept as the floor.
+  #
+  # ONE ROW HAS SINCE TAKEN (1), and it is the demonstration the rule was built
+  # for. `0x20ed5b91…` publishes the container the FRAMES recorder wrote for its
+  # execution, so its row names that build in `recordedBy` and its `/t/**` address
+  # is derived from it; the other 24 still come out of (2) and (3) and are
+  # byte-identical to what they were. That is checked rather than asserted —
+  # `tools/dev/dump_recorder_provenance.nim` exists to be diffed across exactly
+  # this kind of change, and the diff over that publish is four files added, four
+  # removed and two edited, out of 6,307.
   var recordedBy = initTable[string, string]()
   let caps = snap{"captures"}
   if caps != nil and caps.kind == JArray:

@@ -9,11 +9,19 @@
 // every function boundary. The transaction this repository publishes —
 // testnet 0x20ed5b91… — CANNOT BE RE-RECORDED: the node serves transaction
 // bodies only out of its active pool, for about an hour, and that hour is long
-// gone. So the container committed beside this file under `ct/` is the one the
-// OLD recorder wrote, and it holds two frames.
+// gone. So the container the capture held for it was the one the OLD recorder
+// wrote, and it held two frames.
 //
 // This tool writes the container the NEW recorder would have written for that
 // same execution, out of the same parts the new recorder uses.
+//
+// AND THAT CONTAINER IS NOW THE PUBLISHED ONE. `client/fixtures/chain/aztec-testnet`
+// carries this tool's output for `0x20ed5b91…`, with the row naming its recorder
+// in `transactions[].recordedBy` so `ingest.nim` files it under the build that
+// produced it and leaves the other twenty-four containers at the addresses the
+// old build's `provenance.runtimeCommit` derives. The copy under
+// `client/fixtures/noir-frames/` is kept as the provenance record and as the
+// fold suites' subject; it is the same bytes.
 //
 // ── What is measured and what is not. THE DISTINCTION IS THE FIXTURE. ────────
 //

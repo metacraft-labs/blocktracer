@@ -44582,11 +44582,12 @@
     "replayableFrom": 67010,
     "replayableTo": 67058
    },
+   "recordedBy": "26cac143b307c82d853b6cf54955ba35a5b4cd3b",
    "replayed": true,
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.ct",
-   "containerBytes": 184320,
+   "containerBytes": 172032,
    "l2BlockNumber": 67011,
    "preStateReadAt": 67010,
    "contractReferenceBlock": 67011,
@@ -44605,10 +44606,10 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 184320,
+    "bytes": 172032,
     "events": 108,
     "steps": 108,
-    "callsOpened": 1,
+    "callsOpened": 45,
     "logEvents": 6,
     "declaredRung": 2,
     "distinctOpcodes": 21,
@@ -44626,7 +44627,11 @@
       "firstUnpositionedPc": 0,
       "resolved": true
      }
-    ]
+    ],
+    "noirFramesOpened": 44,
+    "noirMaxDepth": 9,
+    "distinctNoirFunctions": 33,
+    "pathsInterned": 18
    },
    "artifacts": [
     {

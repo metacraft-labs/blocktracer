@@ -12,11 +12,17 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# Three suites — 87 + 19 + 18 = 124 counted assertions — over the three
+# FOUR suites — 87 + 19 + 18 + 22 = 146 counted assertions — over the four
 # decisions the capture path makes that nothing else can check afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
-# called frozen (`freeze-snapshot-selftest`), and when a supervised watch is
-# allowed to stop (`watch-chain-selftest`).
+# called frozen (`freeze-snapshot-selftest`), when a supervised watch is
+# allowed to stop (`watch-chain-selftest`), and which call frames a container's
+# event stream folds (`calltrace-fold-selftest`).
+#
+# The count said "three suites, 124" while the recipe ran four: the fold suite
+# was wired in with the folded Call Trace and the sentence above it was not
+# moved. It is restated here as a reading of what the recipe runs, which is the
+# only version of it that can be checked.
 #
 # THEY WERE REFERENCED BY NOTHING. Not by `just test`, not by any CI job, not
 # by `ci-coverage.sh` — whose enumeration covers `ci/test/*.sh` and
@@ -25,8 +31,10 @@ test:
 # was found dead, and these three were in it: the only evidence they could go
 # red was that someone had once watched them.
 #
-# All three are OFFLINE and toolchain-free — plain node plus bash, a mock node
-# for the freeze gate, recorded driver output for the replay rule — so they run
+# All four are OFFLINE and toolchain-free — plain node plus bash, a mock node
+# for the freeze gate, recorded driver output for the replay rule, and for the
+# fold suite an event stream reconstructed from the committed sidecars rather
+# than read out of a `.ct` with `ct-print` — so they run
 # on a stock runner and are wired into CI's `deploy-gates` job for exactly the
 # reason its header gives: a gate that needs the busy Nix runner to prove it
 # can fail is a gate that gets skipped.

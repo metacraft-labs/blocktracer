@@ -3491,11 +3491,26 @@ suite "14 — one chain carries containers from two recorders, each filed as its
     if not fileExists(p): return nil
     parseJson(readFile(p)){"trace"}{"recorder"}
 
-  # ── the control: the capture exactly as committed, one recorder ───────────
+  # ── the control: the capture EXACTLY AS COMMITTED ─────────────────────────
+  #
+  # This used to say "one recorder", and it was true until the capture published
+  # `0x20ed5b91…`'s frames container under the build that wrote it. The control's
+  # job never depended on that: it is "the same capture WITHOUT the second
+  # recorder this suite adds", so the assertions below are stated against the
+  # control's own answer per container rather than against `incumbentBuild`. That
+  # is the stronger form anyway — "unchanged" is the claim, and comparing to a
+  # literal only tested it while every row happened to share one build.
   let oneTree = rd / "one"
   createDir(oneTree)
   discard ingestSnapshot(IngestConfig(outDir: oneTree, snapshotDir: snapshotDir))
   let oneManifests = manifestsByTx(oneTree)
+  # Captured NOW: the last test re-ingests the mixed capture into `oneTree` and
+  # rewrites this file, so a later read would not be the control's inventory.
+  var controlBuilds: seq[string]
+  block:
+    let controlReg = parseJson(readFile(oneTree / "registry" / "chains.v1.json"))
+    for r in controlReg["chains"]["aztec-testnet"]["recorders"]:
+      controlBuilds.add r["build"].getStr
 
   # ── the subject: the same capture, with SOME containers attributed to a
   #    second recorder, stated in both of the two ways a snapshot may state it ─
@@ -3506,9 +3521,15 @@ suite "14 — one chain carries containers from two recorders, each filed as its
   block attribute:
     # Two recorded transactions, chosen from the capture's own JSON in a stable
     # order so the subject is the same on every run.
+    # A ROW THAT ALREADY NAMES ITS OWN RECORDER IS NOT A CANDIDATE. The capture
+    # now carries one (`0x20ed5b91…`, the frames container it publishes), and
+    # attributing this suite's second build to it would overwrite the very field
+    # under test and leave the subject indistinguishable from the fixture. The
+    # two subjects must be rows that would otherwise take the chain's default.
     var recorded: seq[string]
     for t in mixedDoc["transactions"]:
-      if t["outcome"].getStr in ["replayed", "divergent"]:
+      if t["outcome"].getStr in ["replayed", "divergent"] and
+         t{"recordedBy"}.getStr.len == 0:
         recorded.add t["txHash"].getStr
     recorded.sort()
     doAssert recorded.len >= 2,
@@ -3544,13 +3565,19 @@ suite "14 — one chain carries containers from two recorders, each filed as its
     # a subject where one of those sets is empty satisfies all of them
     # vacuously (Verification-Harness-Traps §4).
     ck framesBuild != incumbentBuild
-    var fromFrames, fromIncumbent = 0
+    var fromFrames, fromIncumbent, notFromFrames = 0
     for _, m in mixedManifests:
       let b = m["recorder"]["build"].getStr
       if b == framesBuild: inc fromFrames
-      elif b == incumbentBuild: inc fromIncumbent
+      else:
+        inc notFromFrames
+        if b == incumbentBuild: inc fromIncumbent
     ck fromFrames == 2                       # the two attributed above
-    ck fromIncumbent == mixedManifests.len - 2
+    # NOT `fromIncumbent == len - 2`: the capture itself now carries a container
+    # on a third build, so "everything else is the incumbent" stopped being true
+    # of the fixture without anything being wrong with it. What the positive
+    # control needs is that BOTH sides of every universal below are non-empty.
+    ck notFromFrames == mixedManifests.len - 2
     ck fromIncumbent > 0
 
   test "every container reports the recorder that produced it, read back off disk":
@@ -3560,12 +3587,17 @@ suite "14 — one chain carries containers from two recorders, each filed as its
     # the other silently inheriting the chain's pin.
     ck mixedManifests[viaCapturesTx]["recorder"]["build"].getStr == framesBuild
     ck mixedManifests[viaRecordedByTx]["recorder"]["build"].getStr == framesBuild
-    var checkedIncumbent = 0
+    # AGAINST THE CONTROL'S OWN ANSWER, not against `incumbentBuild`. Every row
+    # this suite did not touch must be filed under exactly the build the same
+    # capture files it under with no second recorder in it — which is the claim,
+    # and which stays the claim now that the capture's own rows do not all share
+    # one build.
+    var checkedUnchanged = 0
     for tx, m in mixedManifests:
       if tx in [viaCapturesTx, viaRecordedByTx]: continue
-      ck m["recorder"]["build"].getStr == incumbentBuild
-      inc checkedIncumbent
-    ck checkedIncumbent == mixedManifests.len - 2
+      ck m["recorder"]["build"].getStr == oneManifests[tx]["recorder"]["build"].getStr
+      inc checkedUnchanged
+    ck checkedUnchanged == mixedManifests.len - 2
 
   test "the overlay tells a browser the SAME recorder the manifest names":
     # The two are separate files written on separate paths, and they are the two
@@ -3614,9 +3646,12 @@ suite "14 — one chain carries containers from two recorders, each filed as its
     ck row["recorder"]["build"].getStr == incumbentBuild
     var builds: seq[string]
     for r in row["recorders"]: builds.add r["build"].getStr
-    ck builds.len == 2
     ck incumbentBuild in builds
     ck framesBuild in builds
+    # RELATIVE TO THE CONTROL, so this states "publishing a second recorder adds
+    # exactly one row to the inventory" rather than a literal that only held
+    # while the capture itself carried one build.
+    ck builds.len == controlBuilds.len + 1
 
   test "a CLIENT resolves each container through the row's own recorder":
     # Read back through the shipping consumer rather than through this file's
@@ -3641,7 +3676,7 @@ suite "14 — one chain carries containers from two recorders, each filed as its
   test "MUTATION BITE: collapsing the chain onto one shared pin is refused by name":
     # THE WRONG FIX, DRIVEN THROUGH THE REAL INGEST. "Re-pin the chain to the
     # new recorder" is the one-line change that makes the frames container
-    # publishable, keeps every page working, and silently re-addresses the 25
+    # publishable, keeps every page working, and silently re-addresses the 24
     # containers the old build produced. It costs provenance truth and nothing
     # a test of availability would notice, which is exactly why the refusal has
     # to be in the producer and has to be exercised.
@@ -3687,7 +3722,7 @@ suite "14 — one chain carries containers from two recorders, each filed as its
     let reg = parseJson(readFile(oneTree / "registry" / "chains.v1.json"))
     var builds: seq[string]
     for r in reg["chains"]["aztec-testnet"]["recorders"]: builds.add r["build"].getStr
-    ck builds.len == 2
+    ck builds.len == controlBuilds.len + 1
 
   test "assertion count":
     # Written from a run, and expressed against the SIZE OF THE FIXTURE rather

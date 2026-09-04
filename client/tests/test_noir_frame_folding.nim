@@ -42,14 +42,19 @@
 ##
 ## §1 IS THE CONTROL AND IT IS NOT DECORATION
 ## ------------------------------------------
-## The same view code, over the container this repository actually publishes,
-## must still render its two frames. That container has no Noir frames in it and
+## The same view code, over a container this repository actually publishes with
+## no Noir frames in it, must still render its two frames. Such a container has
 ## no library subtree to close, so the correct rendering is exactly the one the
 ## page served before any of this — `<toplevel>` / `enqueued-call-0`, no
 ## disclosure, no counts. A reader once reported seeing those two rows and asking
 ## where the call trace was; the answer must not become "nothing at all".
+##
+## THE CONTROL IS NO LONGER `Tx`. It was, while the capture held the OLD
+## recorder's container for it; the frames container is now what `Tx` publishes,
+## so the control is drawn from the frameless remainder of the corpus instead.
+## See `framelessControl` below — including why the population is counted.
 
-import std/[unittest, strutils, json, os, sets, sequtils]
+import std/[unittest, strutils, json, os, sets, sequtils, algorithm]
 
 import ../src/debugger/session_view
 import ../src/debugger/demo_session
@@ -77,15 +82,63 @@ proc paneOf(sidecar: string): CallTracePane =
   withCallFrames(s, parseJson(readFile(sidecar)))
   s.calltrace
 
+proc framelessControl(): tuple[tx: string, frameless, withFrames: int] =
+  ## THE CONTROL IS CHOSEN FROM THE CORPUS, NOT NAMED — and it is no longer `Tx`.
+  ##
+  ## `Tx` used to be its own control: the published capture held the OLD
+  ## recorder's two-frame container for it, so one hash served as both the frames
+  ## subject (out of `fixtures/noir-frames`) and the frameless one (out of the
+  ## capture). Publishing the frames container for `Tx` ended that coincidence —
+  ## the capture now carries forty-six frames for it, and a control read from
+  ## there would be asserting the subject against itself.
+  ##
+  ## So this walks the published sidecars and takes the first two-frame one in
+  ## sorted order, stable across runs and machines. Both halves of the population
+  ## are returned because §1 asserts them: "the majority shape" is the control's
+  ## whole premise, and a premise nobody counts is one that can quietly stop
+  ## being true while the suite stays green with no control at all.
+  var names: seq[string]
+  for kind, path in walkDir(ChainDir / "calltrace"):
+    if kind == pcFile and path.endsWith(".json"): names.add path
+  names.sort()
+  for path in names:
+    let n = parseJson(readFile(path)){"frames"}.getInt
+    if n == 2:
+      if result.tx.len == 0: result.tx = path.splitFile.name
+      inc result.frameless
+    elif n > 2:
+      inc result.withFrames
+
+let control = framelessControl()
+if control.tx.len == 0:
+  # A HARD STOP WITH A SENTENCE, not an IOError on an empty filename. `controlPane`
+  # below is built at module scope, so an absent control would crash before the
+  # suite that reports it could run, and the diagnosis would be a stack trace
+  # about `.json` rather than the fact that the corpus lost its control.
+  quit "no frameless container in " & (ChainDir / "calltrace") &
+       ": suite 1 has nothing to control against"
+
 let foldedPane = paneOf(NoirDir / "calltrace" / (Tx & ".json"))
 let unfoldedPane = paneOf(NoirDir / "calltrace-unfolded" / (Tx & ".json"))
-let controlPane = paneOf(ChainDir / "calltrace" / (Tx & ".json"))
+let controlPane = paneOf(ChainDir / "calltrace" / (control.tx & ".json"))
 
 let foldedHtml = renderCallTrace(foldedPane)
 let controlHtml = renderCallTrace(controlPane)
 
 suite "1 — CONTROL: the container this repository publishes still renders":
   asserted = 0
+
+  test "the corpus still holds both shapes, so there IS a control":
+    # Asserted before the control is used. A suite that picks its control out of a
+    # list can be handed an empty list and report nothing wrong; counting both
+    # halves means the day the capture stops carrying a frameless container is the
+    # day this says so, rather than the day it silently stops controlling anything.
+    ck control.tx.len > 0
+    ck control.frameless > 0
+    ck control.withFrames > 0
+    checkpoint("control " & control.tx[0 .. 13] & "…, drawn from " &
+               $control.frameless & " frameless container(s); " &
+               $control.withFrames & " with Noir frames")
 
   test "the published container's own call trace is still two frames":
     # Not a claim about the fixture: this is `client/fixtures/chain/aztec-testnet`,
@@ -122,7 +175,9 @@ suite "1 — CONTROL: the container this repository publishes still renders":
     ck "&lt;toplevel&gt;" in controlHtml
     ck "enqueued-call-0</span>" in controlHtml
 
-  test "COUNTED": ck asserted == 20
+  # 20 -> 23: the three that assert the control's POPULATION, added when the
+  # control stopped being `Tx` and started being drawn from the corpus.
+  test "COUNTED": ck asserted == 23
 
 suite "2 — the Noir tree arrives whole, and two frames of it are marked":
   asserted = 0

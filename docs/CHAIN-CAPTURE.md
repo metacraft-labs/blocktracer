@@ -638,11 +638,25 @@ spelling of "no source position". And a live session still lists *more* — it a
 redundant. `hydrate.writePane` only replaces a served pane with one that has
 frames, so filling these rows cannot cost a visitor the live answer.
 
-**What this call trace is not.** It is two frames deep, both open before step 0,
-and one `Return` at the end. An AVM enqueued call is one public function
-invocation and the recorder opens no frame per inlined Noir callee, so a reader
-should expect a short flat answer — the pane showing two rows is that answer and
-not a truncation of a longer one.
+**What this call trace is, and what it stopped being.** For a container written
+by a recorder before `aztec-avm-runtime@255a61e` it is two frames deep, both open
+before step 0, and one `Return` at the end: an AVM enqueued call is one public
+function invocation and that recorder opened no frame per inlined Noir callee, so
+a reader should expect a short flat answer — the pane showing two rows is that
+answer and not a truncation of a longer one. **Twenty-four of the twenty-five
+published aztec-testnet containers are still exactly this**, and both the fold
+selftest and `test_noir_frame_folding` draw their control from them.
+
+The twenty-fifth is not. `0x20ed5b91…` now publishes the container the frames
+recorder writes for that same execution — forty-six frames, ten deep, thirty-five
+distinct functions over eighteen interned paths, with two `vendored-crate` fold
+points closing the poseidon2 subtrees. Its per-step AVM registers are zeros and
+say so in `client/fixtures/noir-frames/provenance.json`; the execution behind it
+is unchanged, which is why `positions/` still reads 108 steps with 86 positioned
+and the transaction's `executionInputId` did not move. What DID move is its
+`/t/**` address, because `deriveTraceArtifactId` hashes the recorder build — a
+new recording by a new build is a new artifact, and the page route is by
+transaction hash, so the visitor's URL is unaffected.
 
 **Values: the artifact has no variable table, and this is upstream of us.** The
 container carries five `VariableName` events and 541 `Value`s — but the five are
