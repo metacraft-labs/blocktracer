@@ -164,12 +164,44 @@ async function settled(page, timeoutMs = 20000) {
   return last;
 }
 
-/** Click a control and wait for the engine to report the stop it caused. */
+/**
+ * Click a control and wait for the engine to report the stop it caused.
+ *
+ * A SELECTOR AND NOT AN `ElementHandle`, which is what broke this journey as an
+ * instrument. `page.$` resolves the node once and returns a handle to THAT node;
+ * the debugger re-renders its control strip on every engine stop, so between the
+ * resolve and the click the node the handle names has been replaced and
+ * Playwright throws `Element is not attached to the DOM`. That threw out of
+ * `run()` and took the seven assertions below the loop with it: the journey
+ * declared nine and made two, which reports nothing about the seven rather than
+ * reporting them red. `page.click` re-resolves the selector on each retry, so a
+ * re-render is waited through instead of raced — and it is what the nine other
+ * journeys driving this same control already do.
+ *
+ * A FAILED CLICK IS STILL A FINDING, not a swallow. It returns `moved: false`,
+ * which is the same answer the pre-existing "the control is not available" path
+ * gives, and that answer is already GATED: `judged`/`comparable` both carry a
+ * `j.subjects(…, 1, …)` floor, so a run in which no session could be moved fails
+ * by name. The reason is threaded back to the caller so it reaches the journal
+ * rather than disappearing into an empty set.
+ */
 async function gesture(page, action) {
   const before = await page.evaluate(READ);
-  const el = await page.$(`[data-action="${action}"]:not(.off)`);
-  if (!el) return { moved: false, reading: before };
-  await el.click();
+  const sel = `[data-action="${action}"]:not(.off)`;
+  // `$` for PRESENCE only — "is this control offered at this stop?" is a
+  // question about now, and an absent control must answer immediately rather
+  // than being waited for. The handle is deliberately not kept.
+  if ((await page.$(sel)) === null)
+    return { moved: false, reading: before, why: `no enabled ${action} control` };
+  try {
+    await page.click(sel, { timeout: 15000 });
+  } catch (e) {
+    return {
+      moved: false,
+      reading: before,
+      why: `${action} never became clickable: ${String(e).split("\n")[0]}`,
+    };
+  }
   const deadline = Date.now() + 25000;
   while (Date.now() < deadline) {
     const now = await page.evaluate(READ);
@@ -212,15 +244,27 @@ export async function run({ browser, site, j }) {
       // session cannot be moved and returned, it is not a subject for the
       // comparison and says so rather than being counted as agreeing.
       const away = await gesture(v.page, "step-forward");
-      const back = away.moved ? await gesture(v.page, "step-backward") : { moved: false };
+      const back = away.moved
+        ? await gesture(v.page, "step-backward")
+        : { moved: false, why: `never left: ${away.why}` };
       const returned =
         back.moved && back.reading.step === landing.step ? back.reading : null;
 
       seen.push({ t, landing, returned });
+      // WHY IT WAS NOT REACHED, and not merely THAT it was not. A session that
+      // drops out of `comparable` shrinks the set the equality is taken over,
+      // and the `j.subjects` floor tells you the set went empty but not what
+      // emptied it. The reason a gesture gave is the only record of that.
+      const notReached =
+        !back.moved
+          ? `not reached — ${back.why}`
+          : back.reading.step !== landing.step
+            ? `not reached — returned to step ${back.reading.step}, landed at ${landing.step}`
+            : null;
       j.note(
         `${t.debugPath}: landing ${landing.valueRows} value rows / ` +
           `${landing.calltraceRows} frames / note=${JSON.stringify(landing.note)}; ` +
-          `returned ${returned ? `${returned.valueRows} value rows` : "not reached"}`,
+          `returned ${returned ? `${returned.valueRows} value rows` : notReached}`,
       );
     } finally {
       await v.page.close();
