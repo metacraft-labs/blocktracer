@@ -542,9 +542,15 @@ suite "3 — real and synthetic are tellable apart, on the page":
     check "taken from the live network" in detail
     # It is a slice, in the user's own words.
     check "preliminary export" in detail
-    # …and the span, from the block record rather than from `capturedAt`. The
-    # committed testnet capture runs 63459–63678, wholly inside 31 August 2026.
-    check "covering 31 August 2026." in detail
+    # …and the span, from the block record rather than from `capturedAt`.
+    #
+    # It read "wholly inside 31 August 2026" over blocks 63459–63678. The
+    # 2026-09-02 capture and the block-record repair behind it extended the
+    # committed testnet snapshot to 63459–67058, so the enumerated span is now
+    # three calendar days. The multi-day SHAPE is what the two-sentence rule has
+    # to survive, and it is now exercised on both real chains rather than only
+    # on mainnet.
+    check "covering 31 August to 2 September 2026." in detail
     # SHORT, and this is the assertion the request was actually about. Two
     # sentences; the version this replaced ran to four paragraphs.
     check detail.count('.') == 2
@@ -577,19 +583,26 @@ suite "3 — real and synthetic are tellable apart, on the page":
     check checked >= 2                      # two captures, not one read twice
 
     # THE MAINNET CAPTURE IS THE MULTI-DAY ARM, reached by committed data rather
-    # than only by the unit assertions in suite 6. It enumerates 1563 blocks
-    # running 66745–68307, whose timestamps span 2026-08-30T23:20:47Z to
-    # 2026-09-01T07:13:35Z — two calendar months, one year, so the span is
+    # than only by the unit assertions in suite 6. It enumerates 3439 blocks
+    # running 66745–70183, whose timestamps span 2026-08-30T23:20:47Z to
+    # 2026-09-02T21:06:23Z — two calendar months, one year, so the span is
     # written with the year said once.
+    #
+    # The numbers moved with the 2026-09-02 capture (1563 blocks to 70183's
+    # 3439) and are restated rather than relaxed: they are what makes the
+    # sentence below checkable against the tree rather than against itself.
     #
     # `root` IS THE `isFull` TREE, so these blocks are both the enumerated set
     # and the published one and the span covers both. The deployed site ingests
     # `isCurated` and names the narrower span its own 170 blocks cover; suite 8
     # grades that, and grades the two trees against each other.
-    check "This is a preliminary export covering 30 August to 1 September 2026." in
+    check "This is a preliminary export covering 30 August to 2 September 2026." in
       chainInfo(root, "aztec").provenanceDetail
-    # …and the testnet capture is the same-day arm, from the same generator.
-    check "This is a preliminary export covering 31 August 2026." in
+    # …AND TESTNET IS NO LONGER THE SAME-DAY ARM. It was, over 63459–63678; the
+    # 2026-09-02 capture carried it to 67058 and both real chains now span
+    # several days. The same-day case is unwitnessed here — see suite 8, which
+    # records the same loss where it mattered more.
+    check "This is a preliminary export covering 31 August to 2 September 2026." in
       chainInfo(root, "aztec-testnet").provenanceDetail
 
   test "the synthetic banner says the trace is not this transaction's":
@@ -1452,24 +1465,38 @@ suite "8 — a curated chain publishes only transactions that open":
     let curatedMain = chainInfo(curatedRoot, "aztec").provenanceDetail
     let fullMain = chainInfo(root, "aztec").provenanceDetail
     ck "This is a preliminary export covering 1 September 2026." in curatedMain
-    ck "This is a preliminary export covering 30 August to 1 September 2026." in
+    ck "This is a preliminary export covering 30 August to 2 September 2026." in
        fullMain
     ck curatedMain != fullMain
     # The counts the two spans correspond to, stated rather than implied: this
     # is the correspondence a reader checks the sentence against, and it is what
     # makes the difference above a fact about the DATA rather than a spelling.
     ck chainInfo(curatedRoot, "aztec").blockCount == 170
-    ck chainInfo(root, "aztec").blockCount == 1563
+    ck chainInfo(root, "aztec").blockCount == 3439
 
-    # TESTNET IS THE CONTROL, and it is a control rather than a second witness:
-    # its 220 enumerated blocks and its 34 published ones both fall inside 31
-    # August 2026, so the two trees legitimately write the same sentence. An
-    # assertion of "the trees always differ" would be false here, and asserting
-    # it on this chain is what would have hidden the mainnet regression.
+    # TESTNET WAS THE CONTROL AND HAS STOPPED BEING ONE, which is a loss worth
+    # stating rather than a line to retune.
+    #
+    # It qualified because its 220 enumerated blocks and its 34 published ones
+    # both fell inside 31 August 2026, so the two trees legitimately wrote the
+    # SAME sentence — the one real case proving "the trees always differ" is not
+    # the rule, and therefore that a build hardcoding the difference would be
+    # caught. The 2026-09-02 capture ended that: the snapshot now enumerates
+    # 3,600 blocks across 31 August–2 September, and curation publishes nine of
+    # them inside 2 September, so testnet shows the difference too.
+    #
+    # SO THE AGREEMENT CASE IS NOW UNWITNESSED BY ANY REAL CHAIN, and nothing
+    # below restores it — asserting it where it is false would be worse than not
+    # asserting it. What would restore it is a capture whose enumerated and
+    # published blocks fall in one day, which is a property of the next watch
+    # and not something this file can arrange. Recorded here so the next reader
+    # knows the cover was lost rather than never existed.
     let curatedTest = chainInfo(curatedRoot, RealChain).provenanceDetail
     let fullTest = chainInfo(root, RealChain).provenanceDetail
-    ck "This is a preliminary export covering 31 August 2026." in curatedTest
-    ck curatedTest == fullTest
+    ck "This is a preliminary export covering 2 September 2026." in curatedTest
+    ck "This is a preliminary export covering 31 August to 2 September 2026." in
+       fullTest
+    ck curatedTest != fullTest
     ck chainInfo(curatedRoot, RealChain).blockCount <
        chainInfo(root, RealChain).blockCount     # non-vacuous: it IS a slice
 
@@ -1680,7 +1707,9 @@ suite "8 — a curated chain publishes only transactions that open":
     ck ing.withTrace == 0
 
   test "assertion count":
-    expectCount(87)
+    # 87 + 1: the testnet arm now asserts BOTH spans, because the two trees
+    # differ there and the difference has to be named at both ends.
+    expectCount(88)
 
 # ── 9 — the home page features a session that can actually be shown ──────────
 #
