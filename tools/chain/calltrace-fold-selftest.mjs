@@ -355,6 +355,70 @@ arm('path-id-past-the-table',
     found: o.kind === 'threw' ? o.message : 'no refusal — a frame was placed on a path that does not exist',
   }));
 
+// THE FORMAT BOUNDARY. `path-id-past-the-table` above covers an id that is
+// PRESENT AND WRONG. This covers the other side — an id that is ABSENT, which is
+// what a container format with no per-function path field produces, and which
+// used to be folded into the pseudo-path by `?? 0` and then silently reported as
+// `foldedFrames: 0`. Two arms, because the refusal is only half the claim: the
+// second shows what the sidecar WOULD have said, so the ambiguity being closed
+// is visible rather than asserted.
+arm('path-id-missing',
+  'a container whose functions carry no path_id at all — a format that cannot say',
+  () => {
+    const s = stream.map((e) => {
+      if (e.type !== 'Function') return e;
+      const { path_id, ...rest } = e;
+      return rest;
+    });
+    return buildFrames(s, { rules: DEFAULT_FOLD_RULES, foldRuleFor });
+  },
+  (o) => ({
+    killed: o.kind === 'threw' && o.isRefusal && /declares no path_id at all/.test(o.message),
+    found: o.kind === 'threw' ? o.message
+      : 'no refusal — every frame was placed on the pseudo-path, nothing could fold, '
+        + 'and the sidecar would have published foldedFrames: 0',
+  }));
+
+// WHAT THE AMBIGUITY ACTUALLY LOOKS LIKE, measured on the same stream with the
+// refusal stepped around. This does not exercise the guard; it establishes the
+// fact the guard exists for — that the unfoldable container and a container with
+// no library code produce the SAME NUMBER — so the refusal above is protecting
+// something real rather than restating its own message.
+arm('unfoldable-and-library-free-agree-on-zero',
+  'the two causes of foldedFrames: 0, shown to be indistinguishable by the count alone',
+  () => {
+    // Path ids present, but every path rewritten to contract-owned source: real
+    // paths, no rule matches. "Nothing qualified."
+    const contractOnly = stream.map((e) => (e.type === 'Path'
+      ? { ...e, name: e.name.startsWith('/aztec/') ? e.name : 'fee_juice_contract/src/main.nr' }
+      : e));
+    const libraryFree = buildFrames(contractOnly, { rules: DEFAULT_FOLD_RULES, foldRuleFor });
+    const libraryFreeFolds = libraryFree.frames.filter((f) => f.foldedBy !== null).length;
+    // The unfoldable shape, under the REAL rules. `path_id: 0` on every function
+    // is exactly what the old `fn.path_id ?? 0` produced for a container that
+    // carried no path field: the pseudo-path, which resolves to `path === null`,
+    // which no rule can match. So this is the pre-fix behaviour reproduced
+    // faithfully, not folding switched off — an arm that passed `rules: []`
+    // would be asserting that no rules fold nothing, which is a different and
+    // much weaker claim than the sentence above it.
+    const pseudoPathed = stream.map((e) => (e.type === 'Function'
+      ? { ...e, path_id: 0 } : e));
+    const unfoldableFolds = buildFrames(pseudoPathed,
+      { rules: DEFAULT_FOLD_RULES, foldRuleFor })
+      .frames.filter((f) => f.foldedBy !== null).length;
+    return { libraryFreeFolds, unfoldableFolds };
+  },
+  (o) => {
+    if (o.kind === 'threw') return { killed: false, found: `threw: ${o.message}` };
+    const { libraryFreeFolds, unfoldableFolds } = o.value;
+    return {
+      killed: libraryFreeFolds === 0 && unfoldableFolds === 0,
+      found: `a library-free container folds ${libraryFreeFolds} and an unfoldable one folds `
+        + `${unfoldableFolds} — the same number, which is why the count alone cannot tell them `
+        + 'apart and the refusal has to happen before the sidecar is written',
+    };
+  });
+
 arm('return-with-nothing-open',
   'a Return event with an empty stack',
   () => buildFrames([...stream, { type: 'Return' }, { type: 'Return' }],

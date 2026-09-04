@@ -80,8 +80,43 @@ export function buildFrames(events, { rules, foldRuleFor }) {
       // A `path_id` past the end of the table is a container this tool cannot
       // read, not a frame to place at index 0: silently folding it onto the
       // pseudo-path would report "no source" for a frame that HAS one.
-      const pathId = fn.path_id ?? 0;
-      if (pathId >= paths.length) {
+      // A MISSING `path_id` IS A FORMAT BOUNDARY, AND IT IS NOT THE PSEUDO-PATH.
+      //
+      // This used to read `fn.path_id ?? 0`, which collapsed "the container did
+      // not say" into "the container said 0". Those are different claims and
+      // they have different consequences. `0` means the recorder placed this
+      // frame nowhere on purpose; ABSENT means the container's format has no
+      // field in which to place it at all.
+      //
+      // The consequence is silent and it lands on the fold. `path === null` is
+      // never folded (see `foldSubtrees`), so a container whose functions carry
+      // no `path_id` yields a sidecar reading `foldedFrames: 0` — which is
+      // exactly what a container that carries every path and simply contains no
+      // library code yields. One is "nothing qualified", the other is "the
+      // format cannot say", and until this refusal existed the sidecar spelled
+      // them the same way and the reader had no way to tell.
+      //
+      // The neighbouring guard does not cover this: an id PAST THE TABLE is an
+      // id that is present and wrong, and a format that cannot carry the field
+      // never produces one to be out of range. Nor did any arm exercise it —
+      // the self-test builds every `Function` event with `path_id` set.
+      //
+      // REFUSING COSTS NOTHING TODAY, AND THAT WAS MEASURED RATHER THAN ASSUMED:
+      // all 25 published aztec-testnet containers carry `path_id` on every
+      // `Function` event — the 24 two-frame ones as well as the 35-function
+      // frames container — so nothing that has ever been published is refused
+      // here. The day a format arrives that cannot carry it, this stops the
+      // sidecar instead of publishing an ambiguous zero.
+      if (fn.path_id === undefined || fn.path_id === null) {
+        throw new MalformedCallStream(
+          `frame '${fn.name}' declares no path_id at all. This container's format cannot `
+          + 'carry a source path per function, so no frame in it can ever match a fold rule '
+          + 'and the sidecar would report foldedFrames: 0 — indistinguishable from a '
+          + 'recording that simply contains no library code. Refusing to publish a fold '
+          + 'count that means "the format cannot say".');
+      }
+      const pathId = fn.path_id;
+      if (!Number.isInteger(pathId) || pathId < 0 || pathId >= paths.length) {
         throw new MalformedCallStream(
           `frame '${fn.name}' quotes interned path ${pathId} and the container declares `
           + `${paths.length} path(s). Refusing to place a frame on a path the container `
