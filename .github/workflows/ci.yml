@@ -1020,12 +1020,33 @@ jobs:
         run: nix develop .#capture --command bash -c 'cd client && just hydrate'
 
       - name: Do the journeys bite? (shard ${{ matrix.shard }} of 4)
-        # 16 arms at ~3.8 min each is ~61 minutes; 90 is that plus headroom, and
-        # it is still a bound. `--shard i/n` slices by STRIDE rather than by
-        # contiguous block, deliberately: the expensive arms are adjacent in the
-        # list, so a contiguous shard would hold all of them and be the whole
-        # problem again.
-        timeout-minutes: 90
+        # `--shard i/n` slices by STRIDE rather than by contiguous block,
+        # deliberately: the expensive arms are adjacent in the list, so a
+        # contiguous shard would hold all of them and be the whole problem
+        # again.
+        #
+        # 150, AND THE FIRST NUMBER HERE WAS 90, WHICH WAS ALSO TOO SMALL.
+        # Measured on shard 2 of run 33826955858: `--shard 2/4: running 16 of 64
+        # arm(s)`, 15 of those 16 KILLED, then killed at 90m13s — cut off on its
+        # last arm. That is ~5.8 min/arm, not the ~3.8 the previous estimate
+        # used, and the difference is contention: that figure came from a lone
+        # sweep, while three shards plus the rest of this workflow now share a
+        # pool observed running four jobs at a time.
+        #
+        # So the honest full-sweep cost is ~370 minutes, not the 230-280 first
+        # estimated from the unsharded run — which makes the decision to shard
+        # rather than raise a single bound to five hours the right one for a
+        # stronger reason than the one it was taken on: five hours would not
+        # have been enough either.
+        #
+        # 16 x 5.8 is ~93 minutes and this is 150, so the headroom is ~60% on a
+        # measured figure rather than a guess about one. It is still a bound: a
+        # sweep that stalls stops, and `journeys-combine` names the shard.
+        #
+        # IF THIS ONE IS ALSO EXCEEDED, raise the SHARD COUNT and not this
+        # number. Wall-clock to a verdict is what sharding buys, and buying it
+        # back with a longer bound gives up the reason for the split.
+        timeout-minutes: 150
         run: |
           nix develop .#capture --command \
             vd0-capture-env node tools/journeys/selftest.mjs --shard ${{ matrix.shard }}/4
