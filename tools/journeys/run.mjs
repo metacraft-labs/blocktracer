@@ -61,7 +61,7 @@
 // an empty glob a failure instead of a clean sweep.
 
 import { readdir, writeFile, readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
 import { Journey, renderJourney, nameCollisions } from "./lib/harness.mjs";
@@ -203,6 +203,33 @@ async function discover() {
     if (!m.id || !m.claim || !m.run) {
       throw Object.assign(
         new Error(`${f} is in journeys/ but exports no { id, claim, run } — it would never run`),
+        { exitCode: 2 },
+      );
+    }
+    // `assertions` IS PART OF THE REQUIRED SHAPE, not an optional annotation.
+    //
+    // A file that omitted it and recorded nothing came out GREEN. `j.total` was
+    // 0, `[].every(…)` is true so `j.passed` was true, and the count check read
+    // `declared === undefined || declared === j.total` — the undefined branch
+    // waved it through. Three vacuous trues in a row, and a journey that
+    // asserts nothing reported as a journey that reaches its claim. That is
+    // this layer's own signature defect — a check that passes by not running —
+    // arriving through its front door, and rule 3 above is written against
+    // exactly it one level down.
+    //
+    // The declared count is what makes a journey falsifiable. It is the number
+    // that goes red when an arm silently stops executing, which is the failure
+    // `selftest.mjs` exists to find; a journey with no declared count is
+    // outside that instrument entirely.
+    if (typeof m.assertions !== "number" || !Number.isFinite(m.assertions) || m.assertions < 1) {
+      throw Object.assign(
+        new Error(
+          `${f} is in journeys/ but exports assertions = ${JSON.stringify(m.assertions ?? null)}.\n` +
+            `    Every journey must declare how many assertions it makes, and it must be at least 1.\n` +
+            `    A journey that declares none cannot be shown to have run: zero assertions is a\n` +
+            `    vacuous pass, and it would report GREEN over nothing.\n` +
+            `    remedy: export const assertions = <n>;  — kept equal to the number the run reports.`,
+        ),
         { exitCode: 2 },
       );
     }
@@ -509,7 +536,13 @@ async function main() {
       }
 
       const declared = mod.assertions;
-      const countOk = declared === undefined || declared === j.total;
+      // NO `declared === undefined ||` SHORT-CIRCUIT. It used to be here, and
+      // it made "this journey declared nothing" and "this journey made exactly
+      // what it declared" the same green. `discover()` now refuses a file that
+      // declares nothing, so `declared` is always a number >= 1; this is the
+      // second lock on the same door, so that an undeclared count can never
+      // again be read as a satisfied one.
+      const countOk = declared === j.total;
       // A name collision is a FAILURE of the journey and not a note about it:
       // it disarms every mutation arm aimed at the shorter text, and a journey
       // whose arms cannot run is a journey nothing has demonstrated to bite.
@@ -608,7 +641,22 @@ async function main() {
   console.log("RESULT: OK");
 }
 
-main().catch((err) => {
-  console.error(String(err && err.message ? err.message : err));
-  process.exitCode = err && err.exitCode ? err.exitCode : 1;
-});
+// Run only when invoked directly, so that `discover()` can be exercised on its
+// own. Same reason and same shape as `tools/capture/gate.mjs`: a module that
+// runs a whole suite on import cannot be tested, and the rule this file now
+// enforces — every journey declares at least one assertion — is exactly the
+// kind of refusal that must be demonstrated to fire rather than assumed to.
+// A run needs an exported site and a browser; the discovery rule does not.
+// `pathToFileURL`, not string concatenation with "file://". If the comparison
+// were ever to miss — one percent-encoded character in the checkout path is
+// enough — `just journeys` would run NOTHING and exit 0. A guard whose failure
+// mode is a silent clean sweep is the thing this file was written against, so
+// it is built out of the resolver rather than out of string formatting.
+export { discover };
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error(String(err && err.message ? err.message : err));
+    process.exitCode = err && err.exitCode ? err.exitCode : 1;
+  });
+}

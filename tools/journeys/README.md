@@ -48,7 +48,14 @@ visitor sees, and it fails whichever layer broke.
 3. **A test whose subject can be empty passes vacuously.** `Journey.subjects()`
    is the required first call of anything that quantifies, and `countIs` is the
    verb wherever membership is knowable — an "at least one" control is satisfied
-   by one member of five (§4b).
+   by one member of five (§4b). The same rule applies to the journey itself:
+   `export const assertions = <n>` is **required**, and must be at least 1.
+   Rule 3 had a hole exactly its own shape — a file that omitted the export and
+   recorded nothing scored `j.total === 0`, `[].every(…)` is `true` so
+   `j.passed` was `true`, and the count check read
+   `declared === undefined || declared === j.total`, so it went **green over
+   zero assertions**. `discover()` now refuses such a file by name with exit 2,
+   and the `declared === undefined` short-circuit is gone.
 
 4. **Do not build on fixtures that supply the answer.** 115 debug-route cases
    survived a defect because the fixture set the position they verified. **No
