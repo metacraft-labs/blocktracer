@@ -295,6 +295,35 @@ nim js \
 	-o:"${here}/hydrate.js" \
 	"${here}/hydrate.nim" || exit 1
 
+# THE BUILD STAMPS ITS OWN OUTPUT, AND WITHOUT THIS LINE THE FRESHNESS GATE
+# DOWNSTREAM REPORTS A BUNDLE THAT WAS JUST BUILT AS STALE.
+#
+# `nim js -o:X` does not rewrite X when the emitted bytes are unchanged, so X
+# keeps whatever mtime it had — MEASURED, on this repository's pinned Nim
+# 2.2.10: hydrate.js was set to 2020-01-01, `build.sh --require` was run to
+# completion (rc 0, 1,965,013 bytes, all three sources at the pins), and the
+# mtime was still 2020-01-01 afterwards.
+#
+# `static_export.nim`'s `requireFreshBundle` reads that mtime as "when this
+# bundle was built" and refuses to publish a bundle older than the newest
+# `.nim` under client/hydrate, client/src and src. Its premise is therefore
+# false for any source edit that does not change the emitted bundle — a
+# comment, a reordering, or a byte-identical rewrite — and the remedy it prints,
+# `cd client && just hydrate`, CANNOT CLEAR THE CONDITION IT REPORTS. Running
+# it produces the same bytes and leaves the same mtime, so the gate fires again,
+# forever, on a tree that is not stale.
+#
+# That is not hypothetical. It is what put `journeys` and all four
+# `journeys-bite` shards red on 779c702: `tools/journeys/selftest.mjs` writes a
+# mutation into a `client/src/*.nim` and writes the original bytes back
+# afterwards, which is exactly the byte-identical rewrite above.
+#
+# So the mtime is made to mean what the gate reads it as: the moment a build
+# last produced this file from this source. The gate is unchanged and still
+# refuses a bundle nobody rebuilt — that case leaves the old mtime because this
+# line never runs.
+touch "${here}/hydrate.js"
+
 bytes="$(wc -c <"${here}/hydrate.js" | tr -d ' ')"
 digest="$(sha256_of "${here}/hydrate.js")"
 

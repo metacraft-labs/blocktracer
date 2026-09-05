@@ -418,6 +418,32 @@ jobs:
         # running.
         run: nix develop .#ci --command ci/test/client-sdk-boundary.sh --require-embed
 
+      # ── The freshness gate's remedy has to work ──────────────────────────
+      #
+      # HERE BECAUSE THIS IS THE CHEAPEST JOB THAT CAN ASK. The gate drives the
+      # search and settings bundles, which are plain `nim js` over this
+      # repository's own two source paths — no Embed SDK, no browser, no
+      # exported site — and `.#ci` already supplies Nim and `just` for the two
+      # steps above. It is about a minute of small compiles.
+      #
+      # WHAT IT COST TO NOT HAVE THIS. `requireFreshBundle` reads a built
+      # bundle's mtime as "when it was built", and `nim js` does not rewrite an
+      # output whose bytes are unchanged — so for any source edit that does not
+      # move the bundle, the remedy the gate prints could not clear the
+      # condition the gate reports. `tools/journeys/selftest.mjs` performs
+      # exactly such an edit twice per arm (it writes the original bytes back
+      # after each mutation), and on 779c702 that took `journeys` and all four
+      # `journeys-bite` shards red: the first arm of every shard scored NEVER
+      # RAN on a tree that did not compile, the exporter `quit 2` after it had
+      # rewritten `dist/` and before it installed the three `assets/*.js`, and
+      # every arm behind it read "no single assertion matched" off a site with
+      # no bundles in it. 18 arms, 0 killed, 0 survived, 18 never ran.
+      - name: A rebuilt bundle is not stale — the remedy the gate prints works
+        run: nix develop .#ci --command ci/test/bundle-freshness-remedy.sh
+
+      - name: And that guard bites — a rebuild that does not stamp is reported
+        run: nix develop .#ci --command ci/test/bundle-freshness-remedy-test.sh
+
       - name: Client SDK — consumer-side conformance suite
         # No Embed SDK on the Nim path, deliberately: the chain half compiling
         # without a debugger is the layering (Client-SDK.md §5). CODETRACER_SRC

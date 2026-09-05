@@ -2124,15 +2124,43 @@ const describe = (id) =>
   `rendered ${id.rendered} · bundle ${id.bundle} · instrument ${id.instrument}` +
   ` (${id.bundleBytes} B over ${id.files} files)`;
 
-async function rebuild({ hydration = false } = {}) {
-  // The exporter is always rebuilt. The hydration BUNDLE is rebuilt only for
-  // arms whose journey judges it, because `nim js` over `hydrate.nim` costs
-  // about a minute and most arms cannot affect what it measures.
+async function rebuild({ hydration = true } = {}) {
+  // THE THREE BUNDLES ARE REBUILT FOR EVERY ARM, AND THE NUMBER THAT SAYS WHY
+  // IS MEASURED RATHER THAN ESTIMATED.
   //
-  // THE BASELINE BUILD PASSES `hydration: true` REGARDLESS — see
-  // `artefactIdentity`. "Most arms cannot affect the bundle" is a reason not to
-  // rebuild it PER ARM; it was never a reason to start the run against a bundle
-  // nobody built, and that is what it had been read as.
+  // This used to rebuild them only for arms whose journey judges the hydrated
+  // artefact, on the reasoning that "`nim js` over `hydrate.nim` costs about a
+  // minute and most arms cannot affect what it measures". The first half of
+  // that is the COLD cost. Measured on this repository's pinned Nim, with a
+  // warm `client/hydrate/nimcache`, applying `A/no-position-mark`'s real
+  // mutation to `client/src/components/debugger.nim`: all three bundles rebuilt
+  // in EIGHT SECONDS, shell startup included. Against a measured ~5.8 minutes
+  // per arm, two rebuilds an arm is under 3% — which is not a trade worth the
+  // defect below.
+  //
+  // THE DEFECT. `static_export.nim`'s `requireFreshBundle` refuses to install a
+  // bundle older than the newest `.nim` under the directories it was built
+  // from, and `client/src` is one of them for all three bundles. An arm mutates
+  // a file under `client/src`. So a rebuild that skipped the bundles produced a
+  // tree the exporter REFUSED — `quit 2`, after it had already rewritten
+  // `dist/` and before it installed `assets/hydrate.js`, `assets/search.js` and
+  // `assets/settings.js`. The arm scored NEVER RAN, the restore rebuilt into
+  // the same refusal, and every arm behind it read "no single assertion matched
+  // that name on the unmutated tree" off a site with three files missing from
+  // it. On 779c702 that was every `journeys-bite` shard: 18 arms, 0 killed, 0
+  // survived, 18 never ran, and only the first of those eighteen was a real
+  // finding.
+  //
+  // The second half of the old reasoning was also wrong in a way worth stating:
+  // "most arms cannot affect what it measures" is a claim about the JOURNEY,
+  // not about the bundle's source graph. Every product arm mutates a module
+  // that graph reaches. A tree whose served pages carry a `<script>` for a
+  // bundle compiled from different source is exactly the artefact the gate
+  // exists to refuse, and the harness was building one on purpose.
+  //
+  // `hydration` is kept as a parameter — and defaulted to `true` — rather than
+  // deleted, so that a caller which passes it explicitly still reads correctly
+  // and no call site silently changes meaning.
   if (hydration) {
     try {
       await run("bash", [join(CLIENT, "hydrate", "build.sh"), "--require"], {
@@ -2478,7 +2506,7 @@ async function main() {
     log(`--- ${arm.id}`);
     log(`    ${arm.why}`);
     if (needsBundle) {
-      log(`    (its journey judges the hydrated artefact, so the bundle is rebuilt too)`);
+      log(`    (its journey judges the hydrated artefact)`);
     }
     log(`    target: ${arm.journey} :: "${arm.assertion}"`);
 
@@ -2540,7 +2568,7 @@ async function main() {
     let verdict;
     let mutatedId = beforeId;
     try {
-      const built = await rebuild({ hydration: needsBundle });
+      const built = await rebuild();
       mutatedId = await artefactIdentity();
       if (built.built) log(`    mutated: ${describe(mutatedId)}`);
       if (built.built && sameArtefact(mutatedId, beforeId)) {
@@ -2597,7 +2625,7 @@ async function main() {
     }
 
     // 4. and prove the restore took
-    const restored = await rebuild({ hydration: needsBundle });
+    const restored = await rebuild();
     const restoredId = await artefactIdentity();
     if (!sameArtefact(restoredId, beforeId)) {
       // The SOURCE is restored byte-for-byte above; this says the ARTEFACT came
@@ -2624,6 +2652,46 @@ async function main() {
     const seconds = recordArm(arm, verdict, started);
     log(`    took ${seconds}s`);
     log("");
+
+    // THE RUN STOPS WHEN THE TREE DOES NOT COME BACK, AND IT SAYS SO.
+    //
+    // `restored.built === false` is not "this arm is dead". It is "the exporter
+    // cannot produce a site from the restored source", and every reading taken
+    // after it is taken against whatever `dist/` was left behind — which, when
+    // the exporter `quit`s part-way, is a directory it has already rewritten and
+    // not finished. There is no verdict to be had about the arms that follow.
+    //
+    // Carrying on was not a neutral choice, it was a MISDIAGNOSIS. Each
+    // remaining arm ran its `before` reading against the broken tree, `run.mjs`
+    // wrote no report, and `verdictFor` turned that into "no single assertion
+    // matched that name on the unmutated tree" — a sentence that says the ARM
+    // is describing an assertion nobody has, when what is actually wrong is the
+    // site. On 779c702 one arm's failed build was reported as eighteen dead
+    // arms, in every shard, and `RESULT: FAILED` named none of the cause. Seventeen
+    // of those eighteen lines were false.
+    //
+    // Reported as DID NOT RUN and not as FAILED, on purpose: this run has
+    // judged the arms it recorded and nothing else, and `--combine` will name
+    // the arms no shard reached rather than reading a short list as a verdict.
+    if (!restored.built) {
+      const remaining = arms.length - journal.arms.length;
+      log(`the tree did not come back after ${arm.id}, so this run stops here.`);
+      log(`${restored.log}`);
+      log("");
+      log(`  The restore wrote ${arm.file} back byte-for-byte — that is asserted above`);
+      log(`  and is not what failed. What failed is the BUILD of the restored tree, and`);
+      log(`  until it builds there is no site for a journey to drive. The ${remaining} arm(s)`);
+      log(`  after this one have NOT been judged, and are not being called dead:`);
+      for (const a of arms.slice(journal.arms.length)) log(`    NOT REACHED  ${a.id}`);
+      log("");
+      timingTable(journal.arms);
+      finish(
+        "did-not-run",
+        `RESULT: DID NOT RUN — the restored tree does not build, ${progressSoFar()}`,
+        2,
+      );
+      return;
+    }
   }
 
   // Every arm rebuilds the tree and reruns its journey THREE times — before,

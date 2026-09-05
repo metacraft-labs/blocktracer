@@ -24,11 +24,19 @@ export: search-bundle settings-bundle
 # an option, for the reason `installSettingsBundle` gives — the page serves its
 # preset chooser `hidden` and this bundle is what unhides it, so a build
 # without it ships a settings page whose only control cannot be seen.
+#
+# The `touch` is the same one `hydrate/build.sh` explains at length, for the
+# same reason and against the same gate: `nim js -o:X` leaves X's mtime alone
+# when the emitted bytes are unchanged, and `installSettingsBundle`'s
+# `requireFreshBundle` reads that mtime as "when this bundle was built" over a
+# source list that includes `client/src`. Without it, the remedy this recipe IS
+# — the one the gate prints — cannot clear the staleness the gate reports.
 settings-bundle:
     nim js --hints:off -d:release \
       --path:src --path:../src \
       --nimcache:settingsboot/nimcache \
       -o:settingsboot/settings.js settingsboot/settingsboot.nim
+    touch settingsboot/settings.js
 
 # ── Search (the /search route's resolver) ──────────────────────────────────
 
@@ -38,11 +46,16 @@ settings-bundle:
 # That is the whole point of it being a separate bundle from `hydrate`: no
 # CodeTracer Embed SDK, no debugger on the Nim path (AGENTS.md §1a), 40 KB
 # rather than 1.3 MB, and a gate for it that runs anywhere Nim does.
+#
+# The `touch`: see `settings-bundle` above and `hydrate/build.sh`. Same gate
+# (`installSearchBundle`'s `requireFreshBundle`), same source list reaching into
+# `client/src`, same reason.
 search-bundle:
     nim js --hints:off -d:release \
       --path:src --path:../src \
       --nimcache:searchboot/nimcache \
       -o:searchboot/search.js searchboot/searchboot.nim
+    touch searchboot/search.js
 
 # ── Hydration (the debug route's live session) ─────────────────────────────
 
