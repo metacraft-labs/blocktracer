@@ -7,8 +7,12 @@
 //   node tools/capture/render-brief.mjs --stdout   print the section only
 //
 // The section is generated rather than hand-maintained because it has to stay
-// in step with `views.mjs` — 62 blocks that must be re-checked whenever a view
-// is added, renamed or split is exactly the kind of bookkeeping that rots.
+// in step with `views.mjs` — one block per named view, every one of which must
+// be re-checked whenever a view is added, renamed or split, is exactly the kind
+// of bookkeeping that rots. (This sentence used to carry the count itself and
+// said 62 while the list held 83, which is the same rot one level up: the
+// figure is printed by this script and by `check-brief.mjs`, so it is not
+// repeated here.)
 
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve as resolvePath } from "node:path";

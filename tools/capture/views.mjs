@@ -41,6 +41,7 @@ import {
   unresolvableLogAnchorOf,
   zeroTraceTxOn,
   tracedTxOn,
+  framedTxOn,
 } from "./lib/entities.mjs";
 
 // ── Viewport set ───────────────────────────────────────────────────────────
@@ -142,6 +143,14 @@ const TESTNET = "aztec-testnet";
 // published provenance rather than trusting this string, which is what makes the rename
 // a one-line change here instead of a silent re-point of two views.
 const MAINNET = "aztec";
+// The second testnet capture, published BESIDE `aztec-testnet` rather than in
+// place of it (`client/fixtures/chain/aztec-testnet-frames/REGISTERS.md` says
+// why at length). It is the only chain in the tree carrying a transaction with
+// a Noir call tree AND per-step AVM registers that were measured rather than
+// written as zero — which is the thing `/aztec-testnet`'s reconstructed
+// container cannot show. It shipped to live on 2026-09-05 with no view pointing
+// at it, and assertion E caught that.
+const TESTNET_FRAMES = "aztec-testnet-frames";
 
 const realChain = (ix, slug) => {
   const c = ix.chain(slug); // throws when the chain is not in the tree
@@ -1576,6 +1585,42 @@ export const VIEWS = [
     route: (ix) => {
       const slug = realChain(ix, TESTNET);
       return `/${slug}/tx/${tracedTxOn(slug)(ix).hash}/debug?t=${DEBUG_TIME_COORDINATE}`;
+    },
+  },
+
+  // ───────────── The second testnet capture: real Noir call frames ──────────
+  //
+  // `/aztec-testnet-frames` shipped to live on 2026-09-05 and NOTHING pointed a
+  // view at it, so every image in the corpus was of another chain while this one
+  // was graded by nobody. Assertion E is what said so, by name — the registry
+  // knows which chains the built tree publishes and the view list did not.
+  //
+  // Two views, mirroring the pair `/aztec-testnet` already has, because the two
+  // answer different questions: the overview is what a visitor lands on, and the
+  // debugger is the reason this chain exists at all.
+  {
+    id: "chain-overview--testnet-frames",
+    description:
+      "Chain overview on the second real testnet capture — the live-capture banner over a fifteen-block window in which every transaction opens a container",
+    covers: ["chain-overview", "provenance.live-capture"],
+    register: "explorer",
+    status: "ready",
+    route: (ix) => `/${realChain(ix, TESTNET_FRAMES)}`,
+  },
+  {
+    id: "debugger--testnet-frames",
+    description:
+      "A debugging session over the first REAL recording with a Noir call tree and measured per-step AVM registers — the panes with 47 frames in them, not a two-frame bytecode listing",
+    covers: ["debugger", "provenance.live-capture"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    // `framedTxOn`, not `tracedTxOn`. Four of this chain's five transactions are
+    // rung-3 bytecode listings; the description above is a claim about the call
+    // tree, so the selector checks for one. See entities.mjs.
+    route: (ix) => {
+      const slug = realChain(ix, TESTNET_FRAMES);
+      return `/${slug}/tx/${framedTxOn(slug)(ix).hash}/debug?t=${DEBUG_TIME_COORDINATE}`;
     },
   },
 ];

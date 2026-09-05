@@ -116,7 +116,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 <!-- BEGIN GENERATED: expectations — do not edit by hand -->
 <!-- regenerate with: node tools/capture/render-brief.mjs -->
 
-*83 named views, 83 blocks — generated from `tools/capture/expectations.mjs`. 49 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
+*85 named views, 85 blocks — generated from `tools/capture/expectations.mjs`. 51 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
 
 #### Explorer register — entry and navigation
 
@@ -2099,6 +2099,47 @@ transaction. Inherited items are presence requirements exactly like the rest.
 - What the removed band BOUGHT. It used to be a full-width strip above the identity bar costing ~190px of this 1080px viewport; those rows are now in the panes. Judge whether the session reads better for it, and whether anything was lost in the trade beyond the band itself — the previous round's reviewers named that band the page's weakest element, so this is the change they asked for and it should be graded as one.
 - The COST · TRANSACTIONFEE row. On real chain data the fee arrives as a 32-byte hex quantity and is rendered raw, wrapping across several lines and breaking the label/value grid — where the synthetic chain shows a formatted mana figure. Report what you see; this is a formatting path only real data reaches.
 
+### View: `debugger--testnet-frames`
+
+> A debugging session over the first REAL recording this tree has that carries a Noir call tree AND per-step AVM registers that were measured rather than written as zero. Where `debugger--testnet` shows the product degrading to instruction level, this shows it at its best on data nobody manufactured — and shows the harder, more honest case in between: source for one of the two contracts, instructions for the other.
+
+| | |
+| --- | --- |
+| **Register** | debugger — apply rubric B (§6) |
+| **Spec** | Page-Descriptions §8, §7.1, Debugger-Integration §3; Source-Resolution §7; components/provenance.nim |
+| **Captured at** | wide · laptop × light · dark |
+| **Capture status** | `ready` |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`), which ships **no JavaScript**. The deployed site (`flake.nix` `packages.default`) exports this same route with `-d:hydrationBundle=/assets/hydrate.js`, and `debugLayout` emits that `<script>` here — so **this image is not the page a visitor loads**. Before any engine work the bundle upgrades every `.copyable` and `[data-copy]` value into a `role="button"` copy control and rewrites its `title`; what the live session then paints is larger still and is NOT measured, because the replay engine is not vendored here. So this is a LOWER BOUND on the difference. **A finding about behaviour that exists on only one of these builds must say which build it is about.** |
+
+**Must show** — absent ⇒ P1, rating ≤ 4:
+
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, §7.0, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a way OUT of the debugger register that lands on the CHAIN, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header. The exit targets the chain and NOT the transaction's own URL, because under Page-Descriptions §7.0 that URL IS this session — for a `ready` or `divergent` trace the two routes serve byte-identical bodies, so a link to the transaction would be a link to the page the visitor is already on. A missing exit is a P1; an exit that targets the chain is CORRECT and is not a finding.
+  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
+  - Every pane region below the identity bar is a pane: no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar. The full-width bands this register admits are the ABNORMAL-STATE ones — a divergent or truncated trace, an unavailable replay engine, a link-landing notice — and they are not panes and must not be judged as ones. THERE IS NO PROVENANCE BAND HERE any more, deliberately: provenance moved into the transaction pane as a row (see the next item), because a band interrupts and "this data is real" is not an interruption. A provenance band reappearing above the identity bar is now itself the finding.
+  - THE PROVENANCE MARKER, which in this register is the FIRST ROW of the transaction pane — labelled `Data`, carrying a toned badge naming what this data is, and the producer's own sentences beneath it. `debugLayout` drops the nav and the footer, so the pane is the only place a reader can learn whose data they are looking at — and this is the register where they are most likely to forget, because a trace recorded from a real node and a Noir program published under a synthetic hash step identically here. §7.1 puts that pane on the page in EVERY state, so the row is on every debug page including the ones where no session opens. Grade it as CONTENT, not decoration: missing, mislabelled, or a tone that contradicts the label is a P1. It used to be a full-width band above the identity bar and was moved on 2026-08-31 because the band spent ~190px of a 1080px viewport — roughly 17% — and both adversarial reviewers of the previous round independently named that cost the page's single weakest element. Judging whether the row is now TOO quiet for a claim this important is exactly the fair question to raise.
+- REAL NOIR SOURCE IN THE CODE PANE, with a file strip over it. This is the difference from `debugger--testnet`, where nothing resolved and the pane is an instruction listing. Here an artifact DID resolve for one contract: the pane shows Noir text, a tab strip (`private_context.nr`, `public_context.nr`, `aztec_sublib/src/hash.nr`, `messaging.nr`, `avm.nr`, `execution_cache.nr`) and an `All 32 files` overflow control, with the stopped step marked on its line. Grade it as source: are the tabs legible, is the marked line findable, does the strip cope with 32 files without becoming the loudest thing on the page?
+- THE PARTIAL-COVERAGE CLAIM, STATED. The `Sources` row reads `Sources partial` and the note beneath it says source is shown for 1 of the 2 contracts this transaction ran, names the publisher, and says the rest step as instructions. This is Source-Resolution §7's last row — a session that mixes fidelities must make the boundary visible rather than silent. A page that showed source and said nothing about the 373 steps that have none would be the failure this item exists to catch.
+- A CALL TRACE THAT IS A DEEP NOIR TREE — `<toplevel>` → `enqueued-call-0` → `FeeJuice::public_dispatch :203`, and beneath it the real structure of a fee-juice public call (`calldata_copy`, `derive_deserialize`, `Reader<N>::read`, `_increase_public_balance`, `PublicContext::maybe_msg_sender`, `Map<K,V,Context>::at`, `poseidon2_hash_with_separator`), with at least one FOLDED group drawn as a disclosure carrying a count (`2 frames · 22 steps`). Forty-seven frames, nested eleven deep. A two-row pane here is a regression, not the expected state: four of this chain's five transactions carry two rows and this is the one that does not.
+- The affirmative provenance marker as the `Data` row of the transaction pane, reading `Aztec testnet — live Noir call frames` IN FULL. In this register that row is the only provenance marker there is. The label is the longest the tree publishes and the pane is its narrowest host, so this is where it gets clipped if anything is going to clip it — it must wrap inside its pill rather than run off the pane edge.
+- The transaction pane's other facts complete and readable at their own widths — `Block 69361:0` as a link, `Type public`, `Age No timestamp published`, `Canonical Yes`, `Finality Pending`, a `Cost · Transaction fee` in mana, and `Executions: public — Trace ready`. `Age` and `Sources` are the two other badges long enough to overflow this column; both must read in full.
+- The VALUES pane DECLINING IN ITS OWN WORDS, and note that the reason here is a NEW one, distinct from `debugger--testnet`'s: the artifact resolved and its debug symbols carry the source map, but the variable table is empty because Aztec publishes these contracts without variable debug information. "Symbols resolved but no variable names" is a different sentence from "nothing resolved", and the pane must not collapse the two.
+
+**Must not show** — present ⇒ P1, rating ≤ 4:
+
+- Any content from the demo fixture, the `demo` slug, or the synthetic banner. This view exists to show a session over data the product did not manufacture.
+- A `Sources` claim of FULL coverage, or source text presented as though it covered the whole session. 373 of the 459 steps have no source line; a page implying otherwise is misreporting its own fidelity, which is the more dangerous direction of Source-Resolution §7's rule.
+- A SENTENCE PLACING THE LIMITATION ON THE CHAIN. Source resolved for one contract here, which is itself the proof that the chain is not the obstacle; the second contract's artifact is one no distributor could prove.
+- An engine-failure banner presented as a defect. The identity bar's `Engine loading — 18 MB` with its FETCHING / OPENING / POSITIONING chips is the static, server-rendered page's honest account of a replay engine that is not vendored here — see `tx-detail--hydrated`'s pending reason. Grade its TREATMENT, but do not file its presence as a bug.
+- Any badge in the transaction pane clipped at the pane's right edge. Three were, before this view was first captured.
+
+**Watch for** — judged after the presence check, normally P2/P3:
+
+- Put this beside `debugger--testnet` at the same size and theme. Those are two sessions on the SAME network: one with no source at all, this one with source for half the contracts. Does the product make the difference legible, or do both read as 'a debugger with some text in it'? The pair is the best evidence in the corpus of how the fidelity ladder actually looks to a user.
+- The `laptop` size specifically. The transaction pane is ~290px there and three of its rows carry text long enough to need two or more lines inside a pill. Judge whether a wrapped badge still reads as a badge, or whether at that width the pill treatment has stopped earning its border.
+- Which pane the eye reaches first. The call trace is the fullest thing on the page and the code pane is the one carrying the news (real Noir source on a real recording). Say which one won and whether that is right for a reader arriving at this URL.
+- Whether a reader can tell that the registers behind this session were MEASURED. That claim is the entire reason this chain exists beside `aztec-testnet` (see `client/fixtures/chain/aztec-testnet-frames/REGISTERS.md`), and if nothing on the page carries it, say so — it may be a gap in the product rather than in the capture.
+
 #### Degraded states on the transaction page
 
 ### View: `tx-detail--absent`
@@ -3240,6 +3281,41 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 - This is the page most likely to be read as a bug while being exactly correct. Say plainly whether, on first look, you took it for a broken page — that judgement is the finding, more than any single element.
 - Whether a reader could come away believing BlockTracer cannot debug Aztec mainnet at all, rather than that these particular transactions have aged out of the window.
+
+### View: `chain-overview--testnet-frames`
+
+> The overview of the SECOND real testnet capture. Its whole job is to be unremarkable: a third real chain must be data, not a third explorer.
+
+| | |
+| --- | --- |
+| **Register** | explorer — apply rubric A (§5) |
+| **Spec** | Page-Descriptions §4, §2; components/provenance.nim |
+| **Captured at** | wide · laptop · tablet · mobile × light · dark |
+| **Capture status** | `ready` |
+| **Captured from** | the PLAIN build (`client/dist`, `just export`). This route is served by `pageLayout`, which emits no hydration `<script>`, so the deployed build serves these same bytes and the image IS the page a visitor loads. |
+
+**Must show** — absent ⇒ P1, rating ≤ 4:
+
+- *Inherited backbone `site-chrome` (Page-Descriptions §2, §12, Design-System §2):*
+  - The site footer, closing the page: the product line, the About / Chains / Keyboard shortcuts links, the Metacraft Labs / CodeTracer credit and the source link. Each link is labelled with the NAME OF THE PAGE it lands on rather than the name of its route — `/settings` is titled `Keyboard shortcuts` and the link says so; a footer reading `Settings` promises a preferences surface in general and delivers one setting. It ENDS the page — on a page shorter than the viewport it sits at the bottom of the viewport, not partway down it with canvas underneath. It carries NO disclosure sentence of any kind: no claim about whose data the page shows, and no privacy claim either. Provenance is the per-page marker's job, and the privacy claims are answered on `/about`, linked from the footer's own row. A footer sentence asserting provenance, directing the reader elsewhere to find it, or reassuring them that no account is required, is a finding — the last of those reads as an answer to a question no visitor asked.
+  - The provenance strip, as one readable sentence plus one link: 'Built with <heart> by Metacraft Labs. Powered by CodeTracer <mark>', and a GitHub mark labelled as the source of THIS repository. Every mark is drawn — a missing glyph, a tofu box, an emoji-presentation heart, or a mark that is invisible against the surface it sits on is a P1, and in the dark theme as much as the light one, because all three marks take their colour from the text around them.
+  - The fixed site nav, with the brand and the resolver field, above a body that does not run under it.
+  - THE PROVENANCE MARKER, on a chain-scoped page: a badge naming what this data IS — `Synthetic demo data` in the neutral tone, or `Real Aztec <network> data` in the affirmative tone. It is the only thing on the page that tells a reader whether the hashes in front of them exist on any network, so it is graded as CONTENT and not as decoration: missing, naming the wrong chain, carrying a tone that contradicts its label, or unreadable against its surface in either theme is a P1. WHICH FORM IT TAKES DEPENDS ON THE PAGE, and all three are correct — revised 2026-08-31, when a band on every page was replaced by a band only where something is abnormal: (a) a full-width `.notice` BAND with the producer's sentences, on a page whose data is SYNTHETIC and which has no facts grid of its own — a block, an address, a list, a chain overview; (b) a compact `.provchip` badge above the breadcrumb, on those same pages when the data is REAL; (c) a `Data` ROW at the top of the transaction facts grid, on any page that has one, carrying the badge and the producer's sentences. Exactly ONE of the three is present on any page — two markers is a finding, and so is none. Do not report the absence of a BAND on a real-chain page as missing provenance: that is the change, and the chip or the row is where to look.
+  - On a SITE-LEVEL page — `/about`, `/search`, `/chains`, 404 — the provenance marker is correctly ABSENT in ALL THREE of its forms, because those pages show no chain's data and the component returns nothing rather than inventing a claim on a producer's behalf. Its absence there is not a finding, and reporting it as one is the error this item exists to prevent in the other direction.
+- The affirmative provenance CHIP above the breadcrumb, reading `Aztec testnet — live Noir call frames`. THIS LABEL IS LONGER THAN ANY OTHER CHAIN'S — 37 characters against 23 for `Real Aztec testnet data` — and it is the reason to look: at `mobile` (375px) it must still sit inside the content column on one line, and at every size it must remain a chip rather than growing into something that reads as a band. A chip that has wrapped, that is clipped, or that has become loud enough to read as a warning is the finding.
+- A head, finalized height, block count and transaction count that are plainly a real chain's — five-figure heights (69361 / 69347), 15 blocks, 5 transactions. Small numbers are CORRECT here: this is a fifteen-block window chosen because every transaction in it opens a container, not a truncated view of a larger chain.
+- The `About this data` section, and SHORT — the same two-sentence treatment `chain-overview--testnet` carries. This view is largely a CONTROL: put beside that page, the layout must differ only where the DATA differs.
+
+**Must not show** — present ⇒ P1, rating ≤ 4:
+
+- Any suggestion that this chain is a demo, a sample, a duplicate or a staging copy of `aztec-testnet`. Two real testnet captures coexisting is the intended state; a page implying one of them is the lesser is a finding.
+- THE CAPABILITY TOUR. `What this debugger can show` belongs to the demo chain alone — it lists programs written to demonstrate something, and a captured chain has none.
+- A layout that differs from `chain-overview--testnet` in any way not caused by the data.
+
+**Watch for** — judged after the presence check, normally P2/P3:
+
+- Put this beside `chain-overview--testnet` at the same size and theme. They are two captures of the SAME network, differing mainly in their labels. Can a reader tell which is which, and does the chain slug `aztec-testnet-frames` in the breadcrumb and hero explain itself, or does it read as an internal codename that escaped into the product?
+- The label at `mobile` specifically. It is the longest provenance string the tree publishes and 375px is the tightest column it has to sit in.
 
 <!-- END GENERATED -->
 

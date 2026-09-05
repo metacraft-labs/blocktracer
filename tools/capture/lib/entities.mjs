@@ -665,3 +665,62 @@ export const tracedTxOn = (slug) => (ix) => {
   }
   return t;
 };
+
+/** The depth of a `call:a.b.c` anchor, as a frame count. `call:0` is 1. */
+const anchorDepth = (anchor) => String(anchor).replace(/^call:/, "").split(".").length;
+
+/** The transaction on `slug` whose published call trace is a NESTED TREE rather
+ *  than the root pair a bytecode listing emits — the subject of the frames arm.
+ *
+ *  WHY THIS IS NOT `tracedTxOn`. `tracedTxOn` takes the first `ready`
+ *  transaction in block order, and on `aztec-testnet-frames` that happens today
+ *  to be the right one — `0x0a807e4e…` sits in the newest block in the window.
+ *  It is the right one BY ACCIDENT, and the accident is the one this file
+ *  already refuses everywhere else: four of that chain's five transactions are
+ *  rung-3 bytecode listings with no Noir frames, so the moment a re-capture
+ *  extends the window past block 69361 the flagship view would photograph a
+ *  listing while its description still claimed a call tree with real registers.
+ *  That is a fabricated image filed under a real name, which is the failure
+ *  `zeroTraceTxOn` and `txWithAvailability` are both written to prevent.
+ *
+ *  So the selection is on WHAT THE TRACE IS. Measured on this chain, as the
+ *  site serves it: the frames transaction publishes 47 call frames nested 11
+ *  deep; the other four publish 2, 2, 2 and 3, nested at most 3. A container
+ *  that opened no calls of its own cannot reach four levels, so the depth floor
+ *  below separates the two kinds without ranking within either.
+ *
+ *  Both conditions are asserted, and neither falls back. A tie means the chain
+ *  gained a second framed transaction and a person should say which one this
+ *  view means; no winner means the frames are gone, and the view fails loudly
+ *  at resolve time instead of quietly becoming a photograph of a listing. */
+export const framedTxOn = (slug) => (ix) => {
+  const c = ix.chain(slug);
+  const ranked = c.txs
+    .filter((t) => t.availability === "ready")
+    .map((t) => ({
+      tx: t,
+      frames: (t.callAnchors ?? []).length,
+      depth: Math.max(0, ...(t.callAnchors ?? []).map((a) => anchorDepth(a.anchor))),
+    }))
+    .filter((r) => r.depth >= 4)
+    .sort((a, b) => b.frames - a.frames);
+
+  if (ranked.length === 0) {
+    const seen = c.txs
+      .map((t) => `${t.hash.slice(0, 10)}…=${(t.callAnchors ?? []).length}f`)
+      .join(", ");
+    throw new Error(
+      `chain "${slug}" publishes no transaction whose call trace nests 4 frames ` +
+      `deep, so it carries no Noir call tree to photograph (frames per ready ` +
+      `transaction: ${seen || "none"}). This view's subject is a call tree ` +
+      `recorded from a node; the bytecode-listing page is a different claim.`);
+  }
+  if (ranked.length > 1 && ranked[0].frames === ranked[1].frames) {
+    throw new Error(
+      `chain "${slug}" publishes ${ranked.length} transactions with a nested call ` +
+      `tree and the two richest tie at ${ranked[0].frames} frames ` +
+      `(${ranked[0].tx.hash.slice(0, 12)}…, ${ranked[1].tx.hash.slice(0, 12)}…) — ` +
+      `re-point this view at the one it means rather than letting the order decide.`);
+  }
+  return ranked[0].tx;
+};

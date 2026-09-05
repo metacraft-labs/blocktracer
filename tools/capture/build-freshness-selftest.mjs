@@ -219,7 +219,7 @@ const SITES = [
   {
     file: "tools/capture/capture.mjs",
     anchor: "no built site at ${opts.dist}",
-    decides: "whether --no-build may photograph client/dist — the tree ALL ~79 graded views come from",
+    decides: "whether --no-build may photograph client/dist — the tree ALL ~85 graded views come from",
   },
   {
     file: "tools/capture/capture.mjs",

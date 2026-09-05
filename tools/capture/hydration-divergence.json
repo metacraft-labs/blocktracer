@@ -3,7 +3,7 @@
   "bundleUrl": "/assets/hydrate.js",
   "views": {
     "address": {
-      "route": "/demo/address/0x1b31c04d5920b0b5936f12e6fe8f17a59161624c",
+      "route": "/demo/address/0x10ebe5500330a167fd7fd88b2aa67bf9d3d799e5",
       "capturedFrom": "plain",
       "shipsBundle": false
     },
@@ -23,7 +23,7 @@
       "shipsBundle": false
     },
     "block-detail--genesis-edge": {
-      "route": "/demo/block/0xd43dbec962017960589ef20926d619c26e91508a",
+      "route": "/demo/block/0x55162381e9393a5ce89967231cba065b0e5793c3",
       "capturedFrom": "plain",
       "shipsBundle": false
     },
@@ -47,13 +47,18 @@
       "capturedFrom": "plain",
       "shipsBundle": false
     },
+    "chain-overview--testnet-frames": {
+      "route": "/aztec-testnet-frames",
+      "capturedFrom": "plain",
+      "shipsBundle": false
+    },
     "chains-index": {
       "route": "/chains",
       "capturedFrom": "plain",
       "shipsBundle": false
     },
     "contract-source": {
-      "route": "/demo/address/0x1b31c04d5920b0b5936f12e6fe8f17a59161624c/code",
+      "route": "/demo/address/0x10ebe5500330a167fd7fd88b2aa67bf9d3d799e5/code",
       "capturedFrom": "plain",
       "shipsBundle": false
     },
@@ -168,7 +173,12 @@
       "shipsBundle": true
     },
     "debugger--testnet": {
-      "route": "/aztec-testnet/tx/0x0858d644c60851824141160a69391e304430aabc06ef9ace18d8024b22e67fb2/debug?t=1",
+      "route": "/aztec-testnet/tx/0x1f1c3008ed59245c4ffd33621e54617e9bdeefbe03b836d17b3697d6760c0e06/debug?t=1",
+      "capturedFrom": "plain",
+      "shipsBundle": true
+    },
+    "debugger--testnet-frames": {
+      "route": "/aztec-testnet-frames/tx/0x0a807e4e9909fc66ceeb52e4192406077a06ce378ab9e00717555fbd41b50592/debug?t=1",
       "capturedFrom": "plain",
       "shipsBundle": true
     },

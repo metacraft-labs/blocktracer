@@ -507,7 +507,7 @@ async function main() {
   // photographed — the sibling of the exporter-failed fallback and of the
   // `--no-build` hydrated branch, both of which now call `staleness()` and
   // neither of which covers THIS tree. It is the one that matters most: every
-  // one of the ~79 graded views is photographed over `opts.dist`, while
+  // one of the ~85 graded views is photographed over `opts.dist`, while
   // `dist-hydrated` carries about 32 of them.
   //
   // Only on the `--no-build` path, because `runExporter` above just wrote it.

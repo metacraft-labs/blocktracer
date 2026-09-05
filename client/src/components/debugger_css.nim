@@ -1822,6 +1822,33 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
 .mddl dd .reason{color:var(--bt-text-muted);margin-top:var(--bt-space-2xs);
   font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line)}
 .mddl dd .muted{white-space:nowrap}
+/* A BADGE IN THIS PANE MAY WRAP. GLOBALLY IT STILL MAY NOT.
+   `.badge` is `white-space:nowrap` in `styles.nim`, and everywhere else that is
+   right: a badge normally holds one short status word — `Yes`, `Pending`,
+   `public` — which would read as broken if it broke across lines. `nowrap` does
+   not make text fit, though; it makes text that does not fit OVERFLOW, and this
+   pane is the narrowest surface in the product that puts badges in a right
+   column (~380px at `wide`, ~290px at `laptop`). There the overflow is clipped
+   by the pane and the reader gets a sentence cut off mid-word with no ellipsis
+   to tell them it was cut.
+   THREE ROWS WERE DOING IT, and none is a short status word:
+     DATA     the LABEL the capture published — free prose out of
+              `snapshot.json`, nothing bounds its length. Every real chain's
+              label was 23 characters until `aztec-testnet-frames` shipped
+              `Aztec testnet — live Noir call frames`, 37, and clipped at
+              `live Noir call f`. In this register that row is the ONLY
+              provenance marker there is (see `provenanceMarker` — no nav, no
+              footer, no band), so the clipped element was the page's whole
+              claim to be showing real data.
+     AGE      `No timestamp published`, clipped to `No timestamp p`.
+     SOURCES  `Instruction level` / `Sources partial`, clipped mid-phrase.
+   The last two are older than the frames chain and are visible on
+   `debugger--testnet` at `laptop` just as they are here; they were found by
+   photographing the new chain, which is what the capture corpus is for.
+   `normal` PERMITS wrapping, it does not force it: `Yes` and `Pending` have
+   room and still occupy one line. Scoped to `.badge`, so the `.muted` SUFFIX
+   span above keeps its nowrap — `mana (FeeJuice)` must not come apart. */
+.mddl dd .badge{white-space:normal}
 .mddl dd a{color:var(--bt-text-link);text-decoration:underline;
   text-underline-offset:var(--bt-space-3xs)}
 .mdexec{padding:var(--bt-density-cell-y) var(--bt-density-cell-x)}
