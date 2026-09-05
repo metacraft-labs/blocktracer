@@ -82,7 +82,7 @@
 //    text search for itself. Encode the string before searching, or check the
 //    behaviour in a browser instead — which is what the journeys are for.
 
-import { readFile, writeFile, readdir } from "node:fs/promises";
+import { readFile, writeFile, readdir, rm } from "node:fs/promises";
 import { writeFileSync, readFileSync, writeSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
@@ -2350,12 +2350,73 @@ async function rebuild({ hydration = true } = {}) {
 
 /** Run one journey and return its per-assertion records. Never an exit code. */
 async function verdictFor(journey, assertion) {
+  // THE PREVIOUS READING IS DELETED BEFORE THIS ONE IS TAKEN.
+  //
+  // `run.mjs --json` writes this file when it produces a verdict and does NOT
+  // write it when it refuses. The read below is unconditional, so a refusal left
+  // the LAST run's report to be parsed as this one's — and `.selftest-report.json`
+  // is gitignored, written in place, and never cleaned, which is the same
+  // existence-for-freshness shape `requireFreshBundle` was added to close one
+  // layer down.
+  //
+  // MEASURED, and it is why this line exists rather than being a precaution:
+  // with `tools/capture/node_modules` hidden, an arm printed
+  //
+  //     before:  GREEN   on rendered e0919f45… · bundle fdd593b0…
+  //
+  // over a run in which no browser existed and no journey executed. That is the
+  // worst reading this file can produce — a green baseline invented from an
+  // earlier run — and every verdict taken after it would have inherited it.
+  //
+  // The refusal is now raised below as well, so this is the second of two
+  // independent closures of one hole. Both are kept: the raise depends on
+  // `run.mjs` spending exit 2 correctly, and this does not depend on anything.
+  await rm(REPORT, { force: true });
   try {
     await run("node", [join(HERE, "run.mjs"), "--only", journey, "--json", REPORT], {
       cwd: REPO,
       maxBuffer: 64 * 1024 * 1024,
     });
-  } catch {
+  } catch (err) {
+    // TWO EXIT CODES, TWO DIFFERENT FACTS, AND THIS USED TO DISCARD BOTH.
+    //
+    // `run.mjs` reports THREE verdicts and spends two exit codes on them: 1 is
+    // a claim about BlockTracer, 2 is a REFUSAL to make one — no browser, no
+    // exported site, a tree from another commit, an engine that cannot open the
+    // corpus. The `journeys` job reads that distinction and annotates it,
+    // `journeys-refusal-exit-code.sh` guards the code path that produces it,
+    // and `README.md` states it. THIS caller threw the whole thing away, so a
+    // refusal arrived here as an empty report and left as "no single assertion
+    // matched that name on the unmutated tree" — an arm scored NEVER RAN, and,
+    // once every arm had been, `RESULT: FAILED — every arm must be killed`.
+    //
+    // Exit 1: a red journey, which is the ordinary case and exactly what a
+    // mutated tree is supposed to produce. The verdict comes from the report,
+    // not from this, so it is still ignored.
+    //
+    // Exit 2: THERE IS NO VERDICT TO BE HAD, here or in any arm after this one,
+    // because the thing that would produce it did not run. Raised, so it
+    // reaches `main().catch` and becomes one `RESULT: DID NOT RUN` with the
+    // cause above it, instead of sixty-nine NEVER RANs and a sentence claiming
+    // every assertion in the suite is dead.
+    //
+    // `selftest-verdict-test.sh` probe 4 is the proof, and it is why this was
+    // found: it plants the real incident — `tools/capture/node_modules` hidden
+    // — and demands a DID NOT RUN verdict, the cause visible, and exit 2. That
+    // used to happen by itself, because `probe.mjs` threw at MODULE SCOPE and
+    // the throw came out of `judgesHydratedArtefact` in this process. The throw
+    // was then deliberately deferred into `requirePlaywright()` — a good change
+    // — and it moved the refusal into the CHILD, where this `catch` ate it. The
+    // probe went red and stayed red, describing an incident whose mechanism had
+    // moved out from under it.
+    if (err && err.code === 2) {
+      throw new Error(
+        `the journeys REFUSED to run '${journey}' — run.mjs exited 2, which is\n` +
+          `  "this gate did not run", not a verdict about the product. Nothing below it\n` +
+          `  could be judged, and neither could any arm after this one.\n\n` +
+          String(err.stderr ?? err.stdout ?? "").slice(-2000),
+      );
+    }
     /* a red journey exits 1; the verdict comes from the report, not from this */
   }
   const report = JSON.parse(await readFile(REPORT, "utf8").catch(() => "{}"));
