@@ -1567,21 +1567,31 @@ proc noteFor*`,
   {
     id: "CT1/two-frames-answer-to-one-identity",
     why:
-      "Number every sibling `0`, so a `call:` path stops distinguishing frames" +
-      " at the same depth under the same parent. `Click-Navigation.md` §2.2:" +
-      " the identity that IS injective is the frame's position in the call tree," +
-      " and \"a wrongly numbered path is a link that lands in a real frame that" +
-      " is not the one it named — the failure mode with no visible symptom\"." +
-      " That symptomlessness is why this arm exists: the pane still renders, the" +
-      " rows still carry anchors, every link still resolves to SOMETHING, and on" +
-      " the capture journey 25 drives the two identical `Map::at → …" +
-      " → poseidon2` subtrees collapse onto one another. Only the whole-pane" +
-      " uniqueness record notices, which is the record §5 prescribes for §2.2" +
-      " and the reason it is quantified over the pane rather than over the six" +
-      " colliding rows.",
-    file: join(CLIENT, "src", "debugger", "deeplink_landing.nim"),
-    find: "    let seg = $counters[d]",
-    replace: "    let seg = \"0\"  # MUTATED: siblings are not numbered apart",
+      "Give ONE live frame another frame's `call:` path, so two rows on screen" +
+      " answer to one identity. `Click-Navigation.md` §2.2: the identity that IS" +
+      " injective is the frame's position in the call tree, and \"a wrongly" +
+      " numbered path is a link that lands in a real frame that is not the one" +
+      " it named — the failure mode with no visible symptom\". That" +
+      " symptomlessness is the whole reason for this arm, and it is why the" +
+      " mutation is ONE duplicate rather than a flattened numbering: the pane" +
+      " still renders, every row still carries an anchor, the six rows sharing a" +
+      " coordinate still carry six distinct ones, every click still marks the row" +
+      " it was given, and every link still resolves to SOMETHING. Only the" +
+      " whole-pane uniqueness record notices — which is the record §5" +
+      " prescribes for §2.2, and the reason it is quantified over the pane" +
+      " rather than over the six.\n\n" +
+      "      Mutated in the LIVE projection and not in `callPath` itself, which" +
+      " both producers share: `searchboot` reaches that module too, so a" +
+      " mutation there restales the search bundle this arm does not rebuild and" +
+      " the run scores DID-NOT-BUILD instead of measuring anything. Measured:" +
+      " it did, once.",
+    file: join(CLIENT, "hydrate", "session_project.nim"),
+    find: "  withCallAnchors(result)\n  for i in 0 ..< result.frames.len:\n    result.frames[i].href = positionQuery(",
+    replace:
+      "  withCallAnchors(result)\n" +
+      "  # MUTATED: the last frame answers to the first frame's identity\n" +
+      "  if result.frames.len > 1: result.frames[^1].anchor = result.frames[0].anchor\n" +
+      "  for i in 0 ..< result.frames.len:\n    result.frames[i].href = positionQuery(",
     journey: "a-call-trace-row-lands-on-the-frame-it-names",
     assertion:
       "over the WHOLE pane, every row carries a frame identity no other row carries",
