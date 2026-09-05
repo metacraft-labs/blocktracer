@@ -732,6 +732,82 @@ proc selectCalltraceFrame*(s: LiveSession; anchor: string): bool =
   s.calltrace.selectEntry(some(lines[i].index))
   true
 
+proc selectLandingFrame*(s: LiveSession; anchor: string): bool =
+  ## Seed the call-trace selection ON A LANDING, so the hydrated pane marks a
+  ## frame without waiting for a gesture.
+  ##
+  ## ## The defect this closes, and why nothing caught it for so long
+  ##
+  ## `projectCalltrace` renders `current: vm.selectedEntry.val == some(...)`,
+  ## and the only writer of `selectedEntry` is `selectCalltraceFrame`, which
+  ## runs on a CLICK. On a plain landing nothing has clicked, so the comparison
+  ## was against `none` for every row and a hydrated session drew its whole call
+  ## trace with none of it marked. Measured on the deep capture: the SERVED page
+  ## carries 47 rows with exactly one `ctrow … cur`, and one second later the
+  ## hydrated pane carries 48 rows with none.
+  ##
+  ## That is `Page-Descriptions.md` §7.0 — "No state renders less than the
+  ## pre-hydration page" — violated by hydration itself, which is the one
+  ## direction that clause exists to forbid. It also silently undid
+  ## `hydrate.markServedFrame`: a §6.0a link naming a frame marked the served
+  ## row and then the first live render threw the mark away, so a link that had
+  ## resolved correctly arrived at a pane asserting nothing.
+  ##
+  ## It hid because `renderSource` used to overflow the JavaScript stack on this
+  ## capture's 4 MB document and unwound out of `renderPanes` BEFORE the
+  ## call-trace pane was written — so the pane kept the STATIC export's markup,
+  ## which DOES mark the current frame, and a journey reading it was reading the
+  ## served page's answer through a dead hydration. Fixing the overflow turned a
+  ## false green into a true red, which is the only reason there was anything to
+  ## fix here.
+  ##
+  ## ## Which frame a landing selects, and why that is not a new rule
+  ##
+  ## §6.0a's own precedence, applied to the pane instead of to the coordinate.
+  ## The frame the LINK named, when it named one this window holds; otherwise
+  ## the frame the SESSION is stopped in. Both are answers the page already
+  ## computes elsewhere — `resolveLanding` for the first, and
+  ## `session_view.selectionDetail` for the second, in the same words: "frames
+  ## are in call order and each carries the coordinate it STARTS at, so the
+  ## frame containing the position is the last one that started at or before
+  ## it."
+  ##
+  ## ## Once, on the landing — and the question this deliberately leaves open
+  ##
+  ## The caller gates this to the first live render that has frames, so a step
+  ## afterwards does not re-derive the mark and overwrite a frame the visitor
+  ## chose. That matters here rather than being a nicety: a row click is
+  ## `selectCalltraceFrame` plus `ct/goto-ticks`, and re-deriving on the stop
+  ## that click produces would send all six frames sharing one coordinate back
+  ## to the innermost of them — which is precisely the collision
+  ## `Click-Navigation.md` §2.2 says a coordinate cannot decide.
+  ##
+  ## What it leaves open is what a TOOLBAR step should do to the mark. §3.3 of
+  ## that document says a row that is no longer current retires its mark, and
+  ## §10.9 that "a stale mark is a claim about the current session made out of a
+  ## previous one"; both are about a pane whose `current` means "where the
+  ## session is", while `selectedEntry` means "which frame was chosen". The two
+  ## coincide on a landing and can diverge after a step. Deciding that is a
+  ## behavioural question with its own argument, and it is recorded in the
+  ## journeys' ledger rather than settled by this proc.
+  if anchor.len > 0 and s.selectCalltraceFrame(anchor):
+    return true
+  let lines = s.calltrace.visibleLines.val
+  if lines.len == 0: return false
+  # The session's own coordinate, the same field `projectCalltrace` renders the
+  # rows' costs from and `projectState` adopts its locals against.
+  let ticks = s.store.debugger.val.rrTicks
+  var chosen = -1
+  for k in 0 ..< lines.len:
+    if lines[k].rrTicks <= ticks: chosen = k
+  # A window whose first row already starts after the position: the entry frame
+  # is the honest answer, and it is the one `startCoordinate` falls back to for
+  # the same reason. Never `-1` — a landing that marks nothing is the defect
+  # above, arriving again through the degenerate case.
+  if chosen < 0: chosen = 0
+  s.calltrace.selectEntry(some(lines[chosen].index))
+  true
+
 proc applyLocals*(s: LiveSession; variables: seq[Variable]) =
   ## Mirror a backend locals response into the store, as the session's own
   ## position's.

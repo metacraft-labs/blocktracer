@@ -1544,6 +1544,48 @@ proc noteFor*`,
     journey: "a-link-to-a-frame-arrives-at-that-frame",
     assertion: "every one of them moved the mark off the row an unlinked visit marks",
   },
+  {
+    id: "FJ3/the-landing-selects-no-frame",
+    why:
+      "Stop seeding the call-trace selection on a landing, which is the state" +
+      " this pane was in until `selectLandingFrame` landed: `projectCalltrace`" +
+      " renders `current` from `selectedEntry`, and the only writer of" +
+      " `selectedEntry` was a CLICK, so a hydrated session drew every frame" +
+      " unmarked and threw away the mark the served page and the incoming link" +
+      " had both already put on a row. Measured then: 47 served rows with one" +
+      " `cur`, and one second later 48 hydrated rows with none — hydration" +
+      " rendering LESS than the page it replaced, which `Page-Descriptions.md`" +
+      " §7.0 forbids in exactly that direction. The mutation leaves the seam and" +
+      " the flag, so nothing looks missing; it only declines to write the" +
+      " pointer, which is the shape the defect actually had.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: "    h.frameSeeded = h.session.selectLandingFrame(h.landingAnchor)",
+    replace: "    h.frameSeeded = true  # MUTATED: the landing selects no frame",
+    journey: "a-link-to-a-frame-arrives-at-that-frame",
+    assertion: "CONTROL: with no link, the served page already marks exactly one row",
+  },
+  {
+    id: "CT1/two-frames-answer-to-one-identity",
+    why:
+      "Number every sibling `0`, so a `call:` path stops distinguishing frames" +
+      " at the same depth under the same parent. `Click-Navigation.md` §2.2:" +
+      " the identity that IS injective is the frame's position in the call tree," +
+      " and \"a wrongly numbered path is a link that lands in a real frame that" +
+      " is not the one it named — the failure mode with no visible symptom\"." +
+      " That symptomlessness is why this arm exists: the pane still renders, the" +
+      " rows still carry anchors, every link still resolves to SOMETHING, and on" +
+      " the capture journey 25 drives the two identical `Map::at → …" +
+      " → poseidon2` subtrees collapse onto one another. Only the whole-pane" +
+      " uniqueness record notices, which is the record §5 prescribes for §2.2" +
+      " and the reason it is quantified over the pane rather than over the six" +
+      " colliding rows.",
+    file: join(CLIENT, "src", "debugger", "deeplink_landing.nim"),
+    find: "    let seg = $counters[d]",
+    replace: "    let seg = \"0\"  # MUTATED: siblings are not numbered apart",
+    journey: "a-call-trace-row-lands-on-the-frame-it-names",
+    assertion:
+      "over the WHOLE pane, every row carries a frame identity no other row carries",
+  },
 ];
 
 const log = (s = "") => console.log(s);

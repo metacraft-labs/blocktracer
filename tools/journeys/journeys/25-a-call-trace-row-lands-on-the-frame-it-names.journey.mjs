@@ -45,11 +45,33 @@
  * step means a click between two of them legitimately moves the session
  * nowhere in TIME — the stack is what changed, not the clock. Asserting a tick
  * change here would be asserting that a correct product is broken. What is
- * asserted is the frame: which row is marked, and which position the panes are
- * showing.
+ * asserted is the frame: which row is marked, and that the identities the pane
+ * numbers its rows with are unique.
  *
- * spec: Debugger-Integration.md §3, §6.0a — a row is a jump target, and the
- * anchor is what identifies the frame it targets.
+ * AND NOT THE POSITION THE ROWS STATE, which is the correction this file
+ * carries. An assertion that the six marked frames "state a DIFFERENT source
+ * position" stood here and was ledgered red; it contradicted the section it was
+ * written for, and it is gone with the reasoning recorded at its old site
+ * rather than deleted quietly. Click-Navigation §2.2 states as its own premise
+ * that "several functions in several different files can all resolve to a
+ * single call site", and §2.3 forbids a check for that document from asserting
+ * a coordinate's value at all. The two producers here really do disagree about
+ * what a frame's coordinate denotes — the exporter numbers a frame from the
+ * callee's first step, the live session from the call site — and §2.3 sends
+ * that decision to Trace-Artifacts.md rather than making it.
+ *
+ * The leading suspect the ledger carried for it is REFUTED and worth recording,
+ * because it named the wrong repository. It read: codetracer's
+ * `dap_handler.calltrace_jump` performs the jump and never responds, so the
+ * position waits on an answer that never comes. BlockTracer never sends
+ * `ct/calltrace-jump`: `hydrate.rowHandler` is `selectCalltraceFrame` plus
+ * `ct/goto-ticks`, which is what Click-Navigation §4 specifies for a hydrated
+ * page ("the seek is `ct/goto-ticks` in BlockTracer … and `ct/calltrace-jump`
+ * in CodeTracer"). That command is not on this product's path at any rung.
+ *
+ * spec: Click-Navigation.md §2.1, §2.2, §2.3 and Debugger-Integration.md §10.9
+ * — a row names a frame, a coordinate does not identify one, and the identity
+ * that does is the `call:` path.
  */
 
 import { visit, consoleMark, waitForConsoleLine, POSITION_ANSWERED } from "../lib/probe.mjs";
@@ -58,7 +80,8 @@ import { transactions, landingOf } from "../lib/corpus.mjs";
 export const id = "a-call-trace-row-lands-on-the-frame-it-names";
 export const claim =
   "A reader who clicks a call-trace row lands on the frame that row names, and that row is the one marked — even where several frames share a coordinate.";
-export const spec = "Debugger-Integration.md §3, §6.0a — BlockTracer";
+export const spec =
+  "Click-Navigation.md §2.1–§2.3; Debugger-Integration.md §10.9 — BlockTracer";
 export const needsEngine = true;
 export const assertions = 11;
 
@@ -266,11 +289,51 @@ export async function run({ browser, site, j }) {
       group.length,
       "clicking each of them marks a DIFFERENT frame, not the same one every time",
     );
+    // §2.2's OWN reading, over the whole pane — and it stands where an
+    // assertion that CONTRADICTED §2.2 used to.
+    //
+    // What stood here was "…and each of those frames states a DIFFERENT source
+    // position", counted over the marked row's `data-module` and `.ctline`. It
+    // was red, it was ledgered for three days, and it was never a claim this
+    // spec makes. §2.2 says the opposite in as many words: "in a real recording
+    // MANY FRAMES SHARE ONE COORDINATE, and several functions in several
+    // different files can all resolve to a single call site." Six frames
+    // resolving to one call site is the structural fact the whole section is
+    // written around, not a defect — and §2.3 adds the rule directly: "A check
+    // written for this document must not assert a coordinate's value. It
+    // asserts a relation between two things the page reports."
+    //
+    // MEASURED, so the removal is not an argument from the text alone. The live
+    // rows carry the location of the tick they start at, and the six that share
+    // one tick therefore share one location; the static export gives the same
+    // six `map.nr:36 / map.nr:11 / hash.nr:221 / hash.nr:212 / poseidon2.nr:16
+    // / poseidon2.nr:68`, because it numbers a frame from the callee's first
+    // step instead. Which of the two a frame's coordinate MEANS is open
+    // (`session_project.projectCalltrace`, #234), and §2.3 sends that decision
+    // to `Trace-Artifacts.md` rather than settling it — so an assertion that
+    // needs one of the two conventions to be the right one is asserting an
+    // unmade decision. It was also redundant: the assertion above already
+    // establishes that six clicks mark six different FRAMES, by identity, which
+    // is the thing a position was standing in for.
+    //
+    // Its replacement is the arm §5 prescribes for §2.2 and the second half of
+    // §10.9's: "over the rows on screen, assert the multiset of frame
+    // identities has no duplicate — and, separately, that the multiset of
+    // coordinates DOES, so the check proves the two are different questions
+    // rather than assuming it." The second half is the `atLeast(group.length,
+    // 2)` above; this is the first, and it is quantified over the WHOLE pane
+    // rather than over the six, so a producer that numbered one sibling twice
+    // anywhere in the tree fails here — "a wrongly numbered path is a link that
+    // lands in a real frame that is not the one it named, the failure mode with
+    // no visible symptom" (§2.2).
+    const pane = await readRows(page);
+    const identities = new Set(pane.map((r) => r.anchor));
     j.countIs(
-      new Set(landings.map((l) => `${l.got.curModule}:${l.got.curLine}`)).size,
-      group.length,
-      "…and each of those frames states a DIFFERENT source position",
-      landings.map((l) => `${l.target.name}@${l.got.curModule}:${l.got.curLine}`).join(", "),
+      identities.size,
+      pane.length,
+      "over the WHOLE pane, every row carries a frame identity no other row carries",
+      `${pane.length} rows, ${identities.size} distinct anchors, ` +
+        `${new Set(pane.map((r) => r.step)).size} distinct coordinates`,
     );
     j.expect(
       landings.every((l) => l.got.curModule),

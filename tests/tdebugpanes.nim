@@ -622,6 +622,81 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       s.close()
       dispose()
 
+  test "a LANDING marks a frame, by the link's identity or by the position":
+    ## `selectLandingFrame` — the writer that closes §7.0's floor on this pane.
+    ##
+    ## The defect it exists for: `projectCalltrace` renders `current` from
+    ## `selectedEntry`, whose only writer was a CLICK, so a hydrated session drew
+    ## every frame unmarked while the served page it replaced marked one.
+    ## Hydration rendering LESS than the pre-hydration page is the one direction
+    ## `Page-Descriptions.md` §7.0 forbids outright.
+    ##
+    ## Both branches are driven, because they answer different questions and the
+    ## second is the one an ordinary visit takes.
+    createRoot proc(dispose: proc()) =
+      let s = openSession()
+      s.calltrace.setViewportHeight(8)
+      # The same five-frame, two-tick shape as the test above, and for the same
+      # reason: four frames answer to one coordinate, so a landing that resolved
+      # by coordinate could not tell them apart. `index` is numbered because
+      # `makeCallLine` leaves every row at 0 and one selection would then mark
+      # all five — a state the real pipeline never produces.
+      var section = @[
+        makeCallLine("main", 0, 1'u64, file = "src/main.nr", line = 1),
+        makeCallLine("Map::at", 1, 59'u64, file = "src/map.nr", line = 36),
+        makeCallLine("derive_storage_slot_in_map", 2, 59'u64,
+                     file = "src/map.nr", line = 11),
+        makeCallLine("poseidon2_hash", 3, 59'u64, file = "src/hash.nr", line = 212),
+        makeCallLine("Poseidon2::hash", 4, 59'u64,
+                     file = "src/poseidon2.nr", line = 16),
+      ]
+      for k in 0 ..< section.len: section[k].index = int64(k)
+      s.store.updateCalltraceSection(section, startIndex = 0'i64, totalCount = 5'u64)
+
+      let before = projectCalltrace(s.calltrace)
+      check before.frames.len == 5
+      # THE PREMISE. Nothing is marked before the landing writes anything — so a
+      # mark counted afterwards is one this proc put there.
+      var marked0 = 0
+      for f in before.frames:
+        if f.current: inc marked0
+      check marked0 == 0
+
+      # BRANCH ONE: the link named a frame, and it is that frame — not the
+      # innermost one containing its coordinate, which for a `call:` into these
+      # four is a different row every time.
+      check s.selectLandingFrame(before.frames[2].anchor)
+      var byLink: seq[int]
+      for k, f in projectCalltrace(s.calltrace).frames:
+        if f.current: byLink.add k
+      check byLink == @[2]
+
+      # BRANCH TWO: no link. The frame the SESSION is in — "the last one that
+      # started at or before the position", which at tick 59 is the deepest of
+      # the four sharing it and NOT `main`, the row a fallback to zero would
+      # pick.
+      s.calltrace.selectEntry(none(int64))
+      s.store.updateDebuggerPosition(59'u64, file = "src/poseidon2.nr", line = 16)
+      check s.selectLandingFrame("")
+      var byPosition: seq[int]
+      for k, f in projectCalltrace(s.calltrace).frames:
+        if f.current: byPosition.add k
+      check byPosition == @[4]
+
+      # AND A POSITION BEFORE EVERY ROW STILL MARKS ONE. A landing that marks
+      # nothing is the defect above arriving through the degenerate case, so the
+      # entry frame is the answer rather than `none`.
+      s.calltrace.selectEntry(none(int64))
+      s.store.updateDebuggerPosition(0'u64, file = "src/main.nr", line = 1)
+      check s.selectLandingFrame("")
+      var byFallback: seq[int]
+      for k, f in projectCalltrace(s.calltrace).frames:
+        if f.current: byFallback.add k
+      check byFallback == @[0]
+
+      s.close()
+      dispose()
+
   test "the timeline's playhead SURVIVES hydration, on its own tick — step 0 included":
     ## Page-Descriptions §7.0: "No state renders less than the pre-hydration
     ## page." Journey 06 asserts the marked SOURCE LINE survives; nothing

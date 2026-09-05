@@ -1149,6 +1149,28 @@ proc markServedFrame(root: Element; index: int) =
     rows[i].classList.remove("cur".cstring)
   rows[index].classList.add("cur".cstring)
 
+proc servedLandingAnchor(root: Element; landing: LinkLanding): string =
+  ## The `call:` IDENTITY of the frame an incoming link named, read off the same
+  ## served rows `resolveLanding` numbered.
+  ##
+  ## `LinkLanding.frame` is an INDEX, and an index is exactly what cannot be
+  ## carried across to the live pane: the served rows are the static export's
+  ## and the hydrated ones are the engine's, so the two lists are not the same
+  ## length — measured on the deep capture, 47 served rows against 48 live ones,
+  ## because the live window carries an `<end of program>` frame the exporter
+  ## does not. An anchor survives that, both producers derive it from the same
+  ## `withCallAnchors`, and `Click-Navigation.md` §4 requires exactly this ("a
+  ## frame identity written by the static exporter and one resolved from a live
+  ## session are the same string").
+  ##
+  ## Empty for a link that named no frame — a `log:` or `sw:` anchor, an
+  ## enclosing-frame fallback, an ordinary visit — which is the case
+  ## `selectLandingFrame` answers from the session's position instead.
+  if landing.frame < 0: return ""
+  let ct = servedCallTrace(root)
+  if landing.frame >= ct.frames.len: return ""
+  ct.frames[landing.frame].anchor
+
 proc announceLanding(root: Element): LinkLanding =
   ## Resolve the link this page was opened with, and say where it landed.
   ##
@@ -1291,6 +1313,17 @@ type
       ## a label") and this field is where "in force" lives.
     latch: PaneLatch         ## which panes the live session has ever filled
     landing: LinkLanding     ## where §6.0a said this link puts the session
+    landingAnchor: string
+      ## The `call:` identity of `landing.frame`, read off the served rows
+      ## before hydration replaced them. See `servedLandingAnchor` for why the
+      ## index cannot be carried instead.
+    frameSeeded: bool
+      ## Whether the landing's call-trace selection has been written.
+      ##
+      ## Once, and only once: `selectLandingFrame` re-derived on every stop
+      ## would overwrite a frame the visitor chose with the innermost frame at
+      ## that coordinate, which is the collision `Click-Navigation.md` §2.2
+      ## says a coordinate cannot decide.
     breakpoints: BreakpointSet
       ## The lines the visitor has marked, and the ONLY copy of them on this
       ## page that anything reads.
@@ -1416,6 +1449,18 @@ proc paint(h: Hydration) =
   ## reader would copy" cannot be published by two call sites at two moments,
   ## which is exactly how they came apart once the paint stopped being
   ## synchronous.
+  # THE LANDING'S OWN FRAME, SELECTED ON THE FIRST RENDER THAT HAS ROWS TO
+  # SELECT FROM — and before the projection, so the pane is never drawn once
+  # unmarked and then marked.
+  #
+  # §7.0: "No state renders less than the pre-hydration page." The served page
+  # marks exactly one call-trace row; without this the live pane replaced it
+  # with a pane marking none, so hydration REMOVED a fact the visitor already
+  # had. Gated on `visibleLines` rather than on a phase because the frames are
+  # what this needs, and they arrive with `ct/updated-calltrace` rather than
+  # with the stop.
+  if not h.frameSeeded and h.session.calltrace.visibleLines.val.len > 0:
+    h.frameSeeded = h.session.selectLandingFrame(h.landingAnchor)
   var view = projectReplayPanes(h.session, h.base, h.ui.island)
   # THE MARKS GO ON HERE, INSIDE THE RENDER, and that placement is the whole
   # reason they survive.
@@ -2866,6 +2911,7 @@ proc hydrate() =
   # the first paint would show one frame of buttons whose tooltips name no key.
   let prefs = localPreferenceStore()
   let h = Hydration(ui: ui, base: servedFrame(ui), landing: landing,
+                    landingAnchor: servedLandingAnchor(root, landing),
                     prefs: prefs, keymap: keymapOf(prefs.load().keymap))
   # Restored BEFORE the engine is started, so the first live render already
   # carries the marks and the visitor never sees the gutter empty and then

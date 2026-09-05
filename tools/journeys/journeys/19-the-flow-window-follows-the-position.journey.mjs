@@ -10,53 +10,57 @@
 // and every assertion in it can be green while the window behind them never
 // moves.
 //
-// IT IS RED, AND THE CAUSE NAMED HERE WAS THE WRONG ONE
-// -----------------------------------------------------
-// This block used to read: eleven positions driven, ticks 0,1,5,8 and 671..677,
-// and the engine answered all of them with ONE window — path .../src/main.nr,
-// rrTicks 0, functionName "main", functionFirst 0 (`main`'s body is 12..38),
-// functionLast 15 — from which it concluded that `find_function_location`
-// (`expr_loader.rs`) misses its `processed_files.contains_key(&location.path)`
-// gate because the key is the JOINED spelling and this repository writes the
-// BARE one, so "two features, one key, opposite spellings".
+// WHAT IT ASSERTS NOW, AND WHY FOUR OF ITS ASSERTIONS WERE REPLACED
+// ------------------------------------------------------------------
+// `Omniscience-Flow.md` gained the section this journey had been guessing at —
+// "What the flow window is a window over, and what its extent must mean" — and
+// it settles, against this file, four of the ten records that used to stand
+// here. The removals are recorded beside the assertions that replaced them,
+// with the sentence that settled each; in summary:
 //
-// EVERY NUMBER IN THAT READING IS CORRECT AND THE CONCLUSION IS NOT, and the
-// reason is a property of the walk rather than of the engine: all eleven of
-// those positions were inside `main`, so the one observation that separates
-// "one constant window" from "one window per CALL" is the observation the walk
-// could not make.
+//   * The window is over the ENCLOSING CALL, positioned at that call's ENTRY
+//     step, and "`rrTicks == 0` on a flow update is a legitimate value … not an
+//     unfilled field". So "every window's location is a position the session
+//     actually asked about" was asking for codetracer #606 back — the defect
+//     `e9242df3` removed when it restored full-call scope — and "computed for
+//     more than one position" was reporting the length of this journey's own
+//     walk, since a walk that never leaves a call correctly gets one window.
+//   * "The window draws the entry line … suppressing it would make the product
+//     hide something it recorded. A window whose extent looks wrong must be
+//     fixed AT THE FIELD, never by narrowing what the overlay draws." So the
+//     on-screen record now measures the overlay against the extent the window
+//     DECLARED, rather than against a function range scraped off the page.
 //
-// Re-measured with the same instrument over FOURTEEN `step-in`s, on an
-// unmodified control build and on one that wrote BOTH spellings into the VFS —
-// byte-identical answers on the two, so the prescribed work-around buys this
-// journey nothing and the publisher change it needs should not be spent here:
+// WHAT REMAINS RED IS THE SPEC VERBATIM, AND THE CAUSE IS PROVEN
+// --------------------------------------------------------------
+// The requirement: "The declared extent is the source range of the function the
+// window is over, and it contains every line the window draws. `functionFirst`
+// is a 1-based source line, never `0` and never a sentinel."
 //
-//     asks t=1..8   (inside `main`)   -> t=0 callKey=0 fn=main         depth=0
-//     asks t=9..14  (inside the call) -> t=9 callKey=1 fn=iterate_asteroids depth=1
+// Measured on the staged engine (`pkg/db_backend_bg.wasm`
+// 22acb8e1ccf2d7aa…, the pin in `client/hydrate/engine-pin.txt`): sixteen
+// answers, every one of them `fn=main first=0 last=15` over a window drawing
+// lines 1..37. Both halves fail, and they fail together.
 //
-// The window DOES follow the position. It is a window over the enclosing CALL,
-// and the location it carries is that call's ENTRY step — so `rrTicks: 0` for a
-// request at tick 677 is `main`'s entry tick, not an uninitialised field. The
-// widening that produces it is deliberate and is itself a fix: codetracer's
-// `e9242df3` ("fix(flow): restore full-call scope", #606/#593/#595) removed the
-// behaviour of starting the window at the current statement, because a
-// forward-only walk made the window shrink on every step. The assertions below
-// that require the answer's location to be a position the session asked about
-// are therefore asking for #606 back.
+// THE CAUSE IS IN THE ENGINE'S BUILD, NOT IN ITS SOURCE, which is why the fix
+// that exists does not reach this. codetracer `f2ac6ed5d` re-derives the extent
+// from tree-sitter and is on `cloud`; the staged wasm CARRIES it — its
+// re-derivation is what calls `get_first_last_fn_lines`, and the engine's own
+// log shows that call arriving from the flow path and answering `result -1 -1`
+// every time. It answers `-1 -1` because `db-backend`'s `syntax-highlight`
+// feature is OFF in a wasm build — `Cargo.toml`: "Disable for WASM builds where
+// the C grammars cannot be cross-compiled" — so `ExprLoader::load_file` takes
+// its `#[cfg(not(feature = "syntax-highlight"))]` arm, logs `loaded (no syntax
+// highlighting)`, and never populates `FileInfo.functions`. `f2ac6ed5d`'s guard
+// (`ts_first > 0`) then keeps the trace-record values, which for a Noir
+// recording are `functionFirst = 0`.
 //
-// `functionFirst = 0` has the same root: the call entry sits on line 1
-// (`mod shield;`), outside every function body in the file, so the range search
-// finds no enclosing function there whichever key the VFS holds. Note the
-// engine reports first=0 last=15 for `main` and first=0 last=6 for
-// `iterate_asteroids` — two different extents, so the body is not being skipped.
-//
-// WHAT IS STILL UNANSWERED, and is the half of this journey worth keeping: the
-// window legitimately includes line 1, which lies outside the function it
-// labels, and the on-screen assertion counts eight annotated lines outside the
-// enclosing function because of it. Whether the overlay should annotate a line
-// outside its own function is a real question. It is a SPEC decision, not a
-// defect fix, and closing this journey means answering it rather than deleting
-// the assertion. `ledger.json` carries the full measurement.
+// TWO CONSEQUENCES WORTH CARRYING FORWARD. The fix's own gate,
+// `src/db-backend/tests/flow_window_extent_test.rs`, is a native test and
+// cannot bite on the build this product loads. And the VFS key-spelling work
+// the previous entry chased — writing both the bare and the joined path — is
+// not what this is waiting on either: with `functions` empty, no key finds
+// anything.
 //
 // WHY THE JOURNEY EXISTS RATHER THAN A NOTE
 // -----------------------------------------
@@ -85,7 +89,8 @@ import { transactions, landingOf } from "../lib/corpus.mjs";
 export const id = "the-flow-window-follows-the-position";
 export const claim =
   "The flow window the engine answers with is the window for the position the session is at.";
-export const spec = "Omniscience-Flow.md — BlockTracer";
+export const spec =
+  "Omniscience-Flow.md — the flow window's extent — BlockTracer";
 export const assertions = 1 + 9; // 10
 export const needsEngine = true;
 
@@ -263,27 +268,84 @@ export async function run({ browser, site, j }) {
   j.atLeast(answers.length, 3, "SUBJECTS: the engine answered with a window more than once");
 
   const answeredTicks = new Set(answers.map((a) => String(a.rrTicks)));
-  j.atLeast(
-    answeredTicks.size,
-    2,
-    "the window the engine answers with is computed for more than one position",
-  );
 
-  // A window whose location is a tick nobody asked about is the passthrough in
-  // its clearest form: the request said 677, the answer says 0.
+  // ── TWO ASSERTIONS WERE REMOVED HERE, AND THE SPEC IS WHY ─────────────────
+  //
+  // They read "the window the engine answers with is computed for more than one
+  // position" and "every window's location is a position the session actually
+  // asked about". Both were ledgered red for days, and `Omniscience-Flow.md`
+  // now answers them in as many words, against them:
+  //
+  //   "In `Call` mode the window is a window over the ENCLOSING CALL,
+  //    positioned at that call's ENTRY STEP … `rrTicks == 0` on a flow update
+  //    is a legitimate value. It is the entry tick of the first call in the
+  //    trace, not an unfilled field."
+  //
+  // So a window located at a tick nobody asked about is the contract, not a
+  // passthrough — and a walk that never leaves the call it started in
+  // correctly receives ONE window, which is what made the first of the two a
+  // fact about the walk rather than about the product. The behaviour they
+  // demanded is the one codetracer `e9242df3` REMOVED as #606 ("Flow in call
+  // mode started at the current statement instead of the enclosing call entry
+  // … the flow walk is forward-only, so the window shrank on every step"), so
+  // between them they asked for a fixed defect to be restored.
+  //
+  // What replaces them is §10.6's own reading, which is the sentence they were
+  // reaching for: "assert that the function the flow display is annotating is
+  // the function the session reports being in — an equality between two page
+  // readings, with no function named". Read here as an equality between the
+  // WIRE's answer and the PAGE's, which is stronger in the one direction that
+  // matters: a pane that pinned its overlay to the function it opened on would
+  // satisfy any page-only reading of it.
+  const windowFns = new Set(answers.map((a) => a.functionName).filter(Boolean));
+  const framedEarly = readings
+    .filter((r) => r.labels.length > 0)
+    .map((r) => enclosing(headers, r.doc, r.marked))
+    .filter((f) => f !== null)
+    .map((f) => f.name);
+  const sessionFns = new Set(framedEarly);
   j.countIs(
-    answers.filter((a) => !askedTicks.has(String(a.rrTicks))).length,
+    [...windowFns].filter((n) => !sessionFns.has(n)).length,
     0,
-    "every window's location is a position the session actually asked about",
+    "every window the engine answered with is over a function the session reported being in",
+    `windows over {${[...windowFns].join(", ")}}; session reported being in {${[...sessionFns].join(", ")}}`,
   );
 
-  // …and the function extent the engine reports is the function's real extent.
-  // `functionFirst` is 0 for a function whose body begins on line 12, which is
-  // the uninitialised location passing through untouched.
+  // ── AND THE ONE THAT STAYS, BECAUSE IT IS THE SPEC VERBATIM ───────────────
+  //
+  // `Omniscience-Flow.md`: "The declared extent is the source range of the
+  // function the window is over, and it contains every line the window draws.
+  // `functionFirst` is a 1-based source line, never `0` and never a sentinel."
+  //
+  // Two halves, and this journey asserts both — the field, then the
+  // containment, because the containment "is what makes the field checkable at
+  // all. Without it, an extent that describes neither the function nor the
+  // window's own contents is indistinguishable from an unfilled field — and
+  // beside a legitimate `rrTicks == 0` it reads as one." Which is exactly the
+  // reading that cost this journey two wrong causes.
   j.countIs(
     answers.filter((a) => (a.functionFirst ?? 0) <= 0).length,
     0,
     "the reported function extent is a real one and not an uninitialised location",
+    answers
+      .slice(0, 3)
+      .map((a) => `${a.functionName} declared ${a.functionFirst}..${a.functionLast}`)
+      .join(" | "),
+  );
+  j.countIs(
+    answers.filter((a) =>
+      a.lines.some((n) => n < a.functionFirst || n > a.functionLast),
+    ).length,
+    0,
+    "the extent a window declares contains every line that window draws",
+    answers
+      .slice(0, 3)
+      .map(
+        (a) =>
+          `declared ${a.functionFirst}..${a.functionLast}, draws ` +
+          `${a.lines[0]}..${a.lines[a.lines.length - 1]}`,
+      )
+      .join(" | "),
   );
 
   // ── AND THE HALF A VISITOR CAN SEE ──────────────────────────────────────
@@ -303,10 +365,18 @@ export async function run({ browser, site, j }) {
   const screen = readings.filter((r) => r.labels.length > 0);
   j.atLeast(screen.length, 3, "SUBJECTS: positions with an overlay on screen");
 
-  j.atLeast(
+  // THE OVERLAY IS REDRAWN EXACTLY AS OFTEN AS THE WINDOW BEHIND IT CHANGED —
+  // and this replaces "ON SCREEN: the overlay changes as the position moves",
+  // which was red for the same reason its wire twin above was: the window is
+  // over the enclosing CALL, so a walk that stays inside one call correctly
+  // sees one overlay, and a journey that demanded two was reporting the length
+  // of its own walk. An equality against the wire keeps the claim — a pane
+  // pinned to the function it opened on fails it — without asserting that a
+  // correct product must have moved.
+  j.countIs(
     new Set(screen.map((r) => r.text)).size,
-    2,
-    "ON SCREEN: the overlay changes as the position moves",
+    answeredTicks.size,
+    "ON SCREEN: the overlay is redrawn exactly as often as the engine answered with a different window",
   );
 
   const framed = screen
@@ -331,10 +401,35 @@ export async function run({ browser, site, j }) {
     3,
     "SUBJECTS: readings whose enclosing function could be resolved at all",
   );
+  // THE SCREEN HALF OF THE EXTENT SENTENCE, and it is a separate record from
+  // the wire half above rather than a restatement of it: the wire's half counts
+  // the positions the ANSWER carried, this one counts the lines the PANE drew,
+  // and a pane that drew a subset would satisfy one and not the other. Both are
+  // "the declared extent contains every line the window draws".
+  //
+  // It replaces "every annotated line lies inside the function the session is
+  // in", measured against a function range scraped off the page. That reading
+  // is the one `Omniscience-Flow.md` forbids taking as a verdict on the
+  // overlay: "The window draws the entry line. That line is a step the
+  // recording holds values for; suppressing it would make the product hide
+  // something it recorded. A window whose extent looks wrong must be fixed AT
+  // THE FIELD, never by narrowing what the overlay draws." So the extent is the
+  // subject and the overlay is the witness, which is the way round the spec
+  // puts them — and the page-scraped range is kept only as the transcript's
+  // second opinion.
+  const declared = answers[answers.length - 1];
   j.countIs(
-    framed.filter((r) => r.lines.some((n) => n < r.fn.first || n > r.fn.last)).length,
+    framed.filter((r) =>
+      r.lines.some((n) => n < declared.functionFirst || n > declared.functionLast),
+    ).length,
     0,
-    "ON SCREEN: every annotated line lies inside the function the session is in",
+    "ON SCREEN: every annotated line lies inside the extent the window declared",
+    `declared ${declared.functionFirst}..${declared.functionLast}; ` +
+      `the page reads the enclosing function as ` +
+      framed
+        .slice(0, 2)
+        .map((r) => `${r.fn.name} ${r.fn.first}..${r.fn.last}`)
+        .join(" / "),
   );
 
   await ctx.close();
