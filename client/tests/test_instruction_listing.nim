@@ -165,14 +165,32 @@ suite "1 — the mnemonics are checked against the recording, never asserted":
     for s in subjects:
       if s.listing != nil: inc withListing
     ck withListing == subjects.len       # the tree publishes one for each
-    ck subjects.len == 26
+    # 26 -> 31 with `/aztec-testnet-frames` (2026-09-05). FIVE containers were
+    # added to this population and the count is the only thing that noticed:
+    # the chain landed at `1c2cd37` without `just chain-instructions` being
+    # re-run over it, so four of the five published NO listing and their Code
+    # panes rendered empty. That is the defect this number exists to catch, and
+    # it caught it — every assertion in suite 2 failed beside it, and journey 10
+    # reported the same four transactions by name.
+    #
+    # Corrected UPWARD, after deriving the missing listings. A count edited DOWN
+    # to whatever the tree happened to produce would have certified the empty
+    # panes; the repair for this red is the derivation, not the number.
+    ck subjects.len == 31
 
     # AND THE EXCLUDED ONE IS EXCLUDED FOR A REASON THAT IS ITSELF CHECKED.
     # Narrowing a population is how a suite goes green by grading less, so the
     # recording this file no longer asks for a listing is asserted to render the
     # better thing instead — real source, from its own per-step positions, with
     # no listing published for it at all.
-    ck positionedSubjects.len == 1
+    #
+    # 1 -> 2: `aztec-testnet-frames/0x0a807e4e…` is the second such recording,
+    # and `derive-instructions.mjs` refuses it for the same stated reason it
+    # refuses `0x20ed5b91…` — on a positioned step the container spends its
+    # `line` field on the source line, so there is no program counter to
+    # publish. The consequence for the LIVE session is not benign and is not
+    # closed here: see the note in suite 5.
+    ck positionedSubjects.len == 2
     for s in positionedSubjects:
       ck s.listing == nil                # `derive-instructions.mjs` refused it
       let sess = debugSessionFor(root, s.chain, s.tx)
@@ -197,14 +215,16 @@ suite "1 — the mnemonics are checked against the recording, never asserted":
     # The population grew with the 2026-09-02 testnet capture: 8 real
     # instruction-level recordings became 26, and one further recording —
     # 0x20ed5b91… — left this population entirely because it renders source.
+    # It grew again with `/aztec-testnet-frames` on 2026-09-05: 26 -> 31, and
+    # 0x0a807e4e… left it for the same reason 0x20ed5b91… did.
     # Restated at the measured value rather than relaxed to `> 0`: an exact
     # count is what makes a check that silently stopped predicting fail
     # differently from one that predicted everything and was right.
-    ck recordings == 26
+    ck recordings == 31
     # The count is asserted, not merely non-zero: a check that silently stopped
     # predicting would otherwise report the same green as one that predicted
     # everything and was right.
-    ck checked == 5167
+    ck checked == 6919
     ck matched == checked
 
   test "MUTATION BITE: a table shifted by one explains nothing":
@@ -258,7 +278,7 @@ suite "1 — the mnemonics are checked against the recording, never asserted":
     ck not l.named
 
   test "assertion count":
-    expectCount(132)
+    expectCount(157)
 
 suite "2 — the pane renders instructions, with the current one marked":
   asserted = 0
@@ -294,7 +314,10 @@ suite "2 — the pane renders instructions, with the current one marked":
       # it, so a bare `find` compares two positions inside the CSS.
       ck body.find("class=\"srcpos\"") < body.find("class=\"srcline")
       inc pages
-    ck pages == 26
+    # 26 -> 31 with `/aztec-testnet-frames`. Corrected upward — see the note
+    # on `subjects.len` in suite 1; four of the five new containers had no
+    # listing at all until the derivation was re-run over that chain.
+    ck pages == 31
 
   test "the rows carry the program counters the recording actually holds":
     # Not "some hex appears". Every counter in the published stream that falls
@@ -324,7 +347,10 @@ suite "2 — the pane renders instructions, with the current one marked":
       rows += onPage
       want += s.steps
     ck rows == want
-    ck want == 5746
+    # 5746 -> 7740 rows: the five `/aztec-testnet-frames` containers contribute
+    # 790 + 345 + 169 + 345 + 345 recorded steps, every one of which must be a
+    # row on the page.
+    ck want == 7740
 
   test "MUTATION BITE: an unpositioned session marks no row":
     # The listing is still rendered — "here is the whole recording and this page
@@ -379,10 +405,10 @@ suite "2 — the pane renders instructions, with the current one marked":
       ck not body.contains("class=\"srcfrom\">Steps ")
       ck not body.contains("class=\"srcfrom\">Lines ")
       inc judged
-    ck judged == 26
+    ck judged == 31
 
   test "assertion count":
-    expectCount(6200)
+    expectCount(8279)
 
 suite "3 — it composes with the marks the pane already draws":
   asserted = 0
@@ -479,7 +505,7 @@ suite "3 — it composes with the marks the pane already draws":
       ck body.contains("counters are offsets into ")
 
   test "assertion count":
-    expectCount(420)
+    expectCount(500)
 
 suite "4 — the prose sits beside the listing, and says what is true now":
   asserted = 0
@@ -539,7 +565,7 @@ suite "4 — the prose sits beside the listing, and says what is true now":
     ck occurrences(html, "class=\"srcpos\"") == 1
 
   test "assertion count":
-    expectCount(4095)
+    expectCount(4172)
 
 suite "5 — source and instructions coexist; neither is hard-coded":
   asserted = 0
@@ -642,10 +668,25 @@ suite "5 — source and instructions coexist; neither is hard-coded":
           ck t.instructions{"isa"}.getStr("") == "aztec-avm"
           ck t.instructions{"pc"}.len == t.steps
           inc found
-    ck found == 26
+    ck found == 31
     # Non-vacuous in the other direction too: the skip above is a real
     # population, not a branch nothing takes.
-    ck positioned == 1
+    #
+    # 1 -> 2, AND THE SECOND MEMBER IS NOT BENIGN. `0x20ed5b91…` positions 86 of
+    # its 108 steps and its 22 unpositioned ones are the dispatch prologue at
+    # the FRONT of the stream, which the served frame's landing rule steps over
+    # (`demo_session.withSourceIsland`: "a page may not report a position it is
+    # not showing"). `aztec-testnet-frames/0x0a807e4e…` positions 86 of 459 —
+    # its steps 108..458 run in a SECOND contract whose artifact no distributor
+    # could prove — so 373 of its steps have no source line, no published
+    # listing row, and nothing on the page to be stopped at. The static export
+    # is spared by its landing rule; the hydrated session is not, and lands at
+    # tick 0 marking nothing. `Source-Resolution.md` §7 is the clause it fails
+    # ("Partial source coverage | Source-level stepping where sources exist,
+    # instruction-level elsewhere, with the boundary visible in the source pane
+    # rather than silent"), and closing it needs a listing this derivation
+    # cannot produce from this container — see `derive-instructions.mjs`.
+    ck positioned == 2
 
   test "MUTATION BITE: publish refuses a listing the position cannot be in":
     # The one guard in `ingest.nim`. `execution.steps` is what the toolbar counts
@@ -702,7 +743,7 @@ suite "5 — source and instructions coexist; neither is hard-coded":
     removeDir(mutDir)
 
   test "assertion count":
-    expectCount(144)
+    expectCount(168)
 
 suite "6 — the listing survives hydration, in the artefact a visitor loads":
   asserted = 0
@@ -854,4 +895,4 @@ suite "6 — the listing survives hydration, in the artefact a visitor loads":
     ck marked == 1
 
   test "assertion count":
-    expectCount(740)
+    expectCount(880)
