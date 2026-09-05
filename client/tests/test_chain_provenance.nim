@@ -1436,7 +1436,13 @@ suite "8 — a curated chain publishes only transactions that open":
       ck ing.observedTransactions >= ing.transactions
       ck ing.windowFrom <= ing.windowTo
       ck ing.transactions == ing.withTrace
-    ck curated == 2
+    # 2 -> 3 with `/aztec-testnet-frames` (2026-09-05). This is the count of
+    # CAPTURES the tree ingests, so it moves whenever a chain is published, and
+    # it went un-updated at `1c2cd37` — which left this suite RED on `dev`, the
+    # same way `test_instruction_listing`'s eight counts were. Corrected upward
+    # to what the tree holds; the five assertions inside the loop move with it
+    # (88 -> 93 below).
+    ck curated == 3
 
   test "the span is the PUBLISHED slice's, so the two trees differ by design":
     # WHAT THIS USED TO GRADE, TWICE, AND WHY IT IS THIS NOW.
@@ -1713,7 +1719,7 @@ suite "8 — a curated chain publishes only transactions that open":
   test "assertion count":
     # 87 + 1: the testnet arm now asserts BOTH spans, because the two trees
     # differ there and the difference has to be named at both ends.
-    expectCount(88)
+    expectCount(93)
 
 # ── 9 — the home page features a session that can actually be shown ──────────
 #

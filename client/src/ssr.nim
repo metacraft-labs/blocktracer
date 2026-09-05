@@ -157,6 +157,55 @@ proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
   # carries instead of a paragraph describing them. The order is the coexistence
   # rule made mechanical — see `withInstructionListing`, which refuses any pane
   # that is not `srcUnverified` and any pane that already has documents.
+  #
+  # ── AND "WHATEVER WON KEEPS THE PANE" IS NOT COEXISTENCE. IT IS A CONTEST,
+  #    AND `Source-Resolution.md` §7 ASKS FOR THE OTHER THING ────────────────
+  #
+  # The word is used three times above and it means "the two rungs do not
+  # overwrite each other", which is a property of THIS LADDER and not of the
+  # page. What the page ends up with is one rung for the whole session, decided
+  # once, here. §7's row for the case this ladder cannot express reads:
+  #
+  #   | Partial source coverage | Source-level stepping where sources exist,
+  #     instruction-level elsewhere, with the boundary visible in the source
+  #     pane rather than silent |
+  #
+  # and `Debugger-Integration.md` §5 says the same from the other side: "A
+  # single transaction routinely mixes both. The debugger must handle this
+  # without ceremony — it is the normal case, not an edge case."
+  #
+  # MEASURED, ON THE FIRST RECORDING THIS TREE PUBLISHES THAT SEPARATES THEM.
+  # `aztec-testnet-frames/0x0a807e4e…` runs 459 steps across TWO contracts at
+  # two fidelities: `0x…03` is 108 steps with 86 positioned, and `0x2fcd3dd5…`
+  # is steps 108..458 with none, because no distributor could prove its
+  # artifact. The middle rung wins, so the pane is 32 Noir documents and no
+  # listing — and at the 373 steps that carry no `(path, line)` there is no row
+  # of any kind to be stopped at. Its unpositioned runs are ticks 0..13, 27..34
+  # and 108..458.
+  #
+  # The STATIC export is spared by an accident of its own landing rule:
+  # `demo_session.withSourceIsland` moves the served step to one there is source
+  # for ("a page may not report a position it is not showing"), landing this
+  # recording on 107 — the LAST positioned step it has. Hydration has no
+  # counterpart, lands at tick 0, and marks nothing: `positionDocumentIndex`
+  # correctly finds no document for the engine's `/aztec/<txHash>.avm`, the
+  # pane clears `currentLine`, and the page says nothing about why. Eight
+  # journeys read that as a lost capability; every one of them is judging this
+  # transaction, because it sorts first among real captures.
+  #
+  # WHAT CLOSES IT, and why it is not a line of code here. The listing has to
+  # cover the steps the source cannot, which means
+  # `tools/chain/derive-instructions.mjs` must stop REFUSING a container that
+  # positions any step (its `Step` case) and instead publish a program counter
+  # for the steps at `path_id == 0` and a sentinel for the rest — the container
+  # spends `line` on the source line at a positioned step, so a pc for those 86
+  # does not exist and must not be invented. Then this ladder becomes a union
+  # rather than a contest, `session_project.projectEditor` falls back to the
+  # listing row at `rrTicks` when the engine's path resolves to no document,
+  # and the pane's header says which rung it is on — §5's "visible transition".
+  # `tools/journeys/lib/corpus.mjs`'s `hasSource` moves with it: a page holding
+  # both kinds of document is not "no source", and the marker it reads today
+  # would say it was.
   withInstructionListing(result, t.instructions)
   # THE CALL TRACE, AND IT IS NOT PART OF THAT CONTEST. The three calls above
   # compete for the CODE pane — a bundle beats positions beats a listing — and
