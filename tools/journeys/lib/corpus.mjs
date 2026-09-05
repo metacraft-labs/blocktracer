@@ -167,6 +167,40 @@ export async function transactions(root) {
         hasRecordedValues: /class="fv[ "]/.test(html),
         hasRecordedState: /class="strow[ "]/.test(html),
 
+        // ── THE FOURTH CATEGORY: SOME STEPS RESOLVE TO SOURCE AND SOME DO NOT ──
+        //
+        // `hasSource` says the pane's rows are source. `instructionLevel` says
+        // they are program counters. Both are properties of the WHOLE session,
+        // and a recording exists for which neither is the answer.
+        //
+        // `aztec-testnet-frames/0x0a807e4e…` runs 459 steps across TWO
+        // contracts at two fidelities: `0x…03` positions 86 of its 108 steps,
+        // and `0x2fcd3dd5…` — steps 108..458 — positions none, because no
+        // distributor could prove its artifact. The exporter's ladder
+        // (`ssr.nim`) gives the pane to whichever rung won, so it publishes 32
+        // Noir documents and no listing, and at 373 of 459 steps there is no
+        // row of any kind to be stopped at. Its unpositioned runs are ticks
+        // 0..13, 27..34 and 108..458.
+        //
+        // `Source-Resolution.md` §7 names this state and says what it must
+        // look like: "Partial source coverage | Source-level stepping where
+        // sources exist, instruction-level elsewhere, with the boundary
+        // visible in the source pane rather than silent."
+        //
+        // WHY IT IS READ FROM THE DATA PLANE. The page states the coverage in
+        // one sentence of prose — "86 of this recording's 459 steps carry a
+        // source position" — and nothing machine-readable. `publishedFacts`
+        // already reads `/d/**` for exactly the reason given on
+        // `sourceStateOf`: a journey that compared one page's rendering to
+        // another page's rendering would be satisfied by two surfaces agreeing
+        // on the same wrong answer. So the CLASS is read from the data the
+        // exporter published and the BEHAVIOUR is judged on the page.
+        //
+        // Filled in below, after the loop, because it needs a second read.
+        stepsPositioned: null,
+        stepsUnpositioned: null,
+        partiallyPositioned: false,
+
         // How many FRAME rows the served Call Trace paints.
         //
         // `data-step` is what makes it a frame: the aggregate ("self cost")
@@ -189,6 +223,28 @@ export async function transactions(root) {
         ),
       });
     }
+  }
+  // THE COVERAGE, FROM THE PUBLISHED FACTS. A second pass rather than a field
+  // computed above, because it reads a different tree — `/d/**`, the data
+  // plane — and the page walk above reads `/{chain}/tx/**`. A transaction with
+  // no replay record at all leaves the three fields as they were: `null`,
+  // `null`, `false`, which is "nobody established this" and is deliberately
+  // NOT the same value as "this recording positions every step".
+  for (const t of out) {
+    const facts = await publishedFacts(root, t.chain, t.hash);
+    const replay = facts?.native?.replay;
+    if (!replay || typeof replay !== "object") continue;
+    const pos = replay.stepsPositioned;
+    const un = replay.stepsUnpositioned;
+    if (typeof pos !== "number" || typeof un !== "number") continue;
+    t.stepsPositioned = pos;
+    t.stepsUnpositioned = un;
+    // BOTH SIDES NON-ZERO, and that is the whole definition. A recording that
+    // positions everything is source level; one that positions nothing is
+    // instruction level; the class named here is the one the product's
+    // two-valued pane cannot express, and a predicate written as
+    // `pos < steps` would have swept the second of those in with it.
+    t.partiallyPositioned = pos > 0 && un > 0;
   }
   out.sort((a, b) => (a.chain + a.hash).localeCompare(b.chain + b.hash));
   return out;
