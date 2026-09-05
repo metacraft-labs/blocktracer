@@ -218,6 +218,59 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
 .copyhint{font-size:var(--bt-type-label-size);
   line-height:var(--bt-type-label-line);
   letter-spacing:var(--bt-type-label-tracking);color:var(--bt-text-subtle)}
+
+/* ── §13's copy CONTROL, and the result of pressing it ──────────────────────
+   The three classes `hydrate.nim`'s `bindCopy` adds, none of which the
+   stylesheet drew until now. They exist ONLY on the build a visitor loads, so
+   no capture and no reviewer could ever have seen them missing; H2 of
+   `check-hydration-divergence.mjs` is the assertion that found them, and it
+   found them undrawn.
+
+   THE FAILURE CASE IS THE ONE THAT MATTERS. `bindCopy`'s own comment says the
+   result "is SHOWN, both ways … a copy control that silently failed would be
+   the affordance-that-lies defect wearing a tick" — and then it only adds a
+   class. `writeText` rejects in a non-secure context and when the document is
+   not focused, both of which happen to real visitors, so the page was
+   asserting a copy had been offered and then saying nothing at all about
+   whether it happened.
+
+   NOT COLOUR ALONE, AND DELIBERATELY NOT COLOUR FIRST. Each result carries a
+   GLYPH and a WORD; the colour is the third channel, not the only one. Two
+   contrast defects have already shipped here that made a state invisible in
+   one theme, and a tick that is green-on-green in dark is the same defect
+   again. Read with colour removed entirely, `✓ copied` and `✗ copy failed`
+   still say different things.
+
+   `nowrap` on the marker, which is the OPPOSITE of the rule the provenance
+   badge needed, and for the reason that one was wrong: this text is a fixed
+   literal written here, not producer-supplied prose of unbounded length. It is
+   short, it is known, and it must not break mid-word inside an `.identifier`,
+   whose `word-break:break-all` would otherwise cut it.
+
+   `.copybtn` gets a RESTING appearance, for the reason recorded above
+   `.copyfield`: six reviewers reported that affordance absent while it was
+   present, because its only signal was hover. Hydration turns a static value
+   into `role="button" tabindex="0"`, and a control that gives no sign it
+   became one is the same defect one size smaller. Focus needs nothing here —
+   `:where(…,[tabindex]):focus-visible` above already rings it. */
+.copybtn{cursor:pointer;border-radius:var(--bt-radius-sm);
+  text-decoration:underline dotted;
+  text-decoration-color:var(--bt-border-strong);
+  text-underline-offset:var(--bt-space-3xs)}
+.copybtn:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
+.copied::after,.copyfailed::after{
+  margin-left:var(--bt-space-2xs);white-space:nowrap;
+  /* The marker is a REPORT, not part of the value. Without this it inherits
+     `.copybtn`'s dotted underline and reads as more copyable text — the
+     control's label and its result wearing one treatment. */
+  text-decoration:none;
+  font-family:var(--bt-font-sans);
+  font-size:var(--bt-type-label-size);
+  line-height:var(--bt-type-label-line);
+  letter-spacing:var(--bt-type-label-tracking)}
+.copied::after{content:'✓ copied';color:var(--bt-status-success-fg)}
+.copyfailed::after{content:'✗ copy failed';color:var(--bt-status-danger-fg)}
+
 .group{margin-top:var(--bt-rhythm-group)}
 .titlerow{display:flex;gap:var(--bt-space-sm);align-items:center;flex-wrap:wrap}
 .badgerow{display:inline-flex;gap:var(--bt-space-xs);align-items:center;flex-wrap:wrap}

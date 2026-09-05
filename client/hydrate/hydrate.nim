@@ -1217,6 +1217,20 @@ proc bindCopy(e: Element; value: string) =
       # context and when the document is not focused, and a copy control that
       # silently failed would be the affordance-that-lies defect wearing a
       # tick.
+      #
+      # THE PREVIOUS RESULT IS CLEARED FIRST, and until 2026-09-06 it was not.
+      # This only ever added, so a second press with a different outcome left
+      # BOTH classes on the element — and with both present the stylesheet
+      # resolves to whichever rule sits later at equal specificity, which is
+      # `.copyfailed`. A copy that SUCCEEDED after an earlier failure therefore
+      # reported failure: the affordance-that-lies defect the comment above
+      # exists to prevent, arrived at from the other side.
+      #
+      # It was invisible while neither class was drawn, and this became a
+      # user-facing bug the moment they were, which is why it is fixed in the
+      # same change. `remove` accepts a class that is not present, so no guard.
+      e.classList.remove("copied".cstring)
+      e.classList.remove("copyfailed".cstring)
       e.classList.add(if ok: "copied".cstring else: "copyfailed".cstring)))
 
 proc upgradeCopyAffordances(root: Element) =

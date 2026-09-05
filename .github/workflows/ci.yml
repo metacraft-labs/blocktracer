@@ -762,6 +762,30 @@ jobs:
         # fix reverted, 0 with it present, in about four seconds.
         run: nix run .#capture-env -- node tools/capture/check-badge-legibility.mjs
 
+      - name: The copy result is shown, both ways, without colour alone
+        # verify_copy_result_is_shown_without_colour_alone — the assertion H2 of
+        # `check-hydration-divergence.mjs` cannot make. H2 asks whether the
+        # stylesheet has a RULE for each class the bundle adds, and
+        # `stylesheetDrawsClass` is a single regex over the sheet — so `.copied{}`,
+        # a rule that draws nothing, satisfies it. This asks what the rule DRAWS.
+        #
+        # `hydrate.nim`'s `bindCopy` adds `copied`/`copyfailed` under a comment
+        # promising "The result is SHOWN, both ways … a copy control that silently
+        # failed would be the affordance-that-lies defect wearing a tick", and
+        # nothing drew either class until 2026-09-06: a copy that failed in a
+        # non-secure context or an unfocused document said nothing at all. Those
+        # classes exist ONLY on the hydrated build, so no capture and no reviewer
+        # could ever have seen them missing.
+        #
+        # NOT COLOUR ALONE is asserted, not advised: each result must carry text,
+        # the two must differ from each other, and the difference must survive a
+        # greyscale rasterisation — this project has shipped contrast defects that
+        # made a state invisible in one theme. Both themes are checked.
+        #
+        # Exit 2 is the instrument failing its own controls (same convention as the
+        # legibility step above), which is a different verdict from exit 1.
+        run: nix run .#capture-env -- node tools/capture/check-copy-affordance.mjs
+
       - name: The ingest tool refuses what a hand would write
         # `just review-ingest-selftest`. It belongs in THIS job and not beside
         # gate-selftest in `visual-design`, for one reason: its base case hashes

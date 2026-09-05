@@ -379,6 +379,20 @@ capture-coverage:
 capture-legibility:
     node tools/capture/check-badge-legibility.mjs
 
+# verify_copy_result_is_shown_without_colour_alone.
+#
+# The assertion H2 cannot make. H2 asks whether the stylesheet has a RULE for
+# every class the bundle adds; `stylesheetDrawsClass` is one regex, so `.copied{}`
+# — a rule drawing nothing — turns it green. This asks what the rule DRAWS: that
+# both copy results render, differ from the un-clicked control, differ from each
+# other, and stay distinct with colour removed, in both themes.
+#
+# `bindCopy` promises "The result is SHOWN, both ways … a copy control that
+# silently failed would be the affordance-that-lies defect wearing a tick", and
+# until 2026-09-06 nothing drew either class, so neither result was shown.
+capture-copy-affordance:
+    node tools/capture/check-copy-affordance.mjs
+
 # verify_canary_capture_is_byte_identical — ADVISORY on a host; use
 # `just capture-canary-pinned` for a tier-1 verdict.
 capture-canary:
