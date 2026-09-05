@@ -1859,18 +1859,29 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
    to tell them it was cut.
    THREE ROWS WERE DOING IT, and none is a short status word:
      DATA     the LABEL the capture published — free prose out of
-              `snapshot.json`, nothing bounds its length. Every real chain's
-              label was 23 characters until `aztec-testnet-frames` shipped
-              `Aztec testnet — live Noir call frames`, 37, and clipped at
-              `live Noir call f`. In this register that row is the ONLY
-              provenance marker there is (see `provenanceMarker` — no nav, no
-              footer, no band), so the clipped element was the page's whole
-              claim to be showing real data.
+              `snapshot.json`, nothing bounds its length. In this register that
+              row is the ONLY provenance marker there is (see
+              `provenanceMarker` — no nav, no footer, no band), so the clipped
+              element was the page's whole claim to be showing real data.
      AGE      `No timestamp published`, clipped to `No timestamp p`.
      SOURCES  `Instruction level` / `Sources partial`, clipped mid-phrase.
-   The last two are older than the frames chain and are visible on
-   `debugger--testnet` at `laptop` just as they are here; they were found by
-   photographing the new chain, which is what the capture corpus is for.
+
+   AND THIS IS OLDER AND WIDER THAN THE CHAIN THAT REVEALED IT. The first
+   version of this note said the label was fine at 23 characters and broke at
+   37 — that was the visible half, not the defect. Measured with the rule
+   removed, by `check-badge-legibility.mjs` over the built registry: EVERY REAL
+   CHAIN WAS AFFECTED, 22 clipped badges over three of them —
+   `aztec` 6, `aztec-testnet` 6, `aztec-testnet-frames` 10 — with `Real Aztec
+   mainnet data` and `Real Aztec testnet data`, both 23 characters, overflowing
+   by 69px and 66px at `laptop` on chains that had shipped for weeks. What
+   `aztec-testnet-frames` changed was only WHERE it showed: at 37 characters
+   the pill also overflows at `wide`, which is a viewport the corpus
+   photographs, so a person finally saw it. So this rule repairs a standing
+   defect on the existing chains and is not a fix for the new one.
+
+   Both other rows are equally pre-existing, and none of it was found by
+   reading the CSS — it was found by photographing a chain nobody had looked
+   at, which is what the capture corpus is for.
    `normal` PERMITS wrapping, it does not force it: `Yes` and `Pending` have
    room and still occupy one line. Scoped to `.badge`, so the `.muted` SUFFIX
    span above keeps its nowrap — `mana (FeeJuice)` must not come apart. */

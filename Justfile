@@ -363,6 +363,22 @@ capture-list:
 capture-coverage:
     node tools/capture/check-coverage.mjs
 
+# verify_no_badge_is_clipped_out_of_its_own_cell.
+#
+# The assertion `check-coverage` cannot make. E proves every published chain is
+# the SUBJECT of a ready view; it says nothing about whether the page can be
+# READ, and on 2026-09-05 that gap shipped a provenance label cut at
+# `live Noir call f` — the debugger register's only claim to be showing real
+# network data — with every gate in the tree green.
+#
+# It walks the BUILT REGISTRY rather than `views.mjs`, so it reaches the real
+# chains' transaction pages, which no captured image shows: every `tx-detail--*`
+# view resolves through the synthetic chain. Two controls run first and the
+# sweep is not believed unless both hold — exit 2 means the instrument failed,
+# which is a different verdict from exit 1, a page defect.
+capture-legibility:
+    node tools/capture/check-badge-legibility.mjs
+
 # verify_canary_capture_is_byte_identical — ADVISORY on a host; use
 # `just capture-canary-pinned` for a tier-1 verdict.
 capture-canary:

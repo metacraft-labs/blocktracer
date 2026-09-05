@@ -733,6 +733,35 @@ jobs:
             vd0-capture-env node tools/capture/capture.mjs &&
             node tools/capture/check-coverage.mjs'
 
+      - name: Every badge is legible, including where no image looks
+        # verify_no_badge_is_clipped_out_of_its_own_cell — the assertion the
+        # step above cannot make. `check-coverage`'s E proves every published
+        # chain is the SUBJECT of a ready view; it says nothing about whether
+        # the page can be READ. On 2026-09-05 a chain shipped whose provenance
+        # label was 37 characters where every other real chain's was 23, and
+        # `.badge` is `white-space:nowrap` globally — so the debugger register's
+        # ONLY claim to be showing real network data rendered cut at
+        # `live Noir call f`, with E, C, D and F all green over it.
+        #
+        # IT WALKS THE BUILT REGISTRY, NOT `views.mjs`, and that is the half a
+        # screenshot corpus structurally cannot cover: every `tx-detail--*` view
+        # resolves through `ix.primaryChain` — the synthetic chain — so no image
+        # in the corpus shows a REAL chain's transaction page, which is one of
+        # the two pages carrying the clipped row. A registry walk also covers a
+        # chain added after this step was written, which is the property that
+        # made assertion E worth having.
+        #
+        # TWO CONTROLS RUN BEFORE THE SWEEP AND IT IS NOT BELIEVED WITHOUT THEM.
+        # This check's own first draft returned a clean sweep over the broken
+        # page — it skipped any container whose computed `overflow-x` was `auto`,
+        # and a vertically scrolling pane computes to exactly that. So a planted
+        # overflow must be reported, and a badge inside a horizontally scrolling
+        # table must NOT be (that text is reachable). Exit 2 is those controls
+        # failing — "the instrument is broken", a different verdict from exit 1,
+        # "a page is". Measured on the commit that fixed it: 22 findings with the
+        # fix reverted, 0 with it present, in about four seconds.
+        run: nix run .#capture-env -- node tools/capture/check-badge-legibility.mjs
+
       - name: The ingest tool refuses what a hand would write
         # `just review-ingest-selftest`. It belongs in THIS job and not beside
         # gate-selftest in `visual-design`, for one reason: its base case hashes
