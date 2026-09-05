@@ -72,6 +72,36 @@ export session_view.ListingPath
 const
   ListingLanguage* = "avm"
 
+  NoProgramCounter* = -1
+    ## The `pc` of a step that carries a SOURCE POSITION instead of a counter.
+    ##
+    ## A recording may position some of its steps and not others — 459 steps
+    ## across two contracts at two fidelities is the first one this tree
+    ## publishes — and on a positioned step the container spends its `line` field
+    ## on the source line, so there is no offset to publish. The producer
+    ## (`tools/chain/derive-instructions.mjs`) writes this rather than a null,
+    ## which `intColumn` would discard, or the line number, which would read as an
+    ## offset and be one.
+    ##
+    ## `-1` is impossible as a bytecode offset, so nothing can mistake it for one.
+    ## Everything that does ARITHMETIC on a counter tests for it by name:
+    ## `hexWidth` (a sentinel must not decide the column's width), the
+    ## `destinationSuffix` (a difference against a sentinel is not a jump), and
+    ## `avm_opcodes.explainsProgramCounters` — that last one matters most, because
+    ## one sentinel differenced against a real counter is one mismatch, and one
+    ## mismatch withdraws the opcode names from the WHOLE recording.
+    ##
+    ## The row still exists, and that is the point. Row `n` is tick `n`, so the
+    ## listing has a row for every step the recording took whether or not it can
+    ## put a counter on it — which is what lets the pane mark where the session is
+    ## at the 373 steps the source cannot cover.
+
+  ListingNoPcCell* = "—"
+    ## What a sentinel row shows where a counter would be. An em dash and not a
+    ## `0x????` or a blank: blank reads as a column that failed to render, and a
+    ## hex-shaped placeholder reads as an address. This row's coordinate is in the
+    ## source pane, and the dash says the counter is not this row's to give.
+
 # THE ROWS ARE NUMBERED IN THE SESSION'S OWN COORDINATE, and there is only one.
 #
 # `rrTicks` is what the engine counts, what `data-step` carries, what `?t=`
@@ -101,7 +131,9 @@ const
 type
   InstructionStep* = object
     ## One recorded step, as the recording wrote it.
-    pc*: int          ## the program counter — an offset into the executed bytecode
+    pc*: int          ## the program counter — an offset into the executed
+                      ## bytecode, or `NoProgramCounter` on a step whose
+                      ## coordinate is a source position instead
     opcode*: int      ## the opcode NUMBER the recorder wrote; never a name
     l2Gas*: int       ## the L2 gas meter's reading at this step
     context*: int     ## which execution context this step ran in
@@ -127,6 +159,26 @@ type
 func stepCount*(l: InstructionListing): int = l.steps.len
 
 func hasListing*(l: InstructionListing): bool = l.steps.len > 0
+
+func hasProgramCounter*(s: InstructionStep): bool = s.pc != NoProgramCounter
+
+func counterSteps*(l: InstructionListing): int =
+  ## How many of the rows carry a real program counter. Equal to `stepCount` on
+  ## every recording that positions nothing, which is all but two of the ones
+  ## this tree publishes; smaller on a partly-positioned one, and what the
+  ## caption states so a reader is not left to count dashes.
+  for s in l.steps:
+    if s.hasProgramCounter: inc result
+
+func partlyPositioned*(l: InstructionListing): bool =
+  ## Does this listing describe a recording at TWO fidelities?
+  ##
+  ## Both sides non-zero, which is the same definition
+  ## `tools/journeys/lib/corpus.mjs` selects the class on and the same one
+  ## `session_view.positionedSteps` records: a listing with no sentinel is an
+  ## ordinary instruction-level recording, and one that is all sentinel is
+  ## refused by the producer before it reaches a file.
+  l.steps.len > 0 and l.counterSteps > 0 and l.counterSteps < l.steps.len
 
 # ---------------------------------------------------------------------------
 # decoding what the tree publishes
@@ -154,6 +206,20 @@ proc decodeInstructionListing*(node: JsonNode): InstructionListing =
   ## which is a correct page, so there is nothing to be gained by failing louder
   ## and a whole transaction page to lose.
   if node == nil or node.kind != JObject: return
+  # THE VERSION IS READ WHERE ONE IS DECLARED, AND ONLY THERE.
+  #
+  # `/2` widened the `pc` column: an entry may be `NoProgramCounter`, meaning the
+  # step's coordinate is a source position and not an offset. Every `/1` payload
+  # is a valid `/2` payload with no sentinel in it, so both are read the same way
+  # — but a version this reader has NOT been taught could widen the column again,
+  # and the failure mode of guessing is a listing that renders a new sentinel as a
+  # program counter. A payload declaring no schema at all is still read, because
+  # the structural checks below are what actually decide whether the columns are
+  # parallel; the guard is against a version that would pass them and mean
+  # something else.
+  let schema = node{"schema"}
+  if schema != nil and schema.kind == JString and
+     schema.getStr notin ["avm-instructions/1", "avm-instructions/2"]: return
   let pcs = node{"pc"}
   if pcs == nil or pcs.kind != JArray or pcs.len == 0: return
   let n = pcs.len
@@ -195,14 +261,24 @@ func cells(s: string): int =
   ## A width table would be machinery for a case that cannot arise here.
   s.runeLen
 
-func hexWidth(maxPc: int): int =
+func hexWidth(l: InstructionListing): int =
   ## How many hex digits every program counter is padded to.
   ##
   ## ONE width for the whole listing, taken from the largest counter in it, so
   ## the mnemonic column starts at the same character on every row. Padding each
   ## counter to its own width would left-align a column of addresses, which is
   ## the one column a reader scans vertically.
+  ##
+  ## SENTINEL ROWS ARE NOT COUNTERS AND ARE SKIPPED. It takes a maximum, so a
+  ## negative sentinel could never have widened the column — but "the largest
+  ## counter" has to be read off the counters, and taking the argument as the
+  ## whole listing is what makes that true by construction rather than by the
+  ## sentinel's sign. A listing with no counter at all is impossible (the producer
+  ## refuses to write one), and the floor of 4 answers it if one ever arrives.
   result = 4
+  var maxPc = 0
+  for s in l.steps:
+    if s.hasProgramCounter and s.pc > maxPc: maxPc = s.pc
   var v = maxPc
   var digits = 1
   while v >= 16:
@@ -213,6 +289,14 @@ func hexWidth(maxPc: int): int =
 func pcText*(pc, width: int): string =
   ## `0x0011`. Lower case, because a program counter is an address and this
   ## product spells addresses in lower case everywhere else.
+  ##
+  ## A sentinel gets the dash, padded to the same cell so the column stays a
+  ## column. `toHex(-1, w)` would render `0xffff` — a plausible address, in the
+  ## one column a reader trusts to be an address — which is why this is here and
+  ## not left to the caller to remember.
+  if pc == NoProgramCounter:
+    let cell = 2 + width
+    return ListingNoPcCell & spaces(max(0, cell - ListingNoPcCell.runeLen))
   "0x" & toHex(pc, width).toLowerAscii
 
 func opcodeText*(l: InstructionListing; op: int): string =
@@ -242,9 +326,17 @@ func destinationSuffix*(l: InstructionListing; i, pcw: int): string =
   ## direction: without a length there is no fall-through to compare against, so
   ## every row would sprout an arrow and the listing would claim a jump at every
   ## step.
+  ##
+  ## A SENTINEL AT EITHER END GETS NOTHING, and that is the conservative
+  ## direction again. `pc[i+1] - pc[i]` is the whole derivation, and a step that
+  ## published no counter cannot be either side of it: differencing against the
+  ## sentinel would put an arrow on every row at the boundary between the two
+  ## fidelities and name `—` as a destination. What that step transferred control
+  ## to is a source line, and the source pane is where it is stated.
   if i + 1 >= l.steps.len: return ""
   let here = l.steps[i]
   let next = l.steps[i + 1]
+  if not here.hasProgramCounter or not next.hasProgramCounter: return ""
   if next.context != here.context:
     return " → context " & $next.context & " " & pcText(next.pc, pcw)
   if not knownAvmOpcode(here.opcode): return ""
@@ -294,10 +386,7 @@ proc listingDocument*(l: InstructionListing; currentStep: int): SourceDocument =
   result.language = ListingLanguage
   if l.steps.len == 0: return
 
-  var maxPc = 0
-  for s in l.steps:
-    if s.pc > maxPc: maxPc = s.pc
-  let pcw = hexWidth(maxPc)
+  let pcw = hexWidth(l)
 
   # The column widths, over the WHOLE listing and in one pass. The destination
   # suffix is measured here too, not added after: a suffix appended past the
@@ -347,7 +436,19 @@ proc listingCaption*(l: InstructionListing): string =
   if l.steps.len == 0: return ""
   var parts = @[$l.steps.len & " recorded steps, 0–" & $(l.steps.len - 1) &
                 " as the session counts them"]
-  parts.add "program counter"
+  # THE COUNTER COLUMN NAMES ITS OWN COVERAGE WHERE IT IS NOT COMPLETE, because
+  # a reader scanning a column of `—` is owed the reason before they invent one.
+  # It is the same measurement the producer published (`counters`), stated in the
+  # place a reader meets the dashes rather than only in the page's prose.
+  if l.partlyPositioned:
+    # PARENTHESISED, because the separator between the column names is already an
+    # em dash-ish `·` list and the sentinel's own glyph is an em dash: run
+    # together they read as `of them — — where`, which looks like a typo in the
+    # one line that explains what the dashes below mean.
+    parts.add "program counter on " & $l.counterSteps & " of them (" &
+              ListingNoPcCell & " where the step resolves to a source line instead)"
+  else:
+    parts.add "program counter"
   parts.add (if l.named: "opcode" else: "opcode number")
   if l.hasGas: parts.add "L2 gas since the previous step"
   result = parts.join(" · ")

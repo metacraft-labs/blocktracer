@@ -1233,6 +1233,32 @@ a.frseg:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
 .srcnone{padding:var(--bt-density-card-pad) var(--bt-density-cell-x)}
 .srcnone .btn{margin-top:var(--bt-rhythm-stack)}
 
+/* ── the fidelity boundary, on a recording that has one ──────────────────
+   `renderSource`'s `.srcrung` — Debugger-Integration §5's "the transition is
+   visible… so the user is never confused about why names disappeared", and
+   §7's "rather than silent".
+
+   A LEFT EDGE AND NOT A COLOUR PAIR. Two treatments would need two hues for a
+   distinction that is not good/bad — source and instruction level are both
+   correct states of a correct recording — and this product spends its accent
+   on the position and its danger family on a reverted execution. So both sides
+   share one surface and the EDGE carries which one it is: the position accent
+   where the pane is showing the recording's own counters, the subtle border
+   where it is showing code. The sentence is the actual channel; the edge only
+   makes the change visible at a glance when a step crosses it.
+
+   `.srcpos`'s cell padding and not `.srcnone`'s card padding: this is a strip
+   in the same register as the position head it sits beside, and on the listing
+   side the three blocks read top to bottom as head, rung, reason — tightening
+   from a row to a paragraph. */
+.srcrung{padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
+  background:var(--bt-surface-sunken);color:var(--bt-text-muted);
+  font-size:var(--bt-density-data-size)}
+.srcrung.atinstr{border-left:var(--bt-stroke-thick) solid var(--bt-mark-position)}
+.srcrung.atsource{border-left:var(--bt-stroke-thick) solid var(--bt-border-subtle)}
+.srcrung .num{font-variant-numeric:var(--bt-numeric-features);
+  color:var(--bt-text-default)}
+
 /* ── call trace ─────────────────────────────────────────────────────────── */
 .ct{font-size:var(--bt-density-data-size);min-width:0}
 .cthead,.ctrow,.ctfoot{display:flex;align-items:baseline;

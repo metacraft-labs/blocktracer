@@ -1955,8 +1955,33 @@ suite "9 — the home page features a session that can actually be shown":
       ck s.editor.availability == srcSourceLevel
       ck s.editor.documents.len > 0
       ck s.editor.currentLine > 0
-      ck s.editor.listingCaption.len == 0     # …not a listing wearing source's clothes
+      # …not a listing wearing source's clothes. THE TEST FOR THAT USED TO BE
+      # `listingCaption.len == 0`, which was a PROXY for "there are no listing
+      # rows in this pane" — exact while a pane was one rung for a whole session,
+      # and wrong since the ladder became a UNION for a partly-positioned
+      # recording (`demo_session.withListingBesideSource`). The caption is a fact
+      # about the RECORDING, and this pane now holds both kinds of document, so
+      # the question has to be asked of the ACTIVE one — which is what the line
+      # below always did and what the proxy was standing in for.
       ck activeDocument(s.editor).path.endsWith(".nr")
+      ck activeDocument(s.editor).path != ListingPath
+      # AND THE LISTING IS BESIDE IT RATHER THAN OVER IT — the recording's own
+      # program counters for the 22 steps the source cannot reach, which is
+      # `Source-Resolution.md` §7's "instruction-level elsewhere". Asserted here
+      # because the arm's own title is about which of the two the pane shows, and
+      # "shows source" must not quietly come to mean "publishes no listing".
+      var listingDocs = 0
+      for d in s.editor.documents:
+        if d.path == ListingPath: inc listingDocs
+      ck listingDocs == 1
+      ck s.editor.listingCaption.len > 0
+      # …and exactly ONE row in the whole pane is current, so the two documents
+      # are not two producers of the one position this session has.
+      var currentRows = 0
+      for d in s.editor.documents:
+        for ln in d.lines:
+          if ln.current: inc currentRows
+      ck currentRows == 1
       # …and it says how much of the recording it can place, which is what keeps
       # "shows source" from being read as "positions everything".
       ck s.editor.positionedSteps > 0
@@ -2080,7 +2105,12 @@ suite "9 — the home page features a session that can actually be shown":
     #       would run zero times, every assertion in it would vanish, and this
     #       number is what goes red instead of the suite going quietly green.
     #   +7  "MUTATION BITE: a call trace the manifest's frame count contradicts"
-    expectCount(74)
+    # 74 -> 77. The partly-positioned arm stopped asserting `listingCaption.len
+    # == 0` — a proxy that inverted when the ladder became a union — and asserts
+    # the thing it stood for instead: the ACTIVE document is source, the listing
+    # is one of the documents beside it, and exactly one row in the whole pane is
+    # current.
+    expectCount(77)
 
 # ── 10 — a real recording's step count is its own ────────────────────────────
 #

@@ -42,6 +42,25 @@ import { join } from "node:path";
 /** The `data-provenance` value the demo generator publishes. */
 export const SYNTHETIC_PROVENANCE = "synthetic";
 
+/** The path `instruction_listing.listingDocument` files every listing row under
+ *  — `session_view.ListingPath`. One constant on each side, so a rename that
+ *  missed this file makes `hasSource` true of a pure listing page, which journey
+ *  10's `atLeast(sessions.filter(hasSource))` control reports rather than
+ *  absorbs. */
+const LISTING_PATH = "avm";
+
+/** Every document the Code pane holds, by the path the renderer published on it.
+ *
+ *  `renderSource` emits one `<div class="srcdoc …" id="…" data-path="…">` per
+ *  document, active and alternate alike, and `data-path` is the UNMANGLED path
+ *  (the id is `docAnchor`'s lossy, URL-safe spelling of it — see the comment
+ *  where it is written). So this is the pane's own list of what it is showing,
+ *  read from the one attribute that carries the real name. */
+function sourceDocumentPaths(html) {
+  return [...html.matchAll(/class="srcdoc[^"]*"[^>]*?\sdata-path="([^"]*)"/g)]
+    .map((m) => m[1]);
+}
+
 async function subdirs(p) {
   return readdir(p, { withFileTypes: true })
     .then((es) => es.filter((e) => e.isDirectory()).map((e) => e.name))
@@ -105,10 +124,36 @@ export async function transactions(root) {
         // off-chain, and verified artifacts resolve), so a capture whose
         // contract gains a verified artifact moves classes on its own and every
         // subject set below follows it without an edit.
-        hasSource: /class="srcline/.test(html) && !/class="src instr"/.test(html),
+        // ── AND IT IS READ AS "HOLDS A SOURCE DOCUMENT", NOT "HOLDS NO LISTING"
+        //
+        // It read `class="srcline" && !class="src instr"`, which is the same
+        // question ONLY while a page is one fidelity end to end. A partly
+        // positioned recording is not: `aztec-testnet-frames/0x0a807e4e…`
+        // publishes 32 Noir documents AND the recording's 459 program counters
+        // in one pane, so it carries `.src.instr` and the old marker classified
+        // it as "no source" — which would have moved it into journey 10's
+        // subject set (`!hasSource`, "sessions the chain publishes no source
+        // for") and out of journeys 05, 12, 18 and 19's, silently, on a page
+        // that shows more source than any other real capture in this corpus.
+        //
+        // A corpus that changes what a journey is about, without any journey
+        // changing, is the failure this directory exists to refuse — it is the
+        // same shape as the eight reds that went green when the listings were
+        // derived and the defect was untouched. So the question is asked of the
+        // DOCUMENTS: `renderSource` emits one `.srcdoc` per document with its
+        // own `data-path`, and `session_view.ListingPath` is the one path a
+        // listing is ever filed under. A page holding at least one document that
+        // is not the listing holds source.
+        hasSource: sourceDocumentPaths(html).some((p) => p !== LISTING_PATH),
 
         // The complement, named rather than inferred, because it is a SUBJECT
         // SET in its own right: the pages the instruction listing exists for.
+        //
+        // NOT the complement of `hasSource` any more, and that is the point of
+        // reading both off the markup: a union page is BOTH, and the two facts
+        // have to be able to say so. `sessions.filter((t) => t.instructionLevel)`
+        // still means "pages with instruction rows on them", which is what its
+        // callers need.
         instructionLevel: /class="src instr"/.test(html),
 
         // ── THE THIRD CATEGORY: SOURCE IS SHOWN, NOTHING WAS RECORDED ON IT ──

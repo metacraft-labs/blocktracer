@@ -252,6 +252,42 @@ rather than a guess, and says why.
 the stated reason it has always shown. Same shape as `client/hydrate/build.sh`
 exit 3.
 
+**A recording can be at TWO fidelities at once, and then the pane holds both.**
+`aztec-testnet-frames/0x0a807e4e…` runs 459 steps across two contracts: one
+positions 86 of its 108 steps, the other positions none of its 351. The ladder in
+`ssr.debugSessionFor` used to be a *contest* — a bundle beat positions beat a
+listing, winner took the pane — so that page was 32 Noir documents and no
+listing, and **at 373 of 459 ticks there was no row of any kind to be stopped
+at.** `Source-Resolution.md` §7 asks for the opposite: "Source-level stepping
+where sources exist, instruction-level elsewhere, with the boundary visible in
+the source pane rather than silent."
+
+Four things make it a union, and they have to move together:
+
+* `derive-instructions.mjs` publishes a listing for such a container — a real
+  counter at `path_id == 0`, `NoProgramCounter` (`-1`) at the rest, schema
+  **`avm-instructions/2`**. It still refuses a container that positions *every*
+  step: that one has no counters at all. Everything that does arithmetic on a
+  counter skips the sentinel, `explainsProgramCounters` above all — one sentinel
+  differenced against a real counter is one mismatch, and one mismatch withdraws
+  the mnemonics from the whole recording.
+* `demo_session.withListingBesideSource` appends the listing to a pane already
+  showing source, and refuses any listing that does not *partition* the steps
+  with the positions sidecar.
+* `renderSource` decides what a document IS from `path == ListingPath`, per
+  panel, not from the pane's availability — and draws `.srcrung`, the header that
+  says which rung the position is on and rewrites itself when a step crosses the
+  boundary (`Debugger-Integration.md` §5's visible transition).
+* `session_project.projectEditor` re-decodes the island at the listing and
+  `rrTicks` when the engine's position resolves to no published document. Row *n*
+  is tick *n*, so that join is the identity.
+
+`tools/journeys/lib/corpus.mjs`'s `hasSource` reads the pane's own `data-path`
+list for the same reason: a page holding both kinds of document is not "no
+source", and the old `!class="src instr"` marker said it was. Journey 27 judges
+the whole of it in a browser; `test_instruction_listing.nim` suite 7 grades the
+two halves the browser cannot separate.
+
 **Do not write that the chain publishes no source.** `ContractClassPublic`
 carries `artifactHash` precisely so a client can verify an artifact fetched
 **off-chain**, and verified artifacts resolve — fidelity is a per-transaction

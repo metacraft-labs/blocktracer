@@ -165,6 +165,23 @@ func explainsProgramCounters*(pc, op, ctx: openArray[int]): OpcodeTableCheck =
   ## `ctx` may be shorter than `pc` (a recording that wrote no context column);
   ## a missing context is treated as the same context, which is the assumption
   ## the single-context recordings this site publishes actually satisfy.
+  ##
+  ## ## A STEP WITH NO COUNTER IS SKIPPED, AND THIS IS THE PLACE IT MATTERS MOST
+  ##
+  ## `instruction_listing.NoProgramCounter` marks a step whose coordinate is a
+  ## source position rather than an offset — a partly-positioned recording has
+  ## both kinds. It is `-1`, so a transition into or out of one would produce a
+  ## difference that is negative or absurdly large, which is a MISMATCH; and
+  ## `explains` requires `matched == checked`, so ONE such transition withdraws
+  ## the opcode names from the entire recording. On
+  ## `aztec-testnet-frames/0x0a807e4e…` there are four such boundaries and the
+  ## table explains all 25 of its opcodes, so the names would have been lost to
+  ## an artefact of the sentinel rather than to anything about the recording.
+  ##
+  ## Counted as `skipped` and not silently passed, for the reason the branch and
+  ## context cases are: the difference between "checked nothing" and "checked and
+  ## agreed" is the whole evidential value of this function.
+  const NoPc = -1
   let n = min(pc.len, op.len)
   for i in 0 ..< n:
     if not knownAvmOpcode(op[i]): inc result.unknown
@@ -172,7 +189,8 @@ func explainsProgramCounters*(pc, op, ctx: openArray[int]): OpcodeTableCheck =
   for i in 0 ..< n - 1:
     let sameContext =
       ctx.len <= i + 1 or ctx[i] == ctx[i + 1]
-    if AvmInstructionSet[op[i]].branches or not sameContext:
+    if pc[i] == NoPc or pc[i + 1] == NoPc or
+       AvmInstructionSet[op[i]].branches or not sameContext:
       inc result.skipped
       continue
     inc result.checked

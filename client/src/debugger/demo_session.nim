@@ -1159,3 +1159,133 @@ proc withInstructionListing*(session: var DebugSessionView; node: JsonNode) =
       " The opcode numbers below are shown unnamed: this site's instruction " &
       "table did not reproduce this recording's own program counters, so " &
       "naming them would be a guess.")
+
+proc withListingBesideSource*(session: var DebugSessionView; node: JsonNode) =
+  ## THE LADDER STOPS BEING A CONTEST FOR THE ONE CLASS IT COULD NOT EXPRESS.
+  ##
+  ## ## What was wrong, and it was not a line
+  ##
+  ## `ssr.debugSessionFor` runs three rungs — `withPublishedSources`, then
+  ## `withSourcePositions`, then `withInstructionListing` — and each refuses a
+  ## pane the one above it took. That is coexistence between the RUNGS and it is
+  ## a contest for the PANE: whichever won holds it for the whole session, because
+  ## `SourceAvailabilityView` is one value and `documents` is one list.
+  ##
+  ## A recording is not one value. `aztec-testnet-frames/0x0a807e4e…` runs 459
+  ## steps across two contracts at two fidelities: `0x…0003` positions 86 of its
+  ## 108 steps, and `0x2fcd3dd5…` — steps 108..458 — positions none, because no
+  ## distributor could prove its artifact. The middle rung won, so the pane was 32
+  ## Noir documents and no listing, and at 373 of 459 ticks there was NO ROW OF
+  ## ANY KIND to be stopped at. The static export escaped by an accident of
+  ## `withSourcePositions`'s landing rule — it moves the served step to one there
+  ## is source for, landing this recording on 107 — and hydration, which lands at
+  ## tick 0, showed 224 rows of Noir with nothing marked and nothing said.
+  ##
+  ## `Source-Resolution.md` §7's last row asks for the other thing by name:
+  ## "Partial source coverage | Source-level stepping where sources exist,
+  ## instruction-level elsewhere, with the boundary visible in the source pane
+  ## rather than silent." `Debugger-Integration.md` §5: "A single transaction
+  ## routinely mixes both… it is the normal case, not an edge case."
+  ##
+  ## ## What this does
+  ##
+  ## The listing JOINS the source documents instead of competing with them. One
+  ## pane, one document list, two kinds of document in it: the recording's files
+  ## for the steps that resolve, and its program counters for the steps that do
+  ## not. Row `n` of the listing is tick `n`, so there is a row for every step the
+  ## recording took — including the 86 it positions, where the counter column is a
+  ## dash because the container spent that field on the source line
+  ## (`instruction_listing.NoProgramCounter`).
+  ##
+  ## `components/debugger.renderSource` decides what a document IS from the
+  ## document — `path == ListingPath` — rather than from the pane's availability,
+  ## which is what lets one pane render both. And the pane states the boundary
+  ## above the rows in either state, which is §5's "visible transition".
+  ##
+  ## ## Five refusals, and each names a state the route really has
+  ##
+  ## A pane that is not at source level is left alone: it either has the listing
+  ## already (`withInstructionListing` is the floor and runs before this) or it has
+  ## no documents at all, and a listing beside nothing is just a listing.
+  ##
+  ## A pane whose recording is NOT partly positioned is left alone. A recording
+  ## that positions every step has nothing for a listing row to say that its source
+  ## line does not say better, and the counters do not exist for it — the producer
+  ## refuses to derive them. `positionedOf > positionedSteps > 0` is the same
+  ## definition of the class the corpus selects on and the producer measures.
+  ##
+  ## A pane that already carries a listing document is left alone, so this cannot
+  ## run twice and produce two.
+  ##
+  ## A payload that decodes to nothing is left alone — a snapshot taken before the
+  ## derivation existed publishes none, and "source at the steps that have it, and
+  ## the reason at the rest" is the page this route already served.
+  ##
+  ## AND A LISTING OF A DIFFERENT LENGTH IS REFUSED OUTRIGHT. The join is the
+  ## identity — row `n` is tick `n` — so a listing of a different length is not a
+  ## listing of this recording, and appending it would put the mark on a row
+  ## belonging to another execution. Same rule, and the same reason, as
+  ## `intColumn`'s refusal to zip columns of unequal length.
+  if not session.hasFrame: return
+  if session.editor.availability != srcSourceLevel: return
+  if session.editor.documents.len == 0: return
+  if session.editor.positionedSteps <= 0: return
+  if session.editor.positionedSteps >= session.editor.positionedOf: return
+  if documentIndex(session.editor, ListingPath) >= 0: return
+  let listing = decodeInstructionListing(node)
+  if not listing.hasListing: return
+  if listing.stepCount != session.editor.positionedOf: return
+  # AND THE TWO PRODUCERS HAVE TO AGREE ABOUT WHICH STEPS THOSE ARE, not merely
+  # about how many there are. The positions sidecar and the instruction listing
+  # are derived by two different tools from the same container: one publishes a
+  # `(path, line)` per step, the other a counter per step, and a step must have
+  # exactly one of them. Where they disagree, one of the two is describing a
+  # recording the other is not, and a pane built from both would mark a row for a
+  # step the source pane also claims — the confident wrong answer.
+  #
+  # Read off the PANE rather than off the sidecar, because the pane is what the
+  # marks are drawn from: `withSourcePositions` set the executed set and focused
+  # the position from those coordinates, so this compares the listing to the thing
+  # a reader will actually see.
+  if listing.counterSteps != session.editor.positionedOf - session.editor.positionedSteps:
+    return
+
+  # NO ROW IS MARKED IN THE LISTING HERE, and that is not an omission.
+  #
+  # This runs after `withSourcePositions`, whose landing rule has already moved the
+  # served step to one there IS source for — "a page may not report a position it
+  # is not showing" — so the served frame's position is a source line and the
+  # source document carries the mark. A listing that also marked its row would put
+  # two `.srcline.cur` in one pane, which is the page reporting two positions.
+  #
+  # The LIVE session is the other half and it is not served from here: hydration
+  # re-decodes this same island at the engine's position on every stop, and
+  # `session_project.projectEditor` marks the listing row at `rrTicks` exactly when
+  # the position resolves to no published document. The two halves agree because
+  # they are the same rule stated once each: whichever document holds the step,
+  # holds the mark.
+  session.editor.documents.add listingDocument(listing, -1)
+  session.editor.listingCaption = listingCaption(listing)
+  # The sentence the listing half of the pane shows above its rows. `reason` is
+  # empty on a source-level pane and `renderSource` only reads it inside the
+  # listing's own chrome, so this is read exactly where it is true: on the steps
+  # this recording publishes no source for.
+  #
+  # It says WHY rather than "no source is published", which is what the shared
+  # default would have said and is false of this recording — 32 Noir files are on
+  # the same page, four tabs away.
+  #
+  # AND IT NAMES NO CAUSE, because the two recordings in this class do not share
+  # one. On `aztec-testnet-frames/0x0a807e4e…` the unpositioned steps are a
+  # SECOND CONTRACT whose artifact no distributor could prove; on
+  # `aztec-testnet/0x20ed5b91…` they are the dispatch prologue of the same
+  # contract, compiler-generated code the transpiler keys no location to. A
+  # sentence naming either would be false on the other, and this producer cannot
+  # tell them apart — what it knows is that no published artifact maps a line for
+  # them, which is the claim both support.
+  session.editor.reason =
+    "Source resolved for " & $(listing.stepCount - listing.counterSteps) &
+    " of this recording's " & $listing.stepCount & " steps. The other " &
+    $listing.counterSteps & " ran in code no published artifact maps a source " &
+    "line for, so what the recording carries for them is the program counter " &
+    "the VM was standing on — one row per step, below."

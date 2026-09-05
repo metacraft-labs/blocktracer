@@ -36,6 +36,15 @@
 // Per step: the program counter, the opcode NUMBER, the cumulative L2 gas, and the
 // context id. Four facts the recorder wrote, republished verbatim.
 //
+// THE PROGRAM COUNTER IS THE ONLY SPARSE ONE, and a recording exists in which it is
+// sparse. `aztec-testnet-frames/0x0a807e4e…` runs 459 steps across two contracts at
+// two fidelities: the 86 steps this container could position spend their `line`
+// field on the source line, so they have no counter to publish, and the other 373 —
+// a contract whose artifact no distributor could prove — carry a real one. The op,
+// gas and context columns are complete on all 459 (`REGISTERS.md` measured them), so
+// only `pc` has holes, and a hole is written as `NoProgramCounter` rather than as a
+// null or as the line number. See its declaration, and `Source-Resolution.md` §7.
+//
 // The opcode MNEMONIC is not written here, and that is the load-bearing decision.
 // A name is an interpretation of a number against a version of the instruction set,
 // and this file has no way to check one — so the number travels, the table lives in
@@ -91,6 +100,20 @@ function findCtPrint() {
 // silently shift every later id by one.
 const PC_OF = (e) => e.line;
 
+/** The `pc` column's value for a step that HAS a source position.
+ *
+ *  `-1` and not `null`: the column is read by `instruction_listing.intColumn`, which
+ *  discards a column holding anything but integers, and a null would take the whole
+ *  listing down with it. It is impossible as a bytecode offset — offsets are
+ *  non-negative by construction — so nothing can mistake it for one, and every
+ *  consumer that would do arithmetic on it (`hexWidth`, `destinationSuffix`,
+ *  `explainsProgramCounters`) tests for it by name.
+ *
+ *  It is NOT "the program counter is unknown here". It is "this step spent the field
+ *  on a source line, so there is no counter to publish and the source pane has the
+ *  row instead" — which is the whole content of a partly-positioned recording. */
+const NoProgramCounter = -1;
+
 /** One container's steps, as parallel columns.
  *
  *  The `.ct` event stream is a flat sequence: a `Step` opens a step and the `Value`
@@ -123,20 +146,33 @@ function streamOf(events) {
         // reported the transaction as positioning zero steps — the one
         // transaction in the corpus that positions 86.
         //
-        // A positioned step HAS no pc to publish here: the container spent the
-        // field on something better. Raising is the only correct answer, since
-        // both alternatives — a null in the column, or the line number — are a
-        // listing that reads as a pc and is not one.
-        if (e.path_id !== 0) {
-          throw new Error(
-            `this container positions its steps (step ${steps.length} is on ` +
-              `interned path ${e.path_id}, not the .avm pseudo-path at 0), so its ` +
-              `'line' field carries a SOURCE LINE and not a program counter. An ` +
-              `instruction listing cannot be derived from it. Its per-step source ` +
-              `positions are what it has: use tools/chain/derive-positions.mjs.`,
-          );
-        }
-        cur = { pc: PC_OF(e), v: {} };
+        // A positioned step HAS no pc to publish: the container spent the field
+        // on something better. So it gets `NoProgramCounter`, and it is the ONE
+        // thing that may go in that column besides a real offset — a null or the
+        // line number would both be a listing that reads as a pc and is not one.
+        //
+        // ── WHAT THIS USED TO DO, AND WHY REFUSING THE WHOLE CONTAINER WAS
+        //    RIGHT ABOUT 86 STEPS AND WRONG ABOUT 373 ──────────────────────────
+        //
+        // It raised on the FIRST positioned step, and the reasoning above is
+        // exactly why. What does not follow is refusing the container: a
+        // recording may position some of its steps and not others, and
+        // `aztec-testnet-frames/0x0a807e4e…` is the first one this tree
+        // publishes — 459 steps across two contracts, of which `0x…0003`
+        // positions 86 of its 108 and `0x2fcd3dd5…` positions none of its 351,
+        // because no distributor could prove its artifact. 373 unpositioned in
+        // all, and every one of those 373 steps DOES carry a program counter,
+        // they are exactly the steps with no source line, and refusing them left
+        // the page with no row of any kind to be stopped at for 373 of its 459
+        // ticks. `Source-Resolution.md` §7 asks for the opposite: "Source-level
+        // stepping where sources exist, instruction-level elsewhere."
+        //
+        // The refusal is KEPT for a container that positions EVERY step — see
+        // below the loop. That one genuinely has no listing in it.
+        cur = {
+          pc: (e.path_id === 0 ? PC_OF(e) : NoProgramCounter),
+          v: {},
+        };
         steps.push(cur);
         break;
       case "Value": {
@@ -149,6 +185,21 @@ function streamOf(events) {
       default:
         break;
     }
+  }
+  // A CONTAINER THAT POSITIONS EVERY STEP IS STILL REFUSED, and the refusal is
+  // the same one, moved from the first positioned step to the last unpositioned
+  // one that never came. There is no `pc` anywhere in such a container, so the
+  // listing would be 100% sentinel — a grid of dashes with an opcode column,
+  // claiming to be a disassembly of an object whose offsets it does not hold.
+  // What that recording has is its per-step positions, which is strictly more.
+  if (steps.length > 0 && steps.every((s) => s.pc === NoProgramCounter)) {
+    throw new Error(
+      `this container positions ALL ${steps.length} of its steps (none is on ` +
+        `the .avm pseudo-path at interned path 0), so its 'line' field carries a ` +
+        `SOURCE LINE on every step and not a program counter. An instruction ` +
+        `listing cannot be derived from it. Its per-step source positions are ` +
+        `what it has: use tools/chain/derive-positions.mjs.`,
+    );
   }
   return steps;
 }
@@ -178,6 +229,42 @@ function column(steps, name) {
     );
   }
   return out;
+}
+
+/** A METER THAT NEVER MOVED IS A METER THAT WAS NOT READ.
+ *
+ *  `client/fixtures/chain/aztec-testnet-frames/REGISTERS.md` draws exactly this
+ *  distinction, and it is the whole point of that document: "A register that is
+ *  written on every step and is sometimes 0 is not the same artefact as a
+ *  register that is 0 on every step because nothing measured it." The
+ *  reconstructed container behind `aztec-testnet/0x20ed5b91…` is the second
+ *  thing — its own `provenance.json` says `contextId, pc, opcode, l2Gas, daGas
+ *  and contractAddress are written as ZERO. The published fixture does not carry
+ *  them and this tool does not invent them.`
+ *
+ *  `column` cannot see it: every entry is a number, so the column is "recorded"
+ *  on all 108 steps. What gives it away is that the reading never CHANGES, and
+ *  gas is monotonic in any execution that ran — so a constant column over a
+ *  whole recording is not a measurement with a boring shape, it is the absence
+ *  of one.
+ *
+ *  It is refused rather than published because the listing renders this column
+ *  as a DIFFERENCE. A constant column renders as `0` on every row under the
+ *  heading "L2 gas since the previous step", which reads as "every instruction
+ *  here was free" — a per-step fact the recording never stated. `hasGas` then
+ *  goes false, the column is not drawn and the caption stops naming it, which is
+ *  the same honest degradation `explainsProgramCounters` applies to the opcode
+ *  NAMES on this same container.
+ *
+ *  Deliberately NOT applied to `op` or `ctx`. `0` is a real opcode — it occurs
+ *  100 times on `0x0a807e4e…` — and the table check already withdraws the
+ *  mnemonics from a recording it cannot explain, so an unexplainable opcode
+ *  column renders as numbers rather than taking the listing down with it. A
+ *  constant context column is what a single-context recording HAS. Only the gas
+ *  column is published as an arithmetic claim about each step. */
+function meterMoved(col) {
+  if (col === null) return false;
+  return col.some((v) => v !== col[0]);
 }
 
 // ---------------------------------------------------------------------------
@@ -219,17 +306,21 @@ for (const file of readdirSync(ctDir).sort()) {
   });
   const events = JSON.parse(stdout);
   const paths = events.filter((e) => e.type === "Path").map((e) => e.name);
-  // A POSITIONED CONTAINER IS SKIPPED, NOT FATAL. `streamOf` refuses it because
-  // it cannot honestly produce a pc column (see its `Step` case), and that
-  // refusal is right — but a snapshot may hold both kinds at once, and one
-  // rung-2 recording must not stop the other twenty-four from getting a
-  // listing. What it gets instead is `positions/<txHash>.json`, which is
-  // strictly more than a listing rather than less.
+  // A FULLY POSITIONED CONTAINER IS SKIPPED, NOT FATAL. `streamOf` refuses it
+  // because it cannot honestly produce a pc column at all (see its `Step` case),
+  // and that refusal is right — but a snapshot may hold both kinds at once, and
+  // one such recording must not stop the others from getting a listing. What it
+  // gets instead is `positions/<txHash>.json`, which is strictly more than a
+  // listing rather than less.
+  //
+  // A PARTLY positioned container is no longer in this set: it reaches the write
+  // below with real counters at its unpositioned steps and `NoProgramCounter` at
+  // the rest, which is what §7's "instruction-level elsewhere" needs a row for.
   let steps;
   try {
     steps = streamOf(events);
   } catch (err) {
-    if (/positions its steps/.test(String(err.message))) {
+    if (/positions ALL/.test(String(err.message))) {
       console.error(`derive-instructions: ${txHash.slice(0, 10)}… skipped — ` +
         `this recording positions its steps; derive-positions.mjs covers it`);
       skipped += 1;
@@ -249,8 +340,18 @@ for (const file of readdirSync(ctDir).sort()) {
     );
   }
 
+  const counters = steps.filter((s) => s.pc !== NoProgramCounter).length;
+  const l2 = column(steps, "l2Gas");
   const payload = {
-    schema: "avm-instructions/1",
+    // `/2` AND NOT `/1`, BECAUSE THE `pc` COLUMN'S DOMAIN CHANGED. Under `/1` every
+    // entry was a bytecode offset; under `/2` an entry may be `-1`, meaning "this
+    // step carries a source position instead, and the source pane holds its row".
+    // That is a new obligation on every reader — the difference between a listing
+    // that has a gap in it and one whose counters run from -1 — so it is a version
+    // and not a field. Every `/1` payload is a valid `/2` payload that happens to
+    // contain no sentinel; `instruction_listing.decodeInstructionListing` reads both
+    // and refuses a version it has not been taught.
+    schema: "avm-instructions/2",
     tx: txHash,
     isa: "aztec-avm",
     // The path the RECORDER interned for the executed object. Published so a reader
@@ -258,9 +359,14 @@ for (const file of readdirSync(ctDir).sort()) {
     // line in a file — see `instruction_listing.nim`, which never displays it as one.
     path: paths[0] ?? "",
     steps: steps.length,
+    // How many of `pc` are real offsets. Published rather than left to be counted,
+    // for the reason the positions sidecar publishes its own: a consumer that
+    // derived the number would be a second producer of it, and the caption a reader
+    // sees ("N of M steps carry a program counter") is a claim this file measured.
+    counters,
     pc: steps.map((s) => s.pc),
     op: column(steps, "opcode"),
-    l2: column(steps, "l2Gas"),
+    l2: meterMoved(l2) ? l2 : null,
     ctx: column(steps, "contextId"),
   };
   if (payload.op === null) {
@@ -268,10 +374,15 @@ for (const file of readdirSync(ctDir).sort()) {
   }
   writeFileSync(join(outDir, `${txHash}.json`), JSON.stringify(payload) + "\n");
   written += 1;
+  const real = payload.pc.filter((p) => p !== NoProgramCounter);
   console.error(
     `derive-instructions: ${txHash.slice(0, 10)}… ${steps.length} steps, ` +
-      `pc 0..${Math.max(...payload.pc)}, ` +
-      `${new Set(payload.op).size} distinct opcodes`,
+      `pc 0..${real.length > 0 ? Math.max(...real) : 0}` +
+      (counters === steps.length
+        ? ""
+        : ` on ${counters} of them (${steps.length - counters} carry a source ` +
+          `position instead)`) +
+      `, ${new Set(payload.op).size} distinct opcodes`,
   );
 }
 

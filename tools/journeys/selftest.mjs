@@ -1626,6 +1626,59 @@ proc noteFor*`,
     assertion:
       "over the WHOLE pane, every row carries a frame identity no other row carries",
   },
+  {
+    id: "PP1/the-hydrated-pane-has-one-answer-again",
+    why:
+      "Take away `projectEditor`'s SECOND answer for a position that resolves to" +
+      " no published document, which is the state this branch was in and the" +
+      " reason journey 27 existed. `aztec-testnet-frames/0x0a807e4e\u2026` runs 459" +
+      " steps across two contracts at two fidelities; at 373 of them the engine" +
+      " reports `/aztec/<txHash>.avm`, a bytecode object no bundle carries." +
+      " `positionDocumentIndex` correctly finds nothing and `decodeSourceIsland`" +
+      " correctly clears the mark \u2014 and then the page said NOTHING: 224 rows of" +
+      " Noir on screen, no marked row, no position head, no note, with the" +
+      " session at step 0 of 459.\n\n" +
+      "      THE MUTATION LEAVES EVERYTHING ELSE STANDING, which is the point:" +
+      " the listing is still published, still in the island, still one of the" +
+      " pane's documents, and the served frame still marks its line. Only the" +
+      " live join declines to use it. That is exactly the shape the defect had" +
+      " \u2014 nothing missing, nothing broken, one pane silent about where it is.",
+    file: join(CLIENT, "hydrate", "session_project.nim"),
+    find: "      if holdsListing and positionDocumentIndex(paths, position.file) < 0:",
+    replace: "      if false:  # MUTATED: an unresolvable position falls back to nothing",
+    journey: "a-partly-positioned-recording-says-where-it-is",
+    assertion: "LIVE: the pane marks the row the session is standing on",
+  },
+  {
+    id: "PP2/the-ladder-is-a-contest-again",
+    why:
+      "Stop the listing joining the source documents, so the Code-pane ladder" +
+      " goes back to being a CONTEST: `withSourcePositions` wins, takes the pane," +
+      " and a recording that positions 86 of its 459 steps renders 32 Noir" +
+      " documents and no row at all for the other 373. `Source-Resolution.md` \u00a77:" +
+      " \"Partial source coverage | Source-level stepping where sources exist," +
+      " instruction-level elsewhere, with the boundary visible in the source pane" +
+      " rather than silent.\"\n\n" +
+      "      THE SERVED FRAME SURVIVES THIS MUTATION, which is why the arm is" +
+      " aimed at a LIVE assertion: the middle rung's own landing rule moves the" +
+      " served step to one there IS source for (\"a page may not report a" +
+      " position it is not showing\"), landing this recording on 107, so the" +
+      " static page marks a line either way. Hydration lands at tick 0 and has no" +
+      " counterpart \u2014 which is how a defect on 373 of 459 steps hid behind a" +
+      " green static export until journey 27 was written.\n\n" +
+      "      IT IS THE EXPORTER HALF, AND IT COULD NOT BE MEASURED UNTIL 6f106f2." +
+      " `demo_session.nim` is exporter-only \u2014 nothing under `client/hydrate`" +
+      " imports it \u2014 so mutating it never moves the hydration bundle, `nim js`" +
+      " left the bundle's mtime alone, and the exporter's freshness gate refused" +
+      " the build: NEVER RAN, measured here on 2026-09-06 before that commit was" +
+      " on this branch. `build.sh` stamps its own output now, so the arm reaches" +
+      " the product it is aimed at.",
+    file: join(CLIENT, "src", "debugger", "demo_session.nim"),
+    find: "  session.editor.documents.add listingDocument(listing, -1)",
+    replace: "  return  # MUTATED: the listing does not join the source documents",
+    journey: "a-partly-positioned-recording-says-where-it-is",
+    assertion: "LIVE: the pane marks the row the session is standing on",
+  },
 ];
 
 const log = (s = "") => console.log(s);

@@ -100,12 +100,19 @@ var positionedSubjects: seq[Subject]
   ## 0x20ed5b91… is exactly that: `sourceLevel: false`, 86 of 108 steps placed,
   ## a Code pane full of `avm.nr`. Partitioned by the bit it landed in
   ## `subjects` and failed five assertions that are true of every listing and
-  ## none of it — including "the tree publishes a listing for each", which it
-  ## deliberately does not, because `derive-instructions.mjs` refuses a
-  ## container whose `line` field holds source lines rather than pcs.
+  ## none of it — starting with "the pane's rows are program counters", which
+  ## for this recording is true of ONE of its documents and false of the
+  ## thirty-two beside it.
   ##
   ## So the discriminator is the pane's own availability, which is the thing
   ## being graded rather than a proxy for it.
+  ##
+  ## THESE RECORDINGS NOW PUBLISH A LISTING TOO, and it does not move them into
+  ## `subjects`: `withListingBesideSource` appends it to a pane that is already
+  ## at `srcSourceLevel`, so the availability — the discriminator above — is
+  ## unchanged and the set is the same two members it was. What changed is that
+  ## the claim "the tree publishes no listing for these" inverted; suite 7 is
+  ## where the union is graded and suite 1 asserts the partition.
 for chain in allChains:
   let info = chainInfo(root, chain)
   for h in blockHashes(root, info):
@@ -180,24 +187,58 @@ suite "1 — the mnemonics are checked against the recording, never asserted":
 
     # AND THE EXCLUDED ONE IS EXCLUDED FOR A REASON THAT IS ITSELF CHECKED.
     # Narrowing a population is how a suite goes green by grading less, so the
-    # recording this file no longer asks for a listing is asserted to render the
-    # better thing instead — real source, from its own per-step positions, with
-    # no listing published for it at all.
+    # recording that is not in `subjects` is asserted to render the better thing
+    # instead — real source, from its own per-step positions.
     #
-    # 1 -> 2: `aztec-testnet-frames/0x0a807e4e…` is the second such recording,
-    # and `derive-instructions.mjs` refuses it for the same stated reason it
-    # refuses `0x20ed5b91…` — on a positioned step the container spends its
-    # `line` field on the source line, so there is no program counter to
-    # publish. The consequence for the LIVE session is not benign and is not
-    # closed here: see the note in suite 5.
+    # THESE TWO NOW HAVE A LISTING, AND THE ASSERTION THAT SAID THEY COULD NOT
+    # WAS THE DEFECT. It read `ck s.listing == nil`, with `derive-instructions
+    # .mjs` refusing any container that positions any step. That refusal was
+    # right about the steps it was reasoning about — a positioned step spends its
+    # `line` field on the source line, so it has no counter and one must not be
+    # invented — and wrong about the container: 373 of `0x0a807e4e…`'s 459 steps
+    # DO carry a counter, and they are exactly the steps with no source line. The
+    # consequence was that at 373 of 459 ticks the page had no row of any kind to
+    # be stopped at, and the hydrated session marked nothing at all.
+    #
+    # So the population did not change and the claim about it inverted: the
+    # producer now writes a sentinel where the counter does not exist, and the
+    # pane holds BOTH kinds of document at once. What is asserted here is the
+    # partition — every step has exactly one coordinate — because that is the
+    # property the sentinel exists to preserve and the one a padded or invented
+    # counter would break silently.
     ck positionedSubjects.len == 2
     for s in positionedSubjects:
-      ck s.listing == nil                # `derive-instructions.mjs` refused it
+      ck s.listing != nil
+      let l = decodeInstructionListing(s.listing)
+      ck l.stepCount == s.steps
+      ck l.partlyPositioned              # both kinds of row, in one listing
       let sess = debugSessionFor(root, s.chain, s.tx)
       ck sess.editor.availability == srcSourceLevel
       ck sess.editor.positionedSteps > 0
       ck sess.editor.positionedSteps < sess.editor.positionedOf
+      # THE TWO PRODUCERS AGREE, and they were written from different fields of
+      # the same container by different tools: `derive-positions.mjs` publishes a
+      # `(path, line)` per step and this one publishes a counter per step. A step
+      # with both, or with neither, would mean one of them is describing a
+      # recording the other is not.
+      ck l.counterSteps ==
+         sess.editor.positionedOf - sess.editor.positionedSteps
+      # The pane holds both kinds of document, and OPENS on the source one: the
+      # ladder is a union, not an inversion of itself.
       ck activeDocument(sess.editor).path.endsWith(".nr")
+      ck documentIndex(sess.editor, ListingPath) >= 0
+      var sourceDocs = 0
+      for d in sess.editor.documents:
+        if d.path != ListingPath: inc sourceDocs
+      ck sourceDocs > 0
+      # …and exactly ONE row in the WHOLE pane is marked. Two documents that
+      # could each carry a mark is two producers of the one position, which is
+      # the defect this listing's own numbering comment exists to prevent.
+      var marked = 0
+      for d in sess.editor.documents:
+        for ln in d.lines:
+          if ln.current: inc marked
+      ck marked == 1
 
   test "the table reproduces every program counter it predicts":
     var checked = 0
@@ -278,7 +319,12 @@ suite "1 — the mnemonics are checked against the recording, never asserted":
     ck not l.named
 
   test "assertion count":
-    expectCount(157)
+    # 157 -> 169. Suite 1's partly-positioned arm gained seven assertions per
+    # subject when its claim inverted: the two recordings that used to be asserted
+    # to have NO listing are now asserted to have one that PARTITIONS their steps
+    # with the positions sidecar, and to render a pane holding both kinds of
+    # document with exactly one row marked across all of them.
+    expectCount(169)
 
 suite "2 — the pane renders instructions, with the current one marked":
   asserted = 0
@@ -634,33 +680,58 @@ suite "5 — source and instructions coexist; neither is hard-coded":
         for tx in readBlockDetail(root, info, h).transactions:
           let t = traceView(root, info, tx)
           if t.outcome != tvReplayable or t.sourceLevel: continue
-          # A RECORDING THAT PUBLISHES POSITIONS PUBLISHES NO LISTING, and the
-          # skip is on the object rather than on `sourceLevel`, which is the
-          # manifest's all-or-nothing claim and false for exactly this case.
-          # Reading it the other way dereferenced a nil `instructions` and took
-          # the suite down with a SIGSEGV rather than a failed check — the
-          # partition was wrong on the data plane in the same way it was wrong
-          # on the pane.
+          # A RECORDING THAT PUBLISHES POSITIONS PUBLISHES A LISTING TOO, and
+          # the two PARTITION its steps. The skip is on the object rather than
+          # on `sourceLevel`, which is the manifest's all-or-nothing claim and
+          # false for exactly this case. Reading it the other way dereferenced a
+          # nil `instructions` and took the suite down with a SIGSEGV rather than
+          # a failed check.
           #
-          # `derive-instructions.mjs` refuses the container: a positioned
-          # recording spends its `line` field on a source line, so there is no
-          # pc column to publish and a listing derived anyway would be Noir line
-          # numbers presented as program counters.
+          # THIS ARM USED TO ASSERT `t.instructions == nil`, because
+          # `derive-instructions.mjs` refused any container that positions any
+          # step. The refusal was right about the positioned steps — a positioned
+          # step spends its `line` field on the source line, so it has no counter
+          # and one must not be invented — and wrong about the container, whose
+          # OTHER steps carry real counters. What is published now is one row per
+          # step with a sentinel where the counter does not exist, which is what
+          # gives §7's "instruction-level elsewhere" a row to be stopped at.
           #
           # AND `measuredPostHoc` IS PART OF THE TEST, because two transactions
           # here publish positions and only one of them renders source. Frozen
           # 0x12525d6d… is a rung-3 container whose positions were computed
           # AFTERWARDS by `resolve-frozen-artifacts.mjs`: its `line` field holds
-          # real program counters, so it has a listing, and the pane refuses its
-          # positions because the capture measured 0 where the derivation says
-          # 86 (CHAIN-CAPTURE.md §6.2b). It therefore belongs in the listing
-          # population below, and this branch is only for a recording that
-          # measured its own positions while it ran.
+          # real program counters on every step, so its listing has no sentinel
+          # in it at all, and the pane refuses its positions because the capture
+          # measured 0 where the derivation says 86 (CHAIN-CAPTURE.md §6.2b). It
+          # therefore belongs in the listing population below, and this branch is
+          # only for a recording that measured its own positions while it ran.
           if t.positions != nil and not t.positions{"measuredPostHoc"}.getBool:
-            ck t.instructions == nil
             ck t.positions{"steps"}.getInt(-1) == t.steps
             ck t.positions{"positioned"}.getInt(0) > 0
             ck t.positions{"positioned"}.getInt(0) < t.steps
+            ck t.instructions != nil
+            ck t.instructions{"steps"}.getInt(-1) == t.steps
+            ck t.instructions{"pc"}.len == t.steps
+            ck t.instructions{"schema"}.getStr("") == "avm-instructions/2"
+            ck t.instructions{"counters"}.getInt(-1) ==
+               t.steps - t.positions{"positioned"}.getInt(0)
+            # THE PARTITION, STEP BY STEP AND NOT BY COUNT. Two counts can agree
+            # while the two producers disagree about WHICH steps they are talking
+            # about, and a page built from both would then mark a listing row for
+            # a step the source pane also claims. Every step must have exactly one
+            # coordinate: a `(path, line)` or a counter, never both and never
+            # neither.
+            let pathIds = t.positions{"pathId"}
+            let pcs = t.instructions{"pc"}
+            var both = 0
+            var neither = 0
+            for i in 0 ..< t.steps:
+              let hasLine = pathIds[i].kind == JInt
+              let hasPc = pcs[i].getInt(-1) != -1
+              if hasLine and hasPc: inc both
+              if not hasLine and not hasPc: inc neither
+            ck both == 0
+            ck neither == 0
             inc positioned
             continue
           ck t.instructions != nil
@@ -672,20 +743,21 @@ suite "5 — source and instructions coexist; neither is hard-coded":
     # Non-vacuous in the other direction too: the skip above is a real
     # population, not a branch nothing takes.
     #
-    # 1 -> 2, AND THE SECOND MEMBER IS NOT BENIGN. `0x20ed5b91…` positions 86 of
-    # its 108 steps and its 22 unpositioned ones are the dispatch prologue at
-    # the FRONT of the stream, which the served frame's landing rule steps over
-    # (`demo_session.withSourceIsland`: "a page may not report a position it is
+    # 1 -> 2, AND THE SECOND MEMBER IS WHY THIS BRANCH CHANGED ITS MIND.
+    # `0x20ed5b91…` positions 86 of its 108 steps and its 22 unpositioned ones
+    # are the dispatch prologue at the FRONT of the stream, which the served
+    # frame's landing rule steps over ("a page may not report a position it is
     # not showing"). `aztec-testnet-frames/0x0a807e4e…` positions 86 of 459 —
     # its steps 108..458 run in a SECOND contract whose artifact no distributor
-    # could prove — so 373 of its steps have no source line, no published
-    # listing row, and nothing on the page to be stopped at. The static export
-    # is spared by its landing rule; the hydrated session is not, and lands at
-    # tick 0 marking nothing. `Source-Resolution.md` §7 is the clause it fails
-    # ("Partial source coverage | Source-level stepping where sources exist,
-    # instruction-level elsewhere, with the boundary visible in the source pane
-    # rather than silent"), and closing it needs a listing this derivation
-    # cannot produce from this container — see `derive-instructions.mjs`.
+    # could prove — so 373 of its steps have no source line, and while no listing
+    # was published for it there was nothing on the page to be stopped at. The
+    # static export was spared by its landing rule; the hydrated session was not,
+    # and landed at tick 0 marking nothing. `Source-Resolution.md` §7 is the
+    # clause it failed ("Partial source coverage | Source-level stepping where
+    # sources exist, instruction-level elsewhere, with the boundary visible in
+    # the source pane rather than silent"). It is closed: the derivation
+    # publishes the 373 counters it does have, the pane holds the listing beside
+    # the source, and journey 27 grades the whole of it in a browser.
     ck positioned == 2
 
   test "MUTATION BITE: publish refuses a listing the position cannot be in":
@@ -743,7 +815,11 @@ suite "5 — source and instructions coexist; neither is hard-coded":
     removeDir(mutDir)
 
   test "assertion count":
-    expectCount(168)
+    # 168 -> 180. The data-plane arm stopped asserting `instructions == nil` for a
+    # partly-positioned container and started asserting the partition step by
+    # step: every step carries a `(path, line)` or a counter, never both and
+    # never neither, over both members of the class.
+    expectCount(180)
 
 suite "6 — the listing survives hydration, in the artefact a visitor loads":
   asserted = 0
@@ -896,3 +972,227 @@ suite "6 — the listing survives hydration, in the artefact a visitor loads":
 
   test "assertion count":
     expectCount(880)
+
+suite "7 — a recording at TWO fidelities says where it is at both of them":
+  asserted = 0
+  ## `Source-Resolution.md` §7's last row: "Partial source coverage | Source-level
+  ## stepping where sources exist, instruction-level elsewhere, with the boundary
+  ## visible in the source pane rather than silent." `Debugger-Integration.md` §5
+  ## from the other side: "A single transaction routinely mixes both. The debugger
+  ## must handle this without ceremony — it is the normal case, not an edge case",
+  ## and "the transition is visible: entering an unverified contract from a
+  ## verified one changes the pane's header to say so."
+  ##
+  ## WHAT WAS WRONG. The Code-pane ladder was a CONTEST: `withPublishedSources`
+  ## beat `withSourcePositions` beat `withInstructionListing`, and whichever won
+  ## held the pane for the whole session. `aztec-testnet-frames/0x0a807e4e…` runs
+  ## 459 steps across two contracts at two fidelities — 86 positioned, 373 not —
+  ## so the middle rung won, the pane was 32 Noir documents and no listing, and at
+  ## 373 of 459 ticks there was no row of any kind to be stopped at. The served
+  ## frame escaped by an accident of the middle rung's own landing rule; the
+  ## hydrated one landed at tick 0 and marked nothing at all.
+  ##
+  ## Journey 27 grades the whole of it in a browser. This suite grades the two
+  ## halves it cannot see separately: what the exporter builds, and what the
+  ## island hands hydration.
+
+  test "the served pane holds BOTH kinds of document, and neither is disguised":
+    ck positionedSubjects.len > 0
+    for s in positionedSubjects:
+      let body = debugBody(s)
+      # ONE listing panel, and the class is on that panel alone. Read before the
+      # union it was the PANE's flag, so a reader standing on a program counter
+      # would have had all 32 Noir files stamped `src instr` and described as
+      # "Steps 1–83".
+      ck occurrences(body, "class=\"src instr\"") == 1
+      ck occurrences(body, "class=\"instrcap\"") == 1
+      # …and the source panels keep the tab strip a listing does not get. The
+      # caption used to be chosen from `p.listingCaption`, which is a fact about
+      # the RECORDING and true while a Noir file is on screen.
+      ck occurrences(body, "class=\"srctabs\"") > 0
+      # Exactly one marked row in the whole page. Two documents that could each
+      # carry a mark is two producers of the one position.
+      ck occurrences(body, "class=\"srcline cur") == 1
+      # The caption names its own sparsity, so a column of dashes is explained
+      # where a reader meets it.
+      ck body.contains(" as the session counts them · program counter on ")
+      ck body.contains("where the step resolves to a source line instead")
+
+  test "§5's visible transition: the header says which rung the position is on":
+    ck positionedSubjects.len > 0
+    for s in positionedSubjects:
+      let body = debugBody(s)
+      let sess = debugSessionFor(root, s.chain, s.tx)
+      ck occurrences(body, "class=\"srcrung") == 1
+      # The SERVED frame lands on a step there is source for (the middle rung's
+      # landing rule), so the header is the source-side sentence and the
+      # instruction-side one is not on the page claiming to be true at once.
+      ck occurrences(body, "class=\"srcrung atsource\"") == 1
+      ck body.contains("Source level here.")
+      ck "Instruction level here." notin body
+      # …and it states the coverage, which is what makes it a boundary a reader
+      # can act on rather than a label.
+      ck body.contains(">" & $sess.editor.positionedSteps & "<")
+      ck body.contains(">" & $sess.editor.positionedOf & "<")
+
+  test "MUTATION BITE: a recording with no boundary grows no header":
+    # The note must be conditional on the recording having two fidelities. An
+    # unconditional block would satisfy every assertion above and say "source
+    # level here" over a page that has one rung and nothing to transition to.
+    ck subjects.len > 0
+    ck sourceLevelSubjects.len > 0
+    for s in subjects:
+      ck occurrences(debugBody(s), "class=\"srcrung") == 0
+    for s in sourceLevelSubjects:
+      ck occurrences(debugBody(s), "class=\"srcrung") == 0
+
+  test "the hydrated pane falls back to the listing row, and only where it must":
+    # `session_project.projectEditor`'s `savVerified` branch, at the seam this
+    # file can drive without the Embed SDK: the resolver it asks, and the decoder
+    # it calls with the answer. The branch is
+    #
+    #   positionDocumentIndex(paths, position.file) < 0
+    #     -> decodeSourceIsland(island, ListingPath, rrTicks)
+    #
+    # and both halves are asserted, because an implication is only as strong as
+    # its antecedent.
+    ck positionedSubjects.len > 0
+    for s in positionedSubjects:
+      let pane = debugSessionFor(root, s.chain, s.tx).editor
+      let island = encodeSourceIsland(pane)
+      var paths: seq[string]
+      for d in pane.documents: paths.add d.path
+      # THE ANTECEDENT. At an unpositioned step the engine reports the bytecode
+      # object the recorder interned, and no published document is it — which is
+      # the correct answer and was the whole of the silence.
+      let enginePath = "/aztec/" & s.tx & ".avm"
+      ck positionDocumentIndex(paths, enginePath) < 0
+      # THE CONSEQUENT. The listing is one of the documents, and joining on the
+      # tick marks exactly one row — in the listing, at the row whose number IS
+      # the tick.
+      for tick in [0, s.steps - 1]:
+        let live = decodeSourceIsland(island, ListingPath, tick)
+        var marked: seq[(string, int)]
+        for d in live.documents:
+          for ln in d.lines:
+            if ln.current: marked.add (d.path, ln.number)
+        ck marked == @[(ListingPath, tick)]
+        ck live.documents[live.activeIndex].path == ListingPath
+      # AND THE CONTROL, so the fallback is not the only thing this pane can do.
+      # The step the served frame landed on IS in a published document, the
+      # resolver says so, and the mark lands on the source line — not on a
+      # listing row.
+      let servedPath = activeDocument(pane).path
+      let servedLine = pane.currentLine
+      ck servedLine > 0
+      ck positionDocumentIndex(paths, servedPath) >= 0
+      let atSource = decodeSourceIsland(island, servedPath, servedLine)
+      var srcMarked: seq[(string, int)]
+      for d in atSource.documents:
+        for ln in d.lines:
+          if ln.current: srcMarked.add (d.path, ln.number)
+      ck srcMarked == @[(servedPath, servedLine)]
+      ck atSource.documents[atSource.activeIndex].path != ListingPath
+
+      # AND THE BOUNDARY HEADER SURVIVES THE ROUND TRIP, on both sides of it.
+      # `renderSource` draws `.srcrung` from the pane's coverage, and the
+      # coverage comes from the recording's per-step position stream — which is
+      # `positions.json` beside the container and is NOT in the page. An island
+      # that did not carry it rebuilt a pane at `0 / 0`, so the boundary was on
+      # the served frame and gone from the hydrated one: the header missing from
+      # exactly the half where a reader crosses the boundary by stepping.
+      let atInstr = decodeSourceIsland(island, ListingPath, 0)
+      for probe in [atInstr, atSource]:
+        ck probe.positionedSteps == pane.positionedSteps
+        ck probe.positionedOf == pane.positionedOf
+        ck probe.positionedSteps > 0
+        ck probe.positionedOf > probe.positionedSteps
+        ck occurrences(dbgc.renderSource(probe), "class=\"srcrung") == 1
+      # …and the two sides say DIFFERENT things, which is what makes it a
+      # TRANSITION rather than a disclaimer that happens to be on the page.
+      let instrHtml = dbgc.renderSource(atInstr)
+      let sourceHtml = dbgc.renderSource(atSource)
+      ck instrHtml.contains("Instruction level here.")
+      ck "Source level here." notin instrHtml
+      ck sourceHtml.contains("Source level here.")
+      ck "Instruction level here." notin sourceHtml
+
+  test "MUTATION BITE: a listing that is not THIS recording's is refused":
+    # `withListingBesideSource` appends to a pane that is already showing source,
+    # so a listing that does not describe the same execution would put rows in
+    # front of a reader for steps another program took — and the mark would land
+    # on one of them. Both refusals are driven over the real pane, stripped back
+    # to the state the ladder hands it in.
+    ck positionedSubjects.len > 0
+    for s in positionedSubjects:
+      let info = chainInfo(root, s.chain)
+      let t = traceView(root, info, s.tx)
+      ck t.instructions != nil
+      let whole = debugSessionFor(root, s.chain, s.tx)
+      let full = whole.editor.documents.len
+
+      var stripped = whole
+      var docs: seq[SourceDocument]
+      for d in whole.editor.documents:
+        if d.path != ListingPath: docs.add d
+      stripped.editor.documents = docs
+      stripped.editor.listingCaption = ""
+      stripped.editor.reason = ""
+      ck stripped.editor.documents.len == full - 1
+
+      # THE CONTROL: the real listing goes back on, so the two refusals below are
+      # about the mutation and not about the stripping.
+      var ok = stripped
+      withListingBesideSource(ok, t.instructions)
+      ck ok.editor.documents.len == full
+      ck ok.editor.listingCaption.len > 0
+
+      # ONE STEP SHORT. Row n is tick n, so a listing of a different length is a
+      # listing of a different recording.
+      var short = t.instructions.copy
+      var pcs = newJArray()
+      var i = 0
+      for v in short["pc"]:
+        if i > 0: pcs.add v
+        inc i
+      short["pc"] = pcs
+      short["steps"] = newJInt(short["steps"].getInt - 1)
+      var shortSession = stripped
+      withListingBesideSource(shortSession, short)
+      ck shortSession.editor.documents.len == full - 1
+      ck shortSession.editor.listingCaption.len == 0
+
+      # THE RIGHT LENGTH AND THE WRONG PARTITION. One sentinel becomes a real
+      # counter, so the listing now claims a program counter for a step the
+      # positions sidecar claims a source line for. The counts still agree with
+      # `steps`; what disagrees is WHICH steps, which is the failure a length
+      # check cannot see.
+      var skewed = t.instructions.copy
+      var flipped = false
+      var pcs2 = newJArray()
+      for v in skewed["pc"]:
+        if v.getInt(0) == -1 and not flipped:
+          pcs2.add newJInt(0)
+          flipped = true
+        else:
+          pcs2.add v
+      skewed["pc"] = pcs2
+      ck flipped                          # the mutation had something to bite
+      var skewedSession = stripped
+      withListingBesideSource(skewedSession, skewed)
+      ck skewedSession.editor.documents.len == full - 1
+      ck skewedSession.editor.listingCaption.len == 0
+
+  test "assertion count":
+    # Written from the run, over two subjects. It is the largest count in this
+    # file per subject because the union is the state with the most that can be
+    # quietly wrong: which class each panel wears, which panel gets the caption,
+    # which sentence the header shows, which of thirty-three documents holds the
+    # one mark, and whether the boundary header survives the island round trip.
+    #
+    # 103 -> 131 when the round trip was added. It was NOT a tidy-up: the header
+    # is drawn from a coverage the browser cannot recompute, so an island that
+    # did not carry it rendered the boundary on the served page and lost it on
+    # the hydrated one — the half where a reader crosses the boundary by
+    # stepping. The fourteen assertions per subject are what noticed.
+    expectCount(131)

@@ -53,6 +53,13 @@ import std/[json, strutils]
 import ./session_view
 import ./source_document
 
+const NoRow* = -1
+  ## A `currentLine` that no row of any document can equal.
+  ##
+  ## Source files are numbered from 1 and an instruction listing's rows from 0,
+  ## so the two kinds of document disagree about which value means "nothing here
+  ## is current" — and a pane can now hold both at once. This is below both.
+
 const SourceIslandId* = "bt-session-source"
   ## The element id the island is served under, shared by the writer in
   ## `pages/debug.nim` and the reader in the hydration bundle. One constant, so
@@ -105,6 +112,22 @@ proc encodeSourceIsland*(p: EditorPane): string =
     # exists to avoid re-deriving. Two bytes-per-page against a pane that
     # silently loses its own caption on the first step is not a trade.
     "listingCaption": p.listingCaption,
+    # THE COVERAGE, FOR THE SAME REASON THE CAPTION IS HERE AND FOR ONE MORE.
+    #
+    # `renderSource` draws the `.srcrung` header — §5's visible transition, "the
+    # pane's header … so the user is never confused about why names disappeared"
+    # — from these two counts, and a pane rebuilt without them carries `0 / 0`
+    # and draws no header at all. That would put the boundary on the SERVED page
+    # and lose it on the hydrated one: one renderer, two artefacts, and the
+    # header missing from exactly the half where a reader can actually cross the
+    # boundary by stepping. This module's own history has that defect in it
+    # twice.
+    #
+    # They cannot be recomputed here either. They come from the recording's
+    # per-step position stream (`demo_session.withSourcePositions`), which is
+    # `positions.json` beside the container and is not in the page.
+    "positionedSteps": p.positionedSteps,
+    "positionedOf": p.positionedOf,
     "activeIndex": p.activeIndex,
     "documents": docs,
   }
@@ -216,6 +239,11 @@ proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
   result.availability = availabilityFromWire(payload{"availability"}.getStr(""))
   result.reason = payload{"reason"}.getStr("")
   result.listingCaption = payload{"listingCaption"}.getStr("")
+  # `0` for an island that predates the field, which is the same value a pane
+  # whose text did not come from a per-step position stream carries — so an old
+  # island decodes to "nobody established this" rather than to a coverage claim.
+  result.positionedSteps = payload{"positionedSteps"}.getInt(0)
+  result.positionedOf = payload{"positionedOf"}.getInt(0)
   result.activeIndex = 0
   result.currentLine = currentLine
   let docs = payload{"documents"}
@@ -240,7 +268,23 @@ proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
     result.documents.add newSourceDocument(
       path, d{"language"}.getStr(""), d{"text"}.getStr(""),
       executed = executed,
-      currentLine = (if index == positionIndex: currentLine else: 0),
+      # `NoRow` AND NOT `0` FOR THE DOCUMENTS THE POSITION IS NOT IN, and the
+      # difference is a mark this shipped.
+      #
+      # `newSourceDocument` marks the row whose NUMBER equals `currentLine`, and
+      # `0` meant "no row" only while every document was a source file numbered
+      # from 1. An instruction listing's rows are numbered in the session's own
+      # coordinate and start at 0, so a listing rebuilt as a NON-position
+      # document had its first row marked — on every stop, in addition to the
+      # source line the session was actually on. One pane, two `.srcline.cur`,
+      # and the second one always claiming step 0.
+      #
+      # It could not arise while a pane held one kind of document: a listing was
+      # the only document, so it was always the position's. It arose the moment
+      # the ladder became a union and a pane held 32 Noir files AND the listing
+      # (`demo_session.withListingBesideSource`). `-1` is below every row number
+      # either kind of document can have, which `0` is not.
+      currentLine = (if index == positionIndex: currentLine else: NoRow),
       # THE ROW NUMBERS THE ISLAND PUBLISHED, not a fresh 1..N. This field has
       # always been written and was always dropped, which was harmless while
       # every island held whole source files numbered from 1. An instruction

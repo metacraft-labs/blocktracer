@@ -352,6 +352,56 @@ proc projectEditor*(vm: EditorVM; store: ReplayDataStore;
       result = decodeSourceIsland(island, position.file, position.line)
       result.availability = SourceAvailabilityView.srcSourceLevel
       result.currentLine = position.line
+      # ── AND WHEN THE STEP RESOLVES TO NO PUBLISHED DOCUMENT ────────────────
+      #
+      # This branch had ONE answer for an unresolvable position — mark nothing —
+      # and it was the right one while every source-level recording positioned
+      # every step. `aztec-testnet-frames/0x0a807e4e…` does not: it runs 459
+      # steps across two contracts at two fidelities, and at 373 of them the
+      # engine reports `/aztec/<txHash>.avm`, a bytecode object no bundle
+      # carries. `positionDocumentIndex` correctly found nothing,
+      # `decodeSourceIsland` correctly cleared the mark, and the page then said
+      # NOTHING: 224 rows of Noir on screen, no marked row, no position head and
+      # no note, with the session at step 0 of 459. That is the state
+      # `Source-Resolution.md` §7 names and forbids — "rather than silent".
+      #
+      # The second answer is the listing, which the export now publishes BESIDE
+      # the source for exactly this class of recording
+      # (`demo_session.withListingBesideSource`) and which the island therefore
+      # carries as one more document. Row `n` IS tick `n`, so the join is the
+      # identity: no conversion, and no second coordinate to disagree with the
+      # position head.
+      #
+      # THE ORDER IS NOT NEGOTIABLE — source first, and the listing only where
+      # source did not reach. Reversing it would put a program counter in front
+      # of a reader at the 86 steps this recording has a Noir line for, which is
+      # the fidelity ladder run backwards.
+      #
+      # `positionDocumentIndex` and NOT `result.currentLine == 0`: the line above
+      # writes the engine's line back unconditionally, so the cleared mark is not
+      # observable here. Asking the resolver the same question `decodeSourceIsland`
+      # asked is what keeps this from being a second, weaker test of the same
+      # thing — the failure `positionDocumentIndex`'s own header records having
+      # been masked by exactly that kind of safe fallback.
+      var paths: seq[string]
+      for d in result.documents: paths.add d.path
+      # `holdsListing` and not `hasListing`: the latter is
+      # `instruction_listing.hasListing`, in scope here through this module's own
+      # imports, and a local shadowing a proc it is not is a rename waiting to
+      # resolve to the wrong thing.
+      var holdsListing = false
+      for docPath in paths:
+        if docPath == ListingPath: holdsListing = true
+      if holdsListing and positionDocumentIndex(paths, position.file) < 0:
+        let tick = int(store.debugger.val.rrTicks)
+        result = decodeSourceIsland(island, ListingPath, tick)
+        # The island's availability is `sourceLevel` — this pane HAS resolved
+        # source, four tabs away — and restating it here is what stops a
+        # malformed island from demoting a session that is showing 32 Noir files
+        # to one that claims none were published. Which rung the reader is on is
+        # a question about the active document, and `renderSource` reads it there.
+        result.availability = SourceAvailabilityView.srcSourceLevel
+        result.currentLine = tick
   of savUnverified:
     # INSTRUCTION LEVEL, AND IT STEPS. This branch used to throw the served pane
     # away and return a bare reason, which was right while there was nothing to

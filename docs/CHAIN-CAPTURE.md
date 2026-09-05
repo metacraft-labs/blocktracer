@@ -568,6 +568,70 @@ number it is showing. Three rules keep it honest:
   §6.2b concluded; live `0x20ed5b91…` says 86 and derives 86, so the detail
   behind a number the recording already published is shown.
 
+#### 6.5a And then the pane had to hold BOTH, because one recording is two fidelities
+
+§6.5's fix gave a partly-positioned recording its source back. It did not give it
+the other half — the steps source does *not* reach still had no row. That was
+true of `0x20ed5b91…` too, whose 22 unpositioned steps are its dispatch prologue;
+what made it visible was a capture where the gap is 373 steps in a second
+*contract* rather than 22 at the front of one, so no landing rule could step over
+it.
+
+`aztec-testnet-frames/0x0a807e4e…` runs **459 steps across two contracts at two
+fidelities**: `0x…0003` positions 86 of its 108 steps, and `0x2fcd3dd5…` — steps
+108..458 — positions none, because no distributor could prove its artifact.
+Unpositioned runs: ticks `0..13`, `27..34`, `108..458`.
+
+**The Code-pane ladder was a contest.** `withPublishedSources` beat
+`withSourcePositions` beat `withInstructionListing`, and whichever won held the
+pane for the whole session — because `SourceAvailabilityView` is one value and
+`documents` is one list. The middle rung won here, so the page was 32 Noir
+documents and no listing, and **at 373 of 459 ticks there was no row of any kind
+to be stopped at.** The static export escaped by an accident of the middle rung's
+own landing rule, which moves the served step to one there is source for and
+landed this recording on 107; hydration lands at tick 0 and marked nothing —
+224 rows of Noir, no mark, no position head, no note.
+
+**The derivation was refusing the container it should have half-published.**
+`derive-instructions.mjs` raised on the first step with a non-zero `path_id`, and
+its reasoning was right about those steps: a positioned step spends its `line`
+field on the source line, so it has no program counter and one must not be
+invented. What does not follow is refusing the whole container — 373 of these
+459 steps *do* carry a counter, and they are exactly the steps with no source
+line.
+
+What is published now, as **`avm-instructions/2`** (the `pc` column's domain
+changed, so it is a version and not a field): one row per step, a real counter at
+`path_id == 0` and `-1` at the rest, plus a `counters` count. The op, gas and
+context columns were already complete on all 459 (see the frames capture's
+`REGISTERS.md`), so only `pc` is sparse. The refusal is **kept** for a container
+that positions *every* step: that one has no counters at all, and its per-step
+positions are strictly more than a listing.
+
+Everything downstream that does arithmetic on a counter skips the sentinel —
+`hexWidth`, `destinationSuffix`, and `explainsProgramCounters`, which matters
+most: one sentinel differenced against a real counter is one *mismatch*, and one
+mismatch withdraws the opcode names from the whole recording.
+
+**The ladder is now a union for this class.**
+`demo_session.withListingBesideSource` appends the listing to a pane that is
+already showing source, so one pane holds both kinds of document and every tick
+has a row; `renderSource` decides what a document *is* from its path rather than
+from the pane's availability; and a `.srcrung` header states which rung the
+position is on and rewrites itself when a step crosses the boundary — which is
+`Debugger-Integration.md` §5's visible transition and `Source-Resolution.md` §7's
+"rather than silent". `session_project.projectEditor` is the hydrated half: when
+`positionDocumentIndex` resolves the engine's position to no published document,
+it re-decodes the island at the listing and the tick. Row *n* is tick *n*, so
+that join is the identity.
+
+Cross-checked at the data plane, and this is the part worth keeping: the
+positions sidecar and the instruction listing are derived by two different tools
+from the same container, and over all 459 steps they **disagree about zero of
+them** — every step carries a `(path, line)` or a counter, never both and never
+neither. `client/tests/test_instruction_listing.nim` asserts that partition step
+by step, and journey 27 judges the rendered result in a browser.
+
 ### 6.6 The Values pane is still empty; the Call Trace is NOT, and the reason it was is a correction worth keeping
 
 Recorded because the obvious reading — "the panes are empty, so the pane

@@ -563,7 +563,19 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
   # Unverified source is not a weaker kind of source. Rendering it would be the
   # pane vouching for bytes nothing verified, which is the exact claim this
   # availability exists to withhold.
-  let listing = p.availability == srcUnverified and p.documents.len > 0 and
+  #
+  # AND THE TEST IS ON THE DOCUMENT, NOT ON THE PANE, WHICH IS WHAT LETS ONE
+  # PANE HOLD BOTH. It used to require `availability == srcUnverified` as well,
+  # and that was exact while a pane was one rung for a whole session. It stopped
+  # being exact when the ladder became a union for a partly-positioned recording
+  # (`demo_session.withListingBesideSource`): that pane is `srcSourceLevel`, it
+  # carries 32 Noir files AND the recording's 459 program counters, and which
+  # kind of rows are in front of a reader is a question about the document they
+  # are looking at. The availability is still consulted — a pane at `srcAbsent`
+  # showed no code before this and shows none now — but it no longer decides
+  # what a document IS.
+  let listing = p.documents.len > 0 and
+                p.availability in {srcUnverified, srcSourceLevel} and
                 activeDocument(p).path == ListingPath
   if p.documents.len == 0 or
      (p.availability != srcSourceLevel and not listing):
@@ -690,7 +702,14 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
     ## and nothing to say. The caption answers the question a listing actually
     ## raises — what are these columns, and what are these counters offsets
     ## into — which is the difference between a grid of hex and a disassembly.
-    if p.listingCaption.len > 0:
+    ##
+    ## THE TEST IS THE PANEL'S OWN PATH AND NOT THE PANE'S CAPTION. It read
+    ## `p.listingCaption.len > 0`, which is a fact about the RECORDING, and on a
+    ## union pane that is true while a Noir file is on screen — so the 32 source
+    ## documents would each have lost their tab strip to a caption describing a
+    ## bytecode object none of them is. `tabStrip` is called once per panel with
+    ## that panel's own path, so the panel can answer for itself.
+    if activePath == ListingPath and p.listingCaption.len > 0:
       return ui:
         p(class = "instrcap"): text p.listingCaption
     var allPaths: seq[string]
@@ -823,9 +842,18 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
 
   proc body(d: SourceDocument): string =
     ## One document's lines, plus the notice when the pane opens part-way in.
+    ##
+    ## `isListing` IS PER DOCUMENT AND NOT THE PANE'S. This read the outer
+    ## `listing` flag, which names the ACTIVE document, and on a union pane that
+    ## would have stamped `.src.instr` on 32 Noir files whenever the reader was
+    ## standing on a program counter — and told them their source was "Steps
+    ## 1–83". The class drives the listing's monospace grid and `.src.instr
+    ## .srcline` is what journey 10 counts, so getting it from anywhere but the
+    ## document in hand is how one pane's rows come to be described as another's.
+    let isListing = d.path == ListingPath
     let first = (if d.lines.len > 0: d.lines[0].number else: 1)
     ui:
-      tdiv(class = "src" & (if listing: " instr" else: "")):
+      tdiv(class = "src" & (if isListing: " instr" else: "")):
         # THE NOTICE, AND THE ONE REDUCTION LEFT TO ANNOUNCE.
         #
         # The session pane no longer takes a window: `source_document
@@ -873,7 +901,7 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
             # Still named in the unit the rows are actually in: `line` is the one
             # word the instruction listing has spent four paragraphs explaining
             # it does not have.
-            if listing:
+            if isListing:
               text "Steps " & $first & "–" & $last &
                    ", centred on where the session is stopped."
             else:
@@ -1142,7 +1170,59 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
   let wrap = ui:
     tdiv(class = "srcwrap"):
       raw panels
-  if not listing: return renderFlowRail(p.flow) & wrap
+
+  # ── §5's VISIBLE TRANSITION: WHICH RUNG THE POSITION IS ON ────────────────
+  #
+  # `Debugger-Integration.md` §5: "The transition is visible: entering an
+  # unverified contract from a verified one changes the pane's header to say so,
+  # so the user is never confused about why names disappeared." §7's row for the
+  # same state ends "with the boundary visible in the source pane rather than
+  # SILENT".
+  #
+  # Emitted only for a pane whose recording is at TWO fidelities, which is the
+  # only pane that has a boundary to be on one side of. `positionedSteps` and
+  # `positionedOf` are the coverage the middle rung measured off the recording's
+  # own per-step positions; an ordinary source-level pane carries `0 / 0` and an
+  # ordinary listing carries the same, so neither grows a header it has nothing
+  # to put in.
+  #
+  # BOTH SIDES, AND THE SENTENCE CHANGES. A note that only appeared on the
+  # instruction side would say "you have left the source" and never "you are in
+  # it, and it does not cover everything" — and the second is the one a reader
+  # needs BEFORE they step off the edge. It is drawn from `listing`, which names
+  # the document the reader is looking at, so crossing the boundary rewrites it:
+  # that is what makes it a transition rather than a disclaimer.
+  #
+  # The counts are stated in both, because "which rung" without "how much" is a
+  # label a reader cannot act on.
+  let rung =
+    if p.positionedSteps > 0 and p.positionedOf > p.positionedSteps:
+      let unpositioned = p.positionedOf - p.positionedSteps
+      ui:
+        tdiv(class = "srcrung" & (if listing: " atinstr" else: " atsource"),
+             `aria-live` = "polite"):
+          p(class = "panenote"):
+            if listing:
+              text "Instruction level here. This recording resolves source for "
+              span(class = "num"): text $p.positionedSteps
+              text " of its "
+              span(class = "num"): text $p.positionedOf
+              text " steps, and the session is standing on one of the "
+              span(class = "num"): text $unpositioned
+              text " it does not — so the row below it is the program counter " &
+                   "the VM was on, not a line of code."
+            else:
+              text "Source level here. This recording resolves source for "
+              span(class = "num"): text $p.positionedSteps
+              text " of its "
+              span(class = "num"): text $p.positionedOf
+              text " steps; stepping into the other "
+              span(class = "num"): text $unpositioned
+              text " continues in the instruction listing, which is one of the " &
+                   "documents in this pane."
+    else: ""
+
+  if not listing: return renderFlowRail(p.flow) & rung & wrap
 
   # ── the instruction listing's own chrome ──────────────────────────────────
   #
@@ -1179,7 +1259,7 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
              title = "BlockTracer cannot accept supplied sources yet. " &
                      "The instructions below are what this recording carries."):
         text "Supply sources"
-  renderPositionHead(pos) & why & wrap
+  renderPositionHead(pos) & rung & why & wrap
 
 const MaxIndentDepth* = 8
   ## The depth the indentation ladder in `debugger_css.nim` has rules for.
