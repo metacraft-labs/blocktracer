@@ -735,8 +735,35 @@ jobs:
         # steps up. If the regeneration ever stops producing it, this step exits
         # 3 — "a precondition is absent, so nothing ran" — which is still a red
         # step, but is not the same red as exit 1, "a gate condition did not
-        # block". Read the exit code before reading the step name.
-        run: nix run .#capture-env -- node tools/capture/gate-selftest.mjs
+        # block".
+        #
+        # THE RUN HAS TO SAY WHICH RED IT IS, and until now it did not. The
+        # script has distinguished the two since it grew EXIT_PRECONDITION_ABSENT,
+        # and `review-selftest.mjs` buckets it as INCOMPLETE and exits 3 rather
+        # than 0. But this step invoked it bare, and GitHub records a step as
+        # pass or fail and nothing else — so exit 3 and exit 1 arrived at the
+        # checks UI as the same undifferentiated red X. The instruction that
+        # used to sit here, "read the exit code before reading the step name",
+        # is precisely the tax that produces an ignored lane: a reader must open
+        # the log and know that a third code exists before they can tell "the
+        # gate let something through" from "the gate never ran".
+        #
+        # So the verdict is named where it is read. Exit 3 is annotated as a
+        # PRECONDITION, not as a gate failure, and the code is passed through
+        # rather than collapsed. It stays non-zero on purpose: `screenshots/` is
+        # gitignored and the regeneration two steps up is the only thing that
+        # produces the image, so a precondition that stopped being satisfied is
+        # a real regression in THIS job. Reporting it green would be the silent
+        # skip over G2 that the refusal exists to prevent.
+        run: |
+          set -uo pipefail
+          rc=0
+          nix run .#capture-env -- node tools/capture/gate-selftest.mjs || rc=$?
+          if [ "$rc" -eq 3 ]; then
+            echo "::error title=PRECONDITION ABSENT — gate-selftest did not run::screenshots/debugger__wide__dark.png is not in the tree, so the suite refused to start and NO gate condition was evaluated. This is not a verdict about gate.mjs: nothing was found to let anything through. Exit 3, not 1. Look at 'Regenerate the capture tree' above — it is the only step that produces that image."
+            exit 3
+          fi
+          exit "$rc"
 
       - name: The VD.0 verifications, end to end
         # selftest.mjs re-runs all four against a throwaway output directory,

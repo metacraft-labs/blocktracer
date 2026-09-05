@@ -599,6 +599,67 @@ fi
 echo
 
 # ---------------------------------------------------------------------------
+echo "Step 6: a lane that CANNOT RUN does not report as a lane that FAILED"
+echo "    gate-selftest.mjs exits 3 for 'a precondition is absent, so nothing"
+echo "    ran' and 1 for 'a gate condition did not block'. GitHub records a"
+echo "    step as pass or fail and nothing else, so a bare invocation delivers"
+echo "    both to the checks UI as the same red X — and a reader who cannot"
+echo "    tell those apart without opening the log learns to discount the lane."
+# ---------------------------------------------------------------------------
+# WHY THIS IS A GUARD IN THIS FILE.
+#
+# Every other step here measures whether a suite RUNS. This one measures
+# whether the run's verdict survives the trip to the reader, which is the same
+# surface question one layer out: a suite that runs and whose "did not run"
+# answer is indistinguishable from "found a defect" has a hole in its reporting
+# surface, and nothing else measures that.
+#
+# ANCHORED ON THE DECISION, NOT ON THE PROSE AND NOT ON A DEFINITION. The step
+# above this one carries a long comment that uses the words "precondition" and
+# "exit 3"; `workflow_all` has already dropped comment lines for exactly that
+# reason, and the window below is cut from the INVOCATION forward to the next
+# step header, so what is asserted is the code that runs beside the call rather
+# than any sentence describing it.
+gate_selftest_step="$(
+	printf '%s\n' "${workflow_all}" |
+		awk '
+			f && /^[[:space:]]*-[[:space:]]+name:/ { exit }
+			/gate-selftest\.mjs/ { f = 1 }
+			f { print }
+		'
+)"
+
+if [ -z "${gate_selftest_step}" ]; then
+	# Fail closed: if nothing in ci.yml invokes the suite any more, the question
+	# this step asks has no subject, and reporting that as satisfied would be
+	# the going-green-because-nothing-was-found failure the whole file exists
+	# to prevent.
+	bad "no job in ci.yml invokes tools/capture/gate-selftest.mjs at all — VD.1's 'every gate condition independently blocks' runs nowhere, so there is no verdict to misread"
+else
+	# `case`, not `grep -q`: this file runs under `set -o pipefail`, where a
+	# `grep -q` that matches early can exit 141 on SIGPIPE and turn a found
+	# pattern into a failed command.
+	case "${gate_selftest_step}" in
+	*"-eq 3"*)
+		ok "the step running gate-selftest.mjs tests for exit 3, so 'the suite never ran' is told apart from 'a gate condition did not block'"
+		;;
+	*)
+		bad "the step running gate-selftest.mjs does not test its exit code for 3 — a precondition that stopped being satisfied arrives at the checks UI as an ordinary gate failure, and the reader is asked to open the log and already know a third exit code exists"
+		;;
+	esac
+
+	case "${gate_selftest_step}" in
+	*PRECONDITION*)
+		ok "that step NAMES the precondition verdict in an annotation, so the distinction is readable without opening the log"
+		;;
+	*)
+		bad "the step running gate-selftest.mjs distinguishes exit 3 but never says so where it is read — an annotation naming the PRECONDITION is what carries the verdict to the checks UI"
+		;;
+	esac
+fi
+echo
+
+# ---------------------------------------------------------------------------
 # THE DARK COUNT IS PRINTED HERE, PASS OR FAIL.
 #
 # The old footer read "client suites: N declared, 0 uncovered" and nothing else,
