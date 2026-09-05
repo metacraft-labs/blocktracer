@@ -1562,7 +1562,37 @@ proc noteFor*`,
     find: "    h.frameSeeded = h.session.selectLandingFrame(h.landingAnchor)",
     replace: "    h.frameSeeded = true  # MUTATED: the landing selects no frame",
     journey: "a-link-to-a-frame-arrives-at-that-frame",
-    assertion: "CONTROL: with no link, the served page already marks exactly one row",
+    // RE-AIMED, and the move is the point rather than a detail. This arm used
+    // to name the CONTROL assertion, which reads the pane before the engine —
+    // and it only ever flipped that assertion because journey 26's reads were
+    // UNPINNED and sometimes landed on the hydrated pane by accident. When the
+    // reads were pinned to the pre-engine state the defect became invisible to
+    // it and this arm SURVIVED, measured. The mutation is unchanged; what it
+    // needed was an assertion that looks where the defect is, which is the
+    // hydrated pane, and journey 26 now makes one.
+    assertion: "§7.0: hydration renders no LESS — the repainted pane still marks exactly one row",
+  },
+  {
+    id: "FJ4/the-landing-forgets-its-anchor-across-hydration",
+    why:
+      "Seed the live selection with NO anchor, so the pane falls back to the" +
+      " frame the session is stopped in instead of the frame the LINK named." +
+      " This is the half of the landing that only exists after hydration and it" +
+      " is the one a pre-engine reading cannot see: `markServedFrame` has already" +
+      " marked the right served row, `selectLandingFrame` still runs, the flag is" +
+      " still set and the pane still marks exactly one row — so §7.0's floor is" +
+      " untouched and only the IDENTITY is wrong. On this subject that is the" +
+      " whole claim: six frames share step 59, `selectionDetail` resolves an" +
+      " empty anchor to the innermost of them, and all six links land on" +
+      " `Poseidon2::hash_internal` after hydration however they were marked" +
+      " before it. `Click-Navigation.md` §4 is the rule being broken — the" +
+      " identity, not the index, is the thing that must survive the change of" +
+      " numbering between 47 served rows and 48 live ones.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: "    h.frameSeeded = h.session.selectLandingFrame(h.landingAnchor)",
+    replace: "    h.frameSeeded = h.session.selectLandingFrame(\"\")  # MUTATED: the anchor is dropped",
+    journey: "a-link-to-a-frame-arrives-at-that-frame",
+    assertion: "and it is STILL the frame the link named, carried across by anchor",
   },
   {
     id: "CT1/two-frames-answer-to-one-identity",

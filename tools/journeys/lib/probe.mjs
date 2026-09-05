@@ -661,6 +661,31 @@ export async function visit(
     settleMs = 60000,
     initScript = null,
     viewport = null,
+    // HOLD A SUBRESOURCE IN FLIGHT, so the state before it arrives stops being
+    // a window and becomes the page.
+    //
+    // Some claims are ABOUT the interval during a download — §6.3's "a shared
+    // link opens at the position rather than at the start with a visible jump"
+    // is judged on what the visitor has while the 18 MB engine is still coming.
+    // That interval is real and it is short, and a probe that merely reads
+    // EARLY is sampling a race: measured on the deep capture, `announceLanding`
+    // has marked the served rows by 155–212 ms and hydration repaints the pane
+    // from the live producer at 2.3–2.7 s. A read placed between them lands on
+    // either side depending on the machine, and journey 26 was doing exactly
+    // that — 20 runs on one unchanged tree gave 14 red and 6 green, with the
+    // SUBJECT itself moving (step 58 on 12 runs, step 59 on 8) because the two
+    // producers number their rows differently.
+    //
+    // Holding the request removes the deadline instead of racing it: the
+    // handler is never resolved, so the resource stays in flight, the product
+    // stays in the state the claim is about, and the read has no deadline to
+    // beat. This is NOT the same as blocking or failing the request — an abort
+    // makes the product take its FAILURE path (`h.fail` -> `markUnavailable`),
+    // which is a third state and not the one under test.
+    //
+    // The held request is released when the page closes; `page.close()` returns
+    // in 2–5 ms with three engine requests outstanding.
+    holdRoutes = null,
   } = {},
 ) {
   // A VIEWPORT ONLY WHEN THE CALLER NAMES ONE, and then it is a fact about the
@@ -673,6 +698,13 @@ export async function visit(
   const page = viewport
     ? await (await browser.newContext({ viewport })).newPage()
     : await browser.newPage();
+  // BEFORE `goto`, which is the only moment that is any use: a route registered
+  // after navigation would be installed around a request already in progress.
+  for (const pattern of holdRoutes ?? []) {
+    // Deliberately never resolved — not `abort()`, not `fulfill()`. See the
+    // option's header for why a failure is a different state from a delay.
+    await page.route(pattern, () => {});
+  }
   const pageErrors = [];
   const consoleErrors = [];
   const consoleLines = [];
