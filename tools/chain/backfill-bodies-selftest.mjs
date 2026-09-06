@@ -34,7 +34,10 @@ import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { classify, storeBasePath, bodyUrl, bareHash } from './backfill-bodies.mjs';
+import {
+  classify, storeBasePath, bodyUrl, bareHash,
+  txCountFromNoteDelta, bucketize, summarise, NOTE_HASHES_PER_TX,
+} from './backfill-bodies.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TOOL = join(HERE, 'backfill-bodies.mjs');
@@ -62,6 +65,38 @@ const body = (h, extra = 64) =>
 // `blocks` maps block number -> array of tx hashes the block will claim.
 
 let blocks = {};
+// `hiddenFromHeaders` names blocks whose txs the note-hash tree will pretend
+// never happened — the header says empty, the body says otherwise. `skew` names
+// blocks whose tree grows by a number that is not a whole tx. Both exist because
+// the bulk path DERIVES counts from headers, and a derivation nobody has watched
+// be wrong is indistinguishable from one that cannot be.
+let hiddenFromHeaders = new Set();
+let skew = {};
+let getBlocksCalls = 0;
+
+/** The note-hash leaf index after block n, as the mock's headers report it. */
+function noteIndexAfter(n) {
+  let leaves = 0;
+  for (const k of Object.keys(blocks).map(Number).sort((a, b) => a - b)) {
+    if (k > n) break;
+    if (!hiddenFromHeaders.has(k)) leaves += blocks[k].length * NOTE_HASHES_PER_TX;
+    leaves += skew[k] ?? 0;
+  }
+  return leaves;
+}
+
+const header = (n) => ({
+  number: n,
+  header: {
+    totalManaUsed: blocks[n].length ? '0x2710' : '0x0',
+    state: { partial: {
+      noteHashTree: { nextAvailableLeafIndex: noteIndexAfter(n) },
+      nullifierTree: { nextAvailableLeafIndex: noteIndexAfter(n) + 128 },
+      publicDataTree: { nextAvailableLeafIndex: 0 },
+    } },
+  },
+});
+
 const node = createServer((req, res) => {
   let raw = '';
   req.on('data', (d) => { raw += d; });
@@ -71,6 +106,15 @@ const node = createServer((req, res) => {
       res.writeHead(200, { 'content-type': 'application/json' })
          .end(JSON.stringify({ jsonrpc: '2.0', id, result }));
     if (method === 'node_getNodeInfo') return reply(NODE_INFO);
+    if (method === 'node_getBlocks') {
+      getBlocksCalls++;
+      const [start, limit] = params;
+      const out = [];
+      for (let n = start; n < start + limit; n++) {
+        if (blocks[n] !== undefined) out.push(header(n));
+      }
+      return reply(out);
+    }
     if (method === 'node_getBlock') {
       const n = params[0];
       const txs = blocks[n];
@@ -91,7 +135,9 @@ const node = createServer((req, res) => {
 
 let answers = {};
 let answerEverything = false;   // the "a 200 means nothing" mutation
+let storeRequests = 0;          // so "fetched nothing" can be checked, not claimed
 const store = createServer((req, res) => {
+  storeRequests++;
   const m = /^\/mainnet\/txs\/([^/]+)\/txs\/0x([0-9a-f]{64})\.bin$/.exec(req.url);
   if (!m) return res.writeHead(404).end();
   const [, prefix, h] = m;
@@ -336,16 +382,170 @@ console.error('\ncase 10 — the transaction count is measured, with the range i
      r.report.range.blocksServed === 4 && r.report.range.blocksNotServed === 7);
 }
 
+// ── case 11 — counting a block from its header alone ────────────────────────
+//
+// The bulk path never sees a body for most of the chain. What it sees is how far
+// the note-hash tree moved, and the ONLY reason that is a transaction count is
+// the fixed-size padded subtree. So the arithmetic is pinned here, including the
+// two shapes of growth that are not a count and must not be floored into one.
+
+console.error('\ncase 11 — transactions per block, derived from the note-hash tree');
+{
+  ck('control: growth of exactly one subtree is exactly one transaction',
+     txCountFromNoteDelta(0, 64).count === 1);
+  ck('control: no growth is no transactions — the common case on this chain',
+     txCountFromNoteDelta(4096, 4096).count === 0);
+  ck('control: nine subtrees of growth is nine transactions',
+     txCountFromNoteDelta(1000 * 64, 1009 * 64).count === 9);
+  const partial = txCountFromNoteDelta(0, 100);
+  bite('mutation: growth that is not a whole number of subtrees is NOT a count — '
+     + 'flooring 100 leaves to one transaction would invent the answer',
+       partial.ok === false && /multiple/.test(partial.reason));
+  const shrank = txCountFromNoteDelta(128, 64);
+  bite('mutation: an append-only tree that shrank is refused, not read as -1',
+       shrank.ok === false && /shrank/.test(shrank.reason));
+  bite('mutation: a header with no leaf index yields no count rather than NaN',
+       txCountFromNoteDelta(undefined, 64).ok === false);
+}
+
+// ── case 12 — the distribution keeps the shape a mean destroys ──────────────
+
+console.error('\ncase 12 — burstiness survives being reported');
+{
+  // 18 transactions inside one window and none in the next three: the shape this
+  // campaign has already once flattened into a rate.
+  const perBlock = new Map();
+  for (let n = 1; n <= 4000; n++) perBlock.set(n, 0);
+  perBlock.set(120, 18);
+  const w = bucketize(perBlock, 1, 4000, 1000);
+  ck('control: the windows tile the range with no gap and no overlap',
+     w.length === 4 && w[0].from === 1 && w[0].to === 1000
+     && w[3].to === 4000 && w.reduce((a, b) => a + b.blocks, 0) === 4000);
+  ck('the burst stays in the window that held it', w[0].transactions === 18);
+  bite('mutation: the three empty windows are REPORTED as zero, not dropped — '
+     + 'dropping them is exactly what turns a bursty series into a rate',
+       w.filter((x) => x.transactions === 0).length === 3);
+  const s = summarise(w);
+  ck('the summary says the median window held nothing while the max held 18, '
+     + 'so the mean of 4.5 is visibly a number no window ever held',
+     s.median === 0 && s.max === 18 && s.mean === 4.5 && s.emptyWindows === 3
+     && s.total === 18);
+  let threw = false;
+  try { bucketize(perBlock, 1, 10, 0); } catch { threw = true; }
+  bite('mutation: a zero-width window is refused rather than looping forever', threw);
+}
+
+// ── case 13 — the bulk path agrees with the path it replaces ───────────────
+//
+// The bulk path exists to make a 75k-block enumeration affordable. It is only
+// worth having if it gets the SAME ANSWER as the per-block path it replaces, so
+// both are run over the same mock chain and required to agree — and then the
+// headers are made to lie, to check that the disagreement is caught rather than
+// inherited.
+
+console.error('\ncase 13 — bulk header derivation, checked against the bodies');
+{
+  const h = (n) => hash(n);
+  blocks = { 9: [], 10: [], 11: [h(11), h(12)], 12: [], 13: [h(13)], 14: [], 15: [],
+             16: [h(16), h(17), h(18)], 17: [], 18: [], 19: [], 20: [h(20)] };
+  answers = Object.fromEntries(
+    Object.values(blocks).flat().map((x) => [bareHash(x), body(x)]));
+
+  hiddenFromHeaders = new Set(); skew = {};
+  getBlocksCalls = 0;
+  const bulk = await run(['--bulk-headers', '--window', '5']);
+  const plain = await run([]);
+  ck('control: the bulk path and the per-block path enumerate the same count',
+     bulk.report.range.transactionsEnumerated === 7
+     && plain.report.range.transactionsEnumerated === 7);
+  ck('the bulk path actually used the bulk method — otherwise this case is '
+     + 'testing the per-block path twice and would pass with the feature removed',
+     getBlocksCalls > 0 && bulk.report.enumeration.strategy === 'bulk-headers+bodies');
+  ck('the derivation opened only the blocks it said were non-empty, plus the '
+     + 'sample of the ones it said were empty',
+     bulk.report.enumeration.headerDerivation.blocksDerivedNonEmpty === 4
+     && bulk.report.enumeration.headerDerivation.blocksIndeterminate === 0);
+  ck('control: an honest chain produces no anomalies and exits 0',
+     bulk.report.enumeration.anomalies.length === 0 && bulk.code === 0);
+  ck('the distribution carries the windows, not just a total',
+     bulk.report.enumeration.windows.length === 3
+     && bulk.report.enumeration.distribution.total === 7
+     && bulk.report.enumeration.windows[0].transactions === 3);
+
+  // MUTATION: the header understates block 16, so the derivation calls it empty.
+  // Phase D opens a sample of the blocks called empty precisely so this is found.
+  hiddenFromHeaders = new Set([16]);
+  const lying = await run(['--bulk-headers']);
+  bite('mutation: a header that understates a block is caught by opening blocks '
+     + 'the derivation called EMPTY — a rule checked only where it fires is not checked',
+       lying.report.enumeration.anomalies.some(
+         (a) => a.kind === 'derived-empty-but-body-has-transactions' && a.block === 16)
+       && lying.code === 1);
+  bite('and the understated transactions are still counted, from the body that '
+     + 'has them rather than the header that denied them',
+       lying.report.range.transactionsEnumerated === 7);
+
+  // MUTATION: growth that is not a whole transaction must not be floored.
+  hiddenFromHeaders = new Set(); skew = { 13: 7 };
+  const skewed = await run(['--bulk-headers']);
+  bite('mutation: a block whose tree grew by a fraction of a transaction is '
+     + 'INDETERMINATE and gets opened, not counted from the arithmetic',
+       skewed.report.enumeration.headerDerivation.blocksIndeterminate >= 1
+       && skewed.report.range.transactionsEnumerated === 7);
+  skew = {};
+}
+
+// ── case 14 — enumeration is not a download ────────────────────────────────
+//
+// The count and the corpus are different questions. Settling the count must not
+// cost the ~GB that fetching every body costs, and "it did not fetch them" is
+// checked against the store's own request counter rather than asserted.
+
+console.error('\ncase 14 — --enumerate-only answers the count without fetching bodies');
+{
+  const h = (n) => hash(n);
+  blocks = { 9: [], 10: [], 11: [h(11), h(12)], 12: [h(13)] };
+  answers = Object.fromEntries(
+    Object.values(blocks).flat().map((x) => [bareHash(x), body(x)]));
+
+  storeRequests = 0;
+  const only = await run(['--enumerate-only', '--bulk-headers']);
+  const requestsWhileEnumerating = storeRequests;
+  ck('control: the count is produced in full',
+     only.report.range.transactionsEnumerated === 3
+     && only.report.enumeration.transactionsFromPerBlockCounts === 3);
+  bite('mutation: the store was asked for NOTHING — not a body, not even a '
+     + 'negative control, because this run answers a question the store is not part of',
+       requestsWhileEnumerating === 0
+       && only.report.range.bodiesAttempted === 0
+       && only.report.controls.length === 0);
+
+  storeRequests = 0;
+  const withBodies = await run(['--bulk-headers']);
+  bite('control arm: the same range WITHOUT the flag does hit the store, so the '
+     + 'zero above is the flag working rather than a mock that never answers',
+       storeRequests > 0 && withBodies.report.counts.verified === 3);
+
+  ck('a completed pass says so, and says how far it got',
+     only.report.completion.complete === true
+     && only.report.completion.reachedBlock === 20
+     && only.report.completion.rpcCalls > 0);
+}
+
 // ── done ────────────────────────────────────────────────────────────────────
 
 node.close(); store.close();
 await rm(dir, { recursive: true, force: true });
 console.error('');
-if (asserted !== 31) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 31 — a case was added, removed or skipped.`);
+if (asserted !== 54) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 54 — a case was added, removed or skipped.`);
   failed++;
 } else {
   console.error(`assertion count: ${asserted} (as declared)`);
+}
+if (getBlocksCalls === 0) {
+  console.error('THE BULK HEADER PATH WAS NEVER EXERCISED — case 13 measured nothing.');
+  failed++;
 }
 if (failed) { console.error(`FAIL — ${failed} problem(s)`); process.exit(1); }
 console.error('PASS — the verifier refuses on every path it is supposed to');
