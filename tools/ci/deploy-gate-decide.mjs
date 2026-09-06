@@ -6,7 +6,7 @@
 // `tools/ci/deploy-gate.mjs` collects those facts and
 // `.github/workflows/deploy.yml` acts on the answer. Everything that could be
 // wrong about the POLICY is therefore testable offline, which is what
-// `tools/ci/deploy-gate-selftest.mjs` does.
+// `tools/ci/deploy-gate-decide-selftest.mjs` does.
 //
 // ── What was true before this existed ──────────────────────────────────────
 //
@@ -122,7 +122,7 @@ export const PUBLISH_BRANCHES = Object.freeze(["live", "staging", "dev"]);
  * wider one, with a ten-and-a-half-hour red streak across all three
  * publishing branches — is deliberately NOT in it.
  *
- * `deploy-gate-selftest.mjs` asserts that every name here is a real job key
+ * `deploy-gate-decide-selftest.mjs` asserts that every name here is a real job key
  * in `.github/workflows/ci.yml`. A required job that does not exist would
  * make this gate refuse every deploy forever, and a rename is the ordinary
  * way that happens.

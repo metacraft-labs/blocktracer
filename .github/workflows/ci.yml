@@ -321,7 +321,7 @@ jobs:
         # actually carries `needs: ci-verdict` and an `if:` on its output.
         # Those are the two ways the gate rots into a formality, and neither is
         # visible from inside the decision function.
-        run: node tools/ci/deploy-gate-selftest.mjs
+        run: node tools/ci/deploy-gate-decide-selftest.mjs
 
       # ── the chain capture tooling, for this job's own stated reason ──────
       #

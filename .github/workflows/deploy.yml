@@ -58,7 +58,7 @@ name: Deploy
 #     `needs:` and an explicit `if:` on the gate's output, so a skipped,
 #     cancelled or errored gate job does not read as consent. A gate whose
 #     required job has been renamed out of `ci.yml` REFUSES (G6) rather than
-#     finding nothing to complain about, and `deploy-gate-selftest.mjs` — run
+#     finding nothing to complain about, and `deploy-gate-decide-selftest.mjs` — run
 #     by `ci.yml`'s `deploy-gates` job — asserts the wiring in this very file.
 #
 # PREVIEWS ARE NOT GATED. A `pull_request` deploy goes to the blocktracer-dev

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Does the deploy gate REFUSE? — the proof-of-bite for `deploy-gate-decide.mjs`.
 //
-//   node tools/ci/deploy-gate-selftest.mjs
+//   node tools/ci/deploy-gate-decide-selftest.mjs
 //
 // A gate that has only ever been seen to pass has not been demonstrated. This
 // repository has already shipped a gate whose own selftest was dead code
@@ -418,7 +418,16 @@ const deployYml = readFileSync(resolve(repoRoot, ".github/workflows/deploy.yml")
 const deployCode = deployYml.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
 const ciCode = ciYml.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
 
-const ciJobKeys = [...ciCode.matchAll(/^ {2}([A-Za-z0-9_-]+):$/gm)].map((m) => m[1]);
+// From the `jobs:` line onwards only. Without the slice, `push:`,
+// `pull_request:` and `workflow_dispatch:` in the `on:` block are also
+// two-space keys and would join the job list — a required job could then be
+// "found" in the trigger block. That is the wrong-universe failure this
+// repository names in ci-coverage.sh, in miniature.
+const jobsAt = ciCode.search(/^jobs:$/m);
+const ciJobKeys =
+  jobsAt < 0
+    ? []
+    : [...ciCode.slice(jobsAt).matchAll(/^ {2}([A-Za-z0-9_-]+):$/gm)].map((m) => m[1]);
 check("D0  ci.yml's job list parsed (control — an empty list would pass D1 vacuously)", ciJobKeys.length >= 8, `parsed ${ciJobKeys.length}`);
 
 for (const name of DEFAULT_REQUIRED_JOBS) {
@@ -455,7 +464,7 @@ check(
 
 check(
   "D6  ci.yml runs THIS selftest",
-  /deploy-gate-selftest\.mjs/.test(ciCode),
+  /deploy-gate-decide-selftest\.mjs/.test(ciCode),
   "a proof-of-bite that no job runs is the defect this repository keeps finding",
 );
 
