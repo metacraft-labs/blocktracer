@@ -1,5 +1,22 @@
 {
   "nodes": {
+    "aztec-avm-runtime": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788577840,
+        "narHash": "sha256-xVp/Pv3zPNELncdonKvIsfIYCytmPqqD1P4QcXlvel4=",
+        "owner": "metacraft-labs",
+        "repo": "aztec-avm-runtime",
+        "rev": "75d1592a3d1ab4dc795e04d931c9f268b4973835",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "repo": "aztec-avm-runtime",
+        "rev": "75d1592a3d1ab4dc795e04d931c9f268b4973835",
+        "type": "github"
+      }
+    },
     "codetracer": {
       "flake": false,
       "locked": {
@@ -34,6 +51,23 @@
         "owner": "metacraft-labs",
         "repo": "codetracer-design-system",
         "rev": "dfb1de1b0d86576beb9e9c6d1cf03c5438d1fa95",
+        "type": "github"
+      }
+    },
+    "codetracer-trace-format": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1787768845,
+        "narHash": "sha256-NIMwjX6trVl6C4Rh/5Jg0DLCGMoDO1QYVdjVw/4SbXA=",
+        "owner": "metacraft-labs",
+        "repo": "codetracer-trace-format",
+        "rev": "592fa42cbfd759cf13398180798daaf856eb7e9d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "repo": "codetracer-trace-format",
+        "rev": "592fa42cbfd759cf13398180798daaf856eb7e9d",
         "type": "github"
       }
     },
@@ -107,8 +141,10 @@
     },
     "root": {
       "inputs": {
+        "aztec-avm-runtime": "aztec-avm-runtime",
         "codetracer": "codetracer",
         "codetracer-design-system": "codetracer-design-system",
+        "codetracer-trace-format": "codetracer-trace-format",
         "flake-utils": "flake-utils",
         "isonim": "isonim",
         "nim-everywhere": "nim-everywhere",
