@@ -143,3 +143,11 @@ nimcache/
 # the store path is read-only and the engine has to be copied in beside it.
 /.journey-site/
 /journey-report.json
+
+# The escaping gate's staged hostile corpus (ci/test/untrusted-text.sh). It is
+# DERIVED from a real capture on every run — see tools/ci/hostile-chain-corpus.mjs
+# for why it is not committed — and removed by the gate's EXIT trap. Ignored so
+# an interrupted run cannot leave a poisoned chain where a commit would pick it
+# up, which for this particular fixture would mean publishing `<btprobe>` on a
+# real deploy.
+/client/fixtures/chain/.hostile-gate/

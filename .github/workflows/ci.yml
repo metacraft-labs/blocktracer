@@ -1004,6 +1004,33 @@ jobs:
           nix develop .#ci --command bash -c \
             'cd client && just test-selection-detail-selftest'
 
+      # ── THE UNTRUSTED-TEXT BOUNDARY (M9a / M5) ───────────────────────────
+      #
+      # HERE because this is the job that already renders the site with no
+      # debugger on the Nim path, which is exactly what the gate needs: it
+      # exports over a hostile chain corpus and reads the produced HTML. It is
+      # about six seconds on top of a job that already compiles the exporter.
+      #
+      # WHAT IT GUARDS. Every chain-controlled string the explorer renders —
+      # a bundle's `origin` (a contract's own name), revert reasons, refusal
+      # detail, source FILE PATHS and the source text itself — is escaped today
+      # by isonim's `ui:` macro and by nothing else. `UntrustedText` and the
+      # safe-URL type M9a and M5 specify do not exist; `git grep UntrustedText`
+      # over 822 tracked files returns nothing. So the boundary is an unnamed
+      # property of one macro plus a discipline about `raw`, and the gate is
+      # what makes it a property of the SHIPPED BYTES instead.
+      #
+      # The self-test runs first and is the reason to believe the gate: it
+      # drives all five detectors red against planted breakouts, and drives the
+      # vacuity floor red against a site the payload never reached. Ordered
+      # this way deliberately — a green gate whose detectors are broken is the
+      # exact failure mode a gate like this has.
+      - name: Does the escaping gate bite? (five breakouts, two controls, one floor)
+        run: nix develop .#ci --command ci/test/untrusted-text-test.sh
+
+      - name: No chain-controlled byte becomes markup, over a hostile corpus
+        run: nix develop .#ci --command ci/test/untrusted-text.sh
+
   # ── Journey conformance ────────────────────────────────────────────────────
   # Spec claims, judged in a browser, over the artefact this repository DEPLOYS.
   #
