@@ -56,7 +56,7 @@ export const claim =
 export const spec = "Page-Descriptions.md §7.1 — BlockTracer";
 export const needsEngine = true;
 // 2 subject counts + 2 x 8 shared row questions + 4 served-only + 4 live-only.
-export const assertions = 26;
+export const assertions = 28;
 
 // ── the one reading both arms are judged on ────────────────────────────────
 //
@@ -355,6 +355,40 @@ export async function run({ browser, site, j }) {
 
       const read = await live.evaluate(READ_ROWS);
       judgeRows(j, "LIVE", read.rows, read.witness);
+
+      // ON ARRIVAL, BEFORE ANYTHING IS CLICKED — the state the position
+      // fallback exists for, and the one no LIVE verdict here was taking.
+      //
+      // `P4/no-frame-is-current-on-a-live-session` SURVIVED this journey. Every
+      // LIVE panel verdict below is read AFTER a click, and the click WRITES
+      // the selection — `rowHandler` calls `selectCalltraceFrame`, which sets
+      // `selectedEntry` — so `selectionDetail`'s first loop finds a `current`
+      // frame and the position fallback beneath it is never reached. The arm
+      // removes that fallback. A post-click reading cannot see it go, and the
+      // survival detail says so exactly: `clicked="calculate_damage"
+      // panel="calculate_damage"`.
+      //
+      // The SERVED arm has had this assertion all along ("SERVED: the selection
+      // area names the frame the pane marks as current"). The LIVE arm gathered
+      // the very same data — `READ_ROWS` returns `selection`, and every row
+      // carries `current` — and asserted on neither of them.
+      //
+      // Stated as a pair, because "the panel names the marked frame" is
+      // vacuously true when NO frame is marked and `find` returns undefined:
+      // the count is what makes the absence a failure rather than an empty set.
+      j.countIs(
+        read.rows.filter((r) => r.current).length,
+        1,
+        "LIVE: exactly one frame is current on arrival, before anything is clicked",
+      );
+      const markedLive = read.rows.find((r) => r.current);
+      j.expect(
+        !!markedLive && read.selection?.facts?.Function === markedLive.text,
+        "LIVE: on arrival the selection area names the frame the pane marks",
+        `marked=${JSON.stringify(markedLive?.text)}` +
+          ` panel=${JSON.stringify(read.selection?.facts?.Function)}` +
+          ` heading=${JSON.stringify(read.selection?.heading)}`,
+      );
 
       // THE PANEL IS WHAT MAKES TWO FRAMES OF ONE FUNCTION TELLABLE APART.
       // Click a frame whose name is shared with another frame, and the panel

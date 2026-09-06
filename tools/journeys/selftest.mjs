@@ -1027,7 +1027,45 @@ proc noteFor*`,
       " THIS ARM WAS DEAD AND HAS BEEN REPAIRED: its `find` still carried the" +
       " `and v.controls.step > 0` conjunct that the guard shed when step 0 was" +
       " recognised as a real position, so the string occurred ZERO times and the" +
-      " arm silently proved nothing about the assertion below.",
+      " arm silently proved nothing about the assertion below." +
+      " AND THEN IT SURVIVED, WHICH SAID SOMETHING ABOUT THE PRODUCT AND NOT" +
+      " ABOUT THE JOURNEY. The mutation moved: it was aimed at" +
+      " `session_view.selectionDetail`'s position fallback, and the sentence" +
+      " above — \"`CalltraceVM.selectedEntry` is read and never written\" — has" +
+      " not been true since `selectLandingFrame` landed. There are now TWO" +
+      " writers of `selectedEntry` (`selectCalltraceFrame` on a row click," +
+      " `selectLandingFrame` on the landing), so a frame is marked on every" +
+      " surface a journey reaches: the demo producer marks one on the served" +
+      " page, and the landing seed marks one on a live session. With a frame" +
+      " marked, `selectionDetail`'s FIRST loop always sets `chosen` and the" +
+      " fallback beneath it is unreachable — removing it changed nothing" +
+      " observable, which is what a survival on a correct assertion means." +
+      " Two readings established that rather than assuming it: the arm survived" +
+      " the post-click assertion (`clicked=\"calculate_damage\"" +
+      " panel=\"calculate_damage\"` — the click writes the selection itself), and" +
+      " then survived a newly added ARRIVAL assertion too, which is the reading" +
+      " the fallback would have to be load-bearing for." +
+      " A THIRD READING RULED OUT THE OBVIOUS REPAIR. Re-aiming the mutation at" +
+      " the landing seed's own position walk — `selectLandingFrame`'s" +
+      " `if lines.len == 0: return false` forced true, so the walk never runs —" +
+      " ALSO survived, at \"counted 1, the claim says 1\": a frame was still" +
+      " current on arrival. `selectLandingFrame` tries the recovery ANCHOR first" +
+      " (`if anchor.len > 0 and s.selectCalltraceFrame(anchor): return true`) and" +
+      " returns before the walk, so on this subject the anchor is what marks the" +
+      " frame. That is a third writer standing behind the second." +
+      " SO THIS ARM IS LEFT POINTED AT THE CODE IT IS ABOUT, SURVIVING, AND SAID" +
+      " SO. Retargeting it at whichever writer happens to be reachable would" +
+      " make it a passing arm that no longer names the fallback in its own" +
+      " title, and the honest state of the fallback is: unreachable on every" +
+      " surface the journeys can currently drive, because three separate writers" +
+      " mark a frame before `selectionDetail` ever consults it. Killing this arm" +
+      " needs a SUBJECT, not a stronger assertion — a live session with no" +
+      " recovery anchor whose `visibleLines` are empty at seed time — and the" +
+      " assertion it now names is the one that would see it the moment such a" +
+      " subject exists. The assertion is a genuine gain regardless: this journey" +
+      " gathered `current` on every row and a `selection` panel read, and" +
+      " asserted on NEITHER for the live arm, so nothing checked that a live" +
+      " landing marks a frame at all.",
     file: join(CLIENT, "src", "debugger", "session_view.nim"),
     find: `  if chosen < 0 and v.controls.positioned:
     for i, f in v.calltrace.frames:
@@ -1035,7 +1073,7 @@ proc noteFor*`,
     replace: `  if false:
     discard`,
     journey: "call-trace-names-its-frames-in-full",
-    assertion: "LIVE: selecting a repeated frame makes the panel name that function",
+    assertion: "LIVE: exactly one frame is current on arrival, before anything is clicked",
   },
   {
     id: "SC1/the-scrubber-is-only-an-animation",
