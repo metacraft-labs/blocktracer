@@ -1201,12 +1201,24 @@ proc noteFor*`,
       " 345-step recording: ticks 343 and 344 answered, 345 killed it, and a" +
       " `Home` pressed afterwards did nothing at all. Nothing in the repository" +
       " had ever asked for that coordinate — the drags release at 0.9 — so the" +
-      " one value that ends the session sat exactly where no check looked.",
+      " one value that ends the session sat exactly where no check looked." +
+      " THIS ARM SURVIVED AT \"counted 8, the claim says 8\", and the walk it was" +
+      " aimed at is why. The engine paints the stop on its way down, so" +
+      " `data-step` changes and `End` scores as \"moved\" while the module traps" +
+      " underneath — and `End` is the LAST key the control advertises, so no" +
+      " gesture ever followed it. Everything downstream read a corpse: the" +
+      " tooltip verdict is a DOM attribute read, and a trap inside the replay" +
+      " worker raises no `pageerror` on the document, which is the only thing" +
+      " `probe.mjs` listens for. `settlePosition` had computed `alive` on every" +
+      " reading in the loop and the loop threw all eight away. The arm now names" +
+      " the assertion that presses one more key afterwards — the symptom above," +
+      " stated as a verdict — and it kills with \"alive=false settled=false —" +
+      " Home moved 658 -> 658\".",
     file: join(CLIENT, "hydrate", "hydrate.nim"),
     find: `      of smEnd: lastStep(total)`,
     replace: `      of smEnd: total`,
     journey: "the-timeline-can-be-dragged",
-    assertion: "every key the scrubber advertises moves the session",
+    assertion: "the session still answers a key after every advertised key has been pressed",
   },
   {
     id: "SC8/the-scrubber-stops-naming-its-keys",

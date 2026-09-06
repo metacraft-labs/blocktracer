@@ -76,7 +76,15 @@ export const spec = "Debugger-Integration.md §3, §4.2 — BlockTracer";
 // position that stopped changing" was hiding: a dead session stops changing
 // too, so the liveness of the session at the moment of the reading is now its
 // own claim rather than an assumption inside the settle helper.
-export const assertions = 34;
+//
+// 34 -> 35. The same argument, one gesture later, and the drag verdicts got it
+// while the KEY WALK did not: `settlePosition` computed `alive` on all eight
+// readings and the loop discarded every one. `End` is the last key the control
+// advertises, so a key that kills the session with its final press ends the
+// walk 8 of 8 and nothing after it asks a question — which is how
+// `SC7/End-asks-for-a-coordinate-past-the-end` survived. The session is now
+// asked one more.
+export const assertions = 35;
 export const needsEngine = true;
 
 /** The three fractions every arm drags to. Named once so both arms drag the same. */
@@ -558,6 +566,43 @@ async function demoArm(browser, site, j, subject) {
       advertised.length,
       `every key the scrubber advertises moves the session` +
         ` — answered ${answered.join(" ")}${inert.length ? `; INERT ${inert.join(" ")}` : ""}`,
+    );
+
+    // AND THE SESSION IS STILL ANSWERING AFTERWARDS, WHICH IS A SEPARATE CLAIM.
+    //
+    // `SC7/End-asks-for-a-coordinate-past-the-end` SURVIVED the walk above at
+    // "counted 8, the claim says 8". Its mutation asks for `total` — one past
+    // the last step, because `totalSteps` is a COUNT and the coordinates are
+    // zero-based — and the engine does not refuse that: it PANICS
+    // (`load_local_calltrace: invalid step_id`) and traps the WASM module. It
+    // paints the stop on the way down, so `data-step` changes, `End` scores as
+    // "moved", and the walk ends 8 of 8 having killed the session with its last
+    // gesture.
+    //
+    // Nothing downstream could see it. `End` is the LAST key the control
+    // advertises, so no key was ever pressed after it. The tooltip verdict
+    // below is a DOM attribute read that passes over a corpse. `pageErrors`
+    // cannot help either: a trap inside the replay worker raises no `pageerror`
+    // on the document, and `probe.mjs` registers no worker-error listener.
+    // `settlePosition` has computed `alive` on every one of those readings and
+    // the loop threw it away.
+    //
+    // So the session is asked one more question, which is the arm's own
+    // recorded symptom stated as an assertion: "a `Home` pressed afterwards did
+    // nothing at all". Re-centred first, so `Home` has somewhere to travel from
+    // and a working key cannot read as inert at a boundary.
+    await page.mouse.click(r.x + r.w * 0.5, r.y + r.h / 2);
+    const recentred = await settlePosition(page);
+    await page.focus(".dctl");
+    await page.keyboard.press("Home");
+    const afterKeys = await settlePosition(page);
+    j.expect(
+      afterKeys.alive &&
+        Number(afterKeys.facts.step) !== Number(recentred.facts.step),
+      "the session still answers a key after every advertised key has been pressed",
+      `alive=${afterKeys.alive} settled=${afterKeys.settled}` +
+        ` — Home moved ${recentred.facts.step} -> ${afterKeys.facts.step}` +
+        ` (the last advertised key was ${advertised[advertised.length - 1]})`,
     );
 
     // …and the tooltip a pointer user reads names them too, so the list is not
