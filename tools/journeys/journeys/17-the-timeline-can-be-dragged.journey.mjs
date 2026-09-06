@@ -230,6 +230,7 @@ const servedControl = (page, url) =>
 // `#dbg-engine-failure` carries the sentence `h.fail` writes, and
 // `controlsLive` counts the stepping buttons `markUnavailable` turns `.off`.
 // A settled reading now has to come from a session that is still answering.
+//
 // AND THE QUIET WINDOW IS NO LONGER THE WHOLE TEST, because six seconds of
 // stillness is not the same fact as "the gesture is over".
 //
@@ -290,6 +291,23 @@ const servedControl = (page, url) =>
 // here — and the failure it guards is bounded in the safe direction anyway: too
 // short reports `settled: false`, which is a red naming the gesture, never a
 // green.
+//
+// WHAT IT STILL COSTS, RECORDED HERE SO THE NEXT PERSON DOES NOT HAVE TO
+// REDISCOVER IT FROM A SLOW SHARD. Bounding the wedged case does not make it
+// free: an arm that stops the scrubber answering pays `STALL_MS` on each of
+// this journey's twenty-odd readings instead of the six seconds the old quiet
+// window charged. Measured on `journeys-selftest`:
+//
+//   SC1/the-scrubber-is-only-an-animation   935 s  (~+355 s; it wedges the queue)
+//   SC2/the-handle-waits-for-the-engine     591 s  (unchanged; it does not)
+//   SC7/End-asks-for-a-coordinate-past-the-end  579 s against 575 s before
+//
+// So the cost lands on ONE arm, not the family: only the arms that stop seeks
+// being answered pay it. Against `journeys-bite` shards bounded at
+// `timeout-minutes: 150` and observed running 66–92 min, ~6 added minutes on a
+// single arm has headroom. If a shard ever does time out, this constant is the
+// first place to look — but lower it against a re-measured inter-answer gap,
+// never against the shard clock.
 const STALL_MS = 20000;
 
 async function settlePosition(page, quietMs = 6000, capMs = 90000) {
