@@ -1150,27 +1150,63 @@ jobs:
           path: journey-report.json
           if-no-files-found: warn
 
-  # ── The bite sweep, in four shards ──────────────────────────────────────────
+  # ── The bite sweep, in eight shards ─────────────────────────────────────────
   #
   # WHY THIS IS NOT A STEP ON `journeys` ANY MORE.
   #
   # It was, bounded at `timeout-minutes: 150`, and it could not pass. Measured
   # twice, killed at the bound both times to the second — 33739737152 at 150m13s
   # and 33814944100 at 150m12s. The second got 40 of the 64 arms started and 33
-  # KILLED before it was cut off, which puts the full sweep at 230-280 minutes.
-  # One runner was being parked for 150 minutes to produce a guaranteed failure.
+  # KILLED before it was cut off. One runner was being parked for 150 minutes to
+  # produce a guaranteed failure.
   #
-  # FOUR SHARDS AND NOT A BIGGER BOUND. The runner-hours are about the same
-  # either way (4 x ~70 min against 1 x ~5 h) but the WALL CLOCK is not, and on a
-  # pool that has been at zero idle a single job holding one runner for five
-  # hours blocks deploys for the whole window. A five-hour bound would also be a
-  # guess: 230-280 is a range, and its upper end plus variance sits close enough
-  # to five hours that the bound would be set from an estimate that fails at the
-  # top of its own range — the same defect one size up. Four shards is also what
-  # the only complete pass this suite has ever recorded actually used.
+  # SHARDS AND NOT A BIGGER BOUND. The runner-hours are about the same either way
+  # but the WALL CLOCK is not, and on a pool that has been at zero idle a single
+  # job holding one runner for five hours blocks deploys for the whole window. A
+  # five-hour bound would also be a guess, and a bound set from the top of its own
+  # range is the same defect one size up.
+  #
+  # ── WHY EIGHT, AND NOT THE FOUR THIS USED TO SAY ───────────────────────────
+  #
+  # FOUR STOPPED FITTING, AND THE PROSE HERE DESCRIBED A DESIGN THAT NO LONGER
+  # HELD. It said "4 x ~70 min". Measured on run 33994617616 (79fe0df), all four
+  # shards hit `timeout-minutes: 150` — 151 minutes each, 604 runner-minutes
+  # spent to produce a guaranteed failure, which is the exact waste the paragraph
+  # above was written to avoid.
+  #
+  # THE NUMBERS EIGHT COMES FROM, all from that run's own logs, per-arm, over the
+  # 58 arms that completed across its four shards at the time:
+  #
+  #   58 arms in 559.4 min                     ->  9.65 min/arm
+  #   72 arms in the list                      ->  ~695 min of sweep
+  #   worst shard mean / mean of means         ->  1.17 (682s vs 583s)
+  #
+  #   695 / 8 = 87 min mean shard; x1.17 = ~102 min worst  ->  47% headroom
+  #   695 / 7 = 99 min mean shard; x1.17 = ~116 min worst  ->  29% headroom
+  #
+  # Eight, for that headroom. Seven is inside the variance this suite has already
+  # shown, and the bound is NOT being raised to cover it.
+  #
+  # WHAT IS NOT THE CAUSE, because the obvious suspect was measured and cleared.
+  # `selftest.mjs` began rebuilding all three bundles per arm in 6f106f2. Against
+  # the pre-change control this file already cites (33826955858, df01ab5),
+  # decomposed per arm over the 41 arms present in BOTH runs:
+  #
+  #   rebuild delta (x2 rebuilds/arm)  +13.9 s     6.4% of the regression
+  #   journey-run delta               +202.9 s    94%
+  #   total                           +216.7 s
+  #
+  # The three journey executions per arm roughly doubled between df01ab5 and
+  # 79fe0df and nothing yet explains it — it is not `verdictFor`, not a cache the
+  # rebuild busts, and not uniform pool contention (journey 13's two arms got
+  # 1.7x FASTER over the same window). SHARDING ROUTES AROUND THAT REGRESSION
+  # RATHER THAN FIXING IT, and it is tracked on its own rather than buried in a
+  # shard count. Deleting the per-arm rebuild outright would save 9.7% and still
+  # need seven shards, so it is not the lever — and it is what stopped the sweep
+  # scoring 18 never-ran with 17 of the 18 lines false.
   #
   # `fail-fast: false` IS LOAD-BEARING. With the default, one red shard cancels
-  # its three siblings, they leave no journals, and `--combine` reports DID NOT
+  # its seven siblings, they leave no journals, and `--combine` reports DID NOT
   # RUN — turning a specific, named, surviving arm into "the sweep did not
   # finish". The failure that matters would be hidden by the mechanism reporting
   # it.
@@ -1183,7 +1219,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v4
 
@@ -1220,7 +1256,7 @@ jobs:
         # below would mean anything".
         run: nix develop .#capture --command bash -c 'cd client && just hydrate'
 
-      - name: Do the journeys bite? (shard ${{ matrix.shard }} of 4)
+      - name: Do the journeys bite? (shard ${{ matrix.shard }} of 8)
         # `--shard i/n` slices by STRIDE rather than by contiguous block,
         # deliberately: the expensive arms are adjacent in the list, so a
         # contiguous shard would hold all of them and be the whole problem
@@ -1234,23 +1270,28 @@ jobs:
         # sweep, while three shards plus the rest of this workflow now share a
         # pool observed running four jobs at a time.
         #
-        # So the honest full-sweep cost is ~370 minutes, not the 230-280 first
-        # estimated from the unsharded run — which makes the decision to shard
-        # rather than raise a single bound to five hours the right one for a
-        # stronger reason than the one it was taken on: five hours would not
-        # have been enough either.
+        # THAT ~5.8 MIN/ARM NO LONGER HOLDS EITHER, AND THE SENTENCE THAT USED
+        # TO SIT HERE — "16 x 5.8 is ~93 minutes and this is 150, so the headroom
+        # is ~60%" — DESCRIBED A SHARD THAT NO LONGER EXISTED. Re-measured on run
+        # 33994617616 (79fe0df), over the 58 arms that completed across its four
+        # shards: 559.4 min, which is 9.65 min/arm, and 18 arms a shard put every
+        # one of the four at this bound to the minute.
         #
-        # 16 x 5.8 is ~93 minutes and this is 150, so the headroom is ~60% on a
-        # measured figure rather than a guess about one. It is still a bound: a
-        # sweep that stalls stops, and `journeys-combine` names the shard.
+        # At 8 shards it is 9 arms a shard: 9 x 9.65 is ~87 minutes against 150,
+        # and the worst shard ran 1.17x the mean, so ~102 minutes worst case and
+        # ~47% headroom. That is the number this bound is now justified by. It is
+        # still a bound: a sweep that stalls stops, and `journeys-combine` names
+        # the shard.
         #
         # IF THIS ONE IS ALSO EXCEEDED, raise the SHARD COUNT and not this
-        # number. Wall-clock to a verdict is what sharding buys, and buying it
-        # back with a longer bound gives up the reason for the split.
+        # number, and RE-MEASURE rather than scaling the old figure — it has been
+        # wrong twice now, in the same direction, because the journeys' own cost
+        # moved underneath it. Wall-clock to a verdict is what sharding buys, and
+        # buying it back with a longer bound gives up the reason for the split.
         timeout-minutes: 150
         run: |
           nix develop .#capture --command \
-            vd0-capture-env node tools/journeys/selftest.mjs --shard ${{ matrix.shard }}/4
+            vd0-capture-env node tools/journeys/selftest.mjs --shard ${{ matrix.shard }}/8
 
       - name: The shard's journal
         # `always()`: a shard that was killed still leaves a journal saying it
@@ -1261,13 +1302,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: journey-selftest-journal-${{ matrix.shard }}
-          path: tools/journeys/.selftest-journal.shard-${{ matrix.shard }}of4.json
+          path: tools/journeys/.selftest-journal.shard-${{ matrix.shard }}of8.json
           # THE JOURNAL'S NAME BEGINS WITH A DOT, and `upload-artifact@v4`
           # excludes hidden files BY DEFAULT. Every one of the four uploads in
           # run 33826955858 therefore did nothing, and said so at warning level:
           #
           #     ##[warning]No files were found with the provided path:
-          #     tools/journeys/.selftest-journal.shard-2of4.json.
+          #     tools/journeys/.selftest-journal.shard-2of8.json.
           #     No artifacts will be uploaded.
           #
           # The run's artifact list held `visual-design-canary` and
@@ -1276,7 +1317,7 @@ jobs:
           # `error`, NOT `warn`. A shard with no journal is not a cosmetic
           # problem — it is precisely the state that leaves `--combine` unable
           # to judge, and at `warn` it was reported two hours later, in another
-          # job, as "4 of 4 shard(s) produced no verdict". The combine was right
+          # job, as "8 of 8 shard(s) produced no verdict". The combine was right
           # and it was the wrong place to find out. A missing journal must be
           # loud in the job that failed to produce it.
           #
@@ -1286,13 +1327,13 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # ── ONE verdict over the four shards ────────────────────────────────────────
+  # ── ONE verdict over the eight shards ───────────────────────────────────────
   #
   # `--combine` is not an OR of passes. It fails unless the shards' arms unioned
   # are EXACTLY the arm list — every arm once, none missing, none twice, none
   # left over from an older list — and every one of them killed. A shard that
   # produced no journal is named, by index, as DID NOT RUN rather than as a
-  # failure: "three of four shards passed" is not a claim about the suite.
+  # failure: "seven of eight shards passed" is not a claim about the suite.
   #
   # `if: always()`: it must run even when a shard went red, because a red shard
   # is precisely when the distinction between "an arm survived" and "a shard
@@ -1324,7 +1365,7 @@ jobs:
       - name: What arrived
         # Printed before the verdict, so a run whose combine says DID NOT RUN
         # shows on its face whether the journal was absent or merely unfinished.
-        run: ls -la tools/journeys/.selftest-journal.shard-*of4.json || true
+        run: ls -la tools/journeys/.selftest-journal.shard-*of8.json || true
 
-      - name: Every arm, over the four shards, exactly once
-        run: node tools/journeys/selftest.mjs --combine 4
+      - name: Every arm, over the eight shards, exactly once
+        run: node tools/journeys/selftest.mjs --combine 8

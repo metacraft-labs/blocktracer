@@ -194,7 +194,7 @@ fi
 
 echo ""
 echo "=== probe 5: the SHARDING partitions the arm list, exactly ==="
-# CI runs this suite as four shards because one job cannot finish it inside any
+# CI runs this suite as eight shards because one job cannot finish it inside any
 # bound worth setting. That trade is only safe if the four shards are a
 # PARTITION: every arm in exactly one of them, and their union the whole list.
 #
@@ -206,7 +206,10 @@ echo "=== probe 5: the SHARDING partitions the arm list, exactly ==="
 #
 # `--list-shard` reports the slice THROUGH `shardOf`, the same function `main`
 # slices with, so this is a proof about what runs and not about a model of it.
-SH=4
+# THIS NUMBER TRACKS `ci.yml`'s MATRIX, and a proof taken over a different
+# partition than the one CI runs is a proof about nothing CI does. It moved 4 ->
+# 8 with the matrix; if the matrix moves again, this moves with it.
+SH=8
 rm -f "$LOGS"/shard-*
 all="$LOGS/all-arms"
 node tools/journeys/selftest.mjs --list-arms | sort > "$all"
@@ -347,7 +350,10 @@ rc=$?
 grep -q "shard 2/$SH: NO JOURNAL" "$LOGS/c4"
 ck "6d/a shard that never ran is named, by index" $?
 grep -q "RESULT: DID NOT RUN" "$LOGS/c4"
-ck "6d/and three passing shards do NOT combine to a pass" $?
+# DERIVED FROM $SH, not written out. It said "three" while $SH was 4 and would
+# have gone on saying "three" at 8 — a sentence describing a check does not get
+# corrected when the check does.
+ck "6d/and the other $((SH - 1)) passing shards do NOT combine to a pass" $?
 [ "$rc" -eq 2 ]
 ck "6d/exits 2 (did-not-run), not 0 and not 1 (got $rc)" $?
 
