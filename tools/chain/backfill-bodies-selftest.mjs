@@ -1,0 +1,351 @@
+#!/usr/bin/env node
+// backfill-bodies-selftest.mjs — proof that `backfill-bodies.mjs` REFUSES.
+//
+//   node tools/chain/backfill-bodies-selftest.mjs
+//
+// WHY THIS EXISTS. `backfill-bodies.mjs` accepts transaction bodies from a
+// SINGLE UNTRUSTED SOURCE with no failover, and the only thing standing between
+// that source and the corpus is one rule: the leading 32 bytes of a correct
+// payload are the key that was requested. A verifier that has never been
+// observed refusing is not known to verify — it is indistinguishable from
+// `return true`. So every refusal path is driven here, and each one is paired
+// with the passing control it must differ from.
+//
+// THE LIVE CHAIN CANNOT PRODUCE THESE CASES ON DEMAND. Aztec's file store has
+// answered every real key it was asked for; a mismatched payload, a truncated
+// one, and a rate limit are exactly the answers it does not give, which is why
+// they are driven against a MOCK STORE whose answers this test chooses. The one
+// thing the mock does NOT get to choose is the verifier — the tool under test is
+// spawned as a subprocess, so what is exercised is the code that runs.
+//
+// THE THREE COUNTS THAT MUST NOT COLLAPSE. `absent` says the corpus has a hole,
+// `mismatched` says the corpus lied, and `unavailable` says the run could not
+// ask. Cases 2-4 assert that a single run reports all three as separate numbers
+// rather than as one "failed" — folding them would hide the failure the design
+// exists to catch, and would let a rate limit masquerade as a missing body.
+//
+// Each case has a control arm and a mutation arm, and the assertion count is
+// declared at the bottom.
+
+import { mkdtemp, writeFile, rm, readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, dirname } from 'node:path';
+import { createServer } from 'node:http';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+import { classify, storeBasePath, bodyUrl, bareHash } from './backfill-bodies.mjs';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const TOOL = join(HERE, 'backfill-bodies.mjs');
+
+let asserted = 0, failed = 0;
+const ck = (label, cond) => { asserted++; if (!cond) { failed++; console.error(`  FAIL  ${label}`); } else console.error(`  ok    ${label}`); };
+const bite = (label, cond) => { asserted++; if (!cond) { failed++; console.error(`  FAIL  MUTATION DID NOT BITE  ${label}`); } else console.error(`  bite  ${label}`); };
+
+// ── the deployment the mock node claims to be ───────────────────────────────
+
+const NODE_INFO = {
+  nodeVersion: '5.2.0-mock',
+  l1ChainId: 1,
+  rollupVersion: 4248422647,
+  l1ContractAddresses: { rollupAddress: '0x91ff8bbd8ebb07893010d50a48a1609e5ebd8e34' },
+};
+const BASE_PATH = storeBasePath(NODE_INFO);
+
+const hash = (n) => `0x${String(n).padStart(2, '0').repeat(32).slice(0, 64)}`;
+/** A body is its own hash, then payload. That is the whole contract. */
+const body = (h, extra = 64) =>
+  Buffer.concat([Buffer.from(bareHash(h), 'hex'), Buffer.alloc(extra, 0x5a)]);
+
+// ── the mock node ───────────────────────────────────────────────────────────
+// `blocks` maps block number -> array of tx hashes the block will claim.
+
+let blocks = {};
+const node = createServer((req, res) => {
+  let raw = '';
+  req.on('data', (d) => { raw += d; });
+  req.on('end', () => {
+    const { id, method, params } = JSON.parse(raw);
+    const reply = (result) =>
+      res.writeHead(200, { 'content-type': 'application/json' })
+         .end(JSON.stringify({ jsonrpc: '2.0', id, result }));
+    if (method === 'node_getNodeInfo') return reply(NODE_INFO);
+    if (method === 'node_getBlock') {
+      const n = params[0];
+      const txs = blocks[n];
+      if (txs === undefined) return reply(null);
+      const head = { header: { totalManaUsed: txs.length ? '0x2710' : '0x0' } };
+      if (params[1]?.includeTransactions) {
+        head.body = { txEffects: txs.map((h) => ({ txHash: h })) };
+      }
+      return reply(head);
+    }
+    reply(null);
+  });
+});
+
+// ── the mock store ──────────────────────────────────────────────────────────
+// `answers` maps a bare hash -> what the store will do with it. Anything not
+// named 404s, which is what the real store does.
+
+let answers = {};
+let answerEverything = false;   // the "a 200 means nothing" mutation
+const store = createServer((req, res) => {
+  const m = /^\/mainnet\/txs\/([^/]+)\/txs\/0x([0-9a-f]{64})\.bin$/.exec(req.url);
+  if (!m) return res.writeHead(404).end();
+  const [, prefix, h] = m;
+  if (answerEverything) return res.writeHead(200).end(body(hash(99)));
+  // The prefix is load-bearing: a real key under a wrong deployment path is not
+  // this deployment's body, and the real store 404s it.
+  if (prefix !== BASE_PATH) return res.writeHead(404).end();
+  const a = answers[h];
+  if (a === undefined) return res.writeHead(404).end();
+  if (typeof a === 'number') return res.writeHead(a).end();
+  res.writeHead(200, { 'content-type': 'application/octet-stream' }).end(a);
+});
+
+await new Promise((r) => node.listen(0, '127.0.0.1', r));
+await new Promise((r) => store.listen(0, '127.0.0.1', r));
+const NODE_URL = `http://127.0.0.1:${node.address().port}`;
+const STORE_URL = `http://127.0.0.1:${store.address().port}/mainnet/txs`;
+
+const dir = await mkdtemp(join(tmpdir(), 'bt-backfill-selftest-'));
+const CONFIG = join(dir, 'network_config.json');
+await writeFile(CONFIG, JSON.stringify({
+  mainnet: { txCollectionFileStoreUrls: [STORE_URL] },
+  twoSource: { txCollectionFileStoreUrls: [STORE_URL, STORE_URL] },
+  noStore: { bootnodes: [] },
+}));
+
+/** Run the tool and hand back its exit code and parsed report. */
+function run(extra = []) {
+  return new Promise((resolve) => {
+    // `extra` goes FIRST, because the tool reads the first occurrence of a flag —
+    // so a case that wants a different `--network` gets one. Appending it instead
+    // let two cases silently run against the default, and both of their mutations
+    // stopped biting without either of them failing loudly.
+    const p = spawn(process.execPath, [
+      TOOL, ...extra, '--url', NODE_URL, '--config', CONFIG, '--network', 'mainnet',
+      '--from', '10', '--to', '20', '--quiet',
+    ], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '', err = '';
+    p.stdout.on('data', (d) => { out += d; });
+    p.stderr.on('data', (d) => { err += d; });
+    p.on('close', (code) => {
+      let report = null;
+      try { report = JSON.parse(out); } catch { /* refusals print no report */ }
+      resolve({ code, report, err, out });
+    });
+  });
+}
+
+// ── case 1 — the leading-32-bytes rule, in isolation ────────────────────────
+
+console.error('\ncase 1 — a payload is verified against the key that was requested');
+{
+  const h = hash(1);
+  ck('control: a payload whose first 32 bytes are the key verifies',
+     classify(h, 200, body(h)).outcome === 'verified');
+  const flipped = body(h); flipped[7] ^= 0xff;
+  const v = classify(h, 200, flipped);
+  bite('mutation: one byte flipped INSIDE the key is a mismatch, not a body',
+       v.outcome === 'mismatched' && v.saw !== h);
+  const tail = body(h); tail[40] ^= 0xff;
+  ck('control: a byte flipped OUTSIDE the key does not change the verdict — '
+     + 'this rule is about the key, and claiming more would be a lie',
+     classify(h, 200, tail).outcome === 'verified');
+  bite('mutation: a payload too short to carry a key is `truncated`, not `verified`',
+       classify(h, 200, body(h).subarray(0, 31)).outcome === 'truncated');
+  bite('mutation: another transaction\'s intact body under this key is a mismatch',
+       classify(h, 200, body(hash(2))).outcome === 'mismatched');
+}
+
+// ── case 2 — the three counts stay three counts ─────────────────────────────
+
+console.error('\ncase 2 — absent, mismatched and unavailable are reported separately');
+{
+  const [a, b, c, d] = [hash(11), hash(12), hash(13), hash(14)];
+  blocks = { 10: [], 11: [a, b], 12: [c, d], 13: [] };
+  const wrong = body(hash(77)); // 200, but the wrong key inside
+  answers = {
+    [bareHash(a)]: body(a),        // verified
+    [bareHash(b)]: wrong,          // mismatched
+    // c is simply absent — the store 404s anything it does not name
+    [bareHash(d)]: 503,            // unavailable
+  };
+  const r = await run();
+  const k = r.report?.counts ?? {};
+  ck('control: the verified body is counted verified', k.verified === 1);
+  ck('the 404 is counted `absent` and nothing else', k.absent === 1);
+  bite('the 200-with-the-wrong-key is counted `mismatched`, NOT absent and NOT verified',
+       k.mismatched === 1 && k.absent === 1 && k.verified === 1);
+  bite('the 503 is counted `unavailable`, NOT `absent` — a rate limit is a fact '
+     + 'about the run, and must not masquerade as a missing body',
+       k.unavailable === 1 && k.absent === 1);
+  ck('every enumerated hash lands in exactly one outcome',
+     Object.values(k).reduce((x, y) => x + y, 0) === 4
+     && r.report.range.transactionsEnumerated === 4);
+  ck('each refusal is named with its hash, its block and a reason — an absence '
+     + 'with no stated reason is indistinguishable from a broken feature',
+     r.report.refusals.length === 3
+     && r.report.refusals.every((x) => x.txHash && x.reason.length > 40
+                                   && Number.isInteger(x.blockNumber)));
+  bite('a mismatch makes the run fail: the corpus contradicted itself',
+       r.code === 1);
+}
+
+// ── case 3 — a clean range exits 0, so case 2's exit 1 means something ──────
+
+console.error('\ncase 3 — the control arm for case 2\'s exit code');
+{
+  const [a, b] = [hash(21), hash(22)];
+  blocks = { 10: [], 11: [a], 12: [b] };
+  answers = { [bareHash(a)]: body(a), [bareHash(b)]: body(b) };
+  const r = await run();
+  ck('control: every key resolving to a self-verifying body exits 0',
+     r.code === 0 && r.report.counts.verified === 2
+     && r.report.counts.mismatched === 0);
+  ck('the hash count equals the body count over the range',
+     r.report.range.transactionsEnumerated === r.report.counts.verified);
+}
+
+// ── case 4 — an absent body alone does not fail the run ─────────────────────
+
+console.error('\ncase 4 — a hole is reported, not silently lowered, and is not a mismatch');
+{
+  const [a, b] = [hash(31), hash(32)];
+  blocks = { 10: [], 11: [a], 12: [b] };
+  answers = { [bareHash(a)]: body(a) };     // b is absent
+  const r = await run();
+  ck('a gap NAMES the hash rather than lowering the expectation',
+     r.report.range.transactionsEnumerated === 2
+     && r.report.counts.verified === 1 && r.report.counts.absent === 1
+     && r.report.refusals[0].txHash === b);
+  ck('an absence is not a corpus contradiction, so it does not exit 1',
+     r.code === 0);
+}
+
+// ── case 5 — the negative controls are checks, not prose ───────────────────
+
+console.error('\ncase 5 — a 200 is measured against two things that fail');
+{
+  const a = hash(41);
+  blocks = { 10: [], 11: [a] };
+  answers = { [bareHash(a)]: body(a) };
+  answerEverything = false;
+  const good = await run();
+  ck('control: against an honest store both negative controls pass',
+     good.report.controls.length === 2 && good.report.controls.every((c) => c.pass));
+
+  answerEverything = true;   // a store that says 200 to anything
+  const bad = await run();
+  bite('mutation: a store that answers everything fails the negative controls, '
+     + 'because then a 200 does not mean it holds the key',
+       bad.report.controls.some((c) => !c.pass) && bad.code === 1);
+  answerEverything = false;
+}
+
+// ── case 6 — the store location is derived, never guessed ───────────────────
+
+console.error('\ncase 6 — the location is a configuration fact');
+{
+  ck('control: the path segment is built from the node\'s own answer',
+     BASE_PATH === 'aztec-1-4248422647-0x91ff8bbd8ebb07893010d50a48a1609e5ebd8e34');
+  let threw = false;
+  try { storeBasePath({ l1ChainId: 1, l1ContractAddresses: {} }); } catch { threw = true; }
+  bite('mutation: a node that will not say which rollup it serves yields no path',
+       threw);
+  const r = await run(['--network', 'noStore']);
+  bite('mutation: a network whose config declares no txCollectionFileStoreUrls is '
+     + 'refused, not defaulted to a pasted URL',
+       r.code === 1 && /no txCollectionFileStoreUrls/.test(r.err));
+  ck('control: the URL is assembled from base, derived path and key',
+     bodyUrl('https://x/mainnet/txs', BASE_PATH, hash(1))
+       === `https://x/mainnet/txs/${BASE_PATH}/txs/${hash(1)}.bin`);
+}
+
+// ── case 7 — the unmet redundancy rule is recorded, not relaxed ─────────────
+
+console.error('\ncase 7 — one source is reported as one source');
+{
+  const a = hash(51);
+  blocks = { 10: [], 11: [a] };
+  answers = { [bareHash(a)]: body(a) };
+  const one = await run();
+  ck('a single declared source records the two-source rule as UNMET',
+     one.report.redundancy.met === false && /UNMET/.test(one.report.redundancy.note));
+  const two = await run(['--network', 'twoSource']);
+  bite('control arm: two declared sources do not report it unmet, so the flag is '
+     + 'reading the config rather than hard-coded',
+       two.report.redundancy.met === true);
+}
+
+// ── case 8 — mirroring is not publishing ───────────────────────────────────
+
+console.error('\ncase 8 — a save into the published corpus is refused');
+{
+  const a = hash(61);
+  blocks = { 10: [], 11: [a] };
+  answers = { [bareHash(a)]: body(a) };
+  const ok = join(dir, 'mirror');
+  const r = await run(['--save', ok]);
+  ck('control: a verified body mirrors to an ordinary directory',
+     r.code === 0 && (await readdir(ok)).includes(`${hash(61)}.bin`));
+
+  const forbidden = join(dir, 'client', 'fixtures', 'chain', 'x');
+  const bad = await run(['--save', forbidden]);
+  bite('mutation: a save inside client/fixtures/ is refused — the store publishes '
+     + 'no terms, so anything derived from it is forbidden to publish until that '
+     + 'is clarified',
+       bad.code === 1 && /publishing surface/.test(bad.err));
+  ck('the report says publication is not permitted, and says why',
+     r.report.publication.permitted === false
+     && /forbidden until clarified/.test(r.report.publication.reason));
+}
+
+// ── case 9 — an unverified payload is never written ─────────────────────────
+
+console.error('\ncase 9 — only a body that verified reaches the mirror');
+{
+  const [a, b] = [hash(71), hash(72)];
+  blocks = { 10: [], 11: [a, b] };
+  answers = { [bareHash(a)]: body(a), [bareHash(b)]: body(hash(88)) };
+  const out = join(dir, 'mirror2');
+  const r = await run(['--save', out]);
+  const written = await readdir(out);
+  ck('control: the verified body is on disk', written.includes(`${a}.bin`));
+  bite('mutation: the mismatched payload is NOT on disk — it is not a body, and a '
+     + 'mirror of it would be a corpus entry the store cannot vouch for',
+       !written.includes(`${b}.bin`) && written.length === 1
+       && r.report.counts.mismatched === 1);
+}
+
+// ── case 10 — enumeration counts what the chain published ──────────────────
+
+console.error('\ncase 10 — the transaction count is measured, with the range it covers');
+{
+  blocks = { 10: [], 11: [hash(81), hash(82), hash(83)], 12: [], 13: [hash(84)] };
+  answers = Object.fromEntries([81, 82, 83, 84].map((n) => [bareHash(hash(n)), body(hash(n))]));
+  const r = await run();
+  ck('the count is the sum of the blocks\' txEffects, and carries its range',
+     r.report.range.transactionsEnumerated === 4
+     && r.report.range.blocksWithTransactions === 2
+     && r.report.range.from === 10 && r.report.range.to === 20);
+  ck('heights the node does not serve are counted, not silently dropped',
+     r.report.range.blocksServed === 4 && r.report.range.blocksNotServed === 7);
+}
+
+// ── done ────────────────────────────────────────────────────────────────────
+
+node.close(); store.close();
+await rm(dir, { recursive: true, force: true });
+console.error('');
+if (asserted !== 31) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 31 — a case was added, removed or skipped.`);
+  failed++;
+} else {
+  console.error(`assertion count: ${asserted} (as declared)`);
+}
+if (failed) { console.error(`FAIL — ${failed} problem(s)`); process.exit(1); }
+console.error('PASS — the verifier refuses on every path it is supposed to');

@@ -12,12 +12,24 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# FOUR suites — 87 + 19 + 24 + 24 = 154 counted assertions — over the four
+# FIVE suites — 87 + 19 + 24 + 24 + 31 = 185 counted assertions — over the five
 # decisions the capture path makes that nothing else can check afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
 # called frozen (`freeze-snapshot-selftest`), when a supervised watch is
-# allowed to stop (`watch-chain-selftest`), and which call frames a container's
-# event stream folds (`calltrace-fold-selftest`).
+# allowed to stop (`watch-chain-selftest`), which call frames a container's
+# event stream folds (`calltrace-fold-selftest`), and whether a payload the
+# transaction file store returned is the body that was asked for
+# (`backfill-bodies-selftest`).
+#
+# The last one guards a source with NO SECOND OPINION. Aztec transaction bodies
+# come from one publisher with no failover, and the only thing between it and
+# the corpus is that a correct payload serialises its own hash first — so the
+# leading 32 bytes are the key that was requested. That check is the whole of
+# the trust model, and a check never observed refusing is indistinguishable
+# from `return true`. The suite drives a mismatched payload, a truncated one, a
+# 404 and a rate limit against a mock store, and asserts they stay FOUR
+# different counts: a hole in the corpus, a corpus that lied, and a run that
+# could not ask are three different facts.
 #
 # The count said "three suites, 124" while the recipe ran four: the fold suite
 # was wired in with the folded Call Trace and the sentence above it was not
@@ -31,8 +43,9 @@ test:
 # was found dead, and these three were in it: the only evidence they could go
 # red was that someone had once watched them.
 #
-# All four are OFFLINE and toolchain-free — plain node plus bash, a mock node
-# for the freeze gate, recorded driver output for the replay rule, and for the
+# All five are OFFLINE and toolchain-free — plain node plus bash, a mock node
+# for the freeze gate, a mock node AND a mock file store for the body verifier,
+# recorded driver output for the replay rule, and for the
 # fold suite an event stream reconstructed from the committed sidecars rather
 # than read out of a `.ct` with `ct-print` — so they run
 # on a stock runner and are wired into CI's `deploy-gates` job for exactly the
@@ -43,6 +56,7 @@ chain-selftest:
     node tools/chain/freeze-snapshot-selftest.mjs
     bash tools/chain/watch-chain-selftest.sh
     node tools/chain/calltrace-fold-selftest.mjs
+    node tools/chain/backfill-bodies-selftest.mjs
 
 # ── what a frozen capture would have measured ──────────────────────────────
 #
