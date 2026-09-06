@@ -1940,6 +1940,39 @@ proc gotoTicks(h: Hydration; ticks: int; onRefused: proc() = nil;
       if onSettled != nil: onSettled()
       h.fail("The replay engine stopped answering: " & message))
 
+proc publishSeekOutstanding(h: Hydration) =
+  ## WHETHER THE GESTURE HAS FINISHED, said by the queue that knows.
+  ##
+  ## `data-seek-outstanding` is `"1"` while a seek has been sent and not
+  ## answered, or one is waiting to be sent, and `"0"` when the scrubber has
+  ## nothing left to do. It is the same kind of publication as
+  ## `data-reveal-seq`: state that is otherwise invisible because its whole
+  ## expression is something NOT changing.
+  ##
+  ## WHY IT HAD TO EXIST. A drag's result can only be judged once the gesture is
+  ## over, and the only way to ask that question was "has `data-step` held still
+  ## for a while?" — which is a stopwatch pretending to be a predicate. It is
+  ## wrong in both directions: a session that DIED holds one step forever, and a
+  ## single seek that takes longer than the window holds one step while the
+  ## answer is still in flight. The second is not hypothetical. On this
+  ## repository's 790-step chain capture a seek costs 1.4 s on the workstation
+  ## this was written on and 10.0 s at a CPU throttle of 15, and journey 17's
+  ## six-second window therefore read three drags mid-flight and reported them
+  ## as landing at 16, 73 and 237 when the release points were 593, 237 and 435
+  ## — the product having in fact arrived at every one of them, later. The
+  ## harness was wrong, and it was wrong in the expensive direction: it accused
+  ## a correct scrubber of dropping the visitor somewhere they only dragged
+  ## through, which is the one defect `scrub_queue.nim` exists to prevent and
+  ## the reading that gets a gate switched off.
+  ##
+  ## A DURATION CANNOT BE MADE RIGHT BY MAKING IT LARGER. Whatever number is
+  ## chosen is a bet about the slowest machine that will ever run this, and the
+  ## bet is lost silently. The queue already holds the answer exactly; this
+  ## publishes it.
+  h.ui.root.setAttribute(
+    "data-seek-outstanding",
+    (if h.scrubQ.inFlight or h.scrubQ.pending > 0: "1" else: "0").cstring)
+
 proc scrubSend(h: Hydration; step: int)
 
 proc scrubDrain(h: Hydration) =
@@ -1950,6 +1983,7 @@ proc scrubDrain(h: Hydration) =
   ## and for the drag that ended at step 707 when it was handed one. All this
   ## does is turn its answer into a request.
   h.scrubSend(h.scrubQ.drain())
+  h.publishSeekOutstanding()
 
 proc scrubSend(h: Hydration; step: int) =
   ## Put `step` on the wire, if the queue said to.
@@ -1960,6 +1994,12 @@ proc scrubSend(h: Hydration; step: int) =
   if step <= 0: return
   h.gotoTicks(step, onSettled = proc() =
     h.scrubQ.settled()
+    # PUBLISHED BEFORE THE DEFERRAL AND AGAIN AFTER IT, because the gap between
+    # them is a state and not a seam: the slot is free, the pending target has
+    # not yet been sent, and a reader that sampled here would see "nothing in
+    # flight" on a gesture with a seek still to come. `pending > 0` is what
+    # keeps the answer `"1"` across it.
+    h.publishSeekOutstanding()
     # DEFERRED, and carrying nothing. `deferTick` says why the send waits for
     # the next turn of the loop; `scrub_queue.drain` says why what it sends is
     # decided then rather than now.
@@ -1977,6 +2017,7 @@ proc scrubSeek(h: Hydration; step: int) =
   ## doing at the time — which is the property the journey asserts, because
   ## "the handle stopped there" would be true of a decoration.
   h.scrubSend(h.scrubQ.request(step))
+  h.publishSeekOutstanding()
 
 proc sendBreakpoints(h: Hydration; path: string) =
   ## Tell the engine the breakpoints for ONE file.

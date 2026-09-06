@@ -135,6 +135,28 @@ function requirePlaywright() {
  * Nothing is swallowed and nothing degrades: no journey runs, and the run says
  * why.
  */
+/**
+ * SLOW THE MACHINE DOWN ON PURPOSE, because the interesting reds are the ones
+ * that only appear on a slower one.
+ *
+ * `JOURNEY_CPU_THROTTLE=N` applies CDP `Emulation.setCPUThrottlingRate`, which
+ * divides the renderer's and the worker's CPU by N. It is a DIAGNOSTIC knob and
+ * it is off unless the variable is set, so an unset run is byte-for-byte the run
+ * this file did before.
+ *
+ * Why this rather than borrowing a runner: the two things that differ between
+ * this workstation and the CI host are speed and machine, and speed is the one
+ * every fixed wait in this directory is written against. A throttle reproduces
+ * the CONDITION; re-running in CI only reproduces the verdict, and a verdict
+ * does not say which wait ran out.
+ */
+export async function applyCpuThrottle(page) {
+  const rate = Number(process.env.JOURNEY_CPU_THROTTLE ?? "1");
+  if (!(rate > 1)) return;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate });
+}
+
 export async function openBrowser() {
   const chromium = requirePlaywright();
   try {
@@ -199,6 +221,11 @@ export const readFacts = (page) =>
       step: root?.getAttribute("data-step") ?? null,
       totalSteps: root?.getAttribute("data-total-steps") ?? null,
       trace: root?.getAttribute("data-trace") ?? null,
+      // IS THE SCRUBBER STILL WORKING? Written by `publishSeekOutstanding`,
+      // which is the scrub queue's own state rather than a guess made from how
+      // long `data-step` has held still. Absent on a session that has never
+      // been scrubbed, and that reads correctly as "nothing outstanding".
+      seekOutstanding: root?.getAttribute("data-seek-outstanding") === "1",
 
       // ---- the source pane ---------------------------------------------------
       srclines: count(".srcline"),
@@ -698,6 +725,7 @@ export async function visit(
   const page = viewport
     ? await (await browser.newContext({ viewport })).newPage()
     : await browser.newPage();
+  await applyCpuThrottle(page);
   // BEFORE `goto`, which is the only moment that is any use: a route registered
   // after navigation would be installed around a request already in progress.
   for (const pattern of holdRoutes ?? []) {

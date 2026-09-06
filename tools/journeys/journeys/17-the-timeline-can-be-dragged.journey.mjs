@@ -84,7 +84,12 @@ export const spec = "Debugger-Integration.md §3, §4.2 — BlockTracer";
 // walk 8 of 8 and nothing after it asks a question — which is how
 // `SC7/End-asks-for-a-coordinate-past-the-end` survived. The session is now
 // asked one more.
-export const assertions = 35;
+//
+// 35 -> 36. The chain arm's drags were judged on readings it never checked were
+// the gesture's result. See "REAL: each drag ran to a LIVE session with no seek
+// still outstanding" — the demo arm's equivalent has existed since the `alive`
+// correction and this arm, the slow one, had no version of it.
+export const assertions = 36;
 export const needsEngine = true;
 
 /** The three fractions every arm drags to. Named once so both arms drag the same. */
@@ -193,15 +198,18 @@ const servedControl = (page, url) =>
  * nothing. So this waits for the session to stop moving and the caller then
  * compares wherever it stopped against wherever the pointer was released.
  *
- * THE QUIET WINDOW IS SIX SECONDS AND THAT NUMBER IS MEASURED. A real chain
- * capture answers a seek in about 2.1 s and was observed taking 3.0; the first
- * draft of this helper accepted 750 ms of stillness and therefore declared the
- * session settled while a seek was still in flight, reporting three chain drags
- * as landing on step 7, 32 and 32 when the drop points were 259, 104 and 190.
- * It was the harness that was wrong, and it was wrong in the expensive
- * direction — a gate that cries wolf gets switched off, and then it is not
- * there for the real one. The window has to clear the SLOWEST seek, not the
- * typical one.
+ * THE QUIET WINDOW IS SIX SECONDS AND THAT NUMBER WAS MEASURED — on one
+ * machine, which is why it stopped being the test. A real chain capture answers
+ * a seek in about 2.1 s and was observed taking 3.0; the first draft of this
+ * helper accepted 750 ms of stillness and therefore declared the session settled
+ * while a seek was still in flight, reporting three chain drags as landing on
+ * step 7, 32 and 32 when the drop points were 259, 104 and 190. It was the
+ * harness that was wrong, and it was wrong in the expensive direction — a gate
+ * that cries wolf gets switched off, and then it is not there for the real one.
+ *
+ * Raising the window to six seconds did not fix that; it moved it to a slower
+ * host, where the same reading came back. The block below the next one is the
+ * actual correction, and the window survives only as a floor beneath it.
  */
 // A DEAD SESSION STOPS CHANGING TOO, and that is what this used to report as
 // settled.
@@ -222,6 +230,40 @@ const servedControl = (page, url) =>
 // `#dbg-engine-failure` carries the sentence `h.fail` writes, and
 // `controlsLive` counts the stepping buttons `markUnavailable` turns `.off`.
 // A settled reading now has to come from a session that is still answering.
+// AND THE QUIET WINDOW IS NO LONGER THE WHOLE TEST, because six seconds of
+// stillness is not the same fact as "the gesture is over".
+//
+// The window above was measured, and the measurement was of the wrong machine.
+// It cleared a 2.1–3.0 s seek on the workstation it was taken on; CI is slower,
+// and a seek that takes longer than the window holds `data-step` still WHILE ITS
+// ANSWER IS IN FLIGHT. This helper then declared the session settled mid-seek
+// and the caller compared a position the drag was still travelling through
+// against the point the pointer was released at. Run 34018128849 is that
+// failure: three chain drags reported as landing at 16, 73 and 237 for release
+// points 593, 237 and 435 — and the same three drags reproduce here at
+// `JOURNEY_CPU_THROTTLE=15`, where the session is measured ARRIVING at 593, 237
+// and 435 after 8.3, 10.5 and 10.0 s. The product was right every time.
+//
+// THE FIX IS NOT A BIGGER NUMBER. Whatever duration went in would be a bet
+// about the slowest machine that will ever run this, lost silently, and this
+// campaign has set a bound from the top of its own estimated range twice and had
+// it fail there. `data-seek-outstanding` is the scrub queue's own answer to the
+// question the stopwatch was approximating — see `publishSeekOutstanding` in
+// `client/hydrate/hydrate.nim` — so the wait is now a predicate over the
+// product's state and has no number in it that a faster or slower host can
+// falsify.
+//
+// The window is KEPT on top of it rather than replaced by it. It costs six
+// seconds and it covers the paths that do not go through the scrub queue at all,
+// where the attribute is absent and reads — correctly — as "nothing
+// outstanding". Requiring both is strictly stronger than requiring either.
+//
+// `alive` NOW ALSO ENDS THE WAIT, and that is not a shortcut. A session whose
+// engine has trapped never clears `data-seek-outstanding` — nothing answers, so
+// nothing settles the slot — so a loop that waited for the flag alone would sit
+// out the full cap on every reading, which on the eight-key walk below is twelve
+// minutes of waiting to learn something the first reading already knew. The
+// caller records `alive` and asserts on it; this returns as soon as it is false.
 async function settlePosition(page, quietMs = 6000, capMs = 90000) {
   const deadline = Date.now() + capMs;
   const period = 500;
@@ -231,11 +273,17 @@ async function settlePosition(page, quietMs = 6000, capMs = 90000) {
   const aliveIn = (f) => f.engineNotice === "" && f.controlsLive > 0;
   while (Date.now() < deadline) {
     const f = await readFacts(page);
-    if (f.step === last) {
+    // The corpse case, answered at once and reported as what it is.
+    if (!aliveIn(f)) return { facts: f, settled: false, alive: false, quiet: false };
+    if (f.step === last && !f.seekOutstanding) {
       if (++stable >= need) {
-        return { facts: f, settled: aliveIn(f), alive: aliveIn(f), quiet: true };
+        return { facts: f, settled: true, alive: true, quiet: true };
       }
     } else {
+      // A seek in flight RESETS the count rather than merely failing to advance
+      // it: the window is meant to measure stillness after the engine went idle,
+      // and stillness during an outstanding answer is the thing it was
+      // mistaking for that.
       stable = 0;
       last = f.step;
     }
@@ -678,6 +726,29 @@ async function chainArm(browser, site, j, subject) {
       drags.filter((d) => d.handleFollowed).length,
       drags.length,
       "REAL: the handle stayed under the pointer even while the engine lagged behind it",
+    );
+
+    // THE PRECONDITION THE VERDICT BELOW HAD BEEN ASSUMING, AND THIS ARM ALONE
+    // HAD NEVER STATED.
+    //
+    // The demo arm has carried "every drag left a LIVE session at a position
+    // that stopped changing" since the `alive` correction; this arm — the one
+    // the header calls the interesting one, on the engine that is 45x slower —
+    // computed `settled`, `alive` and `quiet` for every drag and asserted none
+    // of them. So a reading taken while the engine was still travelling was
+    // indistinguishable from a reading taken after it arrived, and the next
+    // assertion compared the first kind against the release point and called
+    // the product broken. That is exactly what run 34018128849 reported.
+    //
+    // Stated BEFORE the landing verdict, because it is that verdict's
+    // antecedent: "the drag finished somewhere else" is a claim worth making
+    // only about a drag that finished. A run where the engine never goes idle
+    // now fails HERE, saying the gesture never completed, instead of failing
+    // below with a position that was never the gesture's result.
+    j.countIs(
+      drags.filter((d) => d.settled && d.alive).length,
+      drags.length,
+      "REAL: each drag ran to a LIVE session with no seek still outstanding, so there is a result to judge",
     );
     j.countIs(
       drags.filter((d) => d.landedAtDrop).length,
