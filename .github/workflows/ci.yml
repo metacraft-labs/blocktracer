@@ -1002,15 +1002,35 @@ jobs:
         # serving the pre-hydration page and passing.
         run: nix build .#default
 
-      - name: Stage it, and copy the replay engine to its own origin
-        # §5.1: `new Worker(scriptURL)` requires a same-origin script, so the
-        # engine is COPIED rather than linked — the same step, from the same
-        # script, that deploy-cloudflare-pages.yml runs.
+      - name: Fetch the replay engine into the cache
+        # THE STAGING OF `.journey-site` USED TO BE THIS STEP TOO, AND IT HAD TO
+        # MOVE BELOW THE SELFTEST. `lib/site.mjs` refuses to drive a tree that
+        # PREDATES its own source, and the verdict selftest writes to
+        # `client/src/components/debugger.nim` — it applies
+        # `A/no-position-mark`'s mutation and writes the original bytes back, six
+        # times over its four signal probes. Staged first, `.journey-site` was
+        # therefore older than a source file by the time the journeys ran:
+        #
+        #     PROVENANCE REFUSED (stale): the tree at .journey-site PREDATES its own source.
+        #         built:  assets/search.js                     2026-09-06 01:48:57Z
+        #         source: client/src/components/debugger.nim   2026-09-06 01:53:18Z
+        #
+        # THE GATE IS RIGHT AND IS NOT WEAKENED. It says the bytes about to be
+        # driven cannot contain that source change, which is true, and it is the
+        # same class of refusal `requireFreshBundle` makes one layer down. What
+        # was wrong is the ORDER: nothing may write to `client/src` between the
+        # staging and the run. So the copy now happens after the selftest, and
+        # the artefact is staged from the same `result` either way — `nix build`
+        # is hermetic and does not see the working tree, so moving the COPY moves
+        # only the mtimes, which is exactly the thing that was wrong.
+        #
+        # This was invisible until now: on 779c702 the selftest step failed, so
+        # the journeys step never ran and never reached the gate.
+        #
+        # The FETCH stays here, above the selftest, because the selftest needs
+        # it: `stageEngine` refuses a run with no complete engine in the cache,
+        # and that refusal is now raised rather than swallowed.
         run: |
-          rm -rf .journey-site && mkdir -p .journey-site
-          cp -R result/. .journey-site/
-          chmod -R u+w .journey-site
-          # INTO THE CACHE, and let the runner stage from there.
           #
           # The engine used to be fetched straight into `.journey-site/`, and the
           # selftest step below then reported NEVER RAN for its two hydration
@@ -1074,6 +1094,21 @@ jobs:
         run: |
           nix develop .#capture --command \
             vd0-capture-env bash tools/journeys/selftest-verdict-test.sh
+
+      - name: Stage the deploy artefact, and copy the engine to its own origin
+        # AFTER the selftest, and the step above it says why: the selftest writes
+        # to `client/src`, and `lib/site.mjs` refuses a staged tree older than
+        # its own source. Staging last is what makes the artefact's mtimes
+        # postdate every write this job performs.
+        #
+        # §5.1: `new Worker(scriptURL)` requires a same-origin script, so the
+        # engine is COPIED rather than linked — `lib/engine.mjs` copies the cache
+        # fetched above into whichever `--dist` it is given, which is the same
+        # step, from the same script, that deploy-cloudflare-pages.yml runs.
+        run: |
+          rm -rf .journey-site && mkdir -p .journey-site
+          cp -R result/. .journey-site/
+          chmod -R u+w .journey-site
 
       - name: The journeys, over the deployed artefact
         # THE EXIT CODE IS READ, NOT JUST PROPAGATED.
