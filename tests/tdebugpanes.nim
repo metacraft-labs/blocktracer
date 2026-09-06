@@ -525,6 +525,66 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       s.close()
       dispose()
 
+  test "a source-less recording says WHY, in the pane that has no rows to say it beside":
+    ## THE DEFECT, PINNED IN THE ONE PLACE A BROWSER CANNOT PIN IT.
+    ##
+    ## `NoSourceOriginNote` was reachable only from the pane's NON-EMPTY
+    ## branch — `session_project` set it after `note`'s early return, and
+    ## `renderState` drew it after `values.len == 0`'s. So the recording that
+    ## cannot trace a value (the one with no values) was the one recording that
+    ## could not display the reason, and the pane rendered its empty state with
+    ## the explanation sitting one branch away.
+    ##
+    ## Journey 07 selects that arm's subject with `!hasRecordedState` and reads
+    ## `#pane-state .stnote`. It found nothing — but only on a machine slow
+    ## enough to read the pane before the locals reply landed, so the same tree
+    ## was RED in CI and GREEN on an idle workstation. A journey cannot be asked
+    ## to lose a race on demand; this states the invariant directly instead.
+    ##
+    ## Whether a value can be traced is a property of the RECORDING, known from
+    ## `sourcePublished` at construction. It does not become unknown while a
+    ## request is in flight, and it does not stop being worth saying because
+    ## there is no row to say it beside.
+    createRoot proc(dispose: proc()) =
+      let mock = newMockBackendService(autoRespond = true)
+      let s = openLiveSession(mock.toBackendService(), sourceIsPublished = false)
+      s.store.setSessionMode(completedReplay)
+      s.store.updateDebuggerPosition(175'u64, file = "src/shield.nr", line = 6)
+      let view = projectSession(s, "src/shield.nr", ShieldNr, 175, 1315)
+
+      # THE EMPTY PANE IS THE STATE UNDER TEST, not an incidental detail: no
+      # locals reply has put a row on screen, so `note` speaks and the sentence
+      # has nothing to hang beside. Asserted rather than assumed — if a reply
+      # ever did land here the test would be judging the other branch, which is
+      # the branch that already worked.
+      check view.state.values.len == 0
+      check view.state.note.len > 0
+
+      let html = panes.renderState(view.state)
+      check "class=\"stnote\"" in html
+      check NoSourceOriginNote in html
+
+      s.close()
+      dispose()
+
+  test "a recording that DID publish source says nothing about origin":
+    ## The other direction, so the check above cannot be satisfied by a pane
+    ## that states the sentence unconditionally. A blanket note would pass every
+    ## assertion journey 07 makes about the source-less capture and would be
+    ## wrong on every session that can actually trace a value — the same shape
+    ## as `VD2/every-value-is-marked-changed`, one pane over.
+    createRoot proc(dispose: proc()) =
+      let (s, _) = openSessionWith()   # sourceIsPublished = true
+      s.store.setSessionMode(completedReplay)
+      s.store.updateDebuggerPosition(175'u64, file = "src/shield.nr", line = 6)
+      let view = projectSession(s, "src/shield.nr", ShieldNr, 175, 1315)
+
+      check view.state.originNote.len == 0
+      check "class=\"stnote\"" notin panes.renderState(view.state)
+
+      s.close()
+      dispose()
+
   test "the arrangement over SDK data is still the model's, not a copy":
     createRoot proc(dispose: proc()) =
       let s = openSession()

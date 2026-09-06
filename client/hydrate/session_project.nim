@@ -889,7 +889,6 @@ proc projectState*(vm: StateVM; feed: LocalsFeed; ticks: uint64): StatePane =
   ## is what makes `renderPanes`' latch replace the statically exported one —
   ## the served frame's values are never left standing as a fallback.
   result.note = feed.noteFor(ticks, vm.currentVariables.val.len)
-  if result.note.len > 0: return
   # WHY NO VALUE HERE CAN BE TRACED, when none can — said once, and said only
   # for the recording that cannot rather than for the value that happened not
   # to be. The origin classifier parses the right-hand side of a source
@@ -898,8 +897,33 @@ proc projectState*(vm: StateVM; feed: LocalsFeed; ticks: uint64): StatePane =
   # will stay there. Stating it is the correct behaviour for those sessions,
   # and it is what the alternative — a row of controls that each answer
   # "unknown" — would have hidden.
+  #
+  # SET BEFORE `note`'s EARLY RETURN, AND THAT ORDER IS THE WHOLE FIX.
+  #
+  # It used to be set after, which made the sentence conditional on the pane
+  # having rows — and `noteFor` returns a sentence for EVERY state that is not
+  # "this position's values are in the store". So the recording this text was
+  # written for was the one recording that could not display it:
+  #
+  #   * while the engine is answering, `noteFor` is `ReadingNote`, this proc
+  #     returned here, and the pane explained nothing about origin for the
+  #     whole settle window;
+  #   * on a recording with no state at all — `!hasRecordedState`, which is
+  #     exactly how journey 07 SELECTS this arm's subject — `noteFor` is
+  #     `NoValuesNote` at every position, so the sentence was unreachable
+  #     forever rather than briefly.
+  #
+  # The first of those is what journey 07 caught: it read the pane before the
+  # locals reply landed and found an unexplained absence, and it did so only on
+  # a machine slow enough to lose the race — CI red, this workstation green, on
+  # byte-identical trees. Whether a value can be traced to its origin is a
+  # property of the RECORDING, known at session construction from
+  # `sourcePublished`, and it does not become unknown while a request is in
+  # flight. So it is stated unconditionally and the note goes on deciding only
+  # whether there are ROWS to state it beside.
   if not feed.sourcePublished:
     result.originNote = NoSourceOriginNote
+  if result.note.len > 0: return
   for v in vm.currentVariables.val:
     let summary = vm.originSummaryFor(v.name)
     # WHAT THE LAST MOTION CHANGED, from the position the session came from.

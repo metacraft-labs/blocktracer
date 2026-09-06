@@ -1574,10 +1574,40 @@ proc renderCallTrace*(p: CallTracePane): string =
           span: text "By call order."
           a(class = "ctsort", href = "#" & SelfCostViewId): text "Self cost"
 
+proc originStNote(note: string): string =
+  ## WHY NO VALUE IN THIS PANE CAN BE TRACED, when none can.
+  ##
+  ## Said once for the pane, not once per row: it is a property of the
+  ## RECORDING, and repeating it beside every value would read as a per-value
+  ## failure rather than as the one fact it is.
+  ##
+  ## A proc rather than markup inlined at the one call site it used to have,
+  ## because it now has two — the pane with rows and the pane with a sentence
+  ## in place of them — and §7.1's "rendered in two places … from one source,
+  ## and the two cannot be allowed to diverge" applies to this as much as to
+  ## the facts.
+  ui:
+    tdiv(class = "stnote"): text note
+
 proc renderState*(p: StatePane): string =
+  # THE ORIGIN SENTENCE OUTLIVES THE ROWS, and that is the fix.
+  #
+  # This proc used to reach the sentence only after the `values.len == 0`
+  # early return, so the pane could say why a value cannot be traced ONLY when
+  # it had values to trace — and a recording with no values is precisely the
+  # one that cannot trace them. Journey 07 selects this arm's subject with
+  # `!hasRecordedState`, so the sentence was structurally unreachable for the
+  # exact population it was written for, and the pane rendered its empty state
+  # while the explanation sat one branch away. An unexplained absence is
+  # indistinguishable from a feature that broke.
+  #
+  # `session_project` holds the other half: it now sets `originNote` before
+  # `note`'s own early return, so the sentence is also there during the settle
+  # window rather than appearing only once the engine has answered.
+  let origin = if p.originNote.len > 0: originStNote(p.originNote) else: ""
   if p.values.len == 0:
     return paneNote(if p.note.len > 0: p.note else:
-      "Variable values come from the execution trace.")
+      "Variable values come from the execution trace.") & origin
   ui:
     tdiv(class = "st"):
       for v in p.values:
@@ -1618,11 +1648,9 @@ proc renderState*(p: StatePane): string =
                    `data-name` = v.name,
                    title = "Trace to origin: " & v.origin):
               text "origin"
-      # Said once for the pane, not once per row: it is a property of the
-      # RECORDING, and repeating it beside every value would read as a
-      # per-value failure rather than as the one fact it is.
-      if p.originNote.len > 0:
-        tdiv(class = "stnote"): text p.originNote
+      # Said once for the pane, not once per row — see `originStNote`, which
+      # is also what the empty pane above draws.
+      raw origin
 
 proc renderEventLog*(p: EventLogPane): string =
   if p.rows.len == 0:
