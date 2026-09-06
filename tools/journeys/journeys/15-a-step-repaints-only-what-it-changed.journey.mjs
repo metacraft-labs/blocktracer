@@ -595,13 +595,45 @@ export async function run({ browser, site, j }) {
     // longer than a frame. It makes the MUTATED tree blink at all six positions,
     // 3 of 3 — and it makes the UNMUTATED tree blink at all six positions too,
     // 3 of 3. An instrument that reddens a correct tree is not an instrument.
-    // That result is itself worth a look by someone with time for it: the guard
-    // is supposed to hold the paint until the values land, `LocalsDeadlineMs` is
-    // 8000 ms so no timeout is involved, and a 220 ms engine still produces the
-    // contradictory frame. Either the guard does not cover every paint path or
-    // it is a race the product usually wins rather than a guarantee. NOT CLAIMED
-    // AS A DEFECT HERE — it is one measurement, and the journey it would belong
-    // to is this one.
+    //
+    // THAT RESULT NOW HAS A CAUSE, AND IT IS THE FIRST OF THE TWO THIS NOTE
+    // OFFERED: the guard does not cover every paint path.
+    //
+    // `renderAfterMove` is, by its own doc comment, "the ONLY paint in this file
+    // that is held at all", and `settlingPosition` is consulted nowhere else.
+    // But `hydrate.nim` installs THREE immediate repaint callbacks:
+    //
+    //     h.session.locals.onApplied      = ... h.render()
+    //     h.session.navigation.onApplied  = ... h.render()
+    //     h.session.flowWindow.onApplied  = ... h.render()
+    //
+    // The first is harmless — by the time locals land, the values ARE the
+    // values. The other two are not. The Call Trace / Event Log sections and
+    // the flow window arrive on their OWN round trips, which do not wait on the
+    // locals round trip, so either can land while a move is still settling and
+    // call `render` — an immediate, synchronous, ungated paint of the new
+    // position with the Values pane still empty. That is the contradiction this
+    // verdict forbids, produced by a tree with no mutation in it.
+    //
+    // It is also exactly why delaying locals reddens the correct tree: the delay
+    // does not slow the navigation and flow replies, so it GUARANTEES they win
+    // the race and paint first. The instrument was reporting a real defect and
+    // was blamed for it.
+    //
+    // The obvious repair is the one this file's product-side comment records as
+    // already tried and reverted — "the first version deferred EVERY paint", and
+    // two unrelated journeys went red because a call-trace section arriving is
+    // not a move. The narrower form that comment leaves room for is to defer
+    // those two paints ONLY while `settlingPosition()` is true, which is the
+    // condition that distinguishes "a fact arrived" from "a fact arrived in the
+    // middle of a move". NOT MADE HERE: it is a product change whose blast
+    // radius is every journey that reads a pane, and it wants its own run.
+    //
+    // What this means for the verdict below: FL2's kills have never been the
+    // assertion catching the mutation, they have been the machine losing a race
+    // the product usually wins. The guard is a race, not a guarantee, on any
+    // tree — which is the same shape as the arm found tonight to have been
+    // "killed" for its whole life by a race rather than by its assertion.
     //
     // So what the floor below DOES close is a different and real hole found on
     // the way: nothing asserted the sampler's duty cycle, so a run whose clock
