@@ -370,7 +370,7 @@ for (const c of controls) log(`control    ${c.pass ? 'ok  ' : 'FAIL'} ${c.name} 
 
 const counts = Object.fromEntries(OUTCOMES.map((o) => [o, 0]));
 const refusals = [];        // every key that did not end `verified`, by name
-let bytesFetched = 0, bytesSaved = 0;
+let bytesFetched = 0, bytesSaved = 0, bytesVerified = 0;
 let done = 0;
 
 async function handle(key) {
@@ -381,12 +381,16 @@ async function handle(key) {
   counts[verdict.outcome]++;
   if (verdict.outcome !== 'verified') {
     refusals.push({ ...key, url, httpStatus: r.status, ...verdict });
-  } else if (saveDir) {
-    // Mirrored only on request, and only after it verified. An unverified
-    // payload is not a body and does not get written anywhere.
-    const p = join(resolve(saveDir), `0x${bareHash(key.txHash)}.bin`);
-    writeFileSync(p, r.bytes);
-    bytesSaved += r.bytes.length;
+  } else {
+    // Only verified bytes count toward the mean body size — averaging in a
+    // payload that was refused would describe a corpus that was not accepted.
+    bytesVerified += r.bytes.length;
+    if (saveDir) {
+      // Mirrored only on request, and only after it verified. An unverified
+      // payload is not a body and does not get written anywhere.
+      writeFileSync(join(resolve(saveDir), `0x${bareHash(key.txHash)}.bin`), r.bytes);
+      bytesSaved += r.bytes.length;
+    }
   }
   done++;
   if (!quiet && done % 10 === 0) log(`  … ${done}/${fetchKeys.length}`);
@@ -465,8 +469,8 @@ const report = {
           + 'clarified, which gates PUBLICATION of anything derived from these bodies '
           + 'and does not gate ingesting, mirroring or verifying them.',
   },
-  bytes: { fetched: bytesFetched, saved: bytesSaved,
-           meanBodySize: fetchKeys.length ? Math.round(bytesFetched / Math.max(1, counts.verified)) : 0 },
+  bytes: { fetched: bytesFetched, verified: bytesVerified, saved: bytesSaved,
+           meanVerifiedBodySize: counts.verified ? Math.round(bytesVerified / counts.verified) : null },
   refusals,
 };
 
