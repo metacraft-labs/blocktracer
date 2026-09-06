@@ -264,28 +264,65 @@ const servedControl = (page, url) =>
 // out the full cap on every reading, which on the eight-key walk below is twelve
 // minutes of waiting to learn something the first reading already knew. The
 // caller records `alive` and asserts on it; this returns as soon as it is false.
+// A SEEK THAT NEVER LANDS IS NOT A SLOW SEEK, and telling them apart cheaply is
+// what `STALL_MS` is for.
+//
+// Waiting on `data-seek-outstanding` alone has a cost the quiet window did not:
+// a build whose scrubber never answers holds the flag at `"1"` for ever, so
+// every reading in this file would run to `capMs`. That is not hypothetical
+// either — it is what several `SC*` mutation arms DO, deliberately, and this
+// journey takes twenty-odd readings. At 90 s each that is half an hour per arm,
+// against `journeys-bite` shards already bounded at `timeout-minutes: 150`; a
+// correctness fix that converts killed arms into timed-out shards has not fixed
+// anything.
+//
+// The discriminator is that a slow engine still ANSWERS, and answering moves
+// `data-step`. A drag's readings walk — 16, 38, 593 — with a gap between each
+// pair; a wedged one never moves at all. So the budget is on time since the
+// last change to EITHER the step or the flag, and it only has to exceed the
+// longest gap between two consecutive answers.
+//
+// MEASURED, on the 790-step chain capture, largest gap between answers: 1.4 s
+// unthrottled, 3.1 s at `JOURNEY_CPU_THROTTLE=6`, 9.8 s at 15. Twenty seconds is
+// twice the worst of those, and that worst was taken at a throttle roughly five
+// times more severe than the ~2.9x this repository's CI was measured at. It is
+// NOT set at the top of the observed range — that mistake has been made twice
+// here — and the failure it guards is bounded in the safe direction anyway: too
+// short reports `settled: false`, which is a red naming the gesture, never a
+// green.
+const STALL_MS = 20000;
+
 async function settlePosition(page, quietMs = 6000, capMs = 90000) {
   const deadline = Date.now() + capMs;
   const period = 500;
   const need = Math.ceil(quietMs / period);
   let last = null;
+  let lastOutstanding = null;
+  let lastChange = Date.now();
   let stable = 0;
   const aliveIn = (f) => f.engineNotice === "" && f.controlsLive > 0;
   while (Date.now() < deadline) {
     const f = await readFacts(page);
     // The corpse case, answered at once and reported as what it is.
     if (!aliveIn(f)) return { facts: f, settled: false, alive: false, quiet: false };
-    if (f.step === last && !f.seekOutstanding) {
-      if (++stable >= need) {
-        return { facts: f, settled: true, alive: true, quiet: true };
-      }
-    } else {
-      // A seek in flight RESETS the count rather than merely failing to advance
-      // it: the window is meant to measure stillness after the engine went idle,
-      // and stillness during an outstanding answer is the thing it was
-      // mistaking for that.
+    // A seek in flight RESETS the count rather than merely failing to advance
+    // it: the window is meant to measure stillness after the engine went idle,
+    // and stillness during an outstanding answer is the thing it was mistaking
+    // for that.
+    const changed = f.step !== last || f.seekOutstanding !== lastOutstanding;
+    if (changed) {
       stable = 0;
-      last = f.step;
+      lastChange = Date.now();
+    }
+    last = f.step;
+    lastOutstanding = f.seekOutstanding;
+    if (!changed && !f.seekOutstanding && ++stable >= need) {
+      return { facts: f, settled: true, alive: true, quiet: true };
+    }
+    if (f.seekOutstanding && Date.now() - lastChange >= STALL_MS) {
+      // The engine is not slow, it has stopped. Reported as unsettled — the
+      // caller's verdict is that there was no result to judge.
+      return { facts: f, settled: false, alive: true, quiet: false };
     }
     await page.waitForTimeout(period);
   }
