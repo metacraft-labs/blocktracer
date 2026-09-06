@@ -92,7 +92,7 @@ export const id = "a-jump-moves-the-position";
 export const claim =
   "A visitor who clicks a row in the navigation regions sees the position move there.";
 export const spec = "Debugger-Integration.md §3, §4.2 — BlockTracer";
-export const assertions = 36;
+export const assertions = 38;
 export const needsEngine = true;
 
 /**
@@ -230,7 +230,14 @@ const servedNavRows = (page, url) =>
   page.evaluate(async (u) => {
     const text = await (await fetch(u, { cache: "no-store" })).text();
     const doc = new DOMParser().parseFromString(text, "text/html");
-    return doc.querySelectorAll(".ctrow,.evrow").length;
+    // PER REGION AS WELL AS IN TOTAL. The total alone cannot say which pane a
+    // difference came from, and the two panes are filled by two different
+    // engine events — see the split reading at the end of the real arm.
+    return {
+      ct: doc.querySelectorAll(".ctrow").length,
+      ev: doc.querySelectorAll(".evrow").length,
+      total: doc.querySelectorAll(".ctrow,.evrow").length,
+    };
   }, url);
 
 /**
@@ -330,9 +337,9 @@ export async function run({ browser, site, j }) {
       () => document.querySelectorAll(".ctrow,.evrow").length,
     );
     j.expect(
-      hydratedRows > 0 && hydratedRows !== servedRows,
+      hydratedRows > 0 && hydratedRows !== servedRows.total,
       "CONTROL: the navigation rows are the engine's, not the export's",
-      `served ${servedRows} row(s), hydrated ${hydratedRows}`,
+      `served ${servedRows.total} row(s), hydrated ${hydratedRows}`,
     );
 
     // ── the call trace ───────────────────────────────────────────────────
@@ -569,9 +576,9 @@ async function realArm(browser, site, j, subject) {
       () => document.querySelectorAll(".ctrow,.evrow").length,
     );
     j.expect(
-      hydratedRows > 0 && hydratedRows !== servedRows,
+      hydratedRows > 0 && hydratedRows !== servedRows.total,
       "REAL: CONTROL — the navigation rows are the engine's, not the export's",
-      `served ${servedRows} row(s), hydrated ${hydratedRows}`,
+      `served ${servedRows.total} row(s), hydrated ${hydratedRows}`,
     );
 
     // ROWS ARE REQUIRED, NOT EXCUSED. This assertion was written the day
@@ -580,8 +587,66 @@ async function realArm(browser, site, j, subject) {
     // carries no frames. It does carry them — the engine answers with
     // `<toplevel>` and `enqueued-call-0`, both named, both tick-bearing — so
     // the excusing arm was excusing a defect, and it is gone.
+    // EACH REGION ANSWERS FOR ITSELF, AND AGAINST ITS OWN SERVED BASELINE.
+    //
+    // This was one `atLeast(nav.shown, 1)` over the union `.ctrow,.evrow`, and
+    // the two regions are written by two different procs in
+    // `live_navigation.nim` — `applyCalltrace` on `ct/updated-calltrace`,
+    // `applyEvents` on `ct/updated-events`. Two signals, two store fields, two
+    // code paths. A union with a floor of one is cleared by either half alone,
+    // so the assertion could not tell "both panes filled" from "one pane
+    // filled and the other is empty", and the verdict string could not say
+    // which: "counted 3, the claim needs at least 1" reads the same either way.
+    //
+    // `M/the-calltrace-reply-is-discarded-again` SURVIVED on exactly that.
+    //
+    // AND THE PARAGRAPH THIS ONE REPLACES WAS WRONG ABOUT THE SUBJECT, which
+    // is why splitting the count was not on its own enough. It said "a rung-3
+    // export ships NO navigation rows at all — so every row on screen here came
+    // from the engine and nothing else could have put it there". Measured: this
+    // subject's SERVED frame ships 6 navigation rows, and with the call-trace
+    // reply dropped the pane still shows 3. So a floor of one over `.ctrow`
+    // alone ALSO survived the mutation — the export was holding it up.
+    //
+    // Hence the discriminator is the served baseline, per region, the same
+    // shape as the union CONTROL above: a call trace that is the engine's
+    // answer differs from the one the exporter wrote. Unmutated the engine
+    // replaces the export's rows; with the reply on the floor the export's own
+    // rows are what is left standing, and the two coincide EXACTLY.
+    //
+    // DOM AGAINST DOM, AND THAT IS NOT A DETAIL. The first form of this
+    // compared `ct.shown` — rows a visitor can see — against `servedRows.ct`,
+    // which is a count of the SERVED HTML parsed by `DOMParser`, where nothing
+    // is laid out and `checkVisibility` has no meaning. Two different
+    // populations, so the inequality held for the wrong reason and the arm
+    // survived a second time: 6 served against 3 visible reads as "different"
+    // while the pane was in fact showing precisely the six rows the exporter
+    // wrote. Measured across the mutation, DOM to DOM:
+    //
+    //     unmutated   8 in the DOM, 4 on screen, 6 served   -> 8 != 6, green
+    //     mutated     6 in the DOM, 3 on screen, 6 served   -> 6 == 6, RED
+    //
+    // The visible count still has to clear one, immediately above, so this pair
+    // cannot be satisfied by a pane full of rows nobody can reach.
+    const ct = await readRows(page, ".ctrow");
+    j.note(
+      `REAL call-trace rows: ${ct.shown} on screen, ${ct.total} in the DOM,` +
+        ` ${servedRows.ct} in the served frame` +
+        ` (the Event Log is read at the end of this arm, once its tab is chosen)`,
+    );
+    j.atLeast(
+      ct.shown,
+      1,
+      "REAL: the CALL TRACE has rows on screen to click",
+    );
+    j.expect(
+      ct.total > 0 && ct.total !== servedRows.ct,
+      "REAL: the CALL TRACE is the engine's answer, not the row set the export shipped",
+      `served ${servedRows.ct} call-trace row(s), hydrated ${ct.total} in the DOM` +
+        ` (${ct.shown} on screen)`,
+    );
+
     const nav = await readRows(page, ".ctrow,.evrow");
-    j.atLeast(nav.shown, 1, "REAL: the navigation regions have rows on screen to click");
     j.countIs(
       nav.shownNamingAStep,
       nav.shown,
@@ -619,6 +684,50 @@ async function realArm(browser, site, j, subject) {
       positionMoved(before, after),
       "REAL: the mark moved to where the row pointed",
       `${positionOf(before)} -> ${positionOf(after)}`,
+    );
+
+    // THE OTHER REGION, ASKED FOR ITSELF — last, so choosing its tab disturbs
+    // none of the verdicts above.
+    //
+    // This arm read `.ctrow,.evrow` as ONE number with a floor of one for its
+    // whole life, and the two regions are written by two different procs in
+    // `live_navigation.nim` — `applyCalltrace` on `ct/updated-calltrace`,
+    // `applyEvents` on `ct/updated-events`. Two signals, two store fields, two
+    // code paths, one number: a union with a floor of one is cleared by either
+    // half alone, so the assertion could not tell "both panes filled" from
+    // "one filled and the other empty".
+    //
+    // `M/the-calltrace-reply-is-discarded-again` SURVIVED on exactly that, and
+    // the output could not even show it: "counted 3, the claim needs at least
+    // 1" is the same sentence whichever region the 3 came from.
+    //
+    // MEASURED WHEN THE SPLIT WAS FIRST TAKEN: 4 call-trace rows on screen and
+    // 0 event-log rows, with 6 event rows sitting in the DOM. The event rows
+    // were never on screen here because this arm never chose their pane — the
+    // demo arm does (see `opened` above) and this one did not, so a union
+    // reading on this subject has ALWAYS been a call-trace reading wearing a
+    // plural name. That is why the tab is chosen here before the count is
+    // taken, by the same property-not-name technique: the pane that holds the
+    // event rows, and the control whose fragment points at it.
+    const openedReal = await page.evaluate(() => {
+      const pane = document.querySelector(".evrow")?.closest(".pane");
+      if (!pane || !pane.id) return { ok: false, why: "the event rows are in no identified pane" };
+      const tab = document.querySelector(`a[href="#${CSS.escape(pane.id)}"]`);
+      if (!tab) return { ok: false, why: `no control targets #${pane.id}` };
+      tab.click();
+      return { ok: true, pane: pane.id };
+    });
+    await page.waitForTimeout(400);
+
+    const evReal = await readRows(page, ".evrow");
+    j.note(
+      `REAL event-log rows: ${evReal.shown} on screen, ${evReal.total} in the DOM` +
+        ` (tab ${openedReal.ok ? `#${openedReal.pane} chosen` : `NOT chosen — ${openedReal.why}`})`,
+    );
+    j.atLeast(
+      evReal.shown,
+      1,
+      "REAL: the EVENT LOG has rows on screen too, and they are its own engine reply",
     );
   } finally {
     await page.close();

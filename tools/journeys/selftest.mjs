@@ -319,12 +319,43 @@ const ARMS = [
       " on a session whose engine had just answered. The arm restores the defect on" +
       " the one surface the fixture cannot cover: a rung-3 capture, whose export" +
       " ships no navigation rows at all, so every row on screen came from the engine" +
-      " or from nowhere.",
+      " or from nowhere." +
+      " THIS ARM SURVIVED, AND THE ASSERTION IT NAMED IS WHY. It targeted" +
+      " \"REAL: the navigation regions have rows on screen to click\" — one" +
+      " `atLeast(…, 1)` over the union selector `.ctrow,.evrow`. The two regions" +
+      " are written by two different procs on two different engine events" +
+      " (`applyCalltrace` on `ct/updated-calltrace`, `applyEvents` on" +
+      " `ct/updated-events`), so a union with a floor of one is cleared by either" +
+      " half alone: with the call-trace reply on the floor the event rows kept it" +
+      " green at \"counted 3\", and the verdict could not even say which region" +
+      " the 3 came from. The journey now counts each region for itself and this" +
+      " arm names the CALL TRACE alone, which is the half the mutation removes." +
+      " Splitting it also turned up a second thing the union had hidden: the real" +
+      " arm never chose the Event Log's tab, so its 6 rows were in the DOM and" +
+      " never on screen — the union had always been a call-trace reading wearing" +
+      " a plural name." +
+      " AND SPLITTING THE COUNT WAS NOT ENOUGH, WHICH IS THE REAL FINDING. A" +
+      " floor of one over `.ctrow` alone ALSO survived, at \"counted 3\", because" +
+      " the journey's premise about this subject was false: it said a rung-3" +
+      " export \"ships NO navigation rows at all, so every row on screen here came" +
+      " from the engine and nothing else could have put it there\", and the served" +
+      " frame in fact ships 6. With the reply on the floor the export's own rows" +
+      " are what is left standing, so the pane looks populated and every count" +
+      " with a floor clears. The arm now names the assertion that compares the" +
+      " call trace to its OWN served baseline, DOM AGAINST DOM — comparing the" +
+      " VISIBLE count against the served one survived a third time, because" +
+      " `checkVisibility` has no meaning in the `DOMParser` document the served" +
+      " count is taken from, so the inequality held for the wrong reason while" +
+      " the pane was showing precisely the exporter's rows. Measured across the" +
+      " mutation: unmutated 8 rows in the DOM against 6 served; mutated 6" +
+      " against 6. With the reply discarded the pane holds exactly the row set" +
+      " the exporter wrote, which is the defect stated as an equality. Same" +
+      " shape as arm O's CONTROL, per region instead of over the union.",
     file: join(CLIENT, "hydrate", "live_navigation.nim"),
     find: `  feed.store.updateCalltraceSection(`,
     replace: `  if false: feed.store.updateCalltraceSection(`,
     journey: "a-jump-moves-the-position",
-    assertion: "REAL: the navigation regions have rows on screen to click",
+    assertion: "REAL: the CALL TRACE is the engine's answer, not the row set the export shipped",
   },
   {
     id: "N/the-position-is-compared-by-number-alone",
