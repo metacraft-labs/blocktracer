@@ -532,13 +532,49 @@ console.error('\ncase 14 — --enumerate-only answers the count without fetching
      && only.report.completion.rpcCalls > 0);
 }
 
+// ── case 15 — the number the corpus estimate multiplies by ──────────────────
+//
+// Corpus size is count × mean body size, and the mean comes from a SAMPLE
+// because fetching 36,629 bodies to measure them is the download the sample
+// exists to avoid. A sample taken off the FRONT of the enumeration is a mean of
+// one region of one day; this pins that `--sample-bodies` spreads across the
+// whole range, using `--max-bodies` (which takes the first N, by design) as the
+// arm it must differ from.
+
+console.error('\ncase 15 — the mean body size is sampled across the range, not off the front');
+{
+  const hs = Array.from({ length: 10 }, (_, i) => hash(101 + i));
+  blocks = { 10: [], 11: hs.slice(0, 4), 12: hs.slice(4, 7), 13: hs.slice(7) };
+  // Body i is 32 + 100·i bytes, so WHICH bodies were sampled is readable off
+  // the sizes alone — the report does not have to name them.
+  answers = Object.fromEntries(hs.map((h, i) => [bareHash(h), body(h, 100 * i)]));
+
+  const spread = await run(['--sample-bodies', '4']);
+  const front = await run(['--max-bodies', '4']);
+  ck('control: the sample is bounded, and says what it is a sample OF — so the '
+     + 'product is read as an estimate rather than a measurement',
+     spread.report.range.bodiesAttempted === 4
+     && spread.report.bytes.sampledOf === 10
+     && spread.report.counts.verified === 4);
+  ck('the spread of the sampled sizes is reported, not just their mean — a mean '
+     + 'with no spread cannot be told from a mean of something that has none',
+     spread.report.bytes.verifiedSizeSpread.windows === 4
+     && spread.report.bytes.meanVerifiedBodySize > 0);
+  bite('mutation: --sample-bodies REACHES THE END of the enumeration, where '
+     + '--max-bodies never does — the two disagree about the mean precisely '
+     + 'because one of them only ever measures the front',
+       spread.report.bytes.verifiedSizeSpread.max > front.report.bytes.verifiedSizeSpread.max
+       && front.report.bytes.verifiedSizeSpread.max === 32 + 300
+       && spread.report.bytes.meanVerifiedBodySize > front.report.bytes.meanVerifiedBodySize);
+}
+
 // ── done ────────────────────────────────────────────────────────────────────
 
 node.close(); store.close();
 await rm(dir, { recursive: true, force: true });
 console.error('');
-if (asserted !== 54) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 54 — a case was added, removed or skipped.`);
+if (asserted !== 57) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 57 — a case was added, removed or skipped.`);
   failed++;
 } else {
   console.error(`assertion count: ${asserted} (as declared)`);

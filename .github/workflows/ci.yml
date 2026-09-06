@@ -349,7 +349,7 @@ jobs:
         run: node tools/chain/calltrace-fold-selftest.mjs
 
       - name: Does the body verifier refuse, and does the counter count?
-        # 54 assertions. The first 31 are the verifier: `absent`, `mismatched`
+        # 57 assertions. The first 31 are the verifier: `absent`, `mismatched`
         # and `unavailable` are three different facts about a single untrusted
         # source, and a run that folded them into one "failed" would hide the
         # exact failure self-verification exists to catch.
@@ -361,7 +361,9 @@ jobs:
         # sample of blocks called empty is what catches it. Case 12 pins that
         # empty windows are reported rather than dropped — dropping them is what
         # turns a bursty chain into a rate, which this campaign has already
-        # published once.
+        # published once. Case 15 pins that the mean body size the corpus
+        # estimate multiplies by is sampled across the whole range rather
+        # than off its front.
         run: node tools/chain/backfill-bodies-selftest.mjs
 
   contract:

@@ -643,6 +643,13 @@ if (!bulkHeaders) {
   console.error(`\nHALTED: ${e.message}`);
 }
 
+// The bulk path fetches bodies concurrently, so hashes arrive in whatever order
+// the pool finished them. Chain order is restored here because everything
+// downstream reads this array positionally — an evenly spread sample is only
+// evenly spread over the CHAIN if the array is in chain order, and a report that
+// reordered itself run to run would be a diff nobody could review.
+keys.sort((a, b) => a.blockNumber - b.blockNumber || a.index - b.index);
+
 const enumerated = [...perBlock.values()].reduce((a, b) => a + b, 0);
 log(`\nenumeration: ${blocksSeen} blocks served, ${blocksMissing} not served, `
   + `${blocksWithTxs} with transactions, ${keys.length} transaction hashes`);
@@ -740,6 +747,12 @@ for (const c of controls) log(`control    ${c.pass ? 'ok  ' : 'FAIL'} ${c.name} 
 const counts = Object.fromEntries(OUTCOMES.map((o) => [o, 0]));
 const refusals = [];        // every key that did not end `verified`, by name
 let bytesFetched = 0, bytesSaved = 0, bytesVerified = 0;
+// Every accepted body's size, kept rather than folded straight into a mean. A
+// corpus estimate is count × mean, and a mean is the right multiplier — but a
+// mean quoted with no spread cannot be told apart from a mean of a distribution
+// that has one, and this one is read off a SAMPLE. The sizes are what let a
+// reader see how much the estimate is allowed to move.
+const verifiedSizes = [];
 let done = 0;
 
 async function handle(key) {
@@ -754,6 +767,7 @@ async function handle(key) {
     // Only verified bytes count toward the mean body size — averaging in a
     // payload that was refused would describe a corpus that was not accepted.
     bytesVerified += r.bytes.length;
+    verifiedSizes.push(r.bytes.length);
     if (saveDir) {
       // Mirrored only on request, and only after it verified. An unverified
       // payload is not a body and does not get written anywhere.
@@ -857,7 +871,13 @@ const report = {
           + 'and does not gate ingesting, mirroring or verifying them.',
   },
   bytes: { fetched: bytesFetched, verified: bytesVerified, saved: bytesSaved,
-           meanVerifiedBodySize: counts.verified ? Math.round(bytesVerified / counts.verified) : null },
+           meanVerifiedBodySize: counts.verified ? Math.round(bytesVerified / counts.verified) : null,
+           // The whole point of keeping these: a corpus estimate is count ×
+           // mean, and the mean here comes from a sample. `sampledOf` says what
+           // it is a sample OF, so nobody reads the product as a measurement of
+           // the corpus rather than an estimate of it.
+           verifiedSizeSpread: summarise(verifiedSizes.map((transactions) => ({ transactions }))),
+           sampledOf: keys.length },
   refusals,
 };
 
