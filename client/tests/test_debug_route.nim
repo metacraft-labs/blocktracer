@@ -304,6 +304,27 @@ proc occurrences(html, needle: string): int =
     inc result
     i = at + needle.len
 
+proc openingTagsWith(markup, attr: string): seq[string] =
+  ## The OPENING TAGS of the elements carrying `attr`, recovered from markup.
+  ##
+  ## Lets a negative be asked of an ELEMENT rather than of a document. "This
+  ## string is nowhere on the page" and "no element here is a control" are
+  ## different claims, and the first stops standing in for the second the
+  ## moment the page inlines a stylesheet that can mention the same words —
+  ## which is how `"copybtn" notin html` inverted. Pass `markup(html)`, so a
+  ## `<` found by walking backwards is a real tag start and not a `<` inside
+  ## the CSS.
+  var i = 0
+  while true:
+    let at = markup.find(attr, i)
+    if at < 0: break
+    var start = at
+    while start > 0 and markup[start] != '<': dec start
+    let stop = markup.find('>', at)
+    if stop < 0: break
+    result.add markup[start .. stop]
+    i = stop
+
 proc executableScripts(html: string): int =
   ## How many `<script>` elements a browser would EXECUTE.
   ##
@@ -3466,18 +3487,48 @@ suite "§13 — values are copyable, and nothing pretends to copy them":
     ## that lies on click — the `panedismiss` defect again. The affordance is
     ## CSS; the control is staged, not shipped.
     let html = debugHtml(readyTx)
+    let body = markup(html)
     # No executable script in a build that declares no hydration bundle, and
     # NO copy control in the served markup even in a build that does — the
     # button is added by hydration, at run time, and only where
-    # `navigator.clipboard` exists. `copybtn` is the class it adds, so its
-    # absence here is the staging §13 describes.
+    # `navigator.clipboard` exists.
+    #
+    # ASKED OF `markup`, NOT OF THE DOCUMENT, AND THE DIFFERENCE IS A RED THIS
+    # TEST ALREADY PRODUCED. It read `check "copybtn" notin html` and went red
+    # on `f284648e7`, the commit that gave `.copybtn`, `.copied` and
+    # `.copyfailed` their first stylesheet rules. Nothing had grown a control:
+    # this page inlines its stylesheet, so a `.copybtn{…}` RULE puts the
+    # substring `copybtn` into `html` with no element bearing the class
+    # anywhere on any of the 349 exported pages. The rule is what this test's
+    # own docstring asks for — "the affordance is CSS; the control is staged,
+    # not shipped" — so the assertion had been made unable to distinguish the
+    # thing it wanted from the thing it forbade. Same shape as
+    # `test_chain_provenance`'s `listingCaption.len == 0`, and answered the
+    # same way: assert what the proxy stood for. `markup` exists for exactly
+    # this and says so.
     check executableScripts(html) == 0
-    check "copybtn" notin html
+    check "copybtn" notin body
     check "navigator.clipboard" notin html
     check ">Copy<" notin html
+    # The classes `bindCopy` adds after a press are staged too, and neither is
+    # in the served markup for the same reason — they are the RESULT of a
+    # control that is not here yet. Both are drawn by the stylesheet, so both
+    # are asked of the markup as well.
+    check "copied" notin body
+    check "copyfailed" notin body
     # A `data-copy` is inert markup, not a control: it carries no role, no
-    # tabindex and no handler.
+    # tabindex and no handler. Asserted ON THE ELEMENTS, because `role="button"`
+    # and `[tabindex]` are both in the inlined stylesheet — a document-wide
+    # negative for either would be born inverted, the way `copybtn` was.
     check "data-copy" in html
+    let copyables = openingTagsWith(body, "data-copy=")
+    check copyables.len == 2                     # bar + pane, as staged
+    for tag in copyables:
+      check "copybtn" notin tag
+      check "role=" notin tag
+      check "tabindex" notin tag
+      check "onclick" notin tag
+      check "onkeydown" notin tag
     check "onclick" notin html
     check "onkeydown" notin html
     check "javascript:" notin html
