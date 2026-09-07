@@ -2554,7 +2554,20 @@ async function verdictFor(journey, assertion) {
   // `vacuous` is carried through because a red that is only a poisoned
   // zero-against-zero is NOT a kill — see the verdict block below and
   // `harness.mjs`'s `#vacuityCheck`.
-  return { found: true, ok: hits[0].ok, vacuous: !!hits[0].vacuous, detail: hits[0].detail };
+  // THE REST OF THE JOURNEY'S VERDICTS COME BACK TOO, and only a survivor reads
+  // them. See the `SURVIVED` branch: an arm that survived over a journey which
+  // was red SOMEWHERE ELSE is a reading whose silence cannot be attributed, and
+  // the harness held that fact and threw it away.
+  const siblings = j.records
+    .filter((r) => !r.ok && !r.what.includes(assertion))
+    .map((r) => ({ what: r.what, detail: r.detail }));
+  return {
+    found: true,
+    ok: hits[0].ok,
+    vacuous: !!hits[0].vacuous,
+    detail: hits[0].detail,
+    siblings,
+  };
 }
 
 /**
@@ -2934,6 +2947,45 @@ async function main() {
         } else if (after.ok) {
           log(`    SURVIVED — the assertion is still GREEN with the defect in place.`);
           log(`               ${after.detail}`);
+          // A SURVIVOR IS THE ONE VERDICT THAT HAS TO BE DIAGNOSED, AND IT
+          // ARRIVED WITH THE LEAST TO DIAGNOSE IT BY.
+          //
+          // "counted 0, the claim says 0" is the whole of what a survivor used
+          // to print, and it cannot distinguish the two readings a reader has
+          // to choose between: the assertion looked and the defect was not
+          // expressible, or the assertion barely looked. Journey 15 makes the
+          // difference explicit — it carries an INSTRUMENT assertion whose only
+          // job is to say the frame sampler stayed awake, precisely so that "no
+          // blinks" is a reading rather than an absence of looking — and when
+          // `FL2/the-panes-move-before-the-values-arrive` survived on 2026-09-07
+          // at "counted 0", the shard log did not say whether that instrument
+          // had held. The fact was in the report the harness had just parsed.
+          //
+          // So the journey's OTHER reds are printed under a survivor. They are
+          // not the arm's verdict and they do not change it — the arm is judged
+          // on the assertion it names, and nothing here alters that. What they
+          // change is whether the next reader has to re-run a nine-minute arm to
+          // learn something already measured.
+          if (after.siblings && after.siblings.length > 0) {
+            log(`               AND ITS JOURNEY WAS RED ELSEWHERE — this survival is not a`);
+            log(`               clean reading. ${after.siblings.length} other assertion(s) failed on the`);
+            log(`               mutated tree, so the assertion above may have been silent`);
+            log(`               for a reason upstream of the defect:`);
+            for (const s of after.siblings.slice(0, 6)) {
+              log(`                 RED  ${s.what}`);
+              if (s.detail) log(`                      ${s.detail}`);
+            }
+            if (after.siblings.length > 6) {
+              log(`                 ... and ${after.siblings.length - 6} more`);
+            }
+          } else {
+            // STATED, NOT LEFT BLANK. "Nothing else was red" is the reading that
+            // makes a survivor a fact about the product, and a reader cannot
+            // tell it from "this harness does not check" unless it is said.
+            log(`               Every other assertion in that journey was GREEN on the`);
+            log(`               mutated tree, so the silence above is the reading it looks`);
+            log(`               like: the defect was not expressible to this assertion.`);
+          }
           verdict = "survived";
         } else if (after.vacuous) {
           // THE FOURTH WAY TO LEARN NOTHING, and it wears a kill's clothes. The
