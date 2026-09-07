@@ -578,6 +578,27 @@ Probe 7c is the arm of the test that caught this — it was written from a
 fabricated journal that reported an honest `survived`, and the first version of
 the combine read it as an unledgered survivor.
 
+### What it will not absorb: a flake
+
+`FL2/the-panes-move-before-the-values-arrive` survives on an idle machine and is
+killed on a loaded one — measured on **one tree, one machine, one day**: KILLED
+at `counted 1, the claim says 0` run alone, SURVIVED in shard 1 of the sweep an
+hour later. The mechanism is in *What it found* above: a ~13 ms blink against a
+16.7 ms frame.
+
+An entry for it would be **actively harmful**, and the both-directions rule is
+what refuses it. The entry would legitimise whichever side was sampled the day it
+was written, then fail with `THE REASON HAS EVAPORATED` on every run that landed
+on the other side — an intermittent red replaced by a different intermittent red,
+wearing the appearance of a decision. **A ledgered survival must be a property of
+the code**; FL2's is a property of the scheduler. It needs an instrument that does
+not race, not a register entry.
+
+So the suite is not green on an idle workstation, and saying otherwise would be
+the thing this file is against. What the ledger removed is the *permanent* red
+from the diagnosed cases; FL2's red is intermittent and belongs to an open
+problem that already has its own record.
+
 ### Before ledgering anything, establish WHY it survives
 
 `FJ3` reported *killed* for its entire life and was being killed by a **race**,
