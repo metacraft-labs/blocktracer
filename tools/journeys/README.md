@@ -259,10 +259,16 @@ whole problem again.
 **`--combine` is not an OR of passes.** It fails unless the shards' arms, unioned,
 are exactly the arm list — every arm once, none missing, none run twice, none
 belonging to a version of the file that has since changed — and every one of them
-killed. A shard that never ran leaves no journal, and the combine names it and
-says `DID NOT RUN` rather than reporting a failure. "Three of four shards passed"
-is not a claim about this suite; that is the same three-verdict rule, one level
-up.
+killed, or entered in `arm-ledger.json` and surviving with exactly the detail its
+entry records. A shard that never ran leaves no journal, and the combine names it
+and says `DID NOT RUN` rather than reporting a failure. "Three of four shards
+passed" is not a claim about this suite; that is the same three-verdict rule, one
+level up.
+
+It is also the only place that can check that every ledger entry was
+**exercised**, because it is the only place that sees the union: an entry whose
+arm fell in a shard nobody ran would otherwise be neither applied nor reported,
+and the ledger would be quietly shorter than it says it is.
 
 ## The first complete pass, and what it found
 

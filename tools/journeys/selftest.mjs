@@ -1942,7 +1942,9 @@ const log = (s = "") => console.log(s);
 //
 // THE COMBINE IS NOT AN OR OF PASSES. It fails unless the shards' arms, unioned,
 // are EXACTLY the full arm list — every arm once, none missing, none twice —
-// and every one of them killed. A shard that never ran leaves no journal and
+// and every one of them killed, or entered in `arm-ledger.json` and surviving
+// with exactly the detail its entry records. A shard that never ran leaves no
+// journal and
 // the combine says which one, as DID NOT RUN rather than as a failure. That is
 // the same three-verdict rule one level up: "n-1 shards passed" is not a claim
 // about the suite.

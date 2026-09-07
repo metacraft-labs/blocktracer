@@ -1480,7 +1480,10 @@ jobs:
   #
   # `--combine` is not an OR of passes. It fails unless the shards' arms unioned
   # are EXACTLY the arm list — every arm once, none missing, none twice, none
-  # left over from an older list — and every one of them killed. A shard that
+  # left over from an older list — and every one of them killed, or entered in
+  # `arm-ledger.json` and surviving with exactly the detail its entry records.
+  # It is also the only place that can say every ledger entry was EXERCISED,
+  # because it is the only place that sees the union. A shard that
   # produced no journal is named, by index, as DID NOT RUN rather than as a
   # failure: "seven of eight shards passed" is not a claim about the suite.
   #

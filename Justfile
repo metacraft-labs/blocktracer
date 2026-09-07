@@ -549,7 +549,10 @@ journeys-selftest-shard I OF:
     node tools/journeys/selftest.mjs --shard {{I}}/{{OF}}
 
 # ONE verdict over the shard journals. Fails unless every arm was run exactly
-# once and killed; a shard that never ran is reported by name as DID NOT RUN,
+# once and killed — or is entered in `arm-ledger.json` and survived with exactly
+# the detail its entry records, which this is also the only place that can check
+# for EVERY entry, because it is the only place that sees the union. A shard that
+# never ran is reported by name as DID NOT RUN,
 # because "three of four shards passed" is not a claim about this suite.
 journeys-selftest-combine OF:
     node tools/journeys/selftest.mjs --combine {{OF}}
