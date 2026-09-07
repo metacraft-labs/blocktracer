@@ -142,7 +142,11 @@ export const spec = "Page-Descriptions.md §7.0; Debugger-Integration.md §7 —
 // steps where it chose not to move it". Before `data-reveal-seq` there was
 // nothing to ask — a reveal that held still left no trace at all, which is why
 // the wait for it in this file used to be a duration.
-export const assertions = 45;
+// 45 -> 47. One per arm: the walk's ending is now asserted to have been the
+// trace running out rather than the session dying. See the block at
+// `if (!sessionMoved)` — run 34018128849 stopped this walk after one step on a
+// 790-step capture and nothing here could say which of three events that was.
+export const assertions = 47;
 export const needsEngine = true;
 
 // The walk stops at `MAX_STEPS` or when the trace ends, whichever comes first,
@@ -242,9 +246,51 @@ function destinationWasOnScreen(topBefore, docBefore, after) {
  * Each entry records whether the step's destination needed a reveal, and whether
  * the pane actually moved — the two numbers every verdict below is a relation
  * between.
+ *
+ * It returns the trail AND why it stopped, because the caller has to tell a
+ * short walk apart from a dead one — see the `stop` field and `stillAnswers`.
  */
+/**
+ * Does the session still ANSWER? Asked by giving it something it can do.
+ *
+ * A LIVENESS FLAG IS NOT ENOUGH HERE, and the reason is a deadline. When the
+ * replay worker traps, nothing on the document changes: the trap raises no
+ * `pageerror` (it is not an error on the document, which is the only thing
+ * `probe.mjs` listens for), `#dbg-engine-failure` stays empty and the stepping
+ * buttons stay live until the product's own watchdog fires at
+ * `EngineDeadlineMs = 45000`. `stepOnce` gives up after fifteen. So a walk that
+ * stopped because the engine had just died would read as perfectly healthy for
+ * the thirty seconds between those two numbers — which is the whole window this
+ * check lives in, and it would have said "alive" through all of it.
+ *
+ * So the session is ASKED rather than inspected. `step-backward` is the
+ * question: whichever way the trace ran out going forward, a session at step N
+ * can always go to N-1, so an answer means the engine is still there and a
+ * silence means it is not. It is the same move `SC7` forced on the sibling
+ * journey — press one more key and see whether anything replies — on the
+ * gesture this journey drives.
+ */
+async function stillAnswers(page) {
+  const before = await readFacts(page);
+  await page.click('[data-action="step-backward"]');
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    const after = await readFacts(page);
+    if (after.step !== before.step || after.markedNumber !== before.markedNumber) {
+      return { answered: true, facts: after, from: before.step };
+    }
+    await page.waitForTimeout(150);
+  }
+  return { answered: false, facts: await readFacts(page), from: before.step };
+}
+
 async function walk(page, maxSteps) {
   const trail = [];
+  // WHY THE WALK ENDED, RECORDED WHERE IT ENDS. `trail` is a length and a
+  // length cannot answer the question the caller has to ask; see the block on
+  // `if (!sessionMoved) break` below, and the assertion in `arm` that reads
+  // this.
+  let stop = { reason: "the cap", facts: null };
   let prev = await readFacts(page);
   for (let i = 0; i < maxSteps; i++) {
     const topBefore = prev.sourceScroll?.top ?? null;
@@ -264,7 +310,25 @@ async function walk(page, maxSteps) {
     //
     // A run that ends early is not silently shorter, either: the number of
     // steps actually taken is asserted against a floor below.
-    if (!sessionMoved) break;
+    //
+    // AND "THE SESSION STOPPED" IS THREE DIFFERENT EVENTS WEARING ONE NAME.
+    // The trace ran out; the engine died and answers nothing; or it is alive,
+    // has more trace ahead of it, and simply did not answer inside
+    // `stepOnce`'s fifteen seconds. The first is the reason this `break`
+    // exists. The second is `SC7`'s defect exactly — a walk that killed its
+    // session and then read a corpse for eight readings — and it raises no
+    // `pageerror`, because a trap inside the replay worker is not an error on
+    // the document and `probe.mjs` listens for nothing else.
+    //
+    // Run 34018128849 ended this walk after ONE step on a 790-step capture and
+    // the journey could say only "counted 1, the claim needs at least 10". That
+    // is a true sentence that names none of the three, and the three want
+    // opposite fixes. So the session's own account of itself is taken HERE, at
+    // the moment the walk gives up, and asserted by the caller.
+    if (!sessionMoved) {
+      stop = { reason: "the session stopped advancing", facts: after };
+      break;
+    }
 
     trail.push({
       needsNoReveal: destinationWasOnScreen(topBefore, docBefore, after),
@@ -289,7 +353,7 @@ async function walk(page, maxSteps) {
     });
     prev = after;
   }
-  return trail;
+  return { trail, stop };
 }
 
 export async function run({ browser, site, j }) {
@@ -505,7 +569,33 @@ async function arm(browser, site, j, subject, rendering) {
       `${tag}INSTRUMENT: that scroller has somewhere to go`,
     );
 
-    const trail = await walk(page, MAX_STEPS);
+    const { trail, stop } = await walk(page, MAX_STEPS);
+
+    // WHICH OF THE THREE ENDINGS THIS WAS, ASKED OF THE SESSION AND NOT OF THE
+    // STEP COUNT.
+    //
+    // Stated BEFORE the floor below, because it is the floor's diagnosis: when
+    // the walk comes up short, "counted 1, the claim needs at least 10" says
+    // that a judgement could not be made and this says why. A session that has
+    // stopped answering is a RED and it is the product's red — it is `SC7`'s
+    // defect, on a different gesture — so this is an assertion and not a note.
+    //
+    // A walk that ran to the cap was not stopped by anything and has nothing to
+    // explain, so it is not asked; one that stopped early is. The engine notice
+    // and the live-control count are carried in the detail beside the answer —
+    // not as the test, for the deadline reason in `stillAnswers`, but because a
+    // red should say everything the session had to say about itself.
+    const stopFacts = stop.facts;
+    const reply = stopFacts === null ? null : await stillAnswers(page);
+    j.expect(
+      reply === null || reply.answered,
+      `${tag}CONTROL: the walk ended with the session still able to act, so a short walk means the trace ran out and not that the engine died`,
+      reply === null
+        ? `walked the full ${MAX_STEPS}-step cap, so nothing stopped it`
+        : `${stop.reason} after ${trail.length} step(s), at step ${stopFacts.step} of ${stopFacts.totalSteps};` +
+          ` stepping back then moved ${reply.from} -> ${reply.facts.step}` +
+          ` (engine notice "${reply.facts.engineNotice}", ${reply.facts.controlsLive} live control(s))`,
+    );
 
     // CONTROL ON THE GESTURE, IN TWO PARTS. Neither is the verdict — together
     // they are the proof that the clicks reached the engine, so that a "the pane
