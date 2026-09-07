@@ -246,8 +246,19 @@ async function main() {
   // Resolved once, at start, and not per catch: it is a fact about the driver this
   // process will use for every replay it makes, and re-reading it mid-watch would let a
   // snapshot claim two recorder versions for one session.
+  //
+  // AND IT FALLS BACK TO A FILE, because a PACKAGED runtime has no `.git`. `run` does not
+  // throw on a non-zero exit, so before this the nix-built follower would have recorded an
+  // EMPTY runtimeCommit and every capture it made would have claimed no recorder version —
+  // silently, and indistinguishably from a capture made by a runtime that has one. The
+  // packaged runtime writes its pinned revision to `.runtime-commit`; a git checkout has no
+  // such file and is unaffected. Read only when git has nothing to say, so a real checkout
+  // always wins over a stamp that could be stale.
   const runtimeCommit = dryRun ? ''
-    : (await run('git', ['rev-parse', 'HEAD'], runtime)).out.trim();
+    : (await run('git', ['rev-parse', 'HEAD'], runtime)).out.trim()
+      || (existsSync(join(runtime, '.runtime-commit'))
+          ? (await readFile(join(runtime, '.runtime-commit'), 'utf8')).trim()
+          : '');
 
   const stopReached = () =>
     (until > 0 && caught >= until)

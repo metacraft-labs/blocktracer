@@ -46,9 +46,37 @@
       url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=8d1c84a85034a739804914a33f2f55329b5f051a&submodules=1";
       flake = false;
     };
+
+    # ── The chain follower's two out-of-repo source inputs ──────────────────
+    #
+    # `tools/chain/follow-chain.mjs` is the only thing in this repository that
+    # needs anything from outside it at RUN time: an `aztec-avm-runtime` to
+    # replay with, and the `codetracer-trace-format` revision its `.ct` writer
+    # is built against. Both were, until now, sibling checkouts a developer
+    # happened to have — which is why the follower had never run anywhere but
+    # one workstation. Pinned here so `nix build .#chain-follower` is the whole
+    # answer. See tools/chain/nix/default.nix for what each is used for, and
+    # for the ONE input (avm.wasm) that is still not built here and why.
+    #
+    # `flake = false`: both are consumed as source trees, not as flakes. The
+    # runtime's own flake exposes only a wasi-sdk, which nothing here needs.
+    aztec-avm-runtime = {
+      url = "github:metacraft-labs/aztec-avm-runtime/75d1592a3d1ab4dc795e04d931c9f268b4973835";
+      flake = false;
+    };
+
+    # `pins.json`'s `trace_format` anchor in the runtime revision above. It is
+    # NOT a free choice: the ct-writer's three path dependencies must all come
+    # from one checkout at that anchor, or two copies of `codetracer_trace_types`
+    # become two distinct types that will not unify.
+    codetracer-trace-format = {
+      url = "github:metacraft-labs/codetracer-trace-format/592fa42cbfd759cf13398180798daaf856eb7e9d";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, codetracer-design-system, codetracer }:
+  outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, codetracer-design-system, codetracer
+            , aztec-avm-runtime, codetracer-trace-format }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
@@ -83,7 +111,10 @@
           # That check has to run in the deploy job, on the staged tree, which is
           # this shell — the Nim suites and the design gate grade the RENDERED
           # MARKUP and cannot see the file tree beside it.
-          buildInputs = with pkgs; [ nim nimble just python3 wrangler nodejs_22 ];
+          # `followerNodejs` and NOT a second `pkgs.nodejs_22` spelling: the
+          # devshell node and the node the chain follower runs on are now one
+          # pin, so they cannot drift apart again.
+          buildInputs = (with pkgs; [ nim nimble just python3 wrangler ]) ++ [ followerNodejs ];
         });
 
         # VD.0 — the PINNED CAPTURE ENVIRONMENT. Browser build, fontconfig set
@@ -92,6 +123,26 @@
         # what is pinned and — just as important — the one thing it cannot pin
         # (darwin's compositor).
         captureEnv = pkgs.callPackage ./tools/capture/capture-env.nix { };
+
+        # ── The chain follower ────────────────────────────────────────────
+        #
+        # ONE `nodejs` binding, used by the devshells below, by the follower
+        # package, and — through `packages.chain-follower-nodejs` — by the
+        # infra module's `nodePackage` option. The whole reason this exists as
+        # a binding rather than three occurrences of `pkgs.nodejs_22` is that
+        # the follower's runtime node and the devshell's node had disagreed,
+        # unnoticed, for the entire life of the tool. tools/chain/nix records
+        # the measurement that settled which version is right.
+        followerNodejs = pkgs.nodejs_22;
+
+        chain = pkgs.callPackage ./tools/chain/nix {
+          nodejs = followerNodejs;
+          blocktracerSrc = ./.;
+          avmRuntimeSrc = aztec-avm-runtime;
+          avmRuntimeRev = aztec-avm-runtime.rev;
+          traceFormatSrc = codetracer-trace-format;
+          traceFormatRev = codetracer-trace-format.rev;
+        };
       in {
         # The larger, interactive default shell includes the ci shell (so a local
         # `nix develop` has the exact CI toolchain plus any interactive extras).
@@ -100,6 +151,35 @@
         # `nix run .#capture-env -- <command>` runs a command with the pinned
         # browser, fonts and locale in place. No daemon, no VM, no image build.
         packages.capture-env = captureEnv;
+
+        # ── The chain follower, and the pieces the infra module asks for ──
+        #
+        # `services/blocktracer-ingest` (metacraft-labs/infra) takes four paths
+        # and a node package. These outputs are those, so a host reads:
+        #
+        #   mcl.blocktracer-ingest = {
+        #     blocktracerSrc        = bt.packages.${system}.chain-tools;
+        #     runtime.src           = bt.packages.${system}.chain-runtime;
+        #     runtime.ctWriterWasm  = bt.packages.${system}.aztec-ct-writer-wasm
+        #                             + "/lib/aztec_ct_writer.wasm";
+        #     runtime.avmWasm       = …;   # see tools/chain/nix — still not built here
+        #     nodePackage           = bt.packages.${system}.chain-follower-nodejs;
+        #   };
+        #
+        # `chain-follower` is the same composition as a runnable command, for a
+        # person who wants to watch a chain without a NixOS host:
+        #
+        #   nix run .#chain-follower -- --avm /path/to/avm.wasm --url … --dry-run
+        packages.chain-tools = chain.chainTools;
+        packages.chain-runtime = chain.avmRuntime;
+        packages.aztec-ct-writer-wasm = chain.ctWriterWasm;
+        packages.chain-follower = chain.follower;
+        packages.chain-follower-nodejs = chain.nodePackage;
+
+        apps.chain-follower = {
+          type = "app";
+          program = "${chain.follower}/bin/blocktracer-follow-chain";
+        };
         apps.capture-env = {
           type = "app";
           program = "${captureEnv}/bin/vd0-capture-env";
@@ -108,7 +188,7 @@
         # An interactive shell in the same environment, PLUS the Nim toolchain,
         # so `just capture` can rebuild client/dist and capture in one place.
         devShells.capture = pkgs.mkShell (srcEnv // {
-          buildInputs = [ captureEnv pkgs.nim pkgs.nimble pkgs.just pkgs.nodejs_22 ];
+          buildInputs = [ captureEnv pkgs.nim pkgs.nimble pkgs.just followerNodejs ];
           shellHook = ''
             echo "blocktracer VD.0 pinned capture environment"
             echo "  vd0-capture-env --print-pin                       — what is pinned, and its id"
