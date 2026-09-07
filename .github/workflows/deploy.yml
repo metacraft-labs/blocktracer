@@ -22,6 +22,54 @@ name: Deploy
 # is an unexecuted plan — no bucket, no custom domain, no secrets, no workflow —
 # so nothing here is "separate from" a second path, because there is no second
 # path. The existing ci.yml (Nim conformance tests) is untouched.
+#
+# ── THE CI VERDICT GATE ────────────────────────────────────────────────────
+#
+# Until 2026-09-06 the sentence above was the whole story, and it had a hole in
+# it: this file triggered on `push` and `pull_request` and contained no
+# `workflow_run`, no `needs:`, no `check_run` and no `conclusion`. A push to
+# `live` therefore published whether `ci` had passed, failed, or not yet
+# started. The only thing between a red commit and blocktracer.org was that a
+# person happened to be the one pushing — and with automated chain ingestion
+# producing commits, that stops being a protection at all. Measured: 779c7029
+# published to `live` on 2026-09-05 with `journeys` and `visual-design-canary`
+# both red.
+#
+# The `ci-verdict` job below closes it. `tools/ci/deploy-gate-decide.mjs`
+# carries the policy and the measurements it rests on — read that header for
+# WHICH jobs are publication-blocking and, more importantly, why it is two of
+# them and not all nine.
+#
+# THREE PROPERTIES THIS GATE HAS TO HAVE, and how each is obtained:
+#
+#   * IT MUST NOT BE ABLE TO STOP EVERYTHING. It ships in ADVISORY mode. With
+#     no repository variable set it collects the facts, decides, annotates the
+#     run with what it WOULD have done, and publishes anyway. Landing this file
+#     changes nothing about what publishes; `DEPLOY_GATE_MODE=enforce` is what
+#     arms it, and clearing that variable disarms it with no commit and no
+#     deploy.
+#
+#   * IT MUST NOT BE STARVABLE. `ubuntu-latest`, never `eph-linux-x64`. A gate
+#     that queues behind the pool it is judging would be starved at exactly the
+#     moment it is needed — the argument `ci.yml`'s `deploy-gates` job and
+#     `deploy-requeue.yml` both make for themselves.
+#
+#   * IT MUST NOT BE ABLE TO PASS BY NOT RUNNING. The deploy is guarded by BOTH
+#     `needs:` and an explicit `if:` on the gate's output, so a skipped,
+#     cancelled or errored gate job does not read as consent. A gate whose
+#     required job has been renamed out of `ci.yml` REFUSES (G6) rather than
+#     finding nothing to complain about, and `deploy-gate-decide-selftest.mjs` — run
+#     by `ci.yml`'s `deploy-gates` job — asserts the wiring in this very file.
+#
+# PREVIEWS ARE NOT GATED. A `pull_request` deploy goes to the blocktracer-dev
+# project as a native preview and is invisible to a visitor; gating it would
+# cost the fastest feedback in the repository and protect nothing. The
+# one-project-per-environment mapping above is untouched.
+#
+# INTERACTION WITH `deploy-requeue.yml`: a refusal ends this run as `failure`,
+# and the watchdog never retries a `failure` (its D2). So a refused deploy is
+# not re-enqueued into a publish — which is the behaviour wanted, and it is
+# obtained from a rule that was already there.
 
 on:
   push:
@@ -34,7 +82,64 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Did `ci` pass FOR THIS COMMIT? See the header, and
+  # `tools/ci/deploy-gate-decide.mjs` for the policy.
+  ci-verdict:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read # to read ci's runs and their per-job conclusions
+      contents: read
+    # Bounded well above the measured cost. The two required jobs finish
+    # 13-111s after a run starts; 25 minutes is the wall at which "unfinished"
+    # becomes a refusal (G7) rather than a wait, and it exists so a queue
+    # anomaly cannot hold a deploy job open for the workflow's whole 6 hours.
+    timeout-minutes: 25
+    outputs:
+      publish: ${{ steps.gate.outputs.publish }}
+      verdict: ${{ steps.gate.outputs.verdict }}
+      code: ${{ steps.gate.outputs.code }}
+      reason: ${{ steps.gate.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # 22, matching flake.nix's `nodejs_22`. Same reasoning as the
+          # GitHub-hosted jobs in ci.yml: this must not need the Nix runner.
+          node-version: "22"
+
+      - name: Did ci pass for this commit?
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_BRANCH: ${{ github.ref_name }}
+          # `github.sha` and not the branch tip: the question is whether ci
+          # passed for the commit THIS run is deploying. On a `dev` that takes
+          # direct pushes from several agents at once, "the latest ci run on
+          # the branch" is routinely a different commit's verdict.
+          GATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          # ── THE ACTIVATION SWITCH ──────────────────────────────────────────
+          # Unset (the shipped state) = advisory: the gate decides and says so,
+          # and the deploy proceeds regardless. `enforce` = the deploy is
+          # blocked on a refusal. `off` = do not even ask.
+          DEPLOY_GATE_MODE: ${{ vars.DEPLOY_GATE_MODE }}
+          # Unset = the default set in deploy-gate-decide.mjs. Set it to widen
+          # the floor (e.g. "ci-coverage deploy-gates contract") without a
+          # commit. A value that parses to NOTHING is a refusal, not a pass.
+          DEPLOY_GATE_REQUIRED_JOBS: ${{ vars.DEPLOY_GATE_REQUIRED_JOBS }}
+          DEPLOY_GATE_DEADLINE_SECONDS: "1200"
+        run: node tools/ci/deploy-gate.mjs
+
   deploy:
+    needs: ci-verdict
+    # BOTH `needs:` AND THIS CONDITION, deliberately. `needs:` alone stops the
+    # deploy when the gate job FAILS, but a gate that was skipped, cancelled or
+    # crashed must not read as consent either — that is the shape of gate this
+    # campaign keeps finding, one that passes by not running. The publish
+    # happens only on an explicit `true` written by the decision function.
+    if: needs.ci-verdict.outputs.publish == 'true'
     uses: ./.github/workflows/deploy-cloudflare-pages.yml
     permissions:
       contents: read

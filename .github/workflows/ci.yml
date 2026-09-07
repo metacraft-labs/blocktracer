@@ -303,6 +303,26 @@ jobs:
         # that it does.
         run: node tools/ci/requeue-decide-selftest.mjs
 
+      - name: Does the DEPLOY GATE refuse? (ci's verdict, in front of publishing)
+        # The proof-of-bite for the gate that decides whether a commit may be
+        # published at all. It is the highest-consequence gate in the
+        # repository in both directions: wrong-permissive and a red commit
+        # reaches blocktracer.org; wrong-strict and NOTHING reaches it.
+        #
+        # So the arms are weighted to the refusals — every non-success
+        # conclusion, an outcome GitHub has not invented yet, a required job
+        # that is absent, a commit with no ci run at all, an empty required
+        # set — and two of them are controls in the other direction: a PR
+        # preview must publish even over a failed ci, and a job outside the
+        # required set going red must not block.
+        #
+        # §D READS THIS FILE AND deploy.yml. It asserts that every job the gate
+        # requires is a real job key here, and that deploy.yml's publishing job
+        # actually carries `needs: ci-verdict` and an `if:` on its output.
+        # Those are the two ways the gate rots into a formality, and neither is
+        # visible from inside the decision function.
+        run: node tools/ci/deploy-gate-decide-selftest.mjs
+
       # ── the chain capture tooling, for this job's own stated reason ──────
       #
       # Same hole, same shape. `tools/chain/`'s three selftests — 124 counted

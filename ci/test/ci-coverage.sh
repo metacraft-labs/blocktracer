@@ -53,13 +53,21 @@
 #      ci.yml does not even fire on is a hole nothing else would report.
 #
 #      READ THAT NARROWLY, BECAUSE THE WORD IT USED TO USE WAS "GATED" AND THAT
-#      CLAIMED SOMETHING THIS FILE DOES NOT CHECK. `deploy.yml` triggers
-#      straight off `push:`; it has no `needs:` on any ci job and no
-#      `workflow_run:` waiting on ci.yml, so the two workflows start TOGETHER
-#      and a deploy publishes whether ci passes, fails, or is cancelled before
-#      it places a job. What step 3 measures is that ci.yml FIRES on the branch.
-#      Whether it also PASSED, and whether anything waits for the answer, are
-#      different questions, and neither is asked here or anywhere else.
+#      CLAIMED SOMETHING THIS FILE DOES NOT CHECK. What step 3 measures is that
+#      ci.yml FIRES on the branch. Whether it also PASSED, and whether anything
+#      waits for the answer, are different questions and are not asked here.
+#
+#      UNTIL 2026-09-06 NOTHING ASKED THEM ANYWHERE: `deploy.yml` triggered
+#      straight off `push:` with no `needs:` and no `workflow_run:`, so the two
+#      workflows started TOGETHER and a deploy published whether ci passed,
+#      failed, or was cancelled before it placed a job. `deploy.yml` now has a
+#      `ci-verdict` job and the publish sits behind `needs:` plus an `if:` on
+#      its answer. That does not move the boundary of THIS file: the wiring is
+#      asserted by `tools/ci/deploy-gate-decide-selftest.mjs` (§D), the gate
+#      requires two of the nine ci jobs rather than all of them (the reasoning
+#      is in `tools/ci/deploy-gate-decide.mjs`), and it only BLOCKS while the
+#      `DEPLOY_GATE_MODE` repository variable says `enforce` — which is a fact
+#      about the repository's settings, not about any file this can read.
 #   4. Every branch ci.yml names in its push trigger actually EXISTS. A trigger
 #      on a branch nobody uses is indistinguishable, in the YAML, from a trigger
 #      that works.
@@ -467,9 +475,12 @@ echo
 echo "Step 3: ci.yml has a push trigger for every branch deploy.yml deploys from"
 echo "    Those branches are the mainlines by definition, and a branch we ship"
 echo "    from that ci.yml does not even fire on is the hole this was written"
-echo "    for. NOT CHECKED, and not true today: that deploy WAITS for ci."
-echo "    deploy.yml triggers straight off push, with no needs: and no"
-echo "    workflow_run:, so it publishes alongside ci rather than after it."
+echo "    for. STILL NOT CHECKED HERE: that deploy waits for ci. As of"
+echo "    2026-09-06 it can — deploy.yml has a ci-verdict job and the publish"
+echo "    is behind needs: + if: on its answer — but that wiring is asserted by"
+echo "    tools/ci/deploy-gate-decide-selftest.mjs (§D), not by this step, and"
+echo "    it only BLOCKS when the DEPLOY_GATE_MODE repository variable is set"
+echo "    to 'enforce'. A variable is not a thing this file can read."
 # ---------------------------------------------------------------------------
 # The push branch list of a workflow, as a newline-separated set. Read from the
 # `on: push: branches: [...]` line in either flow or inline form.
@@ -620,11 +631,20 @@ echo "    tell those apart without opening the log learns to discount the lane."
 # reason, and the window below is cut from the INVOCATION forward to the next
 # step header, so what is asserted is the code that runs beside the call rather
 # than any sentence describing it.
+# ANCHORED ON THE FULL PATH, and that is not pedantry. The pattern was
+# `gate-selftest\.mjs`, which is a SUBSTRING of any file whose name ends that
+# way — `tools/ci/deploy-gate-selftest.mjs`, added on 2026-09-06, matched it,
+# sits ~500 lines earlier in ci.yml than the real subject, and so became the
+# window this step read. Both checks below then failed while describing
+# `tools/capture/gate-selftest.mjs`, which had not changed. A guard that names
+# one artefact and measures another is the exact defect class this file is for;
+# the file was renamed AND the pattern anchored, because either fix alone
+# leaves the trap set for the next filename.
 gate_selftest_step="$(
 	printf '%s\n' "${workflow_all}" |
 		awk '
 			f && /^[[:space:]]*-[[:space:]]+name:/ { exit }
-			/gate-selftest\.mjs/ { f = 1 }
+			/tools\/capture\/gate-selftest\.mjs/ { f = 1 }
 			f { print }
 		'
 )"
@@ -683,8 +703,9 @@ if [ "${recorded_dark}" -gt 0 ]; then
 else
 	echo "  Every suite this repository has runs in CI, on every branch it deploys."
 fi
-echo "  NOT claimed: that those suites pass, or that they assert anything useful,"
-echo "  or that any deploy waits for them — deploy.yml triggers on push with no"
-echo "  needs: and no workflow_run:, so publishing does not depend on a verdict."
+echo "  NOT claimed: that those suites pass, or that any deploy waits for them."
+echo "  deploy.yml has carried a ci-verdict gate since 2026-09-06, but it"
+echo "  requires TWO of the nine jobs and only blocks while the"
+echo "  DEPLOY_GATE_MODE repository variable says 'enforce'."
 echo "  This gate measures the SURFACE, and nothing else does."
 echo "RESULT: OK"
