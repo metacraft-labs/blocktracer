@@ -41,6 +41,10 @@ cd "$REPO"
 
 J="tools/journeys/.selftest-journal.json"
 MUT="client/src/components/debugger.nim"
+# Probe 7's subject. Declared HERE and not at probe 7, because the EXIT trap
+# calls `restore_sites` and `set -u` makes an unbound `$SITES` a fatal error in
+# the trap itself — on every path that exits before probe 7 ever runs.
+SITES="client/hydrate/hydrate.nim"
 NEEDLE='(if ln.current: " cur" else: "") &'   # `A/no-position-mark`'s `find`
 LOGS="$(mktemp -d)"
 trap 'rm -rf "$LOGS"' EXIT
@@ -286,7 +290,11 @@ PY
   done
 }
 cleanup_journals() { rm -f tools/journeys/.selftest-journal.shard-*of${SH}.json; }
-trap 'rm -rf "$LOGS"; cleanup_journals' EXIT
+# `restore_sites` FIRST, and `rm -rf "$LOGS"` after it, because the backup probe
+# 7 restores from lives in `$LOGS`. Reversed, an interrupt between the two would
+# delete the only copy of a product file this script had truncated on purpose.
+restore_sites() { [ -f "$LOGS/sites.bak" ] && cp "$LOGS/sites.bak" "$SITES"; :; }
+trap 'restore_sites; rm -rf "$LOGS"; cleanup_journals' EXIT
 
 # CONTROL. Without a combine that PASSES over an intact partition, every
 # refusal below is unattributable — it could be refusing the synthetic journals
@@ -376,9 +384,87 @@ ck "6e/exits 1 (got $rc)" $?
 cleanup_journals
 
 echo ""
+echo "=== probe 7: every arm's mutation site occurs EXACTLY ONCE ==="
+# An arm whose `find` no longer matches its file is not a failing arm, it is an
+# ABSENT one. The suite says so — NEVER RAN, not killed — but it says so from
+# inside the sweep, after the arm's turn comes round, in whichever of the eight
+# shards happens to hold it.
+#
+# THIS PROBE EXISTS BECAUSE THAT LATENCY WAS PAID, REPEATEDLY.
+# `P2/the-path-leaves-the-page-as-well-as-the-row` was dead from 2026-09-04 to
+# 2026-09-07: `f388cdf` split one call-trace row emitter into three and
+# re-indented one of them, the arm's `find` fell to zero occurrences, and four
+# consecutive mainline runs each spent a full shard rediscovering it. The fact
+# was available in a tenth of a second the whole time. This is the same argument
+# probe 5 makes about the partition, one property over.
+#
+# BOTH DIRECTIONS ARE CONTROLLED, because a site check that only ever sees a
+# healthy tree is a defence nobody has watched fail. 7a is the defect that
+# actually happened (zero occurrences); 7b is the one that has not happened yet
+# and is worse, because an arm matching two sites mutates both and its kill no
+# longer says which of the two the assertion caught.
+if ! git diff --quiet -- "$SITES"; then
+  echo "  SKIPPED — $SITES has uncommitted changes, so 7a/7b could not restore it."
+  echo "  A SKIP IS NOT A PASS."
+  fail=$((fail + 1))
+else
+  # CONTROL. Without a run that PASSES on the intact tree, both refusals below
+  # are unattributable — they could be refusing something else about the tree.
+  node tools/journeys/selftest.mjs --verify-sites > "$LOGS/v0" 2>&1
+  rc=$?
+  grep -q "RESULT: OK" "$LOGS/v0"
+  ck "CONTROL: every arm's site occurs exactly once on the intact tree" $?
+  [ "$rc" -eq 0 ]
+  ck "CONTROL/exits 0 (got $rc)" $?
+
+  # RECONCILED AGAINST A POPULATION, not read as a bare "0 faults". `$n_all` is
+  # probe 5's count, taken through `--list-arms`. If the two disagree, one of
+  # them is counting a set the other is not, and a green here would be a green
+  # over whichever is smaller.
+  n_sites="$(sed -n 's/^\([0-9][0-9]*\) arm(s): .*/\1/p' "$LOGS/v0")"
+  [ -n "$n_sites" ] && [ "$n_sites" -eq "$n_all" ]
+  ck "CONTROL/checks the same $n_all arms --list-arms reports (got ${n_sites:-none})" $?
+  grep -q "$n_all mutation site(s) occur exactly once, 0 do not" "$LOGS/v0"
+  ck "CONTROL/all $n_all accounted for, none merely unexamined" $?
+
+  cp "$SITES" "$LOGS/sites.bak"
+
+  # 7a — sites that occur ZERO times. P2's defect exactly, applied to every arm
+  # that names this file at once.
+  : > "$SITES"
+  node tools/journeys/selftest.mjs --verify-sites > "$LOGS/v1" 2>&1
+  rc=$?
+  grep -q "SITE OCCURS 0x, EXPECTED 1" "$LOGS/v1"
+  ck "7a/an arm whose site has vanished is named, with its file" $?
+  grep -q "RESULT: FAILED — an arm that cannot be applied measures nothing" "$LOGS/v1"
+  ck "7a/and the verdict is FAILED" $?
+  [ "$rc" -eq 1 ]
+  ck "7a/exits 1 (got $rc)" $?
+
+  # 7b — sites that occur TWICE. The file doubled, so every arm naming it now
+  # matches two places.
+  cat "$LOGS/sites.bak" "$LOGS/sites.bak" > "$SITES"
+  node tools/journeys/selftest.mjs --verify-sites > "$LOGS/v2" 2>&1
+  rc=$?
+  grep -q "SITE OCCURS 2x, EXPECTED 1" "$LOGS/v2"
+  ck "7b/an arm matching two sites is refused, not silently applied to both" $?
+  [ "$rc" -eq 1 ]
+  ck "7b/exits 1 (got $rc)" $?
+
+  restore_sites
+  git diff --quiet -- "$SITES"
+  ck "7/the subject file is byte-for-byte restored" $?
+  rm -f "$LOGS/sites.bak"
+fi
+
+echo ""
 echo "$((pass + fail)) probe(s): $pass passed, $fail failed"
 if ! git diff --quiet -- "$MUT"; then
   echo "  $MUT IS STILL MUTATED after this script — that is a defect in this script."
+  fail=$((fail + 1))
+fi
+if ! git diff --quiet -- "$SITES"; then
+  echo "  $SITES IS STILL PERTURBED after this script — that is a defect in this script."
   fail=$((fail + 1))
 fi
 if [ "$fail" -eq 0 ]; then

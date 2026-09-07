@@ -88,7 +88,7 @@ import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, relative } from "node:path";
 
 const run = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -991,12 +991,58 @@ proc noteFor*`,
       " journey exists to exclude, made real: 'the row does not paint a path' is" +
       " still true — truer than before — and the pane has quietly stopped being able" +
       " to say where any frame is. It is also the live defect, because" +
-      " `hydrate.rowsOf` resolves a `src:` deep link against this attribute.",
+      " `hydrate.rowsOf` resolves a `src:` deep link against this attribute." +
+      " THIS ARM WAS DEAD FOR THREE DAYS AND THE REPAIR IS NOT THE INDENT." +
+      " `f388cdf` (2026-09-04, library-subtree folding) split ONE row emitter" +
+      " into three — a `<summary>` for a folded head, an `<a>` for a hydrated" +
+      " row, a `<div>` for everything else — and re-indented the `<div>` from" +
+      " twelve spaces to eight on its way into the new `else`. The old `find`" +
+      " therefore occurred ZERO times and the arm reported NEVER RAN on every" +
+      " run from 09-04 to 09-07, which is the verdict earning its place again:" +
+      " an rc-based harness would have scored those runs as kills." +
+      " RE-AIMING AT THE `<div>` ALONE WOULD HAVE BEEN THE WRONG REPAIR, and" +
+      " that is the finding rather than the indent. The assertion below is" +
+      " `atLeast(withPath.length, 1)` — at least ONE row carries a path — so an" +
+      " arm that blanks one of three emitters leaves the other two carrying" +
+      " paths and SURVIVES on any page with a folded head or a hydrated row." +
+      " The mutation has to remove the path from every row a reader can be" +
+      " shown, because that is what 'the path leaves the page' means, and the" +
+      " `atLeast` is right to be an `atLeast`: it is the SERVED page's claim" +
+      " that some frame can say where it is, not a claim about a row count that" +
+      " folding changes. So the arm now spans all three emitters as one site —" +
+      " still exactly one occurrence, still the same defect, no longer" +
+      " expressible only on whichever branch the corpus happened to take.",
     file: join(CLIENT, "src", "components", "debugger.nim"),
-    find: `            tdiv(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
-                 title = tip, \`data-module\` = f.module):`,
-    replace: `            tdiv(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
-                 title = tip, \`data-module\` = ""):`,
+    find: `      ui:
+        summary(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
+                title = tip, \`data-module\` = f.module):
+          raw frameCells(f)
+    elif f.href.len > 0:
+      ui:
+        a(class = cls, href = f.href, \`data-step\` = $f.step,
+          \`data-anchor\` = f.anchor, title = tip,
+          \`data-module\` = f.module):
+          raw frameCells(f)
+    else:
+      ui:
+        tdiv(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
+             title = tip, \`data-module\` = f.module):
+          raw frameCells(f)`,
+    replace: `      ui:
+        summary(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
+                title = tip, \`data-module\` = ""):
+          raw frameCells(f)
+    elif f.href.len > 0:
+      ui:
+        a(class = cls, href = f.href, \`data-step\` = $f.step,
+          \`data-anchor\` = f.anchor, title = tip,
+          \`data-module\` = ""):
+          raw frameCells(f)
+    else:
+      ui:
+        tdiv(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
+             title = tip, \`data-module\` = ""):
+          raw frameCells(f)`,
     journey: "call-trace-names-its-frames-in-full",
     assertion: "SERVED: rows carry their path as data",
   },
@@ -2604,6 +2650,73 @@ async function main() {
   if (process.argv.includes("--list-arms")) {
     queryMode = true;
     for (const a of ARMS) console.log(a.id);
+    return;
+  }
+
+  // `--verify-sites` — every arm's mutation site occurs EXACTLY ONCE in the
+  // file it names. No mutation, no build, no browser; about a tenth of a
+  // second for the whole list.
+  //
+  // WHY THIS IS A SEPARATE MODE AND NOT A LINE IN A README. An arm whose
+  // `find` no longer occurs is not a broken arm, it is an ABSENT one, and the
+  // suite's own three-verdict rule is what makes that visible: it reports NEVER
+  // RAN rather than a kill. But it reports it from inside the sweep — after the
+  // arm's turn comes round, in whichever of eight shards holds it, up to ninety
+  // minutes in. `P2/the-path-leaves-the-page-as-well-as-the-row` sat dead for
+  // THREE DAYS behind that latency. `f388cdf` split one call-trace row emitter
+  // into three and re-indented one of them; the arm's `find` went to zero
+  // occurrences; and every run from 09-04 to 09-07 paid a full shard to
+  // rediscover the same fact. This answers it before anything is spent, which
+  // is the argument `--list-shard` already makes one property over.
+  //
+  // EXACTLY ONE, NOT AT LEAST ONE, and the difference is the second half of
+  // that same defect. A `find` matching TWO sites mutates both, which is two
+  // defects wearing one arm's name and a kill that does not say which caused
+  // it. A `find` matching ONE site out of three that all need mutating is worse
+  // still and is what the naive repair of P2 would have been: the arm runs, the
+  // assertion it names is an `atLeast`, the untouched emitters keep satisfying
+  // it, and the arm SURVIVES for a reason that is about the arm rather than
+  // about the product. Neither is visible from a count of arms that ran.
+  //
+  // Reads `ARMS` — the same array `main` mutates from — so this is a proof
+  // about what the sweep will do and not about a model of it.
+  if (process.argv.includes("--verify-sites")) {
+    queryMode = true;
+    const seen = new Map();
+    let ok = 0;
+    const wrong = [];
+    for (const arm of ARMS) {
+      let text = seen.get(arm.file);
+      if (text === undefined) {
+        text = await readFile(arm.file, "utf8").catch(() => null);
+        seen.set(arm.file, text);
+      }
+      if (text === null) {
+        wrong.push({ id: arm.id, file: arm.file, n: "no such file" });
+        continue;
+      }
+      let n = 0;
+      for (let i = text.indexOf(arm.find); i !== -1; i = text.indexOf(arm.find, i + arm.find.length)) n++;
+      if (n === 1) ok++;
+      else wrong.push({ id: arm.id, file: arm.file, n });
+    }
+    for (const w of wrong) {
+      console.log(`  SITE OCCURS ${w.n}x, EXPECTED 1  ${w.id}`);
+      console.log(`      ${relative(REPO, w.file)}`);
+    }
+    // THE POPULATION, ALWAYS, AND NOT ONLY THE FAULTS. A run that parsed no
+    // arms would otherwise print nothing and exit 0 — "0 faults" over a set
+    // nobody counted, which is the vacuity this whole layer refuses.
+    console.log(
+      `${ARMS.length} arm(s): ${ok} mutation site(s) occur exactly once, ${wrong.length} do not`,
+    );
+    if (ARMS.length === 0 || ok + wrong.length !== ARMS.length) {
+      console.log("RESULT: DID NOT RUN — the arm list did not reconcile against itself");
+      process.exitCode = 2;
+      return;
+    }
+    console.log(wrong.length === 0 ? "RESULT: OK" : "RESULT: FAILED — an arm that cannot be applied measures nothing");
+    process.exitCode = wrong.length === 0 ? 0 : 1;
     return;
   }
 
