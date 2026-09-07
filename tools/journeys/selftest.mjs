@@ -2381,12 +2381,24 @@ function ledgerReport(entries, records, exercised, { full }) {
       );
       continue;
     }
-    // Survived, and the entry did not classify it: the detail moved.
+    // Survived, and the entry did not classify it: the detail moved — or was
+    // never recorded, which is a different fact and gets a different sentence.
     fatal = true;
+    if (rec.detail === undefined || rec.detail === null) {
+      lines.push(
+        `  THE SURVIVAL IS UNRECORDED  ${id}`,
+        `    This arm survived and the journal does not say what its assertion printed,`,
+        `    so there is nothing to compare against the entry. A journal written by an`,
+        `    older \`selftest.mjs\` is the usual cause: the ledger matches on the DETAIL a`,
+        `    run measured, and a shard that cannot report one cannot have its survival`,
+        `    legitimised by this file. Re-run that shard on this commit.`,
+      );
+      continue;
+    }
     lines.push(
       `  THE SURVIVAL MOVED  ${id}`,
       `    the entry records: ${JSON.stringify(entry.detail)}`,
-      `    this run measured:  ${JSON.stringify(rec.detail ?? "")}`,
+      `    this run measured:  ${JSON.stringify(rec.detail)}`,
       `    A survival whose numbers moved is a different survival from the one that was`,
       `    diagnosed, and nobody has looked at this one. Re-diagnose it, then either fix`,
       `    the arm or rewrite the entry with what you measured.`,
