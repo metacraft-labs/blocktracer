@@ -480,6 +480,109 @@ blocking other branches on a defect that is already stated.
 run, so an entry cannot outlive its defect: whoever lands the fix is told, by
 name, to delete the line.
 
+## The other ledger, for ARMS
+
+`arm-ledger.json` is the same mechanism one layer down, and it did not exist
+until two honest survivors made the whole bite suite permanently red.
+
+That state is worse than it sounds. A suite that is always red cannot tell a new
+regression from the standing state: every arm added afterwards inherits a
+`RESULT: FAILED` that says nothing about itself, and the only way to read the
+run is for a human to remember which two lines were there yesterday — which is
+precisely the memory this directory exists to replace. `ledger.json` had held
+the journeys' version of that answer since the layer was built; the arms had
+none.
+
+```
+just journeys-ledger-check      # every entry is about an arm this file has — one second
+node tools/journeys/selftest.mjs --describe-arm <id>   # the three fields an entry must copy
+```
+
+**An entry is the last resort and not the first.** Of the three arms this file
+was built for, two were fixed instead — see *What it found* below — and the
+mechanism is deliberately shaped so that writing an entry costs more than
+repairing the arm.
+
+### What an entry must carry, and why each field is checked
+
+| field | checked against | what a wrong value does |
+|---|---|---|
+| `verdict` | must be `"survived"` | anything else refuses the suite |
+| `journey` | the arm's own `journey` | refuses — the arm moved under the entry |
+| `assertion` | the arm's own `assertion` | refuses — re-aiming an arm invalidates the diagnosis written about its old target |
+| `detail` | **what the run measured** | the entry does not apply; the run FAILS and prints both strings |
+| `why_it_survives` | non-empty, and long enough to be a mechanism | refuses |
+| `killed_by` | non-empty, and long enough to name a thing | refuses |
+| `measured` | non-empty | refuses |
+
+`detail` is the field that makes an entry expensive. It is the exact string the
+surviving assertion printed, so **an entry cannot be written from memory** — it
+costs a real run of the arm, which is the same run that would have told you
+whether the arm was fixable.
+
+### It fails in four directions, and refuses in three more
+
+* a ledgered arm that is **KILLED** fails the run, by name. The reason has
+  evaporated and the entry must be deleted; nobody has to remember.
+* a ledgered arm that **NEVER RAN** fails. An entry legitimises a *survival*,
+  which is a measurement; a never-ran is the absence of one, and an entry that
+  absorbed it would certify a dead arm as a considered decision.
+* a ledgered arm that survives with a **different `detail`** fails. A survival
+  whose numbers moved is a different survival, and nobody has looked at it.
+* an **unledgered** survivor fails, exactly as before.
+* an entry naming an arm this file does not have, or disagreeing with the arm
+  about its journey or assertion, or missing a field, **refuses** — exit 2, no
+  verdict. A ledger that does not describe these arms cannot be consulted about
+  them.
+
+`selftest-verdict-test.sh` probe 7 produces all seven, for real, over synthetic
+journals in a temporary directory: 22 assertions, milliseconds, no browser.
+*A defence nobody has watched fail is indistinguishable from no defence* — and
+this is the one defence in the directory whose job is to make a red legitimate,
+so it is the one that most needs watching.
+
+### The population, not just the verdict
+
+`O1` scored NEVER RAN for its whole life. `P2`'s `find` matched zero times for
+three commits. `FJ3` reported *killed* while being killed by a race rather than
+by its assertion. **A check that passes by not running is this layer's
+characteristic failure**, and a ledger consulted only at the end of a run that
+died early would read as green.
+
+So every run prints its population and **reconciles it**:
+
+```
+population: 72 arm(s) in this file · 72 exercised · 69 killed · 0 survived · 0 never ran · 3 ledgered
+arm-ledger.json: 3 entr(ies) · 3 applied · 0 not exercised by this run
+```
+
+The four verdicts must sum to the arms the run held; a run whose summary does not
+add up is `DID NOT RUN`, not `OK`. A full run that never reaches a ledgered arm
+fails rather than reporting a subset. And the ledgered count rides **in the
+`RESULT:` line itself** — `RESULT: OK — 69 of 72 killed, 3 LEDGERED
+(arm-ledger.json)` — because "OK" is the word someone quotes later, and a
+standing red that does not travel with it is a standing red nobody outside this
+log knows about.
+
+`--combine` re-derives `ledgered` from what each shard **measured**, the pair
+`(verdict, detail)`, rather than trusting the classification a shard reached.
+A shard could have run with a stale ledger or an older `selftest.mjs`; the
+full-set claim is made at the combine, so the ledger is applied at the combine.
+Probe 7c is the arm of the test that caught this — it was written from a
+fabricated journal that reported an honest `survived`, and the first version of
+the combine read it as an unledgered survivor.
+
+### Before ledgering anything, establish WHY it survives
+
+`FJ3` reported *killed* for its entire life and was being killed by a **race**,
+not by its assertion; removing the race made it survive. So *"this arm has always
+killed"* is weak evidence, and a survivor may be a finding about the old green
+rather than a new defect. `why_it_survives` must name the code path and say why
+the mutation cannot reach what the assertion reads; `killed_by` must name what
+would have to exist for the arm to bite. **An arm nobody can write those two
+sentences about has not been diagnosed, and an undiagnosed arm is not
+eligible.**
+
 ## The corpus, and the capability seam
 
 `lib/corpus.mjs` discovers every transaction from the exported tree. Nothing is

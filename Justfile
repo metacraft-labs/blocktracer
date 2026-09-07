@@ -554,6 +554,25 @@ journeys-selftest-shard I OF:
 journeys-selftest-combine OF:
     node tools/journeys/selftest.mjs --combine {{OF}}
 
+# ── the survivor ledger ────────────────────────────────────────────────────
+#
+# `tools/journeys/arm-ledger.json` names the ARMS known to survive on this
+# branch, the way `ledger.json` names the JOURNEYS known red. It exists because
+# two honest survivors made the whole bite suite permanently red, and a
+# permanently red suite cannot tell a new regression from the standing state.
+#
+# It fails in BOTH directions and refuses in two more: a ledgered arm that is
+# KILLED fails the run by name, a ledgered arm that NEVER RAN fails, a survival
+# whose detail moved fails, and an entry about an arm this file does not have —
+# or about an assertion the arm no longer targets — refuses the suite outright.
+
+# Is every ledger entry about an arm this file has, aimed where the arm is
+# aimed, and filled in? A second, no build and no browser. The other half of the
+# ledger's claim — that each entry's arm still survives in the way the entry
+# records — needs the sweep, and the sweep makes it.
+journeys-ledger-check:
+    node tools/journeys/selftest.mjs --check-ledger
+
 # Does the selftest SAY when it did not run? It has been observed dying part-way
 # through its arm list with no RESULT line, and a stall producing no verdict
 # reads to a human exactly like a suite nobody bothered to run. Machinery that

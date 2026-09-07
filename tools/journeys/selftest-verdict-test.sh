@@ -266,12 +266,37 @@ echo "=== probe 6: --combine REFUSES a broken partition ==="
 # demands it refuse for THAT reason.
 #
 # Synthetic journals, built from the real shard lists, so no arm is executed.
+# THE SYNTHETIC WORLD MUST BE A WORLD THIS REPOSITORY COULD BE IN, and the
+# arm ledger is what makes "every arm killed" stop being one.
+#
+# This wrote every arm as `killed`, which was an intact partition until
+# `arm-ledger.json` gained its first entry — at which point the control below
+# started FAILING, correctly, with `THE REASON HAS EVAPORATED`: a world where
+# a ledgered arm is killed is a world whose entry must be deleted, and the
+# combine says so. The fixture was encoding "no arm is ledgered", a fact that
+# goes stale the moment one is, and a stale fixture in the file that proves the
+# refusals is exactly the rot this script exists against.
+#
+# So the ledger is READ and each ledgered arm is written as the SURVIVAL its
+# entry records, detail included. The control then asserts what it means to:
+# that a partition consistent with the tree combines to OK.
 mkjournals() { # mkjournals <dir-tag> ; writes $SH journals from $LOGS/shard-i
   for i in $(seq 1 $SH); do
-    python3 - "$LOGS/shard-$i" "$i" "$SH" "tools/journeys/.selftest-journal.shard-${i}of${SH}.json" <<'PY'
-import json, sys
-src, i, of, dest = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
+    python3 - "$LOGS/shard-$i" "$i" "$SH" "tools/journeys/.selftest-journal.shard-${i}of${SH}.json" \
+             "tools/journeys/arm-ledger.json" <<'PY'
+import json, os, sys
+src, i, of, dest, ledger_path = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4], sys.argv[5]
 ids = [l.strip() for l in open(src) if l.strip()]
+ledger = {}
+if os.path.exists(ledger_path):
+    ledger = json.load(open(ledger_path)).get("known_survivors", {}) or {}
+arms = []
+for a in ids:
+    e = ledger.get(a)
+    if e:
+        arms.append({"id": a, "verdict": "survived", "detail": e["detail"], "seconds": 1})
+    else:
+        arms.append({"id": a, "verdict": "killed", "detail": None, "seconds": 1})
 json.dump({
     "startedAt": "2026-01-01T00:00:00.000Z",
     "finishedAt": "2026-01-01T00:10:00.000Z",
@@ -279,7 +304,7 @@ json.dump({
     "planned": len(ids),
     "armFilter": None,
     "shard": {"i": i, "of": of},
-    "arms": [{"id": a, "verdict": "killed", "ms": 1000} for a in ids],
+    "arms": arms,
     "lastArmStarted": None,
 }, open(dest, "w"))
 PY
@@ -364,7 +389,13 @@ python3 - "tools/journeys/.selftest-journal.shard-1of${SH}.json" <<'PY'
 import json, sys
 p = sys.argv[1]
 j = json.load(open(p))
-j["arms"][0]["verdict"] = "survived"
+# THE FIRST *KILLED* ARM, not `arms[0]`. A ledgered arm is already written as a
+# survival by `mkjournals`, so turning `arms[0]` into one would be a no-op that
+# asserted FAILED over a world the ledger legitimises — the probe passing or
+# failing on which arm happened to sort first.
+victim = next(a for a in j["arms"] if a["verdict"] == "killed")
+victim["verdict"] = "survived"
+victim["detail"] = "a survival no entry in arm-ledger.json describes"
 json.dump(j, open(p, "w"))
 PY
 node tools/journeys/selftest.mjs --combine $SH > "$LOGS/c5" 2>&1
@@ -376,9 +407,221 @@ ck "6e/exits 1 (got $rc)" $?
 cleanup_journals
 
 echo ""
+echo "=== probe 7: the arm ledger fails in BOTH directions ==="
+# A LEDGER IS A MECHANISM FOR LEGITIMISING A RED, so a ledger nobody has watched
+# fail is worse than no ledger: it is a green whose backing is unexamined. Every
+# direction the entry can be wrong in is produced here, for real, and each is
+# demanded by name.
+#
+# NOTHING IN THE REPOSITORY IS TOUCHED BY THIS PROBE. `selftest.mjs` resolves
+# both the journal and `arm-ledger.json` relative to its own directory, so a
+# COPY of the one file in a temp directory gives the probe its own ledger and
+# its own journals — and the real `arm-ledger.json` cannot be left replaced by a
+# process that dies mid-probe, which is the failure this whole script is about.
+# `--combine` reads journals and the ledger and executes NO arm, so the four
+# directions cost milliseconds rather than a sweep.
+LJ="$LOGS/ledgerdir"
+mkdir -p "$LJ"
+cp tools/journeys/selftest.mjs "$LJ/selftest.mjs"
+LLED="$LJ/arm-ledger.json"
+
+node "$LJ/selftest.mjs" --list-arms | sort > "$LOGS/l-all"
+LN=$(grep -c . "$LOGS/l-all")
+[ "$LN" -ge 20 ]
+ck "7/the copy sees the same arm list ($LN arms)" $?
+
+# ONE journal holding every arm — `--combine 1`. The partition proof above is a
+# separate claim and is not re-made here; what is under test is the ledger.
+mkledgerjournal() { # mkledgerjournal <victim-id> <verdict> <detail>
+  python3 - "$LOGS/l-all" "$LJ/.selftest-journal.shard-1of1.json" "$1" "$2" "$3" <<'PY'
+import json, sys
+src, dest, victim, verdict, detail = sys.argv[1:6]
+ids = [l.strip() for l in open(src) if l.strip()]
+arms = [{"id": a, "journey": "j", "verdict": "killed", "seconds": 1, "detail": None}
+        for a in ids]
+for a in arms:
+    if a["id"] == victim:
+        a["verdict"] = verdict
+        a["detail"] = detail if detail else None
+json.dump({
+    "startedAt": "2026-01-01T00:00:00.000Z",
+    "finishedAt": "2026-01-01T00:10:00.000Z",
+    "status": "done", "planned": len(ids), "armFilter": None,
+    "shard": {"i": 1, "of": 1}, "arms": arms, "lastArmStarted": None,
+}, open(dest, "w"))
+PY
+}
+# An entry with every required field filled, for whichever arm is named.
+mkentry() { # mkentry <arm-id> <detail> [journey-override] [assertion-override]
+  python3 - "$LLED" "$1" "$2" "${3:-}" "${4:-}" "$LOGS/l-desc" <<'PY'
+import json, sys
+dest, arm_id, detail, j_over, a_over, desc = sys.argv[1:7]
+d = json.load(open(desc))
+json.dump({"known_survivors": {arm_id: {
+    "verdict": "survived",
+    "journey": j_over or d["journey"],
+    "assertion": a_over or d["assertion"],
+    "detail": detail,
+    "why_it_survives": (
+        "SYNTHETIC ENTRY, written by selftest-verdict-test.sh probe 7 and never "
+        "present in the repository. It exists to make the ledger's own machinery "
+        "fail in each of its four directions, which is the only way to know the "
+        "machinery is there at all."),
+    "killed_by": (
+        "Nothing — this entry describes no real survival and is deleted with the "
+        "temporary directory it lives in."),
+    "measured": "never; synthetic",
+}}}, open(dest, "w"))
+PY
+}
+
+VICTIM="$(head -1 "$LOGS/l-all")"
+node "$LJ/selftest.mjs" --describe-arm "$VICTIM" > "$LOGS/l-desc"
+DETAIL="counted 4, the claim says 4"
+
+# 7a CONTROL — an intact all-killed journal with NO ledger combines to OK.
+# Without it every red below is unattributable: it could be the synthetic
+# journal being refused rather than the ledger speaking.
+rm -f "$LLED"
+mkledgerjournal "$VICTIM" killed ""
+node "$LJ/selftest.mjs" --combine 1 > "$LOGS/l0" 2>&1
+rc=$?
+grep -q "RESULT: OK" "$LOGS/l0" && [ "$rc" -eq 0 ]
+ck "7a/CONTROL: all killed, no ledger — OK (got $rc)" $?
+grep -q "population: $LN arm(s) in this file · $LN exercised · $LN killed · 0 survived · 0 never ran · 0 ledgered" "$LOGS/l0"
+ck "7a/and the POPULATION is stated, not just the verdict" $?
+
+# 7b RED — the same survivor, with NO ledger. This is the state the ledger was
+# built for, and it must still be a failure when no entry claims it.
+mkledgerjournal "$VICTIM" survived "$DETAIL"
+node "$LJ/selftest.mjs" --combine 1 > "$LOGS/l1" 2>&1
+rc=$?
+grep -q "RESULT: FAILED" "$LOGS/l1" && [ "$rc" -eq 1 ]
+ck "7b/RED: an unledgered survivor FAILS (got $rc)" $?
+grep -q "SURVIVED   $VICTIM" "$LOGS/l1"
+ck "7b/and is named" $?
+
+# 7c GREEN — the same journal, with an entry recording that same detail. The
+# arm is still counted and still printed; what changes is the exit code.
+mkentry "$VICTIM" "$DETAIL"
+node "$LJ/selftest.mjs" --combine 1 > "$LOGS/l2" 2>&1
+rc=$?
+grep -q "RESULT: OK" "$LOGS/l2" && [ "$rc" -eq 0 ]
+ck "7c/GREEN: an entry suppresses the exit code for that survivor (got $rc)" $?
+grep -q "APPLIED        $VICTIM" "$LOGS/l2"
+ck "7c/and says so, by arm name" $?
+grep -q "1 LEDGERED (arm-ledger.json)" "$LOGS/l2"
+ck "7c/and the RESULT line itself carries the ledgered count" $?
+grep -q "population: $LN arm(s) in this file · $LN exercised · $((LN - 1)) killed · 0 survived · 0 never ran · 1 ledgered" "$LOGS/l2"
+ck "7c/and the population reconciles: the survivor is counted, not dropped" $?
+
+# 7d RED — THE OTHER DIRECTION, and the reason an entry is allowed to exist. The
+# entry stands and the arm is now KILLED: whatever it said stands in the way is
+# no longer standing there, so the entry has outlived its reason and the run
+# must demand its deletion rather than pass quietly.
+mkledgerjournal "$VICTIM" killed "counted 0, the claim says 4"
+node "$LJ/selftest.mjs" --combine 1 > "$LOGS/l3" 2>&1
+rc=$?
+grep -q "RESULT: FAILED" "$LOGS/l3" && [ "$rc" -eq 1 ]
+ck "7d/RED: a LEDGERED arm that is KILLED fails the run (got $rc)" $?
+grep -q "THE REASON HAS EVAPORATED  $VICTIM" "$LOGS/l3"
+ck "7d/and names the entry to delete" $?
+
+# 7e RED — the entry legitimises a SURVIVAL. A never-ran is the absence of a
+# measurement, and an entry that absorbed one would certify a dead arm.
+mkledgerjournal "$VICTIM" never ""
+node "$LJ/selftest.mjs" --combine 1 > "$LOGS/l4" 2>&1
+rc=$?
+grep -q "RESULT: FAILED" "$LOGS/l4" && [ "$rc" -eq 1 ]
+ck "7e/RED: a LEDGERED arm that NEVER RAN fails (got $rc)" $?
+grep -q "THE ENTRY DOES NOT COVER THIS  $VICTIM" "$LOGS/l4"
+ck "7e/and says the entry does not cover it" $?
+
+# 7f RED — it still survives, but not in the way that was diagnosed. A survival
+# whose numbers moved is a survival nobody has looked at.
+mkledgerjournal "$VICTIM" survived "counted 9, the claim says 4"
+node "$LJ/selftest.mjs" --combine 1 > "$LOGS/l5" 2>&1
+rc=$?
+grep -q "RESULT: FAILED" "$LOGS/l5" && [ "$rc" -eq 1 ]
+ck "7f/RED: a survival with a DIFFERENT detail is not covered (got $rc)" $?
+grep -q "THE SURVIVAL MOVED  $VICTIM" "$LOGS/l5"
+ck "7f/and both details are printed side by side" $?
+
+# 7g REFUSAL — the entry names an arm this file does not have. Exit 2 and not 1:
+# a ledger that does not describe these arms cannot be consulted about them, and
+# that is "this gate did not run", not a verdict about the arms.
+mkledgerjournal "$VICTIM" killed ""
+python3 - "$LLED" <<'PY'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+(k, v), = d["known_survivors"].items()
+d["known_survivors"] = {"ZZ/an-arm-that-was-deleted": v}
+json.dump(d, open(p, "w"))
+PY
+node "$LJ/selftest.mjs" --combine 1 > "$LOGS/l6" 2>&1
+rc=$?
+grep -q "RESULT: DID NOT RUN" "$LOGS/l6" && [ "$rc" -eq 2 ]
+ck "7g/REFUSAL: an entry for an arm that does not exist — exit 2 (got $rc)" $?
+
+# 7h REFUSAL — the arm was RE-AIMED under the entry. The diagnosis was written
+# about a different assertion, so it says nothing about this one.
+mkentry "$VICTIM" "$DETAIL" "" "an assertion this arm does not target"
+node "$LJ/selftest.mjs" --combine 1 > "$LOGS/l7" 2>&1
+rc=$?
+grep -q "RESULT: DID NOT RUN" "$LOGS/l7" && [ "$rc" -eq 2 ]
+ck "7h/REFUSAL: the arm was re-aimed under the entry — exit 2 (got $rc)" $?
+grep -q "Re-aiming an arm invalidates the diagnosis" "$LOGS/l7"
+ck "7h/and says why" $?
+
+# 7i REFUSAL — a blank field, and a shrug. Adding an entry must cost more than
+# fixing the arm; a diagnosis nobody wrote is not one.
+mkentry "$VICTIM" "$DETAIL"
+python3 - "$LLED" <<'PY'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+for v in d["known_survivors"].values():
+    v["killed_by"] = ""
+json.dump(d, open(p, "w"))
+PY
+node "$LJ/selftest.mjs" --combine 1 > "$LOGS/l8" 2>&1
+rc=$?
+grep -q "RESULT: DID NOT RUN" "$LOGS/l8" && [ "$rc" -eq 2 ]
+ck "7i/REFUSAL: a blank required field — exit 2 (got $rc)" $?
+mkentry "$VICTIM" "$DETAIL"
+python3 - "$LLED" <<'PY'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+for v in d["known_survivors"].values():
+    v["why_it_survives"] = "it just does"
+json.dump(d, open(p, "w"))
+PY
+node "$LJ/selftest.mjs" --combine 1 > "$LOGS/l9" 2>&1
+rc=$?
+grep -q "RESULT: DID NOT RUN" "$LOGS/l9" && [ "$rc" -eq 2 ]
+ck "7i/REFUSAL: a shrug where the diagnosis goes — exit 2 (got $rc)" $?
+grep -q "is a shrug" "$LOGS/l9"
+ck "7i/and says so" $?
+
+# 7j — the REAL ledger in the repository is about the arms this file has. The
+# probes above prove the machinery; this proves the tree is in a state the
+# machinery accepts, which is the half a synthetic fixture can never cover.
+node tools/journeys/selftest.mjs --check-ledger > "$LOGS/l10" 2>&1
+rc=$?
+[ "$rc" -eq 0 ]
+ck "7j/the repository's own arm-ledger.json describes these arms (got $rc)" $?
+
+echo ""
 echo "$((pass + fail)) probe(s): $pass passed, $fail failed"
 if ! git diff --quiet -- "$MUT"; then
   echo "  $MUT IS STILL MUTATED after this script — that is a defect in this script."
+  fail=$((fail + 1))
+fi
+if ! git diff --quiet -- tools/journeys/arm-ledger.json 2>/dev/null; then
+  echo "  tools/journeys/arm-ledger.json WAS MODIFIED by this script — probe 7 is"
+  echo "  supposed to work entirely inside a temporary copy. That is a defect here."
   fail=$((fail + 1))
 fi
 if [ "$fail" -eq 0 ]; then

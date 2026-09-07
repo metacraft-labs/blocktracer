@@ -318,6 +318,24 @@ const READ_CONTROLS = () => {
     originTitles: [...document.querySelectorAll(".storigin")]
       .filter(shown)
       .map((e) => e.getAttribute("title") ?? ""),
+    // THE POPULATION THE THREE COUNTS ABOVE ARE TAKEN OVER, and the number that
+    // decides whether "it offers no origin control" is a VERDICT or a VACUITY.
+    //
+    // A control is rendered per State-pane ROW (`debugger.renderState`: `if
+    // v.origin.len > 0: button(class = "storigin" …)`), so a pane with no rows
+    // has no controls for a reason that has nothing to do with whether the
+    // product would offer one. `projectState` returns early — before the loop
+    // that fills `origin` at all — whenever `feed.noteFor` produced a note, and
+    // a recording with no recorded state is in that condition at every
+    // position, permanently. So on the NO-SOURCE subject, which this journey
+    // selects with `!hasRecordedState`, `originControls === 0` is true of a
+    // pane that could not have shown one either way.
+    //
+    // That is exactly the shape `README.md` calls "a guard must be a fact the
+    // defect cannot reach": journey 06's `step > 0` antecedent was false on
+    // every subject on every run, and nobody could see it because nothing
+    // printed the population. This prints it.
+    stateRows: [...document.querySelectorAll("#pane-state .strow")].filter(shown).length,
     originNote: document.querySelector("#pane-state .stnote")?.textContent?.trim() ?? "",
   };
 };
@@ -811,8 +829,13 @@ async function noSourceArm(browser, site, j, subject) {
 
     // THE SURFACE, READ WHERE THE VALUES ARE — see the demo arm's note.
     const shownHere = await live.page.evaluate(READ_CONTROLS);
+    // "at a position with values" is what this note used to say, and on this
+    // subject it was FALSE: the arm is selected by `!hasRecordedState`, so the
+    // pane it reads has no value rows at all. The row count now leads the line,
+    // because it is the fact that decides what the two counts after it mean.
     j.note(
-      `NO-SOURCE origin readings at a position with values: ${shownHere.originControls} authored controls, ` +
+      `NO-SOURCE State pane: ${shownHere.stateRows} value row(s) on screen — ` +
+        `${shownHere.originControls} authored controls, ` +
         `${shownHere.originAffordances} labelled, ${shownHere.originMentions} matched anywhere`,
     );
 
@@ -830,10 +853,23 @@ async function noSourceArm(browser, site, j, subject) {
     // THE INVERSE MISTAKE. A control offered where nothing can answer is the
     // defect returning, and it is asserted as a count so it cannot pass
     // vacuously.
+    // THE INVERSE MISTAKE, STATED WITH ITS POPULATION BESIDE IT.
+    //
+    // The detail carries the row count because the count is what makes this a
+    // verdict or a vacuity, and a reader of the transcript must not have to go
+    // and find it. On a subject with 0 rows this assertion is TRUE and
+    // UNFALSIFIABLE — no mutation to the origin classifier can put a control on
+    // a pane that renders no rows to put one on — which is why the mutation arm
+    // for "a control on every row" is aimed at the SOURCE-BEARING subject and
+    // its `originControls === classified` assertion, where the population is
+    // non-empty and asserted so. This assertion stays: it is a true statement
+    // about the page, and it is the direction the defect would return from the
+    // day this recording starts carrying values.
     j.expect(
       shownHere.originControls === 0,
       "NO-SOURCE: and it offers no origin control, because none could answer",
-      `${shownHere.originControls} authored control(s) on a recording with no source to classify`,
+      `${shownHere.originControls} authored control(s) over ${shownHere.stateRows} value row(s)` +
+        ` on a recording with no source to classify`,
     );
   } finally {
     await live.page.close();

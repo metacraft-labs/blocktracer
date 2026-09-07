@@ -96,6 +96,7 @@ const REPO = resolve(HERE, "..", "..");
 const CLIENT = join(REPO, "client");
 const REPORT = join(HERE, ".selftest-report.json");
 const JOURNAL = join(HERE, ".selftest-journal.json");
+const ARM_LEDGER = join(HERE, "arm-ledger.json");
 
 /**
  * The arms.
@@ -466,9 +467,38 @@ const ARMS = [
       " of 6, measured), so this is the exact shape NR-05 calls 'a confident-looking" +
       " affordance that resolves nothing … worse than the absence': the control" +
       " appears on every row of every session, including recordings that published" +
-      " no source, and answers 'unknown' on all of them. It is aimed at the" +
-      " source-less arm because that is where the mistake is unambiguous — there," +
-      " no control can possibly answer.",
+      " no source, and answers 'unknown' on all of them." +
+      " THIS ARM WAS NOT A SURVIVOR. IT WAS A RACE, AND IT IS `FJ3`'s LESSON" +
+      " ARRIVING FROM THE OTHER SIDE. It used to name the source-less arm's" +
+      " `NO-SOURCE: and it offers no origin control, because none could answer`," +
+      " on the reasoning that 'there, no control can possibly answer'. Measured" +
+      " twice, on the same corpus and the same pinned engine: SURVIVED on CI" +
+      " (run 34018128849, shard 4 of 8, 9219b26) at `0 authored control(s)`, and" +
+      " KILLED on a workstation at feab986 at `5 authored control(s)`. Two" +
+      " verdicts, one product, and nothing in either transcript said which." +
+      " THE DIFFERENCE IS THE POPULATION, WHICH NOTHING PRINTED. A control is" +
+      " rendered per VALUE ROW (`renderState`: `if v.origin.len > 0:" +
+      " button(class = \"storigin\"…)`), and `projectState` returns at" +
+      " `if result.note.len > 0: return` — BEFORE the loop that fills `origin` —" +
+      " for every state that is not 'this position's values are in the store'." +
+      " So a live pane that has not yet adopted this position's locals renders" +
+      " ZERO rows, `originControls === 0` is true whatever the classifier does," +
+      " and the arm cannot be killed; on a machine where the reply has landed" +
+      " there are rows, and it can. A verdict over five rows and a verdict over" +
+      " none were written down identically, which is journey 26's flap and FL2's" +
+      " split verdict in a third place. Journey 07 now prints that row count in" +
+      " its note AND in this assertion's own detail." +
+      " IT IS NOW AIMED AT THE ASSERTION WRITTEN FOR THIS DEFECT, on the" +
+      " source-bearing subject, whose population is asserted non-empty two" +
+      " verdicts above it (`asked >= 1`, `classified >= 1`, and" +
+      " `originAffordances >= 1` beside it). That is what removes the race rather" +
+      " than sampling it: a pane that has not caught up REDDENS those assertions" +
+      " instead of silently emptying the set this arm is judged over. The target" +
+      " assertion's own comment names this mutation — 'Without this the first" +
+      " assertion is satisfied by a control on every row, which is the shape" +
+      " NR-05 calls worse than the absence' — and a control on every row makes" +
+      " `originControls` exceed `classified`, an equality between two numbers the" +
+      " page reports.",
     file: join(CLIENT, "hydrate", "live_origin.nim"),
     // ALL THREE GUARDS, and a non-empty fallback. Dropping only the
     // `unknownSource` test does NOT reproduce the defect — the confidence
@@ -484,7 +514,8 @@ const ARMS = [
   if summary.terminatorExpr.len > 0: return summary.terminatorExpr
   "unknown"`,
     journey: "a-value-can-be-traced-to-its-origin",
-    assertion: "NO-SOURCE: and it offers no origin control, because none could answer",
+    assertion:
+      "and it is offered on exactly the values whose origin was classified, not on every row",
   },
   {
     id: "Q1/the-lead-in-window-comes-back",
@@ -991,12 +1022,52 @@ proc noteFor*`,
       " journey exists to exclude, made real: 'the row does not paint a path' is" +
       " still true — truer than before — and the pane has quietly stopped being able" +
       " to say where any frame is. It is also the live defect, because" +
-      " `hydrate.rowsOf` resolves a `src:` deep link against this attribute.",
+      " `hydrate.rowsOf` resolves a `src:` deep link against this attribute." +
+      " THIS ARM WAS DEAD AND HAS BEEN REPAIRED, and it is the third arm in this" +
+      " file to die of the same thing: its `find` was the `tdiv` branch at the" +
+      " indentation that branch had before `f388cdf` (\"the pane folds library" +
+      " subtrees\") wrapped the row in an `if asSummary:` and shifted it four" +
+      " columns. The string then occurred ZERO times, the arm scored NEVER RAN on" +
+      " every run, and journey 14 went on looking covered while nothing was" +
+      " demonstrating that its path assertion bites." +
+      " IT NOW MUTATES ALL THREE ROW SHAPES AND NOT ONE, which is a change of" +
+      " substance and not of indentation. `f388cdf` made a row three possible" +
+      " elements — a `<summary>` for a folded frame's disclosure, an `<a>` where" +
+      " the producer gave it a destination, a `<div>` where it did not — and the" +
+      " assertion this arm names is `atLeast(withPath.length, 1)` over the whole" +
+      " pane. A floor of one is cleared by ANY surviving spelling, so an arm that" +
+      " emptied one branch would have SURVIVED on the rows the other two wrote and" +
+      " reported that as a fact about the assertion, which is the false SURVIVED" +
+      " this file calls the reading that sends someone to strengthen a test that" +
+      " was already fine. The arm's own sentence is 'the path leaves the page as" +
+      " well as the row', and a page keeps it while any row shape still carries it.",
     file: join(CLIENT, "src", "components", "debugger.nim"),
-    find: `            tdiv(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
-                 title = tip, \`data-module\` = f.module):`,
-    replace: `            tdiv(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
-                 title = tip, \`data-module\` = ""):`,
+    find: `        summary(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
+                title = tip, \`data-module\` = f.module):
+          raw frameCells(f)
+    elif f.href.len > 0:
+      ui:
+        a(class = cls, href = f.href, \`data-step\` = $f.step,
+          \`data-anchor\` = f.anchor, title = tip,
+          \`data-module\` = f.module):
+          raw frameCells(f)
+    else:
+      ui:
+        tdiv(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
+             title = tip, \`data-module\` = f.module):`,
+    replace: `        summary(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
+                title = tip, \`data-module\` = ""):
+          raw frameCells(f)
+    elif f.href.len > 0:
+      ui:
+        a(class = cls, href = f.href, \`data-step\` = $f.step,
+          \`data-anchor\` = f.anchor, title = tip,
+          \`data-module\` = ""):
+          raw frameCells(f)
+    else:
+      ui:
+        tdiv(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
+             title = tip, \`data-module\` = ""):`,
     journey: "call-trace-names-its-frames-in-full",
     assertion: "SERVED: rows carry their path as data",
   },
@@ -1060,12 +1131,25 @@ proc noteFor*`,
       " surface the journeys can currently drive, because three separate writers" +
       " mark a frame before `selectionDetail` ever consults it. Killing this arm" +
       " needs a SUBJECT, not a stronger assertion — a live session with no" +
-      " recovery anchor whose `visibleLines` are empty at seed time — and the" +
-      " assertion it now names is the one that would see it the moment such a" +
-      " subject exists. The assertion is a genuine gain regardless: this journey" +
-      " gathered `current` on every row and a `selection` panel read, and" +
-      " asserted on NEITHER for the live arm, so nothing checked that a live" +
-      " landing marks a frame at all.",
+      " recovery anchor whose `visibleLines` are empty at seed time. The" +
+      " assertion is a genuine gain regardless: this journey gathered `current`" +
+      " on every row and a `selection` panel read, and asserted on NEITHER for" +
+      " the live arm, so nothing checked that a live landing marks a frame at" +
+      " all." +
+      " AND ITS AIM HAS MOVED ONE ASSERTION DOWN — see the comment beside" +
+      " `assertion` below. It named the ROW COUNT, which `projectCalltrace`" +
+      " produces from `selectedEntry`; this mutation is in `selectionDetail`," +
+      " which produces the SELECTION PANEL. No subject can make the second move" +
+      " the first, so the old pairing could not have been killed by this arm" +
+      " under any corpus — and on the very subject that would finally exercise" +
+      " the fallback it would have scored a kill it did not earn, off the mark's" +
+      " absence rather than off the fallback's." +
+      " IT IS ENTERED IN `arm-ledger.json` AND IS THE ONLY ENTRY THERE. It is" +
+      " still mutated, still measured and still printed on every run; what the" +
+      " entry stops is the exit code, and only while it goes on surviving with" +
+      " exactly the detail the entry records. The day the fallback becomes" +
+      " reachable this arm is KILLED and the run FAILS demanding the entry be" +
+      " deleted, which is the whole of why the entry is allowed to exist.",
     file: join(CLIENT, "src", "debugger", "session_view.nim"),
     find: `  if chosen < 0 and v.controls.positioned:
     for i, f in v.calltrace.frames:
@@ -1073,7 +1157,30 @@ proc noteFor*`,
     replace: `  if false:
     discard`,
     journey: "call-trace-names-its-frames-in-full",
-    assertion: "LIVE: exactly one frame is current on arrival, before anything is clicked",
+    // RE-AIMED, ONE ASSERTION DOWN, AND THE OLD AIM WAS AT A PRODUCER THIS
+    // MUTATION DOES NOT TOUCH.
+    //
+    // It named `LIVE: exactly one frame is current on arrival`, which counts
+    // rows carrying `.cur`. Those come from `session_project.projectCalltrace`
+    // — `current: vm.selectedEntry.val == some(line.index)` — and this mutation
+    // is in `session_view.selectionDetail`, which produces the SELECTION PANEL.
+    // Two producers, and no subject can make the second move the first, so that
+    // pairing could never have been killed by this arm however the corpus grew.
+    //
+    // WORSE THAN NEVER KILLING: IT WOULD HAVE MANUFACTURED A FALSE KILL. On the
+    // subject `killed_by` in `arm-ledger.json` names — a live session with no
+    // recovery anchor whose `visibleLines` are empty at seed time —
+    // `selectLandingFrame` writes no `selectedEntry`, the row count goes to 0,
+    // and the old target would have gone red for the MARK's absence while this
+    // mutation's own effect went unmeasured. "An assertion certified as biting
+    // when it does not" is what this file's header calls the worse of the two
+    // false verdicts, and the old aim was a standing arrangement for producing
+    // one.
+    //
+    // The assertion below is the one whose value `selectionDetail` decides: it
+    // reads `read.selection.facts.Function`, which is what the removed fallback
+    // fills in when no frame is marked.
+    assertion: "LIVE: on arrival the selection area names the frame the pane marks",
   },
   {
     id: "SC1/the-scrubber-is-only-an-animation",
@@ -2012,6 +2119,299 @@ function previousRun() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// THE SURVIVOR LEDGER — `arm-ledger.json`
+// ---------------------------------------------------------------------------
+//
+// `ledger.json` has held the journeys known RED on this branch since the layer
+// was built. The ARMS had no equivalent, and the consequence is the one that
+// mechanism exists to prevent: two arms that survive for understood, stated
+// reasons made the whole bite suite permanently red, and a permanently red
+// suite cannot tell a new regression from the standing state. Every arm added
+// after them inherits a FAILED that says nothing about itself.
+//
+// A LEDGER IS A MECHANISM FOR LEGITIMISING A RED, WHICH MAKES IT THE MOST
+// DANGEROUS KIND OF TOOL IN THIS DIRECTORY. Three failure modes are designed
+// against by name, each of them observed in this campaign rather than imagined:
+//
+// 1. A RATCHET THAT SILENCES RATHER THAN RECORDS. The sibling repository's
+//    markdownlint config disables 29 rules, several of them commented "existing
+//    codebase convention" — a check narrowed until it stopped reporting, with
+//    the narrowing written down as though it were a decision. The defence here
+//    is that an entry is HARDER TO WRITE THAN THE ARM IS TO FIX: six required
+//    fields, three of them checked against the arm and against the run, and any
+//    one of them wrong REFUSES THE WHOLE SUITE (exit 2) rather than buying a
+//    green. You cannot write an entry from memory — `detail` must be the exact
+//    string the surviving assertion printed, so an entry costs a real run.
+//
+// 2. AN ENTRY THAT OUTLIVES ITS REASON. Prose describing a check goes stale
+//    while the check moves; this file's own header records two arms that were
+//    dead for a whole life because their `find` had moved out from under their
+//    comment. So the ledger FAILS IN BOTH DIRECTIONS, exactly as `ledger.json`
+//    does one layer up, and in four directions rather than two:
+//
+//      * a ledgered arm that is KILLED fails the run. The reason has
+//        evaporated; the run demands the entry be deleted, by name.
+//      * a ledgered arm that NEVER RAN fails the run. An entry legitimises a
+//        SURVIVAL, which is a measurement; never-ran is the absence of one, and
+//        laundering it would be this layer certifying a dead arm.
+//      * a ledgered arm that survives with a DIFFERENT `detail` fails the run.
+//        A survival whose numbers moved is a different survival from the one
+//        that was diagnosed, and nobody has looked at it.
+//      * an entry naming an arm that is not in this file, or whose `journey`
+//        or `assertion` disagrees with the arm's own, REFUSES. Re-aiming an arm
+//        silently invalidates the entry written about where it used to point.
+//
+// 3. A CHECK THAT PASSES BY NOT RUNNING. `O1` scored NEVER RAN for its whole
+//    life; `P4`'s `find` matched zero times; FJ3 reported "killed" while being
+//    killed by a race. So the ledger never reports a verdict without the
+//    POPULATION it was taken over: how many arms are in the file, how many this
+//    run exercised, and how the four verdicts add up to that number. The sum is
+//    ASSERTED — a run whose verdicts do not reconcile with its own arm count is
+//    `DID NOT RUN`, not `OK`. And `RESULT: OK` carries the ledgered count in the
+//    line itself, because "OK" is the word someone quotes later and a standing
+//    red must not be quotable away.
+//
+// BEFORE LEDGERING ANY ARM, ESTABLISH WHY IT SURVIVES. `FJ3` reported killed
+// for its entire life and was being killed by a RACE rather than by its
+// assertion; removing the race made it survive. So "this arm has always killed"
+// is weak evidence, and a survivor may be a finding about the old green rather
+// than a new defect. `why_it_survives` must name a MECHANISM — the code path,
+// and why the mutation cannot reach what the assertion reads — and `killed_by`
+// must name what would have to exist for the arm to bite. An entry that cannot
+// fill those two honestly is an arm that has not been diagnosed, and an
+// undiagnosed arm is not eligible.
+//
+// AN ENTRY IS THE LAST RESORT AND NOT THE FIRST. Of the arms this file was
+// built for, two of the three were FIXED instead: `P2`'s mutation site had
+// moved, and `O2` was aimed at a subject whose population is empty by that
+// subject's own selection rule. Only what survives after the fixable ones are
+// fixed belongs here.
+
+const LEDGER_FIELDS = [
+  ["verdict", "must be exactly \"survived\" — the one verdict an entry may legitimise"],
+  ["journey", "the arm's journey, copied, so re-aiming the arm invalidates this entry"],
+  ["assertion", "the arm's assertion, copied, for the same reason"],
+  ["detail", "the EXACT detail the surviving assertion printed, so an entry costs a real run"],
+  ["why_it_survives", "the MECHANISM: what the assertion reads, and why the mutation cannot reach it"],
+  ["killed_by", "what would have to exist for this arm to bite — a subject, a surface, a fact"],
+  ["measured", "when, where, and on which artefact identity"],
+];
+
+/**
+ * Read and structurally validate `arm-ledger.json` against the arm list.
+ *
+ * Returns `{ entries, refusals }`. `refusals` non-empty means the suite must
+ * exit 2 without judging anything: a ledger that does not describe this file's
+ * arms cannot be consulted, and consulting it anyway is how a stale entry
+ * silences a live arm.
+ *
+ * A MISSING FILE IS NOT A REFUSAL. No entries is the state this layer wants to
+ * be in, and requiring the file to exist would make "there is nothing to
+ * legitimise" harder to express than "here is something".
+ */
+function loadArmLedger() {
+  const refusals = [];
+  const entries = new Map();
+  let raw;
+  try {
+    raw = readFileSync(ARM_LEDGER, "utf8");
+  } catch {
+    return { entries, refusals, present: false };
+  }
+  let doc;
+  try {
+    doc = JSON.parse(raw);
+  } catch (e) {
+    refusals.push(`arm-ledger.json is not valid JSON: ${e.message}`);
+    return { entries, refusals, present: true };
+  }
+  const known = doc.known_survivors;
+  if (known === undefined || known === null || typeof known !== "object" || Array.isArray(known)) {
+    refusals.push("arm-ledger.json has no `known_survivors` object");
+    return { entries, refusals, present: true };
+  }
+  for (const [id, entry] of Object.entries(known)) {
+    const arm = ARMS.find((a) => a.id === id);
+    if (!arm) {
+      refusals.push(
+        `${id} — the ledger names an arm this file does not have. Either the arm was\n` +
+          `      renamed or removed and the entry was left behind; a ledger describing arms\n` +
+          `      that do not exist cannot be trusted about the ones that do.`,
+      );
+      continue;
+    }
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      refusals.push(`${id} — the entry is not an object`);
+      continue;
+    }
+    for (const [field, what] of LEDGER_FIELDS) {
+      const v = entry[field];
+      if (typeof v !== "string" || v.trim().length === 0) {
+        refusals.push(`${id} — \`${field}\` is missing or blank. It is ${what}.`);
+      }
+    }
+    if (entry.verdict !== undefined && entry.verdict !== "survived") {
+      refusals.push(
+        `${id} — \`verdict\` is ${JSON.stringify(entry.verdict)}. The only verdict an entry may\n` +
+          `      legitimise is "survived". A never-ran arm has demonstrated nothing, and an\n` +
+          `      entry that covered one would certify a dead arm as a considered decision.`,
+      );
+    }
+    // THE TWO FIELDS THAT GO STALE ON THEIR OWN. An arm re-aimed at a
+    // different assertion is a different experiment, and the diagnosis written
+    // about where it used to point says nothing about where it points now.
+    if (typeof entry.journey === "string" && entry.journey !== arm.journey) {
+      refusals.push(
+        `${id} — the entry says journey ${JSON.stringify(entry.journey)} and the arm targets\n` +
+          `      ${JSON.stringify(arm.journey)}. The arm moved under the entry.`,
+      );
+    }
+    if (typeof entry.assertion === "string" && entry.assertion !== arm.assertion) {
+      refusals.push(
+        `${id} — the entry was written about the assertion\n` +
+          `        ${JSON.stringify(entry.assertion)}\n` +
+          `      and the arm now targets\n` +
+          `        ${JSON.stringify(arm.assertion)}\n` +
+          `      Re-aiming an arm invalidates the diagnosis written about its old target.\n` +
+          `      Re-measure and rewrite the entry, or delete it.`,
+      );
+    }
+    // A field that is only ever read by a human is a field that goes stale
+    // unnoticed. These two are the entry's whole justification, so they carry a
+    // floor: a shrug does not survive it, and an arm nobody has diagnosed
+    // cannot produce either sentence.
+    for (const [field, floor] of [["why_it_survives", 120], ["killed_by", 60]]) {
+      const v = entry[field];
+      if (typeof v === "string" && v.trim().length > 0 && v.trim().length < floor) {
+        refusals.push(
+          `${id} — \`${field}\` is ${v.trim().length} characters. An entry is only legitimate when\n` +
+            `      the survival has been DIAGNOSED, and a diagnosis that fits in ${floor} characters\n` +
+            `      is a shrug. Name the mechanism, or fix the arm.`,
+        );
+      }
+    }
+    entries.set(id, entry);
+  }
+  return { entries, refusals, present: true };
+}
+
+/**
+ * Re-derive `ledgered` from what was MEASURED, not from what a shard concluded.
+ *
+ * THE SHARD IS NOT THE PLACE THE CLAIM IS MADE. A shard applies the ledger it
+ * had, and `--combine` is where the full set is claimed — so a shard that ran
+ * with a stale `arm-ledger.json`, or an older `selftest.mjs` that had no ledger
+ * at all, would otherwise hand the combine a classification the combine then
+ * trusts. The raw measurement a shard cannot get wrong is the pair
+ * (verdict, detail); the classification is a conclusion over it, and
+ * conclusions are what this whole file refuses to accept second-hand.
+ *
+ * Caught by `selftest-verdict-test.sh` probe 7c, which fabricates exactly that
+ * journal: an honest `survived` with the detail an entry records, and a combine
+ * that read it as an unledgered survivor.
+ */
+const applyLedger = (entries, records) =>
+  records.map((r) => {
+    if (r.verdict !== "survived") return r;
+    const e = entries.get(r.id);
+    return e && (r.detail ?? "") === e.detail ? { ...r, verdict: "ledgered" } : r;
+  });
+
+/**
+ * The ledger's verdict over a completed run's arm records.
+ *
+ * `records` is `[{ id, verdict, detail }]`; `exercised` is the set of arm ids
+ * the run was supposed to reach. Returns lines to print and whether the run
+ * must fail.
+ *
+ * THE FOUR DIRECTIONS ARE ALL HERE, in one function, used by the single run and
+ * by `--combine` both — for the same reason `shardOf` is one function: a second
+ * copy could reach a different verdict, and then the two would disagree about
+ * which reds are legitimate.
+ */
+function ledgerReport(entries, records, exercised, { full }) {
+  const byId = new Map(records.map((r) => [r.id, r]));
+  const lines = [];
+  let fatal = false;
+  let applied = 0;
+  let notExercised = 0;
+  for (const [id, entry] of entries) {
+    const rec = byId.get(id);
+    if (!exercised.has(id)) {
+      notExercised += 1;
+      lines.push(
+        `  NOT EXERCISED  ${id} — this run did not reach it, so its entry is neither` +
+          ` applied nor confirmed.`,
+      );
+      // A FULL run that does not reach a ledgered arm has a partition defect,
+      // not a legitimate red. A filtered run or a lone shard has not claimed
+      // the full set and is not failed for it.
+      if (full) fatal = true;
+      continue;
+    }
+    if (!rec) {
+      lines.push(`  NO RECORD      ${id} — exercised and unjournalled, which is a harness defect.`);
+      fatal = true;
+      continue;
+    }
+    if (rec.verdict === "ledgered") {
+      applied += 1;
+      lines.push(`  APPLIED        ${id} — survived with the detail the entry records.`);
+      continue;
+    }
+    if (rec.verdict === "killed") {
+      fatal = true;
+      lines.push(
+        `  THE REASON HAS EVAPORATED  ${id}`,
+        `    The entry says this arm SURVIVES and it was KILLED — ${rec.detail ?? "no detail"}`,
+        `    Whatever the entry says stands in the way is no longer standing there.`,
+        `    DELETE the entry from arm-ledger.json. This run fails until you do, which`,
+        `    is the whole of why the entry was allowed to exist.`,
+      );
+      continue;
+    }
+    if (rec.verdict === "never") {
+      fatal = true;
+      lines.push(
+        `  THE ENTRY DOES NOT COVER THIS  ${id}`,
+        `    The entry legitimises a SURVIVAL. This arm NEVER RAN, which is not a`,
+        `    survival — it is the absence of a measurement, and an entry that absorbed`,
+        `    one would certify a dead arm as a considered decision. Fix the arm.`,
+      );
+      continue;
+    }
+    // Survived, and the entry did not classify it: the detail moved.
+    fatal = true;
+    lines.push(
+      `  THE SURVIVAL MOVED  ${id}`,
+      `    the entry records: ${JSON.stringify(entry.detail)}`,
+      `    this run measured:  ${JSON.stringify(rec.detail ?? "")}`,
+      `    A survival whose numbers moved is a different survival from the one that was`,
+      `    diagnosed, and nobody has looked at this one. Re-diagnose it, then either fix`,
+      `    the arm or rewrite the entry with what you measured.`,
+    );
+  }
+  return { lines, fatal, applied, notExercised, total: entries.size };
+}
+
+/**
+ * The population, printed beside every verdict and RECONCILED.
+ *
+ * "Make the population explicit: report the arm count it considered, not just a
+ * verdict." A suite that dies early already exits `DID NOT RUN`, but a suite
+ * whose four verdicts do not add up to the arms it ran is a third thing again —
+ * and it would print a confident summary over a subset. So the sum is an
+ * assertion and not a decoration.
+ */
+function populationLine(inFile, exercised, counts) {
+  return (
+    `population: ${inFile} arm(s) in this file · ${exercised} exercised · ` +
+    `${counts.killed} killed · ${counts.survived} survived · ` +
+    `${counts.never} never ran · ${counts.ledgered} ledgered`
+  );
+}
+
 /** The per-journey wall-clock table, over any list of journalled arms. */
 function timingTable(arms) {
   const per = new Map();
@@ -2099,22 +2499,62 @@ function combine(n) {
     return;
   }
 
-  const all = [...seen.values()].map((v) => v[0]);
-  const notKilled = all.filter((a) => a.verdict !== "killed");
+  // THE LEDGER, AT THE LEVEL WHERE THE FULL SET IS CLAIMED. A shard applies its
+  // own entries and journals `ledgered`, but only this function knows the union
+  // — so only this function can say that every entry was exercised. An entry
+  // whose arm fell in a shard nobody ran would otherwise be neither applied nor
+  // reported, and the ledger would be quietly shorter than it says it is.
+  const ledger = loadArmLedger();
+  if (ledger.refusals.length > 0) {
+    for (const r of ledger.refusals) log(`  REFUSED  ${r}`);
+    log("");
+    finish("did-not-run", "RESULT: DID NOT RUN — the arm ledger is not about these arms", 2);
+    return;
+  }
+
+  const all = applyLedger(ledger.entries, [...seen.values()].map((v) => v[0]));
+  const counts = {
+    killed: all.filter((a) => a.verdict === "killed").length,
+    survived: all.filter((a) => a.verdict === "survived").length,
+    never: all.filter((a) => a.verdict === "never").length,
+    ledgered: all.filter((a) => a.verdict === "ledgered").length,
+  };
+  const notKilled = all.filter((a) => a.verdict !== "killed" && a.verdict !== "ledgered");
   timingTable(all);
-  log(`${all.length} arm(s) over ${n} shard(s): ` +
-      `${all.length - notKilled.length} killed, ` +
-      `${notKilled.filter((a) => a.verdict === "survived").length} survived, ` +
-      `${notKilled.filter((a) => a.verdict === "never").length} never ran`);
+  log(`${all.length} arm(s) over ${n} shard(s)`);
+  log(populationLine(ARMS.length, all.length, counts));
+
+  const lv = ledgerReport(ledger.entries, all, new Set(all.map((a) => a.id)), { full: true });
+  if (lv.total > 0) {
+    log("");
+    log(`arm-ledger.json: ${lv.total} entr(ies) · ${lv.applied} applied · ` +
+        `${lv.notExercised} not exercised`);
+    for (const line of lv.lines) log(line);
+    log("");
+  }
+
   for (const a of notKilled) {
     log(`  ${a.verdict === "survived" ? "SURVIVED " : "NEVER RAN"}  ${a.id}  [shard ${a.shard}]`);
   }
-  if (notKilled.length > 0) {
-    finish("failed", "RESULT: FAILED — every arm must be killed by the assertion written for it", 1);
+  if (notKilled.length > 0 || lv.fatal) {
+    finish(
+      "failed",
+      lv.fatal && notKilled.length === 0
+        ? "RESULT: FAILED — an arm-ledger.json entry no longer describes its arm"
+        : "RESULT: FAILED — every arm must be killed by the assertion written for it",
+      1,
+    );
     return;
   }
-  log("  Each journey reddens on the defect it exists to catch, and only then.");
-  finish("ok", "RESULT: OK", 0);
+  log("  Each journey reddens on the defect it exists to catch, and only then" +
+      (counts.ledgered > 0 ? `, but for the ${counts.ledgered} arm(s) entered in arm-ledger.json.` : "."));
+  finish(
+    "ok",
+    counts.ledgered > 0
+      ? `RESULT: OK — ${counts.killed} of ${all.length} killed, ${counts.ledgered} LEDGERED (arm-ledger.json)`
+      : "RESULT: OK",
+    0,
+  );
 }
 
 /**
@@ -2607,6 +3047,58 @@ async function main() {
     return;
   }
 
+  // `--describe-arm <id>` — the arm's id, journey and assertion, as JSON.
+  //
+  // The three fields an `arm-ledger.json` entry must COPY, printed by the file
+  // that owns them. Hand-copying them is how an entry acquires a typo that
+  // reads as "the arm was re-aimed" and refuses the suite for a reason that is
+  // not true; and this adds no rigour to writing an entry, because the fields
+  // it supplies are mechanical. The three that are NOT mechanical — the exact
+  // `detail` a run measured, and the two sentences of diagnosis — remain the
+  // cost of an entry, and nothing here reduces them.
+  const describeIdx = process.argv.indexOf("--describe-arm");
+  if (describeIdx >= 0) {
+    queryMode = true;
+    const arm = ARMS.find((a) => a.id === process.argv[describeIdx + 1]);
+    if (!arm) {
+      console.error(`no arm with id ${JSON.stringify(process.argv[describeIdx + 1])}`);
+      process.exitCode = 2;
+      return;
+    }
+    console.log(JSON.stringify({ id: arm.id, journey: arm.journey, assertion: arm.assertion }));
+    return;
+  }
+
+  // `--check-ledger` — is every entry about an arm this file has, aimed where
+  // the arm is aimed, and filled in? No mutation, no build, no browser.
+  //
+  // It exists for the same reason `--list-shard` does: the structural half of
+  // the ledger's claim is decidable in a second, and a stale entry discovered
+  // after a 150-minute sweep has already cost the runner-hours. It cannot
+  // answer the OTHER half — whether each entry's arm still survives in the way
+  // the entry records — because that needs the sweep. Two questions, two costs,
+  // and the cheap one should not wait on the dear one.
+  if (process.argv.includes("--check-ledger")) {
+    queryMode = true;
+    const l = loadArmLedger();
+    if (!l.present) {
+      console.log("arm-ledger.json: absent. No arm is ledgered, which is this layer's");
+      console.log("preferred state — every arm is killed by the assertion written for it.");
+      return;
+    }
+    console.log(`arm-ledger.json: ${l.entries.size} entr(ies) over ${ARMS.length} arm(s)`);
+    for (const [id, e] of l.entries) console.log(`  ${id}\n    ${e.killed_by.split("\n")[0]}`);
+    if (l.refusals.length > 0) {
+      console.error("");
+      for (const r of l.refusals) console.error(`  REFUSED  ${r}`);
+      console.error("");
+      console.error("A ledger that does not describe this file's arms cannot be consulted about");
+      console.error("them, so the suite refuses rather than running with it. Exit 2.");
+      process.exitCode = 2;
+    }
+    return;
+  }
+
   log("=== journey selftest — do the journeys bite? ===");
   log("    One mutation per arm, in real product source, each aimed at ONE");
   log("    assertion. An arm passes only if THAT assertion flips, and only if");
@@ -2662,6 +3154,34 @@ async function main() {
     return;
   }
 
+  // THE LEDGER IS READ BEFORE THE FIRST BUILD, AND A BAD ONE STOPS THE RUN
+  // HERE. Reading it later would mean discovering after two hours that the
+  // thing which decides whether the result is a failure could not be parsed —
+  // and the tempting response to that discovery is to run without it, which is
+  // the ledger silencing an arm by being broken rather than by being right.
+  const ledger = loadArmLedger();
+  if (ledger.refusals.length > 0) {
+    log("arm-ledger.json does not describe this file's arms, so it cannot be consulted");
+    log("about them — and a run that consulted it anyway would let a stale entry stand");
+    log("in front of a live arm. Nothing below has been measured.");
+    log("");
+    for (const r of ledger.refusals) log(`  REFUSED  ${r}`);
+    log("");
+    log("  remedy: `node tools/journeys/selftest.mjs --check-ledger` asks this same");
+    log("          question in a second, without a build or a browser.");
+    log("");
+    finish("did-not-run", "RESULT: DID NOT RUN — the arm ledger is not about these arms", 2);
+    return;
+  }
+  if (ledger.entries.size > 0) {
+    log(`arm-ledger.json: ${ledger.entries.size} arm(s) are entered as KNOWN SURVIVORS.`);
+    log(`  They are still mutated, still measured and still printed. What an entry stops`);
+    log(`  is the exit code — and only while the arm keeps surviving with the exact`);
+    log(`  detail the entry records. A ledgered arm that is KILLED fails this run.`);
+    for (const id of ledger.entries.keys()) log(`    ${id}`);
+    log("");
+  }
+
   // `hydration: true`, ALWAYS. Not an optimisation to revisit: without it the
   // whole run is judged against whatever bundle was left in `dist/` by whoever
   // built last. See `artefactIdentity` for the two silent verdicts that buys.
@@ -2678,6 +3198,7 @@ async function main() {
   let killed = 0;
   let survived = 0;
   let neverRan = 0;
+  let ledgered = 0;
 
   // `--arm <substring>` runs a subset, matching `run.mjs --only`. Each arm
   // rebuilds the tree and re-runs its journey, so the full set is a long job
@@ -2715,9 +3236,14 @@ async function main() {
   // does not carry its own timings makes that a matter of opinion every time it
   // is asked. It also localises a stall — an arm that is running when the run
   // is killed is named in the journal, beside how long its neighbours took.
-  const recordArm = (arm, verdict, startedAt) => {
+  const recordArm = (arm, verdict, startedAt, detail = null) => {
     const seconds = Math.round((Date.now() - startedAt) / 1000);
-    journal.arms.push({ id: arm.id, journey: arm.journey, verdict, seconds });
+    // `detail` is journalled so that `--combine` can make the ledger's verdict
+    // over the union without re-running anything. A shard that recorded a
+    // survival and not what it said would force the combine to trust the
+    // shard's own classification, and then a stale ledger in one shard would be
+    // invisible to the run that claims the full set.
+    journal.arms.push({ id: arm.id, journey: arm.journey, verdict, seconds, detail });
     journal.lastArmStarted = null;
     writeJournal();
     return seconds;
@@ -2791,6 +3317,10 @@ async function main() {
     inFlight = { file: arm.file, original };
     await writeFile(arm.file, original.split(arm.find).join(arm.replace));
     let verdict;
+    // WHAT THE ASSERTION SAID WITH THE DEFECT IN PLACE, carried out of the
+    // block that produced it. The ledger matches on this string, so it has to
+    // be the one the run measured rather than one reconstructed afterwards.
+    let mutatedDetail = null;
     let mutatedId = beforeId;
     try {
       const built = await rebuild();
@@ -2821,6 +3351,7 @@ async function main() {
         } else if (after.ok) {
           log(`    SURVIVED — the assertion is still GREEN with the defect in place.`);
           log(`               ${after.detail}`);
+          mutatedDetail = after.detail ?? "";
           verdict = "survived";
         } else if (after.vacuous) {
           // THE FOURTH WAY TO LEARN NOTHING, and it wears a kill's clothes. The
@@ -2840,6 +3371,7 @@ async function main() {
           verdict = "never";
         } else {
           log(`    KILLED   — ${after.detail}`);
+          mutatedDetail = after.detail ?? "";
           verdict = "killed";
         }
       }
@@ -2871,10 +3403,30 @@ async function main() {
       log(`    after:   GREEN again on ${describe(restoredId)}`);
     }
 
+    // THE LEDGER IS CONSULTED HERE AND NOWHERE EARLIER, and the position is
+    // load-bearing. Every `never` override above — the artefact that did not
+    // move, the tree that did not build, the assertion that did not come back
+    // green — has already had its say. A survival that reaches this line is one
+    // the harness is prepared to stand behind: measured on an artefact that
+    // moved, against a baseline that was green, on a tree that came back. Those
+    // are exactly the conditions under which "this arm survives" is a fact
+    // about the product rather than about the run, and they are the only
+    // conditions under which an entry may absorb it.
+    const entry = ledger.entries.get(arm.id);
+    if (entry && verdict === "survived" && (mutatedDetail ?? "") === entry.detail) {
+      verdict = "ledgered";
+      log(`    LEDGERED — this survival is entered in arm-ledger.json, with the same detail.`);
+      log(`               ${entry.killed_by.split("\n")[0]}`);
+      log(`               It is still measured, still printed and still counted; what the`);
+      log(`               entry stops is the exit code, and only for as long as the arm`);
+      log(`               keeps surviving in exactly this way.`);
+    }
+
     if (verdict === "killed") killed += 1;
     else if (verdict === "survived") survived += 1;
+    else if (verdict === "ledgered") ledgered += 1;
     else neverRan += 1;
-    const seconds = recordArm(arm, verdict, started);
+    const seconds = recordArm(arm, verdict, started, mutatedDetail);
     log(`    took ${seconds}s`);
     log("");
 
@@ -2926,39 +3478,94 @@ async function main() {
   // it: the suite's own numbers decide whether one journey's arms dominate.
   timingTable(journal.arms);
 
-  log(`${arms.length} arm(s): ${killed} killed, ${survived} survived, ${neverRan} never ran`);
+  const counts = { killed, survived, never: neverRan, ledgered };
+  log(populationLine(ARMS.length, arms.length, counts));
   if (armFilter || shard) log(`(partial run — ${ARMS.length - arms.length} arm(s) not exercised)`);
-  if (killed !== arms.length) {
+
+  // THE SUM IS AN ASSERTION. Four verdicts that do not add up to the arms this
+  // run held is a third state again — neither a pass nor a failure but a
+  // summary taken over a subset wearing the full run's name, which is the exact
+  // shape every other guard in this file exists to refuse. It cannot happen
+  // through any path written here, which is precisely why it is worth asserting:
+  // the paths that produce it are the ones nobody wrote on purpose.
+  const tallied = killed + survived + neverRan + ledgered;
+  if (tallied !== arms.length || journal.arms.length !== arms.length) {
+    log("");
+    log(`the verdicts do not reconcile with the arms this run held: ${tallied} verdict(s)`);
+    log(`and ${journal.arms.length} journal record(s) over ${arms.length} arm(s). A summary that`);
+    log(`does not add up is not a verdict, whichever way it leans.`);
+    finish(
+      "did-not-run",
+      `RESULT: DID NOT RUN — the verdicts do not reconcile with the arm count`,
+      2,
+    );
+    return;
+  }
+
+  // THE LEDGER'S OWN VERDICT, over the arms this run exercised. Fatal in every
+  // direction but one — see `ledgerReport`.
+  const exercised = new Set(arms.map((a) => a.id));
+  const lv = ledgerReport(ledger.entries, journal.arms, exercised, {
+    full: !armFilter && !shard,
+  });
+  if (lv.total > 0) {
+    log("");
+    log(`arm-ledger.json: ${lv.total} entr(ies) · ${lv.applied} applied · ` +
+        `${lv.notExercised} not exercised by this run`);
+    for (const line of lv.lines) log(line);
+  }
+
+  const notKilled = journal.arms.filter(
+    (x) => x.verdict !== "killed" && x.verdict !== "ledgered",
+  );
+  if (notKilled.length > 0 || lv.fatal) {
     // Named, not counted. "Some arm is not killed" sends the reader back
     // through the log; the arms that are not killed are known here, and a dead
     // arm is the finding this suite exists to produce.
-    for (const a of journal.arms.filter((x) => x.verdict !== "killed")) {
+    log("");
+    for (const a of notKilled) {
       log(`  ${a.verdict === "survived" ? "SURVIVED " : "NEVER RAN"}  ${a.id}`);
     }
     finish(
       "failed",
-      armFilter || shard
-        ? "RESULT: FAILED — over this subset only; the full set is still this suite's claim"
-        : "RESULT: FAILED — every arm must be killed by the assertion written for it",
+      lv.fatal && notKilled.length === 0
+        ? "RESULT: FAILED — an arm-ledger.json entry no longer describes its arm"
+        : armFilter || shard
+          ? "RESULT: FAILED — over this subset only; the full set is still this suite's claim"
+          : "RESULT: FAILED — every arm must be killed by the assertion written for it",
       1,
     );
     return;
   }
-  log("  Each journey reddens on the defect it exists to catch, and only then.");
+  log("  Each journey reddens on the defect it exists to catch, and only then" +
+      (ledgered > 0 ? `, but for the ${ledgered} arm(s) entered in arm-ledger.json.` : "."));
   // A partial run still exits 0 — `--arm` is the supported way to land one arm
   // without re-proving sixty-one others, and a shard is one leg of a run that
   // does not fit in one box — but neither gets to print the same word as a full
   // run. The suite's claim is the full set, and "OK" over a subset is the
   // sentence someone quotes later.
+  //
+  // AND THE LEDGERED COUNT RIDES IN THE `RESULT:` LINE ITSELF, for the same
+  // reason. `OK` is the word that gets quoted; a standing red that does not
+  // travel with it is a standing red nobody outside this log knows about. The
+  // ledger exists to stop two survivors blocking every branch, NOT to make them
+  // disappear, and the difference between those two is whether the summary says
+  // so where it will be read.
+  const withLedger = (s) =>
+    ledgered > 0 ? `${s} — ${killed} of ${arms.length} killed, ${ledgered} LEDGERED (arm-ledger.json)` : s;
   finish(
     "ok",
     shard
-      ? `RESULT: OK OVER SHARD ${shard.i}/${shard.of} (${arms.length} of ${ARMS.length} arms).` +
-          ` The suite's claim needs \`--combine ${shard.of}\`.`
+      ? withLedger(
+          `RESULT: OK OVER SHARD ${shard.i}/${shard.of} (${arms.length} of ${ARMS.length} arms).` +
+            ` The suite's claim needs \`--combine ${shard.of}\`.`,
+        )
       : armFilter
-        ? `RESULT: OK OVER ${arms.length} OF ${ARMS.length} ARMS — a filtered run. The full set is` +
-            " this suite's claim, and it has NOT been made here."
-        : "RESULT: OK",
+        ? withLedger(
+            `RESULT: OK OVER ${arms.length} OF ${ARMS.length} ARMS — a filtered run. The full set is` +
+              " this suite's claim, and it has NOT been made here.",
+          )
+        : withLedger("RESULT: OK"),
     0,
   );
 }

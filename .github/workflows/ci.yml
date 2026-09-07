@@ -323,6 +323,23 @@ jobs:
         # visible from inside the decision function.
         run: node tools/ci/deploy-gate-decide-selftest.mjs
 
+      - name: Is the arm ledger about the arms this repository has?
+        # `tools/journeys/arm-ledger.json` legitimises a RED — it lets a
+        # diagnosed mutation-arm survivor stop blocking every other branch —
+        # and the structural half of its claim is decidable in a second: every
+        # entry names an arm that exists, aimed where the arm is aimed, with
+        # every required field filled. The OTHER half, that each entry's arm
+        # still survives in exactly the way the entry records, needs the
+        # 150-minute sweep and is made there.
+        #
+        # HERE AND NOT IN `journeys-bite`, deliberately. A stale entry
+        # discovered after eight shards have run has already cost the
+        # runner-hours, and the tempting response to "the ledger will not
+        # parse" at that point is to run without it — which is the ledger
+        # silencing an arm by being broken rather than by being right. Plain
+        # node, no Nim, no browser: it answers before anything is spent.
+        run: node tools/journeys/selftest.mjs --check-ledger
+
       # ── the chain capture tooling, for this job's own stated reason ──────
       #
       # Same hole, same shape. `tools/chain/`'s three selftests — 124 counted
@@ -1189,9 +1206,23 @@ jobs:
         # Machinery that reports an ENDING is only exercised by an ending, so an
         # ordinary sweep covers none of it — which is how it would rot with
         # nobody noticing, in the one tool whose job is to certify that every
-        # other instrument is honest. Six probes now, sixteen assertions: four
-        # real endings, each demanded to name itself, plus the two that guard
-        # the sharding.
+        # other instrument is honest. Seven probes now: four real endings, each
+        # demanded to name itself, the two that guard the sharding, and the one
+        # that makes the SURVIVOR LEDGER fail in each of its four directions.
+        #
+        # PROBE 7 IS THE MOST IMPORTANT OF THEM, because it is the only one
+        # about a mechanism that makes a red LEGITIMATE. `arm-ledger.json` lets
+        # a diagnosed survivor stop blocking every other branch, which is also
+        # exactly the shape of a check narrowed until it no longer reports —
+        # the sibling repository's markdownlint config disables 29 rules, most
+        # of them documented as decisions. So the ledger is watched failing:
+        # 7b produces an unledgered survivor and demands a FAILED, 7c adds the
+        # entry and demands the OK, and 7d–7f then produce a ledgered arm that
+        # is KILLED, one that NEVER RAN, and one whose survival moved, and
+        # demand a FAILED for each. 7g–7i produce four malformed entries and
+        # demand exit 2. It costs milliseconds: `--combine` reads journals and
+        # executes no arm, so the whole of it runs over synthetic journals in a
+        # temporary directory that the repository's own ledger is never in.
         #
         # PROBES 5 AND 6 ARE WHY THIS STEP MATTERS MORE THAN IT USED TO. The
         # sweep is now split across four `journeys-bite` shards, and that trade
