@@ -267,11 +267,27 @@ export async function run({ browser, site, j }) {
     // THE STALENESS VERDICT. Not one reading the visitor could have taken is
     // the pane the exporter wrote. This is the defect in its own words: the
     // served frame's values, standing under a position the session has left.
-    const stale = readings.filter((r) => r.rows > 0 && r.text === served.text);
+    //
+    // THE POPULATION IS IN THE TEXT, because the count alone cannot say whether
+    // this was a measurement. `stale` is filtered from the readings that DREW
+    // VALUES, and a walk on which none did makes it empty for a reason that has
+    // nothing to do with staleness. The guard that establishes that set is
+    // non-empty (`CONTROL: the walk read N engine-supplied Values rows`) is
+    // fifty-five lines BELOW this verdict, and README.md's own rule is that the
+    // subject count belongs above the assertion and not elsewhere in the file:
+    // a journey can go red at that control while THIS record stands green, and
+    // an arm aimed at this text would then score SURVIVED. The numbers are
+    // stated here so the transcript answers the question at the point it is
+    // asked. `served.rows >= 1` is asserted above, which is what makes
+    // `served.text` a value worth comparing against at all.
+    const drewValues = readings.filter((r) => r.rows > 0);
+    const stale = drewValues.filter((r) => r.text === served.text);
     j.countIs(
       stale.length,
       0,
-      "no reading of the Values pane is the SERVED frame's values",
+      `no reading of the Values pane is the SERVED frame's values` +
+        ` (${drewValues.length} of ${readings.length} readings drew values,` +
+        ` against a served pane of ${served.rows} row(s))`,
     );
 
     // THE HONESTY VERDICT. §14: a pane with nothing in it must say why. Every
@@ -406,11 +422,47 @@ async function realArm(browser, site, j, subject) {
       `REAL CONTROL: the walk moved the chain session through distinct positions (${[...positions].join(" → ")})`,
     );
 
-    const stale = readings.filter((r) => r.rows > 0 && r.text === served.text);
+    // THE SAME VERDICT AS THE DEMO ARM'S, AND ON THIS SUBJECT IT CANNOT FAIL.
+    // Measured, and the number was already on screen two records above.
+    //
+    // `reading()` builds `text` as `stateRows.map(…).join(" | ")`, so a served
+    // pane with NO ROWS has `text === ""`. This filter is `r.rows > 0 &&
+    // r.text === served.text`, and a reading with rows has a non-empty `text`
+    // by construction — so when `served.rows` is 0 the two conditions are
+    // contradictory and `stale` is empty WHATEVER the product does. On this
+    // corpus the chain capture is exactly that case: `REAL CONTROL: the served
+    // frame states its Values pane (0 rows, 156 chars of sentence)`, against a
+    // walk that read 75 engine-supplied rows over 15 positions.
+    //
+    // THE CONTROL ABOVE DOES NOT SAVE IT, and this is the O2 shape exactly. It
+    // asserts `served.rows + (a sentence ? 1 : 0) >= 1` — "the served frame
+    // states its Values pane" — which 0 rows plus a sentence satisfies. That is
+    // a real guard for the `mute` and `blank` verdicts below it, which quantify
+    // over the READINGS. It is not a guard for this one, which compares against
+    // `served.text`. A guard must be a fact the defect cannot reach, and a
+    // guard that is true for a different reason than the verdict needs is the
+    // same false comfort under a different name.
+    //
+    // KEPT, NOT DELETED, and not converted into `atLeast(served.rows, 1)` — the
+    // chain capture genuinely records no variable names, so demanding served
+    // rows here would redden a correct tree over a property of the corpus. It
+    // is a true statement about the page and it is the direction the defect
+    // would return from the day this capture carries values. What changes is
+    // that it now SAYS what it was taken over, so a reader cannot mistake this
+    // zero for a measurement. The demo arm above is where the claim is actually
+    // judged, and that is where `K/the-served-values-stand` is aimed.
+    const drewValues = readings.filter((r) => r.rows > 0);
+    const stale = drewValues.filter((r) => r.text === served.text);
     j.countIs(
       stale.length,
       0,
-      "REAL: not one reading of the chain capture's pane is the frame the exporter wrote",
+      `REAL: not one reading of the chain capture's pane is the frame the exporter wrote` +
+        ` (${drewValues.length} of ${readings.length} readings drew values, against a served` +
+        ` pane of ${served.rows} row(s)` +
+        (served.rows === 0
+          ? " — which no reading that drew values can equal, so this verdict is" +
+            " UNFALSIFIABLE on this subject and the demo arm is where the claim is judged)"
+          : ")"),
     );
 
     const mute = readings.filter((r) => r.rows === 0 && r.note.length === 0);
