@@ -117,6 +117,66 @@ Two smaller rules from the same sweep:
   is how the call-trace journey's path check passed unconditionally against a
   `data-module=""`, the exact shape of the defect it was written for.
 
+## The sweep for race-dependent kills, and why it came back almost empty
+
+`FJ3/the-landing-selects-no-frame` reported KILLED for its whole life while being
+killed by a **race** rather than by its assertion: journey 26 settled on `phase
+!== "fetching"`, which releases at 0.2–0.3 s, and read a pane that hydration
+repaints at 2.3–2.7 s. Pinning the reads fixed the non-determinism and made FJ3
+SURVIVE — its coverage had rested on the race. The obvious next question is how
+many other arms are like that. **Measured, at `5b873dc`: none of the remaining
+71.**
+
+Two instruments, because the property has two halves.
+
+**The population half — is there an observation whose subject can be empty and
+whose size is not printed?** All 72 arms were resolved against a green run and
+classified by the shape of the assertion each is aimed at. 22 stand at `counted
+0, the claim says 0`, which is both the correct green for a violator count and
+the signature of a vacuity; only the population separates them. Every one of the
+22 either carries its population **inline** — `(over 13 such rows)`, `(802 frames
+sampled across 7 such positions)`, `(12 writes over 6 steps)`, `(first such step:
+2 marked changed, 3 unchanged and unmarked, of 5 rows)` — or is guarded by a
+CONTROL that names it: `the walk read 75 engine-supplied rows`, `the sweep reads
+more than one cursor value`, `the export ships the timeline itself`. One
+exception was found and fixed, and it was not an arm's target: journey 11's
+`REAL: not one reading of the chain capture's pane is the frame the exporter
+wrote` compares against a served pane of **0 rows**, which no reading that drew
+values can equal.
+
+**The timing half — does any verdict move when nothing else does?** This is how
+FJ3 was actually found: 20 runs of one unchanged tree gave 14 RED and 6 green,
+and the subject step moved between 58 and 59. So: **five full runs of the suite
+on one unchanged tree, 606 assertions each.** Every journey held one verdict on
+all five. Every journey made the same number of assertions on all five. **604 of
+606 assertions were single-valued across all five runs.**
+
+The two that moved are the same quantity, and it is *supposed* to move:
+
+```
+INSTRUMENT: the frame sampler saw every position the walk visited (802 frames)
+                                                                  (730 / 736 / 760 / 717)
+```
+
+That is journey 15's `requestAnimationFrame` density, which varies with machine
+load by construction — and the population its verdict rests on, `7 such
+positions`, was identical on all five runs. It is visible precisely *because*
+that assertion prints its population, which is the discipline working rather
+than failing.
+
+**So the one arm whose kill really is timing-dependent is the one already known:
+`FL2/the-panes-move-before-the-values-arrive`**, whose ~13 ms window against a
+16.7 ms frame is documented above and below, and which was deliberately REFUSED a
+ledger entry. The sampler density measured here (717–802 frames at load 20)
+is independent corroboration of that refusal: the instrument's sensitivity moves
+run to run on one tree, so a KILLED/SURVIVED split across two passes is a
+statement about the machine and not about the arm.
+
+**Do not re-run this sweep to look for more.** Re-run it if the corpus changes,
+if a journey gains a subject, or if an arm starts flapping — and re-run it the
+way it was run here, by repetition on one tree, because reading the sources
+cannot see a race and a single green pass cannot either.
+
 ## Rendered, not present
 
 The source pane holds every file in the bundle at once and hides all but one
