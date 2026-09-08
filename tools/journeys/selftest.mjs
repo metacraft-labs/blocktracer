@@ -2008,16 +2008,75 @@ const writeJournal = () => {
  * runs when there is no normal path left.
  */
 let inFlight = null;
+
+/**
+ * Put the file back, AND SAY WHAT BUILD STATE THAT LEAVES BEHIND.
+ *
+ * ## The restore is not the whole story, and the half it omits is the confusing
+ * ## half
+ *
+ * Writing the original bytes back makes the SOURCE correct and says nothing
+ * about `client/dist`. Those are two different claims, and after a signal they
+ * routinely disagree:
+ *
+ *   * the mutation was written but never built — the artefacts still match the
+ *     restored source, so the tree is CORRECT. But the restore gave the file a
+ *     new mtime, and `capture/lib/build-freshness.mjs` decides freshness by
+ *     mtime alone with no content check (`if (source.mtimeMs <= built.mtimeMs)
+ *     return null;`). So every freshness-reading tool — `run.mjs`,
+ *     `capture.mjs`, `check-hydration-divergence.mjs`, `check-tokens.mjs` D1 —
+ *     reports STALE about a tree that is right. A byte-identical rewrite is
+ *     invisible to the only question that gate asks.
+ *
+ *   * the mutation WAS built — `dist/` and `assets/hydrate.js` were produced
+ *     from source that is no longer in the tree. Here STALE is the correct
+ *     verdict and the artefacts really must not be trusted.
+ *
+ * Both states print the same thing if all this function reports is a filename,
+ * and the difference between them is the difference between "ignore that gate,
+ * rebuild when convenient" and "everything you measure until you rebuild is
+ * about a defect you did not write". 6f106f2 made this state CLEARABLE by a
+ * rebuild — before the three `touch` stamps it was permanent, because `nim js`
+ * does not rewrite a byte-identical output and so the bundle's mtime never
+ * caught up. It did not make the state ANNOUNCE ITSELF, and an operator who
+ * meets it next has no way to tell which of the two above they are in.
+ *
+ * So the run says which. This is the same rule the rest of this file is built
+ * on — a verdict printed without the identity of the thing it was measured on
+ * is unfalsifiable — applied to the tree the run abandons rather than to the
+ * tree it judges.
+ *
+ * NOT FIXED BY RESTORING THE ORIGINAL MTIME, which is the obvious repair and is
+ * wrong in the second case: it would make a tree whose artefacts came from the
+ * mutated source look FRESH, converting a loud, correct refusal into a silent
+ * false green. That is the exact error `artefactIdentity` exists to prevent,
+ * reintroduced one layer down. A gate that cried wolf is a nuisance; a gate
+ * taught to stay quiet over a mutated bundle is the thing this directory calls
+ * the worse of the two.
+ */
 const restoreInFlight = () => {
   if (!inFlight) return null;
-  const { file, original } = inFlight;
+  const { file, original, rebuilt } = inFlight;
   inFlight = null;
   try {
     writeFileSync(file, original);
-    return file;
   } catch {
-    return `${file} — RESTORE FAILED, the mutation is still in the tree`;
+    return (
+      `${file} — RESTORE FAILED, the mutation is STILL IN THE TREE.\n` +
+      `        Put it back before running anything: \`git checkout -- ${file}\`, then rebuild.`
+    );
   }
+  return rebuilt
+    ? `${file}\n` +
+        `        THE BUILD IS NOT RESTORED. \`client/dist\` and \`assets/hydrate.js\` were\n` +
+        `        built FROM THE MUTATION and the source no longer matches them, so a\n` +
+        `        freshness gate will say STALE and it is RIGHT. Rebuild before measuring\n` +
+        `        anything on this tree: \`(cd client && just export-hydrated)\`.`
+    : `${file}\n` +
+        `        The build was never made, so the artefacts still match the restored\n` +
+        `        source and this tree is CORRECT. The restore did give the file a newer\n` +
+        `        mtime, so freshness gates will report STALE until you rebuild — that\n` +
+        `        reading is about the mtime, not about the tree.`;
 };
 
 let verdictPrinted = false;
@@ -2104,12 +2163,17 @@ process.on("exit", () => {
   // A `throw`, a dependency calling `process.exit`, or any path that reached
   // the end without going through `finish`. Printing here is the difference
   // between "this run has no verdict" and a log that merely stops.
-  restoreInFlight();
+  // The restore's account of the tree is PRINTED here and not discarded. This
+  // hook is the throw/exit path, and it left exactly the same half-built tree
+  // the signal handlers do — an operator who reads only "no verdict" has been
+  // told nothing about the `dist/` they are about to measure on.
+  const restored = restoreInFlight();
   journal.status = "did-not-run";
   journal.finishedAt = new Date().toISOString();
   writeJournal();
   logSync("");
   logSync(`RESULT: DID NOT RUN — the run ended without a verdict ${progressSoFar()}.`);
+  if (restored) logSync(`        restored the mutated file: ${restored}`);
 });
 
 /** What the PREVIOUS run's journal says, or `null` if there is none. */
@@ -3328,7 +3392,10 @@ async function main() {
     // is the one that exists because a `finally` does not run when the process
     // is signalled, and `K/the-served-values-stand` was left in a worktree by
     // exactly that.
-    inFlight = { file: arm.file, original };
+    // `rebuilt` starts false and is set the moment a build has been made WITH
+    // the mutation in place. It is what lets `restoreInFlight` tell a tree whose
+    // artefacts are merely mtime-stale from one whose artefacts are the defect.
+    inFlight = { file: arm.file, original, rebuilt: false };
     await writeFile(arm.file, original.split(arm.find).join(arm.replace));
     let verdict;
     // WHAT THE ASSERTION SAID WITH THE DEFECT IN PLACE, carried out of the
@@ -3338,6 +3405,10 @@ async function main() {
     let mutatedId = beforeId;
     try {
       const built = await rebuild();
+      // FROM HERE THE ARTEFACTS ARE THE MUTATION'S. Recorded before anything
+      // else can throw, because the signal handler's message depends on it and
+      // the window it describes opens the instant the build lands.
+      if (inFlight) inFlight.rebuilt = true;
       mutatedId = await artefactIdentity();
       if (built.built) log(`    mutated: ${describe(mutatedId)}`);
       if (built.built && sameArtefact(mutatedId, beforeId)) {

@@ -104,6 +104,22 @@ ck "and names the arm it was running" $?
 ck "exits 2 — not 0, and not the 1 a red run uses (got $rc)" $?
 grep -q "restored the mutated file" "$LOGS/p2"
 ck "says it restored the file" $?
+# AND SAYS WHAT IT LEFT `client/dist` IN, which the line above does not.
+#
+# A restored SOURCE and a restored BUILD are two claims, and after a signal they
+# disagree: the restore writes byte-identical content with a NEW mtime, and
+# `build-freshness.mjs` compares mtimes with no content check, so the next tool
+# to read this tree reports STALE either way. Whether that reading is a nuisance
+# or a real refusal depends on whether a build was made with the mutation in
+# place, and only this run knows.
+#
+# MATCHED ON EITHER BRANCH ON PURPOSE. Which one is correct here depends on
+# whether the rebuild finished inside the ~0.5s between the mutation reaching
+# disk and the kill — that is a race, and a probe that demanded one branch would
+# be asserting a timing rather than the behaviour. Both branches must name a
+# build state; that is the property, and it holds whichever side the race falls.
+grep -q -E "THE BUILD IS NOT RESTORED|The build was never made" "$LOGS/p2"
+ck "and says which build state it left the tree in" $?
 git diff --quiet -- "$MUT"
 ck "and the file really is back, byte-for-byte" $?
 grep -q '"status": "did-not-run"' "$J"
