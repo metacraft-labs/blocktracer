@@ -89,6 +89,53 @@
 #
 # Until that derivation exists, `runtime.avmWasm` stays an operator-supplied path
 # and this file says so instead of pretending otherwise.
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# BUILT ON THE PLATFORM IT DEPLOYS TO — 2026-09-08
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Everything above was measured on aarch64-darwin. The systemd unit runs on
+# x86_64-linux, and until this date not one of these four derivations had ever
+# been BUILT there. They EVALUATED there, which is a statement about this
+# expression and not about the compiler, the npm cache or the linker — and no
+# job in any of `.github/workflows/`'s five files named a single one of these
+# outputs, so nothing would have reported it if they had stopped building.
+#
+# `ci.yml`'s `chain-follower-linux` job is what closed that. All four built
+# COLD, from source, on a bare-metal NixOS runner: 115 derivations, with
+# `aztec-ct-writer`'s release profile in 32 s and the whole job in 2 min 2 s
+# (run 34229795600, gpu-server-002-mcl-003). The green verdict is run
+# 34230315685 on a sibling runner sharing that host's store, in 32 s — which is
+# also the measurement that says what this gate costs to keep.
+#
+# WHAT THE LINUX BUILD SHOWED THAT THE DARWIN ONE COULD NOT:
+#
+#   * THE FIXED-OUTPUT npm HASH IS NOT A DARWIN HASH — and the reason it is not
+#     is worth writing down, because the obvious check for it is wrong.
+#     `replay/node_modules` carries 19 native prebuilds and they are
+#     deliberately NOT all Linux: 8 ELF64-x86-64, 3 ELF64-aarch64, 3 ELF32-arm,
+#     3 Mach-O and 2 Windows PE. `@aztec/bb.js` ships four platforms inside one
+#     package and `leveldown` ships nine; a Mach-O sitting beside an ELF is
+#     those packages working as designed, and a gate that refused on its
+#     presence — the first version of this one did, and failed — would be
+#     unpassable everywhere. The question is which object node SELECTS. On
+#     linux-x64 that is `bb.js/build/amd64-linux/nodejs_module.node` and
+#     `leveldown/prebuilds/linux-x64/node.napi.glibc.node`; both are
+#     ELF64-x86-64, and all three `@aztec` packages the replay driver declares
+#     import successfully under this `nodejs`. So a hash computed on darwin
+#     yields a working Linux tree. That was an open question; it is now a
+#     measured one.
+#   * `aztec_ct_writer.wasm`, linked by the Linux `lld` this file names rather
+#     than a rustup toolchain's, is 268,136 bytes with 39 exports and 0 imports
+#     and compiles under the packaged node.
+#   * The wrapper's argument passthrough — the `set --` defect recorded at the
+#     wrapper below, which built perfectly and dropped every argument — is
+#     asserted on Linux by two probes that differ only in the message they are
+#     required to produce, because exit code alone cannot tell them apart.
+#
+# `avm.wasm` is unchanged by any of this. It is still `null`, still
+# operator-supplied, and still for the reasons in the section above; nothing
+# here replays, on Linux or anywhere else.
 {
   lib,
   stdenv,
