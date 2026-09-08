@@ -260,6 +260,14 @@ export function decideDeployGate(w) {
   // branch's red, which is precisely the "measured the wrong artefact" failure
   // this gate is supposed to be the answer to. The verdict that gates a
   // publish to a branch is the verdict produced ON that branch.
+  //
+  // NOTE WHAT THIS FILTER DOES NOT DO. A row with no `runBranch` at all is
+  // admitted, because most of the selftest's fixtures below omit the field.
+  // That makes this a CONVENIENCE, not the second line of defence the
+  // collector once claimed it was: the real scoping is the `head_branch`
+  // filter in deploy-gate.mjs, and if that ever stops setting `runBranch`
+  // the cross-branch union returns silently. Tightening this to reject
+  // undefined would be the right shape, and costs rewriting 14 fixtures.
   const scoped = jobs.filter(
     (j) => j && (j.runBranch === undefined || j.runBranch === null || j.runBranch === branch),
   );

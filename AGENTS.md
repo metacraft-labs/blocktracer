@@ -64,6 +64,93 @@ The policy is a pure function in `tools/ci/requeue-decide.mjs` with a 14-arm
 selftest in the `deploy-gates` CI job. Kill switch: set the
 `DEPLOY_REQUEUE_DISABLED` repository variable.
 
+### The CI verdict gate, and how to arm it
+
+**A publishing deploy asks whether `ci` passed for that same commit on that
+same branch.** `deploy.yml`'s `ci-verdict` job runs
+`tools/ci/deploy-gate.mjs`; the policy is a pure function in
+`tools/ci/deploy-gate-decide.mjs`, whose header carries the measurements it
+rests on. The `deploy` job is guarded by **both** `needs: ci-verdict` and
+`if: needs.ci-verdict.outputs.publish == 'true'`, so a skipped, cancelled or
+crashed gate does not read as consent.
+
+**It ships DISARMED and is disarmed today** — as of 2026-09-08 the repository
+has no variables set at all (`actions/variables` → `total_count: 0`). With no
+variable, the gate collects the facts, decides, annotates the run
+`WOULD HAVE REFUSED`, and publishes anyway.
+
+| | |
+|---|---|
+| **Arm** | set `DEPLOY_GATE_MODE=enforce` |
+| **Disarm** | clear `DEPLOY_GATE_MODE` (or set it to `off` to skip the check entirely) |
+| **Raise the floor** | `DEPLOY_GATE_REQUIRED_JOBS="ci-coverage deploy-gates contract"` |
+
+Both are repository variables: **arming and disarming take no commit and no
+deploy.** A *misspelled* mode is advisory, never enforce — a typo must not be
+the thing that stops publishing. A required-job list that is *written* but
+parses to nothing is a **refusal** (G3), not a vacuous pass.
+
+**What it costs, measured over the 120 most recent `ci` runs
+(2026-09-04T00:36Z … 2026-09-07T00:29Z), per job rather than per run:**
+
+| job | success | green % | median | p90 |
+|---|---|---|---|---|
+| `ci-coverage` | 119 / 120 | 99.2 % | 11 s | 15 s |
+| `deploy-gates` | 119 / 120 | 99.2 % | 95 s | 100 s |
+| `visual-design` | 86 / 120 | 71.7 % | 24 s | 27 s |
+| everything else | ≤ 45 / 120 | ≤ 37.5 % | — | — |
+
+So the gate costs about **two minutes** of publishing latency against a
+20-minute deadline. Replayed over the **100 publishing pushes** in that
+window, the shipped floor would have **refused 2 and published 98**. Adding
+`visual-design` would refuse **33**; adding `contract`, **68**. That is why
+the floor is two jobs and not nine, and re-measurement on current data has
+not moved it.
+
+**What the first enforced refusal looks like.** The `Deploy` run goes red with
+an annotation titled `DEPLOY REFUSED — ci did not pass for this commit`,
+naming the code and the job states (e.g. `G5 … ci-coverage=failure`).
+**Nothing was published; the deploy did not run** — it is not a build failure,
+and production keeps serving the previous commit. The codes:
+
+* **G4** — no `ci` run exists for this commit. *A commit nothing tested is not
+  a commit that passed.* This is the gate distinguishing "CI has not run yet"
+  from "CI ran and passed"; before the deadline it **waits** (`G4w`) instead.
+* **G5** — a required job reached a verdict and it was not `success`. Refused
+  at once; there is nothing to wait for.
+* **G6** — a required job is absent from every run: the rename guard. If you
+  rename a job in `ci.yml`, this refuses rather than going green over a job
+  that no longer runs.
+* **G7** — still unfinished at the deadline. *An unfinished check is not a
+  passed check.*
+* **G3** — the *gate* is misconfigured, not the commit. Titled differently on
+  purpose, so nobody goes looking in `ci` for a defect that is in a setting.
+* **exit 2** — the gate could not run (no token, API unreadable). Distinct
+  from a refusal, and it never reads as a pass.
+
+**Expect roughly one refusal in fifty publishing pushes, and expect about half
+of those to be evictions rather than defects.** Of the two refusals in the
+replayed window, one was genuine (`staging@c77a1b0f`, `ci-coverage=failure` —
+exactly what this gate exists to catch) and one was infrastructure
+(`dev@d91b925`, `deploy-gates=cancelled`: the job had started on a runner and
+a newer push to `staging` seconds later evicted the run; the same tree was
+`success` on both other branches). **A refusal is not auto-retried** —
+`requeue-decide.mjs`'s D2 never retries a `failure` — so clearing an eviction
+means re-pushing, or obtaining a verdict through the
+`ci-coverage-clock.yml` dispatch lane, which exists precisely because a push
+run can be evicted before it places a job.
+
+**Watch, for the first day after arming:** the `Deploy` runs that go red, and
+whether their code is `G5` (a real red — leave it refused) or `G6`/`G7`/a
+`cancelled` required job (an eviction — the floor is being starved, not the
+commit). If evictions dominate, disarm; do **not** widen the required set to
+make them go away.
+
+**One thing this floor does not do,** stated so it is not discovered: it would
+**not** have stopped `779c7029` publishing to `live` on 2026-09-05 with
+`journeys` and `visual-design-canary` both red. Re-verified against the live
+API on 2026-09-08 — it still publishes. The gate is a floor, not a ceiling.
+
 ## 1a. `@blocktracer/client` — the Client SDK (M12a)
 
 The chain-aware read layer lives in **`src/blocktracer_client.nim`** (the

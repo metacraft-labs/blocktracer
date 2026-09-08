@@ -107,8 +107,21 @@ async function collect() {
   // SAME WORKFLOW, SAME BRANCH. The branch filter is not cosmetic: one commit
   // pushed to dev, staging and live produces three `ci` runs over one tree,
   // and they do not always agree — see the note beside the roll-up in
-  // deploy-gate-decide.mjs, which is a real observation on c77a1b0f. The
-  // decider filters again on `runBranch` so this cannot be undone here alone.
+  // deploy-gate-decide.mjs, which is a real observation on c77a1b0f.
+  //
+  // THIS FILTER IS THE ONLY REAL ONE, and an earlier version of this comment
+  // claimed otherwise ("the decider filters again so this cannot be undone
+  // here alone"). It cannot: the decider admits any row whose `runBranch` is
+  // `undefined` or `null`, because 14 of its 21 selftest fixtures omit the
+  // field. So a regression that stopped SETTING `runBranch` below — or a
+  // GitHub run whose `head_branch` is null — would be laundered through the
+  // decider unnoticed rather than caught by it. Verified 2026-09-08: feeding
+  // c77a1b0f's real three-branch rows with `runBranch` nulled turns staging's
+  // G5 refusal into a G8 publish. Not reachable today (a null `head_branch`
+  // is already dropped by the `=== wantBranch` test on the next line, and an
+  // empty GATE_BRANCH stops at G2), which is why it is a comment and not a
+  // patch — but the second line of defence described here does not exist.
+  // Keep the `runBranch` assignment below; nothing downstream re-checks it.
   const wantBranch = (process.env.GATE_BRANCH || "").trim();
   const ciRuns = (runs.workflow_runs || []).filter(
     (r) => r.path === CI_WORKFLOW_PATH && (!wantBranch || r.head_branch === wantBranch),
