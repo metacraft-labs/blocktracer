@@ -205,6 +205,34 @@ shell_count="$(printf '%s\n' "${shell_gates}" | grep -c . || true)"
 # the same reason: "Comment lines are dropped BEFORE counting."
 workflow_all="$(grep -vE '^\s*#' "${workflow}")"
 
+# EVERY `grep -q` BELOW READS A HERESTRING, NOT A PIPE, AND THAT IS LOAD-BEARING.
+#
+# This file runs under `set -o pipefail` (line 88). `grep -q` exits the instant
+# it matches, which closes the read end of its pipe; the `printf` feeding it then
+# takes EPIPE on its next write and the PIPELINE reports failure — so a pattern
+# that was FOUND is reported as absent. Whether printf has finished writing
+# before grep exits is a race between two processes, which is why this passed for
+# months and why the eight call sites did not fail together.
+#
+# It was not hypothetical and it was not caught by a selftest. On 2026-09-08 the
+# `chain-follower-linux` job was appended to ci.yml, `workflow_all` grew from
+# 18,182 to 31,246 bytes, and the very next mainline run reported
+#
+#     ci/test/ci-coverage.sh: line 400: printf: write error: Broken pipe
+#     [FAILED] shell gate 'ci/test/viewmodel-seam-test.sh' exists and NO CI job runs it
+#
+# on a `run:` line that was sitting in ci.yml untouched. ONE gate of the twenty
+# lost the race; the other nineteen won it. A guard that reports a hole in its
+# subject because of a race in itself is worse than no guard, because the reader
+# spends the failure looking at the wrong file — and a guard that instead won the
+# race and stayed green while its subject rotted is the same defect wearing the
+# other face.
+#
+# The mechanism was already known here: the `case` at the gate-selftest check
+# carries a comment naming it exactly. That fix was applied to one site. These
+# are the other eight. A herestring is a temp file, not a pipe — there is no
+# reader to disappear, and the exit status is grep's alone.
+
 echo "Step 0: the subject lists are non-empty"
 echo "    A parser that matched nothing reports perfect coverage of nothing."
 if [ "${client_count}" -ge 5 ]; then
@@ -254,7 +282,7 @@ echo "    the Nargo.toml defect from coming back."
 # orphans happened. With the aggregate recognised, `just test` is the only place
 # a suite is named, and this guard reads that same place.
 aggregate_runs=0
-if printf '%s' "${workflow_all}" | grep -qE "just[[:space:]]+test([^a-z0-9-]|$)"; then
+if grep -qE "just[[:space:]]+test([^a-z0-9-]|$)" <<<"${workflow_all}"; then
 	aggregate_runs=1
 	ok "a CI job runs the \`just test\` aggregate, which covers every prerequisite it names"
 fi
@@ -264,7 +292,7 @@ while read -r target; do
 	[ -n "${target}" ] || continue
 	if [ "${aggregate_runs}" -eq 1 ]; then
 		ok "client suite '${target}' is covered (via the \`just test\` aggregate)"
-	elif printf '%s' "${workflow_all}" | grep -qE "just[[:space:]]+${target}([^a-z0-9-]|$)"; then
+	elif grep -qE "just[[:space:]]+${target}([^a-z0-9-]|$)" <<<"${workflow_all}"; then
 		ok "client suite '${target}' is run by a CI job, by name"
 	else
 		uncovered_client=$((uncovered_client + 1))
@@ -317,9 +345,9 @@ orphan_recipes=0
 by_name=0
 while read -r r; do
 	[ -n "${r}" ] || continue
-	if printf '%s\n' "${client_targets}" | grep -qx -- "${r}"; then
+	if grep -qx -- "${r}" <<<"${client_targets}"; then
 		:
-	elif printf '%s' "${workflow_all}" | grep -qE "just[[:space:]]+${r}([^a-z0-9-]|\$)"; then
+	elif grep -qE "just[[:space:]]+${r}([^a-z0-9-]|\$)" <<<"${workflow_all}"; then
 		# Named by a CI job, deliberately outside the aggregate. Reported
 		# rather than passed over in silence: a recipe on this path is one
 		# nobody running `just test` will ever execute, and that is worth
@@ -393,11 +421,11 @@ register_problems=0
 while read -r gate; do
 	[ -n "${gate}" ] || continue
 	listed=0
-	if [ -n "${known_dark}" ] && printf '%s\n' "${known_dark}" | grep -qxF -- "${gate}"; then
+	if [ -n "${known_dark}" ] && grep -qxF -- "${gate}" <<<"${known_dark}"; then
 		listed=1
 	fi
 
-	if printf '%s' "${workflow_all}" | grep -qF -- "${gate}"; then
+	if grep -qF -- "${gate}" <<<"${workflow_all}"; then
 		if [ "${listed}" -eq 1 ]; then
 			register_problems=$((register_problems + 1))
 			bad "shell gate '${gate}' IS run by a CI job and is still listed in ci/test/ci-coverage.known-dark.txt — delete that line"
@@ -509,7 +537,7 @@ fi
 ungated=0
 while read -r b; do
 	[ -n "${b}" ] || continue
-	if printf '%s\n' "${ci_branches}" | grep -qx -- "${b}"; then
+	if grep -qx -- "${b}" <<<"${ci_branches}"; then
 		# "ci.yml fires on it", and deliberately not "it is gated". The deploy
 		# does not wait for the answer, so the strong word would be a promise
 		# this check has no way to keep.
@@ -599,7 +627,7 @@ else
 	if [ "${clock_count}" -ge 1 ]; then
 		while read -r b; do
 			[ -n "${b}" ] || continue
-			if printf '%s\n' "${clock_refs}" | grep -qx -- "${b}"; then
+			if grep -qx -- "${b}" <<<"${clock_refs}"; then
 				ok "branch '${b}' is deployed AND has a coverage lane in ci-coverage-clock.yml"
 			else
 				bad "branch '${b}' is DEPLOYED by deploy.yml and the coverage clock does not name it — if its push runs are evicted, that branch reaches no verdict at all and nothing says so"
