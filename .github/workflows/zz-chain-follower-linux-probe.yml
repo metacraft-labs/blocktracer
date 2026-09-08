@@ -200,22 +200,30 @@ jobs:
             || { echo "REFUSED: the packaged runtime would stamp a commit the flake does not pin"; exit 1; }
           echo "runtime-commit=${stamped}" >> "${REPORT_DIR}/platform.txt"
 
-      - name: No Mach-O smuggled into the Linux runtime by the fixed-output npm cache
+      - name: The native prebuild this node selects on linux-x64 is a linux-x64 object
         # THE ONE PLACE A DARWIN-COMPUTED HASH COULD HAVE PRODUCED A DARWIN
         # ARTEFACT. `fetchNpmDeps`'s hash is over the tarball set the lockfile
         # names, and npm lockfiles carry per-platform optional dependencies —
-        # so a cache populated on darwin and reused on Linux is exactly the
-        # shape that yields a tree with the wrong native binaries in it. This
-        # enumerates every native module in the installed tree and reports what
-        # each one is; a Mach-O here is a defect that would surface as a load
-        # failure on the first replay and not before.
+        # so a cache populated on darwin and reused on Linux is the shape that
+        # would yield a tree with the wrong native binaries in it.
         #
-        # The magic bytes are read directly rather than shelled out to `file`,
-        # which a NixOS runner's PATH need not have. THE COUNT IS PRINTED WITH
-        # ITS POPULATION: zero native modules is a real and expected answer for
-        # an `--omit=dev` install of this lockfile, and "0 bad" would otherwise
-        # be indistinguishable from "the find matched nothing because the path
-        # was wrong". The path is therefore asserted to exist first.
+        # WHAT THE FIRST VERSION OF THIS STEP ASSERTED, AND WHY IT WAS WRONG.
+        # It refused on the presence of ANY Mach-O anywhere in the tree, and it
+        # failed on its first run — 3 Mach-O objects out of 19 `.node` files.
+        # That was a false positive and the census is the reason it is now
+        # printed rather than merely counted: `@aztec/bb.js` ships FOUR
+        # prebuilds in one package (amd64-linux, amd64-macos, arm64-linux,
+        # arm64-macos) and `leveldown` ships NINE, two of them Windows PE. A
+        # macOS object sitting beside a Linux one is those packages working as
+        # designed, and refusing on it would have made this gate unpassable on
+        # any platform. The question worth asking is not "is a foreign object
+        # present" but "is the object this node will SELECT the right one".
+        #
+        # So: the census is printed in full (a reader can see what shipped),
+        # and the refusal is on the two linux-x64 prebuilds the runtime will
+        # actually dlopen, checked down to ELF class and machine rather than
+        # just the four magic bytes. Read with `file`-free byte inspection,
+        # because a NixOS runner's PATH need not carry `file`.
         run: |
           set -euo pipefail
           test -d "${CHAIN_RUNTIME}/replay/node_modules" \
@@ -233,21 +241,91 @@ jobs:
                 else if (e.isFile() && p.endsWith(".node")) found.push(p);
               }
             })(root);
-            const b = Buffer.alloc(4);
-            let bad = 0;
+            // ELF class 2 = 64-bit, e_machine 0x3e = x86-64. Anything less
+            // specific would pass an aarch64 ELF, which is the other way this
+            // could be wrong on a pool that also has arm64 hardware.
+            const describe = (f) => {
+              const b = Buffer.alloc(20);
+              const fd = fs.openSync(f, "r"); fs.readSync(fd, b, 0, 20, 0); fs.closeSync(fd);
+              const magic = b.subarray(0, 4).toString("hex");
+              if (magic === "7f454c46") {
+                const cls = b[4] === 2 ? "64" : b[4] === 1 ? "32" : "?";
+                const mach = b.readUInt16LE(18);
+                const name = mach === 0x3e ? "x86-64" : mach === 0xb7 ? "aarch64" : `machine-0x${mach.toString(16)}`;
+                return `ELF${cls}-${name}`;
+              }
+              if (["cffaedfe", "cefaedfe", "cafebabe", "feedfacf"].includes(magic)) return "MACH-O";
+              if (magic.startsWith("4d5a")) return "PE";
+              return `unknown(${magic})`;
+            };
             console.log(`scanned ${dirs} directories under replay/node_modules`);
-            console.log(`native modules (population: every *.node file in that tree): ${found.length}`);
+            console.log(`native prebuilds shipped (population: every *.node file in that tree): ${found.length}`);
+            const census = {};
             for (const f of found) {
-              const fd = fs.openSync(f, "r"); fs.readSync(fd, b, 0, 4, 0); fs.closeSync(fd);
-              const magic = b.toString("hex");
-              const kind = magic === "7f454c46" ? "ELF"
-                : ["cffaedfe", "cefaedfe", "cafebabe"].includes(magic) ? "MACH-O" : `unknown(${magic})`;
+              const kind = describe(f);
+              census[kind] = (census[kind] ?? 0) + 1;
               console.log(`  ${kind}  <-  ${path.relative(root, f)}`);
-              if (kind === "MACH-O") bad++;
             }
-            if (bad) { console.error(`REFUSED: ${bad} Mach-O object(s) installed in the Linux runtime`); process.exit(1); }
-            fs.appendFileSync(process.argv[2], `native-modules=${found.length}\nnode-modules-dirs=${dirs}\n`);
+            console.log("by format:", JSON.stringify(census));
+            console.log("");
+            // The refusal. These two paths are what node resolves on
+            // linux-x64: bb.js keys its build directory on <arch>-<os>, and
+            // node-gyp-build / prebuildify pick <platform>-<arch> for leveldown.
+            const must = [
+              "@aztec/bb.js/build/amd64-linux/nodejs_module.node",
+              "leveldown/prebuilds/linux-x64/node.napi.glibc.node",
+            ];
+            let bad = 0;
+            for (const rel of must) {
+              const f = path.join(root, rel);
+              if (!fs.existsSync(f)) { console.error(`  MISSING  ${rel}`); bad++; continue; }
+              const kind = describe(f);
+              console.log(`  selected-on-linux-x64: ${kind}  <-  ${rel}`);
+              if (kind !== "ELF64-x86-64") { console.error(`  REFUSED: ${rel} is ${kind}, not ELF64-x86-64`); bad++; }
+            }
+            if (bad) { console.error(`REFUSED: ${bad} of ${must.length} linux-x64 prebuilds are absent or the wrong object`); process.exit(1); }
+            fs.appendFileSync(process.argv[2],
+              `native-prebuilds=${found.length}\nnative-prebuilds-by-format=${JSON.stringify(census)}\nnode-modules-dirs=${dirs}\n`);
           ' "${CHAIN_RUNTIME}" "${REPORT_DIR}/platform.txt"
+
+      - name: The replay driver's three @aztec dependencies load under this node, on Linux
+        # THE CHECK THE STATIC CENSUS ABOVE CANNOT MAKE. `tools/chain/nix`'s
+        # header records that a bare source export of `aztec-avm-runtime`
+        # cannot replay anything — `replay/tools/replay_settled_transaction.mjs`
+        # imports `@aztec/foundation`, `@aztec/stdlib` and
+        # `@aztec/protocol-contracts`, and the live workstation follower had 545
+        # MB of hand-installed `replay/node_modules` beside it. The package
+        # replaces that with an offline `npm ci` from the committed lockfile,
+        # and until this step nothing had ever executed one line of the result
+        # ON LINUX.
+        #
+        # The two subpaths are the exact specifiers the driver names (its lines
+        # 25-26); `@aztec/protocol-contracts` is its third declared dependency,
+        # reached through `replay/src/index.ts`. An import failure here is the
+        # difference between "the derivation built" and "the unit can replay".
+        run: |
+          set -euo pipefail
+          cd "${CHAIN_RUNTIME}/replay"
+          "${FOLLOWER_NODE}/bin/node" --input-type=module -e '
+            const specs = [
+              "@aztec/foundation/json-rpc/client",
+              "@aztec/stdlib/tx/tx-hash",
+              "@aztec/protocol-contracts",
+            ];
+            let bad = 0;
+            for (const s of specs) {
+              const t0 = Date.now();
+              try {
+                const m = await import(s);
+                console.log(`  ok  ${s}  (${Object.keys(m).length} exports, ${Date.now() - t0} ms)`);
+              } catch (e) {
+                console.error(`  FAILED  ${s}: ${e.message}`);
+                bad++;
+              }
+            }
+            console.log(`loaded ${specs.length - bad} of ${specs.length} (population: the replay driver’s declared @aztec dependencies)`);
+            if (bad) process.exit(1);
+          '
 
       - name: The Linux-built .ct writer is a wasm module this node can compile
         # `nix build` succeeding says the linker ran. It does not say the bytes
