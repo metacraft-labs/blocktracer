@@ -4088,9 +4088,16 @@ suite "ING-3 — a refusal is not an absence":
     ck classSummary["refusals"]["byReason"]["runtime-refused"].getInt == 1
 
   test "assertion count":
-    #   21 — absent vs refused, with its control
-    #    4 — the mutation bite
+    # Counted by reading the assertions, term by term, rather than by copying a
+    # number off a run — a total corrected to match a run cannot notice that a
+    # case stopped running.
+    #
+    #   16 — absent vs refused: 2 headlines, 4 markup differences, 2 reasons
+    #        present, 2 sentences located, 2 view-level members, 4 control
+    #    4 — the mutation bite, including that it removed the DISTINCTION and
+    #        not the reason
     #    6 — the Aztec split at the contract layer
-    #   14 — the closed set, its control and the validator
-    #   14 — the published counts (7 of them the zero-fill loop)
-    expectCount(21 + 4 + 6 + 14 + 14)
+    #    9 — the closed set: the raise, five things its message must say, the
+    #        control that a member ingests clean, and the validator's two
+    #   16 — the published counts, 7 of them the zero-fill loop over the set
+    expectCount(16 + 4 + 6 + 9 + 16)

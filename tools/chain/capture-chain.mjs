@@ -414,6 +414,8 @@ const transactions = rows.map((r) => {
   }) };
 });
 
+const refusals = refusalCounts(transactions);
+
 const snapshot = {
   format: 'blocktracer/chain-snapshot@1',
   provenance: {
@@ -448,9 +450,9 @@ const snapshot = {
     refused: transactions.filter(t => t.outcome === 'refused').length,
     pruned: transactions.filter(t => t.outcome === 'pruned').length,
     // ING-3: every member of the closed set, zero-filled. See `refusalCounts`.
-    refusals: refusalCounts(transactions).byReason,
-    refusalsTotal: refusalCounts(transactions).total,
-    refusalsUnclassified: refusalCounts(transactions).unclassified,
+    refusals: refusals.byReason,
+    refusalsTotal: refusals.total,
+    refusalsUnclassified: refusals.unclassified,
   },
   blocks,
   transactions,
