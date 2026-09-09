@@ -25,7 +25,7 @@
 // the same code path has nothing to fail).
 
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -489,7 +489,57 @@ test('the gate is in the write path, not beside it');
   }
 }
 
-expectCount(91);
+// ── and the committed data plane, which is the only population there is ────────────────
+//
+// Every assertion above runs over rows this file constructed. That is deliberate — it is
+// the only way to reach a branch production has never taken — and it is also the classic
+// way for a suite to be green over a tree that is broken. So the gate is also run against
+// the snapshots this repository actually ships, with the population STATED: a pass over
+// zero untraced rows would be the empty-set green this whole milestone is about.
+
+test('the committed captures are inside the closed set');
+{
+  const fixtures = join(new URL('../../', import.meta.url).pathname, 'client', 'fixtures', 'chain');
+  const snaps = readdirSync(fixtures, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && existsSync(join(fixtures, d.name, 'snapshot.json')))
+    .map((d) => join(fixtures, d.name, 'snapshot.json'));
+  ck(`there are committed captures to check — ${snaps.length} of them`, snaps.length >= 3);
+
+  let untraced = 0;
+  let traced = 0;
+  const seen = new Set();
+  const problems = [];
+  for (const p of snaps) {
+    const rows = JSON.parse(readFileSync(p, 'utf8')).transactions ?? [];
+    const a = auditRefusals(rows);
+    untraced += a.untraced;
+    traced += a.traced;
+    for (const q of a.problems) problems.push(`${p}: ${q}`);
+    for (const id of Object.keys(refusalCounts(rows).byReason)) {
+      if (refusalCounts(rows).byReason[id] > 0) seen.add(id);
+    }
+  }
+  ck(`the population is not empty — ${untraced} untraced row(s) across ${snaps.length} `
+     + `captures, against ${traced} traced`, untraced > 100);
+  ck('every one of them carries a reason from the closed set', problems.length === 0);
+  if (problems.length) console.error(`    ${problems.slice(0, 5).join('\n    ')}`);
+  // WHICH MEMBERS THE REAL DATA HAS ALREADY REACHED, asserted so the fact stops being
+  // something someone once noticed. `not-first-in-block` is among them: the committed
+  // testnet capture holds four transactions at a non-zero index, which is a refusal branch
+  // firing on real traffic, not a hypothetical.
+  ck('the real captures have already reached `not-first-in-block` — the branch whose '
+     + 'production count on mainnet is zero', seen.has('not-first-in-block'));
+  ck('…and `body-unavailable`', seen.has('body-unavailable'));
+  ck('…and `runtime-refused`', seen.has('runtime-refused'));
+  ck('…and `not-attempted`', seen.has('not-attempted'));
+  // The three that real data has NOT reached are named rather than left implicit: a set
+  // whose unreached members are invisible is a set nobody can ask questions about.
+  ck('three members are not yet reached by any committed capture, and that is stated '
+     + `rather than silent: ${REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).join(', ')}`,
+     REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).length === 3);
+}
+
+expectCount(99);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

@@ -1176,7 +1176,8 @@
    "outcome": "refused",
    "refusal": "TypeError",
    "reason": "This transaction could not be re-executed: the replay runtime refused with TypeError. No trace was recorded for it.",
-   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')"
+   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')",
+   "refusalReason": "runtime-refused"
   },
   {
    "txHash": "0x11d0bb0f57329746e30f1a473a55ac58e4c0c3df9eb7e5e648e3f6282c10fbde",
@@ -1198,7 +1199,8 @@
    "outcome": "refused",
    "refusal": "TypeError",
    "reason": "This transaction could not be re-executed: the replay runtime refused with TypeError. No trace was recorded for it.",
-   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')"
+   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')",
+   "refusalReason": "runtime-refused"
   },
   {
    "txHash": "0x27e48c9c66661851a5437df2a8b8155877af1f1ceb34c2407f66fa7789f09b14",

@@ -387,7 +387,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 91 assertions, and the reason it is offline is the reason it
+        # ING-3, 99 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -404,6 +404,13 @@ jobs:
         # exercised against a synthetic index-3 subject, with an index-0 control
         # through the same producers so "index 3 refuses" is not satisfied by a
         # rule that refuses everything.
+        #
+        # The last arm runs the gate over the COMMITTED captures with the
+        # population stated — 929 untraced rows against 33 traced — because a
+        # suite green only over rows it constructed is the empty-set pass in a
+        # comfortable disguise. Four members are already reached by real data,
+        # including `not-first-in-block`: the testnet capture holds four
+        # transactions at a non-zero index.
         run: node tools/chain/refusal-selftest.mjs
 
   contract:

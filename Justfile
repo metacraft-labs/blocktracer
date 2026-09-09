@@ -12,7 +12,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# SIX suites — 87 + 19 + 24 + 24 + 31 + 91 = 276 counted assertions — over the
+# SIX suites — 87 + 19 + 24 + 24 + 57 + 99 = 310 counted assertions — over the
 # six decisions the capture path makes that nothing else can check afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
 # called frozen (`freeze-snapshot-selftest`), when a supervised watch is
@@ -45,7 +45,10 @@ test:
 # The count said "three suites, 124" while the recipe ran four: the fold suite
 # was wired in with the folded Call Trace and the sentence above it was not
 # moved. It is restated here as a reading of what the recipe runs, which is the
-# only version of it that can be checked.
+# only version of it that can be checked — and it was wrong again, in the same
+# way, when ING-3 added the sixth: the body verifier printed 57 while this
+# sentence still said 31, its own CI step having said 57 for as long as the
+# enumeration split. Every term here was re-read off a run on 2026-09-09.
 #
 # THEY WERE REFERENCED BY NOTHING. Not by `just test`, not by any CI job, not
 # by `ci-coverage.sh` — whose enumeration covers `ci/test/*.sh` and
@@ -69,6 +72,17 @@ chain-selftest:
     node tools/chain/calltrace-fold-selftest.mjs
     node tools/chain/backfill-bodies-selftest.mjs
     node tools/chain/refusal-selftest.mjs
+
+# ── bringing a pre-ING-3 capture into the closed set ───────────────────────
+#
+# The committed captures were written before `refusalReason` existed and the
+# gate that now runs in every producer's write path would refuse to re-save
+# them. The cheap fix would be a legacy exemption in the gate; the exempt set
+# would be 929 rows, which is most of the untraced transactions this repository
+# has ever published, and a gate with an exemption that large is not a gate.
+# So the snapshots move instead. `--check` reports and writes nothing.
+migrate-refusal-reasons *PATHS='client/fixtures/chain/*/snapshot.json':
+    node tools/chain/migrate-refusal-reasons.mjs {{PATHS}}
 
 # ── the index-0 constraint, re-taken rather than quoted ────────────────────
 #
