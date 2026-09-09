@@ -26,7 +26,9 @@
 //
 // ── THE TENSION THIS FILE HAS TO HOLD, STATED RATHER THAN HIDDEN ───────────────────────
 //
-// The replay runtime defines EIGHTY-FOUR error classes and gains more; `lib/replay.mjs`
+// The replay runtime defines error classes by the DOZEN and gains more — 84 counted in an
+// `aztec-avm-runtime` checkout at 86c36ad on 2026-09-09, and `lib/replay.mjs` records 92 at
+// a revision it measured; the exact figure is somebody else's and moves. `lib/replay.mjs`
 // stopped trying to enumerate them for exactly that reason and now recognises a refusal
 // name BY SHAPE. Those names are not this set and must not become it — a set that grows
 // whenever somebody else's tree grows is not closed.

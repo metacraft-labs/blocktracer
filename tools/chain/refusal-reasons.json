@@ -53,7 +53,7 @@
       "id": "runtime-refused",
       "durability": "repairable",
       "statedBy": "tools/chain/lib/replay.mjs refusalName, from the driver's stderr",
-      "condition": "The replay runtime declined by name for a condition none of the four above describes. The runtime defines eighty-four error classes and gains more, so this member exists to keep OUR set closed while THEIRS is open — the class name travels beside it in `refusal` and its message in `detail`, so the specific condition is always recoverable from the row."
+      "condition": "The replay runtime declined by name for a condition none of the four above describes. The runtime defines error classes by the dozen and gains more, so this member exists to keep OUR set closed while THEIRS is open — the class name travels beside it in `refusal` and its message in `detail`, so the specific condition is always recoverable from the row."
     },
     {
       "id": "no-container-written",
