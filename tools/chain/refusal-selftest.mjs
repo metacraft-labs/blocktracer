@@ -33,7 +33,7 @@ import {
   REFUSAL_REASONS, REFUSAL_REASON_IDS, REFUSAL_REASONS_PATH,
   UnknownRefusalCondition, UnexplainedAbsence,
   classifyRefusal, reasonForRuntimeClass, refusalCounts, auditRefusals,
-  assertRefusalsAreClosed, assertAbsentIsNotARefusal, isRefusalReason,
+  assertRefusalsAreClosed, assertAbsentIsNotARefusal, isRefusalReason, refusalDurability,
   refuseNotFirstInBlock, refuseBodyUnavailable,
   OUTCOMES, TRACED_OUTCOMES, UNTRACED_OUTCOMES,
 } from './lib/refusal.mjs';
@@ -170,8 +170,10 @@ test('test_every_untraced_transaction_carries_a_reason');
      REFUSAL_REASON_IDS.every((id) => Object.prototype.hasOwnProperty.call(counts.byReason, id)));
   ck('every reason states WHY in a sentence, not just an id',
      rows.every((r) => typeof r.reason === 'string' && r.reason.length > 40));
-  ck('every reason carries a durability the page can grade its claim against',
-     rows.every((r) => r.durability === 'permanent' || r.durability === 'repairable'));
+  ck('every reason has a durability the page can grade its claim against — LOOKED UP from '
+     + 'the member, never stored on the row, so it cannot disagree with the table it came from',
+     rows.every((r) => ['permanent', 'repairable'].includes(refusalDurability(r.refusalReason))));
+  ck('…and no producer writes it onto a row', rows.every((r) => r.durability === undefined));
 
   // THE CONTROL. A range where everything traced must produce NO reasons at all — not an
   // empty string, not a zero-length list, no key. An assertion that only ever ran over
@@ -349,11 +351,11 @@ test('test_absent_and_refused_are_not_the_same_statement');
   ck('the absent sentence locates it in the CHAIN',
      /Aztec does not publish/.test(privateHalf.reason));
   ck('the refusal claims permanence, and the registry — not the prose — decides that',
-     publicHalf.durability === 'permanent');
+     refusalDurability(publicHalf.refusalReason) === 'permanent');
   ck('a repairable refusal does NOT claim permanence, so a page cannot assert the strong '
      + 'sentence under it',
-     REFUSAL_REASONS['runtime-refused'].durability === 'repairable'
-     && REFUSAL_REASONS['artifact-unresolvable'].durability === 'repairable');
+     refusalDurability('runtime-refused') === 'repairable'
+     && refusalDurability('artifact-unresolvable') === 'repairable');
 
   // THE CONTROL. A traced public half carries neither statement.
   const tracedHalf = tracedRows()[0];
@@ -484,6 +486,18 @@ test('the gate is in the write path, not beside it');
     ck('…and no producer spells the two shared sentences a second time',
        ![followSrc, captureSrc, backfillSrc].some((s) =>
          s.includes('getTxByHash prunes at the finalized tip and')));
+
+    // THE HOSTILE CORPUS MUST NOT POISON A MEMBER ID. `tools/ci/hostile-chain-corpus.mjs`
+    // appends an XSS payload to every non-structural string in a capture and re-ingests it,
+    // and a member id with a payload on the end is outside the closed set — so the ingest
+    // would refuse the fixture and the run would measure nothing, which is the exact failure
+    // that file's header records having already paid for with `outcome`/`kind`/`origin`.
+    // The SENTENCE beside it must stay poisonable: it is free text that reaches the page.
+    const hostileSrc = readFileSync(new URL('../ci/hostile-chain-corpus.mjs', import.meta.url), 'utf8');
+    ck('the hostile corpus treats `refusalReason` as structural, like `outcome` beside it',
+       /STRUCTURAL_KEYS[\s\S]{0,1400}?"refusalReason"/.test(hostileSrc));
+    ck('…and does NOT exempt `reason`, which is free text and must stay poisonable',
+       !/STRUCTURAL_KEYS = new Set\(\[[\s\S]*?"reason"[\s\S]*?\]\)/.test(hostileSrc));
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -539,7 +553,7 @@ test('the committed captures are inside the closed set');
      REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).length === 3);
 }
 
-expectCount(99);
+expectCount(102);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

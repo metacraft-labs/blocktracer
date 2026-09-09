@@ -265,8 +265,17 @@ export function classifyRefusal({ condition, runtimeClass, narrative, where } = 
   return {
     refusalReason: id,
     reason: narrative && narrative.length > 0 ? narrative : member.condition,
-    durability: member.durability,
   };
+}
+
+/** How durable this refusal is: `permanent` or `repairable`, or `''` for a non-member.
+ *
+ *  DERIVED, NEVER STORED. `classifyRefusal` used to return it and every producer spread it
+ *  into the row, which would have put a second copy of the registry's own answer on 929
+ *  committed rows — a field that can disagree with the table it came from, on data nobody
+ *  can recapture. It is a property of the MEMBER, so it is looked up from the member. */
+export function refusalDurability(id) {
+  return REFUSAL_REASONS[id]?.durability ?? '';
 }
 
 // ── the two sentences every producer needs, written once ───────────────────────────────
