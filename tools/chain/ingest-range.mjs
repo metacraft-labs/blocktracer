@@ -118,7 +118,14 @@ const noMerge = flag('no-merge');
 const refetch = flag('refetch');
 const jsonOnly = flag('json');
 
-if (!from || !to || to < from) {
+// `!from` REFUSED HEIGHT ZERO, which is the one height a genesis-to-tip pass
+// starts at. The guard means "were numbers supplied", so it has to ask that
+// question rather than ask whether they are truthy: `--from 0` is a request,
+// `--from` absent is not. Aztec's own first settled block is 1 — the node
+// reports `oldestHistoricBlockNumber: 1` — but that is a fact about the chain
+// and belongs in the caller's range, not in an argument check that cannot say
+// why it refused.
+if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
   console.error('usage: --from N --to M [--url U] [--chain C] [--state DIR] …');
   process.exit(2);
 }
@@ -457,7 +464,21 @@ async function fetchRange(nodeInfo, tip, finalized) {
     // The snapshot's IDENTITY, over the chain data only — the two timestamps in
     // `provenance` move on every fetch and would make a byte-identical re-fetch
     // of an immutable historic range look like a different one.
-    contentDigest: sha(JSON.stringify({ blocks, transactions })),
+    //
+    // `observedAt` DID EXACTLY THAT, and it is per-transaction so it hid inside
+    // the very array this digest is supposed to be over. Measured: the same 200
+    // blocks fetched twice produced identical blocks and identical transactions
+    // in every other field, and two different digests. The cost is not cosmetic
+    // — `supersedes` is set when a range's digest changes, so every re-fetch of
+    // an immutable range recorded that its content had been replaced, which is
+    // the ledger asserting the chain rewrote itself.
+    //
+    // It is stripped rather than removed from the snapshot: when a height was
+    // read is worth keeping, it just is not part of what was read.
+    contentDigest: sha(JSON.stringify({
+      blocks,
+      transactions: transactions.map(({ observedAt, ...rest }) => rest),
+    })),
   };
 }
 
