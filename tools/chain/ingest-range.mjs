@@ -221,6 +221,9 @@ let rpcCalls = 0;
 let rpcFaults = 0;
 let rpcRateLimited = 0;      // how many individual attempts were throttled
 let rpcBackoffMs = 0;        // total time spent waiting out a limit
+let rpcRetryAfterMs = 0;     // the longest `Retry-After` the endpoint asked for
+/** Past this, a `Retry-After` is reported rather than slept through. */
+const MAX_HONOURED_RETRY_AFTER_MS = 90_000;
 const RATE_LIMIT_RE = /too many requests|rate limit|quota/i;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -270,10 +273,21 @@ async function rpc(method, params = []) {
     }
     if (limited) {
       rpcRateLimited++; sawThrottle = true;
-      // Exponential with a floor and a ceiling, jittered so many callers do not
-      // step back in lockstep. `Retry-After` wins when the endpoint sends one.
+      // `Retry-After` WINS, BUT IT IS NOT OBEYED SILENTLY AT ANY LENGTH. This
+      // endpoint answers a throttled request with `retry-after: 2465` — forty-one
+      // minutes — and sleeping that inside a per-call retry loop turns one block
+      // into a forty-one-minute stall that looks exactly like a hang. Past the
+      // cap the wait is the CALLER'S decision, so the marker carries the number
+      // the endpoint gave and the run ends promptly enough to say why.
+      if (retryAfterMs > MAX_HONOURED_RETRY_AFTER_MS) {
+        rpcRetryAfterMs = Math.max(rpcRetryAfterMs, retryAfterMs);
+        return { __throttled: true, __retryAfterMs: retryAfterMs,
+                 __err: `rate limited; endpoint asked for ${Math.round(retryAfterMs / 1000)}s` };
+      }
       const backoff = retryAfterMs > 0
         ? retryAfterMs
+        // Exponential with a floor and a ceiling, jittered so many callers do
+        // not step back in lockstep.
         : Math.min(60_000, 1000 * 2 ** attempt) * (0.75 + Math.random() * 0.5);
       rpcBackoffMs += backoff;
       await sleep(backoff);
@@ -528,6 +542,15 @@ const started = Date.now();
 const report = { chain, endpoint: url, range: [from, to], rangeKey, startedAt: new Date().toISOString() };
 
 const nodeInfo = await rpc('node_getNodeInfo');
+// Tell a throttle apart from a refusal here too, and exit 3 for it — the code
+// the chunk driver retries — rather than 2, which means "this endpoint is not
+// usable" and should not be retried at all.
+if (isThrottle(nodeInfo)) {
+  console.error(`ingest-range: the endpoint is rate-limiting this client`
+    + (rpcRetryAfterMs > 0 ? `; it asked for ${Math.round(rpcRetryAfterMs / 1000)}s` : '')
+    + `. Nothing was fetched and nothing was written.`);
+  process.exit(3);
+}
 if (nodeInfo?.__err) { console.error(`ingest-range: node refused getNodeInfo: ${nodeInfo.__err}`); process.exit(2); }
 const tip = await rpc('node_getBlockNumber');
 const finalized = await rpc('node_getBlockNumber', ['finalized']);
