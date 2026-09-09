@@ -104,6 +104,13 @@ const endpoint = arg('endpoint', '');
 const prefix = arg('prefix', '');
 // "" ⇒ derive it from the covered set; see `generationFor`.
 const generation = arg('generation', '');
+// Pacing and patience, both operator-set, because the sustainable rate is a
+// property of somebody else's endpoint and not of this tool. `--rps 0` disables
+// pacing entirely (the behaviour before this flag existed).
+const rps = Number(arg('rps', '0'));
+const minGapMs = rps > 0 ? 1000 / rps : 0;
+let lastCallAt = 0;
+const maxAttempts = Math.max(1, Number(arg('attempts', '8')));
 const noPublish = flag('no-publish');
 const noMerge = flag('no-merge');
 const refetch = flag('refetch');
@@ -191,27 +198,90 @@ function saveLedger(l) {
 }
 
 // ── RPC ─────────────────────────────────────────────────────────────────────
+//
+// A RATE LIMIT IS NOT A HEIGHT THE NODE DECLINES TO SERVE, AND THE DIFFERENCE
+// IS THE WHOLE COVERAGE CLAIM. `fetchRange` records any `__err` as `notServed`,
+// which is correct for "Unknown block" — a height above the tip — and a
+// falsehood for "Too many requests", which says nothing about the height at
+// all. The public endpoint returns its limit BOTH as HTTP 429 and as a
+// JSON-RPC error body, and the previous shape mishandled each: `!r.ok` retried
+// three times with no delay (three more requests into a bucket that is already
+// empty), and `j.error` returned on the first sighting with no retry at all.
+// Either path ended with the block written down as one the chain does not have.
+// Over a genesis-to-tip backfill that turns a throttle into thousands of
+// invented holes in a ledger whose entire job is to say which blocks are
+// covered.
+//
+// So: rate limits are told apart from every other error, waited out with
+// exponential backoff (honouring `Retry-After` when the endpoint sends one),
+// and — if the wait is exhausted — returned as a DISTINCT marker that
+// `fetchRange` refuses to record as `notServed`.
 let rpcId = 0;
 let rpcCalls = 0;
 let rpcFaults = 0;
+let rpcRateLimited = 0;      // how many individual attempts were throttled
+let rpcBackoffMs = 0;        // total time spent waiting out a limit
+const RATE_LIMIT_RE = /too many requests|rate limit|quota/i;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Returned instead of `__err` when the endpoint throttled us. Never a height. */
+const isThrottle = (v) => v && typeof v === 'object' && v.__throttled === true;
+
 async function rpc(method, params = []) {
   rpcCalls++;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  let sawThrottle = false;
+  // Pace every call, so a long range is a steady trickle rather than a burst
+  // that empties the bucket in the first second and then fails for minutes.
+  if (minGapMs > 0) {
+    const wait = lastCallAt + minGapMs - Date.now();
+    if (wait > 0) await sleep(wait);
+    lastCallAt = Date.now();
+  }
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    let limited = false, retryAfterMs = 0;
     try {
       const r = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method, params }),
       });
-      if (!r.ok) { rpcFaults++; continue; }
-      const j = await r.json();
-      if (j.error) { rpcFaults++; return { __err: j.error.message ?? 'rpc error' }; }
-      return j.result;
+      if (r.status === 429) {
+        limited = true;
+        const ra = Number(r.headers.get('retry-after'));
+        if (Number.isFinite(ra) && ra > 0) retryAfterMs = ra * 1000;
+      } else if (!r.ok) {
+        rpcFaults++;
+        await sleep(250 * (attempt + 1));
+        continue;
+      } else {
+        const j = await r.json();
+        if (j.error) {
+          const msg = j.error.message ?? 'rpc error';
+          // The endpoint also delivers its limit inside a 200. Same thing.
+          if (j.error.code === 429 || RATE_LIMIT_RE.test(msg)) limited = true;
+          else { rpcFaults++; return { __err: msg }; }
+        } else return j.result;
+      }
     } catch (e) {
       rpcFaults++;
-      if (attempt === 2) return { __err: `fetch: ${e.message}` };
+      if (attempt === maxAttempts - 1) return { __err: `fetch: ${e.message}` };
+      await sleep(250 * (attempt + 1));
+      continue;
+    }
+    if (limited) {
+      rpcRateLimited++; sawThrottle = true;
+      // Exponential with a floor and a ceiling, jittered so many callers do not
+      // step back in lockstep. `Retry-After` wins when the endpoint sends one.
+      const backoff = retryAfterMs > 0
+        ? retryAfterMs
+        : Math.min(60_000, 1000 * 2 ** attempt) * (0.75 + Math.random() * 0.5);
+      rpcBackoffMs += backoff;
+      await sleep(backoff);
     }
   }
+  // Out of attempts. If the last thing we saw was a throttle, say so — the
+  // caller must not write this height down as absent from the chain.
+  if (sawThrottle) return { __throttled: true, __err: 'rate limited' };
   return { __err: 'exhausted retries' };
 }
 
@@ -223,12 +293,16 @@ async function fetchRange(nodeInfo, tip, finalized) {
 
   const blocks = [];
   const transactions = [];
-  let requested = 0, served = 0, notServed = [];
+  let requested = 0, served = 0, notServed = [], throttledOut = [];
   const t0 = Date.now();
 
   for (let n = from; n <= to; n++) {
     requested++;
     const head = await rpc('node_getBlock', [n]);
+    // A height we never got an answer about is NOT a height the node declined.
+    // It is recorded separately and the range is reported short, so the ledger
+    // cannot later be read as "the chain has no block here".
+    if (isThrottle(head)) { throttledOut.push(n); continue; }
     if (!head || head.__err) {
       // A height the node does not serve is RECORDED as not served, never
       // written as an empty block: an invented row is indistinguishable from a
@@ -252,7 +326,17 @@ async function fetchRange(nodeInfo, tip, finalized) {
     };
     if (!/^0x0*$/.test(mana)) {
       const full = await rpc('node_getBlock', [n, { includeTransactions: true }]);
-      for (const [i, eff] of (full?.body?.txEffects ?? []).entries()) {
+      // The header says this block burned mana, so it HAS transactions. A
+      // throttled or failed body read here would otherwise publish the block
+      // with an empty transaction list — a block that silently loses its
+      // contents is worse than a block that is missing, because nothing
+      // downstream can tell it apart from a genuinely empty one.
+      if (isThrottle(full) || !full || full.__err || !full.body) {
+        // `row` is not appended until the end of the iteration, so skipping
+        // here leaves nothing behind to undo beyond the `served` tally.
+        served--; throttledOut.push(n); continue;
+      }
+      for (const [i, eff] of (full.body.txEffects ?? []).entries()) {
         row.transactions.push(eff.txHash);
         // Every transaction is recorded traceless with the producer's own
         // sentence about why. This tool NEVER replays: a historic range is by
@@ -311,7 +395,7 @@ async function fetchRange(nodeInfo, tip, finalized) {
   renameSync(tmp, p);
 
   return {
-    dir, requested, served, notServed,
+    dir, requested, served, notServed, throttledOut,
     blocks: blocks.length,
     transactions: transactions.length,
     outcomes: outcomeCounts(transactions),
@@ -461,8 +545,21 @@ if (already && !refetch) {
   report.fetch = await fetchRange(nodeInfo, tip, finalized);
   say(`fetched: ${report.fetch.served}/${report.fetch.requested} served, ` +
       `${report.fetch.transactions} transactions, ${report.fetch.fetchMs} ms`);
+  // A RANGE THINNED BY A RATE LIMIT IS NOT A COVERED RANGE. Writing it to the
+  // ledger would record our own throttling as a property of the chain, and the
+  // next run — finding the key present — would never ask again. Exit without
+  // writing, so the range stays absent and is simply re-run.
+  const lost = report.fetch.throttledOut ?? [];
+  if (lost.length > 0) {
+    console.error(`ingest-range: REFUSING to record ${rangeKey}: ${lost.length} of `
+      + `${report.fetch.requested} heights went unanswered because the endpoint `
+      + `rate-limited this run (first ${lost.slice(0, 5).join(', ')}). Nothing was `
+      + `written to the ledger. Re-run the range, more slowly (--rps).`);
+    process.exit(3);
+  }
 }
-report.rpc = { calls: rpcCalls, faults: rpcFaults };
+report.rpc = { calls: rpcCalls, faults: rpcFaults,
+               rateLimited: rpcRateLimited, backoffMs: Math.round(rpcBackoffMs) };
 
 // The ledger entry is written BEFORE the publish, so an interrupted run leaves a
 // range recorded as fetched-not-published rather than as absent. A range the
