@@ -111,6 +111,8 @@ const rps = Number(arg('rps', '0'));
 const minGapMs = rps > 0 ? 1000 / rps : 0;
 let lastCallAt = 0;
 const maxAttempts = Math.max(1, Number(arg('attempts', '8')));
+// 0 = one request per height (the proven path). N = ask for N headers at a time.
+const batchHeaders = Math.max(0, Number(arg('batch-headers', '0')));
 const noPublish = flag('no-publish');
 const noMerge = flag('no-merge');
 const refetch = flag('refetch');
@@ -310,9 +312,46 @@ async function fetchRange(nodeInfo, tip, finalized) {
   let requested = 0, served = 0, notServed = [], throttledOut = [];
   const t0 = Date.now();
 
+  // ── headers, optionally 50 to a request ───────────────────────────────────
+  //
+  // WHY THIS FLAG EXISTS, AND WHY IT IS OFF BY DEFAULT. One `node_getBlock(n)`
+  // per height is 75,911 requests for a genesis-to-tip pass, and on the public
+  // endpoint the REQUEST COUNT — not latency, not bandwidth — is what the
+  // backfill is rationed by. `node_getBlocks(from, limit)` returns the same
+  // block objects fifty at a time, which cuts the header half of the pass by
+  // 50x. It does not touch the body half: `totalManaUsed` is a header field, so
+  // the existing "did this block burn mana" test still decides which blocks are
+  // fetched again WITH their transactions, and those stay one request each.
+  //
+  // Off by default because the one-at-a-time path is the one that has been run
+  // end to end, and a coverage backfill is not the place to make a fetch
+  // strategy prove itself implicitly.
+  const headerCache = new Map();
+  async function headerFor(n) {
+    if (!batchHeaders) return rpc('node_getBlock', [n]);
+    if (headerCache.has(n)) return headerCache.get(n);
+    headerCache.clear();
+    const span = Math.min(batchHeaders, to - n + 1);
+    const batch = await rpc('node_getBlocks', [n, span]);
+    if (isThrottle(batch) || !batch || batch.__err || !Array.isArray(batch)) {
+      // Fall back to the single-block call for this height rather than writing
+      // off fifty heights on one failed request.
+      return batchHeaders && !isThrottle(batch) ? rpc('node_getBlock', [n]) : batch;
+    }
+    for (const b of batch) {
+      // `node_getBlocks` keys its answers with a top-level `number`; the
+      // per-block call's shape has it under `globalVariables` instead.
+      const num = Number(b?.number ?? b?.header?.globalVariables?.blockNumber ?? NaN);
+      if (Number.isFinite(num)) headerCache.set(num, b);
+    }
+    // A height the batch simply omitted is asked for directly, so "the batch
+    // was short" never silently becomes "the chain has no such block".
+    return headerCache.has(n) ? headerCache.get(n) : rpc('node_getBlock', [n]);
+  }
+
   for (let n = from; n <= to; n++) {
     requested++;
-    const head = await rpc('node_getBlock', [n]);
+    const head = await headerFor(n);
     // A height we never got an answer about is NOT a height the node declined.
     // It is recorded separately and the range is reported short, so the ledger
     // cannot later be read as "the chain has no block here".
