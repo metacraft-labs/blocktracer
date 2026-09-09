@@ -47,6 +47,13 @@ import blocktracer/validator
 # recomputes recorder builds the way the contract does, rather than hard-coding
 # a shard layout or a hash this repository already owns one spelling of.
 import blocktracer/contract/ids
+# ING-3's closed set, read from the same file the producer side reads. The suite
+# below asserts membership against THIS rather than against a list written here:
+# a test that restated the set could pass while the set it restated was wrong.
+import blocktracer/chain/refusal_reasons
+# `decodeExecTrace` — the Aztec-split arm asserts the overlay round trip at the
+# boundary a client actually reads, not at the writer alone.
+import blocktracer_client/decode
 
 let
   clientRoot = currentSourcePath().parentDir.parentDir
@@ -3776,3 +3783,310 @@ suite "14 — one chain carries containers from two recorders, each filed as its
     #     ("the overlay tells…" ×3 and "a CLIENT resolves…" ×3).
     let n = mixedManifests.len
     expectCount(24 + (n - 2) * 4 + n * 6)
+
+# ── ING-3 — a refusal is not an absence, and the set of refusals is closed ───
+#
+# Chain-Ingestion ING-3: "Every transaction the pipeline does not trace carries
+# a reason from a closed set, and that reason reaches the page. An unexplained
+# absence is a defect, not an outcome."
+#
+# WHAT THIS SUITE IS FOR, and it is the half the producer side cannot check.
+# `tools/chain/refusal-selftest.mjs` proves the closed set holds where rows are
+# WRITTEN; nothing there can prove the reason survives the ingest, the overlay,
+# the decoder and the renderer. It did not: until this change the ingest read
+# the capture's `refusal` field, counted it into two local variables and then
+# discarded both — they were written nowhere and read nowhere — and every
+# untraced transaction reached the page as `availability: "absent"` carrying a
+# sentence. `absent` is also what an execution the CHAIN never published is,
+# so "nothing was ever public here" and "our runtime declined this" were one
+# word plus prose a reader had to interpret.
+#
+# The suite names ING-3's verifications verbatim so the milestone can be grepped
+# from here.
+
+suite "ING-3 — a refusal is not an absence":
+  asserted = 0
+
+  let ing3Dir = getTempDir() / ("bt-ing3-" & $getCurrentProcessId())
+  removeDir(ing3Dir); createDir(ing3Dir)
+
+  proc ing3Hash(c: char): string = "0x" & repeat(c, 40)
+
+  ## A one-chain snapshot holding exactly the transactions handed to it. Built
+  ## by the caller rather than by a fixed fixture because the three cases below
+  ## differ ONLY in the field under test, and a builder that varied anything
+  ## else would let a difference in the markup come from somewhere other than
+  ## the refusal.
+  proc ing3Snapshot(name: string, txs: JsonNode): string =
+    let dest = ing3Dir / name
+    createDir(dest / "ct")
+    var hashes = newJArray()
+    for t in txs: hashes.add %t["txHash"].getStr
+    writeFile(dest / "snapshot.json", $(%*{
+      "format": "blocktracer/chain-snapshot@1",
+      "provenance": {
+        "kind": "live-capture", "chain": name, "label": "Real " & name & " data",
+        "endpoint": "https://node.example", "capturedAt": "2026-09-09T09:44:18.283Z",
+        "nodeVersion": "5.2.0", "l1ChainId": 1, "runtimeCommit": "abc123def456"},
+      "window": {"tip": 200, "finalized": 180, "replayableFrom": 181,
+                 "replayableTo": 200, "blocks": 20},
+      "blocks": [{"number": 199, "hash": "0x" & align("199", 40, '0'),
+                  "timestamp": FixtureBlockTime + 1199, "totalManaUsed": "0x2710",
+                  "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
+                  "archiveRoot": "0x" & repeat('2', 40),
+                  "parentArchiveRoot": "0x" & repeat('3', 40),
+                  "transactions": hashes}],
+      "transactions": txs}))
+    dest
+
+  proc ing3Tree(name: string, txs: JsonNode): string =
+    let src = ing3Snapshot(name, txs)
+    let tree = src / "tree"
+    createDir(tree)
+    discard ingestSnapshot(IngestConfig(outDir: tree, snapshotDir: src))
+    tree
+
+  # The two statements that share the word `absent`.
+  #
+  #   refusedTx   WE declined it. It was inside the window with its body served,
+  #               and it is not first in its block, so the historical-state
+  #               mechanism cannot answer its reads. `refusalReason` names the
+  #               member of the closed set.
+  #   silentTx    NOTHING declined it. No refusal reason, which is what an
+  #               execution the chain never published carries — the Aztec
+  #               private half — and what every row written before this field
+  #               existed carries.
+  let refusedTx = ing3Hash('b')
+  let silentTx = ing3Hash('c')
+
+  let refusedRow = %*{
+    "txHash": refusedTx, "blockNumber": 199, "txIndexInBlock": 1,
+    "revertCode": 0, "transactionFee": "0x1",
+    "bodyRetained": true, "effectVisible": true, "firstInBlock": false,
+    "outcome": "not-first-in-block", "refusalReason": "not-first-in-block",
+    "reason": "Replaying this transaction needs the state left by the 1 " &
+              "transaction(s) before it in block 199, and the node does not " &
+              "serve intra-block intermediate state — it exists only inside " &
+              "the sequencer that built the block. Only the first transaction " &
+              "in a block can be re-executed from published data, so no trace " &
+              "was recorded for this one."}
+
+  let silentRow = %*{
+    "txHash": silentTx, "blockNumber": 199, "txIndexInBlock": 0,
+    "revertCode": 0, "transactionFee": "0x1",
+    "bodyRetained": false, "effectVisible": true, "firstInBlock": true,
+    "outcome": "pruned",
+    "reason": "Aztec does not publish the private half of a transaction's " &
+              "execution; there is no call structure on chain to record."}
+
+  test "test_absent_and_refused_are_not_the_same_statement":
+    let tree = ing3Tree("twostatements", %*[refusedRow, silentRow])
+    let r = newDataRoot(tree)
+    let refusedPage = renderRoute(r, "/twostatements/tx/" & refusedTx).body
+    let silentPage = renderRoute(r, "/twostatements/tx/" & silentTx).body
+    let info = chainInfo(r, "twostatements")
+
+    # THE SHARED WORD. Both are `absent`; the milestone's vocabulary is
+    # Trace-Artifacts §6's and this change does not add a sixth availability.
+    ck txView(r, info, refusedTx).headline == taAbsent
+    ck txView(r, info, silentTx).headline == taAbsent
+
+    # AND THE DIFFERENCE, machine-readable so a check does not have to read
+    # prose to learn which of the two a page is showing. That is the failure
+    # mode `test_explorer_breadth`'s scanners were written for, and asserting
+    # against the sentence alone would reproduce it here.
+    ck "data-refusal=\"not-first-in-block\"" in refusedPage
+    ck "data-refusal" notin silentPage
+    ck ">Refused<" in markup(refusedPage)
+    ck ">Refused<" notin markup(silentPage)
+
+    # The reason survives the whole path in BOTH cases — the distinction is
+    # which statement it is, never whether there is one. §2.3a requires a reason
+    # on every `absent`, and `decode.nim` refuses an overlay without one.
+    ck txView(r, info, refusedTx).executions[0].reason.len > 0
+    ck txView(r, info, silentTx).executions[0].reason.len > 0
+    ck "intra-block intermediate state" in refusedPage
+    ck "no call structure on chain to record" in silentPage
+
+    # …and the machine-readable member reaches the view, not only the markup.
+    ck txView(r, info, refusedTx).executions[0].refusalReason == "not-first-in-block"
+    ck txView(r, info, silentTx).executions[0].refusalReason == ""
+
+    # THE CONTROL. A traced public half carries neither statement. Taken from
+    # the REAL capture rather than constructed: a control built by the same
+    # builder as the subjects could be satisfied by a builder that had stopped
+    # emitting anything.
+    let realInfo = chainInfo(root, RealChain)
+    let tracedPage = renderRoute(root, "/" & RealChain & "/tx/" & replayedTx).body
+    ck txView(root, realInfo, replayedTx).headline != taAbsent
+    ck txView(root, realInfo, replayedTx).executions[0].refusalReason == ""
+    ck "data-refusal" notin tracedPage
+    ck ">Refused<" notin markup(tracedPage)
+
+  test "MUTATION BITE: without the member, the two pages are the same page":
+    # The assertions above are all "these differ". An ingest that had stopped
+    # carrying `refusalReason` would make them differ only in their sentences —
+    # which is exactly the state before this change, and exactly the state a
+    # reader cannot act on. Driving the refusal row WITHOUT its member proves
+    # the difference is carried by the field and not by anything else in the
+    # two rows.
+    var stripped = copy(refusedRow)
+    stripped.delete("refusalReason")
+    let tree = ing3Tree("stripped", %*[stripped, silentRow])
+    let r = newDataRoot(tree)
+    let a = renderRoute(r, "/stripped/tx/" & refusedTx).body
+    let b = renderRoute(r, "/stripped/tx/" & silentTx).body
+    ck "data-refusal" notin a
+    ck ">Refused<" notin markup(a)
+    ck "data-refusal" notin b
+    # …and both still say something, so the mutation removed the DISTINCTION
+    # and not the reason. A mutation that emptied the page would redden the
+    # assertions above for the wrong cause.
+    ck txView(r, chainInfo(r, "stripped"), refusedTx).executions[0].reason.len > 0
+
+  test "the Aztec split: two executions on one transaction, told apart":
+    # The shape the milestone names, at the contract layer where it exists. The
+    # chain ingest publishes single-execution overlays, so this is asserted
+    # against the OVERLAY TYPE and its round trip rather than through a snapshot
+    # that cannot produce the shape.
+    let privateHalf = ExecTrace(selector: "private", availability: taAbsent,
+      reason: "Aztec does not publish the private half of a transaction's " &
+              "execution; there is no call structure on chain to record.")
+    let publicHalf = ExecTrace(selector: "public", availability: taAbsent,
+      refusalReason: "not-first-in-block",
+      reason: "Only the first transaction in a block can be re-executed from " &
+              "published data.")
+    let sel = TraceSelection(chain: "aztec", tx: ing3Hash('d'),
+                             executions: @[privateHalf, publicHalf])
+    let j = sel.toJson
+    # AN ABSENT KEY, NOT AN EMPTY STRING. `""` would turn "nothing was declined
+    # here" into "a refusal with no name", which is the unexplained absence this
+    # milestone forbids — and it would make every row published before this
+    # field existed re-read as a nameless refusal.
+    ck not j["executions"][0].hasKey("refusalReason")
+    ck j["executions"][1]["refusalReason"].getStr == "not-first-in-block"
+    # …and it survives the decoder, which is the boundary a client reads.
+    ck decodeExecTrace(j["executions"][0]).refusalReason == ""
+    ck decodeExecTrace(j["executions"][1]).refusalReason == "not-first-in-block"
+    # Both are `absent`. The availability enum is unchanged: ING-3 says use the
+    # vocabulary, not add to it.
+    ck decodeExecTrace(j["executions"][0]).availability == taAbsent
+    ck decodeExecTrace(j["executions"][1]).availability == taAbsent
+
+  test "test_unknown_refusal_condition_fails_rather_than_defaults":
+    # THE ASSERTION THAT KEEPS THE SET CLOSED, on the publisher's side. The
+    # producer side is guarded by `classifyRefusal`; this is the other end, and
+    # it matters because a snapshot can reach an ingest by routes no producer
+    # ran — a hand edit, an older tool, a merge.
+    var invented = copy(refusedRow)
+    invented["refusalReason"] = %"the-sequencer-ate-it"
+    let src = ing3Snapshot("invented", %*[invented])
+    let tree = src / "tree"
+    createDir(tree)
+    var raised = false
+    var message = ""
+    try:
+      discard ingestSnapshot(IngestConfig(outDir: tree, snapshotDir: src))
+    except ValueError as e:
+      raised = true
+      message = e.msg
+    ck raised
+    # NAMED, not merely refused. A pipeline that died without saying what it did
+    # not recognise sends the reader to the code; one that names the value and
+    # lists the set makes the fix visible from the failure.
+    ck "the-sequencer-ate-it" in message
+    ck "not in the closed set" in message
+    ck "not-first-in-block" in message
+    ck "prestate-unavailable" in message
+    ck "free-text fallback" in message
+
+    # THE CONTROL. The same row with a MEMBER ingests without complaint —
+    # otherwise every assertion above is satisfied by an ingest that refuses
+    # everything, which is the shape of green that costs the most.
+    let okSrc = ing3Snapshot("invented-fixed", %*[refusedRow])
+    let okTree = okSrc / "tree"
+    createDir(okTree)
+    var okRaised = false
+    try:
+      discard ingestSnapshot(IngestConfig(outDir: okTree, snapshotDir: okSrc))
+    except ValueError:
+      okRaised = true
+    ck not okRaised
+
+    # …and the shipping VALIDATOR refuses a published tree that carries one,
+    # which is the gate between a tree and a deploy. Written directly into the
+    # overlay, because the ingest above will no longer produce such a tree —
+    # that is the point of it — and a gate whose input can only be produced by
+    # the thing it guards is a gate that never runs.
+    let poisoned = ing3Tree("poisoned", %*[refusedRow])
+    let overlayPath = poisoned / "d" / "poisoned" / "ts"
+    var overlayFile = ""
+    for p in walkDirRec(overlayPath):
+      if p.endsWith(refusedTx & ".json"): overlayFile = p
+    ck overlayFile.len > 0
+    var doc = parseJson(readFile(overlayFile))
+    doc["trace"]["refusalReason"] = %"invented-by-hand"
+    writeFile(overlayFile, $doc)
+    var validatorSaidIt = false
+    for e in validateTree(poisoned):
+      if "invented-by-hand" in e and "closed set" in e: validatorSaidIt = true
+    ck validatorSaidIt
+
+  test "test_every_untraced_transaction_carries_a_reason":
+    # The publisher's half: the counts reach `summary.json`, zero-filled over
+    # the whole set, and they RECONCILE against the transaction count.
+    #
+    # WHY THE RECONCILIATION IS THE ASSERTION. Before this change the ingest
+    # counted `pruned` and `refused` and nothing else, and `not-first-in-block`
+    # — an outcome three of this repository's four capture tools write — was in
+    # no count at all. Nothing noticed, because nothing ever added the counts up
+    # and compared them to the number of transactions. A per-reason figure that
+    # is not reconciled is the same defect with more numbers in it.
+    let tree = ing3Tree("counted", %*[refusedRow, silentRow])
+    let summary = parseJson(readFile(
+      tree / "d" / "counted" / "g" / "1" / "summary.json"))
+    let refusals = summary["refusals"]
+    ck refusals["byReason"]["not-first-in-block"].getInt == 1
+    ck refusals["byReason"]["body-unavailable"].getInt == 0
+    # EVERY member present, including the ones at zero. An absent key reads as
+    # "this reason does not exist here"; a published zero reads as "this reason
+    # exists and has not fired", and only the second makes the first non-zero a
+    # diff against a line somebody was already watching.
+    for id in refusalReasonIds():
+      ck refusals["byReason"].hasKey(id)
+    ck refusals["total"].getInt == 1
+    ck refusals["untraced"].getInt == 2
+    ck refusals["traced"].getInt == 0
+    ck refusals["accountedFor"].getInt == summary["counters"]["transactions"].getInt
+    # `silentRow` is untraced and carries NO member, so it is counted as
+    # untraced and not as a refusal. The gap between `untraced` and `total` is
+    # therefore visible in the published figures rather than hidden — which is
+    # what makes a row that lost its reason findable from the summary alone.
+    ck refusals["untraced"].getInt > refusals["total"].getInt
+
+    # …and the runtime's own class name, which the ingest used to count into a
+    # local and throw away, now reaches the summary as evidence.
+    let refusedSrc = ing3Snapshot("classes", %*[%*{
+      "txHash": ing3Hash('e'), "blockNumber": 199, "txIndexInBlock": 0,
+      "revertCode": 0, "transactionFee": "0x1",
+      "bodyRetained": true, "effectVisible": true, "firstInBlock": true,
+      "outcome": "refused", "refusal": "AvmToolchainRegression",
+      "refusalReason": "runtime-refused",
+      "reason": "This transaction could not be re-executed: the replay " &
+                "runtime refused with AvmToolchainRegression. No trace was " &
+                "recorded for it."}])
+    let classTree = refusedSrc / "tree"
+    createDir(classTree)
+    discard ingestSnapshot(IngestConfig(outDir: classTree, snapshotDir: refusedSrc))
+    let classSummary = parseJson(readFile(
+      classTree / "d" / "classes" / "g" / "1" / "summary.json"))
+    ck "AvmToolchainRegression" in $classSummary["refusals"]["runtimeClassesSeen"]
+    ck classSummary["refusals"]["byReason"]["runtime-refused"].getInt == 1
+
+  test "assertion count":
+    #   21 — absent vs refused, with its control
+    #    4 — the mutation bite
+    #    6 — the Aztec split at the contract layer
+    #   14 — the closed set, its control and the validator
+    #   14 — the published counts (7 of them the zero-fill loop)
+    expectCount(21 + 4 + 6 + 14 + 14)

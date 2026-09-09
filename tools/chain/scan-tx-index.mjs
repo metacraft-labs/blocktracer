@@ -43,6 +43,20 @@
 //      transactions reports `no-population` and exits non-zero. It does not report that
 //      every transaction was at index 0, because it did not see one.
 //
+// ── WHICH NETWORK IT CAN BE POINTED AT, AND A NOTE WITH A DATE ON IT ───────────────────
+//
+// The default is TESTNET, and that is not a preference. On 2026-09-09 the mainnet endpoint
+// this repository's tooling names, `https://aztec.drpc.org`, answered every node method with
+// either `-32601 does not exist/is not available` (`node_getBlockNumber`, `node_getBlock`,
+// `node_getNodeInfo`) or `35 method is not available on free plan, please upgrade to paid
+// plan` (`node_getBlockHeader`, `node_getProvenBlockNumber`, `node_getL2Tips`). The testnet
+// endpoint served all of them. So a mainnet distribution cannot be taken from the free plan
+// as things stand, and the tool says so by failing rather than by reporting an empty range:
+// `getNodeInfo` refusing is a fact about the RUN, and the exit is 2 with no report written.
+//
+// Point it at whatever endpoint can answer. The population it prints names the endpoint, so
+// a testnet reading is never mistakable for a mainnet one.
+//
 // ── WHAT IT DOES NOT DO ────────────────────────────────────────────────────────────────
 //
 // It does not replay, does not write a snapshot and does not need a runtime, an AVM or a
