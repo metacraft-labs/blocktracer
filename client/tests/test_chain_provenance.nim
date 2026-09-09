@@ -47,6 +47,10 @@ import blocktracer/validator
 # recomputes recorder builds the way the contract does, rather than hard-coding
 # a shard layout or a hash this repository already owns one spelling of.
 import blocktracer/contract/ids
+# `ExecTrace` and `TraceSelection` — the Aztec-split arm constructs the overlay
+# shape directly, because the chain ingest publishes single-execution overlays
+# and a test that could not build the two-execution one could not check it.
+import blocktracer/contract/model
 # ING-3's closed set, read from the same file the producer side reads. The suite
 # below asserts membership against THIS rather than against a list written here:
 # a test that restated the set could pass while the set it restated was wrong.
