@@ -311,7 +311,46 @@ export async function preflightToolchain({ nodeBin, runtime, avm, ctWriter }) {
     return { ok: false, problems: [`the replay runtime refuses this --avm module: ` +
       line.slice('PREFLIGHT_REFUSED '.length)] };
   }
-  // The probe itself could not run. Reported, never fatal — see the note above.
+  // ── THE PROBE ITSELF DID NOT RUN, AND THAT SPLITS IN TWO ──────────────────
+  //
+  // This used to be one arm — "reported, never fatal" — on the reasoning that a
+  // runtime layout this tool does not recognise should not stop a watch that
+  // might still work. That reasoning is right about the LAYOUT and wrong about
+  // the INTERPRETER, and collapsing the two let the gate pass the one condition
+  // it exists to refuse.
+  //
+  // Measured, 2026-09-09, testnet: `nodeBin` was node 20.20.1, which has no
+  // `--experimental-wasm-exnref`. The probe exited non-zero with
+  //
+  //     /opt/homebrew/…/node: bad option: --experimental-wasm-exnref
+  //
+  // on stderr and NOTHING on stdout, so no `PREFLIGHT_` line appeared, so this
+  // arm returned `ok: true` with a note, and the watch started. It then caught
+  // FIVE live transactions inside the replayable window in its first poll —
+  // 0x10deef16, 0x0cd97d0d, 0x05a9f295, 0x02941f6a and one more — spawned the
+  // driver with the same binary and the same flag for each, got the same "bad
+  // option" back in 12 milliseconds, and recorded all five as
+  // `refused / unknown`. Five bodies that were still there are now pruned. That
+  // is precisely the loss this function's own header describes: "A watch that
+  // cannot replay is worse than no watch: it consumes the rare event it was
+  // built to catch and produces a refusal."
+  //
+  // The split is not a heuristic about the message. `replayTransaction` spawns
+  // `nodeBin` with `--experimental-wasm-exnref` too, so a probe whose
+  // INTERPRETER refused to start is a direct measurement that every replay this
+  // watch makes will refuse to start as well. A probe that started and then
+  // failed to find or import a module is the layout case, and stays a note.
+  if (r.code !== 0) {
+    const said = `${r.err ?? ''}`.trim().split('\n')[0] || out.slice(0, 200) || `exit ${r.code}`;
+    return { ok: false, problems: [
+      `this \`--node\` cannot run the replay driver: \`${nodeBin} ` +
+      `--experimental-wasm-exnref\` exited ${r.code} with "${said}". Every replay ` +
+      `this watch makes spawns that same binary with that same flag, so the watch ` +
+      `would catch transactions inside the replayable window and record each one as ` +
+      `\`refused\` — consuming bodies that prune within the hour. ` +
+      `\`--experimental-wasm-exnref\` needs Node 22 or newer; pass \`--node\` a ` +
+      `binary that has it.`] };
+  }
   return { ok: true, problems: [],
            note: `module gate not pre-checked (${line || out.slice(0, 160) || 'no output'})` };
 }

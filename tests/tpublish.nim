@@ -316,3 +316,80 @@ suite "M8 — determinism incident on input-addressed objects":
     discard publishTree(s2, tree1, defaultOptions())
     let res = publishTree(s2, tree1, defaultOptions())[0]
     check res.determinismIncidents.len == 0
+
+suite "M8 — refresh: a corrected content object supersedes the published one":
+  ## THE PROPERTY AN INCREMENTAL-COVERAGE PIPELINE IS BUILT ON, and the one the
+  ## suite above does not reach. Every other case here asks whether a re-run
+  ## uploads NOTHING; this one asks what happens when it should upload something
+  ## because the producer changed its mind about bytes it already published.
+  ##
+  ## `d/{chain}/block/{hash}.json` is keyed by the block's hash and filled with
+  ## this producer's rendering of that block. Fix a field and the key does not
+  ## move, so key-existence — which is the whole of the default strategy — skips
+  ## it forever. That is not a slow refresh, it is no refresh: the store keeps
+  ## the wrong object for the life of the chain.
+  let tree1 = tmp("refresh-tree")
+  let dest = tmp("refresh-store")
+  genGen1(tree1, seed)
+  let store = newLocalObjectStore(dest)
+  discard publishTree(store, tree1, defaultOptions())
+
+  proc aBlockKey(): string =
+    for p in walkDirRec(tree1 / "d" / DemoChain / "block"):
+      if p.endsWith(".json"): return p.relativePath(tree1).replace('\\', '/')
+    ""
+
+  let key = aBlockKey()
+  let corrected = "{\"corrected\": true}"
+
+  test "the default cycle SKIPS a changed content object — the defect, stated":
+    check key.len > 0
+    let before = store.get(key)
+    check before.ok
+    writeFile(tree1 / key, corrected)          # a producer fix, same key
+    let res = publishTree(store, tree1, defaultOptions())[0]
+    check key in res.contentSkipped
+    check res.contentRefreshed.len == 0
+    # And the consumer still reads the OLD bytes. This is the assertion the
+    # whole option exists for.
+    let after = store.get(key)
+    check after.ok
+    check after.data == before.data
+    check after.data != corrected
+
+  test "with --refresh the same run supersedes it, and a consumer sees the new bytes":
+    var opts = defaultOptions()
+    opts.refreshContent = true
+    let res = publishTree(store, tree1, opts)[0]
+    check key in res.contentRefreshed
+    check key notin res.contentSkipped
+    let after = store.get(key)
+    check after.ok
+    check after.data == corrected
+
+  test "a refresh over an UNCHANGED tree still uploads and refreshes nothing":
+    # The cost of the option must be a GET per object, not a PUT per object:
+    # a refresh that rewrote everything would make idempotence conditional on
+    # which flag was passed.
+    var opts = defaultOptions()
+    opts.refreshContent = true
+    let res = publishTree(store, tree1, opts)[0]
+    check res.contentRefreshed.len == 0
+    check res.contentUploaded.len == 0
+    check res.contentSkipped.len > 0
+
+  test "MUTATION BITE: --refresh does NOT overwrite a divergent trace container":
+    # §2.8a is untouched by this: an input-addressed container whose bytes moved
+    # under a fixed input is a non-deterministic recorder, and the refresh path
+    # must not become a way to launder one into the store.
+    let ct = findTraceCt(dest)
+    check ct.len > 0
+    let published = readFile(ct)
+    for p in walkDirRec(tree1 / "t"):
+      if p.endsWith("trace.ct"): writeFile(p, "TAMPERED-BY-A-NONDETERMINISTIC-RECORDER")
+    var opts = defaultOptions()
+    opts.refreshContent = true
+    let res = publishTree(store, tree1, opts)[0]
+    check res.determinismIncidents.anyIt(it.endsWith("/trace.ct"))
+    check not res.contentRefreshed.anyIt(it.endsWith("/trace.ct"))
+    check readFile(ct) == published

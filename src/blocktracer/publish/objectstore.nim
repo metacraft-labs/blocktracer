@@ -21,7 +21,7 @@
 ##     read-then-write;
 ##   - `list` enumerates keys under a prefix (used to reconstruct state and to scan).
 
-import std/[os, osproc, strutils, posix, times, streams]
+import std/[os, osproc, strutils, posix, times, streams, hashes]
 
 type
   ObjectStore* = ref object of RootObj
@@ -131,13 +131,33 @@ proc run(s: S3ObjectStore, args: seq[string], input = ""):
   p.close()
   (outp, code)
 
+proc runBytes(s: S3ObjectStore, args: seq[string]):
+    tuple[output: string, code: int] =
+  ## `run`, but stdout is the OBJECT'S BYTES and stderr is kept out of them.
+  ##
+  ## `run` sets `poStdErrToStdOut` so a failing call's diagnostic lands in the
+  ## string a caller can put in an exception. That is right for `put` and
+  ## `head-object`, whose stdout nobody keeps, and wrong for `get`, whose stdout
+  ## IS the object: any line the CLI writes to stderr on a successful transfer
+  ## would be spliced into the middle of a `trace.ct`. The publisher re-reads
+  ## exactly those objects to compare them against a manifest's
+  ## `container.hash`, so a splice is not a download bug — it is a determinism
+  ## incident against a container that is in fact byte-identical, and the
+  ## publisher's response to one is to refuse the write.
+  let p = startProcess(s.awsBin, args = args, options = {poUsePath})
+  p.inputStream.close()
+  let outp = p.outputStream.readAll()
+  let code = p.waitForExit()
+  p.close()
+  (outp, code)
+
 method exists*(s: S3ObjectStore, key: string): bool =
   let (_, code) = s.run(@["s3api", "head-object", "--bucket", s.bucket,
     "--key", s.fullKey(key)] & s.endpointArgs())
   code == 0
 
 method get*(s: S3ObjectStore, key: string): tuple[data: string, ok: bool] =
-  let (outp, code) = s.run(@["s3", "cp",
+  let (outp, code) = s.runBytes(@["s3", "cp",
     "s3://" & s.bucket & "/" & s.fullKey(key), "-"] & s.endpointArgs())
   if code != 0: return ("", false)
   (outp, true)
@@ -152,10 +172,49 @@ method putIfAbsent*(s: S3ObjectStore, key, data: string): bool =
   ## R2/S3 conditional create: `put-object --if-none-match '*'` succeeds only when
   ## the key is absent, returning 412 (PreconditionFailed) otherwise — a real
   ## compare-and-set, so the lease is safe across machines.
-  let (_, code) = s.run(@["s3api", "put-object", "--bucket", s.bucket,
+  ##
+  ## ── THE BODY IS A TEMP FILE AND NOT `/dev/stdin`, AND THAT IS THE WHOLE ────
+  ##
+  ## This used to pipe `data` into `aws s3api put-object --body /dev/stdin`. It
+  ## could never succeed. `--body` is a *blob* parameter, and botocore resolves a
+  ## blob by opening the path and SEEKING it to size the payload; `/dev/stdin`
+  ## attached to a pipe is not seekable, so the CLI fails during argument
+  ## parsing — before a request is made — with
+  ##
+  ##     Error parsing parameter '--body': Blob values must be a path to a file.
+  ##
+  ## and exits 255. `code == 0` was then false for every call, on every store, in
+  ## every state. Measured against a local MinIO on 2026-09-09: an EMPTY bucket,
+  ## a fresh key, and `putIfAbsent` returned false — which `publisher.nim` turns
+  ## into `chain 'aztec-testnet' is locked by another publisher (lease held)`.
+  ## That is the first thing anyone pointing this backend at R2 would have seen,
+  ## and the message names the one cause that was not true.
+  ##
+  ## It was invisible because it is unreachable from the test suite:
+  ## `tests/tpublish.nim` drives `LocalObjectStore` only, whose `putIfAbsent` is
+  ## a genuine `O_EXCL` and works. The S3 backend's own header says it "is
+  ## intentionally not exercised in the credential-free test suite" — true, and
+  ## it meant the only conditional-create in the system had never run.
+  ##
+  ## A 412 IS NOT AN ERROR AND EVERY OTHER FAILURE IS. Collapsing both into
+  ## `false` is how a broken client came to read as a contended lease, so the two
+  ## are separated here: PreconditionFailed means another writer holds it, and
+  ## anything else — a bad credential, a missing bucket, a CLI that rejects the
+  ## arguments — raises with the CLI's own words rather than being reported as
+  ## contention.
+  let tmp = getTempDir() / "bt-put-" & $getpid() & "-" & $epochTime().int64 & "-" &
+            $(cast[uint](key.hash) mod 1_000_000'u)
+  writeFile(tmp, data)
+  defer: removeFile(tmp)
+  let (outp, code) = s.run(@["s3api", "put-object", "--bucket", s.bucket,
     "--key", s.fullKey(key), "--if-none-match", "*",
-    "--body", "/dev/stdin"] & s.endpointArgs(), input = data)
-  code == 0
+    "--body", tmp] & s.endpointArgs())
+  if code == 0: return true
+  if "PreconditionFailed" in outp or "412" in outp:
+    return false                # another writer created it first — a real CAS loss
+  raise newException(CatchableError,
+    "aws s3api put-object --if-none-match failed for " & key &
+    " (exit " & $code & "): " & outp.strip())
 
 method del*(s: S3ObjectStore, key: string) =
   discard s.run(@["s3api", "delete-object", "--bucket", s.bucket,

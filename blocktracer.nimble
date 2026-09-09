@@ -6,10 +6,15 @@ description    = "BlockTracer — static block explorer. M5b/M5c: the versioned 
 license        = "MIT"
 srcDir         = "src"
 installExt     = @["nim"]
-bin            = @["blocktracer_demo_gen", "blocktracer_validate", "blocktracer_publish"]
+bin            = @["blocktracer_demo_gen", "blocktracer_validate", "blocktracer_publish",
+                   "blocktracer_chain_ingest"]
 namedBin["blocktracer_demo_gen"] = "blocktracer-demo-gen"
 namedBin["blocktracer_validate"] = "blocktracer-validate"
 namedBin["blocktracer_publish"] = "blocktracer-publish"
+# The real-chain producer's CLI. `chain/ingest.nim` had no command over it: its two
+# callers were a whole-site build and a diff harness, neither of which can ingest a
+# named block range and report what it produced.
+namedBin["blocktracer_chain_ingest"] = "blocktracer-chain-ingest"
 
 # Requires
 

@@ -336,6 +336,49 @@ Three rules that are load-bearing rather than stylistic:
   known gap on the static route**: the source is the program's own, the replay
   is nobody's until hydration runs.
 
+## 1d. Covering a real chain a range at a time
+
+The published layout is content-addressed, so **any range of blocks can be
+fetched, ingested and uploaded on its own and re-done later**. That is what makes
+"eventually full coverage" a plan rather than a hope, and the command that does
+one range is `tools/chain/ingest-range.mjs` (`just chain-range FROM TO`): fetch
+the range from the archive into its own snapshot, ingest the union of every
+covered range into the tree, publish the delta, and record the range in a
+coverage ledger with the code version that produced it.
+
+| | |
+|---|---|
+| Range operation | `just chain-range 74000 74099` — fetch, ingest, publish, ledger. Re-running a range uploads **zero** content objects |
+| Producer CLI | `src/blocktracer_chain_ingest.nim` (`blocktracer-chain-ingest`) — the first CLI over `chain/ingest.nim`; `static_export.nim` runs the same code at `isCurated` inside a site build, this runs it at `isFull` over a named range and prints the counts as JSON |
+| Ledger | `<state>/coverage.json` — per range: heights requested vs **served**, transactions by outcome, the snapshot's content digest, the code version, and which generation made it visible. Plus the merged spans, the gaps, and the total blocks covered |
+| Refresh | re-run with `--refetch`; the publisher is given `--refresh` automatically when the producing code version has moved since the last publish |
+| Local S3 | develop against `minio server` / `rclone serve s3` and check the endpoint with `just objectstore-probe BUCKET ENDPOINT`. **Never point `--backend s3` at production** — that is an operator action with an operator credential (DEPLOY.md §3) |
+
+**Range keys are zero-padded to nine digits, and that is load-bearing.** Bucket
+and directory listings are lexicographic, so `100000-…` sorts before `74000-…`
+and an unpadded ledger would report its newest ranges as its oldest from the day
+a chain crosses 99999. Measured on 2026-09-09: Aztec testnet was at block 75270
+and produces one about every 69 seconds, which puts that crossing ~20 days out.
+
+**Two things the incremental model needed that it did not have**, both found by
+running it rather than by reading it:
+
+- **A generation is sealed at its path, so a growing chain needs a new
+  generation id.** `d/{chain}/g/{gen}/**` is `ocGenMap`/`ocGenRoot`, whose
+  strategy is present ⇒ skip, while `current.json` is a pointer rewritten every
+  cycle. Publish two ranges at generation `1` and the store ends holding every
+  block object, a `current.json` naming the newer head, and a height map that
+  still lists only the older range — the pointer advertises a head the
+  generation it points at cannot resolve. `ingest-range.mjs` derives the
+  generation from a digest of the covered set, so it changes exactly when the
+  covered set changes and an unchanged re-run stays a no-op.
+- **`--refresh`, or a corrected object never lands.**
+  `d/{chain}/block/{hash}.json` is keyed by the BLOCK and filled with this
+  producer's rendering of it. Fix a field and the key does not move, so
+  key-existence skips it — not late, never. `--refresh` re-reads and supersedes
+  changed bytes, and deliberately does **not** extend to `/t/**`, where differing
+  bytes under a fixed input are a determinism incident and must stay refused.
+
 ## 2. isonim architecture
 
 **isonim** is a cross-platform reactive UI framework for Nim (signals / effects /

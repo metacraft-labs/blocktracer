@@ -635,13 +635,70 @@ async function main() {
          pfGood.ok === true);
   }
 
+  // ── CASE 12 — A `--node` THAT CANNOT RUN THE DRIVER IS REFUSED, NOT NOTED ─────────
+  //
+  // Case 11 closed the runtime half of the preflight. This closes the interpreter half,
+  // and it is closed because it was measured open: on 2026-09-09 a testnet watch was
+  // started with node 20.20.1, whose binary has no `--experimental-wasm-exnref`. The
+  // preflight's module probe spawns exactly `nodeBin --experimental-wasm-exnref -e …`;
+  // node printed `bad option` to stderr, exited non-zero, and wrote nothing to stdout.
+  // No `PREFLIGHT_` line appeared, and the "the probe itself could not run" arm returned
+  // `ok: true` with a note. The watch started, caught five live transactions in its first
+  // poll, and recorded every one of them `refused / unknown` in twelve milliseconds each.
+  //
+  // The distinction the fix rests on is not the wording of the error. It is that
+  // `replayTransaction` spawns THE SAME BINARY WITH THE SAME FLAG, so a probe whose
+  // interpreter refused to start has already measured every replay this watch will make.
+  // A probe that STARTED and then could not import a module is the layout case that arm
+  // was written for, and both directions are asserted here — a gate that refuses
+  // everything is not a gate.
+  console.error('\ncase 12 — a --node that cannot run the driver is refused before a watch starts');
+  {
+    const rt = join(dir, 'runtime-loaderful');
+    await mkdir(join(rt, 'replay', 'src'), { recursive: true });
+    await writeFile(join(rt, 'replay', 'src', 'artifact_resolution.ts'), '// present\n');
+    // THE LOADER MUST EXIST or the preflight returns early on the layout note and never
+    // reaches the probe — which is how a test of this arm can pass while testing nothing.
+    await mkdir(join(rt, 'node-host', 'src'), { recursive: true });
+    await writeFile(join(rt, 'node-host', 'src', 'loader.ts'), '// loads fine\n');
+
+    // An interpreter that rejects its arguments: exits non-zero, says something on
+    // stderr, prints no PREFLIGHT_ line. The shape of node 20 meeting the exnref flag.
+    const pfBadNode = await preflightToolchain({
+      nodeBin: '/bin/false', runtime: rt, avm: ctPath, ctWriter: ctPath,
+    });
+    ck('a --node that exits non-zero on the driver flags is REFUSED',
+       pfBadNode.ok === false && pfBadNode.problems.length === 1);
+    ck('…and the refusal names the flag and what the watch would do instead',
+       /--experimental-wasm-exnref/.test(pfBadNode.problems[0])
+         && /record each one as/.test(pfBadNode.problems[0]));
+    ck('…and it names the binary it tried, so the remedy is a path and not a guess',
+       /\/bin\/false/.test(pfBadNode.problems[0]));
+
+    // MUTATION: the pre-fix arm over the same inputs returned ok:true with a note, which
+    // is the silent success that burned five catches.
+    bite('mutation: the old "never fatal" arm would have started this watch',
+         pfBadNode.ok === false);
+
+    // The other direction. An interpreter that RUNS and simply produces no PREFLIGHT_
+    // line — a runtime whose loader this tool cannot import — stays a note, because a
+    // layout it does not recognise is not a measurement that replay will fail.
+    const pfQuietNode = await preflightToolchain({
+      nodeBin: '/usr/bin/true', runtime: rt, avm: ctPath, ctWriter: ctPath,
+    });
+    ck('an interpreter that runs but says nothing is a NOTE, not a refusal',
+       pfQuietNode.ok === true && pfQuietNode.problems.length === 0);
+    ck('…and the note says the gate was not checked rather than claiming it passed',
+       /module gate not pre-checked/.test(pfQuietNode.note ?? ''));
+  }
+
   await rm(dir, { recursive: true, force: true });
   ck('the temp container was cleaned up', !existsSync(ctPath));
 
-  // 87: 11 cases (7+1, 6+2, 5+1+2, 3+1, 3+1, 2, 7+1, 8+2, 6+2, 6+2, 7+2) = 78, plus 3
-  // outcome-set, 5 invariant, 1 cleanup. Declared rather than derived, so adding a case
+  // 93: 12 cases (7+1, 6+2, 5+1+2, 3+1, 3+1, 2, 7+1, 8+2, 6+2, 6+2, 7+2, 5+1) = 84, plus
+  // 3 outcome-set, 5 invariant, 1 cleanup. Declared rather than derived, so adding a case
   // without updating this number is a failure — which is the whole point of counting.
-  expectCount(87);
+  expectCount(93);
   if (failed) {
     console.error(`\nFAIL — ${failed} problem(s)`);
     return 1;

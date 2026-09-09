@@ -22,6 +22,12 @@
 ##   --writer ID      lease owner id (default: publisher-<pid>)
 ##   --no-lease       skip the per-chain single-writer lease (local preview only)
 ##   --halt-before-pointer   stop after content, before the visibility flip (drill)
+##   --refresh        re-read every key-existence object and supersede the ones whose
+##                    bytes differ from the tree's. OFF by default: the ordinary cycle
+##                    must upload zero on a re-run, and this one costs a GET per object.
+##                    It is what makes "a range can be refreshed after a producer fix"
+##                    true — without it a corrected object never reaches a store that
+##                    already holds the wrong one, because its key did not move.
 
 import std/[os, parseopt]
 import blocktracer/publish/objectstore
@@ -63,6 +69,7 @@ proc main() =
       case key
       of "no-lease": opts.takeLease = false
       of "halt-before-pointer": opts.haltBeforePointer = true
+      of "refresh": opts.refreshContent = true
       of "help", "h": usage(); return
       else:
         if key in valueFlags:
@@ -101,6 +108,7 @@ proc main() =
         (if r.publishedGeneration.len > 0: r.publishedGeneration else: "(unchanged)")
       echo "  content uploaded        : ", r.contentUploaded.len
       echo "  content skipped         : ", r.contentSkipped.len
+      echo "  content refreshed       : ", r.contentRefreshed.len
       echo "  pointers written        : ", r.pointersWritten.len
       echo "  pointer flipped         : ", r.pointerFlipped
       if r.haltedBeforePointer:

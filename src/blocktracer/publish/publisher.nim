@@ -163,6 +163,7 @@ type
     publishedGeneration*: string   ## generation `current.json` names on exit
     contentUploaded*: seq[string]  ## immutable/input-addressed objects newly written
     contentSkipped*: seq[string]   ## already present ⇒ not rewritten
+    contentRefreshed*: seq[string] ## present with DIFFERENT bytes and rewritten (§refresh)
     pointersWritten*: seq[string]  ## ◆ objects rewritten unconditionally
     determinismIncidents*: seq[string]  ## input-addressed key present with different bytes
     pointerFlipped*: bool          ## did `current.json` get (re)written this run
@@ -176,10 +177,41 @@ type
     takeLease*: bool           ## acquire the per-chain single-writer lease
     haltBeforePointer*: bool   ## simulate a crash after content, before the flip
     maxContentUploads*: int    ## >0 ⇒ stop after N content puts (mid-cycle crash)
+    refreshContent*: bool      ## see below — re-read and supersede changed bytes
+
+  ## ── `refreshContent`, and why "present ⇒ skip" is not enough on its own ────
+  ##
+  ## §2.1's key-existence strategy is exactly right for the property it is
+  ## defending: these objects are addressed by an identity that does not depend
+  ## on the producer, so a re-run must not pay to re-upload them, and a cycle
+  ## re-run must upload ZERO. That is a performance contract and a correctness
+  ## one, and the default is unchanged.
+  ##
+  ## It is not the whole story, because "content-addressed" is doing two jobs at
+  ## this layer and only one of them is true. `/t/**` really is addressed by its
+  ## own bytes — a differing container at the same key is a determinism incident
+  ## and is refused, which is what `stContentHash` is for. But
+  ## `d/{chain}/block/{blockHash}.json` is addressed by the BLOCK's hash while
+  ## its bytes are a *rendering* of that block by this producer at this version.
+  ## Fix a field in `ingest.nim` and the key does not move, so under
+  ## key-existence alone the corrected object can never reach a store that
+  ## already holds the wrong one. Not "is republished late" — never.
+  ##
+  ## An incremental-coverage pipeline is built on the opposite promise: a range
+  ## can be uploaded now and REFRESHED later if a defect is found in what
+  ## produced it. `refreshContent` is that path. It compares the stored bytes
+  ## against what the tree now says and rewrites on a difference, reporting them
+  ## separately from first-time uploads so "how much of the store did this run
+  ## supersede" is a number rather than an inference.
+  ##
+  ## It deliberately does NOT extend to `stContentHash`. A `/t/**` container
+  ## whose bytes moved under a fixed input is a non-deterministic recorder, and
+  ## quietly overwriting it is the one thing §2.8a exists to prevent.
 
 proc defaultOptions*(): PublishOptions =
   PublishOptions(chain: "", writer: "publisher-" & $getCurrentProcessId(),
-                 takeLease: true, haltBeforePointer: false, maxContentUploads: 0)
+                 takeLease: true, haltBeforePointer: false, maxContentUploads: 0,
+                 refreshContent: false)
 
 # ---------------------------------------------------------------------------
 # Lease (§2.3): one writer per chain, enforced by an atomic putIfAbsent.
@@ -270,7 +302,21 @@ proc publishChain*(store: ObjectStore, treeDir, chain: string,
     case strategyOf(cls)
     of stKeyExistence:
       if store.exists(key):
-        result.contentSkipped.add key
+        if opts.refreshContent:
+          let (stored, sok) = store.get(key)
+          if sok and stored == data:
+            result.contentSkipped.add key
+          else:
+            # A refresh is a WRITE and is counted against the upload budget, so a
+            # `maxContentUploads` crash drill stops in the same place whether the
+            # objects it is stopping among are new or superseded.
+            if opts.maxContentUploads > 0 and contentPuts >= opts.maxContentUploads:
+              halted = true; break
+            store.put(key, data)
+            result.contentRefreshed.add key
+            inc contentPuts
+        else:
+          result.contentSkipped.add key
       else:
         if opts.maxContentUploads > 0 and contentPuts >= opts.maxContentUploads:
           halted = true; break

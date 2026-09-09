@@ -131,6 +131,50 @@ chain-instructions:
       node tools/chain/derive-instructions.mjs "$d"
     done
 
+# ── ingest ONE NAMED RANGE of historic blocks, end to end ───────────────────
+#
+# The unit an incremental-coverage pipeline is made of: fetch a range from the
+# archive, ingest it into the published tree shape, upload it, and write down
+# that it is covered and at what code version. Idempotent — a second run over a
+# range uploads zero content objects.
+#
+# `blocktracer-chain-ingest` is a NEW binary and it exists because there was no
+# way to run the real-chain producer over a range. `ingest.nim` had two callers:
+# `static_export.nim`, which runs it at `isCurated` inside a whole-site build,
+# and a diff harness. Neither takes a range and neither reports what it produced.
+#
+# THE DEFAULT BACKEND IS LOCAL AND THE DEFAULT STORE IS A DIRECTORY. Pointing
+# `--backend s3` at a production bucket is an operator action with a production
+# credential (DEPLOY.md §3); a local S3-compatible endpoint — `minio server`,
+# `rclone serve s3` — is what this is developed against, and the object-store
+# probe below is how that endpoint is shown to behave like R2 before anything
+# is aimed at R2.
+#
+#     just chain-range 74000 74099
+#     just chain-range 74100 74399 --backend s3 --bucket b --endpoint http://127.0.0.1:9099
+chain-range from to *ARGS:
+    nim c --hints:off -d:release -o:blocktracer-chain-ingest src/blocktracer_chain_ingest.nim
+    nim c --hints:off -d:release -o:blocktracer-publish src/blocktracer_publish.nim
+    node tools/chain/ingest-range.mjs --from {{from}} --to {{to}} \
+      --ingest-bin ./blocktracer-chain-ingest --publish-bin ./blocktracer-publish {{ARGS}}
+
+# ── does an S3-compatible endpoint behave the way the publisher assumes ─────
+#
+# Drives every `ObjectStore` method against a real endpoint and prints what each
+# one did. It is not part of `just test` — that suite is credential-free by
+# design — and it is the check that would have caught the defect it was written
+# for: `putIfAbsent` piped its body into `aws s3api put-object --body /dev/stdin`,
+# which the CLI rejects during argument parsing because a pipe is not seekable,
+# so the only conditional-create in the system returned false on every call and
+# `publishTree` reported an EMPTY bucket as "locked by another publisher".
+#
+#     minio server /tmp/s3 --address 127.0.0.1:9099 &
+#     AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… \
+#       just objectstore-probe my-bucket http://127.0.0.1:9099
+objectstore-probe bucket endpoint prefix="":
+    nim c --hints:off -d:release --path:src -o:objectstore-probe tools/dev/objectstore_probe.nim
+    ./objectstore-probe {{bucket}} {{endpoint}} {{prefix}}
+
 # ── the chain captures' call frames ─────────────────────────────────────────
 #
 # Derive `calltrace/<tx>.json` beside a committed capture's containers: the
