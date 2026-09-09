@@ -1,0 +1,14 @@
+# Measurement OUTPUT, not measurement code: trees, stores, ledgers, logs and a
+# symlink into a sibling checkout's node_modules. The scripts are the artefact.
+node_modules
+tree-fixture/
+store/
+state-test/
+eq-a/
+eq-b/
+synth/
+*.log
+*.out
+*.err
+chosen-rps
+storefull.json
