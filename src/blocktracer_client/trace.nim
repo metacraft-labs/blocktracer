@@ -64,6 +64,19 @@ type
     reason*: string
       ## Why, in the producer's words for `absent`/`unsupported` (§2.3a
       ## requires one), and in this module's for the structural cases.
+    refusalReason*: string
+      ## WHICH REFUSAL, from ING-3's closed set, or `""` for none.
+      ##
+      ## THE FIELD THAT SEPARATES TWO STATEMENTS THAT SHARE A WORD. `absent`
+      ## with no `refusalReason` means the chain never published this execution
+      ## — Aztec's private half — and nothing was declined. `absent` WITH one
+      ## means this pipeline could have traced it and did not, and names what
+      ## stopped it. Both arrive as `availability: "absent"`, so before this
+      ## field a page could tell them apart only by reading prose.
+      ##
+      ## Empty on every traced execution: `ready` and `divergent` declined
+      ## nothing, and the producer-side validator refuses a tree that says
+      ## otherwise.
     reconstructed*: bool
       ## Orthogonal to availability: a trace can be `ready` AND heuristically
       ## reconstructed, and presenting the second as a native execution trace
@@ -159,6 +172,7 @@ proc resolveExec*(store: ObjectStore, session: ChainSession,
   result.hasAvailability = true
   result.availability = e.availability
   result.reason = e.reason
+  result.refusalReason = e.refusalReason
   result.reconstructed = e.reconstructed
   result.declaredBytes = e.bytes
   result.hasValidation = e.hasValidation

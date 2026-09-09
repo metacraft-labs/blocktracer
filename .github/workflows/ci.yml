@@ -386,6 +386,26 @@ jobs:
         # than off its front.
         run: node tools/chain/backfill-bodies-selftest.mjs
 
+      - name: Is every untraced transaction explained, and is the set closed?
+        # ING-3, 91 assertions, and the reason it is offline is the reason it
+        # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
+        # 0 refused" and a sample of 61 mainnet transactions were all at index
+        # 0 — so the refusal path has NEVER FIRED in a real run and every
+        # universal claim about it is vacuously true. A job that exercised the
+        # pipeline against a live chain would be green having executed none of
+        # this.
+        #
+        # All seven members of the closed set are reached here, through the real
+        # producers, on every run. The arm that matters most injects a condition
+        # OUTSIDE the set and requires the pipeline to fail naming it rather
+        # than record a generic reason — that assertion is the only thing
+        # standing between a registry and a free-text field with seven popular
+        # values. `not-first-in-block`, whose production count is zero, is
+        # exercised against a synthetic index-3 subject, with an index-0 control
+        # through the same producers so "index 3 refuses" is not satisfied by a
+        # rule that refuses everything.
+        run: node tools/chain/refusal-selftest.mjs
+
   contract:
     runs-on: eph-linux-x64
     steps:

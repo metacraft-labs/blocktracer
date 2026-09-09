@@ -12,14 +12,25 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# FIVE suites — 87 + 19 + 24 + 24 + 31 = 185 counted assertions — over the five
-# decisions the capture path makes that nothing else can check afterwards:
+# SIX suites — 87 + 19 + 24 + 24 + 31 + 91 = 276 counted assertions — over the
+# six decisions the capture path makes that nothing else can check afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
 # called frozen (`freeze-snapshot-selftest`), when a supervised watch is
 # allowed to stop (`watch-chain-selftest`), which call frames a container's
-# event stream folds (`calltrace-fold-selftest`), and whether a payload the
+# event stream folds (`calltrace-fold-selftest`), whether a payload the
 # transaction file store returned is the body that was asked for
-# (`backfill-bodies-selftest`).
+# (`backfill-bodies-selftest`), and WHY a transaction this pipeline did not
+# trace was declined (`refusal-selftest`).
+#
+# The last one is ING-3's, and it is here for the same reason the body verifier
+# is: the refusal path has never fired in a real run. A 400-block mainnet
+# backfill exited 0 with "0 divergent, 0 refused", so every universal claim
+# about refusals is vacuously true and a suite that only ran the pipeline
+# against a live chain would report green having executed none of it. Every
+# member of the closed set is reached there, offline, on every run — including
+# the one the milestone singles out, `not-first-in-block`, whose production
+# count is zero and whose branch is therefore exercised against a synthetic
+# index-3 subject rather than waited for.
 #
 # The last one guards a source with NO SECOND OPINION. Aztec transaction bodies
 # come from one publisher with no failover, and the only thing between it and
@@ -57,6 +68,25 @@ chain-selftest:
     bash tools/chain/watch-chain-selftest.sh
     node tools/chain/calltrace-fold-selftest.mjs
     node tools/chain/backfill-bodies-selftest.mjs
+    node tools/chain/refusal-selftest.mjs
+
+# ── the index-0 constraint, re-taken rather than quoted ────────────────────
+#
+# The pipeline refuses every transaction that is not first in its block, and the
+# standing justification for that costing nothing is a SENTENCE — "a sample of
+# sixty-one mainnet transactions were all at index 0" — with no date, no stated
+# range and no way to check it. This recipe re-takes the measurement against a
+# live node and writes it where a reader can see when it was last taken.
+#
+# NOT IN `chain-selftest`, deliberately: it needs a node, and a suite that needs
+# a network is a suite that gets skipped. The committed result at
+# `tools/chain/measurements/tx-index-distribution.json` is what the offline
+# suite asserts against, so the CHECK runs everywhere and only the MEASUREMENT
+# needs the chain.
+scan-tx-index URL='https://aztec-testnet.drpc.org' DEPTH='4000':
+    node tools/chain/scan-tx-index.mjs --url {{URL}} --depth {{DEPTH}} \
+      --control-sample 40 --quiet \
+      --out tools/chain/measurements/tx-index-distribution.json
 
 # ── what a frozen capture would have measured ──────────────────────────────
 #

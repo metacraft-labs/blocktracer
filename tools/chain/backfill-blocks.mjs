@@ -49,6 +49,9 @@
 import { readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { refusalCounts, assertRefusalsAreClosed, refuseNotFirstInBlock,
+         refuseBodyUnavailable } from './lib/refusal.mjs';
+
 const argv = process.argv.slice(2);
 const arg = (name, dflt) => {
   const i = argv.indexOf(`--${name}`);
@@ -125,6 +128,9 @@ function save() {
   // order every reader of this file already expects.
   snap.blocks.sort((a, b) => b.number - a.number);
   recount(snap);
+  // ING-3's gate, the same one `follow-chain.mjs` applies at its own save: a snapshot may
+  // not be written holding a transaction that is untraced for no stated reason.
+  assertRefusalsAreClosed(snap.transactions);
   const tmp = `${snapPath}.tmp`;
   // INDENT 1, WHICH IS `follow-chain.mjs`'s `saveSnapshot` AND NOT A TASTE.
   // These files are 40,000 lines; a repair that re-indented one would land a
@@ -136,11 +142,19 @@ function save() {
 }
 
 function recount(s) {
+  // The per-reason counts are recomputed HERE as well as in `follow-chain.mjs`, because
+  // this tool adds untraced rows and a snapshot whose counts described a different set of
+  // rows than it holds is worse than one with no counts at all. Zero-filled over the whole
+  // closed set — see `refusalCounts`.
+  const refusals = refusalCounts(s.transactions);
   s.counts = {
     ...s.counts,
     blocks: s.blocks.length,
     blocksWithTransactions: s.blocks.filter((b) => b.transactions.length).length,
     transactions: s.transactions.length,
+    refusals: refusals.byReason,
+    refusalsTotal: refusals.total,
+    refusalsUnclassified: refusals.unclassified,
   };
 }
 
@@ -181,17 +195,12 @@ for (let n = from; n <= to; n++) {
       // situations and a second wording of them would be a second thing to keep
       // true.
       const why = i !== 0
-        ? { outcome: 'not-first-in-block',
-            reason: `Replaying this transaction needs the state left by the `
-              + `transaction before it in block ${n}, and the node does not serve `
-              + `intra-block intermediate state. Only the first transaction in a `
-              + `block can be re-executed from published data.` }
-        : { outcome: 'pruned',
-            reason: `The node still serves this transaction's effects but no longer `
-              + `serves its body: getTxByHash prunes at the finalized tip and `
-              + `getTxEffect does not. It was already below the replayable window `
-              + `when this record was repaired, so it can no longer be `
-              + `re-executed and no trace was recorded for it.` };
+        ? refuseNotFirstInBlock({ blockNumber: n, txIndexInBlock: i,
+                                  where: 'backfill-blocks.mjs' })
+        : refuseBodyUnavailable({ blockNumber: n,
+            observedAs: 'it was already below the replayable window when this record '
+              + 'was repaired',
+            where: 'backfill-blocks.mjs' });
       snap.transactions.push({
         txHash: eff.txHash, blockNumber: n, txIndexInBlock: i,
         revertCode: eff.revertCode, transactionFee: eff.transactionFee,

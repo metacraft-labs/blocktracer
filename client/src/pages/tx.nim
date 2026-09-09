@@ -283,7 +283,30 @@ proc txPage*(chain: string, v: TxView, info: ChainInfo): string =
           # recorder set covers v0.41 and later" tells them what question to
           # ask. §14's row for that state asks for the recorder's status to be
           # reachable, and this is the half of it the published tree can supply.
-          if v.executions.len == 1 and v.executions[0].reason.len > 0:
+          #
+          # ── AND A REFUSAL IS NOT AN ABSENCE (ING-3) ──────────────────────
+          #
+          # `absent` is one word for two statements. The chain never published
+          # this execution — Aztec's private half — or WE declined it and the
+          # closed set says which condition stopped us. Both reach this page as
+          # `availability: absent` carrying a sentence, so until the overlay
+          # gained `refusalReason` the only difference between "nothing was ever
+          # public here" and "our runtime refused this" was prose a reader had
+          # to interpret. A page that renders them identically is making the
+          # weaker claim about one of them and the wrong claim about the other.
+          #
+          # So a refusal is drawn as a refusal: it is LABELLED as one, and it
+          # carries the machine-readable member on `data-refusal` so a check can
+          # assert the distinction without reading the sentence — the failure
+          # mode `test_explorer_breadth`'s scanners were written for. An
+          # `absent` execution with no refusal reason gets no label and no
+          # attribute, which is what makes the two different markup.
+          if v.executions.len == 1 and v.executions[0].refusalReason.len > 0:
+            p(class = "note refusal", `data-refusal` = v.executions[0].refusalReason):
+              span(class = "refusal-label"): text "Refused"
+              text " — "
+              text v.executions[0].reason
+          elif v.executions.len == 1 and v.executions[0].reason.len > 0:
             p(class = "note reason"): text v.executions[0].reason
           if v.executions.len > 1:
             ul(class = "execlist"):
@@ -292,7 +315,17 @@ proc txPage*(chain: string, v: TxView, info: ChainInfo): string =
                   span(class = "sel"): text (if e.selector.len > 0: e.selector else: "execution")
                   span(class = "badge " & availabilityClass(e.availability)):
                     text availabilityLabel(e.availability)
-                  if e.reason.len > 0:
+                  # The Aztec split is exactly where the two statements sit side
+                  # by side on ONE page: a private half the chain never made
+                  # public, and a public half this pipeline may have declined.
+                  # Rendering both as a bare reason would put the strongest
+                  # available evidence for their difference in the prose alone.
+                  if e.refusalReason.len > 0:
+                    span(class = "refusal", `data-refusal` = e.refusalReason):
+                      span(class = "refusal-label"): text "Refused"
+                      text " — "
+                      text e.reason
+                  elif e.reason.len > 0:
                     span(class = "reason"): text e.reason
 
         # ── Overview grid ─────────────────────────────────────

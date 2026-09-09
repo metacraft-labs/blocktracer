@@ -113,6 +113,11 @@ type
     selector*: string          ## "" for a single-execution transaction
     availability*: TraceAvailability
     reason*: string
+    refusalReason*: string
+      ## ING-3's closed-set reason, or `""`. An `absent` execution with no
+      ## refusal reason is one the CHAIN never published; one with a reason is
+      ## one this pipeline declined. The page renders the two differently, which
+      ## it could not do while both were a bare `absent` plus prose.
     bytes*: int
     validationStatus*: string  ## "" when the overlay carries no validation
 
@@ -574,7 +579,7 @@ proc txView*(r: DataRoot, info: ChainInfo, hash: string): TxView =
   for e in v.execTraces:
     result.executions.add ExecView(
       selector: e.selector, availability: e.availability, reason: e.reason,
-      bytes: e.bytes,
+      refusalReason: e.refusalReason, bytes: e.bytes,
       validationStatus: (if e.hasValidation: $e.validation.status else: ""))
   for e in v.facts.executions:
     result.executionSelectors.add e.selector

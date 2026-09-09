@@ -43,6 +43,8 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
+import { classifyRefusal } from './refusal.mjs';
+
 /** Run a command to completion, capturing both streams. Never rejects: the caller's
  *  decision is made from the streams, and a spawn failure is reported as an empty
  *  report with a non-zero code, which rule 2 turns into a named refusal. */
@@ -335,12 +337,21 @@ export function decideOutcome(r, ctPath, containerOnDisk, containerBytes) {
   // Rule 2: no report ⇒ a named refusal.
   if (facts === null || typeof facts !== 'object' || facts.verdict == null) {
     const why = refusalName(r.err);
+    // ING-3: the runtime's class name is EVIDENCE and stays in `refusal`; the published
+    // reason is a member of the closed set in `lib/refusal.mjs`, chosen from that class.
+    // Four classes resolve to one of the milestone's named reasons and the rest to
+    // `runtime-refused`, which is a member with its own count and not a fallback.
     return {
       replayed: false,
       outcome: 'refused',
       refusal: why,
-      reason: `This transaction could not be re-executed: the replay runtime refused with `
-        + `${why}. No trace was recorded for it.`,
+      ...classifyRefusal({
+        condition: 'runtime-named-refusal',
+        runtimeClass: why,
+        narrative: `This transaction could not be re-executed: the replay runtime refused `
+          + `with ${why}. No trace was recorded for it.`,
+        where: 'lib/replay.mjs decideOutcome rule 2',
+      }),
       detail: refusalDetail(r.err, why),
     };
   }
@@ -351,8 +362,12 @@ export function decideOutcome(r, ctPath, containerOnDisk, containerBytes) {
       replayed: false,
       outcome: 'refused',
       refusal: 'no-container-written',
-      reason: `The replay runtime reported a completed execution and wrote no container, `
-        + `so there is nothing to step. No trace was recorded for it.`,
+      ...classifyRefusal({
+        condition: 'driver-wrote-no-container',
+        narrative: `The replay runtime reported a completed execution and wrote no container, `
+          + `so there is nothing to step. No trace was recorded for it.`,
+        where: 'lib/replay.mjs decideOutcome rule 3',
+      }),
       detail: 'the driver reported success and wrote no container',
     };
   }

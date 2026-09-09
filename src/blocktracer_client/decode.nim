@@ -173,6 +173,14 @@ proc decodeExecTrace*(n: JsonNode): ExecTrace =
   result.availability = enumOf[TraceAvailability](
     reqStr(n, "availability", what), what & ".availability")
   result.reason = optStr(n, "reason")
+  # ING-3's closed-set reason. OPTIONAL, and its absence is the statement that
+  # matters: an `absent` execution with no `refusalReason` is one the CHAIN never
+  # published — the Aztec private half — where one WITH a reason is one this
+  # pipeline declined. Decoded as a plain string rather than an enum on purpose:
+  # the set is closed by `tools/chain/refusal-reasons.json` and enforced by the
+  # producer-side validator, and a client that hard-failed on an id it did not
+  # recognise would make adding a member to the registry a coordinated release.
+  result.refusalReason = optStr(n, "refusalReason")
   result.bytes = optInt(n, "bytes")
   result.reconstructed = optBool(n, "reconstructed")
   if n.hasKey("validation"):
