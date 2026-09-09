@@ -36,7 +36,7 @@
 ##   published `current.json`, so a killed-and-restarted run re-diffs against the
 ##   store and resumes with no gap and no double-upload.
 
-import std/[json, os, strutils, algorithm, sequtils]
+import std/[json, os, strutils, algorithm, sequtils, tables, md5]
 
 import ./objectstore
 
@@ -289,22 +289,85 @@ proc publishChain*(store: ObjectStore, treeDir, chain: string,
   var currentKey = ""
   var halted = false
 
+  # ── ONE LISTING INSTEAD OF ONE `head-object` PER KEY ──────────────────────
+  #
+  # The present⇒skip decision is unchanged; only how the store is asked is. A
+  # single `list-objects-v2` answers "which of these keys exist" for the whole
+  # prefix, and it answers it BETTER than a HEAD per key: N interleaved HEADs
+  # observe N different moments of the store, this observes one. It is taken
+  # here, inside the cycle, which is after `publishTree` has the lease — so the
+  # one writer permitted to move this chain is the one holding the snapshot.
+  let stored = store.listMeta("")
+
+  # ── IS THIS STORE'S ETag AN MD5 OF THE OBJECT? ────────────────────────────
+  #
+  # `--refresh` has to answer "do the stored bytes differ from the tree's", and
+  # a listing already carries an ETag which for an ordinary single-part PUT is
+  # exactly that MD5 — so the answer is usually free. It is not free to ASSUME:
+  # a store using SSE-KMS returns an ETag that is not a digest of the object at
+  # all, and is a 32-hex string indistinguishable from one that is.
+  #
+  # So it is measured rather than assumed, at zero cost, against the one object
+  # in the store whose exact bytes this process knows: the lease it just wrote.
+  # If the ETag of the lease is the MD5 of the lease, ETags here are MD5s.
+  #
+  # The failure is one-sided either way, which is why this is safe before it is
+  # fast: a mismatched ETag can only make `--refresh` re-upload something that
+  # did not need it. It can never report a changed object as unchanged, because
+  # that would take an MD5 collision with the tree's own bytes.
+  var etagsAreMd5 = false
+  if opts.takeLease:
+    let lk = leaseKey(chain)
+    if stored.hasKey(lk) and stored[lk].md5Known:
+      etagsAreMd5 = stored[lk].etag == getMD5(opts.writer & "\n")
+
+  # ── THE BULK BATCH, FLUSHED AT EVERY RANK BOUNDARY ────────────────────────
+  #
+  # §2.2's ordering is a rank order: nothing of rank r+1 may exist in the store
+  # before everything of rank r does, which is what stops a manifest naming a
+  # container that is not there and a generation root sealing maps that are not.
+  # Batching WITHIN a rank cannot violate that; batching ACROSS one would. So
+  # the batch is flushed whenever the rank changes — at most one bulk transfer
+  # per class, and the phases stay in the order they were written in.
+  var batch: seq[BulkItem] = @[]
+  var batchRank = -1
+  var confirmed: seq[string] = @[]   # every key handed to `putMany` this cycle
+
+  proc flush() =
+    if batch.len == 0: return
+    store.putMany(batch)             # raises on a partial or failed transfer
+    for it in batch: confirmed.add it.key
+    batch.setLen 0
+
   for key in keys:
     let cls = classOf(key)
     if cls == ocCurrent:
       currentKey = key           # deferred to the very end
       continue
-    let (data, ok) = (block:
-      let p = treeDir / key
-      if fileExists(p): (readFile(p), true) else: ("", false))
-    if not ok: continue
+    let srcPath = treeDir / key
+    if not fileExists(srcPath): continue
 
+    let rank = rankOf(cls)
+    if rank != batchRank:
+      flush()
+      batchRank = rank
+
+    # Queueing an upload (`batch.add` + `inc contentPuts`, below) never reads the
+    # bytes into this process: `putMany` transfers from the tree file itself, so
+    # a skipped object now costs no local I/O either.
     case strategyOf(cls)
     of stKeyExistence:
-      if store.exists(key):
+      if stored.hasKey(key):
         if opts.refreshContent:
-          let (stored, sok) = store.get(key)
-          if sok and stored == data:
+          let data = readFile(srcPath)
+          let m = stored[key]
+          let same =
+            if etagsAreMd5 and m.md5Known:
+              m.etag == getMD5(data)
+            else:
+              let (sd, sok) = store.get(key)
+              sok and sd == data
+          if same:
             result.contentSkipped.add key
           else:
             # A refresh is a WRITE and is counted against the upload budget, so a
@@ -312,25 +375,34 @@ proc publishChain*(store: ObjectStore, treeDir, chain: string,
             # objects it is stopping among are new or superseded.
             if opts.maxContentUploads > 0 and contentPuts >= opts.maxContentUploads:
               halted = true; break
-            store.put(key, data)
-            result.contentRefreshed.add key
+            batch.add BulkItem(key: key, srcPath: srcPath)
             inc contentPuts
+            result.contentRefreshed.add key
         else:
           result.contentSkipped.add key
       else:
         if opts.maxContentUploads > 0 and contentPuts >= opts.maxContentUploads:
           halted = true; break
-        store.put(key, data)
-        result.contentUploaded.add key
+        batch.add BulkItem(key: key, srcPath: srcPath)
         inc contentPuts
+        result.contentUploaded.add key
     of stContentHash:
-      if store.exists(key):
-        let (stored, sok) = store.get(key)
+      # DELIBERATELY STILL A READ PER OBJECT. This is the determinism check, not
+      # a skip optimisation: `/t/**` is addressed by the input that produced it,
+      # so equal-key-different-bytes is an incident to be raised and never a
+      # write to be made. Answering it from a listing's ETag would replace the
+      # comparison with a digest of it, and the object whose bytes are in
+      # question is the last one to take on faith. These are also the rarest
+      # objects in a cycle — the historic ranges published on 2026-09-09 contain
+      # none at all — so the per-object cost buys the property at no scale.
+      if stored.hasKey(key):
+        let data = readFile(srcPath)
+        let (sd, sok) = store.get(key)
         let same =
           if cls == ocTraceManifest:
-            sok and traceContentHash(stored) == traceContentHash(data)
+            sok and traceContentHash(sd) == traceContentHash(data)
           else:
-            sok and stored == data
+            sok and sd == data
         if same:
           result.contentSkipped.add key
         else:
@@ -340,18 +412,52 @@ proc publishChain*(store: ObjectStore, treeDir, chain: string,
       else:
         if opts.maxContentUploads > 0 and contentPuts >= opts.maxContentUploads:
           halted = true; break
-        store.put(key, data)
-        result.contentUploaded.add key
+        batch.add BulkItem(key: key, srcPath: srcPath)
         inc contentPuts
+        result.contentUploaded.add key
     of stUnconditional:
-      # A pointer — rewritten every cycle, idempotently.
-      store.put(key, data)
+      # A pointer — rewritten every cycle, idempotently, and one at a time. There
+      # are a handful of these against thousands of content objects, and they are
+      # the objects whose write order is load-bearing.
+      flush()
+      store.put(key, readFile(srcPath))
       result.pointersWritten.add key
+
+  flush()
 
   if halted:
     result.haltedBeforePointer = true
     result.publishedGeneration = result.resumedFrom.generation
     return
+
+  # ── FAILURE ATOMICITY: THE POINTER FOLLOWS THE OBJECTS, NOT THE INTENT ────
+  #
+  # A bulk transfer moves many objects under one exit code, so "it returned" has
+  # to be turned back into "each of these keys is in the store" before anything
+  # references them. One listing does that for the whole cycle. Without it the
+  # flip would be advertising a generation on the strength of a process's exit
+  # status — which is the shape of the defect that put a pointer at head 74399
+  # over a height map that stopped at 74099.
+  if confirmed.len > 0:
+    let after = store.listMeta("")
+    var bad: seq[string] = @[]
+    for k in confirmed:
+      let src = treeDir / k
+      if not after.hasKey(k):
+        bad.add k & " (absent)"
+      elif after[k].size >= 0 and after[k].size != getFileSize(src):
+        # A short object is the shape a truncated transfer takes, and it is
+        # invisible to a presence check.
+        bad.add k & " (size " & $after[k].size & " != " & $getFileSize(src) & ")"
+      elif etagsAreMd5 and after[k].md5Known and
+           after[k].etag != getMD5(readFile(src)):
+        bad.add k & " (content digest differs)"
+      if bad.len >= 5: break        # the first few name the failure; the count is the story
+    if bad.len > 0:
+      raise newException(PublishError,
+        "refusing to flip the pointer: " & $confirmed.len &
+        " object(s) were uploaded in bulk and the store does not confirm all of " &
+        "them — " & bad.join("; "))
 
   if opts.haltBeforePointer:
     # Crash simulated after all content is in place but before the visibility flip.

@@ -18,7 +18,7 @@
 ##
 ## Usage: objectstore_probe <bucket> <endpoint> [prefix]
 
-import std/[os, strutils]
+import std/[os, strutils, md5, tables, algorithm]
 import blocktracer/publish/objectstore
 
 proc main =
@@ -79,6 +79,81 @@ proc main =
 
   store.del(k)
   check("exists(after del)", $store.exists(k), "false")
+
+  # ── THE BULK RANKS ────────────────────────────────────────────────────────
+  #
+  # `listMeta` and `putMany` are what a publish cycle spends its wall clock in
+  # once the per-object HEAD-and-PUT is gone, and they are exactly as unexercised
+  # by the credential-free suite as `putIfAbsent` was. The properties below are
+  # the ones the publisher then relies on, each stated as the thing that breaks
+  # if it is false:
+  #
+  #   * listMeta agrees with list  — else present⇒skip decides differently
+  #     depending on which call asked, and the two disagreeing is silent.
+  #   * the ETag is the MD5        — else `--refresh` compares a digest of the
+  #     bytes against something that is not one. This is the assumption the
+  #     publisher CALIBRATES at runtime against its own lease; here it is
+  #     checked directly, so a store where it is false is a printed line rather
+  #     than a slow refresh nobody explains.
+  #   * putMany round-trips bytes  — including a NUL and a high byte, because
+  #     these are the same objects `.ct` containers travel as.
+  #   * putMany raises on failure  — the pointer flip is gated on it returning.
+  let bulkA = "probe/bulk/a.json"
+  let bulkB = "probe/bulk/deep/b.bin"
+  let bodyA = "{\"a\":1}\n"
+  let bodyB = "\x00\xff\x01binary\x00tail"
+  let tmpDir = getTempDir() / "bt-probe-bulk"
+  removeDir tmpDir
+  createDir tmpDir / "bulk" / "deep"
+  writeFile(tmpDir / "bulk" / "a.json", bodyA)
+  writeFile(tmpDir / "bulk" / "deep" / "b.bin", bodyB)
+  store.del(bulkA)
+  store.del(bulkB)
+
+  # zero items must not spawn anything or fail
+  store.putMany(@[])
+  check("putMany(empty) is a no-op", $store.exists(bulkA), "false")
+
+  store.putMany(@[BulkItem(key: bulkA, srcPath: tmpDir / "bulk" / "a.json"),
+                  BulkItem(key: bulkB, srcPath: tmpDir / "bulk" / "deep" / "b.bin")])
+  check("putMany wrote key 1", $store.exists(bulkA), "true")
+  check("putMany wrote key 2", $store.exists(bulkB), "true")
+  let (gotA, okA) = store.get(bulkA)
+  let (gotB, okB) = store.get(bulkB)
+  check("putMany.a bytes-identical", $(okA and gotA == bodyA), "true")
+  check("putMany.b bytes-identical (NUL + high byte)", $(okB and gotB == bodyB), "true")
+
+  # listMeta vs list: the SAME key set, or present⇒skip is not one decision.
+  var viaList = store.list("probe/bulk/")
+  let meta = store.listMeta("probe/bulk/")
+  var viaMeta: seq[string] = @[]
+  for kk in meta.keys: viaMeta.add kk
+  viaList.sort(); viaMeta.sort()
+  check("listMeta key set == list key set", $(viaList == viaMeta), "true")
+  check("listMeta found both", $viaMeta.len, "2")
+
+  # The ETag/MD5 identity the refresh fast path is calibrated on.
+  if meta.hasKey(bulkA):
+    check("listMeta.etag is md5(body)", $(meta[bulkA].md5Known and
+          meta[bulkA].etag == getMD5(bodyA)), "true")
+    check("listMeta.size", $meta[bulkA].size, $bodyA.len)
+  else:
+    check("listMeta has key a", "false", "true")
+
+  # A batch that cannot be transferred must RAISE. Collapsing it into a silent
+  # return is how a pointer comes to advertise content that is not in the store.
+  var raised = false
+  try:
+    let bad = newS3ObjectStore("no-such-bucket-probe-" & $getCurrentProcessId(),
+                               endpoint = paramStr(2))
+    bad.putMany(@[BulkItem(key: "x/y.json", srcPath: tmpDir / "bulk" / "a.json")])
+  except CatchableError:
+    raised = true
+  check("putMany raises on a failed transfer", $raised, "true")
+
+  store.del(bulkA)
+  store.del(bulkB)
+  removeDir tmpDir
   store.del(lease)
 
   echo "failures: ", failures

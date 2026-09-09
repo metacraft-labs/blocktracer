@@ -379,6 +379,81 @@ running it rather than by reading it:
   changed bytes, and deliberately does **not** extend to `/t/**`, where differing
   bytes under a fixed input are a determinism incident and must stay refused.
 
+### The bulk ranks are batched; the three primitives are not
+
+The S3 backend spawned **one `aws` process per object**, and every object cost
+either one invocation (present ⇒ skip) or two (a HEAD then a PUT). Measured
+against a local MinIO on 2026-09-09, that price is a constant and it is the whole
+of the wall clock: **0.313 s per `aws` invocation**, 0.312–0.314 across three
+runs of very different sizes. There is no bandwidth in the number — the whole
+1693-object tree is 831,705 bytes, an average of 491 bytes an object.
+
+`listMeta` and `putMany` (`objectstore.nim`) are the two bulk answers, and
+`publishChain` uses them for the content ranks only:
+
+| | one `aws` process per… | |
+|---|---|---|
+| `listMeta` | prefix | one paginated `list-objects-v2` replaces one `head-object` per key. Also *more* consistent: N interleaved HEADs observe N moments of the store, one listing observes one — and it is taken under the lease |
+| `putMany` | rank | hardlinks the tree's own files into a staging directory shaped like the key space and hands it to `aws s3 cp --recursive`. Hardlinks, so staging copies no bytes |
+
+**`cp --recursive`, never `s3 sync`.** Sync brings its own size/mtime comparison,
+which is *not* the input-addressed compare the publisher just made; layering the
+two means neither is the one that decides. The staging directory holds exactly
+what the publisher chose to write, and `cp` writes all of it unconditionally.
+
+**Flushed at every rank boundary, so §2.2's ordering is untouched.** Batching
+*within* a rank cannot reorder anything; batching *across* one would let a
+manifest precede its container or a generation root seal maps that are not there
+yet. There are ~11 ranks, so the bound is ~11 transfers per chain, not 11.
+
+**What deliberately stayed one object at a time**, because these are the
+properties the storage model rests on rather than the volume it carries:
+
+- the `putIfAbsent` **lease** — the mutual-exclusion primitive between publishers;
+- the **`stContentHash` compare** on `/t/**` — this is the determinism check, not
+  a skip optimisation, and answering it from a listing's ETag would replace the
+  byte comparison with a digest of it. (The historic ranges contain none of these
+  at all: `ingest-range.mjs` never replays, so `tracesPublished` is 0.)
+- the **pointers**, `current.json` last of all — a handful of objects whose write
+  order is the visibility contract.
+
+**`--refresh` compares ETags, and calibrates rather than assuming.** A listing
+already carries an ETag which for a single-part PUT is the object's MD5, so the
+"did these bytes move" question is usually free. Whether that holds is *measured*
+per run against the one object whose exact bytes the process knows — the lease it
+just wrote. The failure is one-sided: a store whose ETag is not an MD5 (SSE-KMS,
+or a multipart `<hex>-<parts>`) only makes `--refresh` re-upload something that
+did not need it, and can never report a changed object as unchanged.
+`LocalObjectStore` reports no ETags at all, so `tests/tpublish.nim` exercises the
+GET-per-object fallback on every run.
+
+**The pointer flip is gated on the store confirming the batch.** A bulk transfer
+moves many objects under one exit code, so before `current.json` moves, one
+listing re-reads every key `putMany` was given and checks presence, size, and —
+when ETags are MD5s — content digest. Without that the flip would be advertising
+a generation on the strength of a process's exit status, which is the shape of
+the defect that put a pointer at head 74399 over a height map stopping at 74099.
+
+Measured, publishing the cumulative testnet tree into a fresh local MinIO
+(`--backend s3`, no R2 bucket, no credential):
+
+| cycle | tree objects | before | after | |
+|---|---|---|---|---|
+| 74000–74099 | 157 | 98.6 s | 4.3 s | 23× |
+| 74000–74399 | 877 | 507.0 s | 5.5 s | 92× |
+| 74000–74999 | 1693 | 833.8 s | 5.9 s | 141× |
+| re-publish, unchanged | 1693 | 528.1 s | 3.2 s | 165× |
+| `--refresh`, unchanged | 1693 | 1057.2 s | 3.1 s | 341× |
+
+The `--refresh` row is where the ETag compare shows: the old path paid a HEAD
+*and* a GET for all 1691 objects (3382 invocations × 0.313 s = 1058 s, which is
+the measurement to a tenth of a second), and the new one pays one listing.
+
+Both publishers were run over the same three trees into two buckets, and the
+buckets came out **identical — same 1875 keys, same ETag, same size for every
+one** — which is the check that batching did not change a single skip decision.
+Uploaded/skipped/refreshed counts matched at every stage.
+
 ## 2. isonim architecture
 
 **isonim** is a cross-platform reactive UI framework for Nim (signals / effects /

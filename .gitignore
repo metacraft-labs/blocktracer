@@ -6,6 +6,13 @@ nimcache/
 /blocktracer-demo-gen
 /blocktracer-validate
 /blocktracer-publish
+# `blocktracer-chain-ingest` (namedBin, added with the range command) and
+# `objectstore-probe` (`just objectstore-probe`, `-o:` at the repo root) are
+# built into the working tree and were never listed, so both showed as untracked
+# for anyone who ran the range or the endpoint check.
+/blocktracer-chain-ingest
+/objectstore-probe
+/.chain-state/
 # `nim c -r src/foo.nim` drops the compiled binary next to its source, under src/
 /src/blocktracer_demo_gen
 /src/blocktracer_validate

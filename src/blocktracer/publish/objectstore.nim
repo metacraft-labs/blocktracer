@@ -20,10 +20,66 @@
 ##     compare-and-set, which is why R2's `If-None-Match: *` is used rather than a
 ##     read-then-write;
 ##   - `list` enumerates keys under a prefix (used to reconstruct state and to scan).
+##
+## ── THE BULK RANKS, AND WHY THEY ARE A SEPARATE PAIR OF METHODS ────────────
+##
+## Everything above is per-object, and for the three primitives the storage model
+## rests on — the `putIfAbsent` lease, the input-addressed byte compare, and the
+## `current.json` flip — per-object is the point, not an accident. For the bulk
+## content it is neither: `d/{chain}/block/**`, `d/{chain}/tx/**` and the
+## `t/**` containers are immutable at their keys, so the ONLY questions the
+## publisher asks of the store about them are "which of these keys exist" and
+## "please hold these bytes at these keys". Both were being answered one `aws`
+## process at a time.
+##
+## Measured on this machine against a local MinIO (2026-09-09): a publish of the
+## 1693-object testnet tree spent its entire wall clock in process spawn and
+## connection setup — the whole tree is 831,705 bytes, an average of 491 bytes an
+## object, so there is no bandwidth in the number at all.
+##
+## `listMeta` and `putMany` are the two bulk answers:
+##
+##   * `listMeta` replaces N `head-object` round trips with one paginated
+##     `list-objects-v2`. It is not merely faster, it is MORE consistent: N HEADs
+##     interleaved with N PUTs see N different moments of the store, while one
+##     listing is a single point in time — and the publisher takes it under the
+##     lease, so no other writer can move the store underneath it.
+##
+##   * `putMany` stages hardlinks to the source files in a temp directory
+##     mirroring the key layout and hands the directory to `aws s3 cp
+##     --recursive`. `cp --recursive` and NOT `s3 sync` deliberately: sync brings
+##     its own size/mtime comparison, which is not the input-addressed compare
+##     the publisher just performed, and layering the two would mean neither is
+##     the one that decides. The staging directory contains exactly the objects
+##     the publisher decided to write, and `cp --recursive` writes all of them
+##     unconditionally.
+##
+## Both default to the per-object loop on the base type, so `LocalObjectStore` —
+## whose per-object path is a `write` syscall and already fast — is unchanged,
+## and any future backend is correct before it is quick.
+##
+## THE BODIES ARE REAL FILES. `putIfAbsent`'s header below records what happened
+## the last time a body on this path was not seekable; the staging directory
+## keeps `putMany` on the same right side of that.
 
-import std/[os, osproc, strutils, posix, times, streams, hashes]
+import std/[os, osproc, strutils, posix, times, streams, hashes, tables]
 
 type
+  StoredMeta* = object
+    ## What a listing knows about an object without fetching it.
+    etag*: string      ## ETag, quotes stripped. "" when the store did not say.
+    size*: int64
+    md5Known*: bool    ## the ETag is a plain single-part MD5, so it may be
+                       ## compared against `getMD5` of local bytes. False for a
+                       ## multipart ETag (`<hex>-<parts>`), which is an MD5 of
+                       ## MD5s and means nothing to a whole-object compare.
+
+  BulkItem* = object
+    ## One object to upload, by the path that already holds its exact bytes —
+    ## the publisher reads its tree from disk, so there is nothing to copy.
+    key*: string
+    srcPath*: string
+
   ObjectStore* = ref object of RootObj
 
 # --- the interface --------------------------------------------------------
@@ -47,6 +103,22 @@ method del*(s: ObjectStore, key: string) {.base.} =
 
 method list*(s: ObjectStore, prefix: string): seq[string] {.base.} =
   raise newException(CatchableError, "ObjectStore.list not implemented")
+
+method listMeta*(s: ObjectStore, prefix: string): Table[string, StoredMeta] {.base.} =
+  ## One shot: every key under `prefix` with whatever the store can say about it
+  ## cheaply. The default is `list` with nothing known, which keeps every caller
+  ## correct on a backend that has not specialised it — a store that reports no
+  ## ETags simply never takes the hash fast path.
+  result = initTable[string, StoredMeta]()
+  for k in s.list(prefix):
+    result[k] = StoredMeta(etag: "", size: -1, md5Known: false)
+
+method putMany*(s: ObjectStore, items: seq[BulkItem]) {.base.} =
+  ## Write every item. MUST be all-or-raise: a caller that gets a return has the
+  ## right to treat every key as present, because the next thing it does is flip
+  ## a pointer that references them.
+  for it in items:
+    s.put(it.key, readFile(it.srcPath))
 
 # --- local filesystem backend --------------------------------------------
 
@@ -220,6 +292,12 @@ method del*(s: S3ObjectStore, key: string) =
   discard s.run(@["s3api", "delete-object", "--bucket", s.bucket,
     "--key", s.fullKey(key)] & s.endpointArgs())
 
+proc stripPrefix(s: S3ObjectStore, t: string): string =
+  if s.prefix.len > 0 and t.startsWith(s.prefix.strip(chars = {'/'}) & "/"):
+    t[(s.prefix.strip(chars = {'/'}).len + 1) .. ^1]
+  else:
+    t
+
 method list*(s: S3ObjectStore, prefix: string): seq[string] =
   let (outp, code) = s.run(@["s3api", "list-objects-v2", "--bucket", s.bucket,
     "--prefix", s.fullKey(prefix), "--query", "Contents[].Key",
@@ -228,7 +306,74 @@ method list*(s: S3ObjectStore, prefix: string): seq[string] =
   for tok in outp.split({' ', '\t', '\n'}):
     let t = tok.strip()
     if t.len == 0 or t == "None": continue
-    if s.prefix.len > 0 and t.startsWith(s.prefix.strip(chars = {'/'}) & "/"):
-      result.add t[(s.prefix.strip(chars = {'/'}).len + 1) .. ^1]
-    else:
-      result.add t
+    result.add s.stripPrefix(t)
+
+method listMeta*(s: S3ObjectStore, prefix: string): Table[string, StoredMeta] =
+  ## ONE `list-objects-v2` in place of one `head-object` per key.
+  ##
+  ## The CLI paginates this call itself and merges the pages before applying
+  ## `--query`, so the result is the whole prefix however many thousand keys it
+  ## holds, in a single process with a single TLS handshake. `--output text`
+  ## emits one tab-separated row per object; S3 keys may not contain a tab or a
+  ## newline, so the split is unambiguous.
+  ##
+  ## An ETag is trusted as an MD5 only when it has no `-<parts>` suffix. A
+  ## multipart ETag is an MD5 of the part MD5s and comparing it to the MD5 of the
+  ## whole object would report every large object as changed — safe (it can only
+  ## over-report a difference, never claim a false match) but pointlessly slow,
+  ## so it is marked unknown and the caller falls back to reading the bytes.
+  result = initTable[string, StoredMeta]()
+  let (outp, code) = s.run(@["s3api", "list-objects-v2", "--bucket", s.bucket,
+    "--prefix", s.fullKey(prefix), "--query", "Contents[].[Key,ETag,Size]",
+    "--output", "text"] & s.endpointArgs())
+  if code != 0: return
+  for line in outp.splitLines():
+    let ln = line.strip()
+    if ln.len == 0 or ln == "None": continue
+    let f = ln.split('\t')
+    if f.len < 3: continue
+    let etag = f[1].strip().strip(chars = {'"'})
+    var size: int64 = -1
+    try: size = parseBiggestInt(f[2].strip()) except CatchableError: discard
+    result[s.stripPrefix(f[0].strip())] =
+      StoredMeta(etag: etag, size: size,
+                 md5Known: etag.len == 32 and '-' notin etag)
+
+method putMany*(s: S3ObjectStore, items: seq[BulkItem]) =
+  ## Stage hardlinks into a directory shaped like the key space, then one
+  ## `aws s3 cp --recursive`.
+  ##
+  ## HARDLINKS, so staging N objects costs N directory entries and copies no
+  ## bytes; a cross-device link (the tree and $TMPDIR on different filesystems)
+  ## falls back to a copy rather than failing. The staged files are ordinary
+  ## seekable files — the hazard `putIfAbsent` documents above cannot recur here.
+  ##
+  ## `cp --recursive`, NOT `s3 sync`. Sync would re-decide what to transfer using
+  ## size and modification time, which is not the comparison the publisher just
+  ## made: an object whose bytes changed without changing length, staged fresh
+  ## with a new mtime, is a coin flip under sync's rules and a certainty under
+  ## cp's. The publisher owns the decision; this method owns only the transfer.
+  ##
+  ## A NON-ZERO EXIT RAISES. `publishChain` flushes at every rank boundary and
+  ## flips `current.json` only after the last flush returns, so a failed batch
+  ## propagates out before the pointer can advertise content that is not there.
+  if items.len == 0: return
+  let stage = getTempDir() / "bt-bulk-" & $getpid() & "-" & $epochTime().int64 & "-" &
+              $(cast[uint](items[0].key.hash) mod 1_000_000'u)
+  createDir stage
+  defer: removeDir stage
+  for it in items:
+    let dst = stage / it.key
+    createDir parentDir(dst)
+    try:
+      createHardlink(it.srcPath, dst)
+    except CatchableError:
+      copyFile(it.srcPath, dst)
+  let dest = "s3://" & s.bucket & "/" &
+    (if s.prefix.len > 0: s.prefix.strip(chars = {'/'}) & "/" else: "")
+  let (outp, code) = s.run(@["s3", "cp", stage, dest, "--recursive",
+    "--only-show-errors"] & s.endpointArgs())
+  if code != 0:
+    raise newException(CatchableError,
+      "aws s3 cp --recursive failed for " & $items.len & " object(s) (exit " &
+      $code & "): " & outp.strip())
