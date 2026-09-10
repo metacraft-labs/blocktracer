@@ -12,3 +12,9 @@ synth/
 *.err
 chosen-rps
 storefull.json
+store-full/
+final.json
+pub2.txt
+repub.txt
+*.json
+!package.json
