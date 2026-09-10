@@ -483,8 +483,26 @@ test('the gate is in the write path, not beside it');
     const backfillSrc = readFileSync(new URL('./backfill-blocks.mjs', import.meta.url), 'utf8');
     ck('`backfill-blocks.mjs` calls the gate before it writes',
        /assertRefusalsAreClosed[\s\S]{0,900}?writeFileSync\(tmp/.test(backfillSrc));
+    // `ingest-range.mjs` BECAME A PRODUCER WHEN IT GAINED `--replay`, and a producer this
+    // check does not name is a producer whose rows nothing gates. It writes untraced rows in
+    // two places — the placeholder each first-in-block transaction starts as, and the
+    // `not-attempted` a budget or a rate limit leaves behind — and both go through
+    // `classifyRefusal`, with the gate immediately before the snapshot is written.
+    const rangeSrc = readFileSync(new URL('./ingest-range.mjs', import.meta.url), 'utf8');
+    ck('`ingest-range.mjs` calls the gate before it writes a replayed range',
+       /assertRefusalsAreClosed[\s\S]{0,300}?writeFileSync\(tmp/.test(rangeSrc));
+    ck('…and publishes per-reason counts in its own `recount`',
+       /function recount[\s\S]{0,1600}?refusalCounts/.test(rangeSrc));
+    ck('…and never writes an outcome for a declined transaction outside `classifyRefusal`',
+       // Every `outcome:` literal it writes is either traced (which comes from the driver's
+       // own verdict, via `decideOutcome`) or is immediately followed by a classification.
+       [...rangeSrc.matchAll(/outcome: '([a-z-]+)'/g)]
+         .every(([, o]) => o === 'not-attempted'));
+    ck('…and a rate limit reaches `not-attempted` rather than the transaction\'s own row',
+       /endpoint-throttled-this-run/.test(rangeSrc)
+       && /if \(proxy\.throttled\)[\s\S]{0,400}?attempted--/.test(rangeSrc));
     ck('…and no producer spells the two shared sentences a second time',
-       ![followSrc, captureSrc, backfillSrc].some((s) =>
+       ![followSrc, captureSrc, backfillSrc, rangeSrc].some((s) =>
          s.includes('getTxByHash prunes at the finalized tip and')));
 
     // THE HOSTILE CORPUS MUST NOT POISON A MEMBER ID. `tools/ci/hostile-chain-corpus.mjs`
@@ -553,7 +571,12 @@ test('the committed captures are inside the closed set');
      REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).length === 3);
 }
 
-expectCount(102);
+// 102 before `ingest-range.mjs --replay`; +4 for the fourth producer's own gate, its
+// per-reason counts, its outcome literals and the arm that keeps a rate limit off the
+// transaction's row. Each of the four was run against `ingest-range.mjs` as it stood at
+// 77b1d59, before the seam existed, and all four are FALSE there — so they are checks and
+// not restatements.
+expectCount(106);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

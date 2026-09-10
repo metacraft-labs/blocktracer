@@ -74,11 +74,17 @@
 //                 demonstration of what whole-chain generation maps do
 //   --no-publish  fetch and ingest, stop before the object store
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, readdirSync, statSync }
-  from 'node:fs';
-import { join, resolve } from 'node:path';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, readdirSync, statSync,
+         linkSync, copyFileSync } from 'node:fs';
+import { join, resolve, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+
+import { classifyRefusal, refusalCounts, assertRefusalsAreClosed, refuseNotFirstInBlock }
+  from './lib/refusal.mjs';
+import { preflightToolchain, replayTransaction } from './lib/replay.mjs';
+import { startBodyProxy } from './lib/body-proxy.mjs';
+import { storeBasePath } from './backfill-bodies.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, dflt) => {
@@ -117,6 +123,37 @@ const noPublish = flag('no-publish');
 const noMerge = flag('no-merge');
 const refetch = flag('refetch');
 const jsonOnly = flag('json');
+
+// ── HISTORIC REPLAY ─────────────────────────────────────────────────────────
+//
+// Off by default, and the default is not timidity: replay needs an
+// `aztec-avm-runtime` checkout, an `--import-memory` avm.wasm, a ct-writer
+// module and a Node with `--experimental-wasm-exnref`, none of which this
+// repository carries. A range command that silently produced no traces because
+// one of them was absent would be the quiet failure `preflightToolchain` exists
+// to stop, so `--replay` is asked for explicitly and refuses loudly.
+//
+// With it on, this tool stops being metadata-only. See `replayRange`.
+const doReplay = flag('replay');
+const runtime = arg('runtime', '');
+const nodeBin = arg('node', process.execPath);
+const avm = arg('avm', process.env.AVM_WASM_PATH ?? '');
+const ctWriter = arg('ct-writer', process.env.CT_WRITER_WASM_PATH ?? '');
+// 0 = every first-in-block transaction in the range. A budget is a statement
+// about the RUN and the rows it does not reach say so — `not-attempted`.
+const replayMax = Math.max(0, Number(arg('replay-max', '0')));
+// The proxy's pacing to the UPSTREAM node. Defaults to `--rps` when that is set
+// (one endpoint, one budget) and to the rate the genesis-to-tip backfill was run
+// at otherwise. `aztec-testnet.drpc.org` is clean to 12/s sustained and answers a
+// throttled client with `retry-after: 2465` — forty-one minutes, across every
+// dRPC host at once — so this is the number that decides whether a long run
+// finishes or is banned halfway.
+const replayRps = Number(arg('replay-rps', rps > 0 ? String(rps) : '6'));
+const network = arg('network', chain.includes('testnet') ? 'testnet' : 'mainnet');
+const bodyStore = arg('body-store', '');
+const bodyDir = arg('body-dir', join(stateDir, 'bodies'));
+const configRef = arg('config',
+  'https://raw.githubusercontent.com/AztecProtocol/networks/main/network_config.json');
 
 // `!from` REFUSED HEIGHT ZERO, which is the one height a genesis-to-tip pass
 // starts at. The guard means "were numbers supplied", so it has to ask that
@@ -398,24 +435,50 @@ async function fetchRange(nodeInfo, tip, finalized) {
       }
       for (const [i, eff] of (full.body.txEffects ?? []).entries()) {
         row.transactions.push(eff.txHash);
-        // Every transaction is recorded traceless with the producer's own
-        // sentence about why. This tool NEVER replays: a historic range is by
-        // definition below the finalized tip, its bodies are pruned, and a range
-        // command that tried would be manufacturing a refusal per transaction
-        // rather than reading the archive. `follow-chain.mjs` is the tool that
-        // catches a body while it is still there.
+        // ── WHAT A ROW SAYS BEFORE ANYTHING IS REPLAYED ────────────────────
+        //
+        // THE SENTENCE THIS USED TO WRITE WAS FALSE, and it was written onto
+        // 18,508 rows. Every first-in-block transaction in a historic range was
+        // recorded `pruned` with "it can no longer be re-executed", on the
+        // reasoning that a range below the finalized tip has no bodies. The
+        // first half is right — `getTxByHash` is a mempool query and the pool
+        // deletes at finalization — and the conclusion does not follow, because
+        // the node is not the only source. Aztec's own keyless `TxFileStore`
+        // serves one content-addressed `.bin` per transaction hash for the whole
+        // chain, self-verifying (`Tx.toBuffer()` writes `txHash` first), and
+        // `backfill-bodies.mjs` has been able to fetch from it since before this
+        // sentence was written. Measured on this chain: 21 of 21 bodies sampled
+        // from block 10 to block 75,969 came back 200 and self-verified, and
+        // six of the ten oldest sampled transactions replayed and reproduced
+        // their block's published effects exactly.
+        //
+        // So a first-in-block transaction in a range ingested WITHOUT `--replay`
+        // has not met an obstacle. It has not been looked at. That is
+        // `not-attempted` — a member of the closed set whose whole purpose is to
+        // be a statement about the run rather than about the chain — and the
+        // narrative says where the body can be had, so a later run knows this is
+        // work outstanding rather than a limit reached.
+        //
+        // With `--replay` on, this is a PLACEHOLDER: `replayRange` overwrites
+        // every one of these rows with what the driver decided. What survives it
+        // are the transactions a budget or a rate limit stopped the run reaching,
+        // which is exactly what this reason means.
         const why = i !== 0
-          ? { outcome: 'not-first-in-block',
-              reason: `Replaying this transaction needs the state left by the `
-                + `transaction before it in block ${n}, and the node does not serve `
-                + `intra-block intermediate state. Only the first transaction in a `
-                + `block can be re-executed from published data.` }
-          : { outcome: 'pruned',
-              reason: `The node still serves this transaction's effects but no longer `
-                + `serves its body: getTxByHash prunes at the finalized tip and `
-                + `getTxEffect does not. This range was ingested from the archive, `
-                + `below the replayable window, so it can no longer be re-executed `
-                + `and no trace was recorded for it.` };
+          ? refuseNotFirstInBlock({ blockNumber: n, txIndexInBlock: i,
+                                    where: 'ingest-range.mjs' })
+          : { outcome: 'not-attempted', ...classifyRefusal({
+              condition: 'historic-range-not-replayed',
+              where: 'ingest-range.mjs',
+              narrative: doReplay
+                ? `This transaction is first in block ${n} and its body is obtainable `
+                  + `from the keyless transaction file store, so it is replayable from `
+                  + `published data. This run was asked to replay and did not reach it.`
+                : `This transaction is first in block ${n}, so it can be re-executed `
+                  + `from published data: the node no longer serves its body, but the `
+                  + `keyless transaction file store does, for the whole chain. This `
+                  + `range was ingested without --replay, so nothing was attempted and `
+                  + `no trace was recorded. Nothing about the chain stopped it.`,
+            }) };
         transactions.push({
           txHash: eff.txHash, blockNumber: n, txIndexInBlock: i,
           revertCode: eff.revertCode, transactionFee: eff.transactionFee,
@@ -502,6 +565,202 @@ function recount(s) {
   };
   s.counts.tracesPublished = s.counts.replayed + s.counts.divergent;
   s.counts.captureSessions = (s.captures ?? []).length;
+  // ING-3's per-reason counts, zero-filled over the whole closed set. The four
+  // outcome lines above are not a partition — `not-first-in-block` and
+  // `not-attempted` appear in none of them — so `accountedFor` is the figure
+  // that has to equal `transactions`, and it is published rather than asserted
+  // because a count is a measurement. `assertRefusalsAreClosed` is the gate.
+  const refusals = refusalCounts(s.transactions);
+  s.counts.refusals = refusals.byReason;
+  s.counts.refusalsTotal = refusals.total;
+  s.counts.refusalsUnclassified = refusals.unclassified;
+  s.counts.untraced = refusals.total + refusals.unclassified;
+  s.counts.accountedFor = s.counts.tracesPublished + s.counts.untraced;
+}
+
+// ── phase 1b: replay what the range can replay ──────────────────────────────
+//
+// SEPARATE FROM THE FETCH, AND RE-RUNNABLE ON ITS OWN. The fetch is metadata and
+// costs one or two requests per height; a replay costs roughly fifteen node calls
+// per transaction after the proxy's cache, and on this endpoint requests are the
+// only budget. Splitting them means a range whose replay was cut short by a rate
+// limit is resumed by re-running the same command — the snapshot is on disk, the
+// bodies are mirrored, the rows that were reached are traced, and the ones that
+// were not still say `not-attempted`, which is the query for what remains.
+//
+// It is IDEMPOTENT over already-traced rows: a transaction that produced a
+// container is never replayed again, so a re-run costs only what it has left to do.
+async function replayRange(dir) {
+  const p = join(dir, 'snapshot.json');
+  const snap = JSON.parse(readFileSync(p, 'utf8'));
+  const t0 = Date.now();
+
+  // ── the toolchain, proved BEFORE anything is spent on it ──────────────────
+  //
+  // `preflightToolchain` is `follow-chain.mjs`'s, unchanged, and its header
+  // records what it cost to learn: five live transactions were caught inside the
+  // replayable window and recorded `refused / unknown` in twelve milliseconds
+  // each because `--node` was a Node 20 with no `--experimental-wasm-exnref`.
+  // A historic body does not prune, so the loss here is a wasted run rather than
+  // an unrepeatable one — but a range of 200 transactions each refusing in 12 ms
+  // is still 200 rows asserting something false about the chain.
+  if (!runtime) {
+    return { ok: false, problems: ['--replay needs --runtime <path-to-aztec-avm-runtime>; '
+      + 'this repository carries no AVM'] };
+  }
+  const pre = await preflightToolchain({ nodeBin, runtime, avm, ctWriter });
+  if (!pre.ok) return { ok: false, problems: pre.problems };
+
+  // ── where the bodies come from ────────────────────────────────────────────
+  //
+  // DERIVED, NEVER PASTED — the rule `backfill-bodies.mjs` states at length. The
+  // base URL is `txCollectionFileStoreUrls` out of `AztecProtocol/networks`, and
+  // the path segment beneath it is computed from THIS node's own answer, so a
+  // store location cannot silently drift onto a different deployment from the one
+  // the hashes came from.
+  let base = bodyStore;
+  if (!base) {
+    try {
+      const res = await fetch(configRef);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const cfg = await res.json();
+      base = cfg?.[network]?.txCollectionFileStoreUrls?.[0] ?? '';
+    } catch (e) {
+      return { ok: false, problems: [`could not read ${configRef}: ${e.message}. `
+        + `Pass --body-store <url> to name the transaction file store directly.`] };
+    }
+  }
+  if (!base) {
+    return { ok: false, problems: [`${configRef} declares no txCollectionFileStoreUrls for `
+      + `${network}, so no body source is known and nothing historic can be replayed.`] };
+  }
+  let basePath;
+  try {
+    basePath = storeBasePath(nodeInfo);
+  } catch (e) {
+    return { ok: false, problems: [e.message] };
+  }
+
+  const proxy = await startBodyProxy({
+    upstreamUrl: url, runtime, storeBase: base, storeBasePath: basePath,
+    bodyDir, rps: replayRps, log: (m) => say(`proxy: ${m}`),
+  });
+
+  const runtimeCommit = (() => {
+    const r = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: runtime, encoding: 'utf8' });
+    return r.status === 0 ? r.stdout.trim() : '';
+  })();
+
+  const perTxMs = [];
+  let attempted = 0;
+  let stoppedBy = null;
+  mkdirSync(join(dir, 'ct'), { recursive: true });
+  mkdirSync(join(dir, 'sources'), { recursive: true });
+
+  for (const t of snap.transactions) {
+    // Already traced by an earlier run of this same range. Nothing to redo.
+    if (t.outcome === 'replayed' || t.outcome === 'divergent') continue;
+    // Not ours to attempt: index > 0 cannot be re-executed from published data
+    // at any age, which is the runtime's constraint and not a budget.
+    if (!t.firstInBlock) continue;
+    if (proxy.throttled) { stoppedBy = 'endpoint-throttled-this-run'; break; }
+    if (replayMax > 0 && attempted >= replayMax) { stoppedBy = 'beyond-this-run-budget'; break; }
+
+    attempted++;
+    const started = Date.now();
+    const ctRel = `ct/${t.txHash}.ct`;
+    const srcRel = `sources/${t.txHash}.json`;
+    const decided = await replayTransaction({
+      nodeBin, runtime, url: proxy.url, txHash: t.txHash,
+      ctPath: join(dir, ctRel), ctRelative: ctRel,
+      sourcesPath: join(dir, srcRel), sourcesRelative: srcRel,
+      avm, ctWriter,
+    });
+    const ms = Date.now() - started;
+    perTxMs.push(ms);
+
+    // A THROTTLE THAT ARRIVED DURING THIS REPLAY IS NOT THIS TRANSACTION'S
+    // REFUSAL. The proxy answers a throttled call with a JSON-RPC error, the
+    // driver dies on it, and `decideOutcome` would file whatever class it named
+    // against a transaction that had done nothing wrong. So the proxy's own flag
+    // is consulted first and the row is left `not-attempted`, which is what it is.
+    if (proxy.throttled) {
+      stoppedBy = 'endpoint-throttled-this-run';
+      attempted--;
+      perTxMs.pop();
+      break;
+    }
+
+    // `recordedBy` is per ROW and not per snapshot: a range may be replayed over
+    // more than one runtime build, and `ingest.nim` derives `recorderVersion` from
+    // this field first. Same reason `follow-chain.mjs` stamps it.
+    Object.assign(t, { bodyRetained: true, recordedBy: runtimeCommit,
+                       replayedAt: new Date().toISOString(), replayMs: ms }, decided);
+    // A traced row must carry NO refusal reason — `auditRefusals` refuses the two
+    // statements folded together — and `decided` does not clear a key it does not
+    // set, so a placeholder's reason would survive onto a successful replay.
+    if (decided.replayed) { delete t.refusalReason; delete t.reason; delete t.detail; }
+  }
+
+  // Whatever the run did not reach keeps `not-attempted`, and the narrative names
+  // WHICH of the run's own limits stopped it. The reason id is the same because
+  // the statement is the same; the sentence differs because the operator's next
+  // action differs — wait out a ban, or raise a budget.
+  if (stoppedBy) {
+    for (const t of snap.transactions) {
+      if (t.outcome !== 'not-attempted' || !t.firstInBlock) continue;
+      Object.assign(t, classifyRefusal({
+        condition: stoppedBy,
+        where: 'ingest-range.mjs replayRange',
+        narrative: stoppedBy === 'endpoint-throttled-this-run'
+          ? `This transaction is first in block ${t.blockNumber} and its body is served by `
+            + `the keyless transaction file store, so it is replayable from published data. `
+            + `The node endpoint began rate-limiting this client before the run reached it `
+            + `and the run stopped rather than record a limit of ours as a property of the `
+            + `chain. Re-running this range replays it.`
+          : `This transaction is first in block ${t.blockNumber} and its body is served by `
+            + `the keyless transaction file store, so it is replayable from published data. `
+            + `This run reached its own --replay-max of ${replayMax} before taking it. `
+            + `Nothing about the transaction or the chain stopped it; the run did.`,
+      }));
+    }
+  }
+
+  recount(snap);
+  assertRefusalsAreClosed(snap.transactions);
+  const tmp = `${p}.tmp`;
+  writeFileSync(tmp, JSON.stringify(snap, null, 1) + '\n');
+  renameSync(tmp, p);
+
+  perTxMs.sort((a, b) => a - b);
+  const outcomes = outcomeCounts(snap.transactions.filter((t) => t.firstInBlock));
+  return {
+    ok: true,
+    note: pre.note ?? '',
+    runtime, runtimeCommit, avm, ctWriter, nodeBin,
+    store: { base, basePath },
+    attempted,
+    replayed: outcomes.replayed ?? 0,
+    divergent: outcomes.divergent ?? 0,
+    refused: outcomes.refused ?? 0,
+    notAttempted: outcomes['not-attempted'] ?? 0,
+    stoppedBy,
+    wallMs: Date.now() - t0,
+    perTxMs: perTxMs.length
+      ? { min: perTxMs[0], median: perTxMs[Math.floor(perTxMs.length / 2)],
+          max: perTxMs[perTxMs.length - 1],
+          mean: Math.round(perTxMs.reduce((a, b) => a + b, 0) / perTxMs.length) }
+      : null,
+    refusals: refusalCounts(snap.transactions).byReason,
+    // The runtime's own class names, which are EVIDENCE and not the closed set.
+    // A `runtime-refused` count of forty says our vocabulary held; this says what
+    // it held against, and it is the list a runtime fix would be aimed at.
+    runtimeClasses: snap.transactions.reduce((m, t) => {
+      if (t.outcome === 'refused' && t.refusal) m[t.refusal] = (m[t.refusal] ?? 0) + 1;
+      return m;
+    }, {}),
+    proxy: { ...proxy.stats, closed: await proxy.close().then(() => true) },
+  };
 }
 
 // ── phase 2: the union snapshot the tree is ingested from ───────────────────
@@ -539,9 +798,54 @@ function mergeSnapshots(keys) {
   recount(merged);
   const dir = join(stateDir, 'merged');
   mkdirSync(join(dir, 'ct'), { recursive: true });
+  mkdirSync(join(dir, 'sources'), { recursive: true });
+  // ── THE CONTAINERS HAVE TO BE WHERE THE MERGED SNAPSHOT SAYS THEY ARE ─────
+  //
+  // A row's `container` is `ct/{hash}.ct`, RELATIVE to the snapshot directory —
+  // deliberately, so a committed snapshot carries no absolute path from whoever
+  // ran the capture. That made the merged directory a snapshot with no artifacts
+  // beside it: correct for a metadata-only backfill, which is all this tool
+  // produced, and a silent hole the moment a range starts writing containers.
+  // `ingest.nim` would find the row, look for the file and refuse — or worse,
+  // publish a row pointing at nothing.
+  //
+  // Linked rather than copied: a range's containers are its own, the merged
+  // directory is a rendering of one moment (`ingest-range` deletes and rebuilds
+  // the tree every run for the same reason), and hard-linking keeps one copy of
+  // bytes that can run to hundreds of kilobytes per transaction. A cross-device
+  // link falls back to a copy rather than failing the run.
+  let linked = 0;
+  for (const t of transactions) {
+    for (const rel of [t.container, t.sourceBundles]) {
+      if (typeof rel !== 'string' || rel.length === 0) continue;
+      const owner = rangeKeyFor(t, keys);
+      if (!owner) continue;
+      const from = join(RANGES, owner, rel);
+      const to = join(dir, rel);
+      if (!existsSync(from) || existsSync(to)) continue;
+      mkdirSync(dirname(to), { recursive: true });
+      try { linkSync(from, to); } catch { copyFileSync(from, to); }
+      linked++;
+    }
+  }
   writeFileSync(join(dir, 'snapshot.json'), JSON.stringify(merged, null, 1) + '\n');
-  return { dir, blocks: blocks.length, transactions: transactions.length,
+  return { dir, blocks: blocks.length, transactions: transactions.length, linked,
            blockHashes: blocks.map((b) => b.hash) };
+}
+
+/** Which covered range holds this transaction's artifacts. The ledger's keys are
+ *  padded `from-to`, so the range is found by arithmetic on the block number and
+ *  not by scanning directories — a scan would silently pick the first match if two
+ *  ranges ever overlapped, and this way an overlap is simply the first one that
+ *  contains it, which is also what `mergeSnapshots` itself resolved to. */
+function rangeKeyFor(t, keys) {
+  for (const k of keys) {
+    const [a, b] = k.split('-').map(Number);
+    if (Number.isFinite(a) && Number.isFinite(b) && t.blockNumber >= a && t.blockNumber <= b) {
+      return k;
+    }
+  }
+  return null;
 }
 
 // ── the generation id, derived from what the generation CONTAINS ────────────
@@ -675,6 +979,61 @@ ledger.ranges[rangeKey] = {
   contentDigest: report.fetch.contentDigest ?? prior.contentDigest ?? null,
 };
 saveLedger(ledger);
+
+// ── replay ──────────────────────────────────────────────────────────────────
+//
+// AFTER THE LEDGER ENTRY AND BEFORE THE MERGE. After, because a replay that is
+// interrupted must leave the range recorded as fetched — the metadata is right
+// whatever happens to the traces, and re-running the command resumes the replay
+// without re-reading 500 heights. Before, because `mergeSnapshots` builds the
+// tree from the per-range snapshots on disk and would otherwise ingest the
+// placeholder rows this phase is about to replace.
+if (doReplay) {
+  const dir = join(RANGES, rangeKey);
+  if (!existsSync(join(dir, 'snapshot.json'))) {
+    console.error(`ingest-range: --replay has no snapshot for ${rangeKey} to work on`);
+    process.exit(2);
+  }
+  say(`replaying first-in-block transactions in ${rangeKey}…`);
+  report.replay = await replayRange(dir);
+  if (!report.replay.ok) {
+    console.error(`ingest-range: --replay refused before attempting anything:\n  `
+      + report.replay.problems.join('\n  '));
+    console.log(JSON.stringify(report, null, 2));
+    process.exit(2);
+  }
+  say(`replayed ${report.replay.replayed}/${report.replay.attempted} attempted `
+      + `(${report.replay.divergent} divergent, ${report.replay.refused} refused, `
+      + `${report.replay.notAttempted} not attempted), `
+      + `${Math.round(report.replay.wallMs / 1000)}s`);
+  ledger.ranges[rangeKey].replay = {
+    at: new Date().toISOString(),
+    attempted: report.replay.attempted,
+    replayed: report.replay.replayed,
+    divergent: report.replay.divergent,
+    refused: report.replay.refused,
+    notAttempted: report.replay.notAttempted,
+    stoppedBy: report.replay.stoppedBy,
+    runtimeCommit: report.replay.runtimeCommit,
+  };
+  saveLedger(ledger);
+  // A THROTTLE ENDS THE RUN, AND IT ENDS IT AFTER SAVING. Everything replayed so
+  // far is on disk and in the ledger; publishing a half-replayed range would be
+  // fine (the rows are honest) but continuing to the NEXT range would walk
+  // straight back into a forty-one-minute ban and make it longer. Exit 3, which
+  // is the code the chunk driver treats as "back off and retry", rather than 1.
+  if (report.replay.stoppedBy === 'endpoint-throttled-this-run') {
+    console.error(`ingest-range: the endpoint began rate-limiting this client during replay `
+      + `(${report.replay.replayed} traced before it did`
+      + (report.replay.proxy.throttledRetryAfterMs
+        ? `; it asked for ${Math.round(report.replay.proxy.throttledRetryAfterMs / 1000)}s`
+        : '')
+      + `). Everything traced so far is saved and the rest is recorded not-attempted. `
+      + `GO SILENT AND WAIT — polling this endpoint extends the ban.`);
+    console.log(JSON.stringify(report, null, 2));
+    process.exit(3);
+  }
+}
 
 // ── ingest ──────────────────────────────────────────────────────────────────
 const covered = Object.keys(ledger.ranges);

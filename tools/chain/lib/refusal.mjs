@@ -205,6 +205,27 @@ const CONDITIONS = Object.freeze({
   'node-no-longer-serves-body': 'body-unavailable',
   'driver-wrote-no-container': 'no-container-written',
   'beyond-this-run-budget': 'not-attempted',
+  // ── THREE CONDITIONS, ONE REASON, AND THAT IS THE POINT OF THE INDIRECTION ──────────
+  //
+  // A CONDITION is what a producer observed; a REASON is what the row says. These three
+  // are different observations that make the same statement — the run stopped, the chain
+  // did not — so they must NOT be one condition with a vague name, and they must not be
+  // three reasons either. `not-attempted` already existed for the first; the other two
+  // arrived with historic replay (`ingest-range.mjs --replay`).
+  //
+  // `historic-range-not-replayed` is the one that corrects a claim this repository used to
+  // publish. Before the body proxy existed, a historic first-in-block transaction was
+  // written `pruned` / `body-unavailable`, whose sentence ends "it can no longer be
+  // re-executed" — and that was measured false: the keyless TxFileStore serves the body for
+  // the entire chain (21 of 21 sampled from block 10 to block 75,969, all self-verified).
+  // A range ingested without `--replay` has not met an obstacle; it has not looked.
+  //
+  // `endpoint-throttled-this-run` is the one that must never be allowed to become
+  // `runtime-refused`. A rate limit is a fact about our client's quota. Filing it against
+  // the transaction would put a repairable-but-real-sounding refusal on a row that a later
+  // run would have traced without trouble, on data nobody would think to re-ask about.
+  'historic-range-not-replayed': 'not-attempted',
+  'endpoint-throttled-this-run': 'not-attempted',
   // Resolved through REASON_FOR_RUNTIME_CLASS by the class the runtime named.
   'runtime-named-refusal': null,
 });

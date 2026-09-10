@@ -64,8 +64,8 @@
     {
       "id": "not-attempted",
       "durability": "repairable",
-      "statedBy": "tools/chain/capture-chain.mjs, --max",
-      "condition": "The transaction was replayable at the moment it was seen — inside the window, body still served, first in its block — and the run reached its own budget before taking it. A statement about the RUN, not about the transaction, and it is separate for the same reason backfill-bodies.mjs keeps `unavailable` apart from `absent`: a budget must never be able to masquerade as a property of the chain."
+      "statedBy": "tools/chain/capture-chain.mjs --max; tools/chain/ingest-range.mjs --replay",
+      "condition": "Nothing about this transaction or about the chain stopped it being traced — THE RUN STOPPED. Three producers reach this member and all three are statements about the run: a live capture that was inside the window with the body still served and reached its own --max first; a historic range ingested without --replay, whose body the keyless TxFileStore does hold and which this run simply did not fetch; and a run whose endpoint began rate-limiting it, which says nothing whatever about the height it was asking about. It is separate for the same reason backfill-bodies.mjs keeps `unavailable` apart from `absent`: a budget, a flag or somebody else's rate limit must never be able to masquerade as a property of the chain."
     }
   ]
 }
