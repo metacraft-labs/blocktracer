@@ -1,0 +1,234 @@
+{
+ "format": "blocktracer/historic-replay-yield@1",
+ "_comment": [
+  "WHAT FRACTION OF AZTEC TESTNET HISTORY IS ACTUALLY TRACEABLE, measured rather than",
+  "estimated. The standing claim this replaces was CHAIN-CAPTURE.md §1: \"a batch job over",
+  "history is not a slow version of the right design; it is a thing that cannot work.\"",
+  "",
+  "FIVE WHOLE WINDOWS, NOT A SAMPLE OF TRANSACTIONS. Every transaction the chain published",
+  "in each 200-block window was attempted. Sampling within a window would have let the",
+  "selection carry the result; sampling WINDOWS is a stated limitation and is why the",
+  "per-window rows are published beside the total rather than only the total.",
+  "",
+  "THREE DENOMINATORS AND THEY ARE ALL DIFFERENT. `transactions` is everything the chain",
+  "published. `firstInBlock` removes the ones no node method can serve intermediate state",
+  "for. `withPublicHalf` removes the private-only ones, which have no public execution to",
+  "trace at all. A single \"yield\" figure quoted without saying which of the three it is",
+  "over is the number this file exists to stop being quoted."
+ ],
+ "measuredAt": "2026-09-10T01:43:05.983Z",
+ "chain": "aztec-testnet",
+ "endpoint": "https://aztec-testnet.drpc.org",
+ "bodyStore": "https://aztec-labs-snapshots.com/testnet/txs",
+ "chainTipAtRun": 76024,
+ "finalizedAtRun": 75979,
+ "toolchain": {
+  "runtime": "metacraft-labs/aztec-avm-runtime dfb9ebe (origin/dev)",
+  "node": "nodejs-24.19.0",
+  "avm": "barretenberg build-wasm-avm avm.wasm, --import-memory, 13 declared imports",
+  "seam": "tools/chain/lib/body-proxy.mjs via tools/chain/ingest-range.mjs --replay"
+ },
+ "windows": [
+  {
+   "from": 1,
+   "to": 200,
+   "blocksBelowTip": 75824,
+   "blocks": 200,
+   "transactions": 110,
+   "firstInBlock": 104,
+   "notFirstInBlock": 6,
+   "replayed": 44,
+   "divergent": 2,
+   "traced": 46,
+   "privateOnly": 13,
+   "refused": 45,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withPublicHalf": 91,
+   "replayMsMedian": 3404,
+   "ledger": {
+    "replay": {
+     "at": "2026-09-10T01:36:03.278Z",
+     "attempted": 45,
+     "replayed": 44,
+     "divergent": 2,
+     "refused": 45,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "dfb9ebe23246759f87a4503f35da51dfb2485050"
+    },
+    "fetch": {
+     "served": 200,
+     "requested": 200
+    }
+   }
+  },
+  {
+   "from": 24700,
+   "to": 24899,
+   "blocksBelowTip": 51125,
+   "blocks": 200,
+   "transactions": 83,
+   "firstInBlock": 82,
+   "notFirstInBlock": 1,
+   "replayed": 27,
+   "divergent": 3,
+   "traced": 30,
+   "privateOnly": 40,
+   "refused": 12,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withPublicHalf": 42,
+   "replayMsMedian": 2410,
+   "ledger": {
+    "replay": {
+     "at": "2026-09-10T01:37:10.704Z",
+     "attempted": 12,
+     "replayed": 27,
+     "divergent": 3,
+     "refused": 12,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "dfb9ebe23246759f87a4503f35da51dfb2485050"
+    },
+    "fetch": {
+     "served": 200,
+     "requested": 200
+    }
+   }
+  },
+  {
+   "from": 45000,
+   "to": 45199,
+   "blocksBelowTip": 30825,
+   "blocks": 200,
+   "transactions": 23,
+   "firstInBlock": 23,
+   "notFirstInBlock": 0,
+   "replayed": 21,
+   "divergent": 0,
+   "traced": 21,
+   "privateOnly": 2,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withPublicHalf": 21,
+   "replayMsMedian": 6378,
+   "ledger": {
+    "replay": {
+     "at": "2026-09-10T01:37:13.033Z",
+     "attempted": 0,
+     "replayed": 21,
+     "divergent": 0,
+     "refused": 0,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "dfb9ebe23246759f87a4503f35da51dfb2485050"
+    },
+    "fetch": {
+     "served": 200,
+     "requested": 200
+    }
+   }
+  },
+  {
+   "from": 68000,
+   "to": 68199,
+   "blocksBelowTip": 7825,
+   "blocks": 200,
+   "transactions": 29,
+   "firstInBlock": 29,
+   "notFirstInBlock": 0,
+   "replayed": 22,
+   "divergent": 0,
+   "traced": 22,
+   "privateOnly": 6,
+   "refused": 1,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withPublicHalf": 23,
+   "replayMsMedian": 5380,
+   "ledger": {
+    "replay": {
+     "at": "2026-09-10T01:37:18.421Z",
+     "attempted": 1,
+     "replayed": 22,
+     "divergent": 0,
+     "refused": 1,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "dfb9ebe23246759f87a4503f35da51dfb2485050"
+    },
+    "fetch": {
+     "served": 200,
+     "requested": 200
+    }
+   }
+  },
+  {
+   "from": 75700,
+   "to": 75899,
+   "blocksBelowTip": 125,
+   "blocks": 200,
+   "transactions": 98,
+   "firstInBlock": 95,
+   "notFirstInBlock": 3,
+   "replayed": 92,
+   "divergent": 0,
+   "traced": 92,
+   "privateOnly": 3,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withPublicHalf": 92,
+   "replayMsMedian": 4382,
+   "ledger": {
+    "fetch": {
+     "served": 200,
+     "requested": 200
+    }
+   }
+  }
+ ],
+ "totals": {
+  "transactions": 343,
+  "firstInBlock": 333,
+  "notFirstInBlock": 10,
+  "replayed": 206,
+  "divergent": 5,
+  "traced": 211,
+  "privateOnly": 64,
+  "refused": 58,
+  "bodyUnavailable": 0,
+  "notAttempted": 0,
+  "withPublicHalf": 269
+ },
+ "yield": {
+  "tracedOverAllTransactions": 61.5,
+  "tracedOverFirstInBlock": 63.4,
+  "tracedOverFirstInBlockWithPublicHalf": 78.4
+ },
+ "runtimeRefusalClasses": {
+  "ModuleRefusedReplay": 57,
+  "Expected": 1
+ },
+ "costPerTransaction": {
+  "wallMs": {
+   "n": 320,
+   "min": 823,
+   "p50": 4380,
+   "p90": 7371,
+   "max": 9379,
+   "mean": 4303
+  },
+  "nodeRpcCallsAfterProxyCache": "9-15, mean ~12; see each window's ledger.replay.proxy",
+  "bodyBytesFromFileStore": "~200 KiB, from a different host than the node endpoint"
+ },
+ "chainWidePopulation": {
+  "_note": "from the genesis-to-tip metadata backfill, 75,971 blocks contiguous with no gaps",
+  "transactions": 20770,
+  "firstInBlock": 18508,
+  "notFirstInBlock": 2262,
+  "firstInBlockPercent": 89.1
+ }
+}
