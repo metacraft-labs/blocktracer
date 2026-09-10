@@ -358,12 +358,28 @@ because the key is absent rather than `[]` (§6.3).
 > still records which runtime a snapshot was taken with, so the question stays
 > answerable after the fact as well as before it.
 
-That question cannot be answered by re-capturing the eight. **All eight bodies
-are pruned**, re-measured on 2026-09-01: `getTxByHash` returns `null` for every
-one of them on both networks while `getTxEffect` still answers, which is §1's
-constraint arriving. Nothing can restore them, so the freeze is not merely
-"preferably kept" — it is irreplaceable, and any capture that answers the
-question has to be **additive**.
+> **This paragraph said the eight were unrecoverable. They are not.** It read:
+> "That question cannot be answered by re-capturing the eight. All eight bodies
+> are pruned, re-measured on 2026-09-01: `getTxByHash` returns `null` for every
+> one of them on both networks… Nothing can restore them, so the freeze is not
+> merely 'preferably kept' — it is irreplaceable."
+>
+> The `getTxByHash` measurement was right and the conclusion was the same one §1
+> made: *the node* stopped serving the body, and that was read as *nobody* can.
+> Re-measured 2026-09-10 against the keyless `TxFileStore`: **12 of 12** bodies
+> sampled from the frozen mainnet capture answered 200 and self-verified —
+> including the two it recorded as `replayed`, four it recorded as `refused` (67648,
+> 67650, 67764, 67798) and six it recorded as `pruned`. The same check over the
+> testnet rung-1 capture returned 8 of 8.
+>
+> So the rung question **can** be answered by re-capturing, and so can the two
+> `refusal: "unknown"` mainnet catches of 2026-08-31 that `lib/replay.mjs` records
+> as permanently unknowable.
+
+The freeze is still worth keeping — a capture taken against a named runtime at a
+named moment is evidence about *that* runtime, and re-recording replaces rather
+than adds to it — but it is **reproducible, not irreplaceable**, and a capture
+that answers the rung question may now be either additive or a re-capture.
 
 ### 6.1 Asking the old captures the question anyway
 

@@ -74,8 +74,20 @@ export function run(cmd, args, cwd) {
  *  FORTY-NINE, including `AvmTrap`, `HydrationDidNotConverge`, `RecordingPassDiverged`,
  *  `TxSimAppLogicRevert`, `TxSimTeardownRevert` and `WasiProcExit` — every one of them a
  *  plausible verdict on a live public transaction. Two mainnet catches on 2026-08-31
- *  (0x09a4747d at 67798, 0x2dd44ab6 at 67802) were filed as `refusal: "unknown"` by it,
- *  and both bodies have since pruned, so what refused them is now unknowable.
+ *  (0x09a4747d at 67798, 0x2dd44ab6 at 67802) were filed as `refusal: "unknown"` by it.
+ *
+ *  THIS PARAGRAPH USED TO END "and both bodies have since pruned, so what refused them is
+ *  now unknowable", AND THAT IS FALSE. Re-measured 2026-09-10: the mainnet transaction at
+ *  67798 answers 200 from the keyless `TxFileStore` and self-verifies against its own key,
+ *  as does every other body sampled from that frozen capture — 12 of 12, including the
+ *  two the capture recorded as `replayed`, four it recorded as `refused` and six it
+ *  recorded as `pruned`. The node's pruning was measured correctly and the conclusion drawn
+ *  from it was not: `getTxByHash` returning `null` means THE NODE does not serve the body,
+ *  and the network still publishes it. Both refusals are re-askable through
+ *  `lib/body-proxy.mjs`; see CHAIN-CAPTURE.md §1.2.
+ *
+ *  The case for recognising a name by shape is untouched by that — a rule that can only
+ *  name what has already cost something is still the wrong rule.
  *
  *  A list of the endings seen so far can only ever name the refusals that have already
  *  cost something. The name is therefore recognised BY SHAPE instead: Node prints an
@@ -246,13 +258,25 @@ export const RESOLVER_PATH = 'replay/src/artifact_resolution.ts';
  *  that steps. What it cannot do is look for source — so every one of those captures reads
  *  `declaredRung: 3` with no `artifacts` key, and for a year that looked like a finding about
  *  Aztec contracts. It was not. Measured afterwards with a runtime that CAN resolve, one of
- *  those eight contracts resolves outright (FeeJuice at `0x…03`), and its transaction can
- *  never be re-recorded because the body pruned about half an hour after it landed.
+ *  those eight contracts resolves outright (FeeJuice at `0x…03`).
  *
- *  So the cost of this misconfiguration is not a failed run to retry. It is a permanently
- *  unanswerable question about a transaction nobody can fetch again — the same shape as the
- *  bad `--avm` path that `preflightToolchain` exists for, and worse, because a bad `--avm`
- *  path REFUSES loudly while a stale runtime succeeds quietly.
+ *  THE SENTENCE THAT FOLLOWED — "and its transaction can never be re-recorded because the
+ *  body pruned about half an hour after it landed" — IS WITHDRAWN. Re-measured 2026-09-10:
+ *  the keyless `TxFileStore` still serves every one of those bodies (12 of 12 sampled from
+ *  that capture, all self-verifying). The node's pruning is real; the network is not the
+ *  node. So this misconfiguration costs a run to REDO rather than a transaction, and the
+ *  question is answerable by re-capture through `lib/body-proxy.mjs` — CHAIN-CAPTURE §1.2.
+ *
+ *  THE GUARD STAYS, AND IS NOT WEAKENED BY THAT. Its whole subject is that a stale runtime
+ *  succeeds QUIETLY: it writes a container that steps and records rung 3 with no `artifacts`
+ *  key, indistinguishable afterwards from a chain whose contracts have no source. Nothing
+ *  about the body being re-fetchable makes that visible at the time, and a capture nobody
+ *  knows is wrong does not get redone.
+ *
+ *  So the cost of this misconfiguration is a corpus that asserts something false and does
+ *  not look wrong — the same shape as the bad `--avm` path that `preflightToolchain` exists
+ *  for, and worse, because a bad `--avm` path REFUSES loudly while a stale runtime succeeds
+ *  quietly.
  *
  *  `86c36ad` is not an old tag somebody would have to go looking for: it is what a sibling
  *  `aztec-avm-runtime` checkout that has not been pulled still has on `dev`, 64 commits behind
