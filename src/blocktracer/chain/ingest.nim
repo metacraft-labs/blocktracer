@@ -1830,10 +1830,26 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   var finalizedHash = byHeight.getOrDefault(finalizedAt, "")
   var finalizedHeight = finalizedAt
   if finalizedHash.len == 0:
-    # The finalized tip was below the enumerated range. Point at the oldest block
-    # this generation actually carries rather than at a hash it does not have.
-    finalizedHeight = blockRows[0].height
-    finalizedHash = blockRows[0].hash
+    # THE FINALIZED TIP CAN MISS THE ENUMERATED SET IN EITHER DIRECTION, AND THE
+    # TWO ARE NOT THE SAME MISTAKE. Below the range is the narrow-recent-window
+    # case this branch was written for. ABOVE the range is what a whole-history
+    # pass produces: enumerating 75,971 blocks takes an hour, the chain finalizes
+    # more blocks while it runs, and the run then publishes a finalized tip
+    # taller than any block it holds.
+    #
+    # Measured, on a genesis-to-tip pass: covered 1..75,971, node finalized at
+    # 75,979, and this branch published `finalized: {height: 1}` — the OLDEST
+    # block in the chain named as the finalized tip, eight blocks of drift turned
+    # into a pointer that is wrong by the entire length of the chain.
+    #
+    # So resolve to the tallest block this generation actually carries that is
+    # not above the node's finalized tip, and only fall back to the oldest when
+    # every block it holds is above it.
+    var i = blockRows.len - 1
+    while i >= 0 and blockRows[i].height > finalizedAt: dec i
+    if i < 0: i = 0
+    finalizedHeight = blockRows[i].height
+    finalizedHash = blockRows[i].hash
   cfg.writeJson("d" / chain / "current.json", %*{
     "chain": chain, "generation": gen, "traceSelectionVersion": tsv,
     "head": {"height": headB.height, "hash": headB.hash},
