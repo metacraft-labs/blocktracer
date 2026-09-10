@@ -202,6 +202,49 @@ chain-range from to *ARGS:
     node tools/chain/ingest-range.mjs --from {{from}} --to {{to}} \
       --ingest-bin ./blocktracer-chain-ingest --publish-bin ./blocktracer-publish {{ARGS}}
 
+# ── the same range, with traces ─────────────────────────────────────────────
+#
+# `chain-range` produces metadata; this produces metadata AND containers, by
+# giving the replay driver a body the node no longer serves. See
+# `tools/chain/lib/body-proxy.mjs` for why that is a proxy and not a flag.
+#
+# THE FOUR PATHS ARE OPERATOR-SET AND NONE OF THEM HAS A DEFAULT WORTH GUESSING.
+# This repository carries no AVM, no ct-writer and no Node with
+# `--experimental-wasm-exnref`; `preflightToolchain` refuses before a single
+# transaction is attempted rather than letting a run record hundreds of false
+# refusals, which is what a wrong `--node` cost this campaign on 2026-09-09.
+#
+# RESUMABLE, and that is the point of it on a rate-limited endpoint. Re-running
+# the same range never redoes a traced transaction, so a run cut short by a ban
+# is continued by repeating the command — and if you were banned, GO SILENT
+# FIRST. The measured cost of a `retry-after` on this endpoint is 41 minutes and
+# polling it makes that longer.
+#
+#     just chain-replay-range 45000 45199 \
+#       ../aztec-avm-runtime /path/to/node /path/to/avm.wasm /path/to/aztec_ct_writer.wasm
+chain-replay-range from to runtime node avm ctwriter *ARGS:
+    nim c --hints:off -d:release -o:blocktracer-chain-ingest src/blocktracer_chain_ingest.nim
+    nim c --hints:off -d:release -o:blocktracer-publish src/blocktracer_publish.nim
+    node tools/chain/ingest-range.mjs --from {{from}} --to {{to}} \
+      --replay --runtime {{runtime}} --node {{node}} \
+      --avm {{avm}} --ct-writer {{ctwriter}} \
+      --rps 5 --replay-rps 5 --batch-headers 50 \
+      --ingest-bin ./blocktracer-chain-ingest --publish-bin ./blocktracer-publish {{ARGS}}
+
+# ── the seam's own suite ────────────────────────────────────────────────────
+#
+# NOT IN `chain-selftest`, and the reason is that recipe's own header: everything
+# in it is offline AND toolchain-free, so it runs on a stock CI runner. This one
+# is offline — the store and the node are two `http.Server`s it starts itself —
+# but it is not toolchain-free, because the thing under test decodes Aztec's wire
+# format and that serialisation lives in `aztec-avm-runtime`'s `node_modules`.
+# Putting it in the stock suite would make the stock suite need a checkout, which
+# is how a suite starts getting skipped.
+#
+#     just body-proxy-selftest ../aztec-avm-runtime
+body-proxy-selftest runtime:
+    node tools/chain/body-proxy-selftest.mjs --runtime {{runtime}}
+
 # ── does an S3-compatible endpoint behave the way the publisher assumes ─────
 #
 # Drives every `ObjectStore` method against a real endpoint and prints what each

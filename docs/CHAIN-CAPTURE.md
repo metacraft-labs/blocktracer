@@ -5,40 +5,135 @@ and the one constraint that shapes everything downstream of them.
 
 ---
 
-## 1. The constraint: chain history cannot be reconstructed
+## 1. The constraint, and the conclusion that did not follow from it
 
-**A replay can only be recorded while the transaction's body is still served.
-Once it prunes, that transaction can never be replayed again — by us or by
-anyone.** This is not a cost problem or a tooling gap. It is permanent, and it
-was established by measurement rather than assumed:
+> **This section used to say that chain history cannot be reconstructed** — that
+> the ingestion layer "can only ever be prospective", that there is "no backfill,
+> no catch-up mode", and that "a batch job over history is not a slow version of
+> the right design; it is a thing that cannot work."
+>
+> **That was false, and it has been measured false.** On 2026-09-10, 211 settled
+> historic testnet transactions were re-executed from published data across five
+> 200-block windows spanning the whole chain — the deepest 75,824 blocks below the
+> tip — and 206 of them reproduced their block's published effects exactly. The
+> corrected account is below, and §1.4 is the yield.
+
+### 1.1 What is still true, unchanged
 
 * **`getTxByHash` is a mempool query, not an archive query.** It reads the live
   transaction pool, and on finalization the body is hard-deleted
   (`handleFinalizedL2Blocks` → `deleteFinalizedTxs`). Across every RPC schema
   upstream, exactly four methods return a `Tx` and all four read that same pool.
-  `getTxEffect` reads the archive and does *not* prune, which is why a pruned
-  transaction stays perfectly visible and stops being replayable.
+  `getTxEffect` reads the archive and does *not* prune, which is why a settled
+  transaction stays perfectly visible after **the node** stops serving its body.
 
 * **A commercial archive tier does not help.** dRPC is the only commercial
   provider serving Aztec at all, and it already advertises `has_archive: true`
   for both networks at no surcharge — we are *on* the archive tier. It does not
   retain bodies, because bodies are not archival data.
 
-* **L1 is closed too.** Aztec posts EIP-4844 blobs carrying `TxEffect`s only.
-  The public calldata and private kernel inputs a replay needs are never
-  published; only a hash reaches L1. There is no preimage to recover.
+* **L1 carries no preimage.** Aztec posts EIP-4844 blobs carrying `TxEffect`s
+  only. The public calldata and private kernel inputs a replay needs are never
+  published to L1; only a hash reaches it.
 
-### What this means for the future ingestion layer
+### 1.2 What does not follow: the node is not the only publisher
 
-The planned ingestion service — the one meant to produce recordings for chain
-history — **can only ever be prospective.** It must capture at finalization or
-not at all. There is no backfill, no catch-up mode, and no "re-run it over the
-last N blocks" recovery: blocks that pass unwatched are gone for replay
-purposes, permanently.
+A body is unavailable **from the node**. It is not unavailable **from the
+network**. Aztec publishes every transaction body it has ever accepted through
+its own node-internal `TxFileStore`, exposed keyless over HTTPS as one
+content-addressed `.bin` per transaction hash — the mechanism a fresh node uses
+to bootstrap. `tools/chain/backfill-bodies.mjs` has been able to fetch and verify
+from it since before the paragraph above was written; nothing had connected it to
+the replay driver.
 
-Design it as a **continuously running follower** that records inside the
-replayable window, not as a batch job over a range. A batch job over history is
-not a slow version of the right design; it is a thing that cannot work.
+The payload **self-verifies against its own key**: `Tx.toBuffer()` serialises
+`txHash` first, so the leading 32 bytes of a correct answer *are* the key that was
+requested. That is the only reason a single untrusted source is usable here at
+all, and it is why a 200 carrying somebody else's transaction is refused by name
+rather than replayed.
+
+**Measured on this chain, 2026-09-10:** 21 of 21 bodies sampled from block 10 to
+block 75,969 answered 200 and self-verified. Over the full sample, **333 of 333**
+first-in-block transactions had their body served — `body-unavailable` fired
+**zero** times at any depth.
+
+The node's other inputs were never in question and this confirms it: the testnet
+node reports `oldestHistoricBlockNumber: 1`, so `getPublicDataWitness` and
+`getNullifierMembershipWitness` answer at the settling block's parent for the
+entire chain, not for the ~64 checkpoints the default config implies.
+
+### 1.3 The seam: `tools/chain/lib/body-proxy.mjs`
+
+The driver takes `--tx` and calls `getTxByHash`; there is no `--body` flag. Rather
+than add one to `aztec-avm-runtime` — a different repository, and every chain tool
+here drives its CLI unmodified — the driver is pointed at a local JSON-RPC endpoint
+that answers `aztec_getTxByHash` from the file store and forwards everything else.
+`ingest-range.mjs --replay` runs it for a whole range.
+
+Read that file's header for why a proxy buys three things a flag could not: one
+choke point for the endpoint's rate limit, deduplication of the immutable historic
+answers (~4× fewer requests), and the guarantee that **a throttle can never be
+recorded as a transaction's refusal**.
+
+### 1.4 The yield, measured
+
+Five 200-block windows, testnet, 2026-09-10, tip 76,024. Every transaction the
+chain published in each window; nothing sampled within a window.
+
+| window | blocks below tip | tx | first-in-block | traced | private-only | refused | traced ÷ all tx | traced ÷ has a public half |
+| ------ | ---------------- | -- | -------------- | ------ | ------------ | ------- | --------------- | -------------------------- |
+| 75700–75899 | 125    | 98  | 95  | 92  | 3  | 0  | **93.9%** | 100.0% |
+| 68000–68199 | 7,825  | 29  | 29  | 22  | 6  | 1  | **75.9%** | 95.7%  |
+| 45000–45199 | 30,825 | 23  | 23  | 21  | 2  | 0  | **91.3%** | 100.0% |
+| 24700–24899 | 51,125 | 83  | 82  | 30  | 40 | 12 | **36.1%** | 71.4%  |
+| 1–200       | 75,824 | 110 | 104 | 46  | 13 | 45 | **41.8%** | 50.5%  |
+| **total**   |        | **343** | **333** | **211** | **64** | **58** | **61.5%** | **78.4%** |
+
+`traced` is `replayed` + `divergent` — 206 reproduced their block's effects
+exactly, 5 recorded a real execution that disagreed with the block and are shown
+behind a banner (§3). **Depth is not the variable.** The deepest windows are worse
+than the middle ones, but 45000–45199 at 30,825 blocks down traced 100% of the
+transactions that had a public half, while 68000–68199 at 7,825 down traced 95.7%.
+What varies is the chain's ERA — which contracts were live and what they did — not
+how far back it is.
+
+**Cost:** median **4.4 s** and mean 4.3 s of wall clock per transaction, and
+**9–15 node RPC calls** per transaction after the proxy's cache (mean ≈ 12), plus
+~200 KiB of body from the file store, which is a different host and not part of the
+node endpoint's budget. Enumerating the metadata is nearly free beside it: ~36–111
+calls per 200 blocks with `--batch-headers 50`.
+
+### 1.5 What is permanently untraceable, and it is not what §1 used to claim
+
+Three populations, and only the first was ever about pruning:
+
+* **`not-first-in-block`** — 10 of 343 here, 2,262 of 20,770 chain-wide (10.9%).
+  Replaying transaction *k* needs the state left by the *k* before it, and no node
+  method serves intra-block intermediate state; it exists only inside the sequencer.
+  Permanent, and unrelated to age.
+* **`private-only`** — 64 of 333 first-in-block here (19.2%), and **40 of 82 in the
+  24700–24899 window alone**. These have no public execution at all: the private
+  half ran in a wallet, was proved there, and only its effects were published.
+  Permanent, and it is the chain's limit rather than ours — so it is published as
+  `absent` with **no** refusal reason, which is the distinction
+  `blocktracer_client/trace.nim` documents and which no producer could express
+  until this outcome existed: `absent` *with* a reason id means we declined,
+  `absent` *without* one means the execution was never public.
+* **`runtime-refused`** — 58 here, 57 of them `ModuleRefusedReplay` (the AVM
+  declining a hydrated seed that stopped growing) and one an AVM assertion. This is
+  the *repairable* population: it is a fact about the runtime on the day it ran, and
+  it is where a further percentage point of the chain is.
+
+The private half of every transaction remains `absent` as it always has been.
+
+### 1.6 What this means for the ingestion layer
+
+A **continuously running follower is still worth having** — it catches a
+transaction at the tip with the body warm and no file-store round trip — but it is
+**no longer load-bearing**. A block that passes unwatched is not lost. The
+backfill is a range command (`ingest-range.mjs --replay`), it is idempotent, it is
+resumable after a rate-limit ban, and it never redoes a transaction it has already
+traced.
 
 ---
 

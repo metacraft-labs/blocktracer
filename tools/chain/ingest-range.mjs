@@ -676,6 +676,24 @@ async function replayRange(dir) {
     if (proxy.throttled) { stoppedBy = 'endpoint-throttled-this-run'; break; }
     if (replayMax > 0 && attempted >= replayMax) { stoppedBy = 'beyond-this-run-budget'; break; }
 
+    // ── A RE-RUN RE-DECIDES, AND A STALE VERDICT MUST NOT SURVIVE IT ──────
+    //
+    // This loop is resumable, so a row reaching it may already carry the
+    // findings of an earlier attempt — a `refusal` class name, a `detail`, a
+    // `refusalReason`. `Object.assign` does not clear a key the new verdict
+    // fails to set, so without this a transaction reclassified from
+    // `runtime-refused` to `private-only` would keep the crash it was misfiled
+    // by, and one that came to be traced would keep the sentence saying it was
+    // not. Every field that is a JUDGEMENT is dropped; every field that is an
+    // OBSERVATION about the transaction — hash, block, index, revertCode, fee —
+    // is untouched, because those came from the chain and not from us.
+    for (const k of ['refusal', 'refusalReason', 'reason', 'detail',
+                     'storeOutcome', 'storeReason', 'container', 'containerBytes',
+                     'sourceBundles', 'effects', 'recording', 'artifacts',
+                     'skipped', 'roots', 'rootsAnyAgree', 'publicCalls']) {
+      delete t[k];
+    }
+
     // ── ASK THE BODY BEFORE SPENDING A PROCESS ON IT ──────────────────────
     //
     // Two of the outcomes a transaction can have are decidable from the body
@@ -697,7 +715,6 @@ async function replayRange(dir) {
           + `of this chain's history — answered ${seen.outcome} for its key too`,
         where: 'ingest-range.mjs replayRange',
       }), { storeOutcome: seen.outcome, storeReason: seen.reason });
-      attempted--;
       continue;
     }
 
@@ -713,10 +730,10 @@ async function replayRange(dir) {
       Object.assign(t, { bodyRetained: true, publicCalls: 0 },
                     chainPublishedNoPublicExecution({ blockNumber: t.blockNumber }));
       delete t.refusalReason;
-      attempted--;
       continue;
     }
 
+    attempted++;
     const started = Date.now();
     const ctRel = `ct/${t.txHash}.ct`;
     const srcRel = `sources/${t.txHash}.json`;
@@ -1059,10 +1076,17 @@ if (doReplay) {
     console.log(JSON.stringify(report, null, 2));
     process.exit(2);
   }
-  say(`replayed ${report.replay.replayed}/${report.replay.attempted} attempted `
-      + `(${report.replay.divergent} divergent, ${report.replay.refused} refused, `
-      + `${report.replay.notAttempted} not attempted), `
-      + `${Math.round(report.replay.wallMs / 1000)}s`);
+  // TWO DENOMINATORS, AND THEY ARE NOT THE SAME NUMBER. The counts describe the
+  // whole first-in-block population of the range, including rows an earlier run
+  // already settled; `attempted` is how many driver runs THIS pass made. Printing
+  // `replayed/attempted` read as a ratio and was not one — a resumed range logged
+  // "replayed 27/12 attempted", which is either nonsense or a claim that a replay
+  // happened without a run.
+  const r = report.replay;
+  say(`${r.replayed} replayed, ${r.divergent} divergent, ${r.refused} refused, `
+      + `${r.privateOnly} private-only, ${r.bodyUnavailable} body-unavailable, `
+      + `${r.notAttempted} not attempted — of ${r.firstInBlock} first-in-block `
+      + `(${r.attempted} driver run(s) this pass, ${Math.round(r.wallMs / 1000)}s)`);
   ledger.ranges[rangeKey].replay = {
     at: new Date().toISOString(),
     attempted: report.replay.attempted,

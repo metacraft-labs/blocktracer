@@ -16,15 +16,25 @@
 // transactions at heights 67010-67055 and a block record that stops at 63678,
 // which `ingest.nim` refuses with "the curated window … selected no block".
 //
-// THE HOLE IS REPAIRABLE AND THE RECORDING IS NOT, which is the whole reason
-// this is a separate tool rather than a note to re-run the watch. §1's
-// constraint is about BODIES: `getTxByHash` prunes at finalization and those
-// transactions can never be replayed again — re-measured here, 0x20ed5b91…'s
-// body is gone. But a block's header, its archive roots and its `txEffects`
-// are ARCHIVAL and prune never, so every field of a block row is still exactly
-// as readable today as it was during the watch. Re-fetching them invents
-// nothing and re-derives nothing; it reads the same node method the follower
-// would have read, and writes the same row shape.
+// THE HOLE IS REPAIRABLE AND THIS TOOL DOES NOT REPAIR THE RECORDING, which is
+// the whole reason it is a separate tool rather than a note to re-run the watch.
+// A block's header, its archive roots and its `txEffects` are ARCHIVAL and prune
+// never, so every field of a block row is still exactly as readable today as it
+// was during the watch. Re-fetching them invents nothing and re-derives nothing;
+// it reads the same node method the follower would have read, and writes the
+// same row shape.
+//
+// THIS PARAGRAPH USED TO SAY THE TRANSACTIONS "CAN NEVER BE REPLAYED AGAIN",
+// AND THAT WAS CORRECTED ON 2026-09-10. What was re-measured here is true and
+// narrower than the conclusion drawn from it: `getTxByHash` prunes at
+// finalization, so THE NODE no longer serves 0x20ed5b91…'s body. The network
+// still does — Aztec's keyless `TxFileStore` serves one content-addressed `.bin`
+// per transaction hash for the whole chain — and `ingest-range.mjs --replay`
+// re-executes settled historic transactions from it. See `lib/body-proxy.mjs`
+// and CHAIN-CAPTURE.md §1. This tool still writes no container and replays
+// nothing, because repairing a BLOCK record is a different job from tracing the
+// transactions in it; the rows it writes now say `not-attempted` rather than
+// asserting the transaction is beyond reach.
 //
 // So this is a REPAIR of a record that was observed and dropped, not a capture
 // of one that was missed. It writes no container, replays nothing, and cannot
@@ -50,7 +60,7 @@ import { readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { refusalCounts, assertRefusalsAreClosed, refuseNotFirstInBlock,
-         refuseBodyUnavailable } from './lib/refusal.mjs';
+         classifyRefusal } from './lib/refusal.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, dflt) => {
@@ -197,10 +207,22 @@ for (let n = from; n <= to; n++) {
       const why = i !== 0
         ? refuseNotFirstInBlock({ blockNumber: n, txIndexInBlock: i,
                                   where: 'backfill-blocks.mjs' })
-        : refuseBodyUnavailable({ blockNumber: n,
-            observedAs: 'it was already below the replayable window when this record '
-              + 'was repaired',
-            where: 'backfill-blocks.mjs' });
+        // WAS `refuseBodyUnavailable`, WHOSE SENTENCE ENDS "it can no longer be
+        // re-executed" — measured false on 2026-09-10. The node's pruning is real
+        // and it is not the only publisher: the keyless `TxFileStore` serves the
+        // body for the whole chain, and `ingest-range.mjs --replay` traced 211 of
+        // 343 historic transactions through it. A repair tool that writes no
+        // container has not met an obstacle, it has not looked, and that is the
+        // one thing `not-attempted` means.
+        : { outcome: 'not-attempted', ...classifyRefusal({
+            condition: 'historic-range-not-replayed',
+            where: 'backfill-blocks.mjs',
+            narrative: `This transaction is first in block ${n}, so it can be re-executed `
+              + `from published data: the node no longer serves its body, but the keyless `
+              + `transaction file store does. This record was REPAIRED rather than `
+              + `captured — the tool that wrote it re-reads block metadata and replays `
+              + `nothing — so no trace was recorded. Nothing about the chain stopped it.`,
+          }) };
       snap.transactions.push({
         txHash: eff.txHash, blockNumber: n, txIndexInBlock: i,
         revertCode: eff.revertCode, transactionFee: eff.transactionFee,
