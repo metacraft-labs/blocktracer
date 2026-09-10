@@ -365,9 +365,62 @@ export const UNTRACED_OUTCOMES = Object.freeze([
   'refused', 'pruned', 'not-first-in-block', 'not-attempted',
 ]);
 
-export const OUTCOMES = Object.freeze([...TRACED_OUTCOMES, ...UNTRACED_OUTCOMES]);
+/** THE OTHER KIND OF UNTRACED, AND IT IS THE ONE THIS FILE'S HEADER RESERVED `absent` FOR.
+ *
+ *  A private-only Aztec transaction has NO PUBLIC EXECUTION. Not one this pipeline declined,
+ *  not one whose inputs went missing — one that never existed publicly. Its private half ran
+ *  in a wallet, was proved, and only its effects were ever published. There is nothing to
+ *  re-execute and no runtime, corpus or budget would change that.
+ *
+ *  IT MUST NOT BE A REFUSAL, and the cost of making it one is measurable rather than
+ *  theoretical. Before this outcome existed the driver CRASHED on these — upstream's
+ *  `getPublicCallRequestsWithCalldata()` reads `data.forPublic.nonRevertibleAccumulatedData`
+ *  and `forPublic` is `undefined` for a private-only transaction — so `decideOutcome` filed
+ *  them as `runtime-refused` with `refusal: "TypeError"`. `runtime-refused` is durability
+ *  `repairable`, and `tools/capture/expectations.mjs` grades a page on whether its durability
+ *  claim is supported by the cause it printed. So every one of these rows told a reader that
+ *  a better runtime would trace it. Measured on the historic sample: 21% of first-in-block
+ *  transactions in the 68000-68199 window and 9% in 45000-45199, which is not a rounding
+ *  error in the answer to "what fraction of this chain is traceable".
+ *
+ *  THE PUBLISHER SIDE ALREADY HAD THE DISTINCTION AND NOTHING COULD REACH IT.
+ *  `blocktracer_client/trace.nim` documents it in so many words: "`absent` with no
+ *  `refusalReason` means the chain never published this execution — Aztec's private half —
+ *  and nothing was declined. `absent` WITH one means this pipeline could have traced it and
+ *  did not." `ingest.nim` maps every untraced outcome to `taAbsent` and copies
+ *  `refusalReason` through, empty or not, and the validator permits an empty one. The only
+ *  thing missing was a producer able to write the first case, because `auditRefusals`
+ *  required a reason id on every untraced row.
+ *
+ *  A SENTENCE IS STILL MANDATORY. §2.3a's rule is unchanged: `absent` with no explanation is
+ *  indistinguishable from a failed fetch. What is dropped is the reason ID, because the
+ *  closed set is a set of things WE did, and this is not one of them. */
+export const CHAIN_ABSENT_OUTCOMES = Object.freeze(['private-only']);
+
+export const OUTCOMES = Object.freeze(
+  [...TRACED_OUTCOMES, ...UNTRACED_OUTCOMES, ...CHAIN_ABSENT_OUTCOMES]);
 
 export const isUntracedOutcome = (o) => UNTRACED_OUTCOMES.includes(o);
+export const isChainAbsentOutcome = (o) => CHAIN_ABSENT_OUTCOMES.includes(o);
+
+/** The sentence a private-only transaction publishes. Written once, here, for the same
+ *  reason `refuseNotFirstInBlock` is: three producers would otherwise spell it three ways.
+ *
+ *  It deliberately does NOT go through `classifyRefusal` — there is no reason id to choose
+ *  and asking for one would be the fold this outcome exists to prevent. */
+export function chainPublishedNoPublicExecution({ blockNumber }) {
+  return {
+    outcome: 'private-only',
+    // No `refusalReason` key at all. An empty string would still be a claim that the
+    // question was asked; its absence is the statement that it does not apply.
+    reason:
+      `This transaction has no public execution to trace. Its private half ran in a wallet `
+      + `and was proved there; what the chain published for it in block ${blockNumber} is `
+      + `the effects of that proof and nothing else, so there is no public bytecode, no `
+      + `enqueued call and no execution to re-run. Nothing declined this transaction — the `
+      + `execution was never public.`,
+  };
+}
 
 // ── the measurement ────────────────────────────────────────────────────────────────────
 
@@ -388,7 +441,13 @@ export const isUntracedOutcome = (o) => UNTRACED_OUTCOMES.includes(o);
 export function refusalCounts(transactions) {
   const by = Object.fromEntries(REFUSAL_REASON_IDS.map((id) => [id, 0]));
   let unclassified = 0;
+  // COUNTED, AND COUNTED APART. A private-only transaction is untraced and is not a refusal,
+  // so it belongs in neither `byReason` nor `unclassified` — but a row in no count at all is
+  // the exact defect this function was written for (`not-first-in-block` used to be in none).
+  // It gets its own figure and `accountedFor` ranges over both.
+  let chainAbsent = 0;
   for (const t of transactions ?? []) {
+    if (isChainAbsentOutcome(t?.outcome)) { chainAbsent++; continue; }
     if (!isUntracedOutcome(t?.outcome)) continue;
     if (isRefusalReason(t?.refusalReason)) by[t.refusalReason]++;
     else unclassified++;
@@ -398,7 +457,7 @@ export function refusalCounts(transactions) {
   // `auditRefusals` is the gate. A reader of a snapshot must be able to see that the gate
   // has something to say; a counter that silently dropped these would be the original defect
   // in a new place.
-  return { byReason: by, total, unclassified };
+  return { byReason: by, total, unclassified, chainAbsent };
 }
 
 /**
@@ -411,9 +470,28 @@ export function auditRefusals(transactions) {
   const problems = [];
   let traced = 0;
   let untraced = 0;
+  let chainAbsent = 0;
   for (const t of transactions ?? []) {
     const hash = t?.txHash ?? '(no txHash)';
     const outcome = t?.outcome;
+    if (isChainAbsentOutcome(outcome)) {
+      chainAbsent++;
+      // The two halves of the distinction, both enforced. A reason id here would say this
+      // pipeline declined something, and it did not; a missing SENTENCE would make it
+      // indistinguishable from a failed fetch, which is §2.3a's rule and is why the
+      // sentence stays mandatory even though the id is forbidden.
+      if (t?.refusalReason != null) {
+        problems.push(`${hash}: outcome ${outcome} means the chain published no such `
+          + `execution and must carry NO refusalReason, but carries `
+          + `${JSON.stringify(t.refusalReason)} — that is "we declined" and "it was never `
+          + `public" folded into one row`);
+      }
+      if (typeof t?.reason !== 'string' || t.reason.trim().length === 0) {
+        problems.push(`${hash}: outcome ${outcome} carries no stated reason — `
+          + `absent with no explanation is indistinguishable from a failed fetch`);
+      }
+      continue;
+    }
     if (!OUTCOMES.includes(outcome)) {
       problems.push(`${hash}: outcome ${JSON.stringify(outcome ?? null)} is not one of `
         + `${OUTCOMES.join(', ')}`);
@@ -444,7 +522,7 @@ export function auditRefusals(transactions) {
       problems.push(`${hash}: refusalReason ${t.refusalReason} carries no stated reason`);
     }
   }
-  return { traced, untraced, problems };
+  return { traced, untraced, chainAbsent, problems };
 }
 
 /** The gate. Throws `UnexplainedAbsence` naming every offending transaction. */

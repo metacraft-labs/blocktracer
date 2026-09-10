@@ -226,6 +226,23 @@ try {
     ck('counted as `truncated`', proxy.stats.bodyOutcomes.truncated === 1);
   }
 
+  test('the proxy can be asked about a transaction without the driver being spawned');
+  {
+    const got = await proxy.inspect(subjectHash);
+    ck('it reports the store outcome', got.outcome === 'verified');
+    // THE NUMBER THAT DECIDES WHETHER A DRIVER RUNS AT ALL. Zero means the transaction has
+    // no public execution — nothing to re-run — and the pipeline records `private-only`
+    // instead of spawning a process that would crash inside upstream's unguarded
+    // `getPublicCallRequestsWithCalldata()` and be filed as a repairable runtime fault.
+    ck('…and how many public calls the body makes, measured with upstream\'s own guarded '
+       + 'accessor rather than inferred from a crash',
+       got.publicCalls === subject.numberOfPublicCalls() && got.publicCalls > 0);
+    const gone = await proxy.inspect(MISSING_HASH);
+    ck('a body nothing serves reports its store outcome and no call count — "we could not '
+       + 'look" is not "we looked and found none"',
+       gone.outcome === 'absent' && gone.publicCalls === null);
+  }
+
   test('the mirror is re-verified on read, not trusted because we wrote it');
   {
     const before = store.log.length;
@@ -316,7 +333,7 @@ try {
   await rm(dir, { recursive: true, force: true });
 }
 
-expectCount(29);
+expectCount(32);
 console.error(failed === 0
   ? '\nPASS — the seam serves bodies, refuses misses, forwards the rest and stops when banned'
   : `\nFAIL — ${failed} assertion(s)`);

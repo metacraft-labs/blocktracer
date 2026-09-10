@@ -34,8 +34,8 @@ import {
   UnknownRefusalCondition, UnexplainedAbsence,
   classifyRefusal, reasonForRuntimeClass, refusalCounts, auditRefusals,
   assertRefusalsAreClosed, assertAbsentIsNotARefusal, isRefusalReason, refusalDurability,
-  refuseNotFirstInBlock, refuseBodyUnavailable,
-  OUTCOMES, TRACED_OUTCOMES, UNTRACED_OUTCOMES,
+  refuseNotFirstInBlock, refuseBodyUnavailable, chainPublishedNoPublicExecution,
+  OUTCOMES, TRACED_OUTCOMES, UNTRACED_OUTCOMES, CHAIN_ABSENT_OUTCOMES,
 } from './lib/refusal.mjs';
 import { decideOutcome } from './lib/replay.mjs';
 import { scanVerdict } from './scan-tx-index.mjs';
@@ -374,6 +374,54 @@ test('test_absent_and_refused_are_not_the_same_statement');
   bite('mutation: an `absent` private half given a refusal reason IS counted as a refusal — '
        + 'which is the overcount the separation prevents',
        refusalCounts([folded]).total === 1);
+
+  // ── THE SAME DISTINCTION ON A WHOLE TRANSACTION, WHICH IS THE CASE HISTORIC REPLAY
+  //    FOUND AND THE PRODUCER SIDE COULD NOT EXPRESS ────────────────────────────────────
+  //
+  // Everything above is about the private HALF of a transaction whose public half traced.
+  // A private-ONLY transaction has no public half at all: `data.forPublic` is undefined,
+  // `numberOfPublicCalls()` is 0, and there is nothing anywhere to re-execute. Until
+  // `private-only` existed the driver was spawned on these, crashed inside upstream's
+  // `getPublicCallRequestsWithCalldata()`, and `decideOutcome` filed the crash as
+  // `runtime-refused` — durability `repairable`, on a limit that is permanent and is the
+  // chain's. Measured on the historic sample, that was 21% of the first-in-block
+  // transactions in one 200-block window.
+  const privateOnly = { txHash: '0x13', blockNumber: 301, txIndexInBlock: 0,
+    firstInBlock: true, ...chainPublishedNoPublicExecution({ blockNumber: 301 }) };
+
+  ck('a private-only transaction is an OUTCOME this pipeline writes, unlike bare `absent`',
+     OUTCOMES.includes(privateOnly.outcome) && privateOnly.outcome === 'private-only');
+  ck('…and it is not one of the untraced outcomes, which all owe a reason id',
+     !UNTRACED_OUTCOMES.includes(privateOnly.outcome)
+     && CHAIN_ABSENT_OUTCOMES.includes(privateOnly.outcome));
+  ck('it carries NO refusalReason — nothing was declined',
+     privateOnly.refusalReason === undefined);
+  ck('it carries a sentence anyway: `absent` with no explanation is indistinguishable from '
+     + 'a failed fetch', privateOnly.reason.length > 0);
+  ck('its sentence locates the limitation in the CHAIN, not in this pipeline',
+     /execution was never public/.test(privateOnly.reason));
+  ck('the audit accepts it', auditRefusals([privateOnly]).problems.length === 0);
+  ck('…and counts it apart from both traces and refusals, so it lands in no total it '
+     + 'does not belong in',
+     refusalCounts([privateOnly]).total === 0
+     && refusalCounts([privateOnly]).unclassified === 0
+     && refusalCounts([privateOnly]).chainAbsent === 1);
+  ck('…and is in no traced count either',
+     auditRefusals([privateOnly]).traced === 0
+     && auditRefusals([privateOnly]).untraced === 0
+     && auditRefusals([privateOnly]).chainAbsent === 1);
+
+  bite('mutation: strip its sentence and the audit refuses it — the id may be absent, the '
+       + 'explanation may not',
+       auditRefusals([{ ...privateOnly, reason: '' }]).problems.length === 1);
+  bite('mutation: give it a reason id and the audit refuses it — that is "we declined" and '
+       + '"it was never public" folded into one row, which is what this outcome exists to '
+       + 'keep apart',
+       auditRefusals([{ ...privateOnly, refusalReason: 'runtime-refused' }])
+         .problems.length === 1);
+  bite('mutation: file it as `runtime-refused` instead and the durability claim flips from '
+       + 'permanent-by-the-chain to repairable-by-us, which is the false sentence a page '
+       + 'would print', refusalDurability('runtime-refused') === 'repairable');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════
@@ -571,12 +619,15 @@ test('the committed captures are inside the closed set');
      REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).length === 3);
 }
 
-// 102 before `ingest-range.mjs --replay`; +4 for the fourth producer's own gate, its
-// per-reason counts, its outcome literals and the arm that keeps a rate limit off the
-// transaction's row. Each of the four was run against `ingest-range.mjs` as it stood at
-// 77b1d59, before the seam existed, and all four are FALSE there — so they are checks and
-// not restatements.
-expectCount(106);
+// 102 before `ingest-range.mjs --replay`.
+//   +4  the fourth producer: its own gate, its per-reason counts, its outcome literals, and
+//       the arm that keeps a rate limit off the transaction's row. Each of the four was run
+//       against `ingest-range.mjs` as it stood at 77b1d59, before the seam existed, and all
+//       four are FALSE there — so they are checks and not restatements.
+//   +11 `private-only`: eight properties of the outcome and three mutations, all of which
+//       redden. It is a whole new answer a transaction can have and it is the one that keeps
+//       a permanent limit of the CHAIN'S from being published as a repairable fault of ours.
+expectCount(117);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

@@ -80,8 +80,8 @@ import { join, resolve, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
-import { classifyRefusal, refusalCounts, assertRefusalsAreClosed, refuseNotFirstInBlock }
-  from './lib/refusal.mjs';
+import { classifyRefusal, refusalCounts, assertRefusalsAreClosed, refuseNotFirstInBlock,
+         refuseBodyUnavailable, chainPublishedNoPublicExecution } from './lib/refusal.mjs';
 import { preflightToolchain, replayTransaction } from './lib/replay.mjs';
 import { startBodyProxy } from './lib/body-proxy.mjs';
 import { storeBasePath } from './backfill-bodies.mjs';
@@ -513,6 +513,10 @@ async function fetchRange(nodeInfo, tip, finalized) {
     transactions,
   };
   recount(snap);
+  // The gate on the metadata-only path too, not only after a replay. Every row this function
+  // writes is untraced by construction, so if the closed set can ever be open here it is open
+  // for the whole chain — 138,287 objects were published from rows this branch produced.
+  assertRefusalsAreClosed(snap.transactions);
   const tmp = `${p}.tmp`;
   writeFileSync(tmp, JSON.stringify(snap, null, 1) + '\n');
   renameSync(tmp, p);
@@ -574,8 +578,14 @@ function recount(s) {
   s.counts.refusals = refusals.byReason;
   s.counts.refusalsTotal = refusals.total;
   s.counts.refusalsUnclassified = refusals.unclassified;
+  // UNTRACED AND NOT REFUSED, KEPT APART FROM BOTH. A private-only transaction has no public
+  // execution to trace, so it is neither a trace nor a refusal — and folding it into either
+  // would make one of the two numbers a lie. `accountedFor` ranges over all three, and it is
+  // the figure that must equal `transactions`.
+  s.counts.privateOnly = refusals.chainAbsent;
   s.counts.untraced = refusals.total + refusals.unclassified;
-  s.counts.accountedFor = s.counts.tracesPublished + s.counts.untraced;
+  s.counts.accountedFor =
+    s.counts.tracesPublished + s.counts.untraced + s.counts.privateOnly;
 }
 
 // ── phase 1b: replay what the range can replay ──────────────────────────────
@@ -666,7 +676,47 @@ async function replayRange(dir) {
     if (proxy.throttled) { stoppedBy = 'endpoint-throttled-this-run'; break; }
     if (replayMax > 0 && attempted >= replayMax) { stoppedBy = 'beyond-this-run-budget'; break; }
 
-    attempted++;
+    // ── ASK THE BODY BEFORE SPENDING A PROCESS ON IT ──────────────────────
+    //
+    // Two of the outcomes a transaction can have are decidable from the body
+    // alone, and both were previously reached the expensive way — by spawning
+    // the driver, letting it make a dozen node calls, and reading what it died
+    // of. The proxy has already fetched and decoded the body by the time either
+    // question is asked, so asking costs nothing that the replay would not have
+    // spent one moment later, and it saves the process, the calls and — in the
+    // second case — a crash that has to be INTERPRETED rather than measured.
+    const seen = await proxy.inspect(t.txHash);
+
+    if (seen.outcome !== 'verified') {
+      // The node prunes bodies and the file store does not hold this one either,
+      // so nothing serves it. That is `body-unavailable`, permanent, and it is
+      // the ONE case where the old `pruned` sentence was right all along.
+      Object.assign(t, refuseBodyUnavailable({
+        blockNumber: t.blockNumber,
+        observedAs: `the keyless transaction file store — which serves bodies for the rest `
+          + `of this chain's history — answered ${seen.outcome} for its key too`,
+        where: 'ingest-range.mjs replayRange',
+      }), { storeOutcome: seen.outcome, storeReason: seen.reason });
+      attempted--;
+      continue;
+    }
+
+    if (seen.publicCalls === 0) {
+      // A PRIVATE-ONLY TRANSACTION, AND IT IS NOT A REFUSAL. There is no public
+      // execution to re-run: the private half ran in a wallet and only its
+      // effects were published. `private-only` carries a sentence and NO reason
+      // id, which is how `blocktracer_client/trace.nim` has always distinguished
+      // "the chain never published this execution" from "we declined it" — a
+      // distinction the producer side could not express until this outcome
+      // existed, so these rows used to be `runtime-refused` (repairable) off the
+      // back of a driver crash.
+      Object.assign(t, { bodyRetained: true, publicCalls: 0 },
+                    chainPublishedNoPublicExecution({ blockNumber: t.blockNumber }));
+      delete t.refusalReason;
+      attempted--;
+      continue;
+    }
+
     const started = Date.now();
     const ctRel = `ct/${t.txHash}.ct`;
     const srcRel = `sources/${t.txHash}.json`;
@@ -739,10 +789,17 @@ async function replayRange(dir) {
     note: pre.note ?? '',
     runtime, runtimeCommit, avm, ctWriter, nodeBin,
     store: { base, basePath },
+    // `attempted` is DRIVER RUNS, and the three counts beside it are what became of the
+    // first-in-block population — which is larger, because a private-only transaction and a
+    // body nothing serves are both decided without the driver ever starting. Reporting one
+    // number for both would make "attempted" mean two things in one report.
+    firstInBlock: snap.transactions.filter((t) => t.firstInBlock).length,
     attempted,
     replayed: outcomes.replayed ?? 0,
     divergent: outcomes.divergent ?? 0,
     refused: outcomes.refused ?? 0,
+    privateOnly: outcomes['private-only'] ?? 0,
+    bodyUnavailable: outcomes.pruned ?? 0,
     notAttempted: outcomes['not-attempted'] ?? 0,
     stoppedBy,
     wallMs: Date.now() - t0,

@@ -208,9 +208,29 @@ export async function startBodyProxy({
         // `null` for it would file it as `body-unavailable`, which is false. It is counted as
         // `truncated`, the store outcome that already means "a 200 that is not a body".
         try {
+          const tx = Tx.fromBuffer(got.bytes);
           entry = {
             outcome: 'verified',
             reason: got.reason,
+            // HOW MANY PUBLIC CALLS THIS TRANSACTION MAKES, measured here because this is
+            // where the body is already decoded and nowhere else in the pipeline has one.
+            //
+            // A transaction with zero has no public execution at all — its private half ran
+            // in a wallet and only its effects were published — and there is nothing to
+            // replay. Without this the driver is spawned anyway and CRASHES on it:
+            // upstream's `getPublicCallRequestsWithCalldata()` reads
+            // `data.forPublic.nonRevertibleAccumulatedData` and `forPublic` is `undefined`,
+            // so the pipeline learns "there was no public half" by interpreting a
+            // `TypeError`. That is not a measurement, and `decideOutcome` correctly files an
+            // unrecognised crash as a repairable runtime refusal — a false claim about a
+            // permanent property of the chain.
+            //
+            // `numberOfPublicCalls()` is upstream's own accessor and it is the guarded one:
+            // `numberOfPublicCallRequests()` tests `forPublic` before every read, which is
+            // exactly what the crashing accessor does not do. So this asks upstream rather
+            // than restating a rule about a field, and it costs one method call on an object
+            // this function had already built.
+            publicCalls: tx.numberOfPublicCalls(),
             // `withoutProof()` — AND IT IS WHAT THE NODE ITSELF SERVES, not a convenience.
             //
             // The file store keeps the transaction as it was submitted, chonk proof and all.
@@ -233,7 +253,7 @@ export async function startBodyProxy({
             // pipeline does not verify proofs: it re-executes a settled transaction and
             // compares the effects it produces against the ones the chain published, which is
             // a stronger check than the proof would give it and is the only one it claims.
-            json: JSON.parse(jsonStringify(Tx.fromBuffer(got.bytes).withoutProof())),
+            json: JSON.parse(jsonStringify(tx.withoutProof())),
           };
           stats.bodiesServed++;
         } catch (e) {
@@ -435,6 +455,21 @@ export async function startBodyProxy({
     stats,
     /** Whether the endpoint has refused past the honoured wait. The caller MUST stop. */
     get throttled() { return stats.throttled; },
+    /**
+     * What the store says about one transaction, WITHOUT the driver being spawned.
+     *
+     * The caller uses this to decide before it spends anything: a body the store does not
+     * hold and a transaction with no public execution are both answerable from here, and
+     * both would otherwise cost a process, ~15 node calls and — for the second — a crash
+     * that has to be interpreted. The body is decoded once either way and cached, so asking
+     * costs nothing that the replay would not have spent a moment later.
+     *
+     * @returns {Promise<{outcome: string, reason: string, publicCalls: number|null}>}
+     */
+    inspect: async (hash) => {
+      const e = await bodyAnswer(hash);
+      return { outcome: e.outcome, reason: e.reason, publicCalls: e.publicCalls ?? null };
+    },
     close: () => new Promise((r) => server.close(r)),
   };
 }
