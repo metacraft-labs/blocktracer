@@ -20,6 +20,7 @@
 
 import std/[json, os, strutils, sets, tables]
 import ./contract/[model, version, ids, searchidx, entrypage]
+import ./chain/refusal_reasons
 
 type
   Validator* = object
@@ -203,6 +204,23 @@ proc checkExecTrace(v: var Validator, ctx: string, t: JsonNode,
   let avail = t{"availability"}.getStr
   # §2.3a: a structurally-unobservable execution is `absent` WITH a reason,
   # never a failed fetch.
+  # ING-3: a refusal reason, when the row carries one, must be a member of the
+  # closed set — and only an untraced row may carry one at all. Checked here
+  # rather than only at ingest because this validator is what stands between a
+  # tree and publication: a reason outside the set is a failure of the pipeline,
+  # and a tree that carried one would render a refusal the client cannot name.
+  let rr = t{"refusalReason"}.getStr
+  if rr.len > 0:
+    if not isRefusalReason(rr):
+      v.err(ctx, "refusalReason '" & rr & "' is not in the closed set (" &
+            refusalReasonList() & "). A reason outside the set is a failure of " &
+            "the pipeline, not a free-text fallback")
+    if avail in ["ready", "divergent"]:
+      # The fold in the other direction. A traced execution declined nothing,
+      # and a refusal reason on one would be counted as a refusal by every
+      # consumer that ranges over them.
+      v.err(ctx, "availability '" & avail & "' is traced and must carry no " &
+            "refusalReason, but carries '" & rr & "'")
   if avail in ["absent", "unsupported"]:
     if t{"reason"}.getStr.len == 0:
       v.err(ctx, "availability '" & avail & "' must carry a non-empty reason")

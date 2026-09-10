@@ -54,6 +54,16 @@ const STRUCTURAL_KEYS = new Set([
   "codeHash", "artifactHash", "contractClassId", "address", "pathId",
   "capturedAt", "frozenAt", "firstCapturedAt", "measuredAt",
   "kind", "outcome", "shape", "declaredRung", "corroboration",
+  // ING-3's closed-set reason is an ENUM SPELLING, exactly like `outcome` and
+  // `kind` beside it. Poisoning it does not make the fixture hostile: the
+  // ingest refuses a reason outside the closed set by design, so the run would
+  // die before rendering anything and would measure nothing — which is the
+  // failure this list's header records having already paid for once.
+  //
+  // The SENTENCE beside it, `reason`, is not here and must not be: that is
+  // free text from a producer, it reaches the page verbatim, and it is exactly
+  // the kind of string this corpus exists to push through the escaper.
+  "refusalReason",
 ]);
 
 const looksStructural = (s) =>

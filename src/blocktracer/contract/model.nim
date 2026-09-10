@@ -157,6 +157,25 @@ type
     selector*: string
     availability*: TraceAvailability
     reason*: string            ## required when availability == absent/unsupported
+    refusalReason*: string
+      ## WHICH REFUSAL, from ING-3's closed set — `not-first-in-block`,
+      ## `body-unavailable`, `artifact-unresolvable`, `prestate-unavailable`,
+      ## `runtime-refused`, `no-container-written`, `not-attempted`. The set is
+      ## `tools/chain/refusal-reasons.json`, read by
+      ## `blocktracer/chain/refusal_reasons.nim` and by the producer that wrote
+      ## the row, so neither side can widen it alone.
+      ##
+      ## EMPTY IS A STATEMENT, AND IT IS THE ONE THIS FIELD EXISTS FOR. An
+      ## `absent` row with no `refusalReason` means the CHAIN never published
+      ## this execution — the Aztec private half — and there was nothing to
+      ## decline. An `absent` row WITH one means we could have traced it and did
+      ## not, and names what stopped us. Before this field both were
+      ## `availability: "absent"` carrying a sentence, and a page had no way to
+      ## tell them apart except by reading the prose; the machine-readable
+      ## refusal name was counted at ingest and then discarded.
+      ##
+      ## Never set on `ready` or `divergent`: a traced execution declined
+      ## nothing. `validator.nim` refuses both mistakes.
     bytes*: int                ## >0 when ready/divergent
     reconstructed*: bool       ## orthogonal to availability (§2.3a)
     hasValidation*: bool
@@ -386,6 +405,11 @@ proc toJson*(x: ExecTrace): JsonNode =
   if x.selector.len > 0: result["selector"] = %x.selector
   result["availability"] = %($x.availability)
   if x.reason.len > 0: result["reason"] = %x.reason
+  # OMITTED WHEN EMPTY, for the same reason `recorder` is: an absent key means
+  # "nothing was declined here", which is what every row published before this
+  # field existed means. Writing `""` would turn "not a refusal" into "a refusal
+  # with no name", which is precisely the unexplained absence ING-3 forbids.
+  if x.refusalReason.len > 0: result["refusalReason"] = %x.refusalReason
   if x.bytes > 0: result["bytes"] = %x.bytes
   if x.reconstructed: result["reconstructed"] = %true
   if x.hasValidation: result["validation"] = x.validation.toJson

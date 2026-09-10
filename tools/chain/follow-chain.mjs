@@ -103,6 +103,8 @@ import { join, resolve } from 'node:path';
 
 import { replayTransaction, run, preflightToolchain, completeBlockCount, completeBlockNumbers }
   from './lib/replay.mjs';
+import { refusalCounts, assertRefusalsAreClosed, refuseNotFirstInBlock,
+         refuseBodyUnavailable } from './lib/refusal.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -193,6 +195,13 @@ async function loadSnapshot() {
  *  half-written committed fixture would be a corrupt data plane rather than a missed
  *  capture. */
 async function saveSnapshot(s) {
+  // ING-3's GATE, and it is here rather than in `recount` on purpose: this is the moment
+  // the claim becomes a committed file. `assertRefusalsAreClosed` throws
+  // `UnexplainedAbsence` naming every transaction that is untraced with no reason from the
+  // closed set, or carries a reason outside it. A follower that would write such a snapshot
+  // dies instead — an unexplained absence is a defect, not an outcome, and the one thing
+  // that must never happen is that it is published and nobody notices.
+  assertRefusalsAreClosed(s.transactions);
   const p = join(snapDir, 'snapshot.json');
   const tmp = `${p}.tmp`;
   await writeFile(tmp, JSON.stringify(s, null, 1) + '\n');
@@ -214,6 +223,29 @@ function recount(s) {
   // The two figures a page actually needs to tell the truth about this chain.
   s.counts.tracesPublished = s.counts.replayed + s.counts.divergent;
   s.counts.captureSessions = (s.captures ?? []).length;
+
+  // ── ING-3: THE PER-REASON COUNTS, ZERO-FILLED ────────────────────────────────────
+  //
+  // The four lines above are not a partition and never were. `not-first-in-block` is an
+  // outcome this very file writes, thirty lines down, and it appears in NONE of them — so
+  // `replayed + divergent + refused + pruned` has been quietly less than `transactions`
+  // for every snapshot that ever held one, with nothing anywhere noticing. That is not a
+  // missing sentence, it is a missing measurement, which is the shape of absence this
+  // milestone exists to close.
+  //
+  // `refusals.byReason` carries EVERY member of the closed set on every snapshot,
+  // including the ones at zero. An absent key would read as "this reason does not exist
+  // here"; a published zero reads as "this reason exists and has not fired", so the first
+  // `not-first-in-block: 1` on Aztec mainnet is a diff against a line that was already
+  // being watched rather than a key nobody knew to look for.
+  const refusals = refusalCounts(s.transactions);
+  s.counts.refusals = refusals.byReason;
+  s.counts.refusalsTotal = refusals.total;
+  s.counts.refusalsUnclassified = refusals.unclassified;
+  // The reconciliation the old block could not state. Published rather than asserted here
+  // because a count is a measurement; `assertRefusalsAreClosed` at save time is the gate.
+  s.counts.untraced = refusals.total + refusals.unclassified;
+  s.counts.accountedFor = s.counts.tracesPublished + s.counts.untraced;
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -480,18 +512,15 @@ async function main() {
               // Seen too late to replay: it is below the window or was not first in its
               // block. Recorded with the reason, never omitted — the explorer has to be
               // able to say why a visible transaction has no trace.
+              // Both sentences, and the closed-set reason each carries, come from
+              // `lib/refusal.mjs` — three producers used to spell them three ways.
               const why = i !== 0
-                ? { outcome: 'not-first-in-block',
-                    reason: `Replaying this transaction needs the state left by the `
-                      + `transaction before it in block ${n}, and the node does not serve `
-                      + `intra-block intermediate state. Only the first transaction in a `
-                      + `block can be re-executed from published data.` }
-                : { outcome: 'pruned',
-                    reason: `The node still serves this transaction's effects but no longer `
-                      + `serves its body: getTxByHash prunes at the finalized tip and `
-                      + `getTxEffect does not. It was already below the replayable window `
-                      + `when this follower first saw it, so it can no longer be `
-                      + `re-executed and no trace was recorded for it.` };
+                ? refuseNotFirstInBlock({ blockNumber: n, txIndexInBlock: i,
+                                          where: 'follow-chain.mjs backfill' })
+                : refuseBodyUnavailable({ blockNumber: n,
+                    observedAs: 'it was already below the replayable window when this '
+                      + 'follower first saw it',
+                    where: 'follow-chain.mjs backfill' });
               snap.transactions.push({
                 txHash: eff.txHash, blockNumber: n, txIndexInBlock: i,
                 revertCode: eff.revertCode, transactionFee: eff.transactionFee,

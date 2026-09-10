@@ -1,0 +1,52 @@
+{
+ "format": "blocktracer/tx-index-distribution@1",
+ "scannedAt": "2026-09-09T09:44:18.283Z",
+ "endpoint": "https://aztec-testnet.drpc.org",
+ "nodeVersion": "5.2.0",
+ "l1ChainId": 11155111,
+ "rollupVersion": 1821665230,
+ "tip": 75180,
+ "population": {
+  "blocksRequested": 4000,
+  "blockRange": {
+   "from": 71181,
+   "to": 75180
+  },
+  "blockHeadersServed": 4000,
+  "blocksCarryingMana": 758,
+  "blockBodiesNotServed": 0,
+  "blocksWithTransactions": 758,
+  "transactions": 760
+ },
+ "prefilterControl": {
+  "rule": "header.totalManaUsed == 0 predicts a block with no transactions",
+  "predictedEmpty": 3242,
+  "sampled": 40,
+  "violations": [],
+  "held": true
+ },
+ "distribution": {
+  "0": 758,
+  "1": 2
+ },
+ "maxIndexObserved": 1,
+ "atIndexZero": 758,
+ "beyondIndexZero": 2,
+ "wouldBeRefused": [
+  {
+   "txHash": "0x0286e49af607e9f0eab5caf804c62ed1a39649ccf5277d9ff8e21412add85694",
+   "blockNumber": 72846,
+   "txIndexInBlock": 1
+  },
+  {
+   "txHash": "0x0d4520b6f66072b1bb671d886a625e19888a1e541a2c6093a9c5f38ec396a2c9",
+   "blockNumber": 73102,
+   "txIndexInBlock": 1
+  }
+ ],
+ "rpc": {
+  "calls": 880,
+  "faults": 0
+ },
+ "verdict": "measured"
+}

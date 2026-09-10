@@ -94,6 +94,7 @@
 
 import std/[json, os, algorithm, strutils, tables, times]
 import ../contract/[model, ids, version]
+import ./refusal_reasons
 
 const MonthNames = ["January", "February", "March", "April", "May", "June",
                     "July", "August", "September", "October", "November",
@@ -896,6 +897,19 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # chain for a fault on this side of the wire.
   var refusedCount = 0
   var refusalNames: seq[string]
+  # ING-3: PER-REASON REFUSAL COUNTS, ZERO-FILLED OVER THE WHOLE CLOSED SET.
+  #
+  # `refusedCount` above counts one outcome string. It does not count
+  # `not-first-in-block`, which is an outcome three of this repository's four
+  # capture tools write, so a snapshot holding one had it in NO count at all.
+  # These counters range over the reasons instead, every member present on every
+  # summary whether or not it fired — an absent key reads as "this reason does
+  # not exist here", where a published zero reads as "this reason exists and has
+  # not fired", and only the second makes the first `not-first-in-block: 1` a
+  # diff against a line somebody was already looking at.
+  var refusalReasonCounts = initTable[string, int]()
+  for id in refusalReasonIds(): refusalReasonCounts[id] = 0
+  var untracedCount = 0
   var addrTxsByHeight = initTable[string, Table[int, seq[string]]]()
   var addrOrder: seq[string]
 
@@ -1557,11 +1571,40 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     else:
       # Not replayed. The snapshot wrote the sentence; it is published verbatim
       # so the page states the measured reason rather than a generic one.
+      inc untracedCount
       if outcome == "pruned": inc prunedCount
       if outcome == "refused":
         inc refusedCount
         let rn = t{"refusal"}.getStr
         if rn.len > 0 and rn notin refusalNames: refusalNames.add rn
+
+      # ── ING-3: the closed-set reason, validated and carried ──────────────
+      #
+      # THE ONE FIELD THAT MAKES A REFUSAL DISTINGUISHABLE FROM AN ABSENCE.
+      # Every untraced row published before this reached the page as
+      # `availability: "absent"` with a sentence, and `absent` is what the
+      # Aztec private half is published as too — so "the chain never made this
+      # execution public" and "we declined this execution, and here is why"
+      # were one statement wearing one word. The machine-readable name the
+      # capture recorded was counted here and then thrown away.
+      #
+      # A REASON OUTSIDE THE SET RAISES rather than being carried or dropped.
+      # Dropping it would republish the old ambiguity silently on exactly the
+      # rows where something new had happened; carrying it would make the set
+      # open at its last hop. `refusal_reasons.nim` reads the same file the
+      # producer wrote the row against, so the two cannot disagree about
+      # membership without the build saying so.
+      let rr = t{"refusalReason"}.getStr
+      if rr.len > 0:
+        if not isRefusalReason(rr):
+          raise newException(ValueError,
+            "transaction " & shortHash(txHash) & " in block " & $height &
+            " carries refusalReason '" & rr & "', which is not in the closed " &
+            "set (" & refusalReasonList() & "). A reason outside the set is a " &
+            "failure of this pipeline, not a free-text fallback: add it to " &
+            "tools/chain/refusal-reasons.json deliberately, with the condition " &
+            "that produces it, or fix the producer that invented it.")
+        refusalReasonCounts[rr] = refusalReasonCounts.getOrDefault(rr) + 1
       # THE REASON IS NOT OPTIONAL. `blocktracer_client/decode.nim` refuses an
       # overlay whose `absent` execution carries no reason, and the validator
       # refuses it at publish time — both deliberately, because "absent with no
@@ -1575,7 +1618,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       if why.len == 0:
         raise newException(ValueError, "empty absent reason for " & txHash)
       et = ExecTrace(selector: "public", availability: taAbsent,
-        reason: why, bytes: 0, reconstructed: false,
+        reason: why, refusalReason: rr, bytes: 0, reconstructed: false,
         hasValidation: false, validation: ValidationSummary())
 
     let overlay = TraceSelection(chain: chain, tx: txHash, executions: @[],
@@ -1780,6 +1823,15 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # A snapshot whose blocks carry no readable time gets no span rather than an
   # invented one — the same rule `readableDate` follows for a date it cannot
   # parse. The claim that survives is the one that needs no clock.
+  # The counts as JSON, in the shared file's order so two summaries line up in a
+  # diff, and zero-filled because `refusalReasonCounts` was seeded from the whole
+  # set before the loop ran.
+  proc refusalReasonsJsonCounts(t: Table[string, int]): JsonNode =
+    result = newJObject()
+    for id in refusalReasonIds(): result[id] = %t.getOrDefault(id, 0)
+  var refusalTotal = 0
+  for id in refusalReasonIds(): refusalTotal += refusalReasonCounts.getOrDefault(id, 0)
+
   let provDetail =
     if lastBlockAt > 0:
       "Blocks and transactions taken from the live network. This is a " &
@@ -1816,7 +1868,34 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       "publishedWindow": {"from": window.lo, "to": window.hi},
       "observedBlocks": observedBlocks,
       "observedTransactions": observedTransactions,
-      "detail": provDetail}})
+      "detail": provDetail},
+    # ── ING-3: THE PER-REASON REFUSAL COUNTS, AS AN OPERATIONAL MEASUREMENT ──
+    #
+    # PUBLISHED, not merely computed. The milestone's deliverable is that "a
+    # reason whose count moves from zero is visible without anyone looking for
+    # it", and the previous state of this file is the argument for it: the
+    # ingest counted refusals into `refusedCount` and their type names into
+    # `refusalNames`, and then wrote NEITHER anywhere — both were dead the
+    # moment the loop ended, so the only operational statement about a refusal
+    # was whatever prose the capture had written into the row.
+    #
+    # Every member on every summary, including the zeros. `untraced` and
+    # `accountedFor` are here so the figures can be RECONCILED against
+    # `counters.transactions`: a count that does not add up is the shape the
+    # original defect had, and it went unnoticed because nothing ever added it
+    # up.
+    "refusals": {
+      "byReason": refusalReasonsJsonCounts(refusalReasonCounts),
+      "total": refusalTotal,
+      "untraced": untracedCount,
+      "traced": withTrace,
+      "accountedFor": withTrace + untracedCount,
+      "transactions": txCount,
+      # The runtime error classes seen behind `runtime-refused` and its four
+      # named siblings, deduplicated. OURS is the closed set above; this is
+      # THEIRS, kept as evidence so a reader can tell which of eighty-four
+      # classes produced a row without opening the snapshot.
+      "runtimeClassesSeen": %refusalNames}})
 
   let root = GenerationRoot(contractVersion: ContractVersion, chain: chain,
     generation: gen, traceSelectionVersion: tsv, summaryPath: summaryRel,

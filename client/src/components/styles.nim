@@ -423,10 +423,23 @@ table.tbl td.num{text-align:right}
    two paragraphs. Same relationship `.notice .reason` gives the explorer's §14
    treatments, which is where the rule is written down. */
 .debugcard .note.reason{color:var(--bt-text-muted);margin-top:var(--bt-space-2xs)}
+/* A REFUSAL IS NOT AN ABSENCE, AND IT MUST NOT LOOK LIKE ONE (ING-3). Both
+   arrive as `absent` — the chain never published the execution, or this
+   pipeline declined it and named the condition — and until the overlay carried
+   `refusalReason` a reader could tell them apart only by interpreting the
+   sentence. So a refusal draws the same one rung quieter as `.reason`, and
+   then LABELS itself: the word comes before any styling, which is rubric A7's
+   rule that a state is named in a badge before it is painted, and it is the
+   half a reader who cannot see the tone still gets. Never colour alone. */
+.debugcard .note.refusal{color:var(--bt-text-muted);margin-top:var(--bt-space-2xs)}
+.refusal-label{font-weight:var(--bt-type-h3-weight);color:var(--bt-text-default)}
 .execlist{list-style:none;margin-top:var(--bt-rhythm-stack);display:flex;flex-direction:column;gap:var(--bt-space-sm)}
 .execlist li{display:flex;align-items:center;gap:var(--bt-space-sm);flex-wrap:wrap}
 .execlist .sel{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);font-size:var(--bt-type-identifier-size);color:var(--bt-text-muted);min-width:var(--bt-space-3xl)}
 .execlist .reason{color:var(--bt-text-muted);font-size:var(--bt-type-body-sm-size);max-width:var(--bt-measure-prose)}
+/* The Aztec split is where the two statements sit on one page, one above the
+   other, so this is the pair that has to be legible side by side. */
+.execlist .refusal{color:var(--bt-text-muted);font-size:var(--bt-type-body-sm-size);max-width:var(--bt-measure-prose)}
 
 /* ── deferred / notice callouts ─────────────────────────────────────────── */
 .stub{max-width:var(--bt-layout-prose);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);padding:var(--bt-space-md) var(--bt-density-cell-x);margin-top:var(--bt-rhythm-stack);background:var(--bt-surface-raised);color:var(--bt-text-default);font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line)}

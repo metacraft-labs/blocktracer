@@ -1,0 +1,71 @@
+{
+  "_comment": [
+    "THE CLOSED SET of reasons the chain-ingestion pipeline may give for not tracing a",
+    "transaction. Chain-Ingestion ING-3.",
+    "",
+    "THIS FILE IS DATA BECAUSE TWO LANGUAGES NEED IT. `tools/chain/lib/refusal.mjs` is the",
+    "producer side and `src/blocktracer/chain/refusal_reasons.nim` is the publisher side, and",
+    "a set that is closed in one and open in the other is not closed. The Nim side reads this",
+    "file with `staticRead` at compile time, so a member added here is a member there without",
+    "anyone remembering to copy it, and a member REMOVED here breaks the Nim build rather",
+    "than silently letting a stale id through the validator.",
+    "",
+    "The reasoning behind each member, the conditions that map onto it and the runtime error",
+    "classes that reach it are in `tools/chain/lib/refusal.mjs`. This file carries only what",
+    "both sides must agree on.",
+    "",
+    "`absent` MAY NEVER BE A MEMBER. Trace-Artifacts.md §6 reserves it for an execution the",
+    "chain never published — the Aztec private half — which is a statement about the chain.",
+    "Every member here is a statement about US.",
+    "",
+    "`durability` is load-bearing, not decoration: `tools/capture/expectations.mjs` grades a",
+    "transaction page on whether its durability claim is supported by the cause it printed.",
+    "  permanent   nothing this pipeline can do will produce a trace for this transaction",
+    "  repairable  a better runtime, a mirrored corpus or a longer budget would trace it"
+  ],
+  "format": "blocktracer/refusal-reasons@1",
+  "reasons": [
+    {
+      "id": "not-first-in-block",
+      "durability": "permanent",
+      "statedBy": "aztec-avm-runtime replay/src/historical_state.ts IntraBlockPredecessorsUnavailable",
+      "condition": "The transaction is not at index 0 of its block. The historical-state mechanism answers reads at the settling block's PARENT, and that is the state only the first transaction saw; transaction k>0 saw the parent state plus the effects of the k before it, and no node method serves that intermediate view — it exists only inside the sequencer. Replaying against the parent anyway would read every slot an earlier transaction touched at a stale value, fail nothing, and produce a confidently wrong trace."
+    },
+    {
+      "id": "body-unavailable",
+      "durability": "permanent",
+      "statedBy": "aztec-avm-runtime replay/src/node_client.ts SettledTransactionNotFound",
+      "condition": "The node no longer serves the transaction's body and the file store cannot supply it either. getTxByHash reads the mempool, which is emptied at finalization; getTxEffect reads the archive, which is not — so the effects remain visible after the body is gone, which is why such a transaction is in the snapshot at all."
+    },
+    {
+      "id": "artifact-unresolvable",
+      "durability": "repairable",
+      "statedBy": "aztec-avm-runtime replay/src/settled_transaction.ts MissingContractArtifact",
+      "condition": "A contract the transaction executed has no artifact provable against its class's artifactHash, so the execution cannot be resolved to the code that produced it."
+    },
+    {
+      "id": "prestate-unavailable",
+      "durability": "permanent",
+      "statedBy": "aztec-avm-runtime replay/src/settled_transaction.ts SettlingBlockUnavailable",
+      "condition": "The state the replay must read cannot be obtained at the depth it is required at: the settling block, or the parent it reads through, is not served. Distinct from body-unavailable, which is about the transaction; this is about the STATE."
+    },
+    {
+      "id": "runtime-refused",
+      "durability": "repairable",
+      "statedBy": "tools/chain/lib/replay.mjs refusalName, from the driver's stderr",
+      "condition": "The replay runtime declined by name for a condition none of the four above describes. The runtime defines error classes by the dozen and gains more, so this member exists to keep OUR set closed while THEIRS is open — the class name travels beside it in `refusal` and its message in `detail`, so the specific condition is always recoverable from the row."
+    },
+    {
+      "id": "no-container-written",
+      "durability": "repairable",
+      "statedBy": "tools/chain/lib/replay.mjs decideOutcome, rule 3",
+      "condition": "The driver reported a completed execution and wrote no container, so there is nothing to step. Publishing a row that points at a missing container would be worse than saying so."
+    },
+    {
+      "id": "not-attempted",
+      "durability": "repairable",
+      "statedBy": "tools/chain/capture-chain.mjs, --max",
+      "condition": "The transaction was replayable at the moment it was seen — inside the window, body still served, first in its block — and the run reached its own budget before taking it. A statement about the RUN, not about the transaction, and it is separate for the same reason backfill-bodies.mjs keeps `unavailable` apart from `absent`: a budget must never be able to masquerade as a property of the chain."
+    }
+  ]
+}

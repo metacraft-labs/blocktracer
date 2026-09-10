@@ -62,6 +62,8 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { resolverPresence, refusalName, refusalDetail } from './lib/replay.mjs';
+import { classifyRefusal, refusalCounts, assertRefusalsAreClosed, refuseNotFirstInBlock,
+         refuseBodyUnavailable } from './lib/refusal.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -385,29 +387,34 @@ const transactions = rows.map((r) => {
   if (rep?.replayed) return { ...r, outcome: rep.kind, ...rep };
   if (rep) return { ...r, outcome: 'refused', ...rep };
   if (!r.bodyRetained) {
-    return {
-      ...r,
-      outcome: 'pruned',
-      reason: `The node still serves this transaction's effects but no longer serves its body: `
-        + `getTxByHash prunes at the finalized tip (block ${finalized} when this snapshot was taken) `
-        + `and getTxEffect does not. This transaction settled in block ${r.blockNumber}, `
-        + (finalized === r.blockNumber
-            ? `which is that tip exactly — pruning takes the finalized block too. `
-            : `${finalized - r.blockNumber} block(s) below it. `)
-        + `It can no longer be re-executed, so no trace was recorded for it.`,
-    };
+    // The clause that names THIS capture's measured finalized tip is what this producer
+    // knows and the other two do not; the claim about the chain is `lib/refusal.mjs`'s.
+    return { ...r, ...refuseBodyUnavailable({
+      blockNumber: r.blockNumber,
+      observedAs: finalized === r.blockNumber
+        ? `the finalized tip when this snapshot was taken was that same block — pruning `
+          + `takes the finalized block too`
+        : `the finalized tip when this snapshot was taken was block ${finalized}, `
+          + `${finalized - r.blockNumber} block(s) above it`,
+      where: 'capture-chain.mjs',
+    }) };
   }
   if (!r.firstInBlock) {
-    return {
-      ...r,
-      outcome: 'not-first-in-block',
-      reason: `Replaying this transaction needs the state left by the transaction before it in `
-        + `block ${r.blockNumber}, and the node does not serve intra-block intermediate state. `
-        + `Only the first transaction in a block can be re-executed from published data.`,
-    };
+    return { ...r, ...refuseNotFirstInBlock({
+      blockNumber: r.blockNumber, txIndexInBlock: r.txIndexInBlock,
+      where: 'capture-chain.mjs' }) };
   }
-  return { ...r, outcome: 'not-attempted', reason: `Inside the replayable window but beyond this capture's --max of ${maxReplays}.` };
+  return { ...r, outcome: 'not-attempted', ...classifyRefusal({
+    condition: 'beyond-this-run-budget',
+    where: 'capture-chain.mjs',
+    narrative: `This transaction was replayable when it was seen — inside the window, body `
+      + `still served, first in block ${r.blockNumber} — and this capture reached its own `
+      + `--max of ${maxReplays} before taking it. Nothing about the transaction or the chain `
+      + `stopped it; the run did.`,
+  }) };
 });
+
+const refusals = refusalCounts(transactions);
 
 const snapshot = {
   format: 'blocktracer/chain-snapshot@1',
@@ -442,11 +449,17 @@ const snapshot = {
     divergent: transactions.filter(t => t.outcome === 'divergent').length,
     refused: transactions.filter(t => t.outcome === 'refused').length,
     pruned: transactions.filter(t => t.outcome === 'pruned').length,
+    // ING-3: every member of the closed set, zero-filled. See `refusalCounts`.
+    refusals: refusals.byReason,
+    refusalsTotal: refusals.total,
+    refusalsUnclassified: refusals.unclassified,
   },
   blocks,
   transactions,
 };
 
+// ING-3's gate, applied before this becomes a file, exactly as the follower applies it.
+assertRefusalsAreClosed(snapshot.transactions);
 await writeFile(join(outDir, 'snapshot.json'), JSON.stringify(snapshot, null, 1) + '\n');
 console.error(`capture-chain: wrote ${join(outDir, 'snapshot.json')}`);
 console.error(`capture-chain: ${snapshot.counts.replayed} reproduced, ${snapshot.counts.divergent} divergent `
