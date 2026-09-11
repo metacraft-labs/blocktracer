@@ -338,10 +338,32 @@ node tools/design/check-tokens.mjs          # 17/17
 node tools/capture/capture.mjs --no-build --view <explorer views> --size laptop,wide --theme light,dark
 ```
 
-Executed on 2026-09-11: the exporter wrote **348 pages**, the token checker
-reported **PASS — 17/17** with the binding register unchanged at **247 / 188
-`bkToken` / 59 `bkLiteral` / 12 rows**, and all **52** captures differ from their
-baselines.
+Executed on 2026-09-11, every step's real exit code recorded rather than the
+status of the `echo` after it:
+
+| Step | Result |
+| --- | --- |
+| `static_export` | **348 pages** |
+| `node tools/design/check-tokens.mjs` | **PASS 17/17**, register unchanged at **247 / 188 `bkToken` / 59 `bkLiteral` / 12 rows** |
+| `… --require-built` | pass |
+| `node tools/design/check-tokens-selftest.mjs` | pass |
+| root `just test` | pass |
+| `client && just test` | pass |
+| **totals across the Nim suites** | **787 assertions, 0 failures** |
+| captures | 52 images; **all 52** differ from their baselines |
+
+**One real defect was caught by this repository's own guard, and it was mine.**
+`test_static_export`'s *"no raw hex colour survives in the SHIPPED view rules"*
+failed on `#a2a2a2` and `#ffffff`. Both were in an explanatory **comment** I had
+written above `.dl` — and `globalCss`'s comments are inlined into every page's
+`<style>` block, so prose about a colour is shipped bytes. That is the same trap
+`debugger_css.nim` names at its narrow rules ("naming it puts it back in the
+served bytes"). The comments now name tokens and ratios, never values.
+
+The eight final captures were re-taken from the committed tree and hash-compared
+against the set that was reviewed by eye: **8 of 8 identical**, which is the
+check that the later comment edits — which do change the shipped CSS bytes —
+changed no pixel.
 
 **No golden images exist, so nothing in CI can catch a visual regression here.**
 `git ls-files '*.png'` returns nothing. The `visual-design-canary` job asserts a
