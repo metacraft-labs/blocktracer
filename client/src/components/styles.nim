@@ -63,7 +63,7 @@
 ##    the brand and the search field align to the page beneath them (VD.1
 ##    round 1; the measurement is recorded in docs/DESIGN-DIVERGENCES-WEB.md
 ##    row D-07).
-##  * **A section-heading level.** `.sec-title` is a real 20px heading between
+##  * **A section-heading level.** `.sec-title` is a real 24px heading between
 ##    the 32px page title and 16px body; the mono uppercase kicker is a kicker
 ##    again, never the heading itself (VD.1 round 1). The scale is not settled:
 ##    ledger@2026-09-01.6:tx-detail/wide/light/L1/6 measures the hero H1 at a
@@ -214,7 +214,7 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
 .copyfield .lead.tight{margin-top:0;
   padding:var(--bt-space-3xs) var(--bt-space-xs);
   border:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
-  border-radius:var(--bt-radius-sm);background:var(--bt-surface-raised)}
+  border-radius:var(--bt-radius-xs);background:var(--bt-surface-raised)}
 .copyhint{font-size:var(--bt-type-label-size);
   line-height:var(--bt-type-label-line);
   letter-spacing:var(--bt-type-label-tracking);color:var(--bt-text-subtle)}
@@ -253,7 +253,7 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
    into `role="button" tabindex="0"`, and a control that gives no sign it
    became one is the same defect one size smaller. Focus needs nothing here —
    `:where(…,[tabindex]):focus-visible` above already rings it. */
-.copybtn{cursor:pointer;border-radius:var(--bt-radius-sm);
+.copybtn{cursor:pointer;border-radius:var(--bt-radius-xs);
   text-decoration:underline dotted;
   text-decoration-color:var(--bt-border-strong);
   text-underline-offset:var(--bt-space-3xs)}
@@ -285,7 +285,7 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
 .nav .links a.opt{color:var(--bt-text-muted);transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
 .nav .links a.opt:hover{color:var(--bt-text-strong)}
 .nav form{flex:0 1 var(--bt-layout-search);min-width:0}
-.nav input{width:100%;background:var(--bt-surface-sunken);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);color:var(--bt-text-default);font-size:var(--bt-type-body-sm-size);padding:var(--bt-space-xs) var(--bt-space-sm);transition:border-color var(--bt-motion-fast) var(--bt-motion-ease)}
+.nav input{width:100%;background:var(--bt-surface-sunken);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-sm);color:var(--bt-text-default);font-size:var(--bt-type-body-sm-size);padding:var(--bt-space-xs) var(--bt-space-sm);transition:border-color var(--bt-motion-fast) var(--bt-motion-ease)}
 .nav input::placeholder{color:var(--bt-text-subtle)}
 .nav input:hover{border-color:var(--bt-border-strong)}
 
@@ -298,11 +298,11 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
 /* ── hero ───────────────────────────────────────────────────────────────── */
 .hero{padding:var(--bt-rhythm-section) 0}
 .search{margin-top:var(--bt-rhythm-stack);display:flex;gap:var(--bt-space-sm);max-width:var(--bt-measure-prose)}
-.search input{flex:1 1 auto;min-width:0;background:var(--bt-surface-raised);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);color:var(--bt-text-default);font-size:var(--bt-type-body-size);padding:var(--bt-density-control-y) var(--bt-density-control-x);transition:border-color var(--bt-motion-fast) var(--bt-motion-ease)}
+.search input{flex:1 1 auto;min-width:0;background:var(--bt-surface-raised);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-sm);color:var(--bt-text-default);font-size:var(--bt-type-body-size);padding:var(--bt-density-control-y) var(--bt-density-control-x);transition:border-color var(--bt-motion-fast) var(--bt-motion-ease)}
 .search input::placeholder{color:var(--bt-text-subtle)}
 .search input:hover{border-color:var(--bt-border-strong)}
 .chainstrip{display:flex;gap:var(--bt-space-md);flex-wrap:wrap;margin-top:var(--bt-rhythm-group)}
-.chaincard{display:block;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-lg);padding:var(--bt-space-lg) var(--bt-space-xl);background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised);transition:border-color var(--bt-motion-fast) var(--bt-motion-ease),background var(--bt-motion-fast) var(--bt-motion-ease)}
+.chaincard{display:block;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);padding:var(--bt-space-lg) var(--bt-space-xl);background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised);transition:border-color var(--bt-motion-fast) var(--bt-motion-ease),background var(--bt-motion-fast) var(--bt-motion-ease)}
 .chaincard:hover{border-color:var(--bt-border-accent);background:var(--bt-surface-hover)}
 .chaincard:active{background:var(--bt-surface-selected)}
 .chaincard .name{font-size:var(--bt-type-h3-size);font-weight:var(--bt-type-h3-weight);color:var(--bt-text-strong)}
@@ -315,7 +315,19 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
 .stat .v.mono{font-size:var(--bt-type-h3-size)}
 
 /* ── definition grid (block / tx detail) ────────────────────────────────── */
-.dl{display:grid;grid-template-columns:var(--bt-layout-label-column) minmax(0,1fr);gap:0;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-lg);overflow:hidden;background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised)}
+/* NO `box-shadow`. This grid is the transaction details PANEL, and a panel in
+   this product is held by its hairline and its header tone — that is what the
+   debugger register does for its panes, and radii and elevation are primitives
+   Design-System.md §2 says the two registers SHARE. It carried
+   `--bt-elevation-raised` as well, which beside a `--bt-border-default` edge
+   adds nothing a reader can name and makes a structural container read as a
+   floating card: measured, the shadow it dropped peaks at 1.24:1 against the
+   light canvas and at 1.00:1 against the dark one, where it is a black shadow
+   on a black page. The shadow tokens are not removed and not orphaned —
+   `.chaincard` and the stacked mobile rows still take `raised`, because those
+   two ARE lifted: they are the interactive surfaces a pointer picks up.
+   See docs/EXPLORER-TINT.md §2 T-2. */
+.dl{display:grid;grid-template-columns:var(--bt-layout-label-column) minmax(0,1fr);gap:0;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);overflow:hidden;background:var(--bt-surface-raised)}
 .dl dt{padding:var(--bt-density-cell-y) var(--bt-density-cell-x);font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);line-height:var(--bt-space-lg);letter-spacing:var(--bt-type-label-tracking);text-transform:uppercase;color:var(--bt-text-muted);background:var(--bt-surface-sunken);border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
 /* `overflow-wrap:anywhere` and NOT `word-break:break-all`. Both stop a 66-char
    hash from blowing out the value column, and `anywhere` is the one that also
@@ -359,7 +371,9 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
    the mask dims the final `--bt-space-2xl` of the scroll port whether or not
    anything is scrolled, so without a gutter to land on it would dim the last
    digits of a table that FITS and manufacture the defect it removes. */
-.tablewrap{overflow-x:auto;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-lg);background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised);
+/* No `box-shadow`, for the reason given at `.dl`: the transactions table is a
+   pane, not a card. */
+.tablewrap{overflow-x:auto;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);background:var(--bt-surface-raised);
   -webkit-mask-image:linear-gradient(to right,currentColor
     calc(100% - var(--bt-space-2xl)),transparent);
   mask-image:linear-gradient(to right,currentColor
@@ -383,7 +397,7 @@ table.tbl td.num{text-align:right}
 .empty{padding:var(--bt-rhythm-group) var(--bt-density-cell-x);color:var(--bt-text-muted);text-align:center}
 
 /* ── badges: colour never carries the meaning alone (rubric A7) ─────────── */
-.badge{display:inline-flex;align-items:center;font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);line-height:var(--bt-type-label-line);letter-spacing:var(--bt-type-label-tracking);padding:var(--bt-space-3xs) var(--bt-space-xs);border-radius:var(--bt-radius-sm);border:var(--bt-stroke-hairline) solid var(--bt-status-neutral-border);background:var(--bt-status-neutral-bg);color:var(--bt-status-neutral-fg);white-space:nowrap}
+.badge{display:inline-flex;align-items:center;font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);line-height:var(--bt-type-label-line);letter-spacing:var(--bt-type-label-tracking);padding:var(--bt-space-3xs) var(--bt-space-xs);border-radius:var(--bt-radius-xs);border:var(--bt-stroke-hairline) solid var(--bt-status-neutral-border);background:var(--bt-status-neutral-bg);color:var(--bt-status-neutral-fg);white-space:nowrap}
 .badge.ok{color:var(--bt-status-success-fg);border-color:var(--bt-status-success-border);background:var(--bt-status-success-bg)}
 .badge.bad{color:var(--bt-status-danger-fg);border-color:var(--bt-status-danger-border);background:var(--bt-status-danger-bg)}
 .badge.warn{color:var(--bt-status-warning-fg);border-color:var(--bt-status-warning-border);background:var(--bt-status-warning-bg)}
@@ -403,7 +417,7 @@ table.tbl td.num{text-align:right}
 .dl dd .badge:only-child{margin-left:calc(-1 * (var(--bt-space-xs) + var(--bt-stroke-hairline)))}
 
 /* ── buttons: every variant sets its own background ─────────────────────── */
-.btn{font-size:var(--bt-type-body-sm-size);font-weight:var(--bt-type-h3-weight);line-height:var(--bt-type-body-sm-line);padding:var(--bt-density-control-y) var(--bt-density-control-x);border-radius:var(--bt-radius-md);display:inline-flex;gap:var(--bt-space-xs);align-items:center;justify-content:center;cursor:pointer;border:var(--bt-stroke-hairline) solid transparent;background:var(--bt-action-ghost-bg);color:var(--bt-action-ghost-fg);transition:background var(--bt-motion-fast) var(--bt-motion-ease),border-color var(--bt-motion-fast) var(--bt-motion-ease),color var(--bt-motion-fast) var(--bt-motion-ease)}
+.btn{font-size:var(--bt-type-body-sm-size);font-weight:var(--bt-type-h3-weight);line-height:var(--bt-type-body-sm-line);padding:var(--bt-density-control-y) var(--bt-density-control-x);border-radius:var(--bt-radius-sm);display:inline-flex;gap:var(--bt-space-xs);align-items:center;justify-content:center;cursor:pointer;border:var(--bt-stroke-hairline) solid transparent;background:var(--bt-action-ghost-bg);color:var(--bt-action-ghost-fg);transition:background var(--bt-motion-fast) var(--bt-motion-ease),border-color var(--bt-motion-fast) var(--bt-motion-ease),color var(--bt-motion-fast) var(--bt-motion-ease)}
 .btn.primary{background:var(--bt-action-bg);color:var(--bt-action-fg);border-color:var(--bt-action-bg)}
 .btn.primary:hover{background:var(--bt-action-bg-hover);border-color:var(--bt-action-bg-hover)}
 .btn.primary:active{background:var(--bt-action-bg-active);border-color:var(--bt-action-bg-active)}
@@ -414,7 +428,16 @@ table.tbl td.num{text-align:right}
 .btn.disabled:hover{background:var(--bt-action-disabled-bg);border-color:var(--bt-action-disabled-border)}
 
 /* ── tx-detail debug panel ──────────────────────────────────────────────── */
-.debugcard{max-width:var(--bt-layout-prose);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-lg);padding:var(--bt-density-card-pad) var(--bt-density-cell-x);background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-overlay)}
+/* `--bt-elevation-raised` and NOT `--bt-elevation-overlay`. This card is IN
+   FLOW — it is the first thing under the transaction hero, it displaces the
+   page, and nothing is drawn beneath it. `overlay` is the modal rung —
+   the widest, darkest shadow the system has in either theme —
+   reserved for a surface that floats OVER the document; the debugger's three
+   uses of it are all genuine overlays. Wearing a modal shadow made the page's
+   primary call to action read as a dialog that had failed to open. The card is
+   still the most raised thing on the transaction page — it keeps a shadow,
+   one rung down. See docs/EXPLORER-TINT.md T-2. */
+.debugcard{max-width:var(--bt-layout-prose);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);padding:var(--bt-density-card-pad) var(--bt-density-cell-x);background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised)}
 .debugcard .row{display:flex;align-items:center;gap:var(--bt-space-md);flex-wrap:wrap}
 .debugcard .note{color:var(--bt-text-default);font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line);margin-top:var(--bt-rhythm-stack);max-width:var(--bt-measure-prose)}
 .debugcard .note.spec{max-width:none;margin-top:var(--bt-rhythm-stack);padding-top:var(--bt-space-sm);border-top:var(--bt-stroke-hairline) solid var(--bt-border-subtle);color:var(--bt-text-default)}
@@ -429,17 +452,21 @@ table.tbl td.num{text-align:right}
 .execlist .reason{color:var(--bt-text-muted);font-size:var(--bt-type-body-sm-size);max-width:var(--bt-measure-prose)}
 
 /* ── deferred / notice callouts ─────────────────────────────────────────── */
-.stub{max-width:var(--bt-layout-prose);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);padding:var(--bt-space-md) var(--bt-density-cell-x);margin-top:var(--bt-rhythm-stack);background:var(--bt-surface-raised);color:var(--bt-text-default);font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line)}
+.stub{max-width:var(--bt-layout-prose);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-sm);padding:var(--bt-space-md) var(--bt-density-cell-x);margin-top:var(--bt-rhythm-stack);background:var(--bt-surface-raised);color:var(--bt-text-default);font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line)}
 .stub b{color:var(--bt-text-default);font-weight:var(--bt-type-h3-weight)}
 .measure{max-width:var(--bt-measure-prose)}
 
 /* ── raw json ───────────────────────────────────────────────────────────── */
-pre.raw{max-height:var(--bt-layout-code-max-height);overflow:auto;background:var(--bt-surface-code);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-lg);padding:var(--bt-space-md) var(--bt-density-cell-x);overflow-x:auto;font-family:var(--bt-font-code),var(--bt-font-mono-fallback);font-size:var(--bt-type-code-size);line-height:var(--bt-type-code-line);color:var(--bt-text-code);font-variant-numeric:var(--bt-numeric-features)}
+pre.raw{max-height:var(--bt-layout-code-max-height);overflow:auto;background:var(--bt-surface-code);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);padding:var(--bt-space-md) var(--bt-density-cell-x);overflow-x:auto;font-family:var(--bt-font-code),var(--bt-font-mono-fallback);font-size:var(--bt-type-code-size);line-height:var(--bt-type-code-line);color:var(--bt-text-code);font-variant-numeric:var(--bt-numeric-features)}
 
 /* ── §14 degraded-state notice ──────────────────────────────────────────── */
 /* One block, one tone from the status vocabulary, and never colour alone: the
    row is named in a badge before it is painted (rubric A7). */
-.notice{margin-top:var(--bt-rhythm-stack);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-left:var(--bt-stroke-thick) solid var(--bt-border-strong);border-radius:var(--bt-radius-md);padding:var(--bt-space-md) var(--bt-density-cell-x);background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised)}
+/* No `box-shadow`: this callout already carries a `--bt-stroke-thick` status
+   rail down its left edge, which is a stronger and more specific signal than a
+   shadow, and it is in flow. Three channels for one notice — rail colour, rail
+   weight and a drop shadow — was two more than the thing needs. */
+.notice{margin-top:var(--bt-rhythm-stack);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-left:var(--bt-stroke-thick) solid var(--bt-border-strong);border-radius:var(--bt-radius-sm);padding:var(--bt-space-md) var(--bt-density-cell-x);background:var(--bt-surface-raised)}
 .notice.bad{border-left-color:var(--bt-status-danger-border)}
 .notice.warn{border-left-color:var(--bt-status-warning-border)}
 .notice.info{border-left-color:var(--bt-status-info-border)}
@@ -516,9 +543,9 @@ table.tbl td .reason{white-space:normal;max-width:var(--bt-measure-narrow)}
 
 /* ── verified-source browser (§10) ──────────────────────────────────────── */
 .filetree{display:flex;gap:var(--bt-space-sm);flex-wrap:wrap;margin-bottom:var(--bt-rhythm-stack)}
-.filetree a{border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-sm);padding:var(--bt-space-3xs) var(--bt-space-xs);color:var(--bt-text-link);background:var(--bt-surface-sunken);font-size:var(--bt-type-caption-size)}
+.filetree a{border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-xs);padding:var(--bt-space-3xs) var(--bt-space-xs);color:var(--bt-text-link);background:var(--bt-surface-sunken);font-size:var(--bt-type-caption-size)}
 .filetree a:hover{border-color:var(--bt-border-accent)}
-.codefile{margin-top:var(--bt-rhythm-stack);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-lg);overflow:hidden;background:var(--bt-surface-code)}
+.codefile{margin-top:var(--bt-rhythm-stack);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);overflow:hidden;background:var(--bt-surface-code)}
 .codehead{display:flex;justify-content:space-between;gap:var(--bt-space-md);padding:var(--bt-space-xs) var(--bt-density-cell-x);background:var(--bt-surface-sunken);border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-default);font-size:var(--bt-type-caption-size)}
 .codeview{max-height:var(--bt-layout-code-max-height);overflow:auto;padding:var(--bt-space-sm) 0}
 .codeline{display:flex;gap:var(--bt-space-sm);font-family:var(--bt-font-code),var(--bt-font-mono-fallback);font-size:var(--bt-type-code-size);line-height:var(--bt-type-code-line)}
@@ -603,7 +630,7 @@ table.tbl td .reason{white-space:normal;max-width:var(--bt-measure-narrow)}
   table.txtbl{display:block;font-size:var(--bt-type-body-sm-size)}
   table.txtbl thead{display:none}
   table.txtbl tbody{display:block}
-  table.txtbl tbody tr{display:block;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-lg);background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised);padding:var(--bt-space-sm) var(--bt-density-cell-x);margin-bottom:var(--bt-space-sm)}
+  table.txtbl tbody tr{display:block;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised);padding:var(--bt-space-sm) var(--bt-density-cell-x);margin-bottom:var(--bt-space-sm)}
   table.txtbl tbody tr.reverted{border-color:var(--bt-status-danger-border)}
   table.txtbl td{display:flex;justify-content:space-between;align-items:baseline;gap:var(--bt-space-md);white-space:normal;border-bottom:0;padding:var(--bt-space-3xs) 0;text-align:left}
   table.txtbl td.num{text-align:left}
