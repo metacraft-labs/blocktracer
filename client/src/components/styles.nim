@@ -372,13 +372,36 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
    anything is scrolled, so without a gutter to land on it would dim the last
    digits of a table that FITS and manufacture the defect it removes. */
 /* No `box-shadow`, for the reason given at `.dl`: the transactions table is a
-   pane, not a card. */
+   pane, not a card.
+
+   `mask-clip:BORDER-box`, and it is a correction rather than a preference.
+   A mask clips everything the element paints outside its clip box, and
+   `padding-box` puts the BORDER outside it — so the hairline declared on the
+   line below had never once been painted, on any route, in either theme. Five
+   independent reviewers reading before/after captures of this container all
+   named the same thing as the weakest element on the page: a table held by a
+   fill step alone, sitting beside a `.dl` on the same page that keeps its
+   hairline. They were right, and the cause was here rather than in the
+   elevation pass that was blamed for it.
+
+   That also means the `box-shadow` this rule dropped was already being
+   discarded by the same clip — so removing it changed no pixel, and the case
+   made for removing it was made about a declaration with no rendered effect.
+   The removal still stands: the shadow is wrong for a pane. What was missing
+   is the edge the removal's own argument assumed.
+
+   `border-box` restores the hairline and does NOT restore the shadow, which
+   paints outside the border box and stays clipped. The fade is unaffected:
+   its stop is a percentage of the clip box, so it still dissolves the right
+   edge over the last `--bt-space-2xl`, which is the whole point of it. Nothing
+   moves — `border` is already in this element's box model, so this changes
+   what is painted and not what is laid out. */
 .tablewrap{overflow-x:auto;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);background:var(--bt-surface-raised);
   -webkit-mask-image:linear-gradient(to right,currentColor
     calc(100% - var(--bt-space-2xl)),transparent);
   mask-image:linear-gradient(to right,currentColor
     calc(100% - var(--bt-space-2xl)),transparent);
-  -webkit-mask-clip:padding-box;mask-clip:padding-box}
+  -webkit-mask-clip:border-box;mask-clip:border-box}
 /* The gutter the fade lands on when there is nothing to scroll. Applied to the
    last column in BOTH rows so the header label and its values keep sharing an
    edge — `th.num`/`td.num` are right-aligned, so a gutter on one and not the
