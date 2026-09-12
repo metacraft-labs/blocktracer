@@ -1,0 +1,63 @@
+{
+  "_comment": [
+    "THE SNAPSHOT FORMAT TOKEN, and which tokens this tree can read. Data-Contract.md §5.2.",
+    "",
+    "THIS FILE IS DATA FOR THE SAME REASON `refusal-reasons.json` IS: two languages need it.",
+    "`tools/chain/lib/snapshot-format.mjs` is the producer side and",
+    "`src/blocktracer/chain/snapshot_format.nim` is the reader side, which reads this file with",
+    "`staticRead` at compile time. A version gate that is spelled twice is two gates, and the",
+    "cost of that is exactly what this file was created to stop: before it, the literal",
+    "`blocktracer/chain-snapshot@1` appeared at ten sites — four producers, two consumers, one",
+    "test helper and three committed fixtures — and the reader's gate was a bare `!=` against",
+    "its own copy.",
+    "",
+    "── WHY `@2` EXISTS ────────────────────────────────────────────────────────────────────",
+    "",
+    "ING-3 made `refusalReason` MANDATORY on every untraced row: `auditRefusals` refuses a",
+    "snapshot without it, and that gate runs in the write path of every producer. That is a",
+    "NEW REQUIRED MEMBER, which Data-Contract.md §3's additive-only rule does not permit",
+    "inside one version — and the proof it is not additive is that",
+    "`tools/chain/migrate-refusal-reasons.mjs` had to exist, because the committed `@1`",
+    "captures could not pass the gate their own producers now run. Left at `@1`, the token",
+    "would mean two different things and nothing in the artifact could say which.",
+    "",
+    "── WHAT THE READER DOES WITH `@1` ─────────────────────────────────────────────────────",
+    "",
+    "It reads it, FULLY, with `refusalReason` optional — which is the behaviour it has always",
+    "had. §3's rule is that a version the reader does not support is refused BY NAME rather",
+    "than misread, and §5.2 that an unknown token is never partially read. `@1` is neither",
+    "unknown nor partially read: `readable` enumerates it, and the only member `@2` adds is one",
+    "the reader already treated as optional. What changes is that on `@2` the reader ENFORCES",
+    "it, so the token is a checkable statement about the tree rather than decoration.",
+    "",
+    "A tree may therefore be `@1` or `@2` and never both: `mandatoryMembers` is what separates",
+    "them, and a producer that emits a mandatory member must emit the token that requires it.",
+    "",
+    "── THE OUTCOME PARTITION, HERE BECAUSE THE GATE NEEDS IT ──────────────────────────────",
+    "",
+    "\"Every untraced row carries a reason\" is only checkable against a definition of untraced,",
+    "and the three populations are not interchangeable:",
+    "  traced        a container exists and it steps",
+    "  untraced      this pipeline declined it, and the reason id says which member",
+    "  chainAbsent   the chain published no such execution — Aztec's private half. These carry",
+    "                a SENTENCE and NO reason id, because the closed set is a set of things WE",
+    "                did and this is not one of them (Trace-Artifacts.md §6)",
+    "`tools/chain/lib/refusal.mjs` reads these rather than declaring its own copy; the",
+    "reasoning behind each is in that file's headers."
+  ],
+  "format": "blocktracer/snapshot-format@1",
+  "current": "blocktracer/chain-snapshot@2",
+  "readable": [
+    "blocktracer/chain-snapshot@1",
+    "blocktracer/chain-snapshot@2"
+  ],
+  "mandatoryMembers": {
+    "blocktracer/chain-snapshot@1": [],
+    "blocktracer/chain-snapshot@2": ["transactions[].refusalReason"]
+  },
+  "outcomes": {
+    "traced": ["replayed", "divergent"],
+    "untraced": ["refused", "pruned", "not-first-in-block", "not-attempted"],
+    "chainAbsent": ["private-only"]
+  }
+}

@@ -95,6 +95,7 @@
 import std/[json, os, algorithm, strutils, tables, times]
 import ../contract/[model, ids, version]
 import ./refusal_reasons
+import ./snapshot_format
 
 const MonthNames = ["January", "February", "March", "April", "May", "June",
                     "July", "August", "September", "October", "November",
@@ -541,13 +542,52 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   if not fileExists(snapPath):
     raise newException(IOError, "chain snapshot not found: " & snapPath)
   let snap = parseJson(readFile(snapPath))
-  if snap{"format"}.getStr != "blocktracer/chain-snapshot@1":
+  # ── THE VERSION GATE, AGAINST AN ENUMERATED SET RATHER THAN ONE LITERAL ────
+  #
+  # This was `!= "blocktracer/chain-snapshot@1"` against a literal spelled here
+  # and at nine other sites. What that could not express is what happened: ING-3
+  # made `refusalReason` MANDATORY on every untraced row — `auditRefusals` refuses
+  # a snapshot without it, in the write path of every producer — while the token
+  # stayed `@1`. The proof it is not an additive change, which is all §3 permits
+  # inside one version, is that `tools/chain/migrate-refusal-reasons.mjs` had to be
+  # written: the committed `@1` captures could not pass the gate their own
+  # producers now run. So `@1` named two incompatible shapes and nothing in an
+  # artifact could say which.
+  #
+  # `@1` IS STILL READ, AND READ WHOLE. §3's rule is that a version the reader
+  # does not SUPPORT is refused by name rather than misread, and §5.2's that an
+  # unknown token is never partially read. `@1` is enumerated in
+  # `tools/chain/snapshot-format.json` and every member of it is consumed here —
+  # the one member `@2` adds is the one this reader already treated as optional
+  # (see the `rr` block below). Nothing is skipped and nothing is guessed. A token
+  # outside the list is refused by name, naming what this build does accept.
+  #
+  # The difference the token makes is enforced rather than advertised: on `@2` an
+  # untraced row without a `refusalReason` raises, naming the row. A version whose
+  # only difference the reader does not act on is a label.
+  let snapFormat = snap{"format"}.getStr
+  if not isReadableSnapshotFormat(snapFormat):
     raise newException(ValueError,
-      "unsupported chain snapshot format '" & snap{"format"}.getStr &
-      "'; this build reads blocktracer/chain-snapshot@1")
+      "unsupported chain snapshot format '" & snapFormat &
+      "'; this build reads " & readableSnapshotFormatList() &
+      ". Refused by name rather than read in part — a snapshot half-read against " &
+      "the wrong schema publishes a chain that never existed. An older tree is " &
+      "brought forward with tools/chain/migrate-refusal-reasons.mjs.")
+  let requireRefusalReason = snapshotRequiresRefusalReason(snapFormat)
 
   let gen = if cfg.generation.len > 0: cfg.generation else: "1"
   let prov = snap["provenance"]
+
+  proc provOrNull(key: string): JsonNode =
+    ## One provenance member, or an explicit JSON `null` when the capture has none.
+    ##
+    ## `prov[key]` RAISES `KeyError` on an absent string key and `prov{key}` returns a
+    ## **nil** `JsonNode`, which `std/json`'s `toUgly` dereferences without a nil check.
+    ## Neither is what a reader should do with an optional member, and the first was
+    ## reproduced as a crash on a real mainnet capture — see the summary writer below.
+    result = prov{key}
+    if result == nil: result = newJNull()
+
   let chain = prov{"chain"}.getStr
   if chain.len == 0:
     raise newException(ValueError,
@@ -1595,6 +1635,32 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # producer wrote the row against, so the two cannot disagree about
       # membership without the build saying so.
       let rr = t{"refusalReason"}.getStr
+      # ── `@2` REQUIRES THE MEMBER; `@1` LEFT IT OPTIONAL ──────────────────
+      #
+      # THIS IS WHAT THE FORMAT BUMP MEANS, and it is checked here because this is
+      # the reader. `auditRefusals` has required the member on the producer side
+      # since ING-3 — which is what made the token's `@1` a false claim about
+      # every committed capture — and this side went on accepting its absence. So
+      # the two halves of the seam disagreed about whether the field was
+      # mandatory, and the artifact's own version token said nothing either way.
+      #
+      # A chain-absent row (`private-only`) must carry NO id on either version:
+      # the closed set is a set of things WE did, and "the chain never published
+      # this execution" is not one of them. `auditRefusals` enforces the same
+      # asymmetry on the producer side, and the populations come from the same
+      # file both sides read, so the two cannot drift about which rows this
+      # applies to.
+      if requireRefusalReason and rr.len == 0 and isUntracedSnapshotOutcome(outcome):
+        raise newException(ValueError,
+          "transaction " & shortHash(txHash) & " in block " & $height &
+          " has untraced outcome '" & outcome & "' and carries no refusalReason. " &
+          snapFormat & " requires one on every untraced row — that requirement is " &
+          "the whole difference between it and blocktracer/chain-snapshot@1, and " &
+          "'absent with no explanation' is indistinguishable from a failed fetch. " &
+          "Either the producer must classify this row through classifyRefusal, or " &
+          "the snapshot is a blocktracer/chain-snapshot@1 wearing a newer token — " &
+          "bring it forward with tools/chain/migrate-refusal-reasons.mjs rather " &
+          "than relabelling it.")
       if rr.len > 0:
         if not isRefusalReason(rr):
           raise newException(ValueError,
@@ -1847,10 +1913,48 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     "provenance": {
       "kind": "live-capture",
       "label": provLabel,
-      "endpoint": prov["endpoint"],
-      "capturedAt": prov["capturedAt"],
-      "nodeVersion": prov["nodeVersion"],
-      "l1ChainId": prov["l1ChainId"],
+      # ── FOUR SAFE ACCESSORS, AND THE REASON IS A REPRODUCED CRASH ──────────
+      #
+      # These were four unguarded `prov["…"]`. In Nim's `std/json`, `JsonNode.[]`
+      # with an absent string key RAISES `KeyError` — it does not return null —
+      # so all four were mandatory members of a shape whose own spec
+      # (Data-Contract.md §5.2) names none of them.
+      #
+      # Reproduced 2026-09-12 against the snapshot the real follower wrote
+      # against Aztec MAINNET (`blocktracer-follow-chain`, node 5.2.0, 403
+      # blocks, `/build/bt-ingest/accidental-400block`):
+      #
+      #     blocktracer-chain-ingest --snapshot … --out …
+      #     { "ok": false, "error": "key not found: l1ChainId",
+      #       "errorType": "KeyError" }   exit 1
+      #
+      # AND THE PRODUCER DOES WRITE THE KEY, which is what made this invisible.
+      # `follow-chain.mjs` and `ingest-range.mjs` both set `l1ChainId:
+      # nodeInfo.l1ChainId` — and `JSON.stringify` DROPS a key whose value is
+      # `undefined`, so a node whose `getNodeInfo` omits the field produces a
+      # snapshot with no such member while the producer source says otherwise.
+      # In the same object literal `rollupAddress` carries `?? ''` and
+      # `l1ChainId`, `nodeVersion` and `rollupVersion` did not, so it is a
+      # node-response asymmetry rather than a network one. The producers now
+      # carry the fallback too; this side stops the reader being the place a
+      # missing optional member becomes a crash.
+      #
+      # The committed testnet fixtures all carry `l1ChainId: 11155111`, so the
+      # whole test suite and every fixture were blind to it — the mainnet path
+      # was the only one that omitted it. `client/tests/test_chain_ingest_provenance.nim`
+      # now drives the captured mainnet snapshot through `ingestSnapshot`.
+      #
+      # `provOrNull` AND NOT A BARE `prov{"…"}`, which would trade a KeyError for a
+      # segfault. `prov{key}` returns a **nil** `JsonNode` for an absent key, and
+      # `std/json`'s `toUgly` dispatches on `node.kind` with no nil guard — so a
+      # nil child crashes at serialisation instead of at the read. `provOrNull`
+      # turns absence into an explicit JSON `null`, which is the honest answer:
+      # the capture did not record it. The safe-subscript idiom itself is the
+      # file's own — `prov{"label"}`, `prov{"runtimeCommit"}`, `snap{"format"}`.
+      "endpoint": provOrNull("endpoint"),
+      "capturedAt": provOrNull("capturedAt"),
+      "nodeVersion": provOrNull("nodeVersion"),
+      "l1ChainId": provOrNull("l1ChainId"),
       "tipAtCapture": tipAt,
       "finalizedAtCapture": finalizedAt,
       "replayableWindowBlocks": win["blocks"],
