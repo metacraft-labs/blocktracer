@@ -1941,8 +1941,8 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       #
       # The committed testnet fixtures all carry `l1ChainId: 11155111`, so the
       # whole test suite and every fixture were blind to it — the mainnet path
-      # was the only one that omitted it. `client/tests/test_chain_ingest_provenance.nim`
-      # now drives the captured mainnet snapshot through `ingestSnapshot`.
+      # was the only one that omitted it. `tests/tchainsnapshot.nim` now drives
+      # the captured mainnet snapshot through `ingestSnapshot`.
       #
       # `provOrNull` AND NOT A BARE `prov{"…"}`, which would trade a KeyError for a
       # segfault. `prov{key}` returns a **nil** `JsonNode` for an absent key, and
