@@ -474,5 +474,22 @@ const empty = buildFrames([{ type: 'Path', name: '/aztec/x.avm' }],
 eq('a container with no frames yields no frames, and does not throw',
   [empty.frames.length, empty.calls, empty.returns], [0, 0, 0]);
 
+// ── AND THE COUNT IS DECLARED, WHICH IT WAS NOT ─────────────────────────────────────
+//
+// This suite was the only one of the six that printed its total and asserted nothing
+// about it. The consequence is not hypothetical: the `chain-selftest` recipe's header
+// carries a term for this suite, and with no declaration here that term was a number
+// NOBODY could check — the one place it appeared was the place most likely to be stale.
+// A `continue`, an early `return` or a loop over a set that turned out empty removes
+// assertions silently, and a suite that prints "17 assertion(s), 0 failure(s)" reads
+// exactly as green as one that prints 24.
+//
+// Declared rather than derived, like the other five: adding a case without updating this
+// number is a failure, which is the whole point of counting.
+if (asserted !== 24) {
+  console.log(`ASSERTION COUNT IS ${asserted}, EXPECTED 24 — a case was added, removed `
+    + `or skipped.`);
+  failed++;
+}
 console.log(`\ncalltrace-fold-selftest: ${asserted} assertion(s), ${failed} failure(s)`);
 process.exit(failed === 0 ? 0 : 1);

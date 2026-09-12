@@ -23,7 +23,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# SIX suites — 98 + 19 + 24 + 24 + 57 + 161 = 383 counted assertions — over the
+# SIX suites — 98 + 19 + 24 + 24 + 57 + 170 = 392 counted assertions — over the
 # six decisions the capture path makes that nothing else can check afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
 # called frozen (`freeze-snapshot-selftest`), when a supervised watch is
@@ -66,11 +66,20 @@ test:
 # mode is always the same: the suites DECLARE their own counts and this sentence
 # is a copy, so it goes stale silently and nothing compares the two.
 #
+# SO THE SENTENCE IS NOW CHECKED, which is the only thing that makes a fourth
+# time impossible. `refusal-selftest` reads each term out of the suite that
+# declares it, in recipe order, and checks this arithmetic as arithmetic — and it
+# caught this very line stale on the run that introduced it. `calltrace-fold-selftest`
+# gained a declared count for the same reason: it was the only one of the six
+# that printed its total and asserted nothing about it, so its term here was a
+# number nobody could check.
+#
 # Every term below was re-read off a run on 2026-09-12, after the review's
 # fixes: `replay-selftest` 93 -> 98 (case 12's interpreter stubs) and
-# `refusal-selftest` 117 -> 161 (the eighth closed-set member, the shared tally,
+# `refusal-selftest` 117 -> 170 (the eighth closed-set member, the shared tally,
 # the version policy, the store-outcome split, the committed captures'
-# `counts` / token / `captures` shape, and the three producers' argument guards).
+# `counts` / token / `captures` shape, the three producers' argument guards, and
+# this header).
 #
 # THEY WERE REFERENCED BY NOTHING. Not by `just test`, not by any CI job, not
 # by `ci-coverage.sh` — whose enumeration covers `ci/test/*.sh` and

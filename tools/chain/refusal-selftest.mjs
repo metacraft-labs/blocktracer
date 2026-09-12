@@ -879,6 +879,70 @@ test('a store that could not be asked is not a body that does not exist');
        && /mismatchedBodies,/.test(rangeSrc));
 }
 
+test('the recipe\'s declared assertion total is the one the suites declare');
+{
+  // ── WHY A CHECK FOR AN ARITHMETIC SENTENCE IN A JUSTFILE ────────────────────────────
+  //
+  // Because it has been wrong three times, in the same way each time, and nothing ever
+  // compared it to anything. `chain-selftest`'s header states
+  // `A + B + C + D + E + F = T`, every term is a COPY of a number the suite itself
+  // declares, and the copy goes stale silently:
+  //
+  //   * "three suites, 124" while the recipe ran four — the fold suite was wired in and
+  //     the sentence was not moved;
+  //   * 31 for the body verifier while that suite printed 57, its own CI step having said
+  //     57 for as long as the enumeration split;
+  //   * `87 + 19 + 24 + 24 + 57 + 102 = 313` at the pre-landing review, against a real
+  //     334 — `replay-selftest` had reached 93 and `refusal-selftest` 117.
+  //
+  // Correcting it a third time without closing the loop would guarantee a fourth. So the
+  // sentence is now CHECKED: each term is read out of the suite that owns it, and the
+  // arithmetic is checked as arithmetic.
+  //
+  // THE SIX DECLARATIONS ARE IN FIVE DIFFERENT SHAPES, which is why each has its own
+  // pattern rather than one generic sweep. A generic regex over six phrasings is the
+  // false-green this file exists to refuse: it would silently match five and score the
+  // sixth as absent. If a suite rephrases its declaration this arm goes RED, which is
+  // correct — the declaration moved, and a checker that guessed where it went would be
+  // back to reading prose.
+  const declared = [
+    ['replay-selftest.mjs', /^\s*expectCount\((\d+)\);/m],
+    ['freeze-snapshot-selftest.mjs', /asserted !== (\d+)\) \{/],
+    ['watch-chain-selftest.sh', /"\$asserted" -ne (\d+) \]/],
+    ['calltrace-fold-selftest.mjs', /asserted !== (\d+)\) \{/],
+    ['backfill-bodies-selftest.mjs', /asserted !== (\d+)\) \{/],
+    ['refusal-selftest.mjs', /^expectCount\((\d+)\);/m],
+  ];
+  const terms = [];
+  for (const [file, re] of declared) {
+    const src = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
+    const m = re.exec(src);
+    ck(`${file} declares its own assertion count${m ? ` — ${m[1]}` : ''}`, m !== null);
+    terms.push(m ? Number(m[1]) : NaN);
+  }
+  // The recipe's sentence, parsed as the arithmetic it is. `Justfile` is two directories
+  // up from this file.
+  const justfile = readFileSync(new URL('../../Justfile', import.meta.url), 'utf8');
+  const m = /# SIX suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
+  ck('the `chain-selftest` header states the total as arithmetic over per-suite terms',
+     m !== null);
+  if (m) {
+    const stated = m[1].split(' + ').map(Number);
+    const statedTotal = Number(m[2]);
+    // ORDER MATTERS and is asserted, because the recipe runs the suites in that order and
+    // a reader matches term to suite by position. A header whose terms are the right
+    // multiset in the wrong order names the wrong suite in every diff.
+    ck(`the header's six terms are the suites' own declarations, in recipe order — `
+       + `[${stated.join(', ')}] vs [${terms.join(', ')}]`,
+       stated.length === terms.length && stated.every((n, i) => n === terms[i]));
+    ck(`…and the header's arithmetic closes — ${stated.join(' + ')} = ${statedTotal}`,
+       stated.reduce((a, b) => a + b, 0) === statedTotal);
+  } else {
+    ck('(header unparsed, so its terms cannot be checked)', false);
+    ck('(header unparsed, so its total cannot be checked)', false);
+  }
+}
+
 test('a producer with no arguments prints usage instead of ingesting range 0..0');
 {
   // ── WHY THIS IS A SPAWN AND NOT A SOURCE SCAN ─────────────────────────────────────
@@ -964,7 +1028,7 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //       collected and FATAL and agrees with the mirroring tool, the fetch retries/backs
 //       off/honours Retry-After, it has a timeout, an `unavailable` answer is not cached
 //       while corpus answers are, and the store's answers reach the report.
-expectCount(161);
+expectCount(170);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);
