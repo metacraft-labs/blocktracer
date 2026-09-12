@@ -223,6 +223,37 @@ proc runBytes(s: S3ObjectStore, args: seq[string]):
   p.close()
   (outp, code)
 
+proc isPreconditionFailure*(outp: string): bool =
+  ## Did an `--if-none-match '*'` PUT fail because ANOTHER WRITER ALREADY HOLDS THE
+  ## KEY — as opposed to failing for any of the reasons that are real errors?
+  ##
+  ## `putIfAbsent` is the only compare-and-set in the system and the whole lease
+  ## rests on this answer. A false positive reports an empty bucket, a bad
+  ## credential or a rejected argument list as contention, and the publisher then
+  ## WAITS for a lease nobody holds; a false negative raises on a legitimate CAS
+  ## loss and fails a publish that should simply have yielded.
+  ##
+  ## ## Why it is anchored and not a substring
+  ##
+  ## This was `"PreconditionFailed" in outp or "412" in outp`, over a string that is
+  ## MERGED stdout+stderr (`run` sets `poStdErrToStdOut`) and therefore carries the
+  ## CLI's whole diagnostic, including the `RequestId` / `HostId` pair S3 prints for
+  ## every failure. Those are hex, and `412` appears in an arbitrary hex identifier
+  ## often enough to be an operational certainty rather than a curiosity — so a
+  ## credential or bucket error became "another writer won the race", which is the
+  ## exact misdiagnosis this function's own header records having removed once
+  ## already for `/dev/stdin`.
+  ##
+  ## The two spellings matched are the CLI's own:
+  ##
+  ##   AWS CLI v2   `An error occurred (PreconditionFailed) when calling the
+  ##                PutObject operation: At least one of the pre-conditions …`
+  ##   status-only  `… HTTP 412 …`, which some S3-compatible stores report instead
+  ##
+  ## Neither can be produced by a hex identifier, and both are the error CODE
+  ## rather than a word that also appears in prose about preconditions.
+  "(PreconditionFailed)" in outp or "HTTP 412" in outp
+
 method exists*(s: S3ObjectStore, key: string): bool =
   let (_, code) = s.run(@["s3api", "head-object", "--bucket", s.bucket,
     "--key", s.fullKey(key)] & s.endpointArgs())
@@ -282,7 +313,31 @@ method putIfAbsent*(s: S3ObjectStore, key, data: string): bool =
     "--key", s.fullKey(key), "--if-none-match", "*",
     "--body", tmp] & s.endpointArgs())
   if code == 0: return true
-  if "PreconditionFailed" in outp or "412" in outp:
+  # ── AND THE DISCRIMINATOR MUST NOT BE A BARE SUBSTRING ─────────────────────
+  #
+  # This read `"PreconditionFailed" in outp or "412" in outp`, and the second half
+  # reintroduced the very misdiagnosis the paragraph above removes. `run` sets
+  # `poStdErrToStdOut`, so `outp` is merged stdout+stderr — which on a failure is
+  # the AWS CLI's whole diagnostic, including the request identifiers it prints for
+  # a support ticket. Any `RequestId` or `HostId` containing the three characters
+  # `412` — a 1-in-~250 accident per identifier, on a string this store emits for
+  # every failure — turns "your credentials are wrong" or "that bucket does not
+  # exist" into "another writer won the CAS race", which is the single false signal
+  # this function was rewritten to stop producing. A lease that is reported as held
+  # is waited for, so the operator sees a hang rather than the error.
+  #
+  # The CLI's own shapes are matched instead. AWS CLI v2 prints the error code
+  # parenthesised — `An error occurred (PreconditionFailed) when calling the
+  # PutObject operation: …` — and an S3-compatible store that reports the status
+  # numerically writes `HTTP 412`. Both are anchored spellings that cannot be
+  # produced by a hex identifier.
+  #
+  # IT IS A NAMED PROC so it can be driven from `tests/tpublish.nim`. The S3 backend
+  # itself is unreachable from the credential-free suite — that is what let the
+  # `/dev/stdin` defect live — and this rule is the half of it that is pure. A
+  # discriminator only reachable through a network call is a discriminator with no
+  # test, which is how the substring got here.
+  if isPreconditionFailure(outp):
     return false                # another writer created it first — a real CAS loss
   raise newException(CatchableError,
     "aws s3api put-object --if-none-match failed for " & key &

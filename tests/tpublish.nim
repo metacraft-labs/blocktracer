@@ -393,3 +393,90 @@ suite "M8 — refresh: a corrected content object supersedes the published one":
     check res.determinismIncidents.anyIt(it.endsWith("/trace.ct"))
     check not res.contentRefreshed.anyIt(it.endsWith("/trace.ct"))
     check readFile(ct) == published
+
+# ───────────────────────────────────────────────────────────────────────────
+# THE ONE COMPARE-AND-SET IN THE SYSTEM, AND THE ONLY PART OF IT THAT IS PURE.
+#
+# `S3ObjectStore.putIfAbsent` is the whole of the single-writer lease across
+# machines, and it is unreachable from this suite by design: the suite is
+# credential-free and drives `LocalObjectStore`, whose `putIfAbsent` is a real
+# `O_EXCL`. That is exactly how the `--body /dev/stdin` defect lived — the only
+# conditional-create in the system had never run, and it returned false on every
+# call, on every store, in every state, which `publisher.nim` reported as
+# "locked by another publisher (lease held)" over an EMPTY bucket.
+#
+# The fix for that split a 412 from every other failure, and then the
+# discriminator reintroduced the same misdiagnosis class one line down: it was
+# `"PreconditionFailed" in outp or "412" in outp`, over a string that is MERGED
+# stdout+stderr (`run` sets `poStdErrToStdOut`) and therefore carries the AWS
+# CLI's whole diagnostic, including the hex `RequestId` / `HostId` pair S3 prints
+# for every failure. `412` in an arbitrary hex identifier is an operational
+# certainty rather than a curiosity, so a credential error, a missing bucket or a
+# rejected argument list became "another writer won the CAS race" — and a lease
+# reported as held is WAITED FOR, so the operator sees a hang instead of the
+# error.
+#
+# NO MOCKS HERE, and none needed: the discriminator is a pure function of the
+# CLI's output, so the real function is driven over real CLI output strings.
+# Extracting it was the point — a rule only reachable through a network call is a
+# rule with no test, which is how the substring got in.
+suite "putIfAbsent tells a CAS loss from an error it must not swallow":
+  # The real shapes. AWS CLI v2 prints the error code parenthesised; the
+  # identifiers are what the substring test tripped over.
+  const casLoss = """
+An error occurred (PreconditionFailed) when calling the PutObject operation: At least one of the pre-conditions you specified did not hold
+"""
+  const casLossNumeric = "upload failed: HTTP 412 precondition failed\n"
+
+  test "a real precondition failure IS a CAS loss":
+    check isPreconditionFailure(casLoss)
+    check isPreconditionFailure(casLossNumeric)
+
+  test "a credential error whose RequestId happens to contain 412 is NOT":
+    # This is the arm the old rule failed. The identifiers below are the shape
+    # `aws s3api` prints on every failure; the `412` inside them is the accident.
+    const badCreds = """
+An error occurred (InvalidAccessKeyId) when calling the PutObject operation: The AWS Access Key Id you provided does not exist in our records
+RequestId: 9F41236A412C0E11
+HostId: b7a412ee9f3c1d
+"""
+    check not isPreconditionFailure(badCreds)
+
+  test "…and neither is a missing bucket, or a rejected argument list":
+    const noBucket = """
+An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+RequestId: 00412AB9CD
+"""
+    const badArgs = """
+Error parsing parameter '--body': Blob values must be a path to a file. Request id 412f00d
+"""
+    check not isPreconditionFailure(noBucket)
+    check not isPreconditionFailure(badArgs)
+
+  test "MUTATION BITE: the bare-substring rule this replaces calls all three a CAS loss":
+    # The pairing that makes the arms above evidence rather than assertions: the
+    # OLD rule, spelled out, over the same three inputs. If it did not misfire on
+    # them the arms above would be testing nothing.
+    proc oldRule(outp: string): bool =
+      "PreconditionFailed" in outp or "412" in outp
+    const badCreds = """
+An error occurred (InvalidAccessKeyId) when calling the PutObject operation
+RequestId: 9F41236A412C0E11
+"""
+    const noBucket = "An error occurred (NoSuchBucket)\nRequestId: 00412AB9CD\n"
+    const badArgs = "Error parsing parameter '--body'. Request id 412f00d\n"
+    check oldRule(badCreds) and oldRule(noBucket) and oldRule(badArgs)
+    check not isPreconditionFailure(badCreds)
+    check not isPreconditionFailure(noBucket)
+    check not isPreconditionFailure(badArgs)
+    # And it must still ACCEPT what it should: a gate that refused every 412
+    # would trade a false lease for a false error, which is the other direction
+    # of the same defect.
+    check oldRule(casLoss) and isPreconditionFailure(casLoss)
+
+  test "the word alone, in prose, is not the error CODE":
+    # The parenthesised form is the CLI's own; a message that merely mentions
+    # preconditions is not a precondition failure. This is why the match is
+    # anchored rather than a word search.
+    check not isPreconditionFailure(
+      "the PreconditionFailed response is documented at https://example.invalid\n")
