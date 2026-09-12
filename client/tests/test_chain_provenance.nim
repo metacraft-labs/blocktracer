@@ -57,7 +57,20 @@ import blocktracer/contract/model
 import blocktracer/chain/refusal_reasons
 # `decodeExecTrace` — the Aztec-split arm asserts the overlay round trip at the
 # boundary a client actually reads, not at the writer alone.
-import blocktracer_client/decode
+#
+# THROUGH THE FACADE, which is the boundary this file is on the consumer side of.
+# It was `import blocktracer_client/decode`, and `ci/test/client-sdk-boundary.sh`
+# reported it as the tree's only `VIOLATION consumer-facade-only` — one import
+# past the facade, which is precisely the thing that turns an internal into
+# public ABI and makes Client-SDK.md §1.1's stability contract ("internal
+# refactors that do not change the facade are not breaking changes") false.
+#
+# Nothing was needed that the facade withholds: `src/blocktracer_client.nim`
+# re-exports `blocktracer_client/decode` verbatim, so `decodeExecTrace` arrives
+# by the same route a real consumer would get it by — which is a better test of
+# the round trip than reaching around the boundary was, because it also asserts
+# the symbol is actually published.
+import blocktracer_client
 
 let
   clientRoot = currentSourcePath().parentDir.parentDir
