@@ -22,7 +22,7 @@
 // redden the assertion written for it (§4a: the pairing is the control — a negative
 // assertion with no positive twin running through the same code path has nothing to fail).
 
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, chmod, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -652,6 +652,31 @@ async function main() {
   // A probe that STARTED and then could not import a module is the layout case that arm
   // was written for, and both directions are asserted here — a gate that refuses
   // everything is not a gate.
+  //
+  // ── THE INTERPRETERS ARE WRITTEN HERE, NOT NAMED ON THE SYSTEM ───────────────────
+  //
+  // This case used to drive `nodeBin: '/bin/false'` and `nodeBin: '/usr/bin/true'`, and
+  // neither path exists on NixOS: `/usr/bin` holds only `env` and `/bin` only `sh`. So
+  //
+  //   * the POSITIVE arm — "an interpreter that runs but says nothing is a NOTE" —
+  //     simply FAILED, because `/usr/bin/true` could not be spawned; and
+  //   * the NEGATIVE arm PASSED FOR THE WRONG REASON. It asserts that a `--node` which
+  //     exits non-zero on the driver flags is refused, and `/bin/false` was refused
+  //     because it did not exist. The gate under test read `r.code !== 0`, which `run`
+  //     also returns for a spawn failure, so the arm was satisfied by ENOENT and could
+  //     never have distinguished the behaviour it names from an absent path.
+  //
+  // Two stub interpreters are written into this case's own temp directory instead: a
+  // `#!/bin/sh` script that exits 1 and one that exits 0. `/bin/sh` is the one
+  // interpreter POSIX guarantees, both stubs are REAL FILES that genuinely spawn, and
+  // the exit status is the behaviour being tested rather than an accident of the host.
+  //
+  // The third input is an absent path, and it is what proves the negative arm is no
+  // longer ENOENT-satisfiable: `preflightToolchain` refuses it too — a `--node` that
+  // cannot be executed cannot replay — but with the SPAWN diagnosis and not the flag
+  // one. Point the arm below at `absentNode` instead of `exitsOne` and its
+  // `--experimental-wasm-exnref` assertion fails. That is the whole difference between
+  // this gate and the one it replaces.
   console.error('\ncase 12 — a --node that cannot run the driver is refused before a watch starts');
   {
     const rt = join(dir, 'runtime-loaderful');
@@ -662,10 +687,23 @@ async function main() {
     await mkdir(join(rt, 'node-host', 'src'), { recursive: true });
     await writeFile(join(rt, 'node-host', 'src', 'loader.ts'), '// loads fine\n');
 
+    const exitsOne = join(dir, 'stub-node-exits-1');
+    const exitsZero = join(dir, 'stub-node-exits-0');
+    const absentNode = join(dir, 'stub-node-that-does-not-exist');
+    await writeFile(exitsOne, '#!/bin/sh\n# rejects its arguments the way node 20 rejects\n'
+      + '# --experimental-wasm-exnref: says nothing on stdout and exits non-zero.\n'
+      + 'echo "bad option: --experimental-wasm-exnref" >&2\nexit 1\n');
+    await writeFile(exitsZero, '#!/bin/sh\n# runs, succeeds, and prints no PREFLIGHT_ line.\n'
+      + 'exit 0\n');
+    await chmod(exitsOne, 0o755);
+    await chmod(exitsZero, 0o755);
+    ck('the two stub interpreters EXIST, so neither arm below can be an ENOENT',
+       existsSync(exitsOne) && existsSync(exitsZero) && !existsSync(absentNode));
+
     // An interpreter that rejects its arguments: exits non-zero, says something on
     // stderr, prints no PREFLIGHT_ line. The shape of node 20 meeting the exnref flag.
     const pfBadNode = await preflightToolchain({
-      nodeBin: '/bin/false', runtime: rt, avm: ctPath, ctWriter: ctPath,
+      nodeBin: exitsOne, runtime: rt, avm: ctPath, ctWriter: ctPath,
     });
     ck('a --node that exits non-zero on the driver flags is REFUSED',
        pfBadNode.ok === false && pfBadNode.problems.length === 1);
@@ -673,18 +711,42 @@ async function main() {
        /--experimental-wasm-exnref/.test(pfBadNode.problems[0])
          && /record each one as/.test(pfBadNode.problems[0]));
     ck('…and it names the binary it tried, so the remedy is a path and not a guess',
-       /\/bin\/false/.test(pfBadNode.problems[0]));
+       pfBadNode.problems[0].includes(exitsOne));
+    ck('…and it reports the EXIT STATUS it observed, which is only knowable because the '
+       + 'interpreter ran', /exited 1 with/.test(pfBadNode.problems[0]));
 
     // MUTATION: the pre-fix arm over the same inputs returned ok:true with a note, which
     // is the silent success that burned five catches.
     bite('mutation: the old "never fatal" arm would have started this watch',
          pfBadNode.ok === false);
 
+    // ── THE PROOF THAT THE ARM ABOVE IS NOT SATISFIABLE BY ENOENT ─────────────────
+    //
+    // The same call with a path that is not there. It is still a refusal, and it must
+    // be: a `--node` that cannot be executed cannot replay. But it is refused as a
+    // SPAWN failure, so the two assertions the arm above makes about the flag and the
+    // exit status are both FALSE here — which is exactly what "the negative arm is
+    // measuring the behaviour and not the path" means.
+    const pfAbsentNode = await preflightToolchain({
+      nodeBin: absentNode, runtime: rt, avm: ctPath, ctWriter: ctPath,
+    });
+    ck('a --node that does not exist is also refused, and says so in the path\'s own terms',
+       pfAbsentNode.ok === false && pfAbsentNode.problems.length === 1
+         && /could not be executed at all/.test(pfAbsentNode.problems[0])
+         && /ENOENT/.test(pfAbsentNode.problems[0]));
+    bite('mutation: pointing the negative arm at an ABSENT binary fails its flag and '
+         + 'exit-status assertions — so the arm measures behaviour, not ENOENT',
+         !/--experimental-wasm-exnref/.test(pfAbsentNode.problems[0])
+           && !/exited 1 with/.test(pfAbsentNode.problems[0]));
+    bite('mutation: …and the converse — the ran-and-refused arm never claims a spawn '
+         + 'failure, so the two diagnoses cannot be swapped',
+         !/could not be executed at all/.test(pfBadNode.problems[0]));
+
     // The other direction. An interpreter that RUNS and simply produces no PREFLIGHT_
     // line — a runtime whose loader this tool cannot import — stays a note, because a
     // layout it does not recognise is not a measurement that replay will fail.
     const pfQuietNode = await preflightToolchain({
-      nodeBin: '/usr/bin/true', runtime: rt, avm: ctPath, ctWriter: ctPath,
+      nodeBin: exitsZero, runtime: rt, avm: ctPath, ctWriter: ctPath,
     });
     ck('an interpreter that runs but says nothing is a NOTE, not a refusal',
        pfQuietNode.ok === true && pfQuietNode.problems.length === 0);
@@ -695,10 +757,17 @@ async function main() {
   await rm(dir, { recursive: true, force: true });
   ck('the temp container was cleaned up', !existsSync(ctPath));
 
-  // 93: 12 cases (7+1, 6+2, 5+1+2, 3+1, 3+1, 2, 7+1, 8+2, 6+2, 6+2, 7+2, 5+1) = 84, plus
+  // 98: 12 cases (7+1, 6+2, 5+1+2, 3+1, 3+1, 2, 7+1, 8+2, 6+2, 6+2, 7+2, 8+3) = 89, plus
   // 3 outcome-set, 5 invariant, 1 cleanup. Declared rather than derived, so adding a case
   // without updating this number is a failure — which is the whole point of counting.
-  expectCount(93);
+  //
+  // 93 before case 12's interpreter stubs, whose arm was 5+1. +5: the two stubs are
+  // asserted to EXIST (an arm whose input is an ENOENT is the defect this replaces), the
+  // flag refusal is asserted to report the exit status it observed, and the absent-binary
+  // input is driven through the same call three ways — refused in the path's own terms,
+  // NOT carrying the flag diagnosis, and the converse. The last two are what make the
+  // negative arm unsatisfiable by ENOENT rather than merely differently-worded.
+  expectCount(98);
   if (failed) {
     console.error(`\nFAIL — ${failed} problem(s)`);
     return 1;

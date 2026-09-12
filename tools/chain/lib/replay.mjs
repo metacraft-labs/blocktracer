@@ -47,7 +47,16 @@ import { classifyRefusal } from './refusal.mjs';
 
 /** Run a command to completion, capturing both streams. Never rejects: the caller's
  *  decision is made from the streams, and a spawn failure is reported as an empty
- *  report with a non-zero code, which rule 2 turns into a named refusal. */
+ *  report with a non-zero code, which rule 2 turns into a named refusal.
+ *
+ *  `spawnFailed` IS A SEPARATE ANSWER FROM `code`, and it is separate because the two
+ *  were indistinguishable and a gate was built on the confusion. "The binary ran and
+ *  rejected its arguments" and "the binary is not there" both arrived here as a
+ *  non-zero `code` — `-1` for the second, but nothing downstream could tell `-1` from a
+ *  real exit status — so `preflightToolchain`'s interpreter gate was satisfied by
+ *  ENOENT, which is not the condition it names. Its own selftest then passed on NixOS
+ *  by pointing at `/bin/false`, a path that does not exist there. The field carries the
+ *  libuv message (`spawn /x ENOENT`, `EACCES`, …); it is `''` when the child ran. */
 export function run(cmd, args, cwd) {
   return new Promise((res) => {
     const p = spawn(cmd, args, { cwd, env: { ...process.env } });
@@ -55,8 +64,9 @@ export function run(cmd, args, cwd) {
     let err = '';
     p.stdout.on('data', (d) => { out += d; });
     p.stderr.on('data', (d) => { err += d; });
-    p.on('error', (e) => res({ code: -1, out, err: `${err}\nspawn: ${e.message}` }));
-    p.on('close', (code) => res({ code, out, err }));
+    p.on('error', (e) => res({ code: -1, out, err: `${err}\nspawn: ${e.message}`,
+                               spawnFailed: e.message }));
+    p.on('close', (code) => res({ code, out, err, spawnFailed: '' }));
   });
 }
 
@@ -366,6 +376,34 @@ export async function preflightToolchain({ nodeBin, runtime, avm, ctWriter }) {
   // INTERPRETER refused to start is a direct measurement that every replay this
   // watch makes will refuse to start as well. A probe that started and then
   // failed to find or import a module is the layout case, and stays a note.
+  //
+  // ── AND THE SPLIT IS ITSELF IN TWO, BECAUSE `code !== 0` WAS TWO FACTS ────
+  //
+  // `run` reports a spawn failure as `code: -1`, so "node 20 rejected the flag"
+  // and "there is no such file" reached this branch identically and got node
+  // 20's diagnosis — "`--experimental-wasm-exnref` needs Node 22 or newer" — for
+  // a `--node` that was a typo, a stale nix store path or an unset variable.
+  // That is the misdiagnosis class this repository has now paid for three times
+  // (`putIfAbsent`'s 412 substring, `costLabel`'s restated join, the suffix
+  // allowlist): a remedy naming the one cause that is not true.
+  //
+  // It is also what let this gate's own selftest pass while testing nothing. The
+  // negative arm pointed `nodeBin` at `/bin/false`, which does not exist on
+  // NixOS — `/bin` holds only `sh` — so the arm was satisfied by ENOENT rather
+  // than by the behaviour it names, and nothing could tell the difference.
+  // Both refuse, because a `--node` that cannot be executed cannot replay
+  // either; they refuse with DIFFERENT WORDS, which is what makes the arm that
+  // asserts the flag diagnosis fail when it is pointed at an absent binary.
+  if (r.spawnFailed) {
+    return { ok: false, problems: [
+      `this \`--node\` could not be executed at all: spawning \`${nodeBin}\` failed ` +
+      `with "${r.spawnFailed}". Nothing was measured about the replay driver — the ` +
+      `interpreter never started — and every replay this watch makes spawns that same ` +
+      `path, so the watch would catch transactions inside the replayable window and ` +
+      `record each one as \`refused\`, consuming bodies that prune within the hour. ` +
+      `Check the path itself before checking its version: pass \`--node\` an ` +
+      `executable that exists.`] };
+  }
   if (r.code !== 0) {
     const said = `${r.err ?? ''}`.trim().split('\n')[0] || out.slice(0, 200) || `exit ${r.code}`;
     return { ok: false, problems: [
