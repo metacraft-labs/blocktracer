@@ -375,3 +375,169 @@ baselines to compare against**. That is why the before/after set here was read
 by eye as well as hash-diffed, and why §3's declined changes are written down
 rather than left to be rediscovered: on this axis the record IS the regression
 test.
+
+## 6. The review round this pass skipped, run afterwards
+
+§5 is a *verification* record — it proves the tree builds and the checks pass.
+It is not a review. The pass that produced §§1–5 captured 52 images of 13
+explorer views at two viewports and read **five pairs by eye**, and no review
+round, no iteration and no quality gate were run before the change merged. This
+section is the review, run against `dev` after the fact, and it corrects three
+claims made above.
+
+### 6.1 What was captured, and how much of it was read
+
+| | §§1–5 pass | This round |
+| --- | --- | --- |
+| Named views in `views.mjs` | — | **85** (51 `ready`, 34 `pending`) |
+| Views captured | 13 | **51 of 51 ready** |
+| Viewports | 2 of 4 | **4 of 4** |
+| Themes | 2 | 2 |
+| Images per state | 52 | **308** |
+| States captured | 1 | **3** — pre-tint, tint, and the fix below |
+| Images read by a reviewer | 5 pairs | **802 before/after crops + 126 fix crops**, by 22 disposable sub-agents |
+
+`85 × 4 × 2 = 680` is **not** the breadth of a full run and should not be quoted
+as one: 34 views are `pending`, and many `ready` views declare their own viewport
+subset (the debugger is `wide`/`laptop` only, `--narrow` is `tablet`/`mobile`
+only). The full ready corpus is **308** images, and `check-coverage` agrees.
+
+### 6.2 The instrument was checked before the result was believed
+
+Two independent full capture runs of the *same* tree produced **308 of 308
+byte-identical** images, so the before/after differences below are the product
+and not the runner. The determinism canary passes on this machine and correctly
+reports itself `ADVISORY` rather than tier-1, for the darwin reason VD.0 records.
+
+Two views were observed to drift **across** capture sessions before that control
+was established, and both are worth recording because neither is in the canary
+set and nothing else would have caught them:
+
+* `search` — the exported page shipped the *"Search is not running on this site"*
+  degraded notice in some builds and the working resolver in others, changing the
+  page height by 22px. The freshness gate on `/assets/search.js` decides which,
+  and `just export`'s dependency on `search-bundle` does not always re-run it.
+* `debugger--testnet-frames` — the source pane opened on line 76 in one build and
+  line 84 in another, an 87,000-pixel difference on one image.
+
+Neither is caused by this pass. Both mean the corpus is not reproducible from an
+arbitrary build state, which is a gap in what the canary certifies: its five
+triples are all explorer views, so it measures nothing about the debugger
+register or about bundle freshness.
+
+### 6.3 The finding that matters: `.tablewrap` had no border to be held by
+
+T-2's stated rationale is that these containers are *"held by their hairline and
+header tone"*. **That was false for `.tablewrap`, and the review found it in the
+pixels before it was explained in the CSS.** Five reviewers, working from
+different view families and unaware of each other, independently named the table
+container's missing edge as the weakest element on the page.
+
+The cause is not elevation at all. `.tablewrap` carries a right-edge scroll mask
+with `mask-clip: padding-box`. A mask clips everything the element paints outside
+its clip box, and a border is outside the *padding* box — so the hairline this
+rule has always declared had **never been painted**, on any route, in either
+theme, before or during this pass. Reproduced in an isolated page:
+
+| `mask-clip` | left edge, sampled mid-height |
+| --- | --- |
+| no mask at all | shadow ramp, then hairline, then surface |
+| `padding-box` (what shipped) | canvas straight to surface — **no hairline, no shadow** |
+| `border-box` | canvas, **hairline**, surface — shadow still clipped |
+
+Two consequences, and the second is a correction to §2:
+
+1. It is a **pre-existing** defect. The pre-tint build has no table hairline
+   either. T-2 did not cause it; T-2's argument merely assumed its way out of it.
+2. **T-2's removal of `.tablewrap`'s `box-shadow` changed no pixel.** The same
+   clip was already discarding it. The 1.24:1 measurement §4 offers for that
+   container is a measurement of a declaration with no rendered effect. The
+   removal still stands — a shadow is wrong for a pane — but it was not the
+   change the numbers described.
+
+**Fixed here**, as one declaration: `mask-clip: border-box`. It restores the
+hairline on the left, top and bottom; it does **not** restore a shadow, which
+paints outside the border box and stays clipped; the right-edge fade is
+untouched, which matters because that fade is the one overflow in this product
+deliberately made visible. Measured: 94 of 308 images move, across exactly the 14
+views that render a table, **zero change in image geometry**, and it costs the
+same in both themes (144,214 light against 144,013 dark changed pixels) because a
+border is not a shadow. Three confirmation reviewers over 126 crops returned *fix
+is good*, unanimously, with the fade's ramp identical to within 1/255.
+
+### 6.4 What the review upheld
+
+The rest of the pass survives, and now with rendered evidence rather than five
+pairs:
+
+* **The radius ladder (T-1) is right.** Every rung moved together and the
+  container-to-chip ratio is preserved exactly (12:6 became 8:4). Reviewers
+  measured the arcs rather than taking the claim: no rung was orphaned and no
+  component reads as foreign to its neighbours. On the *debugger* pages the
+  shared `.btn` moved **onto** the rung the debugger's own step-control groups
+  already used — the explorer arrived where the debugger was, which is the
+  direction §1 asks for.
+* **`.debugcard`'s drop from `overlay` to `raised` stands.** It was contested at
+  P2 on the `--absent` and `--unsupported` variants, where the card carries no
+  action and nothing now marks it as the page's principal object. Referred to an
+  adversarial reviewer, which **downgraded it to P3**: on those two variants
+  there *is* no action and none is coming, so the card is an explanatory panel
+  and belongs at panel elevation. Restoring a modal shadow there would make the
+  most elevated object on the page the one that says there is nothing to do.
+  The reviewer's better-framed version of the concern is recorded below.
+* **T-2 costs dark nothing at all.** Both elevation rungs composite to the canvas
+  colour over a dark page — 1.000:1 — so the removed shadows were rendering zero
+  pixels there. Every dark-theme reviewer confirmed it independently by scanning
+  the perimeter outside each container: no shadow band exists in either half.
+
+### 6.5 The light-theme asymmetry, measured across the whole corpus
+
+§2 states, against its own case, that *"in light the shadow's stacked peak was
+marginally stronger than the fill step, so light does give up a real if faint
+third channel; dark gives up nothing at all."* **That is correct, and the full
+corpus quantifies how lopsided it is.** Over 154 view/size pairs the tint moves
+
+| | changed pixels |
+| --- | --- |
+| light | 2,448,345 |
+| dark | 185,221 |
+| ratio | **13.2×** |
+
+with the two themes differing in *kind* and not only in degree: light's change is
+broad and soft (mean delta ≈7/255 over a large area — a removed shading), dark's
+is narrow and sharp (mean delta ≈34/255 — corner geometry only). In dark the tint
+is, to a good approximation, a pure radius change.
+
+**A note on the instrument, because it under-read the change it was used to
+justify.** §4 argues T-2 from *peak contrast ratios*, which is the wrong measure
+for a shadow: a shadow's signal is spatial extent times gradient, not its darkest
+pixel. Peak contrast said the `.debugcard` demotion was worth 0.09 of a ratio
+point; the pixels say it moved 49,153 of them on one card, because the blur
+radius collapsed roughly threefold. Both numbers are true and only the second
+describes what a reader sees. Where a future pass argues about elevation, it
+should integrate over the affected area as well as quote a peak.
+
+### 6.6 Left open, deliberately
+
+Recorded rather than fixed, because each needs a decision this pass does not own:
+
+* **The state pill is the weakest element on the transaction page.** "Not
+  observable" / "No recorder" is small, low-contrast, and on the `--absent` and
+  `--unsupported` variants it is the *only* mark identifying an otherwise
+  unlabelled box — the page's whole trace verdict rests on its faintest
+  component. If it is addressed, the differentiator must be a heading or a tonal
+  fill, not elevation; the `.debugcard` is the one card on that page with no
+  section heading.
+* **`--bt-border-subtle` and `--bt-surface-sunken` are the same value in dark**,
+  so the row divider under a `.dl` label cell is invisible against the cell's own
+  background. A colour question, out of scope here by instruction.
+* **The dark table header band** sits 13/255 above the row surface, so the
+  "header tone" half of T-2's rationale is much weaker in dark than the hairline
+  now beside it.
+* **The debugger's inert phase chips kept their stadium radius** while every
+  actionable control near them stepped down, so the thing you cannot click is now
+  the rounder one. Two pixels on a 28px control; it does not mislead, but it is
+  the one place the toolbar stops reading as one ladder.
+* **The ladder has no headroom left.** Three rungs now live inside 4px, and a 4px
+  chip inside a 6px panel is near the floor at which nesting reads as hierarchy
+  rather than as two flat rectangles. A further step down is not available.
