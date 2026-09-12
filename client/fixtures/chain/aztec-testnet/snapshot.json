@@ -1,5 +1,5 @@
 {
- "format": "blocktracer/chain-snapshot@1",
+ "format": "blocktracer/chain-snapshot@2",
  "provenance": {
   "kind": "live-capture",
   "chain": "aztec-testnet",
@@ -57,9 +57,24 @@
   "replayed": 24,
   "divergent": 1,
   "refused": 1,
-  "pruned": 25,
+  "pruned": 835,
   "tracesPublished": 25,
-  "captureSessions": 20
+  "captureSessions": 20,
+  "refusals": {
+   "not-first-in-block": 4,
+   "body-unavailable": 835,
+   "body-source-unreachable": 0,
+   "artifact-unresolvable": 0,
+   "prestate-unavailable": 0,
+   "runtime-refused": 1,
+   "no-container-written": 0,
+   "not-attempted": 1
+  },
+  "refusalsTotal": 841,
+  "refusalsUnclassified": 0,
+  "privateOnly": 0,
+  "untraced": 841,
+  "accountedFor": 866
  },
  "blocks": [
   {

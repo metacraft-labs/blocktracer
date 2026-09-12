@@ -1,5 +1,5 @@
 {
- "format": "blocktracer/chain-snapshot@1",
+ "format": "blocktracer/chain-snapshot@2",
  "provenance": {
   "kind": "live-capture",
   "chain": "aztec-testnet-frames",
@@ -31,10 +31,25 @@
   "bodyRetained": 8,
   "replayed": 6,
   "divergent": 0,
-  "refused": 2,
+  "refused": 0,
   "pruned": 0,
   "tracesPublished": 6,
-  "captureSessions": 8
+  "captureSessions": 8,
+  "refusals": {
+   "not-first-in-block": 0,
+   "body-unavailable": 0,
+   "body-source-unreachable": 0,
+   "artifact-unresolvable": 0,
+   "prestate-unavailable": 0,
+   "runtime-refused": 0,
+   "no-container-written": 0,
+   "not-attempted": 0
+  },
+  "refusalsTotal": 0,
+  "refusalsUnclassified": 0,
+  "privateOnly": 2,
+  "untraced": 0,
+  "accountedFor": 8
  },
  "blocks": [
   {
@@ -1173,11 +1188,10 @@
     "replayableTo": 69342
    },
    "replayed": false,
-   "outcome": "refused",
+   "outcome": "private-only",
    "refusal": "TypeError",
-   "reason": "This transaction could not be re-executed: the replay runtime refused with TypeError. No trace was recorded for it.",
-   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')",
-   "refusalReason": "runtime-refused"
+   "reason": "This transaction has no public execution to trace. Its private half ran in a wallet and was proved there; what the chain published for it in block 69342 is the effects of that proof and nothing else, so there is no public bytecode, no enqueued call and no execution to re-run. Nothing declined this transaction — the execution was never public.",
+   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')"
   },
   {
    "txHash": "0x11d0bb0f57329746e30f1a473a55ac58e4c0c3df9eb7e5e648e3f6282c10fbde",
@@ -1196,11 +1210,10 @@
     "replayableTo": 69339
    },
    "replayed": false,
-   "outcome": "refused",
+   "outcome": "private-only",
    "refusal": "TypeError",
-   "reason": "This transaction could not be re-executed: the replay runtime refused with TypeError. No trace was recorded for it.",
-   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')",
-   "refusalReason": "runtime-refused"
+   "reason": "This transaction has no public execution to trace. Its private half ran in a wallet and was proved there; what the chain published for it in block 69339 is the effects of that proof and nothing else, so there is no public bytecode, no enqueued call and no execution to re-run. Nothing declined this transaction — the execution was never public.",
+   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')"
   },
   {
    "txHash": "0x27e48c9c66661851a5437df2a8b8155877af1f1ceb34c2407f66fa7789f09b14",
@@ -1329,8 +1342,8 @@
    ]
   }
  ],
- "captures": {
-  "0": {
+ "captures": [
+  {
    "capturedAt": "2026-09-04T16:17:37.664Z",
    "by": "tools/chain/follow-chain.mjs",
    "window": {
@@ -1349,7 +1362,7 @@
     }
    ]
   },
-  "1": {
+  {
    "capturedAt": "2026-09-04T16:20:52.279Z",
    "by": "tools/chain/follow-chain.mjs",
    "window": {
@@ -1368,7 +1381,7 @@
     }
    ]
   },
-  "2": {
+  {
    "capturedAt": "2026-09-04T16:24:04.070Z",
    "by": "tools/chain/follow-chain.mjs",
    "window": {
@@ -1387,7 +1400,7 @@
     }
    ]
   },
-  "3": {
+  {
    "capturedAt": "2026-09-04T16:30:30.089Z",
    "by": "tools/chain/follow-chain.mjs",
    "window": {
@@ -1406,7 +1419,7 @@
     }
    ]
   },
-  "4": {
+  {
    "capturedAt": "2026-09-04T16:41:19.440Z",
    "by": "tools/chain/follow-chain.mjs",
    "window": {
@@ -1425,7 +1438,7 @@
     }
    ]
   },
-  "5": {
+  {
    "capturedAt": "2026-09-04T16:42:27.698Z",
    "by": "tools/chain/follow-chain.mjs",
    "window": {
@@ -1444,7 +1457,7 @@
     }
    ]
   },
-  "6": {
+  {
    "capturedAt": "2026-09-04T16:44:38.743Z",
    "by": "tools/chain/follow-chain.mjs",
    "window": {
@@ -1463,7 +1476,7 @@
     }
    ]
   },
-  "7": {
+  {
    "capturedAt": "2026-09-04T16:44:42.566Z",
    "by": "tools/chain/follow-chain.mjs",
    "window": {
@@ -1482,5 +1495,5 @@
     }
    ]
   }
- }
+ ]
 }

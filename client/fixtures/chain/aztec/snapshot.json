@@ -1,5 +1,5 @@
 {
- "format": "blocktracer/chain-snapshot@1",
+ "format": "blocktracer/chain-snapshot@2",
  "provenance": {
   "kind": "live-capture",
   "chain": "aztec",
@@ -34,10 +34,25 @@
   "bodyRetained": 11,
   "replayed": 2,
   "divergent": 0,
-  "refused": 9,
+  "refused": 4,
   "pruned": 77,
   "tracesPublished": 2,
-  "captureSessions": 11
+  "captureSessions": 11,
+  "refusals": {
+   "not-first-in-block": 0,
+   "body-unavailable": 77,
+   "body-source-unreachable": 0,
+   "artifact-unresolvable": 0,
+   "prestate-unavailable": 0,
+   "runtime-refused": 4,
+   "no-container-written": 0,
+   "not-attempted": 0
+  },
+  "refusalsTotal": 81,
+  "refusalsUnclassified": 0,
+  "privateOnly": 5,
+  "untraced": 81,
+  "accountedFor": 88
  },
  "blocks": [
   {
@@ -38440,11 +38455,10 @@
     "replayableTo": 67764
    },
    "replayed": false,
-   "outcome": "refused",
+   "outcome": "private-only",
    "refusal": "TypeError",
-   "reason": "This transaction could not be re-executed: the replay runtime refused with TypeError. No trace was recorded for it.",
-   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')",
-   "refusalReason": "runtime-refused"
+   "reason": "This transaction has no public execution to trace. Its private half ran in a wallet and was proved there; what the chain published for it in block 67764 is the effects of that proof and nothing else, so there is no public bytecode, no enqueued call and no execution to re-run. Nothing declined this transaction — the execution was never public.",
+   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')"
   },
   {
    "txHash": "0x09a4747dadbf0b2a1ae4c462e60d0da4725614a68a4b20ae82a6fb1370d2324a",
@@ -38509,11 +38523,10 @@
     "replayableTo": 68048
    },
    "replayed": false,
-   "outcome": "refused",
+   "outcome": "private-only",
    "refusal": "TypeError",
-   "reason": "This transaction could not be re-executed: the replay runtime refused with TypeError. No trace was recorded for it.",
-   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')",
-   "refusalReason": "runtime-refused"
+   "reason": "This transaction has no public execution to trace. Its private half ran in a wallet and was proved there; what the chain published for it in block 68048 is the effects of that proof and nothing else, so there is no public bytecode, no enqueued call and no execution to re-run. Nothing declined this transaction — the execution was never public.",
+   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')"
   },
   {
    "txHash": "0x00c67f6f41a5870eb280120ccc6e9288a876bc38630aa7a36346cc47753ed18d",
@@ -38772,11 +38785,10 @@
     "replayableTo": 70178
    },
    "replayed": false,
-   "outcome": "refused",
+   "outcome": "private-only",
    "refusal": "TypeError",
-   "reason": "This transaction could not be re-executed: the replay runtime refused with TypeError. No trace was recorded for it.",
-   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')",
-   "refusalReason": "runtime-refused"
+   "reason": "This transaction has no public execution to trace. Its private half ran in a wallet and was proved there; what the chain published for it in block 70176 is the effects of that proof and nothing else, so there is no public bytecode, no enqueued call and no execution to re-run. Nothing declined this transaction — the execution was never public.",
+   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')"
   },
   {
    "txHash": "0x01c9edb69532b4ba00fe50c0c5be065462dcc2824ce2508a29b648e8336dfa20",
@@ -38795,11 +38807,10 @@
     "replayableTo": 70178
    },
    "replayed": false,
-   "outcome": "refused",
+   "outcome": "private-only",
    "refusal": "TypeError",
-   "reason": "This transaction could not be re-executed: the replay runtime refused with TypeError. No trace was recorded for it.",
-   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')",
-   "refusalReason": "runtime-refused"
+   "reason": "This transaction has no public execution to trace. Its private half ran in a wallet and was proved there; what the chain published for it in block 70174 is the effects of that proof and nothing else, so there is no public bytecode, no enqueued call and no execution to re-run. Nothing declined this transaction — the execution was never public.",
+   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')"
   },
   {
    "txHash": "0x11946e88e1c3b716b667778aff03f807131cdf1ca508404eb428e14260eb5a2a",
@@ -38818,11 +38829,10 @@
     "replayableTo": 70178
    },
    "replayed": false,
-   "outcome": "refused",
+   "outcome": "private-only",
    "refusal": "TypeError",
-   "reason": "This transaction could not be re-executed: the replay runtime refused with TypeError. No trace was recorded for it.",
-   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')",
-   "refusalReason": "runtime-refused"
+   "reason": "This transaction has no public execution to trace. Its private half ran in a wallet and was proved there; what the chain published for it in block 70172 is the effects of that proof and nothing else, so there is no public bytecode, no enqueued call and no execution to re-run. Nothing declined this transaction — the execution was never public.",
+   "detail": "TypeError: Cannot read properties of undefined (reading 'nonRevertibleAccumulatedData')"
   },
   {
    "txHash": "0x0a8c077874d5c096e6cbfe483e583061810aca0a58f6a98875ad526dda60c75a",
