@@ -282,8 +282,11 @@ const arg = (name, dflt) => {
 };
 const flag = (name) => argv.includes(`--${name}`);
 
-const from = Number(arg('from', 0));
-const to = Number(arg('to', 0));
+// `undefined`, NOT `0` — see `ingest-range.mjs` for the full statement. A `0` default
+// makes "were numbers supplied" unaskable, and the `!from` guard below additionally
+// refused height zero, which is where a genesis-to-tip enumeration starts.
+const from = Number(arg('from', undefined));
+const to = Number(arg('to', undefined));
 const endpoint = arg('url', 'https://aztec.drpc.org');
 const network = arg('network', 'mainnet');
 const configRef = arg('config',
@@ -303,7 +306,7 @@ const bulkHeaders = flag('bulk-headers');
 const windowSize = Math.max(1, Number(arg('window', 1000)));
 const zeroSample = Number(arg('zero-sample', 200));
 
-if (!from || !to || to < from) {
+if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
   console.error('usage: --from N --to M [--url U] [--network mainnet] [--config U] '
               + '[--save DIR] [--report PATH] [--concurrency N] [--max-bodies N] '
               + '[--sample-bodies N] [--prove-rejection]\n'
