@@ -64,6 +64,7 @@ import { join, resolve } from 'node:path';
 import { resolverPresence, refusalName, refusalDetail } from './lib/replay.mjs';
 import { classifyRefusal, refusalCounts, assertRefusalsAreClosed, refuseNotFirstInBlock,
          refuseBodyUnavailable } from './lib/refusal.mjs';
+import { SNAPSHOT_FORMAT } from './lib/snapshot-format.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -417,7 +418,7 @@ const transactions = rows.map((r) => {
 const refusals = refusalCounts(transactions);
 
 const snapshot = {
-  format: 'blocktracer/chain-snapshot@1',
+  format: SNAPSHOT_FORMAT,
   provenance: {
     // WHAT THIS IS, in the snapshot itself, so no consumer has to infer it.
     kind: 'live-capture',
@@ -425,9 +426,14 @@ const snapshot = {
     label,
     endpoint: url,
     capturedAt,
-    nodeVersion: nodeInfo.nodeVersion,
-    l1ChainId: nodeInfo.l1ChainId,
-    rollupVersion: nodeInfo.rollupVersion,
+    // `?? ''` on all four: `JSON.stringify` drops an `undefined`-valued key, so a node
+    // whose `getNodeInfo` omits one wrote a snapshot missing the member while this source
+    // said it wrote one. `rollupAddress` alone carried the fallback; a mainnet capture
+    // therefore shipped with no `l1ChainId` and `ingest.nim` raised `KeyError` reading it.
+    // See the same block in `follow-chain.mjs` for the reproduction.
+    nodeVersion: nodeInfo.nodeVersion ?? '',
+    l1ChainId: nodeInfo.l1ChainId ?? '',
+    rollupVersion: nodeInfo.rollupVersion ?? '',
     rollupAddress: nodeInfo.l1ContractAddresses?.rollupAddress ?? '',
     tool: 'tools/chain/capture-chain.mjs',
     runtimeCommit: (await run('git', ['rev-parse', 'HEAD'], runtime)).out.trim(),

@@ -59,8 +59,10 @@
 import { readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { refusalCounts, assertRefusalsAreClosed, refuseNotFirstInBlock,
+import { assertRefusalsAreClosed, refuseNotFirstInBlock,
          classifyRefusal } from './lib/refusal.mjs';
+import { recountSnapshot } from './lib/recount.mjs';
+import { assertReadableSnapshotFormat } from './lib/snapshot-format.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, dflt) => {
@@ -71,20 +73,36 @@ const flag = (name) => argv.includes(`--${name}`);
 
 const snapshotDir = arg('snapshot', '');
 const url = arg('url', '');
-const from = Number(arg('from', 0));
-const to = Number(arg('to', 0));
+// `undefined`, NOT `0` — the same correction `ingest-range.mjs` carries at length.
+// `Number(arg('from', 0))` is a finite `0` whether or not the flag was passed, so a
+// guard cannot ask whether numbers were SUPPLIED. Here it also refused height zero
+// outright (`!from`), which is the one height a genesis-to-tip pass starts at.
+// `Number(undefined)` is `NaN`, so absence fails `Number.isFinite` and reaches the
+// usage message while `--from 0` reaches the range.
+const from = Number(arg('from', undefined));
+const to = Number(arg('to', undefined));
 const checkpoint = Number(arg('checkpoint', 100));
 const dryRun = flag('dry-run');
 
-if (!snapshotDir || !from || !to || to < from) {
+if (!snapshotDir || !Number.isFinite(from) || !Number.isFinite(to)
+    || from < 0 || to < from) {
   console.error('usage: --snapshot <dir> --from N --to M [--url U] [--checkpoint N] [--dry-run]');
   process.exit(2);
 }
 
 const snapPath = join(snapshotDir, 'snapshot.json');
 const snap = JSON.parse(readFileSync(snapPath, 'utf8'));
-if (snap.format !== 'blocktracer/chain-snapshot@1') {
-  console.error(`refusing: ${snapPath} is not a blocktracer/chain-snapshot@1`);
+// REFUSED BY NAME, AGAINST THE SHARED LIST. This was `!== 'blocktracer/chain-snapshot@1'`
+// against a literal of its own — a third copy of the version gate, in the tool whose job is
+// to rewrite a committed snapshot in place. `assertReadableSnapshotFormat` is the one
+// implementation (Data-Contract.md §3, §5.2). This tool does NOT promote the token: it adds
+// untraced rows through `classifyRefusal`, so every row IT writes carries the member, but an
+// `@1` file's existing rows are the migration's business and `assertRefusalsAreClosed` at
+// save time refuses rather than stamping a token over rows that do not meet it.
+try {
+  assertReadableSnapshotFormat(snap.format, snapPath);
+} catch (e) {
+  console.error(`refusing: ${e.message}`);
   process.exit(1);
 }
 
@@ -151,22 +169,24 @@ function save() {
   renameSync(tmp, snapPath);
 }
 
-function recount(s) {
-  // The per-reason counts are recomputed HERE as well as in `follow-chain.mjs`, because
-  // this tool adds untraced rows and a snapshot whose counts described a different set of
-  // rows than it holds is worse than one with no counts at all. Zero-filled over the whole
-  // closed set — see `refusalCounts`.
-  const refusals = refusalCounts(s.transactions);
-  s.counts = {
-    ...s.counts,
-    blocks: s.blocks.length,
-    blocksWithTransactions: s.blocks.filter((b) => b.transactions.length).length,
-    transactions: s.transactions.length,
-    refusals: refusals.byReason,
-    refusalsTotal: refusals.total,
-    refusalsUnclassified: refusals.unclassified,
-  };
-}
+// THE TALLY IS `lib/recount.mjs`'s, AND THIS IS THE COPY THAT DID THE DAMAGE.
+//
+// The comment this replaces said it right — "this tool adds untraced rows and a snapshot
+// whose counts described a different set of rows than it holds is worse than one with no
+// counts at all" — and then the code did the opposite: it spread `...s.counts` and
+// recomputed only `blocks`, `blocksWithTransactions`, `transactions` and the refusal block.
+// Every OUTCOME line therefore survived a run that added rows, by construction.
+//
+// Measured in the committed tree: `client/fixtures/chain/aztec-testnet/snapshot.json` began
+// as 51 transactions with `counts.pruned: 25`; a whole-history backfill added 815 rows,
+// every one of them untraced, and the file shipped `transactions: 866` beside
+// `pruned: 25` — 835 pruned rows counted as 25. Data-Contract.md §5.2 gives `counts` one
+// job, "so a partial ingest is detectable", so this was the detector reading clean on the
+// one condition it detects.
+//
+// `recountSnapshot` REPLACES the counts object rather than merging into it, which is the
+// whole difference: a field that is not derived on every call is not published.
+const recount = recountSnapshot;
 
 let addedBlocks = 0;
 let addedTxs = 0;

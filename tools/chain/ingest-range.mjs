@@ -81,9 +81,12 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 import { classifyRefusal, refusalCounts, assertRefusalsAreClosed, refuseNotFirstInBlock,
-         refuseBodyUnavailable, chainPublishedNoPublicExecution } from './lib/refusal.mjs';
+         refuseBodyUnavailable, refuseBodySourceUnreachable,
+         chainPublishedNoPublicExecution } from './lib/refusal.mjs';
 import { preflightToolchain, replayTransaction } from './lib/replay.mjs';
 import { startBodyProxy } from './lib/body-proxy.mjs';
+import { recountSnapshot } from './lib/recount.mjs';
+import { SNAPSHOT_FORMAT } from './lib/snapshot-format.mjs';
 import { storeBasePath } from './backfill-bodies.mjs';
 
 const argv = process.argv.slice(2);
@@ -97,8 +100,23 @@ const url = arg('url', 'https://aztec-testnet.drpc.org');
 const chain = arg('chain', url.includes('testnet') ? 'aztec-testnet' : 'aztec-mainnet');
 const label = arg('label', chain === 'aztec-testnet' ? 'Real Aztec testnet data'
   : 'Real Aztec mainnet data');
-const from = Number(arg('from', 0));
-const to = Number(arg('to', 0));
+// ── ABSENCE HAS TO BE DISTINGUISHABLE FROM ZERO, AND `0` IS NOT ─────────────
+//
+// These defaulted to `0`, so `Number(arg('from', 0))` was a finite `0` whether or
+// not `--from` was passed — and the guard below, which exists to ask "were numbers
+// supplied", could not. `node tools/chain/ingest-range.mjs` with NO ARGUMENTS
+// therefore passed the guard and silently ingested range 0..0 against the default
+// testnet endpoint, writing a state directory, a range, a ledger entry and a
+// publish attempt, instead of printing the usage the guard below was written to
+// print. That contradicts the comment on the guard in the same breath as it.
+//
+// `undefined` is the honest default: `Number(undefined)` is `NaN`, which
+// `Number.isFinite` rejects, so an absent flag reaches the usage message and
+// `--from 0` reaches the range. The guard keeps admitting height zero — that is
+// the one height a genesis-to-tip pass starts at, and refusing it was the previous
+// defect here.
+const from = Number(arg('from', undefined));
+const to = Number(arg('to', undefined));
 const pad = Number(arg('pad', 9));
 const stateDir = resolve(arg('state', `.chain-state/${chain}`));
 const ingestBin = arg('ingest-bin', 'blocktracer-chain-ingest');
@@ -152,6 +170,13 @@ const replayRps = Number(arg('replay-rps', rps > 0 ? String(rps) : '6'));
 const network = arg('network', chain.includes('testnet') ? 'testnet' : 'mainnet');
 const bodyStore = arg('body-store', '');
 const bodyDir = arg('body-dir', join(stateDir, 'bodies'));
+// The body source's own patience, separate from the node's. It is a different host with a
+// different owner and — for Aztec — no failover at all (Chain-Data-Ingestion.md §4.8), so
+// "how long do we wait for a body" is not the same operator decision as "how fast may we
+// poll the node". Past these the run ENDS, and every row it did not reach says
+// `body-source-unreachable` rather than claiming a permanent property of the chain.
+const storeAttempts = Math.max(1, Number(arg('store-attempts', '4')));
+const storeTimeoutMs = Math.max(1000, Number(arg('store-timeout-ms', '30000')));
 const configRef = arg('config',
   'https://raw.githubusercontent.com/AztecProtocol/networks/main/network_config.json');
 
@@ -492,15 +517,21 @@ async function fetchRange(nodeInfo, tip, finalized) {
 
   blocks.sort((a, b) => b.number - a.number);
   const snap = {
-    format: 'blocktracer/chain-snapshot@1',
+    format: SNAPSHOT_FORMAT,
     provenance: {
       kind: 'live-capture',
       chain, label, endpoint: url,
       capturedAt: new Date().toISOString(),
       firstCapturedAt: new Date().toISOString(),
-      nodeVersion: nodeInfo.nodeVersion,
-      l1ChainId: nodeInfo.l1ChainId,
-      rollupVersion: nodeInfo.rollupVersion,
+      // `?? ''` ON ALL FOUR. `rollupAddress` had it and the three beside it did not,
+      // and `JSON.stringify` drops an `undefined`-valued key — so a node whose
+      // `getNodeInfo` omits a field wrote a snapshot missing the member while this
+      // source said it wrote one, and `ingest.nim` read four of them by unguarded
+      // bracket access (a `KeyError` in Nim's `std/json`). Reproduced against a real
+      // mainnet capture; see the same block in `follow-chain.mjs` for the measurement.
+      nodeVersion: nodeInfo.nodeVersion ?? '',
+      l1ChainId: nodeInfo.l1ChainId ?? '',
+      rollupVersion: nodeInfo.rollupVersion ?? '',
       rollupAddress: nodeInfo.l1ContractAddresses?.rollupAddress ?? '',
       tool: 'tools/chain/ingest-range.mjs',
       range: { from, to },
@@ -555,38 +586,13 @@ function outcomeCounts(txs) {
   return o;
 }
 
-function recount(s) {
-  const by = (o) => s.transactions.filter((t) => t.outcome === o).length;
-  s.counts = {
-    blocks: s.blocks.length,
-    blocksWithTransactions: s.blocks.filter((b) => b.transactions.length).length,
-    transactions: s.transactions.length,
-    bodyRetained: s.transactions.filter((t) => t.bodyRetained).length,
-    replayed: by('replayed'),
-    divergent: by('divergent'),
-    refused: by('refused'),
-    pruned: by('pruned'),
-  };
-  s.counts.tracesPublished = s.counts.replayed + s.counts.divergent;
-  s.counts.captureSessions = (s.captures ?? []).length;
-  // ING-3's per-reason counts, zero-filled over the whole closed set. The four
-  // outcome lines above are not a partition — `not-first-in-block` and
-  // `not-attempted` appear in none of them — so `accountedFor` is the figure
-  // that has to equal `transactions`, and it is published rather than asserted
-  // because a count is a measurement. `assertRefusalsAreClosed` is the gate.
-  const refusals = refusalCounts(s.transactions);
-  s.counts.refusals = refusals.byReason;
-  s.counts.refusalsTotal = refusals.total;
-  s.counts.refusalsUnclassified = refusals.unclassified;
-  // UNTRACED AND NOT REFUSED, KEPT APART FROM BOTH. A private-only transaction has no public
-  // execution to trace, so it is neither a trace nor a refusal — and folding it into either
-  // would make one of the two numbers a lie. `accountedFor` ranges over all three, and it is
-  // the figure that must equal `transactions`.
-  s.counts.privateOnly = refusals.chainAbsent;
-  s.counts.untraced = refusals.total + refusals.unclassified;
-  s.counts.accountedFor =
-    s.counts.tracesPublished + s.counts.untraced + s.counts.privateOnly;
-}
+// THE TALLY IS `lib/recount.mjs`'s, and it used to be this file's own copy of it. Three
+// producers had three copies and they had drifted — one omitted `privateOnly`, one
+// preserved every outcome line across a run that added rows — and the drift reached
+// committed data. See that module's header: a snapshot's `counts` exists "so a partial
+// ingest is detectable" (Data-Contract.md §5.2), so a restatable tally is a detector with
+// more than one answer.
+const recount = recountSnapshot;
 
 // ── phase 1b: replay what the range can replay ──────────────────────────────
 //
@@ -653,7 +659,8 @@ async function replayRange(dir) {
 
   const proxy = await startBodyProxy({
     upstreamUrl: url, runtime, storeBase: base, storeBasePath: basePath,
-    bodyDir, rps: replayRps, log: (m) => say(`proxy: ${m}`),
+    bodyDir, rps: replayRps, storeAttempts, storeTimeoutMs,
+    log: (m) => say(`proxy: ${m}`),
   });
 
   const runtimeCommit = (() => {
@@ -664,6 +671,14 @@ async function replayRange(dir) {
   const perTxMs = [];
   let attempted = 0;
   let stoppedBy = null;
+  // THE TWO STORE FACTS THAT REACH THE REPORT AND THE EXIT CODE. `storeOutcome` and
+  // `storeReason` were written onto rows and read by nothing — the review's finding, and
+  // a field with no consumer is a field nobody notices going wrong. These are the
+  // consumers: `storeUnreachable` is how much of the range is outstanding for want of a
+  // host, and `mismatchedBodies` is a corpus contradiction, which the driver turns into a
+  // non-zero exit the way `backfill-bodies.mjs` already does.
+  let storeUnreachable = 0;
+  const mismatchedBodies = [];
   mkdirSync(join(dir, 'ct'), { recursive: true });
   mkdirSync(join(dir, 'sources'), { recursive: true });
 
@@ -705,10 +720,66 @@ async function replayRange(dir) {
     // second case — a crash that has to be INTERPRETED rather than measured.
     const seen = await proxy.inspect(t.txHash);
 
+    // ── FOUR STORE OUTCOMES, AND THEY ARE NOT ONE FACT ────────────────────
+    //
+    // This was `if (seen.outcome !== 'verified')` into `refuseBodyUnavailable`
+    // for all four of `absent`, `mismatched`, `truncated` and `unavailable`.
+    // `backfill-bodies.mjs`'s own header states at length why that collapse is
+    // wrong — "one says the corpus has a hole, the other says the corpus lied",
+    // and `unavailable` "is a statement about the RUN, not about the corpus" —
+    // and this seam folded all of it back together at the one place where the
+    // answer is PUBLISHED. `body-unavailable` is declared durability
+    // `permanent`, so a store 503, a 429 or a TLS failure published "this
+    // transaction can never be re-executed" about a body the store holds.
+    if (seen.outcome === 'unavailable') {
+      // A STATEMENT ABOUT THE RUN. Repairable, and it says what to do about it.
+      Object.assign(t, refuseBodySourceUnreachable({
+        blockNumber: t.blockNumber,
+        storeOutcome: seen.outcome, storeReason: seen.reason,
+        where: 'ingest-range.mjs replayRange',
+      }), { storeOutcome: seen.outcome, storeReason: seen.reason });
+      storeUnreachable++;
+      // AND IT CAN END THE RUN, exactly as the node path's throttle does. The
+      // proxy sets this when the store asked for longer than the honoured wait
+      // or stopped answering altogether; continuing would meet the same host
+      // for every remaining key and write this reason onto the whole range.
+      if (proxy.storeThrottled) {
+        stoppedBy = 'body-store-unreachable-this-run';
+        break;
+      }
+      continue;
+    }
+
+    if (seen.outcome === 'mismatched') {
+      // ── "THE CORPUS LIED", AND IT IS AN ALARM HERE TOO ──────────────────
+      //
+      // A 200 whose leading 32 bytes are some other hash is a miss wearing a
+      // success, and it is the one failure the whole single-source trust model
+      // rests on catching: `Tx.toBuffer()` serialises `txHash` first, so on a
+      // correct payload those bytes ARE the key. `backfill-bodies.mjs` exits 1
+      // on it — "the exit code says whether the JOIN HELD" — and this seam
+      // filed it as `body-unavailable` and exited 0, so the mirroring tool
+      // treated it as a contradiction and the publishing path treated it as a
+      // pruned body. Two tools, one corpus, opposite verdicts.
+      //
+      // The row still gets an honest reason so the page is not blank, and the
+      // RUN is what fails: this is not a property of the transaction.
+      Object.assign(t, refuseBodyUnavailable({
+        blockNumber: t.blockNumber,
+        observedAs: `the keyless transaction file store answered a 200 for its key whose `
+          + `leading 32 bytes are a DIFFERENT transaction hash, which is not a body`,
+        where: 'ingest-range.mjs replayRange',
+      }), { storeOutcome: seen.outcome, storeReason: seen.reason });
+      mismatchedBodies.push({ txHash: t.txHash, blockNumber: t.blockNumber,
+                              reason: seen.reason });
+      continue;
+    }
+
     if (seen.outcome !== 'verified') {
-      // The node prunes bodies and the file store does not hold this one either,
-      // so nothing serves it. That is `body-unavailable`, permanent, and it is
-      // the ONE case where the old `pruned` sentence was right all along.
+      // `absent` — the store answered 404 — or `truncated`, a 200 that is not a
+      // body. The node prunes bodies and the file store does not hold this one
+      // either, so nothing serves it. That is `body-unavailable`, permanent, and
+      // it is the ONE case where the old `pruned` sentence was right all along.
       Object.assign(t, refuseBodyUnavailable({
         blockNumber: t.blockNumber,
         observedAs: `the keyless transaction file store — which serves bodies for the rest `
@@ -776,8 +847,15 @@ async function replayRange(dir) {
   if (stoppedBy) {
     for (const t of snap.transactions) {
       if (t.outcome !== 'not-attempted' || !t.firstInBlock) continue;
+      // A ROW THIS RUN ALREADY DECIDED IS NOT A ROW IT DID NOT REACH. `not-attempted` is
+      // the OUTCOME of both "never looked at" and `body-source-unreachable`, so this loop
+      // — whose whole subject is the rows the run's own limit stopped it reaching — would
+      // otherwise overwrite a measured store outage with a sentence claiming the body is
+      // served and nobody asked. The reason id is what distinguishes them.
+      if (t.refusalReason !== 'not-attempted') continue;
       Object.assign(t, classifyRefusal({
-        condition: stoppedBy,
+        condition: stoppedBy === 'body-store-unreachable-this-run'
+          ? 'body-source-could-not-be-asked' : stoppedBy,
         where: 'ingest-range.mjs replayRange',
         narrative: stoppedBy === 'endpoint-throttled-this-run'
           ? `This transaction is first in block ${t.blockNumber} and its body is served by `
@@ -785,6 +863,13 @@ async function replayRange(dir) {
             + `The node endpoint began rate-limiting this client before the run reached it `
             + `and the run stopped rather than record a limit of ours as a property of the `
             + `chain. Re-running this range replays it.`
+          : stoppedBy === 'body-store-unreachable-this-run'
+          ? `This transaction is first in block ${t.blockNumber}, so it can be re-executed `
+            + `from published data. The source that serves transaction bodies stopped `
+            + `answering this client before the run reached this transaction, and the run `
+            + `stopped rather than record somebody else's outage as a permanent property `
+            + `of the chain. Nothing is known here about whether the body is held; `
+            + `re-running this range asks again.`
           : `This transaction is first in block ${t.blockNumber} and its body is served by `
             + `the keyless transaction file store, so it is replayable from published data. `
             + `This run reached its own --replay-max of ${replayMax} before taking it. `
@@ -818,6 +903,15 @@ async function replayRange(dir) {
     privateOnly: outcomes['private-only'] ?? 0,
     bodyUnavailable: outcomes.pruned ?? 0,
     notAttempted: outcomes['not-attempted'] ?? 0,
+    // ── THE STORE'S OWN ANSWERS, NOW WITH A CONSUMER ────────────────────────────────
+    //
+    // `storeOutcome` / `storeReason` were written onto rows and read by nothing. These
+    // are the two facts they carry that a run has to act on: how much of the range is
+    // outstanding for want of a host (repairable, and the count IS the work queue), and
+    // whether the corpus contradicted itself. The second is a non-zero exit in the
+    // driver, matching `backfill-bodies.mjs`, which exits 1 on `counts.mismatched`.
+    bodySourceUnreachable: storeUnreachable,
+    mismatchedBodies,
     stoppedBy,
     wallMs: Date.now() - t0,
     perTxMs: perTxMs.length
@@ -864,7 +958,7 @@ function mergeSnapshots(keys) {
   const transactions = [...txByHash.values()].sort(
     (a, b) => a.blockNumber - b.blockNumber || a.txIndexInBlock - b.txIndexInBlock);
   const merged = {
-    format: 'blocktracer/chain-snapshot@1',
+    format: SNAPSHOT_FORMAT,
     provenance: { ...provenance, tool: 'tools/chain/ingest-range.mjs (merged)',
                   range: undefined, mergedRanges: keys.slice().sort() },
     captures, window, counts: {}, blocks, transactions,
@@ -1113,6 +1207,50 @@ if (doReplay) {
       + `GO SILENT AND WAIT — polling this endpoint extends the ban.`);
     console.log(JSON.stringify(report, null, 2));
     process.exit(3);
+  }
+  // ── THE BODY SOURCE IS THE OTHER HOST, AND IT GETS THE SAME TREATMENT ─────
+  //
+  // Exit 3 for the same reason: the range is half-done, everything done is
+  // saved, the rest says so in a repairable member, and the right next action is
+  // to wait rather than to walk into the next range against the same host. It is
+  // a DIFFERENT message because the host is different and so is the remedy — a
+  // mirror under Pipeline-Architecture §3.7 fixes this one and nothing fixes a
+  // node ban but time.
+  if (report.replay.stoppedBy === 'body-store-unreachable-this-run') {
+    console.error(`ingest-range: the transaction body source stopped answering during `
+      + `replay (${report.replay.replayed} traced before it did; `
+      + `${report.replay.bodySourceUnreachable} row(s) recorded `
+      + `body-source-unreachable`
+      + (report.replay.proxy.storeThrottledRetryAfterMs
+        ? `; it asked for `
+          + `${Math.round(report.replay.proxy.storeThrottledRetryAfterMs / 1000)}s`
+        : '')
+      + `). Those rows are REPAIRABLE and say nothing about the chain — re-running this `
+      + `range asks again. Aztec bodies have a single source with no failover `
+      + `(Chain-Data-Ingestion.md §4.8); the standing mitigation is a mirror.`);
+    console.log(JSON.stringify(report, null, 2));
+    process.exit(3);
+  }
+  // ── "THE CORPUS LIED" IS A CONTRADICTION AND NEVER A 0 ────────────────────
+  //
+  // `backfill-bodies.mjs` exits 1 on `counts.mismatched` because "the exit code
+  // says whether the JOIN HELD, not whether the run finished". This seam reads
+  // the same store through the same `classify` and used to exit 0 on it, so the
+  // mirroring tool and the publishing tool gave opposite verdicts about one
+  // corpus. Checked before the ingest so nothing derived from a store that
+  // answered a 200 for the wrong key is published.
+  if (report.replay.mismatchedBodies?.length) {
+    console.error(`ingest-range: the body source answered a 200 for `
+      + `${report.replay.mismatchedBodies.length} key(s) whose leading 32 bytes are a `
+      + `DIFFERENT transaction hash. Tx.toBuffer() serialises txHash first, so on a `
+      + `correct payload those bytes ARE the key: this is the corpus contradicting `
+      + `itself, not a missing body, and it is the one failure the single-source trust `
+      + `model exists to catch. Nothing is published from this run.`);
+    for (const m of report.replay.mismatchedBodies.slice(0, 10)) {
+      console.error(`  ${m.txHash}  block ${m.blockNumber}\n     ${m.reason}`);
+    }
+    console.log(JSON.stringify(report, null, 2));
+    process.exit(1);
   }
 }
 

@@ -103,8 +103,10 @@ import { join, resolve } from 'node:path';
 
 import { replayTransaction, run, preflightToolchain, completeBlockCount, completeBlockNumbers }
   from './lib/replay.mjs';
-import { refusalCounts, assertRefusalsAreClosed, refuseNotFirstInBlock,
+import { assertRefusalsAreClosed, refuseNotFirstInBlock,
          refuseBodyUnavailable } from './lib/refusal.mjs';
+import { recountSnapshot } from './lib/recount.mjs';
+import { SNAPSHOT_FORMAT, assertReadableSnapshotFormat } from './lib/snapshot-format.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -172,16 +174,31 @@ const log = (obj) => {
 // ── the snapshot, loaded or started ──────────────────────────────────────────────────
 async function loadSnapshot() {
   const p = join(snapDir, 'snapshot.json');
-  if (existsSync(p)) return JSON.parse(await readFile(p, 'utf8'));
-  // `@1`, deliberately, for a snapshot this tool STARTS as well as one it grows.
-  // `ingest.nim`'s `ingestSnapshot` refuses any other format string outright (grep
-  // `blocktracer/chain-snapshot@1` there), and everything this
-  // tool adds — `captures[]`, `transactions[].capturedAt`, `transactions[].capturedWindow`
-  // — is ADDITIVE: every key the ingest reads is still where it was and still means what
-  // it meant. Bumping the format here would be a second change, to another module's
-  // parser, buried inside this one.
+  if (existsSync(p)) {
+    const existing = JSON.parse(await readFile(p, 'utf8'));
+    // ── A SNAPSHOT THIS TOOL GROWS IS CHECKED BEFORE IT IS GROWN ──────────────────────
+    //
+    // It was read and appended to with no version test at all: the only gate was
+    // `ingest.nim`'s, hours later and one tool downstream, by which point rows written
+    // against the wrong assumption are in a committed file. A grower is as much a reader
+    // as the ingest is, so it refuses a token it does not know BY NAME here
+    // (Data-Contract.md §3, §5.2) rather than merging into it.
+    assertReadableSnapshotFormat(existing.format, p);
+    // AND IT WRITES `refusalReason` ON EVERY UNTRACED ROW IT ADDS — `assertRefusalsAreClosed`
+    // in `saveSnapshot` is the gate — so what it hands back is a `@2` snapshot whatever it
+    // was handed. Stamping the token here is how the promotion is stated rather than
+    // implied: the file now meets `@2`'s requirement, so it says `@2`. An `@1` file whose
+    // EXISTING rows do not carry the member is the migration's job, not this tool's — and
+    // `assertRefusalsAreClosed` refuses the save, naming the rows, rather than stamping a
+    // token over rows that do not meet it.
+    existing.format = SNAPSHOT_FORMAT;
+    return existing;
+  }
+  // `@2` for a snapshot this tool STARTS: every untraced row it writes carries a
+  // `refusalReason` by construction, because `classifyRefusal` is the only way it can
+  // produce one and `assertRefusalsAreClosed` runs in `saveSnapshot`.
   return {
-    format: 'blocktracer/chain-snapshot@1',
+    format: SNAPSHOT_FORMAT,
     provenance: { kind: 'live-capture', chain, label, endpoint: url },
     captures: [],
     window: null,
@@ -208,45 +225,13 @@ async function saveSnapshot(s) {
   await rename(tmp, p);
 }
 
-function recount(s) {
-  const by = (o) => s.transactions.filter((t) => t.outcome === o).length;
-  s.counts = {
-    blocks: s.blocks.length,
-    blocksWithTransactions: s.blocks.filter((b) => b.transactions.length).length,
-    transactions: s.transactions.length,
-    bodyRetained: s.transactions.filter((t) => t.bodyRetained).length,
-    replayed: by('replayed'),
-    divergent: by('divergent'),
-    refused: by('refused'),
-    pruned: by('pruned'),
-  };
-  // The two figures a page actually needs to tell the truth about this chain.
-  s.counts.tracesPublished = s.counts.replayed + s.counts.divergent;
-  s.counts.captureSessions = (s.captures ?? []).length;
-
-  // ── ING-3: THE PER-REASON COUNTS, ZERO-FILLED ────────────────────────────────────
-  //
-  // The four lines above are not a partition and never were. `not-first-in-block` is an
-  // outcome this very file writes, thirty lines down, and it appears in NONE of them — so
-  // `replayed + divergent + refused + pruned` has been quietly less than `transactions`
-  // for every snapshot that ever held one, with nothing anywhere noticing. That is not a
-  // missing sentence, it is a missing measurement, which is the shape of absence this
-  // milestone exists to close.
-  //
-  // `refusals.byReason` carries EVERY member of the closed set on every snapshot,
-  // including the ones at zero. An absent key would read as "this reason does not exist
-  // here"; a published zero reads as "this reason exists and has not fired", so the first
-  // `not-first-in-block: 1` on Aztec mainnet is a diff against a line that was already
-  // being watched rather than a key nobody knew to look for.
-  const refusals = refusalCounts(s.transactions);
-  s.counts.refusals = refusals.byReason;
-  s.counts.refusalsTotal = refusals.total;
-  s.counts.refusalsUnclassified = refusals.unclassified;
-  // The reconciliation the old block could not state. Published rather than asserted here
-  // because a count is a measurement; `assertRefusalsAreClosed` at save time is the gate.
-  s.counts.untraced = refusals.total + refusals.unclassified;
-  s.counts.accountedFor = s.counts.tracesPublished + s.counts.untraced;
-}
+// THE TALLY IS `lib/recount.mjs`'s. This file carried its own copy, `ingest-range.mjs`
+// carried a second and `backfill-blocks.mjs` a third, and they had drifted: THIS one had no
+// `privateOnly` line, so its `accountedFor` omitted every chain-absent row and could not
+// equal `transactions` on a snapshot holding one — which is precisely the reconciliation
+// the comment it replaced said it was there to make. Three spellings of one measurement is
+// three answers to "is this ingest partial".
+const recount = recountSnapshot;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -434,9 +419,30 @@ async function main() {
         chain, label, endpoint: url,
         capturedAt,
         firstCapturedAt: snap.provenance?.firstCapturedAt ?? priorCapturedAt ?? capturedAt,
-        nodeVersion: nodeInfo.nodeVersion,
-        l1ChainId: nodeInfo.l1ChainId,
-        rollupVersion: nodeInfo.rollupVersion,
+        // ── FOUR FALLBACKS, BECAUSE `JSON.stringify` DROPS `undefined` ──────────
+        //
+        // `rollupAddress` already had `?? ''` and the three beside it did not, and the
+        // asymmetry published a snapshot the reader crashed on. `JSON.stringify` OMITS a
+        // key whose value is `undefined`, so a node whose `getNodeInfo` answer lacks a
+        // field writes a snapshot with no such member while this source says it writes
+        // one — and `ingest.nim` read four of these by unguarded bracket access, which
+        // raises `KeyError` in Nim's `std/json`.
+        //
+        // Measured 2026-09-11: the real follower against Aztec MAINNET
+        // (`https://aztec.drpc.org`, node 5.2.0) produced `provenance` with `kind`,
+        // `chain`, `label`, `endpoint`, `firstCapturedAt`, `capturedAt`, `nodeVersion`
+        // and `runtimeCommit` — and no `l1ChainId`, `rollupVersion` or `rollupAddress`.
+        // The committed testnet fixtures all carry `l1ChainId: 11155111`, so the
+        // asymmetry was mainnet-only and invisible to every fixture and every test.
+        //
+        // `''` RATHER THAN OMITTING THE KEY, deliberately. An absent member says
+        // "this producer does not write this"; an empty one says "this node did not
+        // answer it", which is the fact. The reader is fixed too — an optional member
+        // must not be a crash on either side of the seam — but a producer that writes
+        // the shape it documents is the half that keeps the seam checkable.
+        nodeVersion: nodeInfo.nodeVersion ?? '',
+        l1ChainId: nodeInfo.l1ChainId ?? '',
+        rollupVersion: nodeInfo.rollupVersion ?? '',
         rollupAddress: nodeInfo.l1ContractAddresses?.rollupAddress ?? '',
         // `runtimeCommit` IS PINNED TO THE FIRST BUILD THAT WROTE THIS SNAPSHOT, and it
         // is pinned the same way and for the same reason as `firstCapturedAt` above.
