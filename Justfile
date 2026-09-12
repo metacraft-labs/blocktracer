@@ -1,18 +1,29 @@
 # BlockTracer workspace commands.
 # `just` recipes wrap the nimble tasks so the workspace has one entry point.
 
-# Run the conformance + publisher + Client SDK test suites, and the SDK's
-# bidirectional import lint.
+# Run the conformance + publisher + Client SDK + chain-snapshot test suites, and
+# the SDK's bidirectional import lint.
+#
+# `tests/tchainsnapshot.nim` is the reader's side of the producer seam: what
+# `ingestSnapshot` accepts, what it refuses BY NAME, and what it must not crash on.
+# It is here rather than under `client/` because it needs no explorer, and it is in
+# THIS recipe because the defect it pins was found by running the real follower and
+# not by any test: a mainnet capture whose `provenance` carries no `l1ChainId`, which
+# the reader read by unguarded `prov["…"]` and raised `KeyError` on. Every committed
+# fixture and all eight hand-written provenance literals in
+# `client/tests/test_chain_provenance.nim` carry the member, so the whole suite was
+# blind to it; the fixture here is the follower's own output, byte for byte.
 test:
     nim c -r --hints:off tests/tcontract.nim
     nim c -r --hints:off tests/tpublish.nim
     nim c -r --hints:off tests/tclientsdk.nim
+    nim c -r --hints:off tests/tchainsnapshot.nim
     ci/test/client-sdk-boundary.sh
     ci/test/client-sdk-boundary-test.sh
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# SIX suites — 87 + 19 + 24 + 24 + 57 + 102 = 313 counted assertions — over the
+# SIX suites — 98 + 19 + 24 + 24 + 57 + 146 = 368 counted assertions — over the
 # six decisions the capture path makes that nothing else can check afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
 # called frozen (`freeze-snapshot-selftest`), when a supervised watch is
@@ -42,22 +53,33 @@ test:
 # different counts: a hole in the corpus, a corpus that lied, and a run that
 # could not ask are three different facts.
 #
-# The count said "three suites, 124" while the recipe ran four: the fold suite
-# was wired in with the folded Call Trace and the sentence above it was not
-# moved. It is restated here as a reading of what the recipe runs, which is the
-# only version of it that can be checked — and it was wrong again, in the same
-# way, when ING-3 added the sixth: the body verifier printed 57 while this
-# sentence still said 31, its own CI step having said 57 for as long as the
-# enumeration split. Every term here was re-read off a run on 2026-09-09.
+# THIS COUNT HAS NOW BEEN WRONG THREE TIMES, IN THE SAME WAY EACH TIME, and the
+# pattern is worth stating because the next person to add a suite will be in it.
+# It said "three suites, 124" while the recipe ran four: the fold suite was wired
+# in with the folded Call Trace and the sentence above it was not moved. It was
+# wrong again when ING-3 added the sixth — the body verifier printed 57 while
+# this sentence said 31, its own CI step having said 57 for as long as the
+# enumeration split. And it was wrong a third time at the pre-landing review:
+# `87 + 19 + 24 + 24 + 57 + 102 = 313` against a real total of **334**, because
+# `replay-selftest` had grown to 93 and `refusal-selftest` to 117 while both
+# terms stayed at the value they had when somebody last read them. The failure
+# mode is always the same: the suites DECLARE their own counts and this sentence
+# is a copy, so it goes stale silently and nothing compares the two.
+#
+# Every term below was re-read off a run on 2026-09-12, after the review's
+# fixes: `replay-selftest` 93 -> 98 (case 12's interpreter stubs) and
+# `refusal-selftest` 117 -> 146 (the eighth closed-set member, the shared tally,
+# the version policy, the store-outcome split, and the committed captures'
+# `counts` / token / `captures` shape).
 #
 # THEY WERE REFERENCED BY NOTHING. Not by `just test`, not by any CI job, not
 # by `ci-coverage.sh` — whose enumeration covers `ci/test/*.sh` and
 # `client/Justfile`'s aggregate and reaches nothing under `tools/`. That is the
 # same hole `deploy-gates` was created for after `check-assets-selftest.mjs`
-# was found dead, and these three were in it: the only evidence they could go
+# was found dead, and all six were in it: the only evidence they could go
 # red was that someone had once watched them.
 #
-# All five are OFFLINE and toolchain-free — plain node plus bash, a mock node
+# All six are OFFLINE and toolchain-free — plain node plus bash, a mock node
 # for the freeze gate, a mock node AND a mock file store for the body verifier,
 # recorded driver output for the replay rule, and for the
 # fold suite an event stream reconstructed from the committed sidecars rather
@@ -244,6 +266,26 @@ chain-replay-range from to runtime node avm ctwriter *ARGS:
 #     just body-proxy-selftest ../aztec-avm-runtime
 body-proxy-selftest runtime:
     node tools/chain/body-proxy-selftest.mjs --runtime {{runtime}}
+
+# ── is a range ledger's coverage actually contiguous ────────────────────────
+#
+# Reads one `coverage.json` written by `ingest-range.mjs` (under its `--state`
+# dir) and answers the two separate claims a "contiguous" ledger makes: that the
+# ranges tile the span, and that every height inside them was actually SERVED. A
+# check of only the first calls a range contiguous while the node declined half
+# of it.
+#
+# It is a recipe rather than a loose script so it is reachable by name. It came
+# from a measurement scratch tree (`.probe/`) whose other fourteen scripts were
+# dropped with it: six only hammered a shared public endpoint at concurrency 24,
+# seven could not run at all without a gitignored `node_modules` symlink, and
+# their durable output is already committed under `tools/chain/measurements/`.
+# This one is pure, argv-parameterised and reaches no network, so it survived —
+# with its gitignored default ledger path replaced by a required argument.
+#
+#     just coverage-contiguity .chain-state/aztec-testnet/coverage.json 1 75969
+coverage-contiguity ledger *SPAN:
+    node tools/chain/coverage-contiguity.mjs {{ledger}} {{SPAN}}
 
 # ── does an S3-compatible endpoint behave the way the publisher assumes ─────
 #

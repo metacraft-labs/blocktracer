@@ -325,8 +325,9 @@ jobs:
 
       # ── the chain capture tooling, for this job's own stated reason ──────
       #
-      # Same hole, same shape. `tools/chain/`'s three selftests — 124 counted
-      # assertions between them — were referenced by nothing: not by
+      # Same hole, same shape. `tools/chain/`'s selftests — SIX of them now, 368
+      # counted assertions between them, re-read off a run on 2026-09-12 — were
+      # referenced by nothing: not by
       # `just test`, not by any job here, and not by `ci-coverage.sh`, whose
       # enumeration reaches `ci/test/*.sh` and `client/Justfile` and nothing
       # under `tools/`. They cover decisions that CANNOT be rechecked after
@@ -334,17 +335,21 @@ jobs:
       # is hard-deleted about half an hour after it lands, so a rule that
       # misfiles a catch does not cost a retry, it costs the transaction.
       #
-      # All three are offline and toolchain-free, which is why they belong in
+      # All six are offline and toolchain-free, which is why they belong in
       # THIS job rather than behind the Nix runner.
       - name: Does the replay verdict rule bite? (which outcome a driver run is)
-        # Ten cases over recorded driver output. The three that have already
+        # 98 assertions over twelve cases of recorded driver output. The three
+        # that have already
         # cost something are pinned as fixtures: a non-zero exit that is a
         # divergence and not a refusal, a refusal whose name was `unknown`
         # because the classifier was a suffix allowlist, and a detail field
         # that spent its whole budget on Node's preamble. Case 10 is the
         # three-state `artifacts` rule; case 11 refuses a runtime that
         # cannot resolve artifacts, which replays perfectly and records
-        # nothing.
+        # nothing. Case 12 refuses a `--node` that cannot run the driver, and
+        # tells "it ran and rejected the flag" from "it is not there" — the two
+        # arrived as one non-zero code, so its own negative arm was satisfied by
+        # an ENOENT on a path that does not exist on NixOS.
         run: node tools/chain/replay-selftest.mjs
 
       - name: Does the freeze gate refuse? (four checks, each re-asked of the chain)
@@ -354,13 +359,13 @@ jobs:
         run: node tools/chain/freeze-snapshot-selftest.mjs
 
       - name: Does the watch supervisor stop only when it means to?
-        # 18 arms. A watch that exhausts its arms and a watch that dies with
+        # 24 assertions. A watch that exhausts its arms and a watch that dies with
         # its session both stop without saying they stopped, and rc 0 means
         # "this arm caught something" unless a capture target says otherwise.
         run: bash tools/chain/watch-chain-selftest.sh
 
       - name: Does the call trace fold what it should, and can that go red?
-        # 19 assertions and six arms, over the two committed derivations of one
+        # 24 assertions and six arms, over the two committed derivations of one
         # container — with the fold policy and without it. §1 rebuilds the
         # container's event stream from the unfolded sidecar and requires the
         # policy to reproduce the folded one field for field; §2 mutates the
@@ -387,7 +392,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 102 assertions, and the reason it is offline is the reason it
+        # ING-3, 146 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -395,7 +400,7 @@ jobs:
         # pipeline against a live chain would be green having executed none of
         # this.
         #
-        # All seven members of the closed set are reached here, through the real
+        # All EIGHT members of the closed set are reached here, through the real
         # producers, on every run. The arm that matters most injects a condition
         # OUTSIDE the set and requires the pipeline to fail naming it rather
         # than record a generic reason — that assertion is the only thing
