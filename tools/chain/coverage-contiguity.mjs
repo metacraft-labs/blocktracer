@@ -1,4 +1,6 @@
-// Prove coverage from the ledger rather than asserting it.
+// coverage-contiguity.mjs — prove coverage from the ledger rather than asserting it.
+//
+//   node tools/chain/coverage-contiguity.mjs <coverage.json> [from] [to]
 //
 // The ledger records, per range, what was REQUESTED and what the node SERVED,
 // plus the explicit list of heights it declined. Contiguity is therefore two
@@ -11,9 +13,30 @@
 // declined half of it, which is exactly the confusion the rate-limit fix was
 // about. Both are checked, and the second is reported as the union of every
 // `notServed` height so the answer is a list, not a boolean.
+//
+// ── THE LEDGER PATH IS REQUIRED, AND THAT IS THE ONE CHANGE FROM `.probe/` ──
+//
+// This arrived from a measurement scratch tree where it defaulted to
+// `.chain-state/aztec-testnet/coverage.json` — a path the root `.gitignore`
+// covers, so it exists on the machine that ran the backfill and nowhere else. A
+// default that resolves only on the author's box is how a tool comes to report
+// on a ledger nobody asked it about, or — worse, since `JSON.parse` of an absent
+// file throws with the path in it — to look broken when it is merely unaimed.
+// Naming the ledger is the whole of the argument, so it is asked for.
+//
+// Nothing about it is chain-specific, it reaches no network, and it reads one
+// file: `just coverage-contiguity <ledger>` is the entry point.
 import { readFileSync } from 'node:fs';
 
-const ledgerPath = process.argv[2] ?? '.chain-state/aztec-testnet/coverage.json';
+const ledgerPath = process.argv[2];
+if (!ledgerPath) {
+  console.error('usage: coverage-contiguity.mjs <coverage.json> [from] [to]\n'
+    + '  <coverage.json> is a range ledger written by tools/chain/ingest-range.mjs\n'
+    + '  (its --state DIR holds it). [from] and [to] assert the span the ledger is\n'
+    + '  expected to cover, so a ledger that tiles perfectly over the WRONG range\n'
+    + '  is reported rather than called contiguous.');
+  process.exit(2);
+}
 const wantFrom = process.argv[3] != null ? Number(process.argv[3]) : null;
 const wantTo = process.argv[4] != null ? Number(process.argv[4]) : null;
 
