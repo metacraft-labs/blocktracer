@@ -23,7 +23,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# SIX suites — 98 + 19 + 24 + 24 + 57 + 146 = 368 counted assertions — over the
+# SIX suites — 98 + 19 + 24 + 24 + 57 + 161 = 383 counted assertions — over the
 # six decisions the capture path makes that nothing else can check afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
 # called frozen (`freeze-snapshot-selftest`), when a supervised watch is
@@ -68,9 +68,9 @@ test:
 #
 # Every term below was re-read off a run on 2026-09-12, after the review's
 # fixes: `replay-selftest` 93 -> 98 (case 12's interpreter stubs) and
-# `refusal-selftest` 117 -> 146 (the eighth closed-set member, the shared tally,
-# the version policy, the store-outcome split, and the committed captures'
-# `counts` / token / `captures` shape).
+# `refusal-selftest` 117 -> 161 (the eighth closed-set member, the shared tally,
+# the version policy, the store-outcome split, the committed captures'
+# `counts` / token / `captures` shape, and the three producers' argument guards).
 #
 # THEY WERE REFERENCED BY NOTHING. Not by `just test`, not by any CI job, not
 # by `ci-coverage.sh` — whose enumeration covers `ci/test/*.sh` and

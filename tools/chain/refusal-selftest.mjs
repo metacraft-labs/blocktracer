@@ -25,6 +25,7 @@
 // the same code path has nothing to fail).
 
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -878,6 +879,59 @@ test('a store that could not be asked is not a body that does not exist');
        && /mismatchedBodies,/.test(rangeSrc));
 }
 
+test('a producer with no arguments prints usage instead of ingesting range 0..0');
+{
+  // ── WHY THIS IS A SPAWN AND NOT A SOURCE SCAN ─────────────────────────────────────
+  //
+  // `Number(arg('from', 0))` yields a finite `0` whether or not `--from` was passed, so
+  // the guard at the top of each of these tools — whose stated job is to ask "were
+  // numbers supplied" — could not ask it. `node tools/chain/ingest-range.mjs` with NO
+  // ARGUMENTS therefore passed the guard and silently ingested range 0..0 against the
+  // default testnet endpoint: a state directory, a range, a ledger entry and a publish
+  // attempt, instead of the usage message the guard was written to print. The comment
+  // above that guard said the opposite in the same breath.
+  //
+  // A source scan would assert the shape of the fix; this asserts the BEHAVIOUR, which
+  // is the thing that was wrong. It is safe to run offline precisely because the fix
+  // works — the process exits 2 before any `fetch` — so an arm that hung or reached the
+  // network would itself be the failure. `--url` is pointed at a closed loopback port
+  // as a second belt: if a future edit ever lets one of these past the guard with no
+  // range, it fails to connect instead of touching a real endpoint.
+  const guarded = [
+    ['ingest-range.mjs', '--from N --to M'],
+    ['backfill-blocks.mjs', '--snapshot <dir> --from N --to M'],
+    ['backfill-bodies.mjs', '--from N --to M'],
+  ];
+  for (const [tool, wants] of guarded) {
+    const r = spawnSync(process.execPath,
+                        [new URL(`./${tool}`, import.meta.url).pathname,
+                         '--url', 'http://127.0.0.1:1'],
+                        { encoding: 'utf8', timeout: 30_000 });
+    ck(`${tool} with no range exits 2 — the usage code, not a run`, r.status === 2);
+    ck(`…and says what it wanted: ${wants}`,
+       `${r.stderr}`.includes('usage:') && `${r.stderr}`.includes(wants));
+    // AND IT DID NOT DO ANYTHING. A tool that printed usage and also wrote a state
+    // directory would satisfy the two arms above and still be the defect.
+    ck(`…and wrote nothing to stdout, so no report was produced`,
+       `${r.stdout}`.trim().length === 0);
+  }
+  // THE DEFAULT IS `undefined` AND NOT `0`, which is the mechanism rather than the
+  // symptom — asserted so a future edit cannot restore the `0` while leaving the
+  // `Number.isFinite` guard in place and passing the arms above by accident on a
+  // different path.
+  for (const tool of ['ingest-range.mjs', 'backfill-blocks.mjs', 'backfill-bodies.mjs']) {
+    const src = readFileSync(new URL(`./${tool}`, import.meta.url), 'utf8');
+    ck(`${tool} defaults --from/--to to \`undefined\`, so absence is distinguishable `
+       + `from zero`,
+       /const from = Number\(arg\('from', undefined\)\)/.test(src)
+         && /const to = Number\(arg\('to', undefined\)\)/.test(src));
+    // …and height ZERO is still a legal request. `!from` refused it in two of the three,
+    // and zero is the one height a genesis-to-tip pass starts at.
+    ck(`…and its guard admits height zero`,
+       /Number\.isFinite\(from\)/.test(src) && !/!from \|\|/.test(src));
+  }
+}
+
 // 102 before `ingest-range.mjs --replay`.
 //   +4  the fourth producer: its own gate, its per-reason counts, its outcome literals, and
 //       the arm that keeps a rate limit off the transaction's row. Each of the four was run
@@ -910,7 +964,7 @@ test('a store that could not be asked is not a body that does not exist');
 //       collected and FATAL and agrees with the mirroring tool, the fetch retries/backs
 //       off/honours Retry-After, it has a timeout, an `unavailable` answer is not cached
 //       while corpus answers are, and the store's answers reach the report.
-expectCount(146);
+expectCount(161);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);
