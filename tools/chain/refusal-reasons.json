@@ -38,6 +38,12 @@
       "condition": "The node no longer serves the transaction's body and the file store cannot supply it either. getTxByHash reads the mempool, which is emptied at finalization; getTxEffect reads the archive, which is not — so the effects remain visible after the body is gone, which is why such a transaction is in the snapshot at all."
     },
     {
+      "id": "body-source-unreachable",
+      "durability": "repairable",
+      "statedBy": "tools/chain/backfill-bodies.mjs classify, outcome `unavailable`; routed by tools/chain/ingest-range.mjs replayRange",
+      "condition": "The source that serves transaction bodies COULD NOT BE ASKED about this key — a 5xx, a 429, a TLS failure, a transport error or a timeout. Nothing is known about whether the body exists, so this is a statement about the run and not about the corpus, and it is separate from body-unavailable for exactly the reason backfill-bodies.mjs keeps `unavailable` apart from `absent`: a 404 is the store saying it does not hold the key, and a 503 is the store saying nothing at all. Folding the second into the first published \"this transaction can never be re-executed\" — durability permanent — off the back of somebody else's outage. It is also separate from not-attempted, whose every narrative asserts the body IS obtainable from the file store: that claim is precisely what a run that could not reach the store has failed to establish, and re-publishing it would be asserting the thing that just could not be checked. Aztec bodies have a single source with no failover (Chain-Data-Ingestion.md §4.8), so this member's count is the measure of how much of a range is outstanding for want of that one host."
+    },
+    {
       "id": "artifact-unresolvable",
       "durability": "repairable",
       "statedBy": "aztec-avm-runtime replay/src/settled_transaction.ts MissingContractArtifact",

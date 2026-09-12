@@ -79,6 +79,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+import { SNAPSHOT_OUTCOMES } from './snapshot-format.mjs';
+
 /** The file both languages read. Named once so a test can assert the Nim side reads THIS
  *  path and not a copy — grep `REFUSAL_REASONS_PATH`. */
 export const REFUSAL_REASONS_PATH =
@@ -226,6 +228,22 @@ const CONDITIONS = Object.freeze({
   // run would have traced without trouble, on data nobody would think to re-ask about.
   'historic-range-not-replayed': 'not-attempted',
   'endpoint-throttled-this-run': 'not-attempted',
+  // ── AND THE ONE THAT IS *NOT* `not-attempted`, WHICH IS THE POINT ────────────────────
+  //
+  // The BODY SOURCE could not be asked: a 5xx, a 429, a TLS failure, a transport error or
+  // a timeout from the keyless transaction file store. `ingest-range.mjs replayRange`
+  // routed this — together with `absent`, `mismatched` and `truncated` — into
+  // `refuseBodyUnavailable`, whose member is declared durability PERMANENT. So one
+  // outage on somebody else's host published "this transaction can never be
+  // re-executed" onto rows whose bodies the store holds and serves.
+  //
+  // AND IT IS NOT `not-attempted` EITHER, which is the less obvious half. Every
+  // `not-attempted` narrative in this repository asserts that the body IS obtainable
+  // from the file store — "so it is replayable from published data" — and that claim is
+  // exactly what a run which could not reach the store has failed to establish. Filing
+  // it there would trade a false permanence for a false availability. `not-attempted`
+  // means the run did not look; this means the run looked and was not answered.
+  'body-source-could-not-be-asked': 'body-source-unreachable',
   // Resolved through REASON_FOR_RUNTIME_CLASS by the class the runtime named.
   'runtime-named-refusal': null,
 });
@@ -252,6 +270,56 @@ const REASON_FOR_RUNTIME_CLASS = Object.freeze({
  *  `runtime-refused`, a member, and the class name is what the row carries as evidence. */
 export function reasonForRuntimeClass(className) {
   return REASON_FOR_RUNTIME_CLASS[className] ?? 'runtime-refused';
+}
+
+/** The property `getPublicCallRequestsWithCalldata()` reads off `data.forPublic` without
+ *  testing it. It is the accessor named in `CHAIN_ABSENT_OUTCOMES`' header, and its
+ *  `TypeError` is the ONLY trace a private-only transaction left before `private-only`
+ *  existed as an outcome. Two spellings because upstream reads both accumulators. */
+const PRIVATE_ONLY_CRASH_PROPERTY = /\b(?:non)?[Rr]evertibleAccumulatedData\b/;
+
+/**
+ * Was this `refused` row actually a PRIVATE-ONLY transaction crashing the driver?
+ *
+ * ── WHY THIS PREDICATE EXISTS ─────────────────────────────────────────────────────────
+ *
+ * `private-only` is not a refusal (see `CHAIN_ABSENT_OUTCOMES`), and before the outcome
+ * existed the driver CRASHED on these transactions rather than declining them: upstream's
+ * `getPublicCallRequestsWithCalldata()` reads `data.forPublic.nonRevertibleAccumulatedData`
+ * and `forPublic` is `undefined` when there is no public half, so `decideOutcome` filed a
+ * bare `TypeError` — which `reasonForRuntimeClass` correctly maps to `runtime-refused`,
+ * durability **repairable**. Seven committed rows therefore tell a reader that a better
+ * runtime would trace them, about transactions that have no public execution at all and
+ * never will.
+ *
+ * ── WHY IT IS SAFE TO DECIDE THIS FROM A COMMITTED ROW ────────────────────────────────
+ *
+ * The discriminator is already in the data and needs no re-capture: the crash is a
+ * `TypeError` naming one of `forPublic`'s two accumulator fields as a property read off
+ * `undefined`. That conjunction cannot be produced by any other condition this pipeline
+ * files — a runtime that declined by name records its own class, and a `TypeError` from
+ * anywhere else in the driver names a different property. It is deliberately NOT a bare
+ * `TypeError` test and deliberately NOT a bare substring test on the message: the first
+ * would sweep up every unrelated crash, and the second is the shape of misdiagnosis this
+ * repository has paid for twice (`putIfAbsent`'s `412`, the refusal-name suffix
+ * allowlist).
+ *
+ * ── WHY IT LIVES HERE ─────────────────────────────────────────────────────────────────
+ *
+ * `migrate-refusal-reasons.mjs` needs it to classify the committed captures and
+ * `refusal-selftest.mjs` needs it to assert they stay classified. A second spelling of a
+ * signature is a second thing to keep true — this module's whole reason for existing.
+ *
+ * @param {{refusal?: string, detail?: string, reason?: string}} row
+ */
+export function looksLikePrivateOnlyCrash(row) {
+  if (row?.refusal !== 'TypeError') return false;
+  const said = `${row?.detail ?? ''}`;
+  // "Cannot read properties of undefined" is V8's wording for exactly the read upstream
+  // makes. The older singular spelling ("property") is accepted because the message
+  // changed between Node majors and these rows outlive a Node upgrade.
+  if (!/Cannot read propert(?:y|ies) of undefined/.test(said)) return false;
+  return PRIVATE_ONLY_CRASH_PROPERTY.test(said);
 }
 
 /**
@@ -347,6 +415,29 @@ export function refuseBodyUnavailable({ blockNumber, observedAs, where }) {
   };
 }
 
+/** The body source answered nothing about this key — the outage case, kept apart from
+ *  both `body-unavailable` (the store said it does not hold it) and `not-attempted` (we
+ *  never asked).
+ *
+ *  `storeOutcome` and `storeReason` are `classify`'s own answer, passed in rather than
+ *  restated, so the row carries the store's words and this function carries the claim. */
+export function refuseBodySourceUnreachable({ blockNumber, storeOutcome, storeReason,
+                                              where }) {
+  return {
+    outcome: 'not-attempted',
+    ...classifyRefusal({
+      condition: 'body-source-could-not-be-asked',
+      where,
+      narrative:
+        `This transaction is first in block ${blockNumber}, so it can be re-executed from `
+        + `published data — but the source that serves transaction bodies could not be `
+        + `asked about it on this run: ${storeReason || `it answered ${storeOutcome}`} `
+        + `Nothing is known about whether the body is held, so nothing here is a `
+        + `statement about the chain: re-running this range asks again.`,
+    }),
+  };
+}
+
 // ── outcomes ───────────────────────────────────────────────────────────────────────────
 //
 // The `outcome` field predates this module and four producers write it, so it is closed here
@@ -354,16 +445,21 @@ export function refuseBodyUnavailable({ blockNumber, observedAs, where }) {
 // fixture in one change, and the milestone is about the reason reaching the page, not about
 // renaming the field it travels beside.
 
+// THE THREE LISTS ARE READ FROM `snapshot-format.json`, NOT DECLARED HERE. They were three
+// frozen literals in this file, and the format token's own gate — "every untraced row carries
+// a reason on `@2`" — has to range over the same definition of untraced that this module
+// audits against, on both sides of a seam one of which is Nim. A second copy of the partition
+// is a second answer to which rows the version requires the member on. The reasoning behind
+// each membership stays here, where it belongs; only the values moved.
+
 /** A transaction with a recording. `divergent` is one: it did not reproduce the block, but a
  *  divergent recording is real, it steps, and Trace-Artifacts.md §6 gives it its own status.
  *  It is NOT a refusal. */
-export const TRACED_OUTCOMES = Object.freeze(['replayed', 'divergent']);
+export const TRACED_OUTCOMES = SNAPSHOT_OUTCOMES.traced;
 
 /** A transaction the chain published and this pipeline did not trace. Every one of these
  *  must carry a `refusalReason`. */
-export const UNTRACED_OUTCOMES = Object.freeze([
-  'refused', 'pruned', 'not-first-in-block', 'not-attempted',
-]);
+export const UNTRACED_OUTCOMES = SNAPSHOT_OUTCOMES.untraced;
 
 /** THE OTHER KIND OF UNTRACED, AND IT IS THE ONE THIS FILE'S HEADER RESERVED `absent` FOR.
  *
@@ -395,7 +491,7 @@ export const UNTRACED_OUTCOMES = Object.freeze([
  *  A SENTENCE IS STILL MANDATORY. §2.3a's rule is unchanged: `absent` with no explanation is
  *  indistinguishable from a failed fetch. What is dropped is the reason ID, because the
  *  closed set is a set of things WE did, and this is not one of them. */
-export const CHAIN_ABSENT_OUTCOMES = Object.freeze(['private-only']);
+export const CHAIN_ABSENT_OUTCOMES = SNAPSHOT_OUTCOMES.chainAbsent;
 
 export const OUTCOMES = Object.freeze(
   [...TRACED_OUTCOMES, ...UNTRACED_OUTCOMES, ...CHAIN_ABSENT_OUTCOMES]);

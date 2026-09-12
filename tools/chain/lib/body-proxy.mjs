@@ -133,11 +133,13 @@ async function loadAztec(runtime) {
  * @param {string} [o.bodyDir]     mirror bodies here, and read them from here on a re-run
  * @param {number} [o.rps]         requests per second to the UPSTREAM. 0 disables pacing.
  * @param {number} [o.attempts]    upstream attempts before giving a batch up
+ * @param {number} [o.storeAttempts]  BODY STORE attempts before the run is stopped
+ * @param {number} [o.storeTimeoutMs] per-attempt timeout on a body fetch
  * @param {(m: string) => void} [o.log]
  */
 export async function startBodyProxy({
   upstreamUrl, runtime, storeBase, storeBasePath, bodyDir = '',
-  rps = 6, attempts = 6, log = () => {},
+  rps = 6, attempts = 6, storeAttempts = 4, storeTimeoutMs = 30_000, log = () => {},
 }) {
   const { Tx, jsonStringify } = await loadAztec(runtime);
   if (bodyDir) mkdirSync(bodyDir, { recursive: true });
@@ -154,6 +156,18 @@ export async function startBodyProxy({
     // Set when the endpoint refuses past the honoured wait. THE RUN IS OVER at that point:
     // see the header on why this must not become a per-transaction refusal.
     throttled: false, throttledAt: null, throttledRetryAfterMs: 0,
+    // ── THE SAME DISCIPLINE FOR THE BODY STORE, WHICH HAD NONE ──────────────────────────
+    //
+    // The node path above has pacing, attempts, backoff, a `Retry-After` cap and a
+    // run-ending flag. The store path had a bare `await fetch(url)` — no timeout, no
+    // retry, no backoff, no `Retry-After`, and its negative answer was cached
+    // unconditionally, so ONE 503 filed that key for the rest of the run. The caller
+    // then turned `unavailable` into `body-unavailable`, durability PERMANENT, and the
+    // run exited 0: an outage on somebody else's single-source host published "this
+    // transaction can never be re-executed" onto rows whose bodies it still serves.
+    storeAttempts: 0, storeRetries: 0, storeBackoffMs: 0, storeFaults: 0,
+    storeRateLimited: 0, storeTimeouts: 0,
+    storeThrottled: false, storeThrottledAt: null, storeThrottledRetryAfterMs: 0,
   };
 
   const answers = new Map();      // `${method} ${JSON.stringify(params)}` -> result
@@ -174,16 +188,85 @@ export async function startBodyProxy({
       return { ...c, bytes: c.outcome === 'verified' ? bytes : null };
     }
     const url = bodyUrl(storeBase, storeBasePath, hash);
+    // ── ASKED PROPERLY, AND A 404 IS ASKED ONLY ONCE ──────────────────────────────────
+    //
+    // `classify` decides WHAT an answer was; the loop below decides whether the store
+    // has answered at all. The two are different questions and only the second is worth
+    // retrying: a 404 is an answer (the store does not hold the key) and re-asking it is
+    // a wasted request against a single-source host, while a 503, a 429, a TLS error or
+    // a hang is the store declining to answer and is the one case where asking again is
+    // the whole remedy.
+    //
+    // `AbortSignal.timeout` is the part that was most missing: with no timeout at all, a
+    // store that accepted the connection and then stalled hung the proxy's request
+    // handler — and the handler is what the replay driver is blocked on, so the whole
+    // range stops with no diagnosis. The node path's own comment says a wait long enough
+    // to look like a hang must be reported rather than slept through; this is that rule
+    // applied to the other half of the seam.
     let status = 0;
     let bytes = null;
-    try {
-      const r = await fetch(url);
-      status = r.status;
-      if (status === 200) bytes = Buffer.from(await r.arrayBuffer());
-    } catch {
+    let timedOut = false;
+    let lastTransport = '';
+    for (let attempt = 0; attempt < storeAttempts; attempt++) {
+      stats.storeAttempts++;
       status = 0;
+      bytes = null;
+      timedOut = false;
+      let retryAfterMs = 0;
+      try {
+        const r = await fetch(url, { signal: AbortSignal.timeout(storeTimeoutMs) });
+        status = r.status;
+        if (status === 200) bytes = Buffer.from(await r.arrayBuffer());
+        if (status === 429 || status === 503) {
+          const ra = Number(r.headers.get('retry-after'));
+          if (Number.isFinite(ra) && ra > 0) retryAfterMs = ra * 1000;
+        }
+      } catch (e) {
+        status = 0;
+        timedOut = e?.name === 'TimeoutError' || e?.name === 'AbortError';
+        if (timedOut) stats.storeTimeouts++;
+        lastTransport = `${e?.name ?? 'Error'}: ${String(e?.message ?? e).split('\n')[0]}`;
+      }
+      // An ANSWER — 200 or 404 — ends the asking, whatever `classify` then makes of it.
+      if (status === 200 || status === 404) break;
+      if (status === 429) stats.storeRateLimited++;
+      else stats.storeFaults++;
+      // `Retry-After` IS HONOURED, UP TO THE SAME CAP THE NODE PATH USES, and past it the
+      // run is over rather than asleep. A store that asks for forty-one minutes inside a
+      // request handler is indistinguishable from a hang, and the caller has to be able
+      // to stop the range instead of recording an outage against every remaining row.
+      if (retryAfterMs > MAX_HONOURED_RETRY_AFTER_MS) {
+        stats.storeThrottled = true;
+        stats.storeThrottledAt = new Date().toISOString();
+        stats.storeThrottledRetryAfterMs = retryAfterMs;
+        log(`body store asked for ${Math.round(retryAfterMs / 1000)}s — stopping`);
+        break;
+      }
+      if (attempt === storeAttempts - 1) {
+        // Out of attempts while the store was refusing to answer. The run ends for the
+        // same reason the node path's does: every remaining key would meet the same host.
+        stats.storeThrottled = true;
+        stats.storeThrottledAt = new Date().toISOString();
+        log(`body store did not answer in ${storeAttempts} attempt(s) — stopping`);
+        break;
+      }
+      const backoff = retryAfterMs > 0
+        ? retryAfterMs
+        : Math.min(30_000, 500 * 2 ** attempt) * (0.75 + Math.random() * 0.5);
+      stats.storeRetries++;
+      stats.storeBackoffMs += backoff;
+      await sleep(backoff);
     }
-    const c = classify(hash, status, bytes);
+    const c = timedOut && status === 0
+      // `classify(…, 0, null)` says "could not be reached", which is right and says
+      // nothing about WHY. A timeout is worth naming: it is the failure a mirror fixes
+      // and the one an operator can act on by raising `--store-timeout`.
+      ? { outcome: 'unavailable',
+          reason: `The file store did not answer within ${storeTimeoutMs} ms for this key `
+            + `(${storeAttempts} attempt(s); last: ${lastTransport}). Nothing is known `
+            + `about whether it holds the body. This is a fact about the run, not about `
+            + `the corpus.` }
+      : classify(hash, status, bytes);
     if (c.outcome === 'verified') {
       stats.bodyBytes += bytes.length;
       if (cached) writeFileSync(cached, bytes);
@@ -268,7 +351,20 @@ export async function startBodyProxy({
           };
         }
       }
-      bodies.set(key, entry);
+      // ── `unavailable` IS NOT CACHED, AND EVERY OTHER ANSWER IS ──────────────────────
+      //
+      // This cached unconditionally, so ONE outage answer stuck to a key for the rest of
+      // the run — and the driver asks `getTxByHash` more than once per transaction, so a
+      // single 503 during hydration decided the row. `verified`, `absent`, `mismatched`
+      // and `truncated` are all statements about the CORPUS and are stable, so caching
+      // them is the deduplication this proxy exists for. `unavailable` is a statement
+      // about the RUN, and caching a statement about the run makes it permanent — which
+      // is the same fold, one layer down, that the caller's `body-unavailable` routing
+      // was making.
+      //
+      // It is bounded rather than unbounded: `storeThrottled` ends the range, so the
+      // number of re-asks is at most the attempts spent before the flag is set.
+      if (entry.outcome !== 'unavailable') bodies.set(key, entry);
       inflight.delete(key);
       return entry;
     })();
@@ -455,6 +551,11 @@ export async function startBodyProxy({
     stats,
     /** Whether the endpoint has refused past the honoured wait. The caller MUST stop. */
     get throttled() { return stats.throttled; },
+    /** The same, for the BODY STORE. Separate because the two are different hosts with
+     *  different owners, and "the node is rate-limiting us" and "the body source is down"
+     *  call for different waits — and because a caller that could not tell them apart
+     *  would report one outage as the other. The caller MUST stop on either. */
+    get storeThrottled() { return stats.storeThrottled; },
     /**
      * What the store says about one transaction, WITHOUT the driver being spawned.
      *
