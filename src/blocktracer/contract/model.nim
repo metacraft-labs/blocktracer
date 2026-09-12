@@ -158,12 +158,14 @@ type
     availability*: TraceAvailability
     reason*: string            ## required when availability == absent/unsupported
     refusalReason*: string
-      ## WHICH REFUSAL, from ING-3's closed set — `not-first-in-block`,
-      ## `body-unavailable`, `artifact-unresolvable`, `prestate-unavailable`,
-      ## `runtime-refused`, `no-container-written`, `not-attempted`. The set is
+      ## WHICH REFUSAL, from ING-3's closed set. The set is
       ## `tools/chain/refusal-reasons.json`, read by
       ## `blocktracer/chain/refusal_reasons.nim` and by the producer that wrote
-      ## the row, so neither side can widen it alone.
+      ## the row, so neither side can widen it alone — and it is NOT listed here.
+      ## It was: seven ids, in a doc comment, which went stale the moment the set
+      ## gained `body-source-unreachable`. `refusalReasonList()` prints the
+      ## members from the file that defines them, and a failure message that
+      ## names them is worth more than a comment that might.
       ##
       ## EMPTY IS A STATEMENT, AND IT IS THE ONE THIS FIELD EXISTS FOR. An
       ## `absent` row with no `refusalReason` means the CHAIN never published
