@@ -4112,5 +4112,14 @@ suite "ING-3 — a refusal is not an absence":
     #    6 — the Aztec split at the contract layer
     #    9 — the closed set: the raise, five things its message must say, the
     #        control that a member ingests clean, and the validator's two
-    #   16 — the published counts, 7 of them the zero-fill loop over the set
-    expectCount(16 + 4 + 6 + 9 + 16)
+    #    9 — the published counts, plus ONE PER MEMBER from the zero-fill loop
+    #
+    # THE MEMBER TERM IS DERIVED, NOT WRITTEN. It was `16`, of which 7 were the
+    # `for id in refusalReasonIds()` loop, and it went red the moment the closed
+    # set gained an eighth member (`body-source-unreachable`) — reporting "a case
+    # was added, removed or silently skipped" about a test nobody had touched.
+    # A hardcoded term over a set whose size is readable from the set is the same
+    # staleness the `chain-selftest` header has now shown three times, and
+    # `expectCount(24 + (n - 2) * 4 + n * 6)` above already does it the right way.
+    # Adding a MEMBER is now free here; adding an ASSERTION is still counted.
+    expectCount(16 + 4 + 6 + 9 + 9 + refusalReasonIds().len)
