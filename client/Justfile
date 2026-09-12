@@ -122,7 +122,7 @@ preview-live: export-hydrated replay-engine
 
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
-test: test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-capability-tour test-instruction-listing test-scrub-queue test-selection-detail test-noir-frame-folding test-frame-identity-jump
+test: test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-capability-tour test-instruction-listing test-scrub-queue test-selection-detail test-noir-frame-folding test-frame-identity-jump test-chain-origins
 
 # The static-export round-trip test: compile + run the real exporter into a
 # temp dir, then assert the three view types render for the demo entities and
@@ -280,3 +280,23 @@ test-noir-frame-folding:
 # pane, and this suite is what holds the seam that uses them.
 test-frame-identity-jump:
     nim c -r --mm:orc --hints:off tests/test_frame_identity_jump.nim
+
+# PER-CHAIN DATA ORIGIN — which STORE answered for a chain, and which one was
+# never asked.
+#
+# The seam that lets staging render production's tree with different software,
+# and lets one chain — a chain production does not carry — come from somewhere
+# else. Three resolution steps, and the suite drives all three, plus the
+# containment property that motivates the whole design: a chain absent from an
+# environment's registry is not LINKED and is still FETCHABLE by path out of a
+# shared store, which is why a staging-only chain belongs in a separate store
+# rather than behind a missing registry row.
+#
+# Every assertion counts READS on a `recordingStore` rather than reading a
+# resolved field: a projection that resolved the origin once and then reached
+# for the root's default on the next line would satisfy a field assertion and
+# serve one origin's transaction under another's generation.
+#
+# In-memory closures, no fixtures, no filesystem — the question is routing.
+test-chain-origins:
+    nim c -r --mm:orc --hints:off tests/test_chain_origins.nim

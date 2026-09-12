@@ -34,16 +34,74 @@ type
     ## this into a failed build rather than a half-rendered page: a page that
     ## silently omits a chain is worse than one that was never published.
 
+  ChainOrigin* = object
+    ## ONE CHAIN, READ FROM SOMEWHERE OTHER THAN THIS DEPLOYMENT'S DEFAULT.
+    ##
+    ## The whole of per-chain data origin, and it is deliberately this small.
+    ## A `chain` and a `store`: no URL, no credential, no environment read and
+    ## no scheme — the store is an `ObjectStore` the CONSUMER built, so the
+    ## Client SDK's rule that a read is a path and nothing else
+    ## (`blocktracer_client/store.nim`, "no second seam") is untouched by this
+    ## file. Choosing a transport per chain is wiring; it is not a capability
+    ## the SDK grew.
+    chain*: string
+    store*: ObjectStore
+
   DataRoot* = object
     ## Root of a static tree: the directory that contains `d/`, `idx/`,
     ## `registry/` and `t/` (i.e. the exporter's `dist/`).
     dir*: string
     store*: ObjectStore
+      ## THE APPLICATION ORIGIN — where this deployment's own build is served
+      ## from, and therefore where `/registry/**` is read.
+      ##
+      ## Configuration.md §1.1 lists "application, data, artifact and source
+      ## origins" as four separate entries of the deployment descriptor, and
+      ## this is the first of them. It is a distinction with no observable
+      ## consequence in a deployment that publishes its data beside its
+      ## application — which is every deployment so far, and stays the default
+      ## here — and it is the whole mechanism the moment one environment shows
+      ## another's data: the REGISTRY must remain the environment's own, or an
+      ## environment would acquire chains simply by being pointed at a tree
+      ## that has them.
+    dataStore*: ObjectStore
+      ## THE DEFAULT DATA ORIGIN — `/d/**`, `/idx/**`, `/src/**` and `/t/**`
+      ## for every chain with no entry in `origins`.
+      ##
+      ## An unset store means "the application origin", which is what
+      ## `newDataRoot` produces and what every existing build gets. That is the
+      ## zero-config path and it is byte-identical to the behaviour before this
+      ## field existed. Setting it is the ONE line that makes an environment
+      ## show another's data: `withDataOrigin(productionTree)`.
+    origins*: seq[ChainOrigin]
+      ## Per-chain overrides, consulted before `dataStore`. Empty in every
+      ## build that does not need one, which is the point — "we'll typically
+      ## show the production data while using only different software to
+      ## display it" is the DEFAULT, and an entry here is the exception for a
+      ## chain the default data origin does not carry.
+      ##
+      ## A seq and not a table: the list is short, enumerable and reviewable,
+      ## which is the property Configuration.md §2.3 asks of the set of origins
+      ## a build may reach ("the set of reachable origins stays enumerable and
+      ## reviewable"). A map keyed by a runtime string would read the same and
+      ## be harder to print in a build log.
 
   ChainInfo* = object
     ## A chain, at the generation this render pinned. `session` carries the pin;
     ## every read below takes it, so one rendered page cannot mix generations.
     session*: ChainSession
+    store*: ObjectStore
+      ## WHERE THIS CHAIN'S BYTES CAME FROM, resolved ONCE when the chain was
+      ## opened and carried for the rest of the render — the same shape, and
+      ## for the same reason, as `session`'s generation pin.
+      ##
+      ## Every read below takes a `ChainInfo` and reads through THIS store, so
+      ## one rendered page cannot mix origins any more than it can mix
+      ## generations: a transaction's facts, its trace container and its source
+      ## bundle all come from the store that answered for `current.json`. The
+      ## alternative — re-resolving per read from the root — is exactly how a
+      ## page ends up attributing one origin's trace to another origin's
+      ## transaction.
     slug*: string
     generation*: string
     traceSelectionVersion*: string
@@ -332,20 +390,97 @@ func newDataRoot*(dir: string, store: ObjectStore): DataRoot =
   ## without being written to disk.
   DataRoot(dir: dir, store: store)
 
+# ── per-chain data origin ──────────────────────────────────────────────────
+#
+# THE DEFAULT IS THAT THERE IS NO PER-CHAIN ORIGIN, and the default is the
+# case that matters. An environment normally differs from another in the
+# SOFTWARE that renders the tree, not in the tree — so staging pointing at the
+# production data is zero configuration, and this section is what a chain
+# production does not carry needs in order to come from somewhere else.
+#
+# Three properties, each obtained from the shape rather than asserted:
+#
+#   * IT IS CONSUMER-SIDE. `ObjectStore` is the SDK's, built by whoever
+#     composes the root; nothing here reaches the SDK, which still takes one
+#     store per call and a path per read.
+#   * IT IS ENUMERABLE. The overrides are a seq built at the composition root
+#     and printable in a build log. There is no lookup that can invent one.
+#   * IT CANNOT BE REACHED FROM A URL OR A PREFERENCE. Nothing in this module
+#     reads an environment variable, a query parameter or `localStorage`; a
+#     `DataRoot` is constructed by the build (Configuration.md §6.1, "the data
+#     source is not a setting").
+
+func hasTransport(s: ObjectStore): bool =
+  ## Whether a store was ever given one. A default-constructed `ObjectStore`
+  ## has a nil `fetchProc`, and the SDK RAISES on reading one
+  ## (`ObjectStoreDefect`) — correctly, since it is a construction error. Here
+  ## it is the encoding of "not set", so an unset `dataStore` falls back to the
+  ## application origin instead of turning every read into a defect.
+  not s.fetchProc.isNil
+
+func withDataOrigin*(r: DataRoot, store: ObjectStore): DataRoot =
+  ## `r`, with EVERY unoverridden chain read from `store` instead of from the
+  ## application origin. This is the whole of "show the production data with
+  ## different software": one call, no per-chain configuration, and the
+  ## registry still the environment's own.
+  result = r
+  result.dataStore = store
+
+func withChainOrigin*(r: DataRoot, chain: string, store: ObjectStore): DataRoot =
+  ## `r`, with `chain` read from `store`. Replaces an existing entry for the
+  ## same chain rather than shadowing it, so the list stays the enumeration it
+  ## claims to be — two entries for one slug would make "which origin serves
+  ## X" depend on insertion order.
+  result = r
+  result.origins = @[]
+  for o in r.origins:
+    if o.chain != chain: result.origins.add o
+  result.origins.add ChainOrigin(chain: chain, store: store)
+
+func storeFor*(r: DataRoot, chain: string): ObjectStore =
+  ## The origin this deployment reads `chain` from. Three steps, most specific
+  ## first, and the last one is the one almost every chain takes:
+  ##
+  ##   1. the chain's own override, if the build declared one;
+  ##   2. the deployment's default data origin, if the build declared one;
+  ##   3. the application origin — i.e. beside the software, which is where
+  ##      data has always been and where it stays with no configuration at all.
+  for o in r.origins:
+    if o.chain == chain: return o.store
+  if r.dataStore.hasTransport: return r.dataStore
+  r.store
+
+func originName*(r: DataRoot, chain: string): string =
+  ## The name of the store serving `chain`, for a build log or a test. Names
+  ## are the consumer's own (`local:dist`, `recording:…`); the SDK neither
+  ## assigns nor interprets them.
+  r.storeFor(chain).name
+
 # ── chains ─────────────────────────────────────────────────────────────────
 
 proc chains*(r: DataRoot): seq[string] =
   ## Chain slugs present in the tree, from the registry — the honest inventory.
+  ##
+  ## FROM THE APPLICATION ORIGIN, never from a per-chain one, and the asymmetry
+  ## is the load-bearing part of §per-chain origins. The registry is the
+  ## environment's own statement of what it publishes; a per-chain override
+  ## can only ever redirect a chain the registry ALREADY lists. So an
+  ## environment cannot acquire a chain by being pointed at a tree that has
+  ## one, and production — whose registry lists Aztec only — does not begin
+  ## serving a staging-only chain because staging's data happened to share a
+  ## store.
   chains(r.store)
 
 proc chainInfo*(r: DataRoot, chain: string): ChainInfo =
-  ## Open the chain and PIN its generation for the rest of this render.
-  let opened = openChain(r.store, chain)
+  ## Open the chain and PIN its generation — and its origin — for the rest of
+  ## this render.
+  let store = r.storeFor(chain)
+  let opened = openChain(store, chain)
   if opened.outcome != ooOpened:
     raise newException(DataPlaneError,
       "cannot open chain '" & chain & "': " & opened.reason)
   let s = opened.session
-  ChainInfo(session: s, slug: chain, generation: s.generation,
+  ChainInfo(session: s, store: store, slug: chain, generation: s.generation,
     traceSelectionVersion: s.traceSelectionVersion,
     headHeight: s.head.height, headHash: s.head.hash,
     finalizedHeight: s.finalized.height, finalizedHash: s.finalized.hash,
@@ -361,20 +496,20 @@ proc chainInfo*(r: DataRoot, chain: string): ChainInfo =
 # ── blocks ───────────────────────────────────────────────────────────────
 
 proc hasBlock*(r: DataRoot, chain, hash: string): bool =
-  r.store.get(blockPath(chain, hash)).found
+  r.storeFor(chain).get(blockPath(chain, hash)).found
 
 proc hasTx*(r: DataRoot, chain, hash: string): bool =
-  r.store.get(txFactsPath(chain, hash)).found
+  r.storeFor(chain).get(txFactsPath(chain, hash)).found
 
 proc readBlockDetail*(r: DataRoot, info: ChainInfo, hash: string): BlockDetail =
-  let b = blockDetail(r.store, info.session, hash)
+  let b = blockDetail(info.store, info.session, hash)
   if b.outcome != roFound:
     raise newException(DataPlaneError, "block " & hash & ": " & b.reason)
   b.detail
 
 proc blockHashes*(r: DataRoot, info: ChainInfo): seq[string] =
   ## The chain's block hashes, newest first, at the pinned generation.
-  for b in blockRefsNewestFirst(r.store, info.session): result.add b.hash
+  for b in blockRefsNewestFirst(info.store, info.session): result.add b.hash
 
 proc highestIndexedHeight*(r: DataRoot, info: ChainInfo): int =
   ## The tallest block this generation indexes, from the height MAP.
@@ -383,7 +518,7 @@ proc highestIndexedHeight*(r: DataRoot, info: ChainInfo): int =
   ## far behind the tip the pipeline is, and a staleness figure that cost a
   ## read per block would be a decoration with a cap on it.
   result = -1
-  for b in blockRefsNewestFirst(r.store, info.session):
+  for b in blockRefsNewestFirst(info.store, info.session):
     if b.height > result: result = b.height
 
 proc canonicalBlockAt*(r: DataRoot, info: ChainInfo, height: int): string =
@@ -395,7 +530,7 @@ proc canonicalBlockAt*(r: DataRoot, info: ChainInfo, height: int): string =
   ## question a block page has to ask to know whether it is still canonical:
   ## the block object is correct either way, and being orphaned is a property
   ## of the generation that references it, not of the object.
-  for b in blockRefsNewestFirst(r.store, info.session):
+  for b in blockRefsNewestFirst(info.store, info.session):
     if b.height == height: return b.hash
 
 proc nextBlockHash*(r: DataRoot, info: ChainInfo, height: int): string =
@@ -404,7 +539,7 @@ proc nextBlockHash*(r: DataRoot, info: ChainInfo, height: int): string =
 
 proc blocks*(r: DataRoot, info: ChainInfo): seq[BlockRow] =
   var indexed: seq[string]
-  for b in blockRefsNewestFirst(r.store, info.session): indexed.add b.hash
+  for b in blockRefsNewestFirst(info.store, info.session): indexed.add b.hash
   for h in indexed:
     let d = readBlockDetail(r, info, h)
     result.add BlockRow(hash: d.hash, height: d.height,
@@ -446,7 +581,7 @@ proc blocksFrom*(r: DataRoot, info: ChainInfo, fromHeight: int,
   ## asks for. Only the page's own block details are read — the ordering comes
   ## from the generation's height map, which is one object per epoch — so the
   ## cost of page N does not grow with N.
-  let refs = blockRefsNewestFirst(r.store, info.session)
+  let refs = blockRefsNewestFirst(info.store, info.session)
   var indexed: seq[string]
   for b in refs: indexed.add b.hash
   var taken = 0
@@ -555,7 +690,7 @@ proc sourceCoverage*(native: JsonNode): SourceCoverageView =
 proc txView*(r: DataRoot, info: ChainInfo, hash: string): TxView =
   ## The transaction-detail projection. The SDK assembles the three data-plane
   ## layers; this maps them onto the fields the page shows.
-  let tr = transaction(r.store, info.session, hash)
+  let tr = transaction(info.store, info.session, hash)
   if tr.outcome != roFound:
     raise newException(DataPlaneError, "transaction " & hash & ": " & tr.reason)
   let v = tr.view
@@ -605,7 +740,7 @@ proc txsFrom*(r: DataRoot, info: ChainInfo, fromHeight: int,
   ## `fromHeight` inclusive. Blocks are taken whole — see `TxPageSize`.
   result.fromHeight = -1
   result.toHeight = -1
-  for b in blockRefsNewestFirst(r.store, info.session):
+  for b in blockRefsNewestFirst(info.store, info.session):
     if fromHeight >= 0 and b.height > fromHeight: continue
     if result.rows.len >= size:
       result.hasMore = true
@@ -724,10 +859,10 @@ proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
   ## opens the public half". That is the behaviour §7.1's private/public split
   ## needs: the route lands in the half that can be debugged, and the metadata
   ## pane still states that the other half is structurally absent.
-  let tr = transaction(r.store, info.session, hash)
+  let tr = transaction(info.store, info.session, hash)
   if tr.outcome != roFound:
     raise newException(DataPlaneError, "transaction " & hash & ": " & tr.reason)
-  let traces = resolveTraces(r.store, info.session, tr.view,
+  let traces = resolveTraces(info.store, info.session, tr.view,
                              probeOnDemand = false)
   var idx = -1
   if selector.len > 0:
@@ -759,20 +894,20 @@ proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
   # from an empty id — and §2.3a's rule that a terminal state fetches nothing
   # is the reason `resolveExec` returns before deriving one.
   if isReplayable(t) and t.instructionsPath.len > 0:
-    let ins = r.store.getJson(t.instructionsPath)
+    let ins = info.store.getJson(t.instructionsPath)
     if ins.found and ins.error.len == 0: result.instructions = ins.node
   # Fetched on the same terms as the listing above and never in place of it:
   # both are resolved, and `debugSessionFor` picks. A tree that publishes
   # positions almost always publishes instructions too, and the pane that ends
   # up with source simply leaves the listing unread.
   if isReplayable(t) and t.positionsPath.len > 0:
-    let pos = r.store.getJson(t.positionsPath)
+    let pos = info.store.getJson(t.positionsPath)
     if pos.found and pos.error.len == 0: result.positions = pos.node
   # The frames, on the same terms and independently of whichever of the two
   # above won the Code pane. A source-level recording and an instruction-level
   # one both have a call structure, so this is never the loser of a contest.
   if isReplayable(t) and t.calltracePath.len > 0:
-    let ct = r.store.getJson(t.calltracePath)
+    let ct = info.store.getJson(t.calltracePath)
     if ct.found and ct.error.len == 0: result.callFrames = ct.node
   if t.hasManifest:
     result.steps = t.manifest.execution.steps
@@ -790,15 +925,15 @@ proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
   if hashes.len == 0:
     result.sourceBundleReason = "this transaction executed no contract code"
     return
-  let reference = resolveSourceBundle(r.store, info.slug, t.manifest,
+  let reference = resolveSourceBundle(info.store, info.slug, t.manifest,
                                       t.hasManifest, hashes[0])
   if reference.origin == bsNone:
     result.sourceBundleReason = reference.reason
     return
-  let fetched = fetchSourceBundle(r.store, reference)
+  let fetched = fetchSourceBundle(info.store, reference)
   case fetched.outcome
   of boLoaded:
-    let raw = r.store.getJson(reference.path)
+    let raw = info.store.getJson(reference.path)
     if raw.found and raw.error.len == 0:
       result.sourceBundle = raw.node
     else:
@@ -829,7 +964,7 @@ type
 
 proc chainRows*(r: DataRoot): seq[ChainRow] =
   for slug in chains(r):
-    let opened = openChain(r.store, slug)
+    let opened = openChain(r.storeFor(slug), slug)
     if opened.outcome != ooOpened:
       result.add ChainRow(slug: slug, opened: false, reason: opened.reason)
     else:
@@ -851,7 +986,7 @@ proc labels*(r: DataRoot, chain: string): seq[LabelRow] =
   ## take a `ChainInfo` and a missing shard is silence rather than an error.
   var shard = 0
   while true:
-    let res = r.store.getJson("d/" & chain & "/labels/" & $shard & ".json")
+    let res = r.storeFor(chain).getJson("d/" & chain & "/labels/" & $shard & ".json")
     if not res.found: break
     if res.error.len == 0 and not res.node.isNil and res.node.kind == JObject and
        res.node.hasKey("labels") and res.node["labels"].kind == JArray:
@@ -880,7 +1015,7 @@ proc tour*(r: DataRoot, info: ChainInfo): seq[TourRow] =
   ## Every chain but the demo one is in that case and always will be: a tour is
   ## a claim about programs someone wrote to be read, and a captured chain has
   ## none.
-  let res = r.store.getJson(
+  let res = info.store.getJson(
     "d/" & info.slug & "/g/" & info.generation & "/tour.json")
   if not res.found or res.error.len > 0 or res.node.isNil or
      res.node.kind != JObject or not res.node.hasKey("programs"):
@@ -932,7 +1067,7 @@ proc addressSegmentPaths*(r: DataRoot, info: ChainInfo,
                                                   paths: seq[string]] =
   ## The generation's segment list for an address. ONE read, whatever the
   ## length of the history.
-  let res = r.store.getJson(addressIndexPath(info.slug, info.generation, address))
+  let res = info.store.getJson(addressIndexPath(info.slug, info.generation, address))
   if not res.found:
     return (false,
       address & " has no history in generation " & info.generation &
@@ -947,9 +1082,19 @@ proc addressSegmentPaths*(r: DataRoot, info: ChainInfo,
       if p.kind == JString and p.getStr.len > 0: paths.add p.getStr
   (true, "", paths)
 
-proc readAddressSegment*(r: DataRoot, path: string): AddressSegmentRow =
+proc readAddressSegment*(info: ChainInfo, path: string): AddressSegmentRow =
+  ## One segment object, read from the chain's own origin.
+  ##
+  ## TAKES THE `ChainInfo` AND NOT THE `DataRoot`, and the change is the reason
+  ## the parameter is a different TYPE rather than a renamed one: a segment
+  ## path is chain-scoped (`d/{chain}/seg/…`) while a `DataRoot` is not, so the
+  ## old shape read a chain's object through whatever store the root defaulted
+  ## to. That was invisible while there was one store and is a wrong-origin
+  ## read the moment there are two. Changing the type forces every call site to
+  ## name the chain it is reading for; a defaulted overload would have kept the
+  ## bug reachable and spelled the same.
   result.path = path
-  let res = r.store.getJson(path)
+  let res = info.store.getJson(path)
   if not res.found or res.error.len > 0 or res.node.isNil or
      res.node.kind != JObject:
     return
@@ -1008,13 +1153,13 @@ proc addressView*(r: DataRoot, info: ChainInfo, address: string;
   # measures at depths 0, 1, 2500 and 4999 over a hundred thousand transactions.
   # That shape was briefly here as a deliberate mutation to prove the test bites;
   # it bit, and this is the implementation.
-  result.segment = readAddressSegment(r, listed.paths[want])
+  result.segment = readAddressSegment(info, listed.paths[want])
 
 proc addressRows*(r: DataRoot, info: ChainInfo, v: AddressView): seq[TxRow] =
   ## The transactions of the segment this view is positioned on.
   if v.index < 0: return
   for h in v.segment.transactions:
-    if r.store.get(txFactsPath(info.slug, h)).found:
+    if info.store.get(txFactsPath(info.slug, h)).found:
       result.add txRow(r, info, h)
 
 proc codeHashesAt*(r: DataRoot, info: ChainInfo, address: string,
@@ -1026,7 +1171,7 @@ proc codeHashesAt*(r: DataRoot, info: ChainInfo, address: string,
   ## this address look verified because somebody else's code is
   ## (`viewmodel/address_vm.codeHashesFor`, same rule, same reason).
   for row in rows:
-    let tr = transaction(r.store, info.session, row.hash)
+    let tr = transaction(info.store, info.session, row.hash)
     if tr.outcome != roFound: continue
     for e in tr.view.facts.codeEdges:
       if e.address == address and e.codeHash.len > 0 and e.codeHash notin result:
@@ -1062,7 +1207,7 @@ proc sourceBundleAt*(r: DataRoot, chain, codeHash: string): SourceBundleView =
   ## recommendation. `resolveSourceBundle` owns the order and is given no
   ## manifest, which is the same function `traceView` calls with one.
   result.codeHash = codeHash
-  let reference = resolveSourceBundle(r.store, chain, TraceManifest(), false,
+  let reference = resolveSourceBundle(r.storeFor(chain), chain, TraceManifest(), false,
                                       codeHash)
   result.origin = $reference.origin
   result.sourceBundleId = reference.sourceBundleId
@@ -1070,7 +1215,7 @@ proc sourceBundleAt*(r: DataRoot, chain, codeHash: string): SourceBundleView =
   if reference.origin == bsNone:
     result.reason = reference.reason
     return
-  let fetched = fetchSourceBundle(r.store, reference)
+  let fetched = fetchSourceBundle(r.storeFor(chain), reference)
   if fetched.outcome != boLoaded:
     # `boMismatched` in particular is REFUSED rather than displayed: a bundle
     # filed under a different code hash would attribute source to code that
@@ -1099,7 +1244,7 @@ proc deploymentsOf*(r: DataRoot, info: ChainInfo, codeHash: string): seq[string]
   ## enumeration of the generation's addresses, so this is a read of the data
   ## plane and not a directory listing.
   for rel in info.session.root.addrPaths:
-    let res = r.store.getJson(rel)
+    let res = info.store.getJson(rel)
     if not res.found or res.error.len > 0 or res.node.isNil: continue
     if res.node.kind != JObject: continue
     let address = res.node{"address"}.getStr
@@ -1112,9 +1257,9 @@ proc deploymentsOf*(r: DataRoot, info: ChainInfo, codeHash: string): seq[string]
     # The newest segment is enough to decide whether this address carries the
     # code hash: a code edge binds an address to code, and the binding is on
     # every transaction that ran it.
-    let seg = readAddressSegment(r, segs[0])
+    let seg = readAddressSegment(info, segs[0])
     for h in seg.transactions:
-      let tr = transaction(r.store, info.session, h)
+      let tr = transaction(info.store, info.session, h)
       if tr.outcome != roFound: continue
       for e in tr.view.facts.codeEdges:
         if e.address == address and e.codeHash == codeHash:
@@ -1125,7 +1270,7 @@ proc deploymentsOf*(r: DataRoot, info: ChainInfo, codeHash: string): seq[string]
 proc addressesInGeneration*(r: DataRoot, info: ChainInfo): seq[string] =
   ## Every address the sealed generation indexes, in the root's own order.
   for rel in info.session.root.addrPaths:
-    let res = r.store.getJson(rel)
+    let res = info.store.getJson(rel)
     if not res.found or res.error.len > 0 or res.node.isNil: continue
     if res.node.kind != JObject: continue
     let address = res.node{"address"}.getStr

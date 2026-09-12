@@ -107,6 +107,7 @@ that was already acted on and is kept so the reason survives the fix.
 | 5 | Debug controls | **`reverse-step-in` was missing entirely** — three reverse moves against four forward ones, on the surface whose premise is that time runs both ways. | **FIXED** — added; four pairs. |
 | 6 | Debug controls | The toolbar was a **palindrome** (all reverse left, all forward right) while `DebugAction`'s own doc comment claimed "Backward first in each pair". The desktop lays out `[reverse-X][X]` pairs, which is how a desktop user reaches for them. | **FIXED** — reordered to the desktop's pairing; the comment is now true. |
 | 7 | Debug controls | `reverse-step-out` and `step-out` **shared the glyph `⤴`** — two moves, one mark, on a toolbar whose whole point is direction. | **FIXED** — every glyph distinct. |
+| 7a | Debug controls | **The mark GEOMETRY now differs from the desktop's on purpose, and this table did not say so.** Rows 5–7 fixed BlockTracer's marks (`icons.nim`, `dev` `e8c8f34`, 2026-09-02): four VS Code codicons plus four drawn in-repo because no product ships them. The same alignment was applied to CodeTracer (`93be377c`) so both toolbars would draw the identical set, and was **reverted the next day** (`1a92150`, `d98eccd`) at the project owner's instruction — *"my intention was to change them only in Blocktracer for now. I'll have a word with our designer regarding reworking them in CodeTracer"*. CodeTracer's nine marks were traced back from the blobs at `1b898556`. Not one `d` string is shared today; even the viewBoxes differ (BlockTracer is uniformly 16×16, CodeTracer carries 16×16, 17×17, 18×17 and 16×17). | **DELIBERATE, and the one row here whose divergence is an *instruction* rather than a judgement.** Rows 5–7 read as "BlockTracer fixed a defect the desktop still has", which invites a later pass to push the fix upstream and re-converge. It must not: CodeTracer's rework is a designer's task starting from CodeTracer's own geometry, and `1b898556` is the named revision. What the two products share is the mechanism — inline paths inheriting the button's colour so a theme can carry them — **and only that**. Recorded here because the token ledger cannot hold it: an icon is not a `bkLiteral`, so check B2 never fires, and before this row the decision existed only in two `codetracer` commit messages and one Nim docstring. |
 | 8 | Source | The tab strip named four files from the published bundle and **one was reachable**; the rest were inert `<span>`s. The desktop opens each file as its own tab. | **FIXED** — each document is a `:target` panel with a real link, and each panel carries its own strip so the active tab is right for any number of files, with no JavaScript. |
 | 9 | Source | The pane rendered from line 1, so at `laptop` the current line fell **below the fold** — the toolbar claimed a step and no pane showed it. The desktop opens on the current statement. | **FIXED** — the pane opens on the position with a lead-in, and announces the window. Found independently by four of six reviewers in VD.5 round 1. |
 | 10 | Metadata | The one pane the desktop does not have carried the **only dismiss control**, and nothing was behind it. The desktop's rule is the reverse: every GoldenLayout pane closes. | **FIXED** — removed. Dismissing it would also violate this route's own invariant that the metadata pane is present in every state. |
@@ -139,12 +140,26 @@ that was already acted on and is kept so the reason survives the fix.
 
 ## Summary
 
-**36 rows.** By verdict: **12 FIXED** (rows 1–11, plus row 19's syntax
-highlighting, which closed in the previous pass); **14 DELIBERATE** — divergences
-that are chosen or forced and are stated; **4 CONTINUOUS** — the desktop's own
-treatment, reached by this medium's means (rows 23, 28, 31, 32); **4 HUMAN**
-(rows 17, 21, 30, 36); **1 DEFECT** (row 33); **1 OPEN in the evidence** (row 22,
-narrowed this round to the revert row alone).
+**37 rows.** By verdict: **12 FIXED** (rows 1–11, plus row 19's syntax
+highlighting, which closed in the previous pass); **15 DELIBERATE** — divergences
+that are chosen or forced and are stated (rows 12–16, 18, 20, 24–27, 29, 34, 35,
+and row 7a); **4 CONTINUOUS** — the desktop's own treatment, reached by this
+medium's means (rows 23, 28, 31, 32); **4 HUMAN** (rows 17, 21, 30, 36); **1
+DEFECT** (row 33); **1 OPEN in the evidence** (row 22, narrowed this round to the
+revert row alone).
+
+**Row 7a was added 2026-09-11** by a convergence review, and it is the only row so
+far whose subject the token ledger structurally cannot hold. That is worth keeping
+in view when reading this document beside
+`docs/DESIGN-DIVERGENCES-WEB.md`: **the two measure different axes.** The ledger
+measures *token provenance* — is this value a `{ref}` into the shared brand, or a
+literal with a row behind it — and it is machine-enforced in both directions. This
+document measures *recognition* — would a desktop user know the tool — and it is
+enforced by nobody. A binding can be 100% `bkToken` and render nothing like the
+desktop; a divergence can be deliberate, correct and invisible to every check in
+Design-System §4.1. Neither document is a superset of the other, and a convergence
+pass that reads only one of them will either undo a deliberate divergence or miss
+a real one.
 
 ### Round 5 — what the rearrangement did to continuity
 

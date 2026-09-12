@@ -693,3 +693,86 @@ Justfile does not wire it up.
 `editor` target in either Justfile. (The sibling isonim sites
 `metacraft-web-site` and `reprobuild-web-site` ship a read-only editor workspace
 and are the model to follow if one is added here.)
+
+## 6. The chain path is developed on `high-mem-server`
+
+Everything under `tools/chain/` — the follower, its nix packaging, and the
+`infra` service that makes it resident — is developed **on `high-mem-server`**,
+because an agent there has the production deployment in reach and can move
+between a manual run and the service. The full argument, with every figure
+sourced and dated, is
+[`docs/High-Mem-Server-Development.md`](./docs/High-Mem-Server-Development.md).
+This section is the part you must not skip.
+
+**Why not the laptop.** `flake.nix` exposes five chain packages
+(`chain-tools`, `chain-runtime`, `aztec-ct-writer-wasm`, `chain-follower`,
+`chain-follower-nodejs`) and they were first built cold on `x86_64-linux` on
+2026-09-08 — 115 derivations, 2 min 02 s — gated by `ci.yml`'s
+`chain-follower-linux` job. `avm.wasm` is pinned by content in
+`infra/services/blocktracer-ingest/avm-wasm.json`
+(sha256 `41af520a…b905a7`, 1,565,773 bytes) because, as the `.nix` beside it
+puts it, *"every actual value it ever held was a file in somebody's home
+directory. That is the reason the follower had only ever run on one
+workstation."* The laptop is still that workstation: the historic-replay
+toolchain there is an `avm.wasm` out of a browser-capture cache, a
+`ct_writer.wasm` from an agent worktree because the main runtime checkout's
+build has no `ct_source_step` export, a second runtime worktree, and a
+hand-installed Node — the system one is 20.20.1 and rejects
+`--experimental-wasm-exnref` outright.
+
+**Setup.** Repos at `/home/zahary/metacraft/<repo>`, `direnv allow` once each;
+run things as
+`direnv exec /home/zahary/metacraft/<repo> bash -lc '…'` with the repo path
+spelled out. **Heavy build and capture work goes in `/build`** — the
+`zroot/root/build` dataset, `sync=disabled`, owned `zahary:users`. Never
+`$HOME`, never `/var`.
+
+**Three hazards, and they are the reason this section exists.**
+
+1. **The pull-agent restarts what you stop.** `high-mem-server` is an
+   auto-deploy target (`mcl-deploy-agent` is on for every Linux
+   `type == "server"` host) and the follower unit is
+   `wantedBy = multi-user.target`, so a merge to infra's `live` re-activates it
+   mid-manual-run and says nothing. **`systemctl mask` for the duration of a
+   manual run, and unmask afterwards** — a `stop` does not survive an
+   activation. `infra/AGENTS.md`'s Guardrails state the same hazard from the
+   other side. (The module is not yet bound to this host on `origin/live`; the
+   hazard arrives with the binding, which is the work.)
+2. **The R2 lease does not protect you from yourself.** The single-writer lease
+   is `_leases/<chain>`, taken with `If-None-Match: *`, holder =
+   **`/etc/machine-id`**, TTL 900 s. A manual publish on the same host presents
+   the *same* holder as the service, so both see `HOLDER == LEASE_ID` and
+   **both proceed** — it guards against a second host, not a second process.
+   Losing it is exit 75, which is in `SuccessExitStatus`, so contention never
+   colours the unit red. The follower itself has **no lease, no cursor and no
+   lock at all**.
+3. **Disk write bandwidth is the binding resource, and cgroup I/O control
+   cannot save you.** Six QLC SSDs in RAID5 sustain **~78 MB/s** of ZFS writes
+   past their SLC cache; beyond that txg sync reaches ~38 s against a 5 s
+   timeout, `zroot` is `/` with `failmode=wait`, every disk-touching process
+   parks in D state, PID 1 stops petting the watchdog and the iDRAC hard-resets
+   — **four such resets across 2026-08-18/20**. cgroup-v2 `io` weights are
+   ineffective on ZFS (writes buffer in ARC and are issued later by ZFS taskqs
+   outside the originating cgroup), and the CPU policy runs *against* you:
+   agent sessions sit in `user.slice` at CPUWeight **1000** against the CI
+   runners' `builds.slice` at **20**. **A cold Nix build on this host is the
+   single most likely cause of the next watchdog reset.**
+
+**Blast radius, because it is wider than a dev host's has any right to be.**
+This is the Prometheus/Grafana/Loki host for the fleet; it runs `atticd` and the
+nginx that publishes the signed deployment manifests, so if that stalls
+**nothing reaches this or any other host, including a fix for the storm**; it
+hosts 14 `eph-linux-x64` GARM slots, up to 8 ephemeral Windows VMs and the
+static `win-ci-vm-001`; and `zroot` is a single non-redundant vdev currently
+carrying 15 permanent data errors. **Do not restart GARM or `incusd` to
+"unstick" a queue** — `infra/docs/CI-Runner-Fleet-Status.md` §5 says so
+explicitly: running jobs are lost and the queue is unchanged.
+
+**The security posture, recorded rather than argued.** The agent runs as
+`zahary`, who is in `super-admins`, so it can decrypt every service secret in
+the tree — including the R2 credential — and reaches `incus`/`virsh` without
+sudo and GARM through a `super-admins`-scoped passwordless `garm-admin` wrapper.
+`codetracer-specs/BlockTracer/Deployment-And-Operations.md` §6c says agents never
+hold production credentials; this host is a deliberate, operator-approved
+exception, written down so a future reader knows it was chosen and not
+overlooked.

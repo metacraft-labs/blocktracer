@@ -6,6 +6,15 @@
 > is a step of the `visual-design` CI job.
 > **Token source:** [`client/src/design_system/web.tokens.json`](../client/src/design_system/web.tokens.json)
 
+> **This document measures token PROVENANCE, not visual fidelity** — see
+> Design-System.md §8.1. A binding can be 100% `bkToken` and still render
+> nothing like CodeTracer, and a deliberate visual divergence can be invisible
+> to every check below. The other two axes are measured elsewhere, and a
+> convergence pass should read all three because none is a superset of another:
+> [DESKTOP-CONTINUITY.md](./DESKTOP-CONTINUITY.md) for the **debugger** register
+> against the desktop app, and [EXPLORER-TINT.md](./EXPLORER-TINT.md) for the
+> **explorer** register's finish against the product register beside it.
+
 ## 0. Why this file is here and not in `codetracer-design-system`
 
 Design-System.md §3 places the web lineage's token file at

@@ -33,6 +33,40 @@ const
   OutputDir = "dist"
   DefaultSeed = "blocktracer-demo-0"
 
+# ── the deployment descriptor's data origins, at the composition root ───────
+#
+# BUILD TIME, AND NOWHERE ELSE. Configuration.md §1 puts origins at build time
+# ("Nix flake inputs, registry source … changed by a rebuild and redeploy") and
+# §6.1 forbids them anywhere later: "No preference, and no URL parameter, may
+# change where bytes come from." So they are `strdefine`s — the same mechanism
+# `replayEngineBase` and `hydrationBundle` already use for a deployment-varying
+# URL — read in this file, which is the composition root, and read nowhere
+# inside the reader or the Client SDK.
+#
+# BOTH DEFAULT TO EMPTY, and empty means "beside the software". A build that
+# passes neither is byte-for-byte the build this repository has always made:
+# one tree, every chain, no origin decision to review.
+#
+#   -d:dataOrigin=<dir>
+#       Every chain's data comes from <dir> instead of from the tree this build
+#       produced. This is "show the production data with different software":
+#       CI stages the published production tree into <dir> and the staging site
+#       renders it.
+#
+#   -d:chainOrigins=<chain>=<dir>[,<chain>=<dir>…]
+#       Per-chain exceptions, for a chain the default data origin does not
+#       carry. The list is short, comma-separated and printed in the build log
+#       below, because Configuration.md §2.3 asks that the set of origins a
+#       build may reach stay "enumerable and reviewable".
+#
+# A directory is the only transport here because this build renders on the
+# filesystem. Nothing about the seam is filesystem-shaped — `storeFor` returns
+# an `ObjectStore`, and a browser-side build would hand it a fetch closure — but
+# an exporter that opened a socket would stop being reproducible, so it does not.
+const
+  DefaultDataOrigin* {.strdefine: "dataOrigin".} = ""
+  ChainOriginSpec* {.strdefine: "chainOrigins".} = ""
+
 proc repoRoot(): string =
   ## <repo>/client/src/static_export.nim → <repo>.
   currentSourcePath().parentDir.parentDir.parentDir
@@ -347,6 +381,48 @@ proc generateRobots() =
   writeFile(OutputDir / "robots.txt",
     "User-agent: *\nAllow: /\nSitemap: " & SiteDomain & "/sitemap.xml\n")
 
+proc requireOriginDir(dir, what: string) =
+  ## An origin that is not there is a FAILED BUILD, not a chain that silently
+  ## renders empty. Same standing as the trace fixture and the tour manifest
+  ## above: this build was told where a chain's bytes come from, and a
+  ## mistyped path must not resolve to "no such chain" three steps later.
+  if dir.len == 0 or not dirExists(dir):
+    stderr.writeLine "data origin not found: " & dir & "  (" & what & ")"
+    quit 2
+
+proc resolveDataOrigins(r: DataRoot): DataRoot =
+  ## Apply this build's declared origins, and SAY what was applied.
+  ##
+  ## The echo is not decoration. A site that renders one chain out of a
+  ## different store looks identical to one that does not, so the build log is
+  ## where "which origins did this deployment reach" is answerable after the
+  ## fact — the enumerable-and-reviewable property Configuration.md §2.3 asks
+  ## for, in the one artifact CI keeps.
+  result = r
+  if DefaultDataOrigin.len > 0:
+    requireOriginDir(DefaultDataOrigin, "-d:dataOrigin")
+    result = result.withDataOrigin(localTree(DefaultDataOrigin))
+    echo "  + default data origin: " & DefaultDataOrigin &
+      " (this build renders another deployment's tree)"
+  else:
+    echo "  + default data origin: " & OutputDir & " (this build's own tree)"
+  var declared = 0
+  for entry in ChainOriginSpec.split(','):
+    let spec = entry.strip()
+    if spec.len == 0: continue
+    let eq = spec.find('=')
+    if eq <= 0 or eq == spec.high:
+      stderr.writeLine "-d:chainOrigins entry is not '<chain>=<dir>': " & spec
+      quit 2
+    let chain = spec[0 ..< eq].strip()
+    let dir = spec[eq + 1 .. ^1].strip()
+    requireOriginDir(dir, "-d:chainOrigins entry '" & chain & "'")
+    result = result.withChainOrigin(chain, localTree(dir))
+    echo "  + per-chain data origin: /" & chain & " <- " & dir
+    inc declared
+  if declared == 0:
+    echo "  + per-chain data origins: none declared (every chain uses the default)"
+
 proc exportSite() =
   let startTime = epochTime()
 
@@ -498,7 +574,12 @@ proc exportSite() =
     echo "  + synthetic demo chain: not published (this build set -d:noDemoChain)"
 
   # Step 2: render the explorer views over that tree, at clean URLs.
-  let root = newDataRoot(OutputDir)
+  #
+  # `withDataOrigin` / `withChainOrigin` are no-ops unless this build declared
+  # one, so the ordinary build resolves every chain to `OutputDir` exactly as it
+  # did before the seam existed — see `resolveDataOrigins`, which echoes what it
+  # resolved rather than leaving a reader to infer it from a flag.
+  let root = resolveDataOrigins(newDataRoot(OutputDir))
   let routes = staticRoutes(root)
   var rendered = 0
   for route in routes:
