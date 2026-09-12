@@ -24,6 +24,7 @@ nimcache/
 /tests/tpublish
 /tests/tmutcheck
 /tests/tclientsdk
+/tests/tchainsnapshot
 /tests/tembedhandoff
 /tests/tviewmodelseam
 /tests/tdebugpanes

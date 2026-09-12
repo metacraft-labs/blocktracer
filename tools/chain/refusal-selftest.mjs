@@ -34,11 +34,15 @@ import {
   UnknownRefusalCondition, UnexplainedAbsence,
   classifyRefusal, reasonForRuntimeClass, refusalCounts, auditRefusals,
   assertRefusalsAreClosed, assertAbsentIsNotARefusal, isRefusalReason, refusalDurability,
-  refuseNotFirstInBlock, refuseBodyUnavailable, chainPublishedNoPublicExecution,
+  refuseNotFirstInBlock, refuseBodyUnavailable, refuseBodySourceUnreachable,
+  chainPublishedNoPublicExecution, looksLikePrivateOnlyCrash,
   OUTCOMES, TRACED_OUTCOMES, UNTRACED_OUTCOMES, CHAIN_ABSENT_OUTCOMES,
 } from './lib/refusal.mjs';
 import { decideOutcome } from './lib/replay.mjs';
 import { scanVerdict } from './scan-tx-index.mjs';
+import { countsDisagreements } from './lib/recount.mjs';
+import { SNAPSHOT_FORMAT, READABLE_SNAPSHOT_FORMATS, requiresRefusalReason,
+         isReadableSnapshotFormat } from './lib/snapshot-format.mjs';
 
 let asserted = 0;
 let failed = 0;
@@ -126,6 +130,23 @@ function untracedRowOfEveryReason() {
                                    narrative: 'This transaction was replayable when it was '
                                      + 'seen and this run reached its own --max of 1 before '
                                      + 'taking it. The run declined it, not the chain.' }) });
+  // 8. body-source-unreachable — the BODY SOURCE could not be asked. Reached through the
+  //    shared producer, like the two above it, because a row this file spelled itself would
+  //    pass while `ingest-range.mjs` wrote something else.
+  //
+  //    IT IS ITS OWN MEMBER AND NOT `body-unavailable`, which is the whole reason it exists:
+  //    `ingest-range.mjs replayRange` routed `absent`, `mismatched`, `truncated` AND
+  //    `unavailable` into `refuseBodyUnavailable`, whose member is durability PERMANENT — so
+  //    one store 5xx published "this transaction can never be re-executed" about a body the
+  //    store holds. And it is not `not-attempted` either: every `not-attempted` narrative in
+  //    this tree asserts the body IS obtainable, which is precisely the claim a run that
+  //    could not reach the store has failed to establish.
+  rows.push({ txHash: '0x08', blockNumber: 105, txIndexInBlock: 0,
+              ...refuseBodySourceUnreachable({
+                blockNumber: 105, storeOutcome: 'unavailable',
+                storeReason: 'The file store answered HTTP 503 for this key, which is '
+                  + 'neither a body nor a denial that it holds one.',
+                where: 'selftest' }) });
   return rows;
 }
 
@@ -160,7 +181,7 @@ test('test_every_untraced_transaction_carries_a_reason');
     ck(`reason ${id} is reached`, reached.has(id));
   }
   ck('no transaction is untraced-without-reason', audit.problems.length === 0);
-  ck('and all seven are counted as untraced', audit.untraced === rows.length);
+  ck(`and all ${rows.length} are counted as untraced`, audit.untraced === rows.length);
   ck('…and none as traced', audit.traced === 0);
 
   const counts = refusalCounts(rows);
@@ -523,8 +544,30 @@ test('the gate is in the write path, not beside it');
     const followSrc = readFileSync(new URL('./follow-chain.mjs', import.meta.url), 'utf8');
     ck('`follow-chain.mjs` calls the gate inside `saveSnapshot`',
        /async function saveSnapshot[\s\S]{0,700}?assertRefusalsAreClosed/.test(followSrc));
-    ck('…and publishes per-reason counts in `recount`',
-       /function recount[\s\S]{0,2000}?refusalCounts/.test(followSrc));
+    // ── ONE TALLY, AND THE CHECK IS THAT NOBODY CARRIES A SECOND ────────────────────
+    //
+    // This used to assert `/function recount[\s\S]{0,2000}?refusalCounts/` per producer —
+    // that each of them had its own `recount` and that its own copy reached
+    // `refusalCounts`. It passed while the three copies DISAGREED:
+    // `follow-chain.mjs`'s had no `privateOnly` line, so its `accountedFor` omitted every
+    // chain-absent row, and `backfill-blocks.mjs`'s spread `...s.counts` and preserved
+    // every outcome line across a run that added rows — which is how
+    // `client/fixtures/chain/aztec-testnet/snapshot.json` came to declare
+    // `counts.pruned: 25` against 835 pruned rows. A check that each producer has its own
+    // spelling of a measurement is a check that there are three answers.
+    //
+    // So the assertion is inverted: the tally lives in `lib/recount.mjs`, every producer
+    // calls it, and NONE of them defines a `recount` of its own.
+    const recountSrc = readFileSync(new URL('./lib/recount.mjs', import.meta.url), 'utf8');
+    ck('the tally is single-sourced in `lib/recount.mjs`, and it publishes per-reason counts',
+       /export function recountSnapshot[\s\S]*?counts\.refusals = refusals\.byReason/
+         .test(recountSrc));
+    ck('…and it publishes the three-population reconciliation, `privateOnly` included',
+       /counts\.privateOnly = refusals\.chainAbsent/.test(recountSrc)
+         && /counts\.accountedFor =[\s\S]{0,120}?counts\.privateOnly/.test(recountSrc));
+    ck('`follow-chain.mjs` takes the tally from there rather than spelling its own',
+       /import \{ recountSnapshot \} from '\.\/lib\/recount\.mjs'/.test(followSrc)
+         && !/function recount\s*\(/.test(followSrc));
     const captureSrc = readFileSync(new URL('./capture-chain.mjs', import.meta.url), 'utf8');
     ck('`capture-chain.mjs` calls the gate before it writes',
        /assertRefusalsAreClosed[\s\S]{0,200}?writeFile\(join\(outDir, 'snapshot\.json'\)/.test(captureSrc));
@@ -539,8 +582,13 @@ test('the gate is in the write path, not beside it');
     const rangeSrc = readFileSync(new URL('./ingest-range.mjs', import.meta.url), 'utf8');
     ck('`ingest-range.mjs` calls the gate before it writes a replayed range',
        /assertRefusalsAreClosed[\s\S]{0,300}?writeFileSync\(tmp/.test(rangeSrc));
-    ck('…and publishes per-reason counts in its own `recount`',
-       /function recount[\s\S]{0,1600}?refusalCounts/.test(rangeSrc));
+    ck('…and takes the tally from `lib/recount.mjs` rather than spelling its own',
+       /import \{ recountSnapshot \} from '\.\/lib\/recount\.mjs'/.test(rangeSrc)
+         && !/function recount\s*\(/.test(rangeSrc));
+    ck('…and so does `backfill-blocks.mjs`, whose own copy PRESERVED every outcome line '
+       + 'across a run that added rows',
+       /import \{ recountSnapshot \} from '\.\/lib\/recount\.mjs'/.test(backfillSrc)
+         && !/function recount\s*\(/.test(backfillSrc));
     ck('…and never writes an outcome for a declined transaction outside `classifyRefusal`',
        // Every `outcome:` literal it writes is either traced (which comes from the driver's
        // own verdict, via `decideOutcome`) or is immediately followed by a classification.
@@ -587,22 +635,114 @@ test('the committed captures are inside the closed set');
 
   let untraced = 0;
   let traced = 0;
+  let chainAbsent = 0;
   const seen = new Set();
   const problems = [];
+  // ── WIDENED PAST `.transactions`, BECAUSE THAT IS WHY IT MISSED ────────────────────────
+  //
+  // This block read `.transactions` and nothing else, so it could not see — and did not —
+  // that `client/fixtures/chain/aztec-testnet/snapshot.json` declared `counts.pruned: 25`
+  // against 835 actual pruned rows, and that its four outcome lines summed to 51 against
+  // `counts.transactions: 866`. Data-Contract.md §5.2 gives `counts` exactly one job, "so a
+  // partial ingest is detectable", so a `counts` that disagrees with the rows is the
+  // detector reading clean on the condition it detects — and it is the defect ING-3 was
+  // written to eliminate, surviving in committed data because the gate over that data only
+  // looked at half the file.
+  //
+  // Three more things about the FILE are checked here for the same reason: each was wrong in
+  // the committed tree and invisible to a check that read only the rows.
+  const staleCounts = [];
+  const badFormat = [];
+  const notArray = [];
+  const claimedButMissing = [];
   for (const p of snaps) {
-    const rows = JSON.parse(readFileSync(p, 'utf8')).transactions ?? [];
+    const snap = JSON.parse(readFileSync(p, 'utf8'));
+    const rows = snap.transactions ?? [];
     const a = auditRefusals(rows);
     untraced += a.untraced;
     traced += a.traced;
+    chainAbsent += a.chainAbsent;
     for (const q of a.problems) problems.push(`${p}: ${q}`);
-    for (const id of Object.keys(refusalCounts(rows).byReason)) {
-      if (refusalCounts(rows).byReason[id] > 0) seen.add(id);
+    const byReason = refusalCounts(rows).byReason;
+    for (const id of Object.keys(byReason)) if (byReason[id] > 0) seen.add(id);
+
+    // 1. THE TALLY AGREES WITH THE ROWS, member by member.
+    for (const d of countsDisagreements(snap)) {
+      staleCounts.push(`${p}: counts.${d.member} declares ${JSON.stringify(d.declared)}, `
+        + `the rows say ${JSON.stringify(d.actual)}`);
+    }
+    // 2. THE TOKEN IS ONE THIS TREE READS, and if it is one that makes `refusalReason`
+    //    mandatory, every untraced row carries one. A tree that claimed `@1` while carrying
+    //    mandatory `@2` members, or the reverse, is the ambiguity the bump removed.
+    if (!isReadableSnapshotFormat(snap.format)) {
+      badFormat.push(`${p}: format ${JSON.stringify(snap.format)} is not one of `
+        + `${READABLE_SNAPSHOT_FORMATS.join(', ')}`);
+    } else if (!requiresRefusalReason(snap.format)
+               && rows.some((t) => typeof t.refusalReason === 'string')) {
+      claimedButMissing.push(`${p}: format ${snap.format} does not require `
+        + `refusalReason and rows carry it — the token understates the tree`);
+    } else if (requiresRefusalReason(snap.format)) {
+      const missing = rows.filter((t) => UNTRACED_OUTCOMES.includes(t.outcome)
+                                         && t.refusalReason == null);
+      if (missing.length) {
+        claimedButMissing.push(`${p}: format ${snap.format} requires refusalReason and `
+          + `${missing.length} untraced row(s) carry none`);
+      }
+    }
+    // 3. `captures` IS AN ARRAY. `ingest.nim` gates the per-capture recorder attribution on
+    //    `caps.kind == JArray`, so a `captures` committed as a JSON OBJECT with numeric
+    //    string keys — which `aztec-testnet-frames` was — silently skips the whole mapping
+    //    and files every container under the snapshot-level `runtimeCommit`. It cost nothing
+    //    there only because all eight commits happened to be identical; the next snapshot
+    //    grown by a second runtime build would misattribute containers, which is exactly
+    //    what `traceArtifactId`'s commitment to `recorderBuild` exists to prevent.
+    if (snap.captures !== undefined && !Array.isArray(snap.captures)) {
+      notArray.push(`${p}: captures is ${typeof snap.captures}, not an array — `
+        + `ingest.nim skips per-capture recorder attribution for it entirely`);
     }
   }
   ck(`the population is not empty — ${untraced} untraced row(s) across ${snaps.length} `
-     + `captures, against ${traced} traced`, untraced > 100);
+     + `captures, against ${traced} traced and ${chainAbsent} chain-absent`, untraced > 100);
   ck('every one of them carries a reason from the closed set', problems.length === 0);
   if (problems.length) console.error(`    ${problems.slice(0, 5).join('\n    ')}`);
+  ck('every capture\'s `counts` agrees with its own rows, member by member — §5.2\'s '
+     + '"so a partial ingest is detectable"', staleCounts.length === 0);
+  if (staleCounts.length) console.error(`    ${staleCounts.slice(0, 8).join('\n    ')}`);
+  ck(`every capture declares a format this tree reads — ${SNAPSHOT_FORMAT} or an earlier `
+     + 'one it still accepts', badFormat.length === 0);
+  if (badFormat.length) console.error(`    ${badFormat.join('\n    ')}`);
+  ck('…and no capture claims a token whose mandatory members it does not carry, in either '
+     + 'direction', claimedButMissing.length === 0);
+  if (claimedButMissing.length) console.error(`    ${claimedButMissing.join('\n    ')}`);
+  ck('every capture\'s `captures` is an ARRAY, which is the shape ingest.nim attributes '
+     + 'recorders from', notArray.length === 0);
+  if (notArray.length) console.error(`    ${notArray.join('\n    ')}`);
+
+  // ── AND THE SEVEN RECLASSIFIED ROWS STAY RECLASSIFIED ──────────────────────────────────
+  //
+  // Seven committed rows carried `refusalReason: runtime-refused` — durability REPAIRABLE,
+  // so every one of them told a reader that a better runtime would trace it — and were
+  // `private-only`: no public execution, nothing to re-run, nothing this pipeline declined.
+  // The signature is in the row: a driver `TypeError` naming `forPublic`'s accumulator,
+  // which is what the crash looked like before the outcome existed. Asserted both ways so a
+  // re-migration, a re-capture or a hand edit cannot quietly put them back.
+  const crashSignature = [];
+  const stillMisfiled = [];
+  for (const p of snaps) {
+    for (const t of JSON.parse(readFileSync(p, 'utf8')).transactions ?? []) {
+      if (!looksLikePrivateOnlyCrash(t)) continue;
+      crashSignature.push(t.txHash);
+      if (t.outcome !== 'private-only' || t.refusalReason != null) {
+        stillMisfiled.push(`${p}: ${t.txHash} carries the private-only crash signature and `
+          + `is filed ${t.outcome} / ${JSON.stringify(t.refusalReason ?? null)}`);
+      }
+    }
+  }
+  ck(`the signature still matches the rows it was derived from — ${crashSignature.length} `
+     + 'of them, so this arm is not vacuous', crashSignature.length === 7);
+  ck('…and every one is `private-only` with NO reason id — a permanent property of the '
+     + 'CHAIN is never published as a repairable fault of ours', stillMisfiled.length === 0);
+  if (stillMisfiled.length) console.error(`    ${stillMisfiled.join('\n    ')}`);
   // WHICH MEMBERS THE REAL DATA HAS ALREADY REACHED, asserted so the fact stops being
   // something someone once noticed. `not-first-in-block` is among them: the committed
   // testnet capture holds four transactions at a non-zero index, which is a refusal branch
@@ -612,11 +752,130 @@ test('the committed captures are inside the closed set');
   ck('…and `body-unavailable`', seen.has('body-unavailable'));
   ck('…and `runtime-refused`', seen.has('runtime-refused'));
   ck('…and `not-attempted`', seen.has('not-attempted'));
-  // The three that real data has NOT reached are named rather than left implicit: a set
-  // whose unreached members are invisible is a set nobody can ask questions about.
-  ck('three members are not yet reached by any committed capture, and that is stated '
+  // The members real data has NOT reached are named rather than left implicit: a set whose
+  // unreached members are invisible is a set nobody can ask questions about. FOUR now, not
+  // three — `body-source-unreachable` is new and no committed capture has met a store
+  // outage, which is a fact worth being able to watch change rather than a gap.
+  ck('four members are not yet reached by any committed capture, and that is stated '
      + `rather than silent: ${REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).join(', ')}`,
-     REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).length === 3);
+     REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).length === 4);
+}
+
+// ── the version policy, and the four store outcomes that are not one fact ───────────────
+//
+// Two properties of the SEAM, both of which were published false and neither of which the
+// suite above could see.
+
+test('the format token says something checkable, and `@1` is read whole');
+{
+  ck(`the token this tree writes is ${SNAPSHOT_FORMAT}`,
+     SNAPSHOT_FORMAT === 'blocktracer/chain-snapshot@2');
+  // §3: a version the reader does not SUPPORT is refused by name. `@1` is supported, so it
+  // is read — and read WHOLE, which is the other half of §5.2's rule. The bump is not a
+  // drop of the old format; it is the end of one token meaning two shapes.
+  ck('…and `@1` is still readable, so an existing tree is not orphaned',
+     isReadableSnapshotFormat('blocktracer/chain-snapshot@1'));
+  ck('…and an unknown token is NOT readable, so it is refused by name rather than guessed',
+     !isReadableSnapshotFormat('blocktracer/chain-snapshot@3')
+       && !isReadableSnapshotFormat('')
+       && !isReadableSnapshotFormat('blocktracer/chain-snapshot'));
+  // THE DIFFERENCE BETWEEN THE TWO TOKENS, asserted. A version whose only difference a
+  // reader does not act on is a label, and that is exactly what `@1` had become: ING-3 made
+  // `refusalReason` mandatory on the producer side while the token and the reader both went
+  // on treating it as optional.
+  ck('`@2` requires `refusalReason` on every untraced row and `@1` does not — which is the '
+     + 'whole content of the bump',
+     requiresRefusalReason('blocktracer/chain-snapshot@2')
+       && !requiresRefusalReason('blocktracer/chain-snapshot@1'));
+  // The Nim reader reads the SAME file, with `staticRead`. Asserted over the source because
+  // the two halves of the seam are in different languages and a token closed in one and open
+  // in the other is not closed — the reasoning `refusal-reasons.json` already carries.
+  const nimSrc = readFileSync(
+    new URL('../../src/blocktracer/chain/snapshot_format.nim', import.meta.url), 'utf8');
+  ck('the reader takes the policy from the same file, at COMPILE time, rather than spelling '
+     + 'a literal of its own',
+     /staticRead\("\.\.\/\.\.\/\.\.\/tools\/chain\/snapshot-format\.json"\)/.test(nimSrc));
+  const ingestSrc = readFileSync(
+    new URL('../../src/blocktracer/chain/ingest.nim', import.meta.url), 'utf8');
+  ck('…and `ingest.nim`\'s gate is that policy and not a `!=` against one token',
+     /isReadableSnapshotFormat\(snapFormat\)/.test(ingestSrc)
+       && !/getStr != "blocktracer\/chain-snapshot@/.test(ingestSrc));
+  ck('…and it ENFORCES the mandatory member on the token that requires it, naming the row',
+     /requireRefusalReason and rr\.len == 0 and isUntracedSnapshotOutcome\(outcome\)/
+       .test(ingestSrc));
+  // And the migration is expressible: the tool that adds the member is the tool that stamps
+  // the token, and it stamps only what it has just proved.
+  const migrateSrc = readFileSync(
+    new URL('./migrate-refusal-reasons.mjs', import.meta.url), 'utf8');
+  ck('the `@1` -> `@2` migration is one command, and it stamps the token only after the '
+     + 'audit is clean',
+     /audit\.problems\.length === 0 && noReason\.length === 0\s*\n?\s*&& snap\.format !== SNAPSHOT_FORMAT/
+       .test(migrateSrc)
+       && /snap\.format = SNAPSHOT_FORMAT/.test(migrateSrc));
+}
+
+test('a store that could not be asked is not a body that does not exist');
+{
+  const rangeSrc = readFileSync(new URL('./ingest-range.mjs', import.meta.url), 'utf8');
+  // ── C6: `unavailable` MUST NOT BECOME `body-unavailable` ────────────────────────────
+  //
+  // `replayRange` had one arm — `if (seen.outcome !== 'verified')` — into
+  // `refuseBodyUnavailable`, whose member is declared durability PERMANENT. So a store 5xx,
+  // a 429 or a TLS failure published "this transaction can never be re-executed" about a
+  // body the store holds and serves, and the run exited 0.
+  ck('`unavailable` reaches `body-source-unreachable`, which is repairable',
+     refusalDurability('body-source-unreachable') === 'repairable'
+       && /seen\.outcome === 'unavailable'[\s\S]{0,400}?refuseBodySourceUnreachable/
+            .test(rangeSrc));
+  ck('…and `body-unavailable`, which the four used to share, is permanent — so the split is '
+     + 'between two different claims and not two spellings of one',
+     refusalDurability('body-unavailable') === 'permanent');
+  ck('…and a store throttle ends the run, the way the node path\'s already does',
+     /if \(proxy\.storeThrottled\)[\s\S]{0,200}?stoppedBy = 'body-store-unreachable-this-run'/
+       .test(rangeSrc)
+       && /body-store-unreachable-this-run'\)[\s\S]{0,900}?process\.exit\(3\)/.test(rangeSrc));
+  // ── C7: `mismatched` IS AN ALARM, matching the mirroring tool ───────────────────────
+  //
+  // "The corpus lied." `backfill-bodies.mjs` exits 1 on `counts.mismatched` because "the
+  // exit code says whether the JOIN HELD"; this seam read the same store through the same
+  // `classify`, filed it as `body-unavailable` and exited 0. Two tools, one corpus, opposite
+  // verdicts — and the publishing one was the forgiving one.
+  ck('`mismatched` is collected rather than published as a pruned body',
+     /seen\.outcome === 'mismatched'[\s\S]{0,2500}?mismatchedBodies\.push/.test(rangeSrc));
+  ck('…and it is FATAL in the replay path too, matching backfill-bodies.mjs',
+     /report\.replay\.mismatchedBodies\?\.length[\s\S]{0,1400}?process\.exit\(1\)/
+       .test(rangeSrc));
+  const bodiesSrc = readFileSync(new URL('./backfill-bodies.mjs', import.meta.url), 'utf8');
+  ck('…which is the tool it now agrees with', /counts\.mismatched \|\|/.test(bodiesSrc));
+  // ── C6: THE STORE PATH HAS THE DISCIPLINE THE NODE PATH HAD ─────────────────────────
+  //
+  // No retry, no backoff, no `Retry-After`, no timeout, and the negative answer cached
+  // unconditionally — so ONE 503 decided a key for the rest of the run.
+  const proxySrc = readFileSync(new URL('./lib/body-proxy.mjs', import.meta.url), 'utf8');
+  ck('the body fetch retries, backs off and honours `Retry-After` up to the same cap the '
+     + 'node path uses',
+     /for \(let attempt = 0; attempt < storeAttempts/.test(proxySrc)
+       && /retryAfterMs > MAX_HONOURED_RETRY_AFTER_MS[\s\S]{0,300}?stats\.storeThrottled = true/
+            .test(proxySrc));
+  ck('…and it has a TIMEOUT, so a store that accepts a connection and stalls cannot hang '
+     + 'the handler the driver is blocked on',
+     /AbortSignal\.timeout\(storeTimeoutMs\)/.test(proxySrc));
+  ck('…and an `unavailable` answer is NOT cached, because it is a fact about the run',
+     /if \(entry\.outcome !== 'unavailable'\) bodies\.set\(key, entry\)/.test(proxySrc));
+  // The guard is on ONE write site, and the condition names `unavailable` alone — so
+  // `verified`, `absent`, `mismatched` and `truncated` are all still cached, which is the
+  // deduplication this proxy exists for. A second, unguarded `bodies.set` would restore the
+  // defect beside the fix, so the count of write sites is what is asserted.
+  ck('…while every answer about the CORPUS still is, which is what the proxy is for — and '
+     + 'there is exactly one place a body answer is cached, so the guard cannot be bypassed',
+     (proxySrc.match(/bodies\.set\(/g) ?? []).length === 1);
+  // ── `storeOutcome` / `storeReason` HAVE A CONSUMER ──────────────────────────────────
+  //
+  // They were written onto rows and read by nothing. A field with no consumer is a field
+  // nobody notices going wrong.
+  ck('the store\'s own answers reach the run report rather than only the row',
+     /bodySourceUnreachable: storeUnreachable/.test(rangeSrc)
+       && /mismatchedBodies,/.test(rangeSrc));
 }
 
 // 102 before `ingest-range.mjs --replay`.
@@ -627,7 +886,31 @@ test('the committed captures are inside the closed set');
 //   +11 `private-only`: eight properties of the outcome and three mutations, all of which
 //       redden. It is a whole new answer a transaction can have and it is the one that keeps
 //       a permanent limit of the CHAIN'S from being published as a repairable fault of ours.
-expectCount(117);
+// = 117, which is where the pre-landing review found it.
+//   +2  `body-source-unreachable`, the eighth member: one row of it built through the shared
+//       producer, and the unreached-member count widened from three to four.
+//   +1  the shared tally publishes the three-population reconciliation — the assertion that
+//       `follow-chain.mjs`'s own copy of `recount` FAILED, because it had no `privateOnly`
+//       line and its `accountedFor` therefore could not equal `transactions`.
+//   +2  the two producers whose `recount` copies are gone take the tally from `lib/recount.mjs`.
+//   +5  the committed captures, widened past `.transactions`: their `counts` agrees with
+//       their rows member by member, their token is one this tree reads, the token's
+//       mandatory members are all present, and `captures` is an array. Each of the four was
+//       FALSE in the committed tree — `pruned: 25` against 835 rows, `privateOnly` absent
+//       everywhere, and a `captures` committed as a JSON object.
+//   +2  the seven reclassified rows keep the private-only crash signature AND stay
+//       `private-only` with no reason id.
+//   +8  the version policy: what this tree writes, that `@1` is still read, that an unknown
+//       token is not, that the two tokens differ by the mandatory member, that the Nim
+//       reader takes the policy from the same file at compile time, that its gate is that
+//       policy rather than a `!=`, that it ENFORCES the member, and that the migration is
+//       one command which stamps only what it proved.
+//   +9  the store outcomes that are not one fact: `unavailable` is repairable and
+//       `body-unavailable` permanent, a store throttle ends the run, `mismatched` is
+//       collected and FATAL and agrees with the mirroring tool, the fetch retries/backs
+//       off/honours Retry-After, it has a timeout, an `unavailable` answer is not cached
+//       while corpus answers are, and the store's answers reach the report.
+expectCount(146);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);
