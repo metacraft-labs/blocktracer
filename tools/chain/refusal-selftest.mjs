@@ -36,12 +36,15 @@ import {
   classifyRefusal, reasonForRuntimeClass, refusalCounts, auditRefusals,
   assertRefusalsAreClosed, assertAbsentIsNotARefusal, isRefusalReason, refusalDurability,
   refuseNotFirstInBlock, refuseBodyUnavailable, refuseBodySourceUnreachable,
+  refuseBodyNotSoughtFromStore, storeWasAskedAndSaidNoBody,
+  STORE_ANSWERS_MEANING_NO_BODY, BodyUnavailableWithoutStoreEvidence,
+  memberForLegacyUntracedRow,
   chainPublishedNoPublicExecution, looksLikePrivateOnlyCrash,
   OUTCOMES, TRACED_OUTCOMES, UNTRACED_OUTCOMES, CHAIN_ABSENT_OUTCOMES,
 } from './lib/refusal.mjs';
 import { decideOutcome } from './lib/replay.mjs';
 import { scanVerdict } from './scan-tx-index.mjs';
-import { countsDisagreements } from './lib/recount.mjs';
+import { countsDisagreements, recountSnapshot } from './lib/recount.mjs';
 import { SNAPSHOT_FORMAT, READABLE_SNAPSHOT_FORMATS, requiresRefusalReason,
          isReadableSnapshotFormat } from './lib/snapshot-format.mjs';
 
@@ -72,6 +75,31 @@ const expectCount = (expected) => {
 /** Run `fn` and return the error it threw, or `null`. Never rethrows: a test asserts about
  *  the throw, and a suite that died on the first one could not check the rest. */
 const threw = (fn) => { try { fn(); return null; } catch (e) { return e; } };
+
+/** EVERY snapshot this repository commits, repo-relative.
+ *
+ *  WRITTEN DOWN RATHER THAN GLOBBED, and the reason is that a glob is what missed them. The
+ *  committed-captures block below reads `client/fixtures/chain/` and finds three; the other
+ *  three live under `client/fixtures/noir-frames/`, `fixtures/chain-artifacts/` and
+ *  `tests/fixtures/chain-snapshots/`, and a sweep aimed at one directory cannot report on a
+ *  file in another. The `existsSync` arm on this list is what makes the list fail LOUDLY
+ *  when a file moves, rather than quietly shrinking the population — which is the failure
+ *  mode a glob has and a list does not. */
+const ALL_COMMITTED_SNAPSHOTS = Object.freeze([
+  'client/fixtures/chain/aztec/snapshot.json',
+  'client/fixtures/chain/aztec-testnet/snapshot.json',
+  'client/fixtures/chain/aztec-testnet-frames/snapshot.json',
+  'client/fixtures/noir-frames/snapshot.json',
+  'fixtures/chain-artifacts/aztec-testnet/snapshot.json',
+  'tests/fixtures/chain-snapshots/aztec-mainnet-live/snapshot.json',
+]);
+
+/** The three of those the migration tool must not promote. See the hold-out test below. */
+const HELD_OUT_PATHS = Object.freeze([
+  'client/fixtures/noir-frames/snapshot.json',
+  'fixtures/chain-artifacts/aztec-testnet/snapshot.json',
+  'tests/fixtures/chain-snapshots/aztec-mainnet-live/snapshot.json',
+]);
 
 // ── recorded driver output, shaped as `replay_settled_transaction.mjs --json` prints it ──
 //
@@ -107,10 +135,13 @@ function untracedRowOfEveryReason() {
   // 1. not-first-in-block — through the producer three tools now share.
   rows.push({ txHash: '0x01', blockNumber: 100, txIndexInBlock: 2,
               ...refuseNotFirstInBlock({ blockNumber: 100, txIndexInBlock: 2, where: 'selftest' }) });
-  // 2. body-unavailable — likewise.
-  rows.push({ txHash: '0x02', blockNumber: 101, txIndexInBlock: 0,
+  // 2. body-unavailable — likewise, AND WITH THE STORE'S ANSWER, because it cannot be
+  //    reached without one any more. The member asserts two clauses and the producer now
+  //    demands the evidence for the second; a row here built without `storeOutcome` would
+  //    throw, which is the point.
+  rows.push({ txHash: '0x02', blockNumber: 101, txIndexInBlock: 0, storeOutcome: 'absent',
               ...refuseBodyUnavailable({ blockNumber: 101, observedAs: 'it was below the window',
-                                         where: 'selftest' }) });
+                                         storeOutcome: 'absent', where: 'selftest' }) });
   // 3-5. the three that arrive as a runtime throw, through `decideOutcome`.
   for (const [hash, cls] of [
     ['0x03', 'MissingContractArtifact'],
@@ -750,16 +781,26 @@ test('the committed captures are inside the closed set');
   // firing on real traffic, not a hypothetical.
   ck('the real captures have already reached `not-first-in-block` — the branch whose '
      + 'production count on mainnet is zero', seen.has('not-first-in-block'));
-  ck('…and `body-unavailable`', seen.has('body-unavailable'));
   ck('…and `runtime-refused`', seen.has('runtime-refused'));
   ck('…and `not-attempted`', seen.has('not-attempted'));
+  // ── `body-unavailable`'S PRODUCTION COUNT IS ZERO, AND THAT IS THE CORRECTION ────────
+  //
+  // It read 912 — 835 here and 77 in the mainnet capture — and every one of them was
+  // written by a producer that had spoken only to the node. The member's condition needs
+  // the file store to have been asked and to have answered that it holds no such body, and
+  // no committed capture ever asked it. So the honest figure is ZERO, and it is asserted
+  // as zero rather than left as an absence: a member whose count silently returns to
+  // non-zero is a producer having found a way back to the claim.
+  ck('…and `body-unavailable` is reached by NO committed capture, because no committed '
+     + 'capture ever asked the file store — the member needs both of its clauses',
+     !seen.has('body-unavailable'));
   // The members real data has NOT reached are named rather than left implicit: a set whose
-  // unreached members are invisible is a set nobody can ask questions about. FOUR now, not
-  // three — `body-source-unreachable` is new and no committed capture has met a store
-  // outage, which is a fact worth being able to watch change rather than a gap.
-  ck('four members are not yet reached by any committed capture, and that is stated '
+  // unreached members are invisible is a set nobody can ask questions about. FIVE now —
+  // `body-unavailable` joined them when the 912 rows that were claiming it were shown to
+  // have established only half its condition.
+  ck('five members are not yet reached by any committed capture, and that is stated '
      + `rather than silent: ${REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).join(', ')}`,
-     REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).length === 4);
+     REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).length === 5);
 }
 
 // ── the version policy, and the four store outcomes that are not one fact ───────────────
@@ -879,6 +920,362 @@ test('a store that could not be asked is not a body that does not exist');
        && /mismatchedBodies,/.test(rangeSrc));
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// A PERMANENT CLAIM NEEDS BOTH ITS CLAUSES, AND THE CORPUS IS SWEPT FOR ONE THAT DOES NOT
+// ═══════════════════════════════════════════════════════════════════════════════════════
+//
+// ── THE DEFECT, WHICH HAS NOW BEEN REPORTED THREE TIMES ────────────────────────────────
+//
+// `body-unavailable` is durability **permanent** — the page it reaches tells a reader that
+// nothing anyone does to this pipeline will ever produce a trace — and its stated condition
+// is a CONJUNCTION: "the node no longer serves the transaction's body AND THE FILE STORE
+// CANNOT SUPPLY IT EITHER".
+//
+// Only the first clause is observable from a node. Four producers reached the member having
+// established only that one, because the condition key they named (`node-no-longer-serves-
+// body`) was spelled after that half, and a static migration map turned the legacy outcome
+// `pruned` straight into the member with a comment calling the mapping "exact". 912
+// committed rows carried the full permanent claim off the half: 835 in
+// `client/fixtures/chain/aztec-testnet` and 77 in `client/fixtures/chain/aztec`, every one
+// `firstInBlock: true` and `bodyRetained: 0`, in blocks 63,520–67,007 and 66,749–70,151.
+//
+// The second clause was then measured FALSE across exactly that range — 21 of 21 bodies
+// sampled from block 10 to block 75,969 served and self-verified, and 12 of 12 from the
+// frozen mainnet capture, six of them rows it had recorded as `pruned`.
+//
+// ── WHY THE CHECK IS OVER THE DATA AND NOT OVER THE CODE ───────────────────────────────
+//
+// Because the previous two reports were fixed in the code and the DATA kept the claim. A
+// source scan asserting that `follow-chain.mjs` no longer calls `refuseBodyUnavailable`
+// would go green over a tree holding 912 rows that say it did. So the row is asked for its
+// evidence: `storeOutcome` is written onto a row by every producer that asked the store,
+// and its absence beside `body-unavailable` is a permanent claim whose second clause
+// nobody checked.
+//
+// Both halves are here — the corpus sweep, and the producer that can no longer be talked
+// into it — and each has a mutation arm, because a sweep over a corpus that happens to be
+// clean proves nothing about the sweep.
+
+test('no committed row claims a permanent body loss the store was never asked about');
+{
+  // EVERY snapshot in the tree, not only `client/fixtures/chain/`. The block above reads
+  // that one directory, and two of the three `@1` subjects live outside it — a sweep that
+  // could not see them is a sweep the migration tool could walk past.
+  const root = new URL('../../', import.meta.url).pathname;
+  const all = ALL_COMMITTED_SNAPSHOTS.map((p) => join(root, p));
+  ck(`the corpus is the whole tree's — ${all.length} snapshot(s), and every one exists`,
+     all.length === 6 && all.every((p) => existsSync(p)));
+
+  const unevidenced = [];
+  let bodyUnavailable = 0;
+  let rows = 0;
+  for (const p of all) {
+    for (const t of JSON.parse(readFileSync(p, 'utf8')).transactions ?? []) {
+      rows++;
+      if (t.refusalReason !== 'body-unavailable') continue;
+      bodyUnavailable++;
+      if (!storeWasAskedAndSaidNoBody(t)) {
+        unevidenced.push(`${p}: ${t.txHash} claims body-unavailable (PERMANENT) with `
+          + `storeOutcome ${JSON.stringify(t.storeOutcome ?? null)} — the store was never `
+          + `asked, so the member's second clause was never established`);
+      }
+    }
+  }
+  ck(`the sweep is not vacuous — ${rows} committed row(s) read`, rows > 900);
+  ck(`no row claims \`body-unavailable\` without the store's own answer beside it `
+     + `(${bodyUnavailable} row(s) carry the member)`, unevidenced.length === 0);
+  if (unevidenced.length) console.error(`    ${unevidenced.slice(0, 5).join('\n    ')}`);
+
+  // MUTATION: the sweep's own predicate, driven against the shape 912 rows had. A sweep
+  // that reported zero over a clean corpus and would also report zero over a dirty one is
+  // the check reading `return true`.
+  const asShipped = { txHash: '0xdead', blockNumber: 63620, outcome: 'pruned',
+                      firstInBlock: true, bodyRetained: false,
+                      refusalReason: 'body-unavailable',
+                      reason: 'The node still serves this transaction\'s effects but no '
+                        + 'longer serves its body … it can no longer be re-executed.' };
+  bite('mutation: a row in the shape all 912 were committed in is CAUGHT by the predicate '
+       + 'this sweep uses', !storeWasAskedAndSaidNoBody(asShipped));
+  ck('control: the same row with the store\'s 404 recorded on it is accepted, so the '
+     + 'predicate is not simply refusing the member',
+     storeWasAskedAndSaidNoBody({ ...asShipped, storeOutcome: 'absent' }));
+  // And the three answers that establish the clause are the three that mean "the store
+  // spoke about this key and holds no body". `unavailable` is NOT one: a 503 is the store
+  // saying nothing at all, and folding it in here would restore the defect the
+  // `body-source-unreachable` split was made to end, at the evidence layer instead.
+  ck('the three store answers that establish the clause are exactly absent, truncated and '
+     + 'mismatched — and `unavailable` is not among them',
+     STORE_ANSWERS_MEANING_NO_BODY.length === 3
+       && ['absent', 'truncated', 'mismatched']
+            .every((o) => storeWasAskedAndSaidNoBody({ storeOutcome: o }))
+       && !storeWasAskedAndSaidNoBody({ storeOutcome: 'unavailable' })
+       && !storeWasAskedAndSaidNoBody({ storeOutcome: 'verified' }));
+}
+
+test('the producer refuses to write the permanent member without the evidence for it');
+{
+  // THE ROOT CAUSE, CLOSED AT THE ONLY PLACE THE MEMBER CAN BE PRODUCED. A guard in one
+  // producer would be a guard a fifth producer walks around; this one is in the function
+  // all of them call.
+  const e = threw(() => refuseBodyUnavailable({
+    blockNumber: 63620, observedAs: 'it was below the replayable window', where: 'selftest' }));
+  bite('mutation: `refuseBodyUnavailable` with no store answer THROWS rather than '
+       + 'publishing a permanent claim', e !== null);
+  bite('…and it throws the named error rather than dying near the problem',
+       e?.name === 'BodyUnavailableWithoutStoreEvidence');
+  bite('…and the message says what to write instead, both ways — `not-attempted` if the '
+       + 'run did not ask, `body-source-unreachable` if it could not',
+       /refuseBodyNotSoughtFromStore/.test(`${e?.message}`)
+         && /refuseBodySourceUnreachable/.test(`${e?.message}`));
+  // A 503 is not evidence EITHER, and this is the arm that keeps the two splits from
+  // collapsing into each other: `unavailable` must not buy its way into the permanent
+  // member by being a `storeOutcome`.
+  bite('mutation: a store answer of `unavailable` is not evidence — the store said nothing '
+       + 'about this key',
+       threw(() => refuseBodyUnavailable({ blockNumber: 1, observedAs: 'x',
+         storeOutcome: 'unavailable', where: 'selftest' }))
+         ?.name === 'BodyUnavailableWithoutStoreEvidence');
+  const ok = refuseBodyUnavailable({ blockNumber: 63620, observedAs: 'it was below the window',
+                                     storeOutcome: 'absent', where: 'selftest' });
+  ck('control: with the store\'s 404 it returns the member, so the guard is not refusing '
+     + 'the whole path', ok.refusalReason === 'body-unavailable' && ok.outcome === 'pruned');
+  ck('…and the sentence it writes SAYS the store was asked and what it answered, so the '
+     + 'evidence is on the page and not only in a field',
+     /was asked for it on this run and answered absent/.test(ok.reason));
+
+  // AND THE MEMBER THE FOUR PRODUCERS GET INSTEAD, whose narrative is the one this
+  // repository can support: the run did not look.
+  const notSought = refuseBodyNotSoughtFromStore({
+    blockNumber: 63620, observedAs: 'it was already below the replayable window when this '
+      + 'follower first saw it', where: 'selftest' });
+  ck('`refuseBodyNotSoughtFromStore` writes `not-attempted`, which is repairable',
+     notSought.refusalReason === 'not-attempted'
+       && refusalDurability(notSought.refusalReason) === 'repairable');
+  ck('…and its outcome stays `pruned`, because that IS what the producer observed of the '
+     + 'node — the correction is to the published claim, not to the observation',
+     notSought.outcome === 'pruned');
+  ck('…and its sentence does NOT say the transaction can no longer be re-executed, which '
+     + 'is the clause that was measured false',
+     !/can no longer be re-executed/.test(notSought.reason)
+       && /this run never asked it/.test(notSought.reason));
+
+  // THE OLD CONDITION KEY IS GONE RATHER THAN LEFT AS AN ALIAS. A producer still naming the
+  // one-clause condition gets `UnknownRefusalCondition` — this module's stated policy for a
+  // condition it does not know — instead of the member it used to reach.
+  bite('mutation: the one-clause condition key `node-no-longer-serves-body` is no longer a '
+       + 'condition at all',
+       threw(() => classifyRefusal({ condition: 'node-no-longer-serves-body',
+                                     where: 'selftest' }))
+         ?.name === 'UnknownRefusalCondition');
+  ck('…and the condition that does reach the member names BOTH clauses in its own key',
+     classifyRefusal({ condition: 'node-pruned-and-store-does-not-hold-it',
+                       where: 'selftest' }).refusalReason === 'body-unavailable');
+
+  // THE THREE NODE-ONLY PRODUCERS CANNOT REACH IT, checked at the import. This is the
+  // cheap half and it is kept because it names WHICH file would have to change to bring
+  // the defect back, which the data sweep above cannot say.
+  for (const tool of ['follow-chain.mjs', 'capture-chain.mjs', 'backfill-blocks.mjs']) {
+    // COMMENTS STRIPPED FIRST, and that is not a convenience. All three carry a comment
+    // naming `refuseBodyUnavailable` to say why they no longer call it — which is exactly
+    // the record a later reader needs — and a scan that could not tell an explanation from
+    // a call would force the explanation to be deleted to make the check green. A check
+    // that penalises the note about itself is a check that erases its own history.
+    const code = readFileSync(new URL(`./${tool}`, import.meta.url), 'utf8')
+      .replace(/^[ \t]*\/\/.*$/gm, '');
+    ck(`${tool} — which talks to the node and to nothing else — neither imports nor calls `
+       + `\`refuseBodyUnavailable\``, !/refuseBodyUnavailable/.test(code));
+  }
+  // …and the one that DOES ask the store passes the answer at every site that produces the
+  // member. Counted, so a new site added without the argument is a red arm rather than a
+  // silent third call.
+  const rangeSrc = readFileSync(new URL('./ingest-range.mjs', import.meta.url), 'utf8');
+  const calls = rangeSrc.match(/refuseBodyUnavailable\(\{/g) ?? [];
+  ck(`ingest-range.mjs is the only producer that reaches the member, at ${calls.length} `
+     + `site(s), and every one passes \`storeOutcome\``,
+     calls.length === 2
+       && (rangeSrc.match(/refuseBodyUnavailable\(\{[\s\S]{0,700}?storeOutcome: seen\.outcome/g)
+           ?? []).length === 2);
+}
+
+test('the legacy classifier decides `pruned` from evidence, not from the outcome\'s name');
+{
+  // THE MIGRATION MAP THAT MADE THE 912. It was `FROM_OUTCOME = { pruned: 'body-unavailable',
+  // … }`, a frozen literal under a comment calling the mapping exact. It is now a function
+  // in `lib/refusal.mjs` — shared with the tool, for the reason `looksLikePrivateOnlyCrash`
+  // is shared — and it asks the row.
+  const bare = { outcome: 'pruned', txHash: '0x1', blockNumber: 63620 };
+  bite('mutation: a `pruned` row with no record of the store being asked classifies as '
+       + '`not-attempted`, NOT as the permanent member',
+       memberForLegacyUntracedRow(bare).member === 'not-attempted');
+  ck('…and the classifier says why, so a reader can check the grounds rather than the map',
+     /never established/.test(memberForLegacyUntracedRow(bare).why));
+  ck('control: the same row carrying the store\'s 404 classifies as `body-unavailable`, so '
+     + 'the arm is a decision and not a blanket rewrite',
+     memberForLegacyUntracedRow({ ...bare, storeOutcome: 'absent' }).member
+       === 'body-unavailable');
+  // The two that really do name their member, and the one decided by the runtime class —
+  // unchanged, and asserted so this correction cannot quietly move them.
+  ck('`not-first-in-block` and `not-attempted` still come from the outcome, which names '
+     + 'the member in both',
+     memberForLegacyUntracedRow({ outcome: 'not-first-in-block' }).member
+       === 'not-first-in-block'
+       && memberForLegacyUntracedRow({ outcome: 'not-attempted' }).member === 'not-attempted');
+  ck('…and `refused` still comes from the runtime class the row recorded',
+     memberForLegacyUntracedRow({ outcome: 'refused', refusal: 'MissingContractArtifact' })
+       .member === 'artifact-unresolvable'
+       && memberForLegacyUntracedRow({ outcome: 'refused', refusal: 'unknown' }).member
+            === 'runtime-refused');
+  ck('an outcome with no rule returns null rather than a default — this tool\'s job is to '
+     + 'leave nothing unclassified, and a default would hide the gap',
+     memberForLegacyUntracedRow({ outcome: 'something-else' }).member === null);
+  // AND THE TOOL USES IT. A shared classifier the migration tool does not call would be two
+  // classifiers again, which is the arrangement that produced the defect.
+  const migrateSrc = readFileSync(
+    new URL('./migrate-refusal-reasons.mjs', import.meta.url), 'utf8');
+  ck('the migration tool takes its classification from the shared function and declares no '
+     + 'outcome→member literal of its own',
+     /memberForLegacyUntracedRow\(t\)/.test(migrateSrc)
+       && !/FROM_OUTCOME/.test(migrateSrc));
+  ck('…and it corrects a WRONG member rather than only filling in blanks, asking before '
+     + 'the already-classified short-circuit',
+     /t\.refusalReason === 'body-unavailable'\s*\n?\s*&& !storeWasAskedAndSaidNoBody\(t\)/
+       .test(migrateSrc)
+       && migrateSrc.indexOf('!storeWasAskedAndSaidNoBody(t)')
+            < migrateSrc.indexOf('if (isRefusalReason(t.refusalReason)) { already++'));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// THE THREE `@1` SUBJECTS THE MIGRATION TOOL MUST NOT CONSUME
+// ═══════════════════════════════════════════════════════════════════════════════════════
+//
+// `@1` is not only a legacy token, it is a SHAPE THE READER HAS TO BE TESTED AGAINST:
+// Data-Contract.md §3.1 rule 2 obliges a reader that accepts a token to consume every member
+// that token defines, and the only way to check that obligation is to hold an artifact in
+// that shape and read it. This repository has exactly three, and
+// `migrate-refusal-reasons.mjs` run over the corpus with a glob would promote all three in
+// one command — it did, in a review rehearsal. The reader's `@1` path would then have no
+// population and the `@1` half of §5.2a's both-directions token audit would be vacuously
+// true, which is a gate losing its subjects through the tool written to close it.
+//
+// Nothing in the tree recorded that intent, so both halves are asserted: the tool holds
+// them out, and each file says why it is frozen.
+
+test('the three `@1` subjects stay `@1`, and each one records why');
+{
+  const root = new URL('../../', import.meta.url).pathname;
+  const migrateSrc = readFileSync(
+    new URL('./migrate-refusal-reasons.mjs', import.meta.url), 'utf8');
+  ck(`the tool carries an explicit hold-out list — ${HELD_OUT_PATHS.length} path(s)`,
+     HELD_OUT_PATHS.length === 3
+       && HELD_OUT_PATHS.every((p) => migrateSrc.includes(p)));
+  ck('…and an explicit override for the day `@1` support is actually retired, so the '
+     + 'hold-out is a decision and not a wall',
+     /--include-held-out/.test(migrateSrc));
+  const stillV1 = HELD_OUT_PATHS.filter((p) =>
+    JSON.parse(readFileSync(join(root, p), 'utf8')).format
+      === 'blocktracer/chain-snapshot@1');
+  ck('every held-out subject is still `blocktracer/chain-snapshot@1` on disk',
+     stillV1.length === 3);
+  // THE SHAPES THEY CARRY ARE DIFFERENT, and that is why three are held rather than one: a
+  // single `@1` subject would leave two of the three shapes with no population.
+  const shapes = HELD_OUT_PATHS.map((p) => {
+    const s = JSON.parse(readFileSync(join(root, p), 'utf8'));
+    const rows = s.transactions ?? [];
+    return { untraced: rows.filter((t) => UNTRACED_OUTCOMES.includes(t.outcome)).length,
+             withMember: rows.filter((t) => typeof t.refusalReason === 'string').length,
+             counts: s.counts !== undefined };
+  });
+  ck('one carries NO untraced rows at all, which is the simplest `@1` tree there is',
+     shapes.some((s) => s.untraced === 0));
+  ck('…and two carry untraced rows with NO member, which is exactly the shape `@1` permits '
+     + 'and `@2` forbids — the population the reader\'s older-token path is checked on',
+     shapes.filter((s) => s.untraced > 0 && s.withMember === 0).length === 2);
+  // THE INTENT IS RECORDED IN THE TREE, which is what was missing. Two say so in a
+  // `_comment` inside the JSON; the third cannot, because it is the live follower's output
+  // byte for byte and editing it would end the property that makes it worth keeping — so
+  // it says so in a sidecar beside it. Either is accepted; NEITHER is not.
+  const undocumented = [];
+  for (const p of HELD_OUT_PATHS) {
+    const doc = JSON.parse(readFileSync(join(root, p), 'utf8'));
+    const inFile = `${JSON.stringify(doc._comment ?? '')}`;
+    const sidecar = join(root, p.replace(/snapshot\.json$/, 'HELD-AT-V1.md'));
+    const beside = existsSync(sidecar) ? readFileSync(sidecar, 'utf8') : '';
+    if (!/HELD AT blocktracer\/chain-snapshot@1/.test(inFile)
+        && !/held at `blocktracer\/chain-snapshot@1`/.test(beside)) {
+      undocumented.push(p);
+    }
+  }
+  ck('each held-out subject records the intent where a reader of that file meets it — in '
+     + 'its own `_comment`, or in a `HELD-AT-V1.md` beside it', undocumented.length === 0);
+  if (undocumented.length) console.error(`    ${undocumented.join('\n    ')}`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// `captureSessions`: THE HALF OF THE `captures` FIX NOTHING COVERED
+// ═══════════════════════════════════════════════════════════════════════════════════════
+//
+// `recount.mjs` writes `counts.captureSessions = Array.isArray(s.captures) ? s.captures.length
+// : null`, and the comment above it explains at length why `null` and not `undefined`. A
+// review reverted it to `(s.captures ?? []).length` — the exact half the comment is about —
+// and EVERY SUITE IN THIS REPOSITORY STILL PASSED. The member appears at one site tree-wide
+// and nothing read it.
+//
+// The mechanism is the one that produced the `l1ChainId` crash: `JSON.stringify` DROPS an
+// undefined-valued key, so the reverted line does not write a wrong number, it writes NO
+// KEY — and an absent count reads as a snapshot that never had one rather than as a count
+// that could not be taken. That is not hypothetical: `aztec-testnet-frames`' `captures` was
+// committed as a JSON OBJECT with numeric string keys, `.length` on it is `undefined`, and
+// `ingest.nim` — gating on `caps.kind == JArray` — silently skipped the whole per-capture
+// recorder attribution for that snapshot.
+//
+// So the assertion is made where the defect lives: after a round trip through JSON, which
+// is the only place the difference between `null` and `undefined` becomes visible.
+
+test('a `captures` that cannot be counted publishes `null`, and the key SURVIVES');
+{
+  const base = { blocks: [], transactions: [] };
+  const roundTrip = (s) => { const c = { ...s }; recountSnapshot(c);
+                             return JSON.parse(JSON.stringify(c)).counts; };
+
+  // 1. THE COMMITTED SHAPE. `aztec-testnet-frames` shipped `captures` as an object.
+  const asObject = roundTrip({ ...base, captures: { 0: { at: 'x' }, 1: { at: 'y' } } });
+  bite('mutation: a `captures` committed as a JSON OBJECT counts as `null` — not countable '
+       + '— rather than as a number', asObject.captureSessions === null);
+  bite('…and the key is STILL THERE after a JSON round trip, which is the whole difference '
+       + 'between `null` and `undefined` and the mechanism behind the `l1ChainId` crash',
+       Object.prototype.hasOwnProperty.call(asObject, 'captureSessions'));
+
+  // 2. AND AN ABSENT `captures`, which the reverted line scores as a confident zero.
+  const absent = roundTrip({ ...base });
+  bite('mutation: an ABSENT `captures` is `null` and not `0` — "no sessions were recorded" '
+       + 'and "this is not countable" are different facts', absent.captureSessions === null);
+  bite('…and it too survives the round trip rather than vanishing from the tally',
+       Object.prototype.hasOwnProperty.call(absent, 'captureSessions'));
+
+  // 3. THE CONTROL. A real `captures` array still counts, so none of the above is satisfied
+  //    by a member that is always `null`.
+  const real = roundTrip({ ...base, captures: [{ at: 'a' }, { at: 'b' }, { at: 'c' }] });
+  ck('control: an ARRAY of three capture sessions still counts as 3',
+     real.captureSessions === 3);
+  ck('…and an EMPTY array counts as 0, which is a measurement and not an absence — the one '
+     + 'value the reverted line and this one agree on, stated so the split is visible',
+     roundTrip({ ...base, captures: [] }).captureSessions === 0);
+
+  // 4. AND THE COMMITTED TREE IS ASKED THE SAME QUESTION. The arms above run over rows this
+  //    file built; this is the population.
+  const root = new URL('../../', import.meta.url).pathname;
+  const missing = [];
+  for (const p of ALL_COMMITTED_SNAPSHOTS) {
+    const s = JSON.parse(readFileSync(join(root, p), 'utf8'));
+    if (s.counts === undefined) continue;   // `@1` subjects predate the tally — §5.2 scopes
+                                            // the reconciliation to `@2`.
+    if (!Object.prototype.hasOwnProperty.call(s.counts, 'captureSessions')) missing.push(p);
+  }
+  ck('every committed snapshot that publishes a `counts` publishes a `captureSessions` in '
+     + 'it, present rather than dropped', missing.length === 0);
+  if (missing.length) console.error(`    ${missing.join('\n    ')}`);
+}
+
 test('the recipe\'s declared assertion total is the one the suites declare');
 {
   // ── WHY A CHECK FOR AN ARITHMETIC SENTENCE IN A JUSTFILE ────────────────────────────
@@ -912,6 +1309,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     ['calltrace-fold-selftest.mjs', /asserted !== (\d+)\) \{/],
     ['backfill-bodies-selftest.mjs', /asserted !== (\d+)\) \{/],
     ['refusal-selftest.mjs', /^expectCount\((\d+)\);/m],
+    ['coverage-contiguity-selftest.mjs', /asserted !== (\d+)\) \{/],
   ];
   const terms = [];
   for (const [file, re] of declared) {
@@ -923,7 +1321,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // The recipe's sentence, parsed as the arithmetic it is. `Justfile` is two directories
   // up from this file.
   const justfile = readFileSync(new URL('../../Justfile', import.meta.url), 'utf8');
-  const m = /# SIX suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
+  const m = /# SEVEN suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
   ck('the `chain-selftest` header states the total as arithmetic over per-suite terms',
      m !== null);
   if (m) {
@@ -932,7 +1330,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // ORDER MATTERS and is asserted, because the recipe runs the suites in that order and
     // a reader matches term to suite by position. A header whose terms are the right
     // multiset in the wrong order names the wrong suite in every diff.
-    ck(`the header's six terms are the suites' own declarations, in recipe order — `
+    ck(`the header's seven terms are the suites' own declarations, in recipe order — `
        + `[${stated.join(', ')}] vs [${terms.join(', ')}]`,
        stated.length === terms.length && stated.every((n, i) => n === terms[i]));
     ck(`…and the header's arithmetic closes — ${stated.join(' + ')} = ${statedTotal}`,
@@ -1028,7 +1426,34 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //       collected and FATAL and agrees with the mirroring tool, the fetch retries/backs
 //       off/honours Retry-After, it has a timeout, an `unavailable` answer is not cached
 //       while corpus answers are, and the store's answers reach the report.
-expectCount(170);
+// = 170, which is where the landing review found it.
+//   +8  THE SECOND CLAUSE OF `body-unavailable`, over the committed corpus: the sweep
+//       covers all six snapshots tree-wide and is proved non-vacuous, no row claims the
+//       permanent member without the store's own answer, the predicate CATCHES the shape
+//       all 912 rows shipped in and ACCEPTS the same row with a 404 recorded, and the
+//       three answers that establish the clause are exactly the three that mean the store
+//       spoke about this key.
+//   +11 …and the producer side of it: `refuseBodyUnavailable` throws a NAMED error without
+//       evidence, its message says what to write instead in both directions, a 503 is not
+//       evidence either, the control still returns the member and its sentence says what
+//       the store answered, `refuseBodyNotSoughtFromStore` is repairable / keeps `pruned`
+//       / drops the false clause, the one-clause condition key is gone rather than
+//       aliased, and the three node-only producers cannot reach the member while the one
+//       that asks the store passes its answer at both sites.
+//   +8  the legacy classifier: `pruned` with no evidence is `not-attempted` and with a 404
+//       is `body-unavailable`, it states its grounds, the two outcomes that really do name
+//       their member still do, `refused` still comes from the runtime class, an unknown
+//       outcome returns null, the tool uses the shared function and declares no literal of
+//       its own, and it corrects a wrong member before the already-classified short-circuit.
+//   +8  the three `@1` subjects: the hold-out list exists and names them, there is a
+//       deliberate override, all three are still `@1` on disk, the three shapes they carry
+//       are different, and each records the intent where a reader of that file meets it.
+//   +8  `counts.captureSessions`, which appeared at ONE site tree-wide and was covered by
+//       nothing — so the landing review's revert of it passed every suite. Asserted AFTER
+//       a JSON round trip, which is the only place `null` and `undefined` differ, on the
+//       object shape `aztec-testnet-frames` actually shipped and on an absent key, with an
+//       array control and the committed tree asked the same question.
+expectCount(213);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);
