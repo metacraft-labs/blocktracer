@@ -13,6 +13,33 @@
 # fixture and all eight hand-written provenance literals in
 # `client/tests/test_chain_provenance.nim` carry the member, so the whole suite was
 # blind to it; the fixture here is the follower's own output, byte for byte.
+#
+# ── AND `test-chain-provenance`, WHICH TAKES ~37 MINUTES. LEAVE IT IN. ─────
+#
+# It is the LAST recipe here and it is the slow one on purpose: everything
+# above it fails fast, so a developer who broke the contract, the publisher or
+# the reader learns that in under a minute and never reaches this line.
+#
+# WHY IT IS WORTH THE 37 MINUTES. 141 assertions driven through the REAL
+# producers — `generate` and `ingestSnapshot` — over the committed corpus. It
+# is the only end-to-end check in this repository that grades what the shipping
+# path actually publishes rather than a lookalike built by the test, and that
+# is not a theoretical advantage: it is what caught the `captures`
+# misattribution, and its suite-16 arm is what keeps a synthetic Noir program
+# from rendering under a real transaction's hash.
+#
+# WHY THIS LINE EXISTS WHEN THE SUITE WAS ALREADY RUN SOMEWHERE. It is in
+# `client/Justfile`'s `test:` aggregate and CI's `debug-route` job runs that
+# aggregate, so it was never dark. What it was not in is THIS recipe — the one
+# the operator-mandated local gate is, and the one `LOCAL-BASELINE.md` measures
+# — so the repository's own stated verdict command did not include the only
+# end-to-end check it has. A gate whose slowest member is reachable only from a
+# subdirectory is a gate people run without it.
+#
+# DO NOT REMOVE IT FOR SPEED. If this recipe needs to be fast for some new
+# purpose, add a `just test-quick` that stops above this line and leave this
+# one whole — the thing that makes a gate worth having is that nobody had to
+# decide to run the expensive part.
 test:
     nim c -r --hints:off tests/tcontract.nim
     nim c -r --hints:off tests/tpublish.nim
@@ -20,18 +47,32 @@ test:
     nim c -r --hints:off tests/tchainsnapshot.nim
     ci/test/client-sdk-boundary.sh
     ci/test/client-sdk-boundary-test.sh
+    cd client && just test-chain-provenance
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# SIX suites — 98 + 19 + 24 + 24 + 57 + 170 = 392 counted assertions — over the
-# six decisions the capture path makes that nothing else can check afterwards:
+# SEVEN suites — 98 + 19 + 24 + 24 + 57 + 213 + 33 = 468 counted assertions —
+# over the seven decisions the capture path makes that nothing else can check
+# afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
 # called frozen (`freeze-snapshot-selftest`), when a supervised watch is
 # allowed to stop (`watch-chain-selftest`), which call frames a container's
 # event stream folds (`calltrace-fold-selftest`), whether a payload the
 # transaction file store returned is the body that was asked for
-# (`backfill-bodies-selftest`), and WHY a transaction this pipeline did not
-# trace was declined (`refusal-selftest`).
+# (`backfill-bodies-selftest`), WHY a transaction this pipeline did not
+# trace was declined (`refusal-selftest`), and whether a range ledger's coverage
+# is actually contiguous (`coverage-contiguity-selftest`).
+#
+# The seventh is the newest and it was added to a tool that had a `just` recipe,
+# NO test and NO caller. It is kept rather than dropped because CPC-6's
+# deliverable names it — "contiguity asserted from the ledger rather than
+# inferred from a total" — so it has a named future consumer, and a tool with a
+# named future consumer and no proof of bite is the shape §4 warns about: its
+# entire output is `CONTIGUOUS WITH ZERO GAPS: YES` and an exit code, and
+# nothing had ever seen it print NO. Its suite drives all five refusal
+# conditions the tool enumerates, each against a control that differs in one
+# field, matching the standard the contiguity measurement itself was held to
+# (five synthetic failing ledgers).
 #
 # The last one is ING-3's, and it is here for the same reason the body verifier
 # is: the refusal path has never fired in a real run. A 400-block mainnet
@@ -70,8 +111,8 @@ test:
 # time impossible. `refusal-selftest` reads each term out of the suite that
 # declares it, in recipe order, and checks this arithmetic as arithmetic — and it
 # caught this very line stale on the run that introduced it. `calltrace-fold-selftest`
-# gained a declared count for the same reason: it was the only one of the six
-# that printed its total and asserted nothing about it, so its term here was a
+# gained a declared count for the same reason: it was the only one that
+# printed its total and asserted nothing about it, so its term here was a
 # number nobody could check.
 #
 # Every term below was re-read off a run on 2026-09-12, after the review's
@@ -79,16 +120,22 @@ test:
 # `refusal-selftest` 117 -> 170 (the eighth closed-set member, the shared tally,
 # the version policy, the store-outcome split, the committed captures'
 # `counts` / token / `captures` shape, the three producers' argument guards, and
-# this header).
+# this header). Then 170 -> 213 at the pre-landing fixes: the two clauses of
+# `body-unavailable` (a corpus sweep for a permanent claim with no store answer
+# behind it, the producer that now refuses to write one, and the legacy
+# classifier that decides `pruned` from evidence instead of from the outcome's
+# name), the three `@1` subjects the migration tool holds out, and
+# `counts.captureSessions` — which appeared at ONE site tree-wide and was
+# covered by nothing, so a review's revert of it passed every suite.
 #
 # THEY WERE REFERENCED BY NOTHING. Not by `just test`, not by any CI job, not
 # by `ci-coverage.sh` — whose enumeration covers `ci/test/*.sh` and
 # `client/Justfile`'s aggregate and reaches nothing under `tools/`. That is the
 # same hole `deploy-gates` was created for after `check-assets-selftest.mjs`
-# was found dead, and all six were in it: the only evidence they could go
+# was found dead, and all of them were in it: the only evidence they could go
 # red was that someone had once watched them.
 #
-# All six are OFFLINE and toolchain-free — plain node plus bash, a mock node
+# All seven are OFFLINE and toolchain-free — plain node plus bash, a mock node
 # for the freeze gate, a mock node AND a mock file store for the body verifier,
 # recorded driver output for the replay rule, and for the
 # fold suite an event stream reconstructed from the committed sidecars rather
@@ -103,6 +150,7 @@ chain-selftest:
     node tools/chain/calltrace-fold-selftest.mjs
     node tools/chain/backfill-bodies-selftest.mjs
     node tools/chain/refusal-selftest.mjs
+    node tools/chain/coverage-contiguity-selftest.mjs
 
 # ── bringing a pre-ING-3 capture into the closed set ───────────────────────
 #
@@ -112,6 +160,21 @@ chain-selftest:
 # would be 929 rows, which is most of the untraced transactions this repository
 # has ever published, and a gate with an exemption that large is not a gate.
 # So the snapshots move instead. `--check` reports and writes nothing.
+#
+# ── THREE SUBJECTS ARE HELD AT `@1` AND THE TOOL REFUSES TO PROMOTE THEM ───
+#
+# `@1` is not only a legacy token, it is a SHAPE THE READER HAS TO BE TESTED
+# AGAINST: Data-Contract.md §3.1 rule 2 obliges a reader that accepts a token
+# to consume every member that token defines, and the only way to check that
+# obligation is to hold an artifact in that shape and read it. This repository
+# has exactly three, and a glob run over the corpus would promote all three in
+# one command — it did, in a review rehearsal — leaving the reader's `@1` path
+# with no population at all.
+#
+# They are named in `HELD_OUT_AT_V1` in the tool, each says so in its own
+# `_comment` or in a `HELD-AT-V1.md` beside it, and `refusal-selftest` asserts
+# both halves. `--include-held-out` is the deliberate override, for the day
+# `@1` support is actually retired.
 migrate-refusal-reasons *PATHS='client/fixtures/chain/*/snapshot.json':
     node tools/chain/migrate-refusal-reasons.mjs {{PATHS}}
 

@@ -392,7 +392,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 170 assertions, and the reason it is offline is the reason it
+        # ING-3, 213 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -416,7 +416,39 @@ jobs:
         # comfortable disguise. Four members are already reached by real data,
         # including `not-first-in-block`: the testnet capture holds four
         # transactions at a non-zero index.
+        #
+        # THE LAST TWO ARMS ARE THE ONES THIS STEP GREW FOR. `body-unavailable`
+        # is durability PERMANENT and its condition is a CONJUNCTION — the node
+        # no longer serves the body AND the file store cannot supply it either
+        # — and 912 committed rows carried the whole claim off the first clause
+        # alone, because no producer that only talks to a node can establish the
+        # second. The corpus is swept for a row claiming it without the store's
+        # own answer beside it, and the producer that writes it now throws
+        # without that answer. The other arm is `counts.captureSessions`, which
+        # appears at ONE site tree-wide: a review reverted its `null`-not-
+        # `undefined` half and every suite in the repository still passed.
         run: node tools/chain/refusal-selftest.mjs
+
+      - name: Is a range ledger's coverage actually contiguous, and can that go red?
+        # 33 assertions. This tool arrived from a measurement scratch tree with
+        # a `just` recipe, NO test and NO caller, and its entire output is one
+        # line — `CONTIGUOUS WITH ZERO GAPS: YES` — plus an exit code. Nothing
+        # had ever seen it print NO, which is the §4 shape: a check never
+        # observed refusing is indistinguishable from `return true`.
+        #
+        # It is kept rather than dropped because CPC-6's deliverable names it,
+        # "contiguity asserted from the ledger rather than inferred from a
+        # total". So all five conditions it can refuse on get their own case —
+        # a gap between ranges, an overlap, heights the node declined INSIDE a
+        # range that tiles perfectly, heights lost to our own throttling, and a
+        # range whose served count is short of its requested count — each with
+        # a control that differs in one field. A ledger that tiles the wrong
+        # span is checked at both ends, and a ledger with no ranges is required
+        # to refuse rather than report a vacuous YES.
+        #
+        # Offline and toolchain-free like the six above it: it writes JSON to a
+        # temporary directory and runs `node`.
+        run: node tools/chain/coverage-contiguity-selftest.mjs
 
   contract:
     runs-on: eph-linux-x64
@@ -1030,7 +1062,22 @@ jobs:
       # a named list here would be a third place to add a suite to, and the
       # second one is what went wrong. `ci-coverage.sh` reads the same aggregate
       # this runs, so a suite added to it is covered on the next run by both.
+      #
+      # BOUNDED, AND THE BOUND IS SIZED BY ITS SLOWEST MEMBER. This aggregate
+      # contains `test-chain-provenance`, which is 141 assertions over the real
+      # producers and the committed corpus and takes about 37 MINUTES on its
+      # own — the only end-to-end check in this repository, and what caught the
+      # `captures` misattribution. Without `timeout-minutes` the step inherits
+      # the job's 360, and the `journeys` job beside this one states what that
+      # costs: a step that stalls burns six hours, is then CANCELLED, prints no
+      # RESULT line and reads in the log exactly like a step nobody ran. 75 is
+      # ~37 for that suite plus the rest of the aggregate plus headroom for a
+      # cold Nix shell; it is a stall detector, not a performance budget.
+      #
+      # If this ever fires, measure the suite before raising it — a
+      # provenance suite that has doubled is a finding.
       - name: Every suite in `just test`, including the five that ran nowhere
+        timeout-minutes: 75
         run: nix develop .#ci --command bash -c 'cd client && just test'
 
       - name: The two vendored-layout gates no job named
