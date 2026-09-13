@@ -1296,12 +1296,17 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // sentence is now CHECKED: each term is read out of the suite that owns it, and the
   // arithmetic is checked as arithmetic.
   //
-  // THE SIX DECLARATIONS ARE IN FIVE DIFFERENT SHAPES, which is why each has its own
-  // pattern rather than one generic sweep. A generic regex over six phrasings is the
-  // false-green this file exists to refuse: it would silently match five and score the
-  // sixth as absent. If a suite rephrases its declaration this arm goes RED, which is
-  // correct — the declaration moved, and a checker that guessed where it went would be
-  // back to reading prose.
+  // THE EIGHT DECLARATIONS ARE IN FOUR DIFFERENT PATTERNS, which is why each has its own
+  // rather than one generic sweep. A generic regex over the phrasings is the false-green
+  // this file exists to refuse: it would silently match most of them and score the rest as
+  // absent. If a suite rephrases its declaration this arm goes RED, which is correct — the
+  // declaration moved, and a checker that guessed where it went would be back to reading
+  // prose.
+  //
+  // (This sentence said "THE SIX DECLARATIONS … IN FIVE DIFFERENT SHAPES" while the array
+  // below had seven rows in four patterns, which is the same copy-goes-stale failure the
+  // header check was written to stop, one level in. Now it counts the rows and the
+  // patterns, both of which are visible in the array immediately below it.)
   const declared = [
     ['replay-selftest.mjs', /^\s*expectCount\((\d+)\);/m],
     ['freeze-snapshot-selftest.mjs', /asserted !== (\d+)\) \{/],
@@ -1310,6 +1315,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     ['backfill-bodies-selftest.mjs', /asserted !== (\d+)\) \{/],
     ['refusal-selftest.mjs', /^expectCount\((\d+)\);/m],
     ['coverage-contiguity-selftest.mjs', /asserted !== (\d+)\) \{/],
+    ['identifier-encoding-selftest.mjs', /asserted !== (\d+)\) \{/],
   ];
   const terms = [];
   for (const [file, re] of declared) {
@@ -1321,7 +1327,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // The recipe's sentence, parsed as the arithmetic it is. `Justfile` is two directories
   // up from this file.
   const justfile = readFileSync(new URL('../../Justfile', import.meta.url), 'utf8');
-  const m = /# SEVEN suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
+  const m = /# EIGHT suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
   ck('the `chain-selftest` header states the total as arithmetic over per-suite terms',
      m !== null);
   if (m) {
@@ -1330,7 +1336,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // ORDER MATTERS and is asserted, because the recipe runs the suites in that order and
     // a reader matches term to suite by position. A header whose terms are the right
     // multiset in the wrong order names the wrong suite in every diff.
-    ck(`the header's seven terms are the suites' own declarations, in recipe order — `
+    ck(`the header's eight terms are the suites' own declarations, in recipe order — `
        + `[${stated.join(', ')}] vs [${terms.join(', ')}]`,
        stated.length === terms.length && stated.every((n, i) => n === terms[i]));
     ck(`…and the header's arithmetic closes — ${stated.join(' + ')} = ${statedTotal}`,
@@ -1453,7 +1459,7 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //       a JSON round trip, which is the only place `null` and `undefined` differ, on the
 //       object shape `aztec-testnet-frames` actually shipped and on an absent key, with an
 //       array control and the committed tree asked the same question.
-expectCount(213);
+expectCount(214);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

@@ -93,7 +93,7 @@
 ## is published.
 
 import std/[json, os, algorithm, strutils, tables, times]
-import ../contract/[model, ids, version]
+import ../contract/[model, ids, version, identifier_encoding]
 import ./refusal_reasons
 import ./snapshot_format
 
@@ -1711,11 +1711,32 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   for b in inventoryBuilds:
     let r = recorderInventory[b]
     recordersNode.add %*{"id": r.id, "build": r.build, "version": r.version}
+  # `identifierEncoding` IS DECLARED HERE AND READ BY NOBODY, WHICH IS THE POINT.
+  #
+  # It states which encoding this chain writes its identifiers in, per kind of
+  # identifier, drawn from a closed set — `contract/identifier_encoding.nim`,
+  # over the shared `tools/chain/identifier-encodings.json`. Configuration.md
+  # §2.1 is the schema and §2.2 the additive rule that makes writing it safe.
+  #
+  # Nothing consumes it. Shard derivation, the hash index, the client's local
+  # path recomputation and the capture tooling all still derive from the string,
+  # and the assumption they share is `0x` + hex. Widening them is separate work
+  # and the last of it rewrites a published wire format, so it needs a
+  # compatibility window (Publishing-And-Caching.md §6.1, §6.2) and must land on
+  # its own.
+  #
+  # WHY THE DECLARATION GOES FIRST ANYWAY. Before a non-hex chain publishes, the
+  # key layout is a decision; afterwards it is a migration of every published
+  # shard, index and URL. So this is the cheap half, landed while it is still
+  # cheap, and the expensive half is left to decide nothing by accident.
+  #
+  # `hex` is MEASURED for this chain, not assumed — see `hexIdentifierEncoding`.
   reg["chains"][chain] = %*{
     "recorder": {"id": rRef.id, "build": rRef.build, "version": rRef.version},
     "recorders": recordersNode,
     "profile": {"name": pRef.name, "hash": pRef.hash},
-    "traceSchema": traceSchema}
+    "traceSchema": traceSchema,
+    "identifierEncoding": hexIdentifierEncoding()}
   cfg.writeJson(regRel, reg)
 
   # ---- address history -----------------------------------------------------

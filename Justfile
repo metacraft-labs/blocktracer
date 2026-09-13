@@ -1,8 +1,20 @@
 # BlockTracer workspace commands.
 # `just` recipes wrap the nimble tasks so the workspace has one entry point.
 
-# Run the conformance + publisher + Client SDK + chain-snapshot test suites, and
-# the SDK's bidirectional import lint.
+# Run the conformance + publisher + Client SDK + chain-snapshot + registry
+# identifier-encoding test suites, and the SDK's bidirectional import lint.
+#
+# `tests/tidentifierencoding.nim` is the registry's per-chain identifier-encoding
+# declaration (Configuration.md §2.1, §2.2). It is HERE and not under `client/`
+# for the same reason the snapshot suite is: it drives both registry producers and
+# needs no explorer. Its subject is a member that **nothing reads** — the encoding
+# is declared as data so that shard derivation, the hash index, the client's local
+# path recomputation and the capture tooling can later take it from one place
+# instead of from the string — so the property it measures is §2.2's: a reader
+# built against the schema WITHOUT the member behaves identically with it, proven
+# against three controls that change a member the same reader does know. Its last
+# suite asserts the boundary itself, and is expected to go red the day a consumer
+# is wired in.
 #
 # `tests/tchainsnapshot.nim` is the reader's side of the producer seam: what
 # `ingestSnapshot` accepts, what it refuses BY NAME, and what it must not crash on.
@@ -45,14 +57,15 @@ test:
     nim c -r --hints:off tests/tpublish.nim
     nim c -r --hints:off tests/tclientsdk.nim
     nim c -r --hints:off tests/tchainsnapshot.nim
+    nim c -r --hints:off tests/tidentifierencoding.nim
     ci/test/client-sdk-boundary.sh
     ci/test/client-sdk-boundary-test.sh
     cd client && just test-chain-provenance
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# SEVEN suites — 98 + 19 + 24 + 24 + 57 + 213 + 33 = 468 counted assertions —
-# over the seven decisions the capture path makes that nothing else can check
+# EIGHT suites — 98 + 19 + 24 + 24 + 57 + 214 + 33 + 46 = 515 counted assertions —
+# over the eight decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
 # called frozen (`freeze-snapshot-selftest`), when a supervised watch is
@@ -60,10 +73,25 @@ test:
 # event stream folds (`calltrace-fold-selftest`), whether a payload the
 # transaction file store returned is the body that was asked for
 # (`backfill-bodies-selftest`), WHY a transaction this pipeline did not
-# trace was declined (`refusal-selftest`), and whether a range ledger's coverage
-# is actually contiguous (`coverage-contiguity-selftest`).
+# trace was declined (`refusal-selftest`), whether a range ledger's coverage
+# is actually contiguous (`coverage-contiguity-selftest`), and which encodings a
+# chain may DECLARE its identifiers in (`identifier-encoding-selftest`).
 #
-# The seventh is the newest and it was added to a tool that had a `just` recipe,
+# `identifier-encoding-selftest` IS THE JAVASCRIPT HALF OF A FILE WHOSE OTHER HALF
+# IS NIM, and that is the whole reason it is a suite rather than a comment.
+# `tools/chain/identifier-encodings.json` is a closed set (Configuration.md §2.1,
+# §2.2, over Search-And-Routing.md §2's shape table) read on the Nim side with
+# `staticRead`, so that side fails the BUILD on a malformed file. The JavaScript
+# side has no such backstop, and the set is data precisely because the capture
+# tooling — which still filters published directory entries on a literal `0x` — is
+# JavaScript and will have to agree with the producers. A shared file whose
+# JavaScript side nothing opens drifts there undetected, so the JavaScript read
+# happens now, as a test. It is a test and NOT a consumer: nothing reads
+# `chains[<slug>].identifierEncoding`, by design, because the step that changes
+# published key layout has to land on its own. Its last arm asserts that boundary
+# and is expected to go red the day a consumer is wired in.
+#
+# `coverage-contiguity-selftest` was added to a tool that had a `just` recipe,
 # NO test and NO caller. It is kept rather than dropped because a planned
 # zero-regression check requires contiguity asserted from the ledger rather
 # than inferred from a total — so it has a named future consumer, and a tool with a
@@ -74,8 +102,8 @@ test:
 # field, matching the standard the contiguity measurement itself was held to
 # (five synthetic failing ledgers).
 #
-# The last one is ING-3's, and it is here for the same reason the body verifier
-# is: the refusal path has never fired in a real run. A 400-block mainnet
+# `refusal-selftest` is ING-3's, and it is here for the same reason the body
+# verifier is: the refusal path has never fired in a real run. A 400-block mainnet
 # backfill exited 0 with "0 divergent, 0 refused", so every universal claim
 # about refusals is vacuously true and a suite that only ran the pipeline
 # against a live chain would report green having executed none of it. Every
@@ -84,7 +112,7 @@ test:
 # count is zero and whose branch is therefore exercised against a synthetic
 # index-3 subject rather than waited for.
 #
-# The last one guards a source with NO SECOND OPINION. Aztec transaction bodies
+# `backfill-bodies-selftest` guards a source with NO SECOND OPINION. Aztec transaction bodies
 # come from one publisher with no failover, and the only thing between it and
 # the corpus is that a correct payload serialises its own hash first — so the
 # leading 32 bytes are the key that was requested. That check is the whole of
@@ -135,11 +163,12 @@ test:
 # was found dead, and all of them were in it: the only evidence they could go
 # red was that someone had once watched them.
 #
-# All seven are OFFLINE and toolchain-free — plain node plus bash, a mock node
+# All eight are OFFLINE and toolchain-free — plain node plus bash, a mock node
 # for the freeze gate, a mock node AND a mock file store for the body verifier,
-# recorded driver output for the replay rule, and for the
+# recorded driver output for the replay rule, for the
 # fold suite an event stream reconstructed from the committed sidecars rather
-# than read out of a `.ct` with `ct-print` — so they run
+# than read out of a `.ct` with `ct-print`, and for the encoding suite nothing
+# but files already in this repository — so they run
 # on a stock runner and are wired into CI's `deploy-gates` job for exactly the
 # reason its header gives: a gate that needs the busy Nix runner to prove it
 # can fail is a gate that gets skipped.
@@ -151,6 +180,7 @@ chain-selftest:
     node tools/chain/backfill-bodies-selftest.mjs
     node tools/chain/refusal-selftest.mjs
     node tools/chain/coverage-contiguity-selftest.mjs
+    node tools/chain/identifier-encoding-selftest.mjs
 
 # ── bringing a pre-ING-3 capture into the closed set ───────────────────────
 #

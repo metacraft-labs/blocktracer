@@ -28,6 +28,7 @@ nimcache/
 /tests/tembedhandoff
 /tests/tviewmodelseam
 /tests/tdebugpanes
+/tests/tidentifierencoding
 
 # Generated output trees. `demo-site-2` is the determinism check's second
 # tree (`just demo-gen out=demo-site-2` in CI), which the first .gitignore

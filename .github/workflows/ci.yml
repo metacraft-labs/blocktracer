@@ -392,7 +392,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 213 assertions, and the reason it is offline is the reason it
+        # ING-3, 214 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -449,6 +449,34 @@ jobs:
         # Offline and toolchain-free like the six above it: it writes JSON to a
         # temporary directory and runs `node`.
         run: node tools/chain/coverage-contiguity-selftest.mjs
+
+      - name: Do both halves of the identifier-encoding set read one file?
+        # 46 assertions. `tools/chain/identifier-encodings.json` is the closed set
+        # of encodings a chain may DECLARE its identifiers in — Configuration.md
+        # §2.1, §2.2, with every member traced to a row of Search-And-Routing.md
+        # §2's shape table. The Nim half reads it with `staticRead`, so that half
+        # fails the BUILD on a malformed file; the JavaScript half has no such
+        # backstop, and the set is data precisely because the capture tooling, in
+        # JavaScript, is one of the sites that will have to agree with the
+        # producers. A shared file whose JavaScript side nothing opens drifts
+        # there undetected, so this step is the JavaScript read.
+        #
+        # Ten of the arms are mutations, each breaking one structural rule and
+        # requiring that rule AND NO OTHER to fire, with an eleventh control over
+        # an unmutated deep copy — without which all ten would pass for the wrong
+        # reason if the copy were itself broken.
+        #
+        # The last arms assert the BOUNDARY: nothing reads
+        # `chains[<slug>].identifierEncoding`, and the capture tooling still
+        # filters published directory entries on a literal `0x` at both of its
+        # two sites. That is deliberate — the declaration lands alone so the step
+        # that changes published key layout can land alone, with a compatibility
+        # window — and those arms are expected to go red the day a consumer is
+        # wired in.
+        #
+        # Offline and toolchain-free like the seven above it: it reads files
+        # already in this repository and runs `node`.
+        run: node tools/chain/identifier-encoding-selftest.mjs
 
   contract:
     runs-on: eph-linux-x64

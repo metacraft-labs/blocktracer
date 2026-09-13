@@ -40,7 +40,7 @@
 ## position resolve to a line of code.
 
 import std/[json, os, strutils, sha1, algorithm, tables]
-import ../contract/[model, version, ids, searchidx]
+import ../contract/[model, version, ids, searchidx, identifier_encoding]
 import ./entrypages
 
 type
@@ -263,11 +263,22 @@ proc writeRegistry(cfg: DemoConfig) =
   var reg =
     if fileExists(path): parseJson(readFile(path))
     else: %*{"version": ContractVersion, "chains": {}}
+  # `identifierEncoding` — DECLARED, ADDITIVE, AND READ BY NOBODY. The same member
+  # `ingest.nim` writes, through the same closed set
+  # (`contract/identifier_encoding.nim` over
+  # `tools/chain/identifier-encodings.json`), so the two producers cannot come to
+  # disagree about which tokens exist. Configuration.md §2.1 is the schema, §2.2
+  # the additive rule. The comment at the other producer's write says why nothing
+  # consumes it yet and why the declaration lands before anything does.
+  #
+  # `hex` is right for this chain too and for its own measured reason: `synthAddr`
+  # emits `0x` + 40 lowercase hex and every synthetic hash here is the same shape.
   reg["chains"][chain] = %*{
     "recorder": {"id": recorderId, "build": recorderBuildHash(recorderId, recorderVersion),
                  "version": recorderVersion},
     "profile": {"name": profileName, "hash": profileHash(profileName)},
-    "traceSchema": traceSchema
+    "traceSchema": traceSchema,
+    "identifierEncoding": hexIdentifierEncoding()
   }
   cfg.writeJson("registry" / "chains.v" & $ContractVersion & ".json", reg)
 
