@@ -64,9 +64,9 @@ test:
 # is actually contiguous (`coverage-contiguity-selftest`).
 #
 # The seventh is the newest and it was added to a tool that had a `just` recipe,
-# NO test and NO caller. It is kept rather than dropped because CPC-6's
-# deliverable names it — "contiguity asserted from the ledger rather than
-# inferred from a total" — so it has a named future consumer, and a tool with a
+# NO test and NO caller. It is kept rather than dropped because a planned
+# zero-regression check requires contiguity asserted from the ledger rather
+# than inferred from a total — so it has a named future consumer, and a tool with a
 # named future consumer and no proof of bite is the shape §4 warns about: its
 # entire output is `CONTIGUOUS WITH ZERO GAPS: YES` and an exit code, and
 # nothing had ever seen it print NO. Its suite drives all five refusal

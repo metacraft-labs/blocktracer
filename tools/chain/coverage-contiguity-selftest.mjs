@@ -6,8 +6,8 @@
 // ── WHY THIS EXISTS ────────────────────────────────────────────────────────────────────
 //
 // `coverage-contiguity.mjs` arrived from a measurement scratch tree with a `just` recipe,
-// NO TEST and NO CALLER. It is kept because CPC-6's deliverable requires "contiguity
-// asserted from the ledger rather than inferred from a total", so it has a named future
+// NO TEST and NO CALLER. It is kept because a planned zero-regression check requires
+// contiguity asserted from the ledger rather than inferred from a total, so it has a future
 // consumer — and a tool with a named future consumer and no proof of bite is the exact
 // shape Verification-Harness-Traps §4 names: a check that has never been observed refusing
 // is indistinguishable from `return true`. Its whole output is one line, `CONTIGUOUS WITH
@@ -135,7 +135,7 @@ console.error('\ncase 2 — a hole between two ranges is refused, and the gap is
        says(r, /CONTIGUOUS WITH ZERO GAPS: NO/));
   // NAMING THE GAP IS THE DELIVERABLE, not merely refusing. A checker that answered
   // "somewhere in 1..300" would send a reader back to the ledger to find it by hand, and
-  // CPC-6 asks for contiguity asserted FROM the ledger — an answer that is a list.
+  // the requirement is contiguity asserted FROM the ledger — an answer that is a list.
   bite('…and names the missing span 101..200 rather than only reporting a count',
        says(r, /\[101,\s*200\]/));
   bite('…and attributes it to the gap check rather than to one of the other four',

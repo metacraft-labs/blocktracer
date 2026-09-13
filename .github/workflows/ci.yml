@@ -436,9 +436,9 @@ jobs:
         # had ever seen it print NO, which is the §4 shape: a check never
         # observed refusing is indistinguishable from `return true`.
         #
-        # It is kept rather than dropped because CPC-6's deliverable names it,
-        # "contiguity asserted from the ledger rather than inferred from a
-        # total". So all five conditions it can refuse on get their own case —
+        # It is kept rather than dropped because a planned zero-regression check
+        # requires contiguity asserted from the ledger rather than inferred from
+        # a total. So all five conditions it can refuse on get their own case —
         # a gap between ranges, an overlap, heights the node declined INSIDE a
         # range that tiles perfectly, heights lost to our own throttling, and a
         # range whose served count is short of its requested count — each with
