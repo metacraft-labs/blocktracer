@@ -130,10 +130,24 @@ export class UnexplainedAbsence extends Error {
 // neighbours" without reading any producer.
 //
 // `durability` is not decoration. `tools/capture/expectations.mjs` grades a transaction page
-// on whether its durability claim is supported by the cause it printed — "a permanent answer
-// rather than a failed fetch" is true of a pruned body and false of a runtime refusal, and
-// asserting the strong sentence under the repairable cause is a named defect there. So the
-// claim is a property of the REASON, decided once, rather than prose a page writes.
+// on whether its durability claim is supported by the cause it printed, and asserting the
+// strong sentence under a repairable cause is a named defect there. So the claim is a
+// property of the REASON, decided once, rather than prose a page writes.
+//
+// THIS COMMENT USED TO SAY "a permanent answer rather than a failed fetch" IS TRUE OF A
+// PRUNED BODY, and that sentence is the defect the rest of this file is about. A pruned body
+// is what the NODE answered; it is one clause of `body-unavailable`'s two, and the other —
+// that the keyless transaction file store cannot supply it either — was measured FALSE
+// across the range the committed rows sit in. So "pruned" maps to a permanent member only
+// when the store's own negative answer is on the row; without it the honest member is
+// `not-attempted`, which is repairable. See `refuseBodyUnavailable` and
+// `memberForLegacyUntracedRow` below.
+//
+// `expectations.mjs` STILL CARRIES THE OLD BINARY and is a review rubric rather than code:
+// its `tx-detail--mainnet-zero-trace` item requires the permanent tense "where the body was
+// pruned", which is now wrong for every such row in the corpus — the permanent member has
+// no population here at all. Fixing that is a change to what a human reviewer is told to
+// require, so it is reported rather than made silently from this side.
 //
 //   permanent    nothing anyone does to this pipeline will produce a trace for this
 //                transaction. The limitation is the chain's or the protocol's.
