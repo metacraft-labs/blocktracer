@@ -143,11 +143,14 @@ export class UnexplainedAbsence extends Error {
 // `not-attempted`, which is repairable. See `refuseBodyUnavailable` and
 // `memberForLegacyUntracedRow` below.
 //
-// `expectations.mjs` STILL CARRIES THE OLD BINARY and is a review rubric rather than code:
-// its `tx-detail--mainnet-zero-trace` item requires the permanent tense "where the body was
-// pruned", which is now wrong for every such row in the corpus — the permanent member has
-// no population here at all. Fixing that is a change to what a human reviewer is told to
-// require, so it is reported rather than made silently from this side.
+// `expectations.mjs` CARRIED THE OLD BINARY until 2026-09-13 and no longer does. Its
+// `tx-detail--mainnet-zero-trace` item required the permanent tense "where the body was
+// pruned", which was wrong for every such row in the corpus; it now keys the tense and the
+// durability claim off the PUBLISHED MEMBER, which is the field decided here, so the rubric
+// stays correct as populations move. It also names `not-first-in-block` — the only permanent
+// member with a population anywhere in the corpus, 4 rows — because a reviewer otherwise has
+// no way to recognise the permanent case. The block comment above that item records what it
+// used to require and what was measured.
 //
 //   permanent    nothing anyone does to this pipeline will produce a trace for this
 //                transaction. The limitation is the chain's or the protocol's.

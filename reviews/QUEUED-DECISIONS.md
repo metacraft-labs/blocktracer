@@ -1610,3 +1610,62 @@ every focusable element in the product, which is exactly the kind of change that
 wants a round; (b) leave the binding and move `information.400`'s other two uses;
 (c) declare the divergence in `DESIGN-DIVERGENCES-WEB.md` if it is deliberate.
 Not taken: it is one lens, on one theme, and (a) touches every surface.
+
+## Q25. Four more sites still encode the retired "nothing can be replayed" model
+Found while reviewing the 2026-09-13 correction to `tx-detail--mainnet-zero-trace`,
+which stopped keying durability off the outcome word and keyed it off the published
+member instead. The sibling `chain-overview--mainnet` and the two `views.mjs`
+descriptions rest on the SAME retired inference and were not corrected with it.
+Recorded here rather than fixed, and the reason is not simply scope.
+
+Measured over `client/fixtures/chain/aztec/snapshot.json` — the chain `MAINNET`
+resolves to, 88 transactions:
+
+  * 2 are `replayed`, so "NOTHING can be replayed" is false;
+  * 11 carry `bodyRetained: true`, so "every transaction is below the node's
+    pruning floor" is false;
+  * 5 are `private-only`, which is not pruning at all and carries no refusal
+    member;
+  * 77 are `pruned`/`not-attempted` and 4 are `refused`/`runtime-refused`, so
+    there is no permanent-member row on this chain — all 4 in the corpus are on
+    `aztec-testnet`.
+
+The stale sites are `expectations.mjs` `chain-overview--mainnet` summary and
+`mustShow[0]`/`[1]`, and `views.mjs` `chain-overview--mainnet` and
+`tx-detail--mainnet-zero-trace` descriptions ("no trace and none possible", "every
+transaction in the window is below the node's pruning floor"). One of them is not
+cosmetic: `mustNotShow[1]` forbids "a Debug affordance on ANY row" at P1, and if
+the export publishes either replayable row then a reviewer following it files a P1
+on the two rows that are working correctly — the same shape of trap the
+`tx-detail` item was just corrected to remove.
+
+WHY IT IS NOT CORRECTED HERE. The numbers above are FIXTURE numbers and these
+items grade an EXPORT. `static_export.nim` ingests real chains at
+`IngestScope.isCurated`, whose promise is that every published transaction opens a
+container that steps, so the exported `/aztec` is a strict subset of the 88 and may
+contain no transactions at all. Rewriting the text from a fixture census would
+publish a fresh claim never measured against what a reviewer is handed, which is
+exactly the defect under repair. The `tx-detail` correction was safe to make on
+this evidence because its rule is a per-row property — the published member —
+and so holds under either scope; these items make aggregate claims and do not.
+
+A correction also has to reconcile three further sites that describe a capture
+generation no longer in the tree: `ingest.nim:167` and `static_export.nim:464`
+both say "994 blocks and 27 transactions of which ZERO carry a trace", and
+`views.mjs:1549` says `/aztec` "publishes 24 blocks and no transactions at all".
+No snapshot in the tree is 994/27 — the four are 3439/88, 3600/866, 26/8 and
+403/9 — so all three predate the current fixture and none can be trusted as the
+description of the export either.
+
+Options: (a) run the curated export, measure what `/aztec` actually publishes,
+then correct all seven sites together in one commit — the only honest fix, and it
+needs a build; (b) correct only the two `views.mjs` descriptions and the summary
+to language that is true under either scope ("few transactions on this chain can
+be replayed"), leaving the aggregate `mustShow`/`mustNotShow` items for (a); (c)
+leave all of it until the chain corpus stops moving.
+
+Recommendation: (a), and soon, because `mustNotShow[1]` is a P1 trap rather than a
+taste call. (b) is available as a cheap partial that removes the false absolutes
+without inventing a number. Not taken here: measuring the export is a Nim build
+and a seven-site reconciliation, which is a change with its own review and not a
+fold-in to a rubric correction.

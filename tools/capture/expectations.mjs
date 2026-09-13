@@ -2292,30 +2292,92 @@ export const EXPECTATIONS = [
       "Whether a reader could come away believing BlockTracer cannot debug Aztec mainnet at all, rather than that these particular transactions have aged out of the window.",
     ],
   },
+  // ── CORRECTED 2026-09-13: THE DURABILITY CLAIM FOLLOWS THE PUBLISHED MEMBER,
+  //    AND NOT THE OUTCOME WORD ──────────────────────────────────────────────
+  //
+  // THIS ITEM USED TO REQUIRE A PERMANENCE CLAIM THE CORPUS NO LONGER SUPPORTS,
+  // and it required it twice. `mustShow` said "Where the body was pruned, the
+  // cause is permanent and the sections must say so — empty 'permanently, not
+  // yet'", and the durability item said "Where the body was pruned: 'a permanent
+  // answer rather than a failed fetch' — returning tomorrow will not help." The
+  // summary carried the model behind both: "Two causes now reach this state and
+  // they are not interchangeable — the node no longer serves the body
+  // (permanent), or the follower reached it in time and our replay runtime
+  // refused (repairable)."
+  //
+  // A reviewer following that wording would have filed a CORRECT page as
+  // defective, or had it "fixed" back into the error. The old text is quoted
+  // rather than quietly replaced because it is what the reviewers of rounds
+  // vd9-r1 and vd9-r2 read, and a reviewer who remembers it needs to know it
+  // changed and why.
+  //
+  // WHAT WAS MEASURED, over the six committed snapshots `refusal-selftest.mjs`
+  // enumerates as `ALL_COMMITTED_SNAPSHOTS`:
+  //
+  //   * The closed set has EIGHT members, not two. Three are permanent
+  //     (`not-first-in-block`, `body-unavailable`, `prestate-unavailable`) and
+  //     five are repairable (`not-attempted`, `runtime-refused`,
+  //     `body-source-unreachable`, `artifact-unresolvable`,
+  //     `no-container-written`).
+  //   * The populations are `not-attempted` 913, `runtime-refused` 5,
+  //     `not-first-in-block` 4, and ZERO for the other five — `body-unavailable`
+  //     included. A further 7 rows are `private-only`, which carries no member at
+  //     all: every member of the set is a statement about US, and that one is a
+  //     statement about the chain.
+  //   * A PRUNED BODY NO LONGER CLASSIFIES AS PERMANENT. `body-unavailable` needs
+  //     two clauses, and the second — that the keyless transaction file store
+  //     cannot supply the body either — was measured FALSE across the range these
+  //     rows sit in. A pruned body whose store was never asked is therefore
+  //     `not-attempted`, which is REPAIRABLE, and the row's own published
+  //     sentence now says so: "nothing here says the transaction cannot be
+  //     re-executed — it says this run did not try."
+  //   * On the chain this view routes to (`aztec`, 88 transactions) there is no
+  //     permanent member at all — 77 `pruned`/`not-attempted`, 4
+  //     `refused`/`runtime-refused`, 5 `private-only`, 2 replayed. The four
+  //     `not-first-in-block` rows are on `aztec-testnet`, and they are the only
+  //     permanent-member rows anywhere in the corpus.
+  //
+  // So the item no longer keys durability off the OUTCOME word, which is what
+  // "where the body was pruned" was doing — `outcome: pruned` is now the
+  // commonest row in the corpus and its member is repairable. It keys durability
+  // off the MEMBER, which is where `tools/chain/refusal-reasons.json` decides it
+  // once for both languages. That phrasing survives the next shift in
+  // populations; the old one did not survive this one.
+  //
+  // §14.1a's both-ways rule is UNCHANGED, and it is the reason this item exists:
+  // "'Not now' and 'not ever' are different states … presenting either as the
+  // other is the failure this table exists to prevent." Only the mapping from
+  // cause to durability moved.
+  //
+  // The PAGE defect this grades is open and the item must keep failing until the
+  // page is fixed: `viewutil.availabilityNote(taAbsent)` asserts "a permanent
+  // answer rather than a failed fetch" for every execution that resolves to
+  // `absent`, over a repairable member on 918 of the 922 committed rows that
+  // carry one. reviews/QUEUED-DECISIONS.md Q10 holds that decision.
   {
     id: "tx-detail--mainnet-zero-trace",
     summary:
-      "§7.0's `absent` on real chain data: no trace is published for this transaction, and the page's job is to say WHY in the capture's own words. Two causes now reach this state and they are not interchangeable — the node no longer serves the body (permanent), or the follower reached it in time and our replay runtime refused (repairable). The reason, the tense and the durability claim must all be the ones that fit the cause this transaction actually hit.",
+      "§7.0's `absent` on real chain data: no trace is published for this transaction, and the page's job is to say WHY in the capture's own words. SEVERAL causes reach this state and they are not interchangeable — the closed set in `tools/chain/refusal-reasons.json` has eight members, three permanent and five repairable — so the reason, the tense and the durability claim must each be the one that fits the member THIS transaction carries. Do not infer durability from the outcome word: `outcome: pruned` is the commonest row in the corpus and its member is `not-attempted`, which is REPAIRABLE.",
     spec: "Page-Descriptions §7.0 (absent), §7.2, §14; components/provenance.nim",
     register: "explorer",
     inherits: ["site-chrome"],
     mustShow: [
-      "A `Not observable` badge on the execution, and beside it the PUBLISHED reason in the producer's own words. The reason must locate the limitation WHERE IT ACTUALLY IS, and there are now two places it can be. Chain-side: `getTxByHash` prunes at the finalized tip and this transaction is below it — nothing here failed. Recording-side: the follower reached the transaction inside the replay window with its body still served and the replay runtime refused it — the chain did nothing wrong and neither did the reader. Whichever it was, the sentence must say so and must be the one the capture actually recorded for THIS transaction; a page that reports the other cause is misattributing a fault, which is the defect this item exists to catch.",
+      "A `Not observable` badge on the execution, and beside it the PUBLISHED reason in the producer's own words. The reason must locate the limitation WHERE IT ACTUALLY IS, and there are three places it can be. PROTOCOL-side: the transaction is not first in its block, so no node serves the intra-block intermediate state its replay would have to read — the row names the block and ends `Only the first transaction in a block can be re-executed from published data`, and nothing anyone builds changes that. RUN-side: the node has pruned the body and the keyless transaction file store still holds it, so the row states the node's answer is not the only one and that `this run did not try` — the limitation is ours, and it is a budget or a flag rather than a property of the chain. RUNTIME-side: the follower reached the transaction inside the replay window with its body still served and the replay runtime refused it by name. Whichever it was, the sentence must be the one the capture actually recorded for THIS transaction; a page that reports another cause is misattributing a fault, which is the defect this item exists to catch. The RUN-side case is the one a reviewer is most likely to mis-grade, because the outcome word on the row is `pruned` and the pruning is real — but the sentence's own conclusion is that the body remains obtainable and was not asked for.",
       "The transaction's ordinary metadata, complete and unapologetic — the full hash, an outcome badge, and an Overview carrying block, canonicality, finality and cost. §7.0's second row is 'the metadata, with the reason stated', and the metadata half is not a consolation prize. Note that a real chain publishes FEWER fields than the fixture (no fee payer, no target): their absence is the snapshot's, not the page's, and is not a finding.",
-      "Every content section present and each one saying why it is empty IN A TENSE THAT MATCHES THE PUBLISHED CAUSE. Where the body was pruned, the cause is permanent and the sections must say so — empty \"permanently, not yet\" — because a section that reads as pending would promise a trace that can never arrive. Where the cause is a REFUSAL BY OUR OWN REPLAY RUNTIME, the permanent tense is the same error in the other direction: a toolchain regression is by construction repairable, so a reader told the answer is permanent may never come back to a page that will have a trace on it. §14.1a is the rule and it cuts both ways — \"'Not now' and 'not ever' are different states … presenting either as the other is the failure this table exists to prevent.\"",
+      "Every content section present and each one saying why it is empty IN A TENSE THAT MATCHES THE PUBLISHED MEMBER'S DURABILITY. The MEMBER decides it — not the outcome word, and not whether a body was pruned. Where the member is a permanent one the sections must say permanently — the page's wording for that is `empty \"permanently, not yet\"` — and on this corpus the permanent member is `not-first-in-block` and only that: 4 rows, all on `aztec-testnet`, whose sentence names the block whose intermediate state no node serves and ends `Only the first transaction in a block can be re-executed from published data`. A section reading as pending there would promise a trace that can never arrive. Where the member is a REPAIRABLE one the permanent tense is the same error in the other direction, and that is now the ordinary case rather than the exception — `not-attempted` (913 rows: 912 carrying `outcome: pruned`, and one whose run simply hit its own `--max`) and `runtime-refused` (5) are both repairable, so a reader told the answer is permanent may never come back to a page that will have a trace on it. §14.1a is the rule and it cuts both ways — \"'Not now' and 'not ever' are different states … presenting either as the other is the failure this table exists to prevent.\"",
       "The affirmative provenance marker, which on THIS page is the `Data` row at the top of the transaction facts grid — a badge reading `Real Aztec mainnet data` with the capture's own sentences beneath it. That this is REAL data is what makes the absence of a trace meaningful; the same page on the synthetic chain would be a fixture choice rather than a fact about a network. Since 2026-08-31 it is a row rather than a band: judge whether, as the first fact in the grid, it still lands before a reader forms a conclusion about the empty sections below.",
-      "A claim about DURABILITY that the published cause actually supports, and a reader able to tell which it is. Where the body was pruned: 'a permanent answer rather than a failed fetch' — returning tomorrow will not help. Where our replay runtime refused: the honest claim is that no trace exists NOW and why, not that none can ever exist. The failure mode here is asserting permanence with a repairable cause printed directly beneath it, which leaves the strongest sentence on the page unsupported by the only evidence offered for it.",
+      "A claim about DURABILITY THAT THE PUBLISHED MEMBER SUPPORTS, and a reader able to tell which it is. `tools/chain/refusal-reasons.json` decides durability once per member and the page may not re-decide it from the outcome it printed: three members are permanent (`not-first-in-block`, `body-unavailable`, `prestate-unavailable`) and five are repairable (`not-attempted`, `runtime-refused`, `body-source-unreachable`, `artifact-unresolvable`, `no-container-written`). Only under a permanent member is 'a permanent answer rather than a failed fetch' a supported sentence — there, returning tomorrow genuinely will not help. Under a repairable member the honest claim is that no trace exists NOW and why, not that none can ever exist. The failure mode is asserting permanence with a repairable cause printed directly beneath it, which leaves the strongest sentence on the page unsupported by the only evidence offered for it — and as of 2026-09-13 that describes 918 of the 922 committed rows carrying a member, so EXPECT to find it rather than checking for it.",
     ],
     mustNotShow: [
       "A Debug button, a 'Generate trace' affordance, a retry, a spinner, or a disabled control of any kind. There is nothing to retry and nothing to generate; an affordance here would promise something the chain cannot supply.",
       "Any trace reference, artifact id, container link or download. Zero, not empty-but-present.",
-      "MISATTRIBUTION of the cause in either direction. Blaming the chain for a fault on this side is the worse one and is what this item was originally written against, back when the recorder never had the chance and every zero-trace mainnet transaction was one the node had pruned. It is no longer the only case: the follower has since caught transactions inside the window whose bodies were still served and had the replay runtime refuse them, so a page that says the chain did not retain THAT transaction is telling a reader the opposite of what happened. Naming a recording-side failure is therefore REQUIRED where that is what occurred, and forbidden where it is not.",
+      "MISATTRIBUTION of the cause in either direction. Blaming the chain for a fault on this side is still the worse one, and it is what this item was originally written against — back when the recorder never had the chance and every zero-trace mainnet transaction was believed to be one the node had pruned beyond recovery. That narrative has since been corrected TWICE and both corrections land here. First, the follower began catching transactions inside the window whose bodies were still served and having the replay runtime refuse them, so a page saying the chain did not retain THAT transaction tells a reader the opposite of what happened. Second, measured 2026-09-13: a pruned body is not beyond recovery either — the keyless transaction file store holds it, 912 rows that had claimed otherwise were reclassified `not-attempted`, and their published sentence now says the run did not ask. So on this corpus the chain is almost never the limitation: 918 of the 922 rows carrying a member carry a repairable one. Naming a limitation on OUR side is therefore REQUIRED wherever that is what occurred, and forbidden where it is not — and a page that reaches for the chain because the chain is the easier thing to blame is committing exactly the error this anti-requirement has always been about.",
       "An error colour or a danger tone. This is a normal, correct page about a limitation, not a failure.",
     ],
     watchFor: [
       "The single most important judgement in this round: does this page read as CORRECT, or as broken? It is the state most likely to be mistaken for a defect while being exactly right, and it is the first time it has ever been captured.",
-      "Read it beside `tx-detail--absent`, which is the same §7.0 state on the synthetic chain with a different reason (a private kernel execution, not a pruned body). Two reasons, one state: does the page make the REASON the thing a reader takes away, or do both pages collapse into one generic 'no trace' treatment? The reasons are published separately precisely so they do not.",
-      "Whether the pruning explanation is legible to someone who does not know what a finalized tip is.",
+      "Read it beside `tx-detail--absent`, which is the same §7.0 state on the synthetic chain for a reason that is NOT a member of the refusal set at all: a private kernel execution publishes no public call structure, so there was never anything for a recorder to capture. That is a statement about the CHAIN, the corpus spells it `outcome: private-only`, and it is deliberately given no refusal member because every member of that set is a statement about US. It is also genuinely terminal, which this page's reason — on the chain it routes to — never is. Two kinds of reason, one state: does the page make the REASON the thing a reader takes away, or do both pages collapse into one generic 'no trace' treatment? They are published separately precisely so they do not, and if they read the same a reader cannot tell 'nothing ever existed' from 'we have not fetched it yet', which is §14.1a's failure at its widest.",
+      "Whether the published explanation is legible to someone who does not know what a finalized tip is. On a run-side row it is now FIVE sentences naming TWO publishers — the node that pruned the body and the file store that still holds it — and ending in a remedy (`Re-running this range with the body proxy asks`). Judge whether a reader gets as far as the conclusion that a trace remains obtainable, or stops at the word `prunes` and concludes the opposite.",
     ],
   },
   {
