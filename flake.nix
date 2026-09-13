@@ -42,8 +42,79 @@
     # bundle CI ships and the Embed SDK CI's suites run against are two
     # different trees. `client/hydrate/build.sh` resolves `$CODETRACER_SRC`,
     # which `packages.default` sets from here.
+    #
+    # ── `submodules=0`, STATED, AND WHY IT CANNOT BE 1 ─────────────────────
+    #
+    # 5d1e44a set `submodules=1` to stop the lock's narHash and CI's resolved
+    # narHash disagreeing. It settled that disagreement and introduced a worse
+    # one: codetracer's `.gitmodules` carries `libs/tree-sitter-nim`, whose URL
+    # is https://github.com/metacraft-labs/tree-sitter-nim.git, and THAT REPO
+    # IS PRIVATE (`gh api repos/metacraft-labs/tree-sitter-nim` ->
+    # `"private": true`). blocktracer is a PUBLIC repository whose CI
+    # authenticates with `secrets.GITHUB_TOKEN`, which is scoped to this
+    # repository and cannot read another repo's private contents. GitHub
+    # answers such a fetch with 404, so every job that evaluated this input
+    # died with the same four lines:
+    #
+    #   remote: Repository not found.
+    #   fatal: repository '.../metacraft-labs/tree-sitter-nim.git/' not found
+    #   error: Failed to fetch git repository '.../tree-sitter-nim.git'
+    #   … while evaluating attribute 'CODETRACER_SRC' of derivation 'blocktracer-site'
+    #
+    # That is not a deploy bug even though the deploy is where it was noticed:
+    # `deploy`, `journeys`, `debug-route`, `viewmodels`, `client-sdk` and
+    # `contract` all failed identically on runs 34761732474 and 34778372790,
+    # because they all evaluate `.#default`.
+    #
+    # WHY IT LOOKED GREEN FOR TWO WEEKS. It was never buildable from cold. The
+    # deploys that succeeded on 2026-08-31 ran on a NixOS runner image with a
+    # warm shared store — their logs say "Nix is already installed: nix (Nix)
+    # 2.32.8", print no git fetch at all, and go straight to "this derivation
+    # will be built", because the input's store path was already there. The
+    # 2026-09-13 runs land on a machine that says "Nix is not installed, will
+    # install it" and then fetches every input for real. Same runner group
+    # name, same `eph-linux-x64` label, different machine — so a green run from
+    # before the cutover is not evidence that this input could be fetched.
+    # A workstation whose git credentials DO reach the private repo hides it
+    # the same way, which is why it survived a local `nix build` at 5d1e44a.
+    #
+    # NOTHING HERE NEEDS THE SUBMODULES. Every consumer of `$CODETRACER_SRC` in
+    # this repository reads `src/frontend/...`, `src/` or `ci/` from it —
+    # `client/hydrate/build.sh` puts exactly `src/frontend/viewmodel`,
+    # `src/frontend` and `src` on the Nim path — and not one path under
+    # `libs/`. So the submodules were fetched for nothing and cost the whole
+    # repository its ability to build. Measured: the site built from this
+    # input with and without them differs in ONE file of 932, `hydrate.js`,
+    # identical in length, differing only where Nim mangles the input's store
+    # path into its symbol names.
+    #
+    # The `0` is spelled out rather than left to the default for the same
+    # reason 5d1e44a wanted a `1`: the variant must be STATED, so the lock and
+    # any fetcher compute one tree by construction and not by whichever
+    # default a nix version happens to hold.
+    #
+    # ── IF YOU RE-LOCK THIS INPUT, DO IT WITH A COLD FETCHER CACHE ──────────
+    #
+    # `nix` memoises rev -> narHash in `~/.cache/nix/fetcher-cache-v*.sqlite`,
+    # and because this input is pinned by rev it is treated as immutable, so
+    # `--refresh` does NOT recompute it. A machine that once fetched this rev
+    # under different fetcher options keeps answering with the old hash
+    # forever. MEASURED on the workstation that produced 334204a..5d1e44a:
+    #
+    #   pristine cache, nix 2.25.2   sha256-ce3EtVQdz6vqLgSDKrm/NWZTL8Nz…
+    #   pristine cache, nix 2.35.2   sha256-ce3EtVQdz6vqLgSDKrm/NWZTL8Nz…  (same)
+    #   that machine's live cache    sha256-Ia/JuLW+qTestHjWmxdWPn4/T9/4…
+    #   empty gitv3 + only that
+    #     machine's sqlite copied in sha256-Ia/JuLW+qTestHjWmxdWPn4/T9/4…
+    #
+    # The last line is the proof: with no git objects present at all the stale
+    # answer still comes back, so it is the memo and not the repository. CI
+    # deletes `gitv3` and `fetcher-cache-v*.sqlite` before every job, which is
+    # why the lock recorded on that workstation could never match CI's. Re-lock
+    # with `XDG_CACHE_HOME=$(mktemp -d) nix flake lock --update-input codetracer`
+    # and the two agree.
     codetracer = {
-      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=8d1c84a85034a739804914a33f2f55329b5f051a&submodules=1";
+      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=8d1c84a85034a739804914a33f2f55329b5f051a&submodules=0";
       flake = false;
     };
 
