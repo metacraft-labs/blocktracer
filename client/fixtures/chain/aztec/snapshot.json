@@ -40,13 +40,13 @@
   "captureSessions": 11,
   "refusals": {
    "not-first-in-block": 0,
-   "body-unavailable": 77,
+   "body-unavailable": 0,
    "body-source-unreachable": 0,
    "artifact-unresolvable": 0,
    "prestate-unavailable": 0,
    "runtime-refused": 4,
    "no-container-written": 0,
-   "not-attempted": 0
+   "not-attempted": 77
   },
   "refusalsTotal": 81,
   "refusalsUnclassified": 0,
@@ -38072,8 +38072,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 67113, 6 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 67113 and the finalized tip when this snapshot was taken was block 67119, 6 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x2b77dfbbdf93496d64e2eabad0336b5e3dbf94a1724df65acc47a8633aa2e17d",
@@ -38085,8 +38085,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 67111, 8 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 67111 and the finalized tip when this snapshot was taken was block 67119, 8 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x26ee754009e1b9905a94e66e4d8f6242e60d8de7e446f41293599d94d5e1282c",
@@ -38098,8 +38098,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66802, 317 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66802 and the finalized tip when this snapshot was taken was block 67119, 317 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x1d4b6dcf319fe461085fd3da07ee50204fd7940d20390864b326b4cef46b36e9",
@@ -38111,8 +38111,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66795, 324 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66795 and the finalized tip when this snapshot was taken was block 67119, 324 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x24aef82c4e9eb1ac2c9c43b989d04e97f9cdd8a2b5c6d7174c22ae0f1f9a6522",
@@ -38124,8 +38124,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66792, 327 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66792 and the finalized tip when this snapshot was taken was block 67119, 327 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x23753dd6451ea74bab5829dcee3dbb1aed3fdd330a1a198d0823b80d85db6859",
@@ -38137,8 +38137,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66785, 334 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66785 and the finalized tip when this snapshot was taken was block 67119, 334 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x0e75059f99b95d3a828eeddf173883c167de5e6ca12e1dc8ca97420b22923bac",
@@ -38150,8 +38150,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66783, 336 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66783 and the finalized tip when this snapshot was taken was block 67119, 336 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x2e62da47b5e7f330a1bbc5e57eec8a01019f8d3a28a90b85f6dc3f8f51a3f63d",
@@ -38163,8 +38163,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66781, 338 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66781 and the finalized tip when this snapshot was taken was block 67119, 338 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x227ecdb075011a7a6e76790e744a9b6b49b719a191d027b45317b62c3444381c",
@@ -38176,8 +38176,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66779, 340 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66779 and the finalized tip when this snapshot was taken was block 67119, 340 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x272c6601b91a907a5c1b3c146fa8351dcbc8d54922c79a5d33e7eae8310d4aeb",
@@ -38189,8 +38189,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66775, 344 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66775 and the finalized tip when this snapshot was taken was block 67119, 344 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x005e7506558d736fa841e78b3e8b01e8ad8de79bec10caf983efa3a9e435b1f1",
@@ -38202,8 +38202,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66773, 346 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66773 and the finalized tip when this snapshot was taken was block 67119, 346 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x104bfca60061f951909af996fc5489d1e7f093075ff68779e4fb94621c8caf18",
@@ -38215,8 +38215,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66772, 347 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66772 and the finalized tip when this snapshot was taken was block 67119, 347 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x03ba770c7f0a2312045e1567c6df71ce3efc5745b5b3974417a4a5f1802e60b1",
@@ -38228,8 +38228,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66770, 349 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66770 and the finalized tip when this snapshot was taken was block 67119, 349 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x2cc3b509a3b24c9c2e30139962d9ce79c6bfbccf2cdff4dfdb01dd816e4985e5",
@@ -38241,8 +38241,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66767, 352 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66767 and the finalized tip when this snapshot was taken was block 67119, 352 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x2a933cfaaec6c1227444f49f155084fcdb045b137bdc7df33bf5888e64709510",
@@ -38254,8 +38254,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66765, 354 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66765 and the finalized tip when this snapshot was taken was block 67119, 354 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x187d84be11e3aaae81e8ce6b5f11f0328ab5a2fe856df418c572f8f4fe702ec4",
@@ -38267,8 +38267,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66760, 359 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66760 and the finalized tip when this snapshot was taken was block 67119, 359 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x0b4dc40da0c0e0f769a6d25d764490c5b3ad4665576246799abe5da4a40db060",
@@ -38280,8 +38280,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66757, 362 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66757 and the finalized tip when this snapshot was taken was block 67119, 362 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x29f07ccc6b3b6de4e4060ccea0c92e3bb7b16f3cb86a342a8b83b4f044995926",
@@ -38293,8 +38293,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66754, 365 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66754 and the finalized tip when this snapshot was taken was block 67119, 365 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x2044a7c06467421fcd3bf901a46744115e9e95d0a7597f48a4a3a66f47886314",
@@ -38306,8 +38306,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66752, 367 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66752 and the finalized tip when this snapshot was taken was block 67119, 367 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x20d2b7f6c893a3279bab55d0d934fef23e761a539c8497bba3af942bc8dcf409",
@@ -38319,8 +38319,8 @@
    "effectVisible": true,
    "firstInBlock": true,
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip (block 67119 when this snapshot was taken) and getTxEffect does not. This transaction settled in block 66749, 370 block(s) below it. It can no longer be re-executed, so no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 66749 and the finalized tip when this snapshot was taken was block 67119, 370 block(s) above it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x27e2ff4e69d175db7c8af65040d0af5d6408c0644a5017a3346334a9835c5d13",
@@ -38333,8 +38333,8 @@
    "firstInBlock": true,
    "observedAt": "2026-08-31T16:44:52.488Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 67242 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x06770695c9d53e26d51fca3a5655c7d06922e381f9210bd5aef75c3f1187312d",
@@ -38347,8 +38347,8 @@
    "firstInBlock": true,
    "observedAt": "2026-08-31T16:45:02.977Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 67384 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x276682188b58bfec79c751c01d0c03f462f696dd62ec11896a8c0954f919890f",
@@ -38361,8 +38361,8 @@
    "firstInBlock": true,
    "observedAt": "2026-08-31T16:45:04.866Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 67409 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x09b2c8ce69aae396cc46240625cf54b9518e4e955c248b703b2a9b08437ba9aa",
@@ -38375,8 +38375,8 @@
    "firstInBlock": true,
    "observedAt": "2026-08-31T16:45:09.313Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 67468 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x14d66f003bf086a83b70aedbdadd61053ca18904f1d6246a2306219087b6fa6c",
@@ -38389,8 +38389,8 @@
    "firstInBlock": true,
    "observedAt": "2026-08-31T16:45:12.402Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 67511 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x09abd57b4f0b612dd200fe14b8613e313bcbd8e9c421f18b58b63830c0a77610",
@@ -38845,8 +38845,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:01:27.974Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 68485 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x19c416c115ebac00a6ca779359fe3648ca8478e835855130468199fc66e9dcd8",
@@ -38859,8 +38859,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:01:30.888Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 68521 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x2f89042571b9c6af5d604099faf1bf1f763b7824b45f044ebe971958f13b8e5e",
@@ -38873,8 +38873,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:01:35.388Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 68571 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x0495cb4163519ca2dae49f4c0b1ed39caf3b6d75940b98fcafd6b84ea901d782",
@@ -38887,8 +38887,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:01:42.802Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 68663 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x0c1615d601f5dc6cab153bc27aee38adafc3542c65875fcc3c99f0b7f7f7ba29",
@@ -38901,8 +38901,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:01:44.880Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 68691 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x208aac88822329502c61f11659d12f1f4f6fd654b9c986de3d3330827ae13f2c",
@@ -38915,8 +38915,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:01:46.486Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 68706 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x05a05dfd8ee70a5e58db8494742a8ef325e95c765b5846f22568681b59d79527",
@@ -38929,8 +38929,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:01:46.635Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 68707 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x1777c076f9a52652ead24360c7a952ae97276ec68e79a308f6efc9dbb4ebeca2",
@@ -38943,8 +38943,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:01:55.164Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 68812 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x02436e99a8e19f273f47eb320fa9381c7aebf774fd0c0ab56c15e285c52b16b6",
@@ -38957,8 +38957,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:01:55.478Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 68815 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x2780efabb00e90b84331e558256c42e7cef94f7bc1acfe7987830a7bcc7c75e7",
@@ -38971,8 +38971,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:01:56.710Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 68830 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x2fd61d026edc203a014e9e982c512ab8738487336bb2cc6c2f061be2ac52fe8b",
@@ -38985,8 +38985,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:10.674Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69003 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x27900be57f0b71245233e0623c43187164cf0886ec4ad11eb832bf1a32c0c0c6",
@@ -38999,8 +38999,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:11.077Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69006 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x247523eff6bd8567d8a99d99cdc5c893a3eaa810c4028167696432c0337b94bc",
@@ -39013,8 +39013,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:22.676Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69144 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x2215136cb5e6077ff60192b3a26d689c8c187262fa18f747050cabdb7264cfa7",
@@ -39027,8 +39027,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:22.836Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69145 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x2bca0c8f2043871acb5f4f275dcd1e32399d149235b7183d9c0b0b0eb05d3854",
@@ -39041,8 +39041,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:22.958Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69146 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x132e4e3483102c08e245b1485e15f46bb2bb80e0d40471326855fde40b1223d9",
@@ -39055,8 +39055,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:23.687Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69155 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x0cea35c6c21e26da2efeb4971113919bf610e4977e2fa3bc388413bedbfc0931",
@@ -39069,8 +39069,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:23.881Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69157 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x0d40321c411017519c9592e23b470eb8d5625b93666b1280140fbf48dc5538a1",
@@ -39083,8 +39083,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:32.106Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69246 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x171c3089cd066b3f8a48a98c70fb8e3c67debb2e2d7338ea01cc2c7db25e155b",
@@ -39097,8 +39097,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:32.238Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69247 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x2fedb6b14d048026a2df61923c6ac35774db6612046a3f22ccfab30a8eee62ce",
@@ -39111,8 +39111,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:32.512Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69250 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x1b0945b7340c61a43072c8d3ea81f57063bf5f91bdea6157e81c266799b86a7c",
@@ -39125,8 +39125,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:32.717Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69251 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x24ea3db129f1666067795dec59ff42e870d222a66b19e188579fa93640e01555",
@@ -39139,8 +39139,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:37.478Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69311 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x0248b72866277e179555052d3d2a205d5d1ee12b2d984e15b9d86bb7d75d6c4e",
@@ -39153,8 +39153,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:41.086Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69358 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x1777fd239aefa54e4375a447e965409d4b14c6593f93b00e70968a3b014007c3",
@@ -39167,8 +39167,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:42.121Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69370 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x195239014afb4a1a8aaf7d0f28e317e5330d048faff73274c801b7e6a5ef44fc",
@@ -39181,8 +39181,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:42.417Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69372 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x22a52d0f738a28a555898e035deeea1281a6c30067b0b9cbd3964efb4bfde010",
@@ -39195,8 +39195,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:42.640Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69375 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x0ecec1a3fa1b6888067539180a3c0ba31c7a5fec5142d9d741ed2d61c7f63f58",
@@ -39209,8 +39209,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:42.764Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69376 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x09ecaef89f4b0a95502fb69fd75acca224b81f8295a2b218ae78d5c2a63a9eed",
@@ -39223,8 +39223,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:44.219Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69393 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x08378ddf2aefe70d7cf582c960874bd4ebcfad631080ae7c0678a04d6434e2c7",
@@ -39237,8 +39237,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:44.348Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69394 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x1c5c8acde9be202659597d259e1aa81643f403c30a3931af8e7fdc62cbf4a6f2",
@@ -39251,8 +39251,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:44.485Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69395 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x10b8989af470f108efd53d60d019e509d0d02bcad16cbdfc05016b754453a871",
@@ -39265,8 +39265,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:44.612Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69396 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x0af5baf367f3560a83daefdff02453c95671d359d1fbe498510a64b951781d93",
@@ -39279,8 +39279,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:44.747Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69397 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x119b646f4b1fba49821be1679991b4564004b6d0b91464dcfb0ef4bd0695b3d6",
@@ -39293,8 +39293,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:46.977Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69419 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x13fd2b13c9db2ee5e369324028d6fe21e704e5c5d6553961a6cb23f664185f46",
@@ -39307,8 +39307,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:48.735Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69437 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x281217d53ca441288fbb4320d5d9cc676d18a8cd889c6b9c0f884c3b7dbeaa29",
@@ -39321,8 +39321,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:02:56.293Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69533 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x0504976477c8e098bd725f365b9c53bb601c5b4fe06487ce55b575cee1889928",
@@ -39335,8 +39335,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:01.071Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69594 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x279022585065ac7dce843b2a9f126dde0620099271e16ceae2f8d6ce2dfc145e",
@@ -39349,8 +39349,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:09.669Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69695 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x08eee93ce4db2eb27b20f24c337e250f6dec33a17b988be29c1ed58ab5733148",
@@ -39363,8 +39363,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:12.900Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69731 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x175c1546c7d12f55535a0f6d32690a4e4bff04c60777b94c1ae83bf6351f7aa3",
@@ -39377,8 +39377,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:13.164Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69733 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x278642e212294e1339c7116aa639fbaace3b61c9cc6818c71b5ccd7379446b07",
@@ -39391,8 +39391,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:13.878Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69743 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x15c8e8e9308ca27f4147c189a94674403ae2dfe9507759b78b222495dd0efb59",
@@ -39405,8 +39405,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:14.571Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69750 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x13fef6e7866eca4b13655e0fd9217677b25fd36459671deef906577c08ca31ba",
@@ -39419,8 +39419,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:19.330Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69804 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x00b78a3b6501b1cd692eb9d0eb99f0407456af20ef5b80aa92efe5f6aad48574",
@@ -39433,8 +39433,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:20.334Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69810 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x07fce34471c379f692496877fea2f806fb9fe27811ded77a77fda36c675b4bfc",
@@ -39447,8 +39447,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:22.257Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69835 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x14c0277fb0338b3e15bc124e04e60f5ad5176a33ea7421d5c77b7d3887fa011d",
@@ -39461,8 +39461,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:22.458Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69837 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x1ecc87da96a606c6d7c49093d6d0153af14b3784b454c4c5af5eebc562607e66",
@@ -39475,8 +39475,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:25.981Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69883 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x2094c6faf024402b4f6c7616a81fcc3c261196b8d70a2caf598d9706010fbb73",
@@ -39489,8 +39489,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:32.574Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69969 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x288766e576e1197b61ac9384cad81c57a83e4ecbbdb80d2bcb98ae0fc0ebb3a0",
@@ -39503,8 +39503,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:34.281Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 69992 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x1a377bc1eaa22c79db05c20d49b001fc198ea3a4bde98d779929acc78986de57",
@@ -39517,8 +39517,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:42.615Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 70091 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x27774c5f5cc8afc3510c25bf5e379a617942c208ad6a18714d07f98e1bdcddee",
@@ -39531,8 +39531,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:43.659Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 70105 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x10a909311ddb7e4b33ea80be663605ebbeadef00fd57bba7dca616bf15ed44b3",
@@ -39545,8 +39545,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:43.988Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 70108 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   },
   {
    "txHash": "0x11ca96ddcd8da313e4d888b90d18295b46c33f3e0e6690b487c0e9225bc12752",
@@ -39559,8 +39559,8 @@
    "firstInBlock": true,
    "observedAt": "2026-09-02T21:03:47.569Z",
    "outcome": "pruned",
-   "reason": "The node still serves this transaction's effects but no longer serves its body: getTxByHash prunes at the finalized tip and getTxEffect does not. It was already below the replayable window when this follower first saw it, so it can no longer be re-executed and no trace was recorded for it.",
-   "refusalReason": "body-unavailable"
+   "reason": "The node no longer serves this transaction's body — getTxByHash prunes at the finalized tip and getTxEffect does not, which is why its effects are still visible. It settled in block 70151 and it was already below the replayable window when this follower first saw it. That is the NODE's answer and it is not the only publisher: the keyless transaction file store serves bodies for the whole of this chain's history, and this run never asked it. So nothing here says the transaction cannot be re-executed — it says this run did not try. Re-running this range with the body proxy asks.",
+   "refusalReason": "not-attempted"
   }
  ],
  "captures": [

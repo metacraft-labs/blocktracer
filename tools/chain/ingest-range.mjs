@@ -768,6 +768,12 @@ async function replayRange(dir) {
         blockNumber: t.blockNumber,
         observedAs: `the keyless transaction file store answered a 200 for its key whose `
           + `leading 32 bytes are a DIFFERENT transaction hash, which is not a body`,
+        // THE EVIDENCE FOR THE SECOND CLAUSE, PASSED IN RATHER THAN ASSUMED. This member
+        // is durability PERMANENT and `refuseBodyUnavailable` now refuses to write it
+        // without the store's own answer about this key — see
+        // `BodyUnavailableWithoutStoreEvidence`. The same value goes onto the row below,
+        // so the evidence outlives the run that gathered it.
+        storeOutcome: seen.outcome,
         where: 'ingest-range.mjs replayRange',
       }), { storeOutcome: seen.outcome, storeReason: seen.reason });
       mismatchedBodies.push({ txHash: t.txHash, blockNumber: t.blockNumber,
@@ -784,6 +790,9 @@ async function replayRange(dir) {
         blockNumber: t.blockNumber,
         observedAs: `the keyless transaction file store — which serves bodies for the rest `
           + `of this chain's history — answered ${seen.outcome} for its key too`,
+        // As above: the store's answer is the evidence for the permanent claim and is
+        // required by the producer rather than inferred from the branch it is in.
+        storeOutcome: seen.outcome,
         where: 'ingest-range.mjs replayRange',
       }), { storeOutcome: seen.outcome, storeReason: seen.reason });
       continue;

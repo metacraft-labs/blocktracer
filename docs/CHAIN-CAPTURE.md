@@ -126,6 +126,29 @@ Three populations, and only the first was ever about pruning:
 
 The private half of every transaction remains `absent` as it always has been.
 
+**`body-unavailable` is not one of the three, and 912 committed rows used to say it
+was.** That member is durability *permanent*, and its condition is a conjunction: the
+node no longer serves the body **and** the file store cannot supply it either. §1.2
+above is the measurement that the second clause is usually false — 21 of 21 bodies
+served between block 10 and block 75,969, 333 of 333 first-in-block transactions over
+the full sample, and 12 of 12 from the frozen mainnet capture *including six it had
+itself recorded as `pruned`*.
+
+Every one of those 912 rows — 835 in `client/fixtures/chain/aztec-testnet` and 77 in
+`client/fixtures/chain/aztec`, blocks 63,520–67,007 and 66,749–70,151 — was written by
+a producer that had spoken only to the node, so the second clause was never checked for
+any of them. They are now `not-attempted`, *repairable*, whose narrative is that the run
+did not look; their sentences keep the measurement each producer took (the finalized tip
+it read, or that the row was already below the window when it first saw it) and drop the
+conclusion "it can no longer be re-executed", which §1.2 measured false.
+
+`body-unavailable`'s production count is therefore **zero**, and that is asserted rather
+than merely noticed: `tools/chain/refusal-selftest.mjs` sweeps every committed snapshot
+for a row claiming the member without the store's own answer beside it, and
+`refuseBodyUnavailable` throws rather than write one. The member is still correct and
+still reachable — `ingest-range.mjs --replay` produces it when the file store answers
+404 for a key the node has pruned — it just has not happened yet.
+
 ### 1.6 What this means for the ingestion layer
 
 A **continuously running follower is still worth having** — it catches a

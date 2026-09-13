@@ -20,16 +20,39 @@
 //
 // ── THE CLASSIFICATION, AND WHERE IT IS AND IS NOT LOSSY ───────────────────────────────
 //
-// Three of the four legacy outcomes carry their member in the name and are exact:
+// TWO — not three — of the four legacy outcomes carry their member in the name:
 //
 //   not-first-in-block  →  not-first-in-block
-//   pruned              →  body-unavailable
 //   not-attempted       →  not-attempted
 //
-// The fourth is `refused`, which is every runtime throw, and its member is decided by the
-// runtime error class the row already recorded in `refusal` — the same table
-// `reasonForRuntimeClass` uses for a live capture, so a migrated row and a freshly captured
-// one classify identically.
+// The other two are decided from evidence the row carries rather than from its name.
+//
+// `refused` is every runtime throw, and its member is decided by the runtime error class
+// the row already recorded in `refusal` — the same table `reasonForRuntimeClass` uses for a
+// live capture, so a migrated row and a freshly captured one classify identically.
+//
+// `pruned` USED TO BE IN THE FIRST LIST, AND IT DOES NOT BELONG THERE. It was mapped
+// straight to `body-unavailable` by a frozen literal, under this file's own claim that the
+// mapping was "exact". It is not exact, and it is not even the same KIND of statement:
+// `pruned` names what the NODE answered, and `body-unavailable`'s condition is "the node no
+// longer serves the transaction's body AND THE FILE STORE CANNOT SUPPLY IT EITHER" at
+// durability **permanent**. The map established the first clause and asserted the second.
+//
+// It was asserted 912 times — 835 rows in `client/fixtures/chain/aztec-testnet` and 77 in
+// `client/fixtures/chain/aztec`, every one `firstInBlock: true`, `bodyRetained: 0`, in
+// blocks 63,520–67,007 and 66,749–70,151. The second clause was never checked for any of
+// them, and it was later measured FALSE across exactly that range: the keyless TxFileStore
+// answered 200 and self-verified for 21 of 21 bodies sampled between block 10 and block
+// 75,969, and for 12 of 12 sampled from the frozen mainnet capture — six of which that
+// capture had itself recorded as `pruned` (CHAIN-CAPTURE.md §1.2, §6).
+//
+// So the arm is now `memberForLegacyUntracedRow` in `lib/refusal.mjs`, which asks the row
+// whether the store was ever asked: a `pruned` row carrying the store's negative answer
+// (`storeOutcome` of `absent`, `truncated` or `mismatched`) earned `body-unavailable`, and
+// a `pruned` row carrying none is a row nobody asked — `not-attempted`, the member whose
+// whole content is "the run did not look". The decision lives in the shared module for the
+// reason `looksLikePrivateOnlyCrash` does: the selftest has to be able to assert it without
+// running this script.
 //
 // IT IS LOSSY IN EXACTLY ONE PLACE, AND THAT LOSS IS OLDER THAN THIS TOOL. Two rows in
 // `client/fixtures/chain/aztec` carry `refusal: "unknown"` — the two mainnet catches of
@@ -72,14 +95,29 @@
 // written by whatever observed it. A row with no reason is REPORTED and left alone, so the
 // gap is visible rather than papered over.
 //
-// The private-only reclassification is the one exception, and it is an exception to the
-// SUBJECT rather than to the rule. The sentence those rows carry — "the replay runtime
-// refused with TypeError" — is not an observation whose value is that somebody wrote it; it
-// is a statement this pipeline now knows to be false, and leaving it beside a corrected
-// outcome would publish the contradiction. What replaces it is
-// `chainPublishedNoPublicExecution`, the same shared sentence a fresh capture writes, so a
-// migrated row and a newly captured one say the same thing — which is the property this
-// file's header claims for the `refused` → member mapping, held to here as well.
+// THERE ARE TWO EXCEPTIONS AND BOTH ARE EXCEPTIONS TO THE SUBJECT RATHER THAN THE RULE: the
+// sentence being replaced is not an observation whose value is that somebody wrote it, it
+// is a statement this pipeline now knows to be FALSE, and leaving it beside a corrected
+// member would publish the contradiction.
+//
+//   private-only  — "the replay runtime refused with TypeError", about a transaction with
+//                   no public execution. Replaced by `chainPublishedNoPublicExecution`.
+//   pruned with no store evidence — "…so it can no longer be re-executed". That clause is
+//                   measured false for the range these rows sit in. Replaced by
+//                   `refuseBodyNotSoughtFromStore`.
+//
+// In both cases the replacement is the SHARED sentence a fresh capture writes, so a
+// migrated row and a newly captured one say the same thing — the property this file's
+// header claims for the `refused` → member mapping, held to here as well.
+//
+// AND THE OBSERVATION INSIDE THE OLD SENTENCE IS CARRIED ACROSS VERBATIM. The false part of
+// those 912 sentences is the conclusion; the clause before it — which finalized tip was
+// measured, or that the row was already below the window when the follower first saw it —
+// is a real measurement taken at a moment that cannot be revisited. It is extracted from
+// the committed text and re-used as the new sentence's `observedAs`, and every row for
+// which the extraction FAILS is counted and printed rather than quietly given a generic
+// clause. A migration that dropped the measurement would be paying for a corrected claim
+// with a lost one.
 //
 // It never touches a traced row, and it re-runs clean: a row that already carries a member
 // is left exactly as it is.
@@ -114,39 +152,152 @@
 // re-capture, which matters because these captures cannot be retaken.
 
 import { readFileSync, writeFileSync, renameSync } from 'node:fs';
+import { relative, resolve, sep } from 'node:path';
 
-import { reasonForRuntimeClass, isRefusalReason, isUntracedOutcome,
+import { isRefusalReason, isUntracedOutcome, memberForLegacyUntracedRow,
          looksLikePrivateOnlyCrash, chainPublishedNoPublicExecution,
+         storeWasAskedAndSaidNoBody, refuseBodyNotSoughtFromStore,
          refusalCounts, auditRefusals } from './lib/refusal.mjs';
 import { recountSnapshot, countsDisagreements } from './lib/recount.mjs';
 import { SNAPSHOT_FORMAT, assertReadableSnapshotFormat } from './lib/snapshot-format.mjs';
 
 const args = process.argv.slice(2);
 const check = args.includes('--check');
+const migrateHeldOut = args.includes('--include-held-out');
 const paths = args.filter((a) => !a.startsWith('--'));
 
 if (paths.length === 0) {
-  console.error('usage: migrate-refusal-reasons.mjs [--check] <snapshot.json…>');
+  console.error('usage: migrate-refusal-reasons.mjs [--check] [--include-held-out] '
+    + '<snapshot.json…>');
   process.exit(2);
 }
 
-/** The legacy outcome → member map, for the three that are exact. `refused` is absent on
- *  purpose: its member comes from the runtime class the row recorded, not from its outcome. */
-const FROM_OUTCOME = {
-  'not-first-in-block': 'not-first-in-block',
-  pruned: 'body-unavailable',
-  'not-attempted': 'not-attempted',
-};
+const REPO_ROOT = resolve(new URL('../../', import.meta.url).pathname);
+
+// ── THE THREE SUBJECTS THIS TOOL MUST NOT PROMOTE ──────────────────────────────────────
+//
+// `@1` is not only a legacy token, it is a SHAPE THE READER STILL HAS TO BE TESTED
+// AGAINST — §3.1 rule 2 obliges a reader that accepts a token to consume every member it
+// defines, and the only way to check that obligation is to hold an artifact in that shape
+// and read it. These three are the whole supply of them.
+//
+// Run over the corpus with a glob, this tool would promote all three to `@2` in one
+// command — it did, in a review rehearsal — leaving the reader's `@1` path with no subject
+// at all and the `@1` half of "a tree may never claim one token while carrying another's
+// mandatory members" vacuously true. That is a gate losing its population, which is the
+// failure mode this whole campaign is about, arriving through the tool written to close it.
+//
+// They are named here rather than inferred from a path pattern because the intent is the
+// point: each is deliberately frozen, each says so in its own `_comment`, and a new `@1`
+// capture that is NOT a frozen subject should still be migrated. `--include-held-out` is
+// the deliberate override, for the day the reader's `@1` support is actually retired.
+const HELD_OUT_AT_V1 = Object.freeze({
+  'client/fixtures/noir-frames/snapshot.json':
+    'the Noir-frame fixture — the view side\'s only source-level container, and the `@1` '
+    + 'subject for a snapshot with no untraced rows at all',
+  'fixtures/chain-artifacts/aztec-testnet/snapshot.json':
+    'the frozen artifact-resolution subject — the `@1` subject carrying untraced rows with '
+    + 'NO member, which is the shape `@1` exists to permit and `@2` forbids',
+  'tests/fixtures/chain-snapshots/aztec-mainnet-live/snapshot.json':
+    'the live follower\'s own output, byte for byte — the `@1` subject `tests/tchainsnapshot.nim` '
+    + 'reads, and the one that reproduces the `l1ChainId` KeyError',
+});
+
+/** Is this path one of the deliberately-frozen `@1` subjects? Compared repo-relative and
+ *  slash-normalised so a caller's glob, absolute path or `./` prefix all reach the same
+ *  answer — a hold-out list that a different spelling of the same file walks past is not a
+ *  hold-out list. */
+function heldOutReason(path) {
+  const rel = relative(REPO_ROOT, resolve(path)).split(sep).join('/');
+  return HELD_OUT_AT_V1[rel] ?? null;
+}
+
+/**
+ * The MEASUREMENT out of an old `pruned` sentence, re-rendered as the clause the shared
+ * producers pass, and without the conclusion the old sentence drew from it.
+ *
+ * ── WHAT IS BEING SAVED, AND WHY IT IS WORTH THE CODE ────────────────────────────────
+ *
+ * Those 912 sentences each end "it can no longer be re-executed", which is the false part.
+ * Each also carries something TRUE that will not recur: the finalized tip the capture
+ * measured at the moment it looked, or that the row was already below the replayable window
+ * when a particular producer first saw it. That is exactly the clause
+ * `refuseBodyUnavailable` gave its three producers their own wording for — "the ONE clause
+ * that legitimately differs between producers" — and dropping it would pay for a corrected
+ * claim with a lost measurement.
+ *
+ * ── THREE KNOWN SHAPES, MATCHED BY NAME, AND NOTHING ELSE ─────────────────────────────
+ *
+ * A single loose regex over the paragraph is not good enough and was tried: anchoring on
+ * "getTxEffect does not." silently drops the capture shape's finalized tip, which lives in
+ * a PARENTHETICAL earlier in the sentence, and splices a standalone sentence into a slot
+ * written for a subordinate clause. So each committed shape is matched explicitly and
+ * re-rendered in the producers' own words:
+ *
+ *   capture-chain  "…prunes at the finalized tip (block T when this snapshot was taken)…
+ *                   This transaction settled in block B, D block(s) below it."
+ *   follow-chain   "It was already below the replayable window when this follower first
+ *                   saw it"
+ *   backfill       "It was already below the replayable window when this record was
+ *                   repaired"
+ *
+ * DELIBERATELY FALLIBLE. A shape not in this list returns `null`, the caller COUNTS it and
+ * prints the count beside the stated fallback clause it used. A silent generic substitution
+ * would be a migration composing the sentence a page shows, which is the one thing this
+ * file's header says it will not do.
+ *
+ * @param {unknown} reason the committed sentence
+ * @param {unknown} blockNumber the row's own settling block, for the capture shape's depth
+ * @returns {string|null} a lowercase subordinate clause, no trailing punctuation
+ */
+function observationInsideOldPrunedSentence(reason, blockNumber) {
+  if (typeof reason !== 'string') return null;
+  const tip = /prunes at the finalized tip \(block (\d+) when this snapshot was taken\)/
+    .exec(reason);
+  if (tip) {
+    const t = Number(tip[1]);
+    // The depth is re-derived from the two numbers rather than read out of the prose, so a
+    // sentence whose own arithmetic had drifted cannot carry the drift across.
+    const depth = Number.isFinite(blockNumber) ? t - blockNumber : null;
+    if (t === blockNumber) {
+      return 'the finalized tip when this snapshot was taken was that same block — pruning '
+           + 'takes the finalized block too';
+    }
+    if (depth !== null) {
+      return `the finalized tip when this snapshot was taken was block ${t}, ${depth} `
+           + `block(s) above it`;
+    }
+    return `the finalized tip when this snapshot was taken was block ${t}`;
+  }
+  const window =
+    /[Ii]t was already below the replayable window when (this follower first saw it|this record was repaired)/
+      .exec(reason);
+  if (window) return `it was already below the replayable window when ${window[1]}`;
+  return null;
+}
 
 let anyProblem = false;
 
 for (const path of paths) {
+  const heldOut = migrateHeldOut ? null : heldOutReason(path);
+  if (heldOut) {
+    console.log(`${path}\n  HELD OUT AT ${SNAPSHOT_FORMAT === 'blocktracer/chain-snapshot@2'
+      ? 'blocktracer/chain-snapshot@1' : 'its current token'} — not migrated, deliberately.\n`
+      + `  ${heldOut}\n`
+      + `  The reader's older-token path needs a subject in that shape to be checked `
+      + `against; promoting it would leave the check with an empty population. Pass `
+      + `--include-held-out to override.`);
+    continue;
+  }
+
   const snap = JSON.parse(readFileSync(path, 'utf8'));
   const rows = snap.transactions ?? [];
   let added = 0;
   let already = 0;
   const noReason = [];
   const reclassified = [];
+  const unsought = [];
+  let clauseNotRecovered = 0;
 
   for (const t of rows) {
     if (!isUntracedOutcome(t.outcome)) continue;
@@ -166,15 +317,43 @@ for (const path of paths) {
       reclassified.push(t.txHash);
       continue;
     }
+    // ── AND THE SECOND CORRECTION, ALSO ASKED BEFORE THE `already` SHORT-CIRCUIT ─────
+    //
+    // For exactly the reason the first one is. A row carrying `body-unavailable` IS
+    // classified, so the `already` test below leaves it alone — which is how 912 of them
+    // shipped a durability-PERMANENT claim whose second clause nobody had checked. The
+    // question is not "is there a member" but "is this member the one the row's own
+    // evidence supports", and a wrong member is not corrected by a tool that only fills
+    // in blanks.
+    //
+    // The discriminator is the same one a fresh capture uses and needs no re-capture:
+    // `storeOutcome` is written onto the row by every producer that asked the file store,
+    // so its ABSENCE is the record that the store was never asked. `refusal` and `detail`
+    // have no bearing here and are untouched.
+    if (t.outcome === 'pruned' && t.refusalReason === 'body-unavailable'
+        && !storeWasAskedAndSaidNoBody(t)) {
+      // The measurement inside the old sentence is carried across; only the conclusion
+      // it drew is dropped. `clauseNotRecovered` counts the rows where the extraction
+      // failed, so a silent generic clause is impossible.
+      const observed = observationInsideOldPrunedSentence(t.reason, t.blockNumber);
+      if (observed === null) clauseNotRecovered++;
+      Object.assign(t, refuseBodyNotSoughtFromStore({
+        blockNumber: t.blockNumber,
+        observedAs: observed
+          ?? 'the record does not preserve at what depth below the finalized tip that was '
+             + 'observed',
+        where: 'migrate-refusal-reasons.mjs',
+      }));
+      unsought.push(t.txHash);
+      continue;
+    }
     if (isRefusalReason(t.refusalReason)) { already++; continue; }
-    const id = t.outcome === 'refused'
-      ? reasonForRuntimeClass(t.refusal)
-      : FROM_OUTCOME[t.outcome];
+    const { member: id, why } = memberForLegacyUntracedRow(t);
     if (!id) {
-      // Unreachable while `UNTRACED_OUTCOMES` and `FROM_OUTCOME` agree, and checked because
-      // this tool's whole job is to leave nothing unclassified.
+      // Unreachable while `UNTRACED_OUTCOMES` and the shared classifier agree, and checked
+      // because this tool's whole job is to leave nothing unclassified.
       console.error(`${path}: ${t.txHash} has untraced outcome ${JSON.stringify(t.outcome)} `
-        + `with no migration rule. Add one here deliberately.`);
+        + `with no migration rule (${why}). Add one in lib/refusal.mjs deliberately.`);
       anyProblem = true;
       continue;
     }
@@ -199,11 +378,25 @@ for (const path of paths) {
   console.log(`${path}\n  ${rows.length} transaction(s): ${audit.traced} traced, `
     + `${audit.untraced} untraced, ${audit.chainAbsent} chain-absent\n`
     + `  +${added} classified, ${already} already classified, `
-    + `${reclassified.length} reclassified private-only\n`
+    + `${reclassified.length} reclassified private-only, `
+    + `${unsought.length} reclassified not-attempted\n`
     + `  ${byReason || '(no refusals)'}`);
   if (reclassified.length) {
     console.log(`  private-only, from a driver TypeError on \`forPublic\`:\n    `
       + reclassified.join('\n    '));
+  }
+  if (unsought.length) {
+    // PRINTED AS A COUNT AND A SAMPLE rather than 835 hashes: the interesting figure is
+    // how many permanent claims were being made without the evidence for them, and the
+    // diff carries the rows themselves.
+    console.log(`  ${unsought.length} row(s) claimed \`body-unavailable\` — durability `
+      + `PERMANENT — with no record of the transaction file store ever being asked. `
+      + `Reclassified to \`not-attempted\`, whose narrative is that the run did not look. `
+      + `First few:\n    ` + unsought.slice(0, 5).join('\n    ')
+      + (unsought.length > 5 ? `\n    … and ${unsought.length - 5} more` : ''));
+    console.log(`  of those, ${clauseNotRecovered} had no recoverable observation in the `
+      + `old sentence and were given the stated fallback clause`
+      + (clauseNotRecovered === 0 ? ' — none' : ''));
   }
   if (countsWere.length) {
     console.log(`  counts: ${countsWere.length} member(s) disagreed with the rows and are `
@@ -259,8 +452,8 @@ for (const path of paths) {
   // A RECLASSIFICATION OR A STALE TALLY IS A REASON TO WRITE, not only a new member. The
   // condition was `added > 0`, so a file whose only defect was a wrong member or a count
   // that no longer described its rows was reported and left on disk.
-  if (!check && (added > 0 || reclassified.length > 0 || countsWere.length > 0
-                 || promoted.length > 0)) {
+  if (!check && (added > 0 || reclassified.length > 0 || unsought.length > 0
+                 || countsWere.length > 0 || promoted.length > 0)) {
     // INDENT 1, which is what `follow-chain.mjs`'s `saveSnapshot` and
     // `backfill-blocks.mjs` both write. These files are forty thousand lines; re-indenting
     // one would land a whole-file diff in which the rows that actually changed cannot be

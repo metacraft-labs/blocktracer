@@ -204,7 +204,21 @@ export function assertAbsentIsNotARefusal() {
 /** Every condition a producer in this repository may report. Nothing else may be classified. */
 const CONDITIONS = Object.freeze({
   'transaction-index-is-not-zero': 'not-first-in-block',
-  'node-no-longer-serves-body': 'body-unavailable',
+  // ── THE CONDITION IS SPELLED WITH BOTH OF ITS CLAUSES IN IT, AND THAT IS THE FIX ──────
+  //
+  // It used to be `node-no-longer-serves-body`, which names ONE half of what
+  // `body-unavailable`'s condition asserts. The member's own sentence is "the node no
+  // longer serves the transaction's body AND THE FILE STORE CANNOT SUPPLY IT EITHER", and
+  // a condition named after the first clause is a condition any producer that has only
+  // watched the node can honestly report — so four of them did, and 912 committed rows
+  // published a durability-`permanent` claim nobody had checked the second half of.
+  //
+  // The rename is not cosmetic. A producer still spelling the old key gets
+  // `UnknownRefusalCondition` by name, which is this module's stated policy for a condition
+  // it does not know, rather than a silent classification into the member it used to reach.
+  // And `refuseBodyUnavailable` — the only caller — now demands the store's own answer
+  // before it will use it. See `STORE_ANSWERS_MEANING_NO_BODY`.
+  'node-pruned-and-store-does-not-hold-it': 'body-unavailable',
   'driver-wrote-no-container': 'no-container-written',
   'beyond-this-run-budget': 'not-attempted',
   // ── THREE CONDITIONS, ONE REASON, AND THAT IS THE POINT OF THE INDIRECTION ──────────
@@ -228,6 +242,29 @@ const CONDITIONS = Object.freeze({
   // run would have traced without trouble, on data nobody would think to re-ask about.
   'historic-range-not-replayed': 'not-attempted',
   'endpoint-throttled-this-run': 'not-attempted',
+  // ── AND THE FOURTH, WHICH IS THE ONE 912 ROWS WERE PUBLISHED WITHOUT ─────────────────
+  //
+  // The producer watched the NODE prune the body — a real observation, and the only one
+  // a follower or a live capture ever makes — and did not ask the keyless TxFileStore.
+  // That is the run not looking, which is what `not-attempted` means, and it is NOT
+  // `body-unavailable`, whose condition requires the store to have been asked and to have
+  // said no.
+  //
+  // WHY IT IS SAFE TO SAY THE BODY IS OBTAINABLE HERE, which is the claim every
+  // `not-attempted` narrative makes and the reason `body-source-unreachable` may not use
+  // this member. On this chain it is MEASURED, not assumed: 21 of 21 bodies sampled from
+  // block 10 to block 75,969 answered 200 and self-verified, 333 of 333 first-in-block
+  // transactions over the full sample had their body served, and 12 of 12 sampled from the
+  // frozen mainnet capture did — INCLUDING SIX THAT CAPTURE HAD ITSELF RECORDED AS
+  // `pruned` (CHAIN-CAPTURE.md §1.2, §6). The measurement covers the committed rows rather
+  // than merely neighbouring them.
+  //
+  // It is a stronger claim than the other three narratives make and it is stated as one:
+  // the other three rest on the run's own record of what it chose not to do, and this one
+  // rests on somebody else's host still holding the bytes. If that host stops holding
+  // them, these rows become `body-unavailable` — but only once a run has ASKED and been
+  // told no, which is the whole content of the split.
+  'node-pruned-body-store-not-asked': 'not-attempted',
   // ── AND THE ONE THAT IS *NOT* `not-attempted`, WHICH IS THE POINT ────────────────────
   //
   // The BODY SOURCE could not be asked: a 5xx, a 429, a TLS failure, a transport error or
@@ -394,23 +431,134 @@ export function refuseNotFirstInBlock({ blockNumber, txIndexInBlock, where }) {
   };
 }
 
-/** The node serves the effects and no longer serves the body.
+/** The answers from the keyless transaction file store that ESTABLISH the second clause of
+ *  `body-unavailable` — "and the file store cannot supply it either".
  *
- *  `observedAs` is the ONE clause that legitimately differs between producers: a follower
- *  says it was already below the window when it first looked, a backfill says it was below
- *  the window when the record was repaired, and a one-shot scan can name the finalized tip
- *  it measured. The claim about the chain is identical in all three and is written here. */
-export function refuseBodyUnavailable({ blockNumber, observedAs, where }) {
+ *  `absent` is a 404: the store says it does not hold the key. `truncated` is a 200 that is
+ *  not a body. `mismatched` is a 200 whose leading 32 bytes are some other transaction's
+ *  hash, so the store answered about a different key and holds nothing for this one. All
+ *  three are the store SPEAKING ABOUT THIS KEY.
+ *
+ *  `unavailable` is deliberately absent: a 5xx, a 429, a TLS failure or a timeout is the
+ *  store saying nothing at all, which is `body-source-unreachable` and is repairable. That
+ *  distinction is `backfill-bodies.mjs`'s and this list is the place it is enforced. */
+export const STORE_ANSWERS_MEANING_NO_BODY =
+  Object.freeze(['absent', 'truncated', 'mismatched']);
+
+/** Thrown when a producer tries to publish `body-unavailable` without the store's answer.
+ *
+ *  ── WHY THE GUARD IS HERE AND NOT IN A LINT ──────────────────────────────────────────
+ *
+ *  `body-unavailable` is declared durability **permanent**: the page it reaches tells a
+ *  reader that nothing anyone does to this pipeline will ever produce a trace. Its stated
+ *  condition has TWO clauses — the node no longer serves the body, *and* the file store
+ *  cannot supply it either — and only the first is observable from the node.
+ *
+ *  Four producers reached the member having established only the first, because the
+ *  condition they named was spelled after that half. 912 committed rows carried the
+ *  permanent claim as a result, across block ranges in which the store was later measured
+ *  serving bodies 21 times out of 21 — six of them the very rows in question. Nothing in
+ *  the pipeline could have caught that, because a producer that has the honest observation
+ *  "the node pruned it" had a condition key that accepted it.
+ *
+ *  So the second clause is now a REQUIRED ARGUMENT rather than an assumption. A producer
+ *  that never asked the store cannot supply one and therefore cannot reach this member;
+ *  `refuseBodyNotSoughtFromStore` is where it goes instead. A guard that lives in the only
+ *  function able to produce the member cannot be bypassed by adding a fifth producer. */
+export class BodyUnavailableWithoutStoreEvidence extends Error {
+  constructor(storeOutcome, where) {
+    super(
+      `refuseBodyUnavailable was called with storeOutcome `
+      + `${JSON.stringify(storeOutcome ?? null)}, which is not one of `
+      + `${STORE_ANSWERS_MEANING_NO_BODY.join(', ')}. \`body-unavailable\` is durability `
+      + `PERMANENT and its condition has two clauses — the node no longer serves the body, `
+      + `AND the file store cannot supply it either. A producer that only watched the node `
+      + `has established the first and not the second, and publishing the member on that `
+      + `half is how 912 committed rows came to assert a permanence nobody had checked. If `
+      + `this run did not ask the store, the row is \`not-attempted\` and `
+      + `\`refuseBodyNotSoughtFromStore\` writes it; if the store could not be reached, it `
+      + `is \`body-source-unreachable\` and \`refuseBodySourceUnreachable\` writes it.`
+      + (where ? ` (raised by ${where})` : ''));
+    this.name = 'BodyUnavailableWithoutStoreEvidence';
+    this.storeOutcome = storeOutcome ?? null;
+    this.where = where ?? '';
+  }
+}
+
+/** Did this row record the store being asked and answering that it holds no such body?
+ *
+ *  The committed-data half of the guard above. `refuseBodyUnavailable`'s callers write the
+ *  store's own answer onto the row beside the reason, so the evidence for a permanent claim
+ *  travels with the claim and a gate over the corpus can ask for it. A row asserting
+ *  `body-unavailable` without one is a row whose second clause nobody checked. */
+export function storeWasAskedAndSaidNoBody(row) {
+  return STORE_ANSWERS_MEANING_NO_BODY.includes(row?.storeOutcome);
+}
+
+/** The node serves the effects, no longer serves the body, AND THE STORE WAS ASKED and
+ *  holds no body for this key either. Both clauses, or this throws.
+ *
+ *  `observedAs` is the ONE clause that legitimately differs between producers: which store
+ *  answer arrived, and at what depth the node's prune was observed. The claim about the
+ *  chain is identical and is written here.
+ *
+ *  `storeOutcome` is `classify`'s own answer and is REQUIRED — see
+ *  `BodyUnavailableWithoutStoreEvidence`. The caller is expected to put it on the row too,
+ *  so the evidence outlives the run that gathered it. */
+export function refuseBodyUnavailable({ blockNumber, observedAs, storeOutcome, where }) {
+  if (!STORE_ANSWERS_MEANING_NO_BODY.includes(storeOutcome)) {
+    throw new BodyUnavailableWithoutStoreEvidence(storeOutcome, where);
+  }
   return {
     outcome: 'pruned',
     ...classifyRefusal({
-      condition: 'node-no-longer-serves-body',
+      condition: 'node-pruned-and-store-does-not-hold-it',
       where,
       narrative:
         `The node still serves this transaction's effects but no longer serves its body: `
         + `getTxByHash prunes at the finalized tip and getTxEffect does not. It settled in `
-        + `block ${blockNumber} and ${observedAs}, so it can no longer be re-executed and no `
-        + `trace was recorded for it.`,
+        + `block ${blockNumber} and ${observedAs}. The keyless transaction file store — the `
+        + `other publisher of bodies on this chain — was asked for it on this run and `
+        + `answered ${storeOutcome}, so nothing serves it: it can no longer be re-executed `
+        + `and no trace was recorded for it.`,
+    }),
+  };
+}
+
+/** The node pruned the body and THIS RUN NEVER ASKED THE FILE STORE.
+ *
+ *  ── THE MEMBER 912 COMMITTED ROWS SHOULD HAVE CARRIED ────────────────────────────────
+ *
+ *  A follower and a live capture see exactly one thing: `getTxByHash` has stopped answering
+ *  for a transaction whose effects `getTxEffect` still serves. That is a true observation
+ *  and it is HALF of `body-unavailable`'s condition. Neither producer consults the keyless
+ *  `TxFileStore`, so neither has ever established the other half, and on this chain the
+ *  other half is measured FALSE far more often than true: 21 of 21 bodies sampled from
+ *  block 10 to block 75,969 answered 200 and self-verified, and 12 of 12 from the frozen
+ *  mainnet capture did — six of them rows that capture had recorded as `pruned`.
+ *
+ *  So the honest member is `not-attempted`: the run did not look. `outcome` stays `pruned`
+ *  because that IS what the producer observed of the node and it is the vocabulary
+ *  `ingest.nim` and four committed fixtures already speak — the correction is to the
+ *  published CLAIM, which is the `refusalReason`, not to the observation beside it.
+ *
+ *  `backfill-blocks.mjs` reached this conclusion first and wrote its own sentence for it;
+ *  this is that sentence made shared, for the reason the header gives about the two
+ *  paragraphs that had already drifted three ways. */
+export function refuseBodyNotSoughtFromStore({ blockNumber, observedAs, where }) {
+  return {
+    outcome: 'pruned',
+    ...classifyRefusal({
+      condition: 'node-pruned-body-store-not-asked',
+      where,
+      narrative:
+        `The node no longer serves this transaction's body — getTxByHash prunes at the `
+        + `finalized tip and getTxEffect does not, which is why its effects are still `
+        + `visible. It settled in block ${blockNumber} and ${observedAs}. That is the `
+        + `NODE's answer and it is not the only publisher: the keyless transaction file `
+        + `store serves bodies for the whole of this chain's history, and this run never `
+        + `asked it. So nothing here says the transaction cannot be re-executed — it says `
+        + `this run did not try. Re-running this range with the body proxy asks.`,
     }),
   };
 }
@@ -436,6 +584,58 @@ export function refuseBodySourceUnreachable({ blockNumber, storeOutcome, storeRe
         + `statement about the chain: re-running this range asks again.`,
     }),
   };
+}
+
+/**
+ * Which member a row written before ING-3 should carry, decided from the row alone.
+ *
+ * ── WHY IT IS HERE AND NOT IN THE MIGRATION TOOL ──────────────────────────────────────
+ *
+ * For the reason `looksLikePrivateOnlyCrash` is here: `migrate-refusal-reasons.mjs` needs
+ * it to classify the committed captures and `refusal-selftest.mjs` needs it to assert they
+ * stay classified. A second spelling of a classification is a second thing to keep true,
+ * and the tool is a SCRIPT — importing it to test its map would run it.
+ *
+ * ── THE `pruned` ARM IS THE WHOLE POINT ───────────────────────────────────────────────
+ *
+ * This was a frozen object literal, `FROM_OUTCOME`, whose `pruned: 'body-unavailable'`
+ * entry sat under a comment claiming the three non-`refused` outcomes "carry their member
+ * in the name and are exact". Two of them do. `pruned` does not: it names the NODE's
+ * answer, and `body-unavailable` asserts the node's answer AND the file store's. A static
+ * map from a one-clause observation to a two-clause member cannot be exact, and 912
+ * committed rows are what that cost.
+ *
+ * So `pruned` is decided from the row's own evidence rather than from its name. A row
+ * carrying the store's negative answer earned the permanent member; a row carrying none is
+ * a row nobody asked, which is `not-attempted`.
+ *
+ * @param {{outcome?: string, refusal?: string, storeOutcome?: string}} row
+ * @returns {{member: string|null, why: string}}
+ */
+export function memberForLegacyUntracedRow(row) {
+  const outcome = row?.outcome;
+  if (outcome === 'not-first-in-block') {
+    return { member: 'not-first-in-block', why: 'the outcome names the member' };
+  }
+  if (outcome === 'not-attempted') {
+    return { member: 'not-attempted', why: 'the outcome names the member' };
+  }
+  if (outcome === 'refused') {
+    return { member: reasonForRuntimeClass(row?.refusal),
+             why: `the runtime class the row recorded (${row?.refusal ?? 'none'})` };
+  }
+  if (outcome === 'pruned') {
+    if (storeWasAskedAndSaidNoBody(row)) {
+      return { member: 'body-unavailable',
+               why: `the node pruned it AND the store answered ${row.storeOutcome} for its `
+                    + `key, which is both clauses of the member's condition` };
+    }
+    return { member: 'not-attempted',
+             why: 'the node pruned the body and the row carries no record of the file '
+                  + 'store having been asked, so the second clause of `body-unavailable` '
+                  + 'was never established — the run did not look' };
+  }
+  return { member: null, why: `no rule for outcome ${JSON.stringify(outcome ?? null)}` };
 }
 
 // ── outcomes ───────────────────────────────────────────────────────────────────────────

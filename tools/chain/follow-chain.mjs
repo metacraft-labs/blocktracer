@@ -104,7 +104,7 @@ import { join, resolve } from 'node:path';
 import { replayTransaction, run, preflightToolchain, completeBlockCount, completeBlockNumbers }
   from './lib/replay.mjs';
 import { assertRefusalsAreClosed, refuseNotFirstInBlock,
-         refuseBodyUnavailable } from './lib/refusal.mjs';
+         refuseBodyNotSoughtFromStore } from './lib/refusal.mjs';
 import { recountSnapshot } from './lib/recount.mjs';
 import { SNAPSHOT_FORMAT, assertReadableSnapshotFormat } from './lib/snapshot-format.mjs';
 
@@ -523,7 +523,13 @@ async function main() {
               const why = i !== 0
                 ? refuseNotFirstInBlock({ blockNumber: n, txIndexInBlock: i,
                                           where: 'follow-chain.mjs backfill' })
-                : refuseBodyUnavailable({ blockNumber: n,
+                // WAS `refuseBodyUnavailable`, WHICH THIS PRODUCER CANNOT HONESTLY REACH.
+                // That member is durability PERMANENT and its condition needs the file
+                // store to have been asked and to have said no; this follower talks to
+                // the node and to nothing else, so it establishes one clause of two. It
+                // wrote 57 of the 912 committed rows that published the whole claim off
+                // that half. `refuseBodyUnavailable` now throws rather than let it.
+                : refuseBodyNotSoughtFromStore({ blockNumber: n,
                     observedAs: 'it was already below the replayable window when this '
                       + 'follower first saw it',
                     where: 'follow-chain.mjs backfill' });

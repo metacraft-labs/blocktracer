@@ -63,7 +63,7 @@ import { join, resolve } from 'node:path';
 
 import { resolverPresence, refusalName, refusalDetail } from './lib/replay.mjs';
 import { classifyRefusal, refusalCounts, assertRefusalsAreClosed, refuseNotFirstInBlock,
-         refuseBodyUnavailable } from './lib/refusal.mjs';
+         refuseBodyNotSoughtFromStore } from './lib/refusal.mjs';
 import { SNAPSHOT_FORMAT } from './lib/snapshot-format.mjs';
 
 const argv = process.argv.slice(2);
@@ -390,7 +390,15 @@ const transactions = rows.map((r) => {
   if (!r.bodyRetained) {
     // The clause that names THIS capture's measured finalized tip is what this producer
     // knows and the other two do not; the claim about the chain is `lib/refusal.mjs`'s.
-    return { ...r, ...refuseBodyUnavailable({
+    //
+    // WAS `refuseBodyUnavailable`, AND THIS PRODUCER MAY NOT REACH IT. `bodyRetained:
+    // false` is the NODE's answer — `getTxByHash` has stopped serving — and that is one
+    // clause of a two-clause member declared durability PERMANENT. This capture path
+    // never opens the keyless transaction file store, so it has never established the
+    // second, and the store was later measured serving bodies for 12 of 12 keys sampled
+    // from the frozen mainnet capture, six of them rows this very branch wrote. The run
+    // did not look, which is `not-attempted`.
+    return { ...r, ...refuseBodyNotSoughtFromStore({
       blockNumber: r.blockNumber,
       observedAs: finalized === r.blockNumber
         ? `the finalized tip when this snapshot was taken was that same block — pruning `
