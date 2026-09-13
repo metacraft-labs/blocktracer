@@ -1,4 +1,24 @@
 {
+ "_comment": [
+  "HELD AT blocktracer/chain-snapshot@1, DELIBERATELY. Do not migrate this file.",
+  "",
+  "tools/chain/migrate-refusal-reasons.mjs names this path in HELD_OUT_AT_V1 and refuses to",
+  "promote it without --include-held-out. This is the most load-bearing of the three held-out",
+  "subjects: its ten untraced rows carry NO refusalReason, which is precisely the shape @1",
+  "permits and @2 forbids. Migrate it and the reader loses the only artifact that can show it",
+  "reads an older token WHOLE rather than refusing or half-reading it (Data-Contract.md §3.1",
+  "rules 1 and 2), and the @1 half of §5.2as both-directions token audit — a tree claiming one",
+  "token while carrying anothers mandatory members — has nothing left to range over.",
+  "",
+  "A rehearsal of the glob run promoted all three @1 subjects in one command and classified",
+  "these ten rows as body-unavailable on the way, which is the second reason to hold it: that",
+  "member is durability permanent and needs the file store to have been asked. These rows were",
+  "written by a producer that only ever spoke to the node.",
+  "",
+  "Its counts members are absent and that is not a defect: Data-Contract.md §5.2 scopes the",
+  "counts reconciliation to @2. A frozen @1 subject is not rewritten to satisfy a rule written",
+  "after it."
+ ],
  "format": "blocktracer/chain-snapshot@1",
  "provenance": {
   "kind": "live-capture",

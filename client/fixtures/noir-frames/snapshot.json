@@ -1,4 +1,26 @@
 {
+ "_comment": [
+  "HELD AT blocktracer/chain-snapshot@1, DELIBERATELY. Do not migrate this file.",
+  "",
+  "tools/chain/migrate-refusal-reasons.mjs names this path in HELD_OUT_AT_V1 and refuses to",
+  "promote it without --include-held-out. The reason is not that the file cannot be migrated —",
+  "it can, trivially, since it holds no untraced rows at all. It is that @1 is a SHAPE THE",
+  "READER STILL HAS TO BE TESTED AGAINST. Data-Contract.md §3.1 rule 2 obliges a reader that",
+  "accepts a token to consume every member that token defines, and the only way to check that",
+  "obligation is to hold an artifact in that shape and read it.",
+  "",
+  "This is the @1 subject for a snapshot with NO untraced rows: it proves the older token is",
+  "read whole on the simplest tree there is. Two more carry the other shapes —",
+  "fixtures/chain-artifacts/aztec-testnet (untraced rows with no member) and",
+  "tests/fixtures/chain-snapshots/aztec-mainnet-live (the live follower output). Between them",
+  "they are the entire supply of @1 subjects in this repository, and a glob run of the",
+  "migration tool would once have promoted all three in one command, leaving the readers @1",
+  "path with no population and its half of the token audit vacuously true.",
+  "",
+  "Its counts members are absent and that is not a defect: Data-Contract.md §5.2 scopes the",
+  "counts reconciliation to @2. A frozen @1 subject is not rewritten to satisfy a rule written",
+  "after it."
+ ],
  "format": "blocktracer/chain-snapshot@1",
  "provenance": {
   "note": "NOT A CAPTURE. This snapshot describes the fixture container written by tools/chain/record-noir-frames-fixture.mjs; see provenance.json beside it for what in that container is measured, what is reconstructed and what is zero.",
