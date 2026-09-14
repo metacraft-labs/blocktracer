@@ -370,6 +370,38 @@ make_sdk_tree "${t}"
 mv "${t}/src/blocktracer_client.nim" "${t}/src/bt_client.nim"
 expect_guard 1 "renaming the facade without renaming the constant is rejected" --root "${t}"
 
+# ── the POPULATION the graph checks quantify over ─────────────────────────────
+#
+# Checks 2 and 3 are universals over the facade's import closure, so a closure
+# that lost members is a pass that scanned fewer files — and the guard prints
+# that number rather than asserting it, which is how a 14-module graph collapsed
+# to 5 with `0 failing` on the log. Both halves of the rule get a case, because
+# they catch different collapses and the first version of the check had only one
+# of them: an ABSOLUTE spec in our namespace that stopped resolving, and a
+# RELATIVE spec that stopped resolving. The second is the one that matters at
+# depth — every module below the facade's own directory is reached by `./x` or
+# `../x`, so an absolute-prefix list alone is blind to the whole lower graph.
+t="${work}/closure-loses-an-absolute-import"
+make_sdk_tree "${t}"
+mv "${t}/src/blocktracer_client/store.nim" "${t}/src/blocktracer_client/store_v2.nim"
+expect_guard 1 "a facade import of OURS that stopped resolving is rejected (it leaves the graph checks 2 and 3 scan, reported as an external)" --root "${t}"
+
+t="${work}/closure-loses-a-relative-import"
+make_sdk_tree "${t}"
+# `store.nim` is in the FACADE's closure, and it is given a relative import the
+# way the real tree has them — `paths.nim` reaches `../blocktracer/contract/
+# shards`, `contract/ids.nim` reaches `./shards`. NO absolute spec names the
+# target, which is exactly why an our-namespace prefix list cannot see it go.
+cat >"${t}/src/blocktracer/contract/hashshard.nim" <<'EOF'
+func hexToBytes*(h: string): string = h
+EOF
+cat >>"${t}/src/blocktracer_client/store.nim" <<'EOF'
+import ../blocktracer/contract/hashshard
+EOF
+expect_guard 0 "a relative import that RESOLVES is accepted (so the case below is about the move and not about the import)" --root "${t}"
+mv "${t}/src/blocktracer/contract/hashshard.nim" "${t}/src/blocktracer/contract/hashshard_v2.nim"
+expect_guard 1 "a RELATIVE import that stopped resolving is rejected (the lower graph is reached only relatively)" --root "${t}"
+
 t="${work}/facade-constant-drift"
 make_sdk_tree "${t}"
 sed -i.bak 's/BlockTracerClientEmbedModule\* = "blocktracer_client_embed"/BlockTracerClientEmbedModule* = "something_else"/' \
@@ -485,6 +517,35 @@ cat >>"${t}/codetracer_embed.nim" <<'EOF'
 import backend/wire
 EOF
 expect_guard 1 "a chain concept reached TRANSITIVELY, not only in the facade, is rejected" \
+	--root "${clean}" --embed-root "${t}" --require-embed
+
+# ── and the POPULATION on the other side of the boundary ──────────────────────
+#
+# The transitive case above is why this one matters: the token scan is a
+# universal over the Embed SDK's closure, so a closure that lost a subtree scans
+# fewer files and reports OK. This is the likelier of the two graphs to lose one
+# without anything in THIS repository changing — it is taken inside a pinned
+# checkout of somebody else's tree, and a pin bump that moves a module leaves
+# `codetracer_embed.nim` exactly where the `return 3` above looks for it.
+#
+# The real tree reaches `../../../common/flow_mode_wire` from
+# `viewmodel/sdk/`, `../session_vm` from `sdk/debugger_session.nim` and
+# `./outcome` from `platform/platform.nim`, so the relative half is not
+# hypothetical there; and there is no absolute-prefix list to write on this side,
+# because that namespace is not this file's to enumerate.
+t="${work}/embed-closure-loses-a-relative-import"
+make_embed_tree "${t}"
+mkdir -p "${t}/store"
+cat >"${t}/store/wire_format.nim" <<'EOF'
+const WireVersion* = 1
+EOF
+cat >>"${t}/store/types.nim" <<'EOF'
+import ./wire_format
+EOF
+expect_guard 0 "an Embed SDK relative import that RESOLVES is accepted (so the case below is about the move)" \
+	--root "${clean}" --embed-root "${t}" --require-embed
+mv "${t}/store/wire_format.nim" "${t}/store/wire_format_v2.nim"
+expect_guard 1 "an Embed SDK relative import that stopped resolving is rejected (the token scan below it would measure a shrunken graph)" \
 	--root "${clean}" --embed-root "${t}" --require-embed
 
 t="${work}/embed-block-word-is-allowed"

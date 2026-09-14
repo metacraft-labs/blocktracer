@@ -657,6 +657,85 @@ if [ "${facade_ok}" -eq 1 ]; then
 
 	echo "  (SDK graph: ${#sdk_closure[@]} repo modules, ${#sdk_externals[@]} external specs)"
 
+	# ── the graph is a POPULATION, and it is floored ─────────────────────────
+	#
+	# Checks 2 and 3 are universals over this closure: "no forbidden module is
+	# reachable", "no identity token appears". Both are true of a closure holding
+	# one file, and the number above was PRINTED and never asserted — so a facade
+	# whose imports stopped resolving (a renamed module, a SEARCH_ROOTS that no
+	# longer reaches `src/`, a `nim_imports` regex outgrown by a new import
+	# syntax) would collapse the graph to the facade itself and both checks would
+	# report OK having scanned one file. That is the same shape checks 4, 4b and
+	# 4c are guarded against by `saw_embed_facade`, `saw_deeplink_internal` and
+	# `saw_paths_internal`, and check 5 by its zero-consumer refusal; these two
+	# were the ones with nothing.
+	#
+	# THE FLOOR IS 2, AND IT IS DELIBERATELY THE WEAKEST ONE THAT IS TREE-
+	# INDEPENDENT. The real repository's closure is 14 modules, but this script is
+	# also run by `client-sdk-boundary-test.sh` against synthetic trees of three or
+	# four files, so a floor calibrated to this repository would reject every
+	# synthetic case — and a floor the self-test has to be exempted from is a floor
+	# with a hole in it. Two means "the entry resolved at least one import", which
+	# is precisely the collapse condition: `closure_of` drops any spec
+	# `resolve_module` cannot place, so an entry whose imports all stopped
+	# resolving yields a closure of exactly itself and both checks below pass over
+	# one file.
+	#
+	# A COUNT ALONE IS NOT ENOUGH, AND THE MEASUREMENT SAYS SO. Renaming seven of
+	# the facade's nine imports takes the closure from 14 modules to 5: checks 2
+	# and 3 then scan five files instead of fourteen, nine modules are examined for
+	# neither a forbidden import nor an identity token, and — measured against the
+	# script as it stood before this block — it exits 0 reporting `7 check(s), 0
+	# failing, 1 skipped`. No count-based floor that tolerates ordinary growth
+	# catches a 14-to-5 collapse, so the shape of the loss has to be named instead.
+	#
+	# THE MECHANISM IS THAT `resolve_module` RETURNING EMPTY MEANS TWO THINGS.
+	# `closure_of` drops any spec it cannot place, and `external_specs_of` then
+	# reports that spec as an EXTERNAL — so "this is `std/json`" and "this is ours
+	# and the file moved" arrive at both checks as the same fact, and the second
+	# one silently shrinks their population. The two are told apart here by the one
+	# thing that distinguishes them: a spec in THIS PACKAGE'S OWN NAMESPACE must
+	# resolve, because the package's modules are in the package. An external in our
+	# namespace is a resolution failure wearing an external's clothes.
+	#
+	# AND A RELATIVE SPEC IS OURS BY CONSTRUCTION, which the absolute-prefix list
+	# alone does not say — the first version of this check listed only the
+	# `blocktracer*` prefixes and was MEASURED to be blind to the majority of the
+	# graph's depth. Every module below the facade's own directory is reached
+	# relatively: `blocktracer_client/paths.nim` imports `../blocktracer/contract/
+	# shards` and `contract/ids.nim` imports `./shards`, so the four contract
+	# modules in this closure are reachable by NO absolute spec at all. Renaming
+	# all four took the closure from 14 modules to 10 while this arm printed
+	# `none of them ours` with `../blocktracer/contract/ids` sitting in the
+	# external list it had just counted. `./x` and `../x` cannot name another
+	# package — you cannot reach out of a tree and into a dependency with a
+	# relative path — so an unresolved one is always a file of ours that is not
+	# where its importer says it is. Two rules, and together they cover every spec
+	# a module of this package can be imported by.
+	sdk_graph_floor=2
+	unresolved_ours=()
+	for spec in ${sdk_externals[@]+"${sdk_externals[@]}"}; do
+		case "${spec}" in
+		blocktracer_client | blocktracer_client/* | blocktracer/* | blocktracer_client_embed)
+			unresolved_ours+=("${spec}") ;;
+		./* | ../*)
+			unresolved_ours+=("${spec}") ;;
+		esac
+	done
+	if [ "${#unresolved_ours[@]}" -gt 0 ]; then
+		check_failed "sdk-graph-population: ${#unresolved_ours[@]} import(s) in this package's own namespace did not resolve, so they left the graph checks 2 and 3 scan"
+		for spec in "${unresolved_ours[@]}"; do
+			violation_detail "'${spec}' was counted as an EXTERNAL spec"
+			violation_detail "  A module of ours that does not resolve is reported the same way"
+			violation_detail "  as std/json, and it takes everything it imports out of the"
+			violation_detail "  population with it. Check whether the file moved or was renamed."
+		done
+	elif [ "${#sdk_closure[@]}" -lt "${sdk_graph_floor}" ]; then
+		check_failed "sdk-graph-population: the facade's closure is ${#sdk_closure[@]} module(s), floor ${sdk_graph_floor} — checks 2 and 3 are universals over it and a universal over a collapsed graph is a pass that scanned nothing"
+	else
+		check_ok "sdk-graph-population (${#sdk_closure[@]} modules reachable from the facade, ${#sdk_externals[@]} external spec(s), none of them ours)"
+	fi
+
 	forbidden_violations=0
 	for entry in "${FORBIDDEN_PATTERNS[@]}"; do
 		pattern="${entry%%;*}"
@@ -913,6 +992,60 @@ scan_embed_graph() {
 	while IFS= read -r line; do externals+=("${line}"); done < <(external_specs_of ${graph[@]+"${graph[@]}"})
 	echo "  (Embed SDK graph: ${#graph[@]} modules, ${#externals[@]} external specs, at ${dir})"
 
+	# THE SAME FLOOR, for the same reason, over the other package's graph. This
+	# one is a closure taken inside a PINNED CHECKOUT of somebody else's tree, so
+	# it is the more likely of the two to collapse without anything in this
+	# repository changing: a pin bump that renames the facade's neighbours leaves
+	# `${EMBED_FACADE_MODULE}.nim` present — which is all the `return 3` above
+	# asks — while the closure behind it goes to one file, and the chain-token
+	# scan then reports OK over that one file. The `return 3` distinguishes "the
+	# package is not here" from a verdict; this distinguishes "the package is here
+	# but nothing was scanned" from one. 36 modules today; the floor is 2 for the
+	# reason the one above states.
+	#
+	# AND THE RELATIVE-SPEC RULE, which is what actually bites on a pin bump. The
+	# floor only catches a collapse to ONE file, and this graph does not collapse
+	# that way: a rename inside the pinned tree drops a SUBTREE and leaves the rest
+	# standing, so the count stays comfortably over 2 while the scan below stops
+	# seeing whatever hung off the renamed module. There is no absolute-prefix list
+	# to write here — this is somebody else's namespace and it is not this file's
+	# business to enumerate it — but the relative half needs no namespace at all:
+	# `sdk/debugger_session.nim` reaches `../session_vm` and `platform/platform.nim`
+	# reaches `./outcome`, and a `./x` or `../x` that does not resolve is a file of
+	# the PINNED TREE that moved. That is exactly the pin-bump failure this block
+	# was written for, and it is the one the count cannot report.
+	local graph_floor=2
+	local unresolved_rel=() spec
+	for spec in ${externals[@]+"${externals[@]}"}; do
+		case "${spec}" in
+		./* | ../*) unresolved_rel+=("${spec}") ;;
+		esac
+	done
+	if [ "${#unresolved_rel[@]}" -gt 0 ]; then
+		violation_detail "${#unresolved_rel[@]} relative import(s) in the Embed SDK tree did not resolve"
+		for spec in "${unresolved_rel[@]}"; do
+			violation_detail "  '${spec}' was counted as an EXTERNAL spec"
+		done
+		violation_detail "  A relative spec cannot name another package, so an unresolved one is"
+		violation_detail "  a module of the PINNED TREE that moved — and it took everything it"
+		violation_detail "  imports out of the population this scan covers. Check the pin."
+		cd "${saved_pwd}" || true
+		SEARCH_ROOTS=("${saved_roots[@]}")
+		# 4 and not 1: the caller tells "nothing was scanned" apart from "a chain
+		# concept was found", because they are different findings and a reader who
+		# is handed the wrong headline looks at the wrong file.
+		return 4
+	fi
+	if [ "${#graph[@]}" -lt "${graph_floor}" ]; then
+		violation_detail "the Embed SDK closure is ${#graph[@]} module(s), floor ${graph_floor}"
+		violation_detail "  The scans below are universals over it, and a universal over a"
+		violation_detail "  collapsed graph is a pass that scanned nothing. Check whether the"
+		violation_detail "  pin moved the modules this facade imports."
+		cd "${saved_pwd}" || true
+		SEARCH_ROOTS=("${saved_roots[@]}")
+		return 4
+	fi
+
 	local violations=0 token hit spec
 	for token in "${CHAIN_TOKENS[@]}"; do
 		while read -r hit; do
@@ -961,6 +1094,8 @@ if [ -n "${embed_root}" ] && [ -d "${embed_root}" ]; then
 				echo "              The RULE is still exercised: ci/test/client-sdk-boundary-test.sh runs it"
 				echo "              against synthetic Embed SDK trees, one of which violates it deliberately."
 			fi
+		elif [ "${rc}" -eq 4 ]; then
+			check_failed "embed-graph-population: the Embed SDK graph is not scannable, so the chain-concept scan below it measured nothing"
 		else
 			check_failed "embed-graph-no-chain-concept: chain reference(s) in the Embed SDK graph"
 		fi

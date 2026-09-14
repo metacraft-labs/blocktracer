@@ -584,6 +584,14 @@ suite "the field is declared at two sites and read at none":
       checkpoint("these files read " & Member & ": " & reading.join(", "))
     ck reading.len == 0
     # …and the single allowance is real, so it is not quietly widening the arm.
+    #
+    # ITS LENGTH IS ASSERTED, because the paragraph above says "exactly that one" and
+    # nothing was holding it to that. An allowlist is a hole in a sweep, and the one
+    # thing a reader cannot see from the arm's verdict is how big the hole got: a
+    # second entry added here would exempt a real consumer and every other assertion
+    # in this test would stay green. The arms below check that each entry is REAL;
+    # this checks that there is one of them.
+    ck Allowed.len == 1
     for rel in Allowed:
       ck fileExists(RepoRoot / rel)
       ck readFile(RepoRoot / rel).contains(Member)
@@ -599,4 +607,4 @@ suite "the field is declared at two sites and read at none":
       ck src.contains("\"identifierEncoding\": hexIdentifierEncoding()")
       ck not src.contains("\"identifierEncoding\": {")
 
-expectCount(160)
+expectCount(161)

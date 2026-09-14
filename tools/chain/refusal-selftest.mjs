@@ -966,6 +966,34 @@ test('no committed row claims a permanent body loss the store was never asked ab
   ck(`the corpus is the whole tree's — ${all.length} snapshot(s), and every one exists`,
      all.length === 6 && all.every((p) => existsSync(p)));
 
+  // ── AND THE LIST IS THE WHOLE TREE'S, WHICH THE `existsSync` ARM CANNOT SAY ────────
+  //
+  // The list is written down rather than globbed on purpose, and the reason at its
+  // declaration is sound: a glob aimed at one directory missed three of the six, and the
+  // `existsSync` arm above makes a MOVED file fail loudly instead of quietly shrinking
+  // the population. But that covers one direction only. A snapshot ADDED to the tree and
+  // not added to the list is invisible to both arms — the list still has six, all six
+  // still exist, and the new one is simply not in the corpus every sweep below reads.
+  // The claim this block makes ("no committed row …") is about the tree, so the list has
+  // to be checked against the tree.
+  //
+  // `git ls-files` and not a directory walk, because the claim is about what is
+  // COMMITTED: a walk would also see the snapshot the live follower writes into
+  // `client/fixtures/chain/` on a developer's machine and turn this red over a file
+  // nobody committed. `ci/test/client-sdk-boundary.sh` enumerates its own population the
+  // same way and for the same reason. A `git` that cannot answer is a FAILURE here, not
+  // a skip — an enumeration that could not run is not an enumeration that found nothing.
+  const ls = spawnSync('git', ['-C', root, 'ls-files', '*snapshot.json'],
+                       { encoding: 'utf8' });
+  ck('the tree can be enumerated, so the comparison below is not vacuous',
+     ls.status === 0 && `${ls.stdout}`.trim().length > 0);
+  const onDisk = `${ls.stdout}`.split('\n').map((s) => s.trim()).filter(Boolean).sort();
+  const listed = [...ALL_COMMITTED_SNAPSHOTS].sort();
+  const unlisted = onDisk.filter((p) => !listed.includes(p));
+  ck(`every committed snapshot is IN the list — ${onDisk.length} on disk, `
+     + `${listed.length} listed${unlisted.length ? `, unlisted: ${unlisted.join(', ')}` : ''}`,
+     unlisted.length === 0);
+
   const unevidenced = [];
   let bodyUnavailable = 0;
   let rows = 0;
@@ -1345,6 +1373,98 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     ck('(header unparsed, so its terms cannot be checked)', false);
     ck('(header unparsed, so its total cannot be checked)', false);
   }
+
+  // ── AND THE RECIPE BODY, WHICH IS THE THING THAT ACTUALLY RUNS ────────────────────
+  //
+  // Everything above compares the ARRAY to the HEADER. Both are descriptions, and neither
+  // was ever compared to the eight lines the recipe executes — so the two documents could
+  // agree with each other perfectly while agreeing with the recipe about nothing. Add a
+  // ninth invocation to the body, touch neither the header nor the array, and all three
+  // checks above stay green while nine suites run: the ninth's declared count is verified
+  // by nobody, and a ninth that declares no count at all is invisible to this file
+  // entirely. That is the same false green the header check was written to refuse, one
+  // level out — the description was checked against a description.
+  //
+  // So the body is parsed and matched against the array's filenames, IN ORDER, for the
+  // same reason order is asserted above: the recipe runs them in that order and a reader
+  // matches term to suite by position.
+  const recipe = /^chain-selftest:\n((?:[ \t]+.*\n)+)/m.exec(justfile);
+  ck('the `chain-selftest` recipe body is found in the Justfile', recipe !== null);
+  const bodyLines = recipe ? recipe[1].split('\n').filter((l) => l.trim() !== '') : [];
+  // EVERY body line must parse as an invocation, and a line this pattern does not
+  // recognise is counted as UNPARSED rather than skipped. Skipping is exactly how a ninth
+  // suite spelled some other way — `npx`, a `cd &&`, a shell `for` loop — would stay
+  // invisible to a matcher that only collected the lines it liked.
+  const invoked = [];
+  const unparsed = [];
+  for (const line of bodyLines) {
+    // An indented `#` line is a shell comment `just` hands straight to sh; it
+    // cannot run a suite, so it is skipped rather than counted unparsed. This is
+    // the ONE exception, and it is narrow on purpose: a gate that reddens on a
+    // harmless edit is a gate someone weakens.
+    if (/^[ \t]*#/.test(line)) continue;
+    const inv = /^[ \t]+(?:node|bash) +tools\/chain\/(\S+)$/.exec(line);
+    if (inv) invoked.push(inv[1]); else unparsed.push(line.trim());
+  }
+  ck(`every line of the recipe body is a recognised suite invocation — `
+     + `${bodyLines.length} line(s), ${unparsed.length} unparsed`, unparsed.length === 0);
+  if (unparsed.length) console.error(`    ${unparsed.join('\n    ')}`);
+  // ANTI-VACUITY. A body that parsed to NOTHING would make the order comparison below an
+  // `every` over an empty array — vacuously true against an empty `declared`, and in the
+  // general case the one input under which a population check reports success having
+  // measured nothing. Zero invocations is a FAILURE here, stated separately so the log
+  // says which of the two things went wrong.
+  ck(`the recipe body parses to at least one invocation — ${invoked.length} found`,
+     invoked.length > 0);
+  ck(`the recipe RUNS exactly the suites the array names, in order — `
+     + `[${invoked.join(', ')}] vs [${declared.map(([f]) => f).join(', ')}]`,
+     invoked.length === declared.length && invoked.every((f, i) => f === declared[i][0]));
+
+  // ── AND CI'S COPY, WHICH IS A THIRD ONE OF THE SAME NUMBERS ──────────────────────
+  //
+  // `ci.yml` runs each of these suites as its own step, and every step's comment
+  // states that suite's assertion count — in two phrasings, `N assertions` and `N
+  // arms`. That is a THIRD copy of the eight numbers, it is read by nobody, and it
+  // went stale the moment two of the suites grew: the copies in the Justfile header
+  // were caught by the arms above and CI's were not caught by anything. The register
+  // this repository already keeps of that failure lists three occasions; this is the
+  // same one in a second file.
+  //
+  // A STEP WITH NO NUMBER, OR WITH TWO, IS A FAILURE AND NOT A SKIP. A checker that
+  // quietly passed over the steps it could not read would score seven of eight and
+  // report eight, which is the shape the `declared` array above exists to refuse.
+  const ci = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  const ciLines = ci.split('\n');
+  const ciTerms = [];
+  const ciProblems = [];
+  for (const [file] of declared) {
+    const at = ciLines.findIndex((l) => /^\s*run:/.test(l) && l.includes(`tools/chain/${file}`));
+    if (at < 0) {
+      ciProblems.push(`${file}: no ci.yml step runs it`);
+      ciTerms.push(NaN);
+      continue;
+    }
+    // The step's own comment block: the `#` lines between the `- name:` that opens
+    // the step and the `run:` that closes it. Bounded by the step so a neighbouring
+    // step's number can never be read as this one's.
+    let open = at;
+    while (open > 0 && !/^\s*- name:/.test(ciLines[open])) open--;
+    const block = ciLines.slice(open, at).filter((l) => /^\s*#/.test(l)).join('\n');
+    const hits = block.match(/\b\d+ (?:assertions|arms)\b/g) ?? [];
+    if (hits.length !== 1) {
+      ciProblems.push(`${file}: its ci.yml step's comment states ${hits.length} count(s) `
+        + `(${hits.join(' / ') || 'none'}), expected exactly one`);
+      ciTerms.push(NaN);
+      continue;
+    }
+    ciTerms.push(Number(/\d+/.exec(hits[0])[0]));
+  }
+  ck(`every suite has a ci.yml step whose comment states its count exactly once — `
+     + `${ciProblems.length} problem(s)`, ciProblems.length === 0);
+  if (ciProblems.length) console.error(`    ${ciProblems.join('\n    ')}`);
+  ck(`…and ci.yml's eight counts are the suites' own — [${ciTerms.join(', ')}] vs `
+     + `[${terms.join(', ')}]`,
+     ciTerms.length === terms.length && ciTerms.every((n, i) => n === terms[i]));
 }
 
 test('a producer with no arguments prints usage instead of ingesting range 0..0');
@@ -1459,7 +1579,18 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //       a JSON round trip, which is the only place `null` and `undefined` differ, on the
 //       object shape `aztec-testnet-frames` actually shipped and on an absent key, with an
 //       array control and the committed tree asked the same question.
-expectCount(214);
+//   +4  THE RECIPE BODY, which neither of the two checks above ever read: they compared the
+//       header to the array and the array to the header, so a ninth invocation added to the
+//       recipe with both documents left alone kept all of them consistent at eight while
+//       nine suites ran. The body's lines are now parsed and matched to the array in order,
+//       every line must PARSE rather than be skipped, and a body that parses to zero
+//       invocations is a failure and not a pass.
+//   +2  `ALL_COMMITTED_SNAPSHOTS` against the TREE. The `existsSync` arm makes a file that
+//       MOVED fail loudly; nothing made a file that ARRIVED fail at all, so a seventh
+//       snapshot was simply not in the corpus every sweep here reads while all six arms
+//       stayed green. The list is now compared to `git ls-files`, and a git that cannot
+//       answer is a failure rather than a comparison against nothing.
+expectCount(222);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

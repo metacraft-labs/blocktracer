@@ -44,7 +44,7 @@
 // OFFLINE AND TOOLCHAIN-FREE — plain node reading files in this repository, no network, no
 // Nim, no temporary state — which is what qualifies it for `chain-selftest`.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -189,8 +189,7 @@ test('the kinds are the ones that actually become path segments');
 test('the declaration is written at two sites and read at none');
 {
   // The Nim suite asserts this over `src/`. Here it is asserted over the JavaScript and
-  // client surfaces the Nim suite cannot walk as naturally, which are exactly the ones
-  // the widening will have to reach.
+  // client surfaces, which are exactly the ones the widening will have to reach.
   const MEMBER = 'identifierEncoding';
   for (const rel of ['tools/capture/lib/entities.mjs',
                      'tools/chain/lib/refusal.mjs',
@@ -200,6 +199,65 @@ test('the declaration is written at two sites and read at none');
     const src = readFileSync(join(REPO, rel), 'utf8');
     ck(`${rel} does not read the declaration`, !src.includes(MEMBER));
   }
+
+  // ── AND THE SAME CLAIM, SWEPT, BECAUSE THIS SUITE'S VERDICT LINE MAKES IT ──────────
+  //
+  // The five names above are a sample, and this file's final sentence is a universal:
+  // "nothing reads the declaration yet". A named sample cannot carry a universal, and
+  // that gap was MEASURED rather than imagined — consumers planted one file over from
+  // two of the names above (`client/src/viewmodel/chain_vm.nim` beside
+  // `chain_registry_vm.nim`, `tools/capture/lib/provenance.mjs` beside `entities.mjs`)
+  // left every arm here green while the suite printed that sentence.
+  //
+  // The Nim suite gained a floored sweep for that. THIS ONE NEEDS ITS OWN, because the
+  // two are in different recipes: the Nim suite is in `just test`, which takes ~37
+  // minutes, and this suite is in `just chain-selftest`, which is the fast gate people
+  // actually run — so the fast gate was the one printing the universal with nothing
+  // behind it. The rule, the extensions and the floors below are deliberately the same
+  // as `tests/tidentifierencoding.nim`'s, so the two halves sweep the same population
+  // and a disagreement between them is a real disagreement and not a definition.
+  //
+  // WITH A FLOOR, PER DIRECTORY. A scan whose expected answer is "no file" is satisfied
+  // perfectly by scanning no files, so the population is asserted too — per directory,
+  // so an emptied sweep of one cannot hide behind the other.
+  const ALLOWED = ['tools/chain/identifier-encoding-selftest.mjs'];
+  const SOURCE_EXT = ['.nim', '.mjs', '.js', '.ts', '.sh'];
+  // Generated and vendored trees are not this repository's source. Pruned by
+  // directory rather than filtered by path so a `tools/capture/node_modules`
+  // that somebody has installed costs nothing here; the SET OF COUNTED FILES is
+  // the same either way, which is what the floors and the violation list read.
+  const SKIP_DIR = ['node_modules', 'dist', 'nimcache'];
+  const walk = (rel) => {
+    const out = [];
+    for (const e of readdirSync(join(REPO, rel), { withFileTypes: true })) {
+      if (SKIP_DIR.includes(e.name)) continue;
+      const child = `${rel}/${e.name}`;
+      if (e.isDirectory()) out.push(...walk(child));
+      else if (e.isFile()) out.push(child);
+    }
+    return out;
+  };
+  const reading = [];
+  for (const [top, floor] of [['client', 80], ['tools', 100]]) {
+    let scanned = 0;
+    for (const path of walk(top)) {
+      if (!SOURCE_EXT.some((x) => path.endsWith(x))) continue;
+      // Generated and vendored trees are not this repository's source.
+      if (path.includes('/node_modules/') || path.includes('/dist/')
+          || path.includes('/nimcache/')) continue;
+      scanned++;
+      if (ALLOWED.includes(path)) continue;
+      if (readFileSync(join(REPO, path), 'utf8').includes(MEMBER)) reading.push(path);
+    }
+    ck(`${top}/: swept ${scanned} source file(s), floor ${floor} — an emptied sweep is `
+       + `not a green`, scanned >= floor);
+  }
+  ck(`…and no file under client/ or tools/ reads the declaration, SWEPT rather than `
+     + `named${reading.length ? ` — ${reading.join(', ')}` : ''}`, reading.length === 0);
+  // The allowance is a hole in the sweep, so its SIZE is asserted and not only its
+  // members: a second entry would exempt a real consumer with every arm here green.
+  ck('exactly one file is allowed to name the member, and it is this suite',
+     ALLOWED.length === 1 && ALLOWED[0] === 'tools/chain/identifier-encoding-selftest.mjs');
   // The capture tooling's `0x` filter is still there and unchanged. Naming it here is what
   // makes the boundary legible: this is the site the declaration exists to feed, and it
   // has deliberately not been fed yet.
@@ -260,8 +318,8 @@ test('MUTATIONS: each structural rule refuses on its own');
 }
 
 console.error('');
-if (asserted !== 46) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 46 — a case was added, removed or skipped.`);
+if (asserted !== 50) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 50 — a case was added, removed or skipped.`);
   failed++;
 } else {
   console.error(`assertion count: ${asserted} (as declared)`);

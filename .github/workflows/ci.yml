@@ -392,7 +392,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 214 assertions, and the reason it is offline is the reason it
+        # ING-3, 222 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -451,7 +451,7 @@ jobs:
         run: node tools/chain/coverage-contiguity-selftest.mjs
 
       - name: Do both halves of the identifier-encoding set read one file?
-        # 46 assertions. `tools/chain/identifier-encodings.json` is the closed set
+        # 50 assertions. `tools/chain/identifier-encodings.json` is the closed set
         # of encodings a chain may DECLARE its identifiers in — Configuration.md
         # §2.1, §2.2, with every member traced to a row of Search-And-Routing.md
         # §2's shape table. The Nim half reads it with `staticRead`, so that half
@@ -534,12 +534,25 @@ jobs:
         # against synthetic trees here as well as against the real package
         # below.
         #
-        # It needs CODETRACER_SRC, because two of its 28 cases need the sibling
+        # It needs CODETRACER_SRC, because two of its 44 cases need the sibling
         # repository and SKIP without it: the real-Embed scan, and the
         # cross-repository assertion that both halves of the boundary use the
-        # same CHAIN_TOKENS list. Without it this step reports "26 case(s), 2
-        # skipped" and the one check that catches the two lists drifting apart
-        # never executes anywhere. `.#ci` supplies it.
+        # same CHAIN_TOKENS list. On a runner that checked out this repository
+        # alone — which is this job — that means "42 case(s), 2 skipped", and the
+        # one check that catches the two lists drifting apart never executes
+        # anywhere. `.#ci` supplies it. (A DEVELOPER sees 43 and 1 instead: the
+        # suite falls back to `../codetracer/ci/test/sdk-facade-boundary.sh`, so
+        # a sibling checkout answers the cross-repository half without the
+        # variable. That fallback is exactly what CI does not have.)
+        #
+        # THOSE TWO NUMBERS WERE 28 AND 26 AND WERE WRONG, measured 2026-09-14
+        # against a suite that ran 39 and 37 — one more copy of a count in this
+        # file, read by nothing, stale by eleven. Unlike the eight chain-suite
+        # counts earlier in this file, this one has no cross-check:
+        # `refusal-selftest.mjs` reads the `N assertions` and `N arms`
+        # phrasings, and "cases" is neither. If it goes stale again that is the
+        # reason, and the remedy is the same one applied there — have the suite
+        # read the sentence.
         run: nix develop .#ci --command ci/test/client-sdk-boundary-test.sh
 
       - name: Client SDK import boundary — against the REAL Embed SDK

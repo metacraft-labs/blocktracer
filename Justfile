@@ -64,7 +64,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# EIGHT suites — 98 + 19 + 24 + 24 + 57 + 214 + 33 + 46 = 515 counted assertions —
+# EIGHT suites — 98 + 19 + 24 + 24 + 57 + 222 + 33 + 50 = 527 counted assertions —
 # over the eight decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -90,6 +90,16 @@ test:
 # `chains[<slug>].identifierEncoding`, by design, because the step that changes
 # published key layout has to land on its own. Its last arm asserts that boundary
 # and is expected to go red the day a consumer is wired in.
+#
+# THAT ARM IS SWEPT AND FLOORED, and it is here rather than only in `just test`
+# because THIS is the fast gate. The suite's verdict line is a universal —
+# "nothing reads the declaration yet" — and it used to rest on five named files;
+# a consumer planted one file over from two of them passed every arm while that
+# sentence printed. It now walks `client/` and `tools/` whole, with the same
+# extension rule, the same exemption and the same per-directory floors (80 of
+# 101, 100 of 122) as `tests/tidentifierencoding.nim`, so the two halves sweep
+# one population and disagreeing means disagreeing rather than measuring
+# different things. The floors are what stop an emptied sweep reading as a green.
 #
 # `coverage-contiguity-selftest` was added to a tool that had a `just` recipe,
 # NO test and NO caller. It is kept rather than dropped because a planned
@@ -142,6 +152,16 @@ test:
 # gained a declared count for the same reason: it was the only one that
 # printed its total and asserted nothing about it, so its term here was a
 # number nobody could check.
+#
+# AND THE RECIPE BODY BELOW IS CHECKED AGAINST BOTH. The sentence and the
+# checker's list were, for a while, compared only to EACH OTHER — two
+# descriptions agreeing, with nothing holding either to the lines that run. A
+# ninth invocation added below, with this sentence and that list left alone,
+# kept all three mutually consistent at eight while nine suites executed, and
+# the ninth's declared count was verified by nobody. `refusal-selftest` now
+# parses these invocation lines and requires them to be the checker's list, in
+# this order; a body it cannot parse, or one that parses to nothing, is a
+# failure rather than a silent pass.
 #
 # Every term below was re-read off a run on 2026-09-12, after the review's
 # fixes: `replay-selftest` 93 -> 98 (case 12's interpreter stubs) and
@@ -752,12 +772,20 @@ engine-pin-check:
 
 # ── existence checked as freshness ─────────────────────────────────────────
 #
-# One mechanism, eight sites in this repository (re-measured 2026-09-05; the
-# register said fifteen across both repos and the tree said otherwise). A guard
-# tests that a built artefact is THERE and the decision made on the answer is
-# that it is THIS SOURCE'S. Every one of them carried a remedy — "build it
-# first", "run without --no-build first" — naming the exact condition an
-# existence test cannot detect.
+# One mechanism, 10 reuse-decision sites in this repository. A guard tests that
+# a built artefact is THERE and the decision made on the answer is that it is
+# THIS SOURCE'S. Every one of them carried a remedy — "build it first", "run
+# without --no-build first" — naming the exact condition an existence test
+# cannot detect.
+#
+# THAT NUMBER IS NOW CHECKED, and it needed to be: it said EIGHT while
+# `build-freshness-selftest.mjs`'s `SITES` held ten, having been re-measured on
+# 2026-09-05 (the register before that said fifteen across both repos and the
+# tree said otherwise) and never moved again as sites were added. It is the same
+# copy-goes-stale failure as the `chain-selftest` header above, in a second
+# comment, and it was found the same way — by reading the tool instead of the
+# sentence. The suite now parses this line and compares it to its own list, so a
+# site added there without moving this number is a red rather than a drift.
 
 # Does the freshness question decide, and is it asked at every reuse decision?
 build-freshness-selftest:

@@ -185,7 +185,26 @@
           # `followerNodejs` and NOT a second `pkgs.nodejs_22` spelling: the
           # devshell node and the node the chain follower runs on are now one
           # pin, so they cannot drift apart again.
-          buildInputs = (with pkgs; [ nim nimble just python3 wrangler ]) ++ [ followerNodejs ];
+          #
+          # `python3` CARRIES pyyaml, and that is not a convenience. Steps 3, 4
+          # and 5 of `ci/test/ci-coverage.sh` parse the workflow YAML with
+          # `python3 -c "import yaml"`, and they are written to REFUSE rather
+          # than to skip when the parse cannot happen — "could not read
+          # deploy.yml's push branches — step 3 would be vacuous" is a FAILURE,
+          # because an instrument that could not be read is not an instrument
+          # that said yes. That is the right behaviour and it is also why the
+          # gate could not reach a verdict in this shell: `pkgs.python3` has no
+          # pyyaml, while the `ubuntu-latest` runner that job uses has it
+          # preinstalled. So the gate was green in CI and structurally red
+          # locally, for a reason that had nothing to do with its subject — and
+          # local testing is the operative gate here. The environments now agree.
+          buildInputs = (with pkgs; [
+            nim
+            nimble
+            just
+            (python3.withPackages (ps: [ ps.pyyaml ]))
+            wrangler
+          ]) ++ [ followerNodejs ];
         });
 
         # VD.0 — the PINNED CAPTURE ENVIRONMENT. Browser build, fontconfig set

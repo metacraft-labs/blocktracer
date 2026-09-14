@@ -61,6 +61,32 @@ async function main(argv) {
   const section = brief.slice(b + BEGIN.length, e);
   const blocks = sliceBlocks(section);
 
+  // ── A0. the population is not empty ──────────────────────────────────────
+  //
+  // EVERY CHECK BELOW IS A UNIVERSAL OVER `VIEWS`, and a universal over an empty
+  // list is true. With `views.mjs` reduced to nothing and the brief regenerated
+  // to match, A finds no view without a block, B finds no orphan, C finds no
+  // stub and D compares an empty section to an empty section — and this file
+  // prints `A every named view has an expected-elements block (0/0)` and then
+  // PASS, having measured nothing at all. The failure mode is not exotic: `VIEWS`
+  // is assembled from 63 literal entries plus a `.map()` over a 22-tuple array,
+  // so a single edit to the wrong line can take a large part of it out.
+  //
+  // So the subject is asserted before anything is asserted ABOUT it. The floor is
+  // a floor and not an equality because views are legitimately added and pruned;
+  // what it refuses is the collapse, which is the only thing a universal cannot
+  // tell you about itself. `check-coverage.mjs`'s assertion A is the other half
+  // of this — it reads an independent inventory, so a view that quietly leaves
+  // this list leaves an inventory entry uncovered there.
+  const VIEW_FLOOR = 60;
+  if (VIEWS.length < VIEW_FLOOR) {
+    problems.push(
+      `A0: views.mjs names ${VIEWS.length} view(s), floor ${VIEW_FLOOR} — every check ` +
+        `below is a universal over that list, and a universal over a collapsed list ` +
+        `is a pass that measured nothing`,
+    );
+  }
+
   // ── A. every named view has a block ──────────────────────────────────────
   const withoutBlock = VIEWS.filter((v) => !blocks.has(v.id));
 
@@ -247,6 +273,7 @@ async function main(argv) {
     console.log(`blocks:      ${blocks.size}`);
     console.log("");
     const line = (ok, s) => console.log(`  ${ok ? "✓" : "✗"} ${s}`);
+    line(VIEWS.length >= VIEW_FLOOR, `A0 the view list has not collapsed (${VIEWS.length} named, floor ${VIEW_FLOOR})`);
     line(!withoutBlock.length, `A  every named view has an expected-elements block (${VIEWS.length - withoutBlock.length}/${VIEWS.length})`);
     line(!orphans.length, `B  every block names a real view (${orphans.length} orphan(s))`);
     line(!stubs.length, `C  no block is a stub (${stubs.length} stub(s))`);

@@ -299,6 +299,37 @@ const SITES = [
   }
 }
 
+// ── the recipe's sentence about this list is the list's ────────────────────
+//
+// `SITES` IS A NAMED LIST AND THAT IS THE RIGHT SHAPE HERE: a reuse decision is
+// not something a regex can recognise, so there is no sweep to take and the
+// `gone` arm above is what makes a moved anchor fail loudly instead of quietly
+// shrinking the population. What a named list cannot do is notice a site that was
+// never added — and the one thing standing between a reader and that gap is the
+// count in the Justfile comment, which is a COPY.
+//
+// It had gone stale exactly as copies do: it said EIGHT while this list held ten.
+// Nobody could have seen that without opening both files, which is the whole
+// argument for checking it here. This is the same remedy `refusal-selftest.mjs`
+// applies to `chain-selftest`'s header, for the same reason and after the same
+// failure — a sentence about a list, compared to the list.
+{
+  const justfile = readFileSync(join(REPO_ROOT, "Justfile"), "utf8");
+  const m = /# One mechanism, (\d+) reuse-decision sites in this repository\./.exec(justfile);
+  if (!m) {
+    bad("the Justfile states this list's size as a number this suite can read",
+      "the `existence checked as freshness` comment did not match the expected sentence. " +
+      "It is a claim about THIS list and it has been wrong before; re-word it back rather " +
+      "than dropping the check.");
+  } else if (Number(m[1]) !== SITES.length) {
+    bad("the Justfile's site count is this list's site count",
+      `the Justfile says ${m[1]} reuse-decision site(s); SITES holds ${SITES.length}. ` +
+      "A site was added or removed here and the sentence describing it was not moved.");
+  } else {
+    ok("the Justfile's site count is this list's site count", `${SITES.length} both sides`);
+  }
+}
+
 // THE DETECTOR CAN SAY NO. Verbatim pre-fix text from four of the sites above.
 // Without this, a detector whose regex silently stopped matching would report
 // perfect coverage forever — the same failure the sites themselves have.
@@ -362,5 +393,11 @@ if (failures.length) {
   console.log(`build-freshness-selftest: FAIL — ${failures.length}: ${failures.join("; ")}`);
   process.exit(1);
 }
-console.log("build-freshness-selftest: PASS — the freshness question decides, including on the three " +
-            "worlds where it must NOT say \"stale\", and every reuse decision in the tree asks it");
+// The verdict names the POPULATION rather than claiming the tree. It used to say
+// "every reuse decision in the tree asks it", which is a universal this suite
+// cannot make: `SITES` is a list, not a sweep, so the honest sentence is the one
+// that says how many decisions were asked and that the count is the one the
+// Justfile publishes.
+console.log(`build-freshness-selftest: PASS — the freshness question decides, including on the three ` +
+            `worlds where it must NOT say "stale", and each of the ${SITES.length} enumerated reuse ` +
+            `decisions asks it (the same ${SITES.length} the Justfile names)`);
