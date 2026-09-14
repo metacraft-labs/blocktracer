@@ -12,9 +12,15 @@
 ## signal graph and the Client SDK facade — so the alternative to this file was
 ## a second copy of the table, in JavaScript, drifting from the first.
 ##
-## Nothing here allocates beyond the result, imports nothing but `strutils`,
-## and does no I/O, which is what makes it shareable and what makes §2's
-## per-keystroke budget (< 1 ms, §8) affordable.
+## Nothing here allocates beyond the result and does no I/O, which is what makes
+## it shareable and what makes §2's per-keystroke budget (< 1 ms, §8)
+## affordable. It imports `strutils` and `contract/identifier_encoding`, and the
+## second one is not free reach: it is where the CASE RULE lives, and this module
+## used to open-code that rule as a `toLowerAscii` of its own. It costs nothing
+## in the one bundle that matters — `client/searchboot/` already reaches
+## `identifier_encoding` through `paths.nim`, because it recomputes the
+## producer's shard path in a tab — and the alternative was the second copy of a
+## per-encoding rule that this whole seam exists to remove.
 ##
 ## ## Canonicalisation is separate from classification, deliberately
 ##
@@ -59,6 +65,7 @@
 ## several shapes; all matches are carried forward".
 
 import std/strutils
+import ../../../src/blocktracer/contract/identifier_encoding
 
 const ResultSlotId* = "search-result"
   ## The element on `/search` that the answer is written into.
@@ -157,7 +164,19 @@ func canonicalHexBody*(raw: string): string =
   ## the index landed and stopped resolving after it. Every caller that touches
   ## index bytes or object paths wants this one, so it is the one with the
   ## obvious name, and `hexBodyOf` is left as the syntactic reader it is.
-  hexBodyOf(raw).toLowerAscii
+  ##
+  ## THE FOLD IS THE DECLARED ONE AND NOT A `toLowerAscii` OF THIS MODULE'S OWN.
+  ## `identifierKeyForm("hex", …)` reads the case rule out of
+  ## `tools/chain/identifier-encodings.json`, which is the same rule the
+  ## producer's shard derivation and the §5 index key read — so "the form the
+  ## published index and the published object names are keyed by" is a fact this
+  ## function shares with the code that produces them rather than a claim it
+  ## makes about them. It is spelled `hex` here, explicitly, because this
+  ## function is reached from `shapesOf`'s hex branch and from nowhere else: the
+  ## module's header says why a query of another encoding must not be folded at
+  ## all, and naming the token is what makes that restriction visible instead of
+  ## implied by which branch happens to call it.
+  identifierKeyForm("hex", hexBodyOf(raw))
 
 func canonicalHash*(raw: string): string =
   ## The form a path may be computed from — SEO-And-Crawl-Budget §13.1's "one

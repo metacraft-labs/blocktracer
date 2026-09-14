@@ -17,6 +17,48 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+/** Index a SHARDED object directory by the identifier its files are named by.
+ *
+ *  ── WHY THIS ENUMERATES INSTEAD OF DERIVING ──────────────────────────────
+ *
+ *  This file used to rebuild three sharded paths by hand — `t.hash.slice(2, 6)`,
+ *  `address.slice(2, 6)`, `hash.slice(2, 6)` — to reach
+ *  `/d/{chain}/tx/{shard}/`, `/d/{chain}/ts/{tsv}/{shard}/` and
+ *  `/d/{chain}/g/{gen}/addr/{shard}/`. That was a SECOND PLACE deciding the
+ *  published key layout, in a second language, and it was stricter than the
+ *  function it duplicated: an unconditional slice, so no strip-only-if-present
+ *  and no right-padding. It was correct only for as long as every chain in the
+ *  tree declared `hex`, and the shard rule is per encoding — a chain's own
+ *  declaration says where an identifier's payload starts, what its alphabet's
+ *  zero digit is, and whether its case may be folded at all.
+ *
+ *  The fix is not a JavaScript reader of that rule; it is not needing one. A
+ *  capture harness reads a tree that has already been published, and the
+ *  producer wrote the shard directories — so the identifier a file is NAMED by
+ *  is the identifier, and the directory it sits in is the layout. Enumerating
+ *  is both cheaper to keep true and the honest form of the argument this file's
+ *  two `startsWith("0x")` filters already rest on: it follows what was
+ *  published rather than recomputing it.
+ *
+ *  ONE WALK PER DIRECTORY, not one per lookup. The trees this runs over hold a
+ *  few thousand objects and the callers ask per transaction and per address.
+ *
+ *  Returns an empty map for a directory that does not exist, which is a real
+ *  state: a generation may publish no address index, and the selectors that
+ *  need one already throw with their own reason. */
+function indexShardedDir(dir) {
+  const byId = new Map();
+  if (!existsSync(dir)) return byId;
+  for (const shard of readdirSync(dir, { withFileTypes: true })) {
+    if (!shard.isDirectory()) continue;
+    for (const e of readdirSync(join(dir, shard.name), { withFileTypes: true })) {
+      if (!e.isFile() || !e.name.endsWith(".json")) continue;
+      byId.set(e.name.replace(/\.json$/, ""), join(dir, shard.name, e.name));
+    }
+  }
+  return byId;
+}
+
 export function buildEntityIndex(distDir) {
   const registryPath = join(distDir, "registry", "chains.v1.json");
   if (!existsSync(registryPath)) {
@@ -94,9 +136,12 @@ export function buildEntityIndex(distDir) {
     }
 
     const tsv = current.traceSelectionVersion ?? "1";
+    // The two sharded object trees this loop reads, indexed once by the
+    // identifier the producer NAMED each file with. See `indexShardedDir`.
+    const overlayByTx = indexShardedDir(join(distDir, "d", chain, "ts", tsv));
+    const factsByTx = indexShardedDir(join(distDir, "d", chain, "tx"));
     for (const t of txs) {
-      const shard = t.hash.slice(2, 6);
-      const overlayPath = join(distDir, "d", chain, "ts", tsv, shard, `${t.hash}.json`);
+      const overlayPath = overlayByTx.get(t.hash);
       t.availability = null;
       t.executions = [];
       t.reconstructed = false;
@@ -106,13 +151,13 @@ export function buildEntityIndex(distDir) {
       // and the three density figures are what let `tx-detail--dense` pick its
       // subject by CONTENT rather than by position — the same rule the trace
       // views already follow, for the same reason.
-      const factsPath = join(distDir, "d", chain, "tx", shard, `${t.hash}.json`);
+      const factsPath = factsByTx.get(t.hash);
       t.outcome = null;
       t.density = 0;
       t.roleCount = 0;
       t.costRowCount = 0;
       t.payloadRawLength = 0;
-      if (existsSync(factsPath)) {
+      if (factsPath !== undefined) {
         const f = readJson(factsPath);
         t.outcome = f.outcome?.overall ?? null;
         t.roleCount = (f.roles ?? []).length;
@@ -165,7 +210,7 @@ export function buildEntityIndex(distDir) {
         if (cur) t.currentStep = Number(cur[1]);
       }
 
-      if (!existsSync(overlayPath)) continue;
+      if (overlayPath === undefined) continue;
       const overlay = readJson(overlayPath);
       // Single-execution transactions carry `trace`; split ones carry
       // `executions` (Data-Contract's TraceSelection overlay).
@@ -202,18 +247,19 @@ export function buildEntityIndex(distDir) {
     // and the second would silently photograph a verified contract.
     const gen = current.generation;
     const details = {};
+    const addrIndexByAddress =
+      indexShardedDir(join(distDir, "d", chain, "g", gen, "addr"));
     for (const address of addresses) {
-      const shard = address.slice(2, 6);
-      const indexPath = join(distDir, "d", chain, "g", gen, "addr", shard, `${address}.json`);
+      const indexPath = addrIndexByAddress.get(address);
       const entry = { address, segments: [], codeHashes: [], verified: false };
-      if (existsSync(indexPath)) {
+      if (indexPath !== undefined) {
         entry.segments = readJson(indexPath).segments ?? [];
         for (const segRel of entry.segments) {
           const segPath = join(distDir, segRel);
           if (!existsSync(segPath)) continue;
           for (const hash of readJson(segPath).transactions ?? []) {
-            const factsPath = join(distDir, "d", chain, "tx", hash.slice(2, 6), `${hash}.json`);
-            if (!existsSync(factsPath)) continue;
+            const factsPath = factsByTx.get(hash);
+            if (factsPath === undefined) continue;
             for (const edge of readJson(factsPath).codeEdges ?? []) {
               if (edge.address === address && !entry.codeHashes.includes(edge.codeHash)) {
                 entry.codeHashes.push(edge.codeHash);

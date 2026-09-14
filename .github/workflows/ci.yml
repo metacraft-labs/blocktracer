@@ -451,33 +451,44 @@ jobs:
         run: node tools/chain/coverage-contiguity-selftest.mjs
 
       - name: Do both halves of the identifier-encoding set read one file?
-        # 74 assertions. `tools/chain/identifier-encodings.json` is the closed set
-        # of encodings a chain may DECLARE its identifiers in — Configuration.md
-        # §2.1, §2.2, with every member traced to a row of Search-And-Routing.md
-        # §2's shape table. The Nim half reads it with `staticRead`, so that half
-        # fails the BUILD on a malformed file; the JavaScript half has no such
-        # backstop, and the set is data precisely because the capture tooling, in
-        # JavaScript, is one of the sites that will have to agree with the
-        # producers. A shared file whose JavaScript side nothing opens drifts
-        # there undetected, so this step is the JavaScript read.
+        # 102 assertions. `tools/chain/identifier-encodings.json` is the closed
+        # set of encodings a chain may DECLARE its identifiers in —
+        # Configuration.md §2.1, §2.2, with every member traced to a row of
+        # Search-And-Routing.md §2's shape table — and, per member, the two rules
+        # that declaration implies: `shardKey`, where a path segment's payload
+        # starts, and `case`, how case is handled. The Nim half reads it with
+        # `staticRead`, so that half fails the BUILD on a malformed file; the
+        # JavaScript half has no such backstop, so this step is the JavaScript
+        # read. A shared file whose JavaScript side nothing opens drifts there
+        # undetected.
         #
-        # Sixteen of the arms are mutations, each breaking one structural rule
+        # Twenty-two of the arms are mutations, each breaking one structural rule
         # and requiring that rule AND NO OTHER to fire, with a control over an
         # unmutated deep copy — without which they would all pass for the wrong
-        # reason if the copy were itself broken. Six of the sixteen are the
-        # per-member `shardKey` rule the file now carries: what each encoding
-        # implies for a path segment, read by `contract/shards.nim` so that the
-        # set and the behaviour of its members cannot disagree.
+        # reason if the copy were itself broken. Six are the `shardKey` rule and
+        # six are the `case` rule, including its two CROSS-FIELD constraints: a
+        # member may not declare that its case carries identity and then fold it
+        # away, and may not say its display form is its key form beside a key
+        # form that preserves. One normalisation applied to every encoding is the
+        # silently-wrong outcome that rule exists to prevent.
         #
-        # The last arms assert the BOUNDARY, as an EQUALITY: exactly the
-        # enumerated consumers name `chains[<slug>].identifierEncoding`, swept
-        # over `client/` and `tools/` behind per-directory population floors, so
-        # an unexpected consumer fails and so does an expected one that stopped.
-        # They also assert that the two sites which still derive from the string
-        # are UNCHANGED — the hash index (a published wire format, so a
-        # migration plus a compatibility window) and the capture tooling's two
-        # literal `0x` filters, which follow the index rather than the
-        # derivation. Those arms are expected to go red in their turn.
+        # The last arms assert the BOUNDARY, as an EQUALITY, over TWO sweeps —
+        # who reads `chains[<slug>].identifierEncoding` and who reads the case
+        # rule — across `src/`, `client/` and `tools/` behind per-directory
+        # population floors, so an unexpected consumer fails and so does an
+        # expected one that stopped. The rule they sweep with is
+        # `tools/chain/identifier-encoding-boundary.json`, read by this half AND
+        # by `tests/tidentifierencoding.nim`, because it used to be spelled out
+        # in both and compared to nothing.
+        #
+        # They also PIN the sites that still derive from the string, present and
+        # absent, counted over CODE: the hash index still parses hex pairs under
+        # the named `HashIndexEncoding` (a published wire format, so a migration
+        # plus a compatibility window) and has no `stripHex` left; the capture
+        # tooling keeps its two literal `0x` filters over directory ENTRIES and
+        # has no `slice(2,` derivation left. The absent half is new — before it,
+        # both halves counted only the filters, so a fourth open-coded shard rule
+        # in that file was invisible to each.
         #
         # Offline and toolchain-free like the seven above it: it reads files
         # already in this repository and runs `node`.

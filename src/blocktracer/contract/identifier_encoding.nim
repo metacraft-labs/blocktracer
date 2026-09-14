@@ -19,6 +19,25 @@
 ## of the shared file. `blocktracer_client/paths.nim` re-exports that one
 ## function, so the producer, the validator and the browser derive one way.
 ##
+## **Case handling reads it too, and is no longer global.** `identifierKeyForm`,
+## `identifierPayload` and `identifierDisplayForm` below answer over the shared
+## file's `case` rule, so the four behaviours that rule distinguishes — hex
+## folded for its key with its EIP-55 display form preserved, base58 and
+## base64url untouched because they are case-significant, bech32 and bech32m made
+## uniform, decimal left alone because it has no letters — are stated per member
+## in one place and applied at every site that keys an identifier. The sites are
+## the shard derivation, the object-name segment of every sharded path
+## (`blocktracer_client/paths.nim`), the §5 hash index's shard key
+## (`contract/hashshard.nim`) and the client's query canonicalisation
+## (`client/src/viewmodel/search_shapes.nim`); `src/blocktracer/validator.nim`
+## checks that a published tree states both forms where it says it does.
+##
+## `hashshard.nim`'s `stripHex` — a single unconditional `toLowerAscii` applied
+## to every identifier of every encoding, plus a `0x` strip — IS GONE rather than
+## kept as a wrapper, for the reason `hexShard` was: a correctly-named
+## hex-assuming entry point one identifier away from every call site is reachable
+## by habit and is indistinguishable from a considered choice in a diff.
+##
 ## THERE IS EXACTLY ONE PLACE THAT DECIDES WHICH ENCODING APPLIES, and it is not
 ## this module: it is the registry row. A producer builds a
 ## `ChainIdentifierEncoding` once, publishes it *and* derives with it, so it
@@ -28,28 +47,35 @@
 ## from `tools/chain/identifier-encodings.json`, so it holds no table of its own
 ## either.
 ##
-## **Two sites still derive from the string, and both are later steps.** The hash
-## index (`contract/hashshard.nim`) parses hex pairs and lowercases
-## unconditionally; it is a published, self-describing wire format, so widening
-## it is a migration of every published shard plus a compatibility window. The
-## capture tooling (`tools/capture/lib/entities.mjs`) filters published directory
-## entries on a literal `0x`; it enumerates the tree the index keys, so it
-## follows the index rather than the derivation.
+## **One site still derives from the string, and it is the last and most
+## expensive step.** The hash index (`contract/hashshard.nim`) still PARSES HEX
+## PAIRS in `hexToBytes`, so a base58 or bech32 identifier has no representation
+## in it at all. It is a published, self-describing wire format, so widening it
+## is a migration of every published shard plus a compatibility window. What that
+## module no longer does is decide case for itself: its key encoding is the named
+## constant `HashIndexEncoding` and its fold comes from the `case` rule here, so
+## the remaining assumption is one greppable token rather than a `toLowerAscii`
+## nobody could see. It is `hex` because §5's index path carries no chain
+## segment — a client resolving a bare query does not yet know which chain it
+## will hit — so that index's key rule has to be global in a way a per-chain
+## declaration cannot be, and choosing the chain-agnostic canonical form is the
+## migration's own decision rather than a fold this step may quietly make.
 ##
-## THAT IS THE ARGUMENT FOR THE TWO FILTERS AND NOT FOR THE WHOLE OF THAT FILE.
-## `entities.mjs` ALSO open-codes this module's hex rule outright, at three sites
-## (`t.hash.slice(2, 6)`, `address.slice(2, 6)`, `hash.slice(2, 6)`), to build
+## **The capture tooling no longer derives anything.** `entities.mjs` used to
+## open-code this module's hex rule outright, at three sites (`t.hash.slice(2,
+## 6)`, `address.slice(2, 6)`, `hash.slice(2, 6)`), to build
 ## `/d/{chain}/tx/{shard}/`, `/d/{chain}/ts/{tsv}/{shard}/` and
-## `/d/{chain}/g/{gen}/addr/{shard}/`. Those DERIVE rather than enumerate, so the
-## "it follows the index" defence does not cover them: by the rule this seam is
-## sequenced on, a site that derives a path belongs with the derivation. They are
-## also stricter than the function they duplicate — an unconditional slice, so
-## neither the strip-only-if-present quirk nor the right-padding — and they are
-## correct today only because every chain this tree publishes declares `hex`.
-## Neither boundary arm pins them: both count `startsWith("0x")`, so a fourth
-## `slice(2, 6)` would be invisible to both halves. Closing it means giving the
-## tooling a path helper to call or a JavaScript reader of the shared set; until
-## then this paragraph is the only thing that knows.
+## `/d/{chain}/g/{gen}/addr/{shard}/` — a second place deciding the published
+## layout, in another language, stricter than the function it duplicated (an
+## unconditional slice, so neither the strip-only-if-present quirk nor the
+## right-padding). It now ENUMERATES the published shard directories and indexes
+## what it finds by file name, so it reads the layout the producer wrote instead
+## of recomputing it. That needs no JavaScript reader of the shared set and
+## leaves no second derivation to drift. Its two remaining `startsWith("0x")`
+## filters over published directory entries are enumeration and genuinely do
+## follow the index; both boundary halves now pin the ABSENCE of a derivation
+## there as well as the count of those filters, so a fourth `slice(2, 6)` cannot
+## appear unnoticed.
 ##
 ## The declaration landed before the derivation deliberately, and the derivation
 ## before the index for the same reason. Before a non-hex chain publishes the key
@@ -116,6 +142,21 @@ type
     pad*: string
     pathSafe*: bool
 
+  IdentifierCaseRule* = object
+    ## What one encoding implies for CASE — read from the shared file, never
+    ## spelled here, and a different question from where the payload starts.
+    ##
+    ## `significant` says whether two identifiers differing only in case are
+    ## DIFFERENT identifiers; `keyForm` says what normalisation produces the form
+    ## an identifier is keyed by (`lower` or `preserve`); `displayForm` says what
+    ## is rendered and carried in a published object's body (`preserve`, which is
+    ## what saves an EIP-55 checksum, or `key`, which is what bech32's
+    ## uniform-case requirement means). The shared file's `case` header says why
+    ## each member answers the way it does.
+    significant*: bool
+    keyForm*: string
+    displayForm*: string
+
   IdentifierEncoding* = object
     ## One member of the closed set of encodings, as the shared file states it.
     id*: string
@@ -124,6 +165,7 @@ type
       ## from. Carried so the set's provenance is checkable by reading, in the
       ## same way `RefusalReason.condition` carries a member's.
     shardKey*: ShardKeyRule
+    caseRule*: IdentifierCaseRule
 
   IdentifierKind* = object
     ## One member of the closed set of identifier kinds a declaration may speak
@@ -236,12 +278,74 @@ proc parseIdentifierEncodings(): tuple[kinds: seq[IdentifierKind],
         "be refused at every shard site as if its alphabet contained a " &
         "separator, and one that defaulted to true would publish a path " &
         "segment with a `/` in it.")
+    # EVERY MEMBER MUST ALSO CARRY A CASE RULE, and the absence fails the BUILD
+    # for the same reason the shard rule's does. One normalisation applied to
+    # every encoding is the defect this rule exists to remove, so a member that
+    # answered the question for shard payloads and not for case would be a token
+    # the fold could only handle by guessing — which is the global fold again,
+    # wearing a per-member set as a hat.
+    let cs = e{"case"}
+    if cs == nil or cs.kind != JObject:
+      raise newException(ValueError,
+        "identifier encoding '" & id & "' carries no case rule. Lowercasing is " &
+        "the right key for hex and DESTROYS base58 and base64url, which are " &
+        "case-significant; bech32 requires a uniform case rather than an " &
+        "arbitrary one; and an EIP-55 hex address carries its checksum in its " &
+        "case. A member that does not say which of those it is cannot be keyed.")
+    if cs{"significant"}.kind != JBool:
+      raise newException(ValueError,
+        "identifier encoding '" & id & "' does not say whether its case is " &
+        "SIGNIFICANT. Absent is not false: a member that forgot to answer would " &
+        "be folded as if two spellings were one identifier, which for base58 or " &
+        "base64url does not normalise an identifier — it names a different one.")
+    let keyForm = cs{"keyForm"}.getStr
+    if keyForm notin ["lower", "preserve"]:
+      raise newException(ValueError,
+        "identifier encoding '" & id & "' declares keyForm '" & keyForm &
+        "', and the forms are: lower, preserve. `lower` folds an identifier " &
+        "into the form it is KEYED by; `preserve` says folding it would change " &
+        "which identifier it is. A token outside that pair is a normalisation " &
+        "nothing in this tree implements.")
+    let displayForm = cs{"displayForm"}.getStr
+    if displayForm notin ["preserve", "key"]:
+      raise newException(ValueError,
+        "identifier encoding '" & id & "' declares displayForm '" & displayForm &
+        "', and the forms are: preserve, key. `preserve` keeps the string the " &
+        "chain gave us, which is what saves an EIP-55 checksum; `key` says the " &
+        "display form IS the key form, which is what bech32's uniform-case " &
+        "requirement means.")
+    # ── THE TWO CROSS-FIELD RULES, WHICH ARE THE POINT OF SPLITTING THE FIELDS ─
+    #
+    # Each field is answerable on its own and the PAIR is what can be wrong, so
+    # the pair is what is checked. Without these, `{significant: true, keyForm:
+    # "lower"}` would be a member declaring that case carries identity and then
+    # folding it away — the exact defect this rule exists to remove, stated in
+    # the very file that removes it.
+    if cs{"significant"}.getBool and keyForm != "preserve":
+      raise newException(ValueError,
+        "identifier encoding '" & id & "' says its case is significant and " &
+        "then declares keyForm '" & keyForm & "'. A fold on a case-significant " &
+        "alphabet is not a normalisation: it does not map two spellings of one " &
+        "identifier together, it maps one identifier onto a different one that " &
+        "probably does not exist. A significant member's key form is its own.")
+    if displayForm == "key" and keyForm == "preserve":
+      raise newException(ValueError,
+        "identifier encoding '" & id & "' declares displayForm 'key' beside a " &
+        "keyForm of 'preserve', which states nothing: the key form IS the " &
+        "identifier, so 'the display form is the key form' and 'the display " &
+        "form is preserved' are the same sentence. `key` is for a member whose " &
+        "display form is FOLDED — bech32, where a mixed-case string is not an " &
+        "address at all — and a rule that reads as a decision while making none " &
+        "is worse than the absent one the arm above refuses.")
     seenEncodings.add id
     result.encodings.add IdentifierEncoding(id: id, shapeRows: rows,
       shardKey: ShardKeyRule(stripPrefix: sk{"stripPrefix"}.getStr,
                              payloadAfterLast: sk{"payloadAfterLast"}.getStr,
                              pad: pad,
-                             pathSafe: sk{"pathSafe"}.getBool))
+                             pathSafe: sk{"pathSafe"}.getBool),
+      caseRule: IdentifierCaseRule(significant: cs{"significant"}.getBool,
+                                   keyForm: keyForm,
+                                   displayForm: displayForm))
   if result.encodings.len == 0:
     raise newException(ValueError,
       "tools/chain/identifier-encodings.json defines no encodings. An empty " &
@@ -332,6 +436,100 @@ func identifierEncodingRule*(encoding: string): ShardKeyRule =
     ". Adding one is an amendment to Search-And-Routing.md §2's shape table " &
     "and belongs in tools/chain/identifier-encodings.json with the row it " &
     "comes from and the shardKey rule it implies.")
+
+func identifierCaseRule*(encoding: string): IdentifierCaseRule =
+  ## The CASE rule a token implies, from the shared file.
+  ##
+  ## A non-member raises, for `identifierEncodingRule`'s reason and with more
+  ## force: falling back to hex here means folding a case-significant identifier
+  ## into one that does not exist, and the failure would arrive as a 404 on a
+  ## path the producer never wrote rather than as a refusal naming the token.
+  for e in IdentifierEncodings:
+    if e.id == encoding: return e.caseRule
+  raise newException(ValueError,
+    "'" & encoding & "' is not an identifier encoding, so there is no case " &
+    "rule for it. The encodings are: " & identifierEncodingList() &
+    ". Case handling is stated per member in " &
+    "tools/chain/identifier-encodings.json; one normalisation applied to all of " &
+    "them is the outcome that rule exists to prevent.")
+
+func identifierKeyForm*(encoding, identifier: string): string =
+  ## **The form an identifier is KEYED by**, per its encoding's declared rule.
+  ##
+  ## This is the one normalisation this tree performs on a chain's identifier,
+  ## and it is a normalisation rather than a fold: `hex` and `bech32` lower,
+  ## because two spellings are one identifier there; `base58`, `base64`,
+  ## `base64url` and `ss58` preserve, because two spellings are two identifiers;
+  ## `decimal` preserves because it has no letters. It touches nothing else — no
+  ## prefix strip, no re-encoding — so it is idempotent and safe to apply to a
+  ## value that is already a key form, which several call sites rely on.
+  ##
+  ## WHERE THE RESULT IS PUBLISHED: every path segment and every index key.
+  ## `/d/{chain}/tx/{shard}/{id}.json` — both segments — the §5 shard file name,
+  ## and the route `/{chain}/{kind}/{id}/`. One identifier names one object,
+  ## whichever spelling a caller arrived with.
+  let rule = identifierCaseRule(encoding)
+  case rule.keyForm
+  of "lower": identifier.toLowerAscii
+  of "preserve": identifier
+  else:
+    # Unreachable: `parseIdentifierEncodings` refuses any other token at compile
+    # time. Stated rather than defaulted, because a `case` whose fallthrough
+    # silently preserved would turn a future member's unimplemented form into
+    # "no normalisation" — which for hex is the bug this function replaced.
+    raise newException(ValueError,
+      "identifier encoding '" & encoding & "' declares keyForm '" &
+      rule.keyForm & "', which the reader admitted and this function does not " &
+      "implement. The two have to be widened together.")
+
+func identifierDisplayForm*(encoding, identifier: string): string =
+  ## **The form an identifier is SHOWN in**, per its encoding's declared rule —
+  ## and, where they differ, deliberately not the key form.
+  ##
+  ## For `hex` this PRESERVES, and that is the whole reason the two forms are
+  ## separate: an EIP-55 address carries its checksum in the case of its letters,
+  ## so the display form and the key form of one address are two different
+  ## strings and a fold applied to both loses the checksum a reader could have
+  ## checked a mistyped address against. For `bech32` and `bech32m` it folds,
+  ## because BIP-173 makes a MIXED-case string invalid outright: there is no
+  ## third, mixed spelling worth preserving — it would not be an address.
+  ##
+  ## WHERE THE RESULT IS PUBLISHED: the identifier a published object carries in
+  ## its BODY (`id.hash` on transaction facts, `address` on an address index,
+  ## `hash` on a block), and therefore what a page renders. `validator.nim`
+  ## checks both statements against every tree it validates.
+  let rule = identifierCaseRule(encoding)
+  case rule.displayForm
+  of "preserve": identifier
+  of "key": identifierKeyForm(encoding, identifier)
+  else:
+    raise newException(ValueError,
+      "identifier encoding '" & encoding & "' declares displayForm '" &
+      rule.displayForm & "', which the reader admitted and this function does " &
+      "not implement. The two have to be widened together.")
+
+func identifierPayload*(encoding, identifier: string): string =
+  ## The identifier's PAYLOAD in its own alphabet, in key form: the declared case
+  ## rule applied, the declared prefix stripped IF PRESENT, and everything up to
+  ## and including the declared separator's last occurrence removed.
+  ##
+  ## The one place those three steps are composed, and the order is load-bearing:
+  ## case first, so that a `0X`-prefixed hex identifier — the same account,
+  ## written by a tool that shouted — has its prefix recognised and stripped
+  ## rather than carried into the shard key as payload.
+  ##
+  ## `contract/shards.nim` pads and slices this; `contract/hashshard.nim` reads
+  ## it for the §5 shard key and for the hex-pair parser that is the index's
+  ## remaining hex assumption. Both used to do the three steps themselves, and
+  ## the hash index's copy folded case for every encoding because it could not
+  ## see one.
+  let rule = identifierEncodingRule(encoding)
+  result = identifierKeyForm(encoding, identifier)
+  if rule.stripPrefix.len > 0 and result.startsWith(rule.stripPrefix):
+    result = result[rule.stripPrefix.len .. ^1]
+  if rule.payloadAfterLast.len > 0:
+    let i = result.rfind(rule.payloadAfterLast)
+    if i >= 0: result = result[i + rule.payloadAfterLast.len .. ^1]
 
 func declaredOrLegacy*(token: string): string =
   ## The encoding to derive with, given what a registry row declared.
@@ -495,6 +693,23 @@ func encodingFor*(d: ChainIdentifierEncoding, kind: string): string =
     "transaction identity is the case that forces it — so there is no path " &
     "segment to derive and hex-by-default would invent one.")
 
+func identifierKeyForm*(d: ChainIdentifierEncoding, kind, identifier: string):
+    string =
+  ## The key form reached through one chain's declaration — the form every path
+  ## site uses, because a path site knows which KIND of identifier it is placing
+  ## and the chain's row is what says how that kind is written.
+  ##
+  ## `encodingFor` raises on a kind this chain omitted, which is the point: a
+  ## normalised key for an identifier the registry declined to describe is a key
+  ## nobody can recompute.
+  identifierKeyForm(d.encodingFor(kind), identifier)
+
+func identifierDisplayForm*(d: ChainIdentifierEncoding,
+                            kind, identifier: string): string =
+  ## The display form reached through one chain's declaration. Same rule as
+  ## above: the kind selects the token and the token selects the rule.
+  identifierDisplayForm(d.encodingFor(kind), identifier)
+
 proc parseChainIdentifierEncoding*(row: JsonNode): ChainIdentifierEncoding =
   ## One chain's declaration, read back out of a published registry row.
   ##
@@ -557,8 +772,10 @@ proc hexIdentifierEncoding*(): ChainIdentifierEncoding =
   ##
   ## So for the kinds this declaration speaks about there is no EIP-55 checksum
   ## riding in the case — they are field elements, not 20-byte accounts — and the
-  ## display-form-versus-key-form split that per-encoding case handling has to deal
-  ## with does not arise on this chain. Note that the argument is about the field
+  ## display-form-versus-key-form split that per-encoding case handling makes is a
+  ## no-op on this chain: `identifierKeyForm` and `identifierDisplayForm` return
+  ## the same string for every identifier either producer publishes, which is why
+  ## the whole step landed with the published layout diffed byte-for-byte. Note that the argument is about the field
   ## elements and does not extend to the two L1 addresses above, which are ordinary
   ## Ethereum addresses that merely happen to be all-lowercase here; they are
   ## outside the kinds, which is why that does not matter.

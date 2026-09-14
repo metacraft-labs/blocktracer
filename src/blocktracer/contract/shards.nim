@@ -84,10 +84,22 @@ func shardKeyFor*(encoding, identifier: string): string =
   ## rather than producing a narrower segment, which is what keeps `0x` + 1-63
   ## hex (the Starknet felt row) naming a four-character directory.
   ##
-  ## IT NORMALISES NOTHING. No case folding, no re-encoding: a slice of a
-  ## case-significant base58 or base64url identifier keeps its case for free.
-  ## Per-encoding case handling is a separate step with its own consumers, and
-  ## the hash index one module over still lowercases unconditionally.
+  ## IT NORMALISES PER ENCODING AND NEVER GLOBALLY. The case rule the member
+  ## declares is applied first, through `identifierPayload`: `hex` and `bech32`
+  ## fold, because two spellings are one identifier there; `base58`, `base64url`
+  ## and `ss58` do not, because two spellings are two identifiers. There is no
+  ## `toLowerAscii` in this module and there must not be one — a fold written
+  ## here would be a fold that is right for hex and destroys four of the eight
+  ## members, which is precisely the outcome the rule is data to prevent.
+  ##
+  ## FOLDING BEFORE SLICING IS WHAT MAKES A KEY RECOMPUTABLE. An EIP-55 address
+  ## and its lowercase spelling are one account, and a client that arrived with
+  ## either has to compute the one shard the producer wrote. The only hex
+  ## identifier whose key this moves relative to the replaced `hexShard` is one
+  ## carrying an uppercase digit — of which the committed captures contain none:
+  ## 386 distinct `0x`-hex literals in the testnet capture, 990 in the mainnet
+  ## one, zero uppercase in either, so the published Aztec layout is unmoved and
+  ## that was diffed rather than argued.
   let rule = identifierEncodingRule(encoding)
   if not rule.pathSafe:
     raise newException(ValueError,
@@ -98,12 +110,7 @@ func shardKeyFor*(encoding, identifier: string): string =
       "choosing a path-safe re-encoding, which Search-And-Routing.md §2 and §5 " &
       "do not specify — see the shardKey notes in " &
       "tools/chain/identifier-encodings.json.")
-  var h = identifier
-  if rule.stripPrefix.len > 0 and h.startsWith(rule.stripPrefix):
-    h = h[rule.stripPrefix.len .. ^1]
-  if rule.payloadAfterLast.len > 0:
-    let i = h.rfind(rule.payloadAfterLast)
-    if i >= 0: h = h[i + rule.payloadAfterLast.len .. ^1]
+  var h = identifierPayload(encoding, identifier)
   if h.len < ShardWidth: h = h & repeat(rule.pad[0], ShardWidth - h.len)
   h[0 ..< ShardWidth]
 

@@ -92,7 +92,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# EIGHT suites — 98 + 19 + 24 + 24 + 57 + 222 + 33 + 74 = 551 counted assertions —
+# EIGHT suites — 98 + 19 + 24 + 24 + 57 + 222 + 33 + 102 = 579 counted assertions —
 # over the eight decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -110,39 +110,50 @@ test:
 # `tools/chain/identifier-encodings.json` is a closed set (Configuration.md §2.1,
 # §2.2, over Search-And-Routing.md §2's shape table) read on the Nim side with
 # `staticRead`, so that side fails the BUILD on a malformed file. The JavaScript
-# side has no such backstop, and the set is data precisely because the capture
-# tooling — which still filters published directory entries on a literal `0x` — is
-# JavaScript and will have to agree with the producers. A shared file whose
-# JavaScript side nothing opens drifts there undetected, so the JavaScript read
-# happens now, as a test. The file also carries, per member, the `shardKey` rule
-# that member implies for a path segment, so the set and the behaviour of its
-# members cannot disagree; each of that rule's four fields has a mutation arm here.
+# side has no such backstop, and a shared file whose JavaScript side nothing opens
+# drifts there undetected, so the JavaScript read happens now, as a test. The file
+# also carries, per member, the TWO rules that member's declaration implies —
+# `shardKey`, where a path segment's payload starts, and `case`, how case is
+# handled — so the set and the behaviour of its members cannot disagree. Each
+# field of both rules has a mutation arm here, including the two CROSS-FIELD case
+# constraints: a member may not declare that its case carries identity and then
+# fold it away, and may not say its display form is its key form beside a key form
+# that preserves.
 #
-# It is a test and NOT a consumer, still, and the reason narrowed rather than went
-# away: the derivation that now reads `chains[<slug>].identifierEncoding` is Nim,
-# compiled to both C and the JS backend from one source, so no JavaScript reader
-# was needed. The one JavaScript site that will read it is the capture tooling, and
-# it follows the HASH INDEX rather than the derivation — a `0x` filter widened
-# ahead of the index would enumerate a non-hex chain's entities and then fail to
-# key them.
+# It is a test and NOT a consumer, and that is now settled rather than pending.
+# Derivation and case handling are Nim, compiled to both C and the JS backend from
+# one source, so the browser needs no JavaScript reader. The capture tooling looked
+# like the one site that would — it open-coded the hex shard rule at three sites —
+# and it does not: it ENUMERATES the published shard directories rather than
+# recomputing them, which needs no reader of the set at all.
 #
 # ITS BOUNDARY ARM IS AN EQUALITY, SWEPT AND FLOORED, and it is here rather than
 # only in `just test` because THIS is the fast gate. It used to assert that nothing
 # read the declaration, resting on five named files; a consumer planted one file
 # over from two of them passed every arm while that sentence printed. It now walks
-# `client/` and `tools/` whole and compares what it finds for EQUALITY against an
-# enumerated set of expected consumers — so an unexpected one fails it, and so does
-# an expected one that stopped — with the same extension rule and the same
-# per-directory floors (80 and 100) as `tests/tidentifierencoding.nim`,
-# so the two halves sweep one population and disagreeing means disagreeing rather
-# than measuring different things. The floor is named here and the POPULATION is
-# not, on purpose: both halves take their population from git — tracked plus
-# untracked-and-not-ignored — so it moves with the working tree, and a number
-# pinned in this comment would go stale for anyone holding a scratch file. The
-# floor is the contract; the count is an observation each run prints.
-# (It used to say "80 of 101, 100 of 122", and was stale by one within a day.)
-# The floors are what stop an emptied sweep reading as a green; the asserted set
-# SIZES are what stop the expected list growing one entry at a time.
+# `src/`, `client/` and `tools/` whole, over TWO sweeps — who reads the registry
+# member and who reads the case rule — and compares what it finds for EQUALITY
+# against enumerated sets of expected consumers, so an unexpected one fails it and
+# so does an expected one that stopped.
+#
+# THE RULE IT SWEEPS WITH IS NO LONGER WRITTEN TWICE. The extensions, the pruned
+# directories, the floors and the allowlists are
+# `tools/chain/identifier-encoding-boundary.json`, read by this half AND by
+# `tests/tidentifierencoding.nim`. They used to be spelled out in both and compared
+# to nothing — they agreed because two independently-maintained copies happened to,
+# and one divergence (`redist/`) had already been found and fixed by hand. A shared
+# rule is still not enough, because that divergence was about what `dist/` MEANS in
+# two sweep implementations rather than about the words: so the Nim half also runs
+# this one with `--emit-population` and requires the two swept file lists to be
+# identical.
+#
+# The floors are named in that file and the POPULATION is not, on purpose: both
+# halves take their population from git — tracked plus untracked-and-not-ignored —
+# so it moves with the working tree, and a number pinned in a comment would go
+# stale for anyone holding a scratch file. (This one used to say "80 of 101, 100 of
+# 122", and was stale by one within a day.) The floors are what stop an emptied
+# sweep reading as a green; the asserted set SIZES are what stop an expected list
+# growing one entry at a time.
 #
 # `coverage-contiguity-selftest` was added to a tool that had a `just` recipe,
 # NO test and NO caller. It is kept rather than dropped because a planned

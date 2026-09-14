@@ -10,8 +10,8 @@
     "The requirement is that an identifier's encoding is a property of the chain, carried as",
     "DATA in the published registry, rather than the `0x` + hex assumption baked into every",
     "path, shard key and index. This file defines the DECLARATION — the closed set a chain may",
-    "draw its per-kind tokens from — and, since the derivation step landed, the RULE each",
-    "member implies for a shard path segment (`shardKey` below).",
+    "draw its per-kind tokens from — and, per member, the two RULES that declaration implies:",
+    "where a shard path segment comes from (`shardKey`) and how CASE is handled (`case`).",
     "",
     "SHARD DERIVATION READS `chains[<slug>].identifierEncoding`.",
     "`src/blocktracer/contract/shards.nim` takes the encoding as a parameter —",
@@ -21,22 +21,44 @@
     "way. The producers hand it the same value they publish; the client and the validator read",
     "it back out of the registry.",
     "",
-    "TWO SITES STILL DERIVE FROM THE STRING, and both are deliberately later steps:",
+    "CASE HANDLING READS IT TOO, AND IS NO LONGER GLOBAL. `identifier_encoding.nim` exposes",
+    "`identifierKeyForm`, `identifierPayload` and `identifierDisplayForm` over the `case` rule",
+    "below, and every site that used to fold case for itself now asks: the shard derivation,",
+    "the object-name segment of every sharded path, the §5 hash index's shard key, and the",
+    "client's query canonicalisation. `hashshard.nim`'s `stripHex` — one unconditional",
+    "`toLowerAscii` applied to every identifier of every encoding — is GONE rather than kept",
+    "as a wrapper, for the reason `hexShard` was: a correctly-named hex-assuming entry point",
+    "one identifier away from every call site is reachable by habit and indistinguishable",
+    "from a choice in a diff.",
     "",
-    "  the hash index      `src/blocktracer/contract/hashshard.nim` — `hexToBytes` parses hex",
-    "                      pairs and `stripHex` lowercases unconditionally. This is a",
-    "                      PUBLISHED self-describing wire format, so widening it is a",
-    "                      migration of every published shard plus a compatibility window",
-    "                      (Publishing-And-Caching.md §6.1, §6.2) and must land alone.",
-    "  the capture tooling `tools/capture/lib/entities.mjs` filters published directory",
-    "                      entries on a literal `0x` at two sites. It reads the tree the hash",
-    "                      index keys, so it follows the index rather than the derivation:",
-    "                      a filter widened ahead of the index would enumerate entities the",
-    "                      index cannot key.",
+    "ONE SITE STILL DERIVES FROM THE STRING, and it is deliberately a later step:",
     "",
-    "CASE HANDLING IS ALSO STILL GLOBAL and is the step between those two — see the section",
-    "on it below. `shardKeyFor` normalises NOTHING, which is why the derivation could land",
-    "first: it slices, and a slice of a case-significant identifier keeps its case.",
+    "  the hash index      `src/blocktracer/contract/hashshard.nim` — `hexToBytes` still",
+    "                      PARSES HEX PAIRS, so a base58 or bech32 identifier has no",
+    "                      representation in the index at all. That is a PUBLISHED",
+    "                      self-describing wire format, so widening it is a migration of",
+    "                      every published shard plus a compatibility window",
+    "                      (Publishing-And-Caching.md §6.1, §6.2) and must land alone. The",
+    "                      index's key ENCODING is now named rather than assumed —",
+    "                      `HashIndexEncoding` — and its case fold comes from the `case` rule",
+    "                      below, so the assumption is one greppable constant instead of a",
+    "                      fold nobody could see. It is `hex` because §5's index has NO chain",
+    "                      segment in its path: a client resolving a bare query does not know",
+    "                      which chain it will hit, so the index's key rule has to be global",
+    "                      in a way a per-chain declaration cannot be. Choosing the",
+    "                      chain-agnostic canonical form is the migration's own decision.",
+    "",
+    "THE CAPTURE TOOLING NO LONGER DERIVES ANYTHING. `tools/capture/lib/entities.mjs` used to",
+    "open-code the hex shard rule at three sites (`slice(2, 6)`) to rebuild",
+    "`/d/{chain}/tx/{shard}/`, `/d/{chain}/ts/{tsv}/{shard}/` and",
+    "`/d/{chain}/g/{gen}/addr/{shard}/` paths. It now ENUMERATES the published shard",
+    "directories and indexes what it finds by file name, so it reads the layout the producer",
+    "wrote instead of recomputing it — which is both the honest form of the `it follows the",
+    "index` argument and the only form that needs no second implementation of this file in",
+    "JavaScript. Its two remaining `startsWith(\"0x\")` filters over published directory entries",
+    "are enumeration and genuinely do follow the index. Both boundary halves now pin the",
+    "absence of a derivation there as well as the count of those filters, so a fourth",
+    "`slice(2, 6)` cannot appear unnoticed.",
     "",
     "THE DECLARATION LANDED FIRST ON PURPOSE, and the derivation second for the same reason.",
     "Before a non-hex chain publishes, the key layout is a decision; afterwards it is a",
@@ -91,11 +113,54 @@
     "                    that is not path-safe rather than emitting a segment with a separator",
     "                    in it. See the note on base64 below.",
     "",
-    "WHAT THESE FIELDS DELIBERATELY DO NOT SAY IS ANYTHING ABOUT CASE. `shardKeyFor` slices and",
-    "pads; it does not normalise, so a base58 or base64url key keeps its case for free. The",
-    "hash index's `stripHex`, one module over, still lowercases unconditionally, and fixing that",
-    "per encoding is the next step rather than this one — keeping them apart is what let the",
-    "derivation land with the published hex layout asserted byte-for-byte unchanged.",
+    "THESE FOUR FIELDS SAY NOTHING ABOUT CASE, and they still do not: case is the `case` rule",
+    "below, applied BEFORE the payload is located. `shardKeyFor` folds case per encoding, then",
+    "strips, then slices and pads.",
+    "",
+    "── `case`: WHAT EACH MEMBER IMPLIES FOR CASE, WHICH IS A DIFFERENT QUESTION ────────────",
+    "",
+    "One normalisation applied to every encoding is the silently-wrong outcome this section",
+    "exists to prevent. Lowercasing is the right KEY for hex and DESTROYS base58 and base64url,",
+    "which are case-significant; bech32 and bech32m require a UNIFORM case rather than an",
+    "arbitrary one; and an EIP-55 hex address carries its checksum IN ITS CASE, so its display",
+    "form and its key form are two different strings and conflating them loses the checksum.",
+    "Three fields, and each one is read by code rather than by a reader:",
+    "",
+    "  significant   whether two identifiers that differ ONLY in case are DIFFERENT",
+    "                identifiers. True for base58, base64, base64url and ss58, where a case",
+    "                fold does not normalise the identifier — it changes which one it is.",
+    "                False for hex (the same account either way), for bech32/bech32m (BIP-173",
+    "                makes a MIXED-case string invalid outright and the two uniform spellings",
+    "                are one address) and for decimal (no letters to fold).",
+    "  keyForm       what normalisation produces the form an identifier is KEYED by — the",
+    "                shard segment, the object-name segment of every sharded path, and the",
+    "                index key. `lower` folds; `preserve` does not. A member that is",
+    "                `significant` MUST be `preserve`, and the reader fails the BUILD on the",
+    "                pair: a fold on a case-significant alphabet is not a normalisation.",
+    "  displayForm   what is rendered to a human and carried in a published object's BODY.",
+    "                `preserve` keeps the string the chain gave us, which is what saves an",
+    "                EIP-55 checksum from a fold it would not survive. `key` says the display",
+    "                form IS the key form, which is what bech32's uniform-case requirement",
+    "                means: a mixed-case bech32 string is not a valid address, so there is no",
+    "                mixed-case display form to preserve. `key` beside a `preserve` keyForm is",
+    "                refused at BUILD time as a statement that says nothing.",
+    "",
+    "WHICH FORM IS PUBLISHED WHERE, since that is the whole point of keeping them apart:",
+    "",
+    "  KEY FORM      every path segment and every index key. `/d/{chain}/tx/{shard}/{id}.json`",
+    "                — BOTH segments — `/d/{chain}/g/{gen}/addr/{shard}/{id}.json`, the §5",
+    "                shard file name, and the route `/{chain}/{kind}/{id}/`. One identifier",
+    "                names one object, whichever spelling a caller arrived with.",
+    "  DISPLAY FORM  the identifier a published object carries in its body (`id.hash` on",
+    "                transaction facts, `address` on an address index, `hash` on a block) and",
+    "                therefore what a page renders. `validator.nim` checks both statements",
+    "                against every tree it validates, which is what stops them being prose.",
+    "",
+    "AZTEC NEEDS NONE OF IT, AND THAT IS MEASURED RATHER THAN HOPED. The identifiers of the",
+    "three declared kinds are field elements, all lowercase across both committed captures (see",
+    "`hex` below for the counts), so every rule here is a no-op on the trees this repository",
+    "publishes — which is what let the whole step land with the published key layout diffed",
+    "byte-for-byte and found identical.",
     "",
     "BASE64 IS DECLARABLE AND NOT SHARDABLE, and that pair is the honest state rather than an",
     "oversight. TON's transaction hashes and Sui's digests really are base64 (§2 row 8), so the",
@@ -167,14 +232,15 @@
     "",
     "── WHAT IS DELIBERATELY NOT IN THIS FILE ──────────────────────────────────────────────",
     "",
-    "CASE HANDLING. It is stated per encoding — lowercasing is the right key for hex and",
-    "DESTROYS base58 and base64url, which are case-significant; bech32 and bech32m require a",
-    "uniform case rather than an arbitrary one; and an EIP-55 hex address carries its checksum",
-    "in its case, so its display form and its key form are two different strings. That is a",
-    "separate requirement with its own consumers, and a `caseSignificant` field added here now",
-    "would be a second unread declaration rather than a fix. Aztec, incidentally, needs none of",
-    "it for the kinds above: those identifiers are field elements, measured all-lowercase across",
-    "both committed captures (see `hex` below for the counts and where to re-run them).",
+    "EIP-55 ITSELF. The `case` rule says that a hex identifier's display form is PRESERVED and",
+    "its key form is folded, which is exactly what a checksummed address needs and is all this",
+    "repository has any business asserting. COMPUTING an EIP-55 checksum — keccak-256 over the",
+    "lowercase address, one bit per nibble — is a different thing: it would let this tree",
+    "VALIDATE a display form rather than merely carry it unharmed, and it needs a hash function",
+    "that `contract/` does not have and that the JS backend would have to grow. Nothing here",
+    "claims a checksum is correct; the claim is the weaker and checkable one, that a fold no",
+    "longer destroys it. A chain that wants the stronger claim is asking for a validator, and",
+    "Search-And-Routing.md §2 does not describe one.",
     "",
     "PER-CHAIN ASSIGNMENT. Which chain uses which encoding is not in this file, because at",
     "consumption time the published registry IS that answer — declaring it here as well would",
@@ -220,6 +286,12 @@
         "pad": "0",
         "pathSafe": true,
         "note": "THE PUBLISHED LAYOUT, AND THE ONE RULE THAT MAY NOT MOVE. Every shard path Aztec has already published was derived by stripping `0x` and right-padding with `0` to four characters, so these three values are load-bearing for anything already on a CDN (Publishing-And-Caching.md §6.1). The padding looks like a curiosity and is not: without it a one-character Starknet felt would name a one-character shard directory, and `0x` + 1-63 hex is a real row of the shape table."
+      },
+      "case": {
+        "significant": false,
+        "keyForm": "lower",
+        "displayForm": "preserve",
+        "note": "THE ONE MEMBER WHERE THE TWO FORMS GENUINELY DIFFER. Case carries no identity for hex \u2014 `0xAB` and `0xab` are one account \u2014 so the key is folded, and folding is what makes a path recomputable from either spelling. But EIP-55 encodes an address's checksum IN the case of its letters, so the DISPLAY form is preserved: fold it and the checksum is gone, and a reader who could have detected a mistyped address no longer can. That is the whole reason `keyForm` and `displayForm` are two fields rather than one."
       }
     },
     {
@@ -231,6 +303,12 @@
         "pad": "1",
         "pathSafe": true,
         "note": "The whole string is payload — base58 carries no prefix and no separator, and Solana's addresses and signatures differ only in length. `1` is base58's zero digit; `0` is not in the alphabet at all, which is why the pad is per-encoding."
+      },
+      "case": {
+        "significant": true,
+        "keyForm": "preserve",
+        "displayForm": "preserve",
+        "note": "CASE-SIGNIFICANT, so nothing is folded. base58's alphabet contains both cases and excludes the four characters that confuse them (`0`, `O`, `I`, `l`) precisely so that case can carry information \u2014 a Solana address and its lowercased spelling are two different addresses, and only one of them exists. `toLowerAscii` here does not normalise an identifier; it invents a different one and then fails to find it."
       }
     },
     {
@@ -242,6 +320,12 @@
         "pad": "A",
         "pathSafe": false,
         "note": "THE ONE MEMBER THAT IS DECLARABLE AND NOT SHARDABLE. The standard alphabet's 63rd and 64th digits are `+` and `/`, and `/` ends a path segment — so about one 44-character digest in eight would silently publish into a nested directory. The derivation refuses rather than doing that; the header section on base64 records why choosing the path-safe re-encoding is not this file's decision to make."
+      },
+      "case": {
+        "significant": true,
+        "keyForm": "preserve",
+        "displayForm": "preserve",
+        "note": "CASE-SIGNIFICANT for the same reason base58 is, and more starkly: base64's 26 upper and 26 lower letters are 52 distinct digits, so a fold collapses half the alphabet onto the other half. It is unshardable for an unrelated reason (`/` in the alphabet \u2014 see `shardKey`), and the case rule is stated anyway, because the member is declarable and a rule that existed only for the shardable members would be a hole the day the re-encoding question is answered."
       }
     },
     {
@@ -253,6 +337,12 @@
         "pad": "A",
         "pathSafe": true,
         "note": "base64url exists precisely because `-` and `_` replace `+` and `/`, so every digit is legal in a path segment. The `EQ`/`UQ`/`kQ` prefix is NOT stripped: it is base64url of the address's real leading bits (the flag byte and workchain), so it is payload rather than decoration, and stripping it would make two genuinely different addresses shard alike."
+      },
+      "case": {
+        "significant": true,
+        "keyForm": "preserve",
+        "displayForm": "preserve",
+        "note": "CASE-SIGNIFICANT. base64url differs from base64 only in its 63rd and 64th digits (`-` and `_` for `+` and `/`), so its 52 letter digits are exactly as distinct. TON's `EQ`/`UQ`/`kQ` prefixes are the visible case of it: `kQ` and `KQ` are different leading bits, not a spelling of one address."
       }
     },
     {
@@ -264,6 +354,12 @@
         "pad": "q",
         "pathSafe": true,
         "note": "`<hrp>1<data>`, so the payload begins after the LAST `1` — BIP-173 excludes `1` from the data charset, which is what makes `last` unambiguous. Sharding the raw string would key every Cardano address under `addr` and every stake address under `stak`: one bucket per address type for a whole chain. `q` is the data charset's zero digit."
+      },
+      "case": {
+        "significant": false,
+        "keyForm": "lower",
+        "displayForm": "key",
+        "note": "UNIFORM, NOT ARBITRARY. BIP-173 allows an address to be all-lowercase or all-uppercase and makes a MIXED-case string INVALID \u2014 the checksum is computed over one case and the two uniform spellings are one address. So case carries no identity (`significant` is false) and folding to lowercase is a real normalisation rather than a loss; lowercase is the form BIP-173 itself calls canonical and the only one QR-encoders do not prefer. The display form IS the key form, because there is no third, mixed spelling that would be worth preserving \u2014 it would not be an address."
       }
     },
     {
@@ -275,6 +371,12 @@
         "pad": "q",
         "pathSafe": true,
         "note": "Same rule as bech32, for the same reason: every Fuel address begins `fuel`. bech32m differs from bech32 only in the checksum constant, which the shard key never inspects — so the two members have the same derivation and are still separate members, because an address valid under one is invalid under the other and a consumer that validates has to know which."
+      },
+      "case": {
+        "significant": false,
+        "keyForm": "lower",
+        "displayForm": "key",
+        "note": "Same rule as bech32, for the same reason: bech32m differs only in the checksum constant, and the case requirement is BIP-173's, inherited unchanged by BIP-350. A Fuel address that arrived mixed-case is not a Fuel address that needs preserving."
       }
     },
     {
@@ -286,6 +388,12 @@
         "pad": "1",
         "pathSafe": true,
         "note": "SS58 is base58 of a network prefix followed by the account bytes, so the alphabet and the pad are base58's and the whole string is payload. The first character or two encode the network, which costs some entropy in the leading shard characters; that is a distribution property of the chain's own address format and not something the derivation may quietly correct."
+      },
+      "case": {
+        "significant": true,
+        "keyForm": "preserve",
+        "displayForm": "preserve",
+        "note": "CASE-SIGNIFICANT, because SS58 is base58 of the network prefix and the account bytes and inherits base58's alphabet whole. The blake2b checksum SS58 carries is over the decoded bytes rather than over the case, so it is not an EIP-55-style display form \u2014 but that makes no difference to the rule: the encoded string's case is part of the string, and folding it decodes to different bytes."
       }
     },
     {
@@ -297,6 +405,12 @@
         "pad": "0",
         "pathSafe": true,
         "note": "A rule is carried even though no kind that a decimal identifier can fill is sharded: `block` is the only kind a chain would declare `decimal` for and `blockPath` is content-addressed rather than sharded. The rule is here because the reader REQUIRES one per member — a member with no rule fails the build — and because a member whose rule was omitted on the grounds that nothing reaches it is a member that derives nothing the first time something does. Leading decimal digits shard badly (every block in a range shares them); a chain that needed a well-distributed key for a number would be declaring the wrong thing about it."
+      },
+      "case": {
+        "significant": false,
+        "keyForm": "preserve",
+        "displayForm": "preserve",
+        "note": "NO LETTERS, SO NOTHING TO FOLD, and `preserve` says that rather than `lower` pretending a no-op is a rule. A member whose case rule was `lower` on the grounds that folding digits changes nothing would be a member that quietly acquired a fold the day its alphabet was widened \u2014 and `decimal` exists because Sui's checkpoints are numbers, which is not an alphabet that grows. `significant` is false because two spellings differing only in case cannot exist here at all, which is a different fact from base58's and is why the field is not inferred from `keyForm`."
       }
     }
   ]

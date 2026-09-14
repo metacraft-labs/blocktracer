@@ -50,6 +50,14 @@
 ## `chains[<slug>].identifierEncoding` out of that one response. A default of hex
 ## here would have let every call site keep deciding the encoding for itself.
 ##
+## BOTH SEGMENTS OF A SHARDED PATH ARE THE IDENTIFIER'S KEY FORM — the shard and
+## the object's name — so either spelling of a case-insensitive identifier
+## resolves to the one object the producer wrote. A consumer that folded for the
+## shard and not for the name would ask for a file that is not there. What is
+## deliberately NOT folded is the identifier a published object carries in its
+## body: that is the DISPLAY form, which is what keeps an EIP-55 checksum alive.
+## The rule is per encoding and is `blocktracer_client/paths.nim`'s to explain.
+##
 ## It gets no reader, no store and no session. Computing a path is not fetching
 ## one: the consumer does its own I/O, which in a browser it must, because
 ## `ObjectStore.fetchProc` is synchronous and a tab's fan-out is not.

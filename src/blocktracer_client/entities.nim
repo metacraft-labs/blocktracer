@@ -105,7 +105,29 @@ proc transaction*(store: ObjectStore, session: ChainSession,
   if f.error.len > 0:
     return TransactionResult(outcome: roMalformed, reason: f.error)
 
-  var v = TransactionView(chain: session.chain, hash: txHash)
+  # THE VIEW CARRIES THE TREE'S IDENTIFIER, NOT THE CALLER'S SPELLING.
+  #
+  # `txHash` is whatever the caller arrived with — a route segment, a pasted
+  # query, a link — and the path above is built from its KEY form, so a
+  # case-insensitive encoding resolves whichever spelling was used. Echoing the
+  # argument back would then render the caller's spelling on the page: for hex
+  # that is how an EIP-55 address pasted in a form nobody checksummed would be
+  # displayed as though the tree had published it that way, and how a mixed-case
+  # bech32 string — which BIP-173 makes invalid outright — would be shown as an
+  # address.
+  #
+  # So the view's identifier is the DISPLAY form of what the object itself
+  # states, and the argument is used only when the object states none, in which
+  # case the key form is the only honest answer available. That is the consumer
+  # side of the same rule `src/blocktracer/validator.nim` enforces on producers.
+  let stated = f.node{"id"}{"hash"}.getStr
+  var v = TransactionView(chain: session.chain,
+    hash: if stated.len > 0:
+            identifierDisplayForm(session.identifierEncoding, KindTransaction,
+                                  stated)
+          else:
+            identifierKeyForm(session.identifierEncoding, KindTransaction,
+                              txHash))
   try:
     v.facts = decodeTransactionFacts(f.node)
   except ContractDecodeError as e:

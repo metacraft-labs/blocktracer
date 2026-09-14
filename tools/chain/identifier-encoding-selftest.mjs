@@ -4,31 +4,39 @@
 //
 //   node tools/chain/identifier-encoding-selftest.mjs
 //
-// ── WHY THIS EXISTS, GIVEN THAT NO JAVASCRIPT READS THE DECLARATION YET ────────────────
+// ── WHY THIS EXISTS, GIVEN THAT NO JAVASCRIPT READS THE DECLARATION ───────────────────
 //
 // `tools/chain/identifier-encodings.json` is the closed set of encodings a chain's
 // identifiers may be declared in (Configuration.md §2.1, §2.2; the members come from
-// Search-And-Routing.md §2's shape table) AND, per member, the `shardKey` rule that member
-// implies for a path segment. `src/blocktracer/contract/identifier_encoding.nim` reads it
-// with `staticRead` at compile time, so the Nim half fails the BUILD if the file is
-// missing, malformed, of a format it does not know, or carries a member with no rule.
+// Search-And-Routing.md §2's shape table) AND, per member, the two rules that declaration
+// implies: `shardKey`, where a path segment's payload starts, and `case`, how case is
+// handled. `src/blocktracer/contract/identifier_encoding.nim` reads it with `staticRead` at
+// compile time, so the Nim half fails the BUILD if the file is missing, malformed, of a
+// format it does not know, or carries a member missing either rule.
 //
 // The JavaScript half has no such backstop, and that asymmetry is the whole reason this
-// file is here. The set is data rather than a Nim enum because the capture tooling — which
-// filters published directory entries on a literal `0x` — is JavaScript and is one of the
-// sites that has to agree with the producers. A shared file whose JavaScript side nothing
-// ever opens is a shared file that will drift on the JavaScript side undetected, and the
-// drift would not surface until the consumer arrives. So the JavaScript read happens NOW,
-// as a test.
+// file is here. A shared file whose JavaScript side nothing ever opens is a shared file that
+// will drift on the JavaScript side undetected, and the drift would not surface until a
+// consumer arrives. So the JavaScript read happens NOW, as a test.
 //
-// It is a TEST AND NOT A CONSUMER, still, and the reason has narrowed rather than gone
-// away. Shard derivation now reads `chains[<slug>].identifierEncoding` — but derivation is
-// Nim, compiled to both C and the JS backend from one source, so the JavaScript tooling has
-// not had to grow a reader. The one JavaScript site that will is the capture tooling, and it
-// enumerates the tree the HASH INDEX keys rather than the tree the derivation writes, so it
-// follows the index: a filter widened ahead of the index would enumerate entities the index
-// cannot key. The index is a published self-describing wire format, so it is a migration
-// plus a compatibility window (Publishing-And-Caching.md §6.1, §6.2) and lands on its own.
+// It is a TEST AND NOT A CONSUMER, and that is now a settled state rather than a pending
+// one. Derivation and case handling are Nim, compiled to both C and the JS backend from one
+// source, so the browser needs no JavaScript reader. The capture tooling was the one site
+// that looked like it would need one — it open-coded the hex shard rule at three sites —
+// and it does not: it ENUMERATES the published shard directories instead of recomputing
+// them, which needs no reader of this set at all. What is left is the §5 hash index's
+// hex-pair parser, which is Nim, is a published self-describing wire format, and is a
+// migration plus a compatibility window (Publishing-And-Caching.md §6.1, §6.2).
+//
+// ── AND THE BOUNDARY RULE, WHICH WAS ALSO WRITTEN TWICE ───────────────────────────────
+//
+// The extensions, the pruned directories, the floors and the allowlists this file's
+// boundary arms sweep with were spelled out here AND in `tests/tidentifierencoding.nim`,
+// and nothing compared the copies — they agreed because two independently-maintained lists
+// happened to. They now live in `tools/chain/identifier-encoding-boundary.json`, which both
+// halves read, and this file additionally answers `--emit-population` so the Nim half can
+// require the two SWEPT POPULATIONS to be identical. See that file's header for why a
+// shared rule alone would not have caught the one divergence this pair has had.
 //
 // ── WHAT IT CHECKS THAT THE NIM SUITE CANNOT ──────────────────────────────────────────
 //
@@ -57,7 +65,9 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, '..', '..');
 const SHARED = join(HERE, 'identifier-encodings.json');
+const BOUNDARY = join(HERE, 'identifier-encoding-boundary.json');
 const NIM_READER = join(REPO, 'src', 'blocktracer', 'contract', 'identifier_encoding.nim');
+const BOUNDARY_FORMAT = 'blocktracer/identifier-encoding-boundary@1';
 
 let asserted = 0, failed = 0;
 const ck = (label, cond) => {
@@ -75,6 +85,74 @@ const test = (name) => console.error(`\n${name}`);
 const raw = readFileSync(SHARED, 'utf8');
 const doc = JSON.parse(raw);
 const nimSrc = readFileSync(NIM_READER, 'utf8');
+const bnd = JSON.parse(readFileSync(BOUNDARY, 'utf8'));
+
+// ── THE BOUNDARY SWEEP, HOISTED, BECAUSE THE NIM HALF ASKS FOR ITS ANSWER ─────────────
+//
+// The rule — extensions, pruned directories, floors, allowlists, pins — is
+// `tools/chain/identifier-encoding-boundary.json`, read by both halves, because it used to
+// be spelled out twice and compared to nothing. See that file's header.
+//
+// AND A SHARED RULE IS NOT ENOUGH. The one divergence this pair has actually had was not a
+// disagreement about the rule: both halves already agreed that `dist/` is pruned and
+// disagreed about what `dist/` MEANS, in their own sweep code, in two languages — an
+// unanchored `contains("dist/")` on the Nim side also matched `redist/`, putting the two
+// populations at 102 and 103. Moving the words into a shared file would not have caught it.
+//
+// So `--emit-population` prints THIS half's swept file list, per top-level directory, as
+// JSON on STDOUT — the suite's own output is stderr, so stdout is clean — and
+// `tests/tidentifierencoding.nim` runs it and requires the two lists to be identical as
+// sets. That compares the two IMPLEMENTATIONS rather than the two configurations.
+const gitLines = (args) => {
+  const r = spawnSync('git', ['-C', REPO, ...args], { encoding: 'utf8' });
+  if (r.status !== 0) {
+    throw new Error(`git ${args.join(' ')} failed (${r.status}): ${r.stderr}`);
+  }
+  return r.stdout.split('\n').filter((l) => l.length > 0);
+};
+const inRepo = new Set([...gitLines(['ls-files']),
+                        ...gitLines(['ls-files', '--others', '--exclude-standard'])]);
+const walk = (rel) => {
+  const out = [];
+  for (const e of readdirSync(join(REPO, rel), { withFileTypes: true })) {
+    if (bnd.skipDirectories.includes(e.name)) continue;
+    const child = `${rel}/${e.name}`;
+    if (e.isDirectory()) out.push(...walk(child));
+    else if (e.isFile()) out.push(child);
+  }
+  return out;
+};
+/** Every path under `top` that counts as this repository's source. */
+const sweptSource = (top) => {
+  const out = [];
+  for (const path of walk(top)) {
+    if (!bnd.sourceExtensions.some((x) => path.endsWith(x))) continue;
+    // Generated and vendored trees are not this repository's source. Anchored at BOTH ends
+    // of the segment, or `redist/` matches `dist/` — see the boundary file's header.
+    if (bnd.skipDirectories.some((d) => path.includes(`/${d}/`))) continue;
+    if (!inRepo.has(path)) continue;
+    out.push(path);
+  }
+  out.sort();
+  return out;
+};
+/** Code lines only, in either language's comment syntax. COUNTED OVER CODE AND NOT OVER
+ *  COMMENTS, because a paragraph explaining a defect reads as the defect: this file's own
+ *  pins name `slice(2, 6)` and `stripHex` in prose. */
+const codeOf = (src) => src.split('\n')
+  .filter((l) => {
+    const t = l.trim();
+    return !(t.startsWith('#') || t.startsWith('//') || t.startsWith('*')
+             || t.startsWith('/*'));
+  }).join('\n');
+const occurrences = (hay, needle) => hay.split(needle).length - 1;
+
+if (process.argv.includes('--emit-population')) {
+  const pop = {};
+  for (const { top } of bnd.floors) pop[top] = sweptSource(top);
+  process.stdout.write(JSON.stringify(pop));
+  process.exit(0);
+}
 
 // ── The structural rules, as a pure function so a mutation can be run through them ────
 //
@@ -134,11 +212,47 @@ function problems(d) {
       if (typeof sk[f] !== 'string') out.push('encodings-bad-payload-rule');
     }
   }
+  // ── THE CASE RULE, WHICH IS A DIFFERENT QUESTION FROM WHERE THE PAYLOAD STARTS ───────
+  //
+  // One normalisation applied to every encoding is the silently-wrong outcome this rule
+  // exists to prevent: lowercasing is the right KEY for hex and DESTROYS base58 and
+  // base64url, which are case-significant; bech32 requires a UNIFORM case rather than an
+  // arbitrary one; and an EIP-55 hex address carries its checksum IN ITS CASE, so its
+  // display form and its key form are two different strings. The Nim side fails the BUILD
+  // on each of these; they are restated here because a rule enforced on one side only is a
+  // rule the other side can violate.
+  for (const row of Array.isArray(d?.encodings) ? d.encodings : []) {
+    const cs = row?.case;
+    if (cs === null || typeof cs !== 'object' || Array.isArray(cs)) {
+      out.push('encodings-no-case');
+      continue;
+    }
+    // ABSENT IS NOT FALSE, for `significant`'s own reason: a member that forgot to answer
+    // would be folded as if two spellings were one identifier, which for base58 does not
+    // normalise an identifier — it names a different one.
+    if (typeof cs.significant !== 'boolean') out.push('encodings-no-significance');
+    if (!['lower', 'preserve'].includes(cs.keyForm)) out.push('encodings-bad-keyform');
+    if (!['preserve', 'key'].includes(cs.displayForm)) out.push('encodings-bad-displayform');
+    // THE TWO CROSS-FIELD RULES, which are the point of splitting the fields. Each field is
+    // answerable on its own; the PAIR is what can be wrong.
+    if (cs.significant === true && cs.keyForm !== 'preserve') {
+      // A fold on a case-significant alphabet is not a normalisation.
+      out.push('encodings-folds-a-significant-alphabet');
+    }
+    if (cs.displayForm === 'key' && cs.keyForm === 'preserve') {
+      // "the display form is the key form" beside a key form that preserves says nothing.
+      out.push('encodings-vacuous-displayform');
+    }
+  }
   return out;
 }
 const clone = () => JSON.parse(raw);
 /** A well-formed shardKey, so a mutation that adds a ROW tests one rule and not two. */
 const validRule = () => ({ stripPrefix: '', payloadAfterLast: '', pad: 'x', pathSafe: true });
+/** …and a well-formed `case`, for the same reason: a row added to test the SHAPE of the set
+ *  must not also be missing a case rule, or the mutation would report two problems and the
+ *  `only()` comparison below could not say which rule refused. */
+const validCase = () => ({ significant: false, keyForm: 'preserve', displayForm: 'preserve' });
 
 test('the shared file satisfies the rules both halves hold it to');
 {
@@ -155,8 +269,14 @@ test('the shared file satisfies the rules both halves hold it to');
   const header = JSON.stringify(doc._comment);
   ck('…and states that shard derivation reads the declaration',
      /SHARD DERIVATION READS/.test(header));
-  ck('…and names the two sites that still derive from the string',
+  ck('…and names the site that still derives from the string AND the one that stopped',
      header.includes('hashshard.nim') && header.includes('entities.mjs'));
+  // THE CASE RULE HAS TO BE IN THE HEADER TOO, and with the EIP-55 reason: a header that
+  // described the shard rule and left the case rule to be inferred from eight `case`
+  // objects would be the state this step replaced, one file over.
+  ck('…and states the case rule, with the display form it exists for',
+     /`case`/.test(header) && /EIP-55/.test(header)
+     && /keyForm/.test(header) && /displayForm/.test(header));
   ck('…and states the shard-rule contract the four `shardKey` fields implement',
      /stripPrefix/.test(header) && /payloadAfterLast/.test(header)
      && /pathSafe/.test(header));
@@ -216,6 +336,30 @@ test('the Nim half and the JavaScript half agree about the file they read');
   // member exists to remove; the refusal is what makes that checkable by reading.
   ck('…and refuses a shard key for an encoding whose alphabet is not path-safe',
      /if not rule\.pathSafe:/.test(shardsCode));
+
+  // ── AND THE CASE RULE IS READ FROM THIS FILE TOO, RATHER THAN FOLDED IN NIM ──────────
+  //
+  // The defect this step removed was ONE unconditional `toLowerAscii`, applied to every
+  // identifier of every encoding. A reader that admitted the three `case` fields and then
+  // folded anyway would leave them decoration while the behaviour stayed global, so the
+  // field names have to appear in the reader AND the fold has to be absent from the two
+  // modules that key identifiers.
+  for (const f of ['significant', 'keyForm', 'displayForm']) {
+    ck(`the Nim reader reads \`case.${f}\``, new RegExp(`cs\\{"${f}"\\}`).test(nimSrc));
+  }
+  // The two cross-field rules, which are what stop a member declaring that case carries
+  // identity and then folding it away.
+  ck('…and refuses a member that folds a case-significant alphabet',
+     /cs\{"significant"\}\.getBool and keyForm != "preserve"/.test(nimSrc));
+  ck('…and refuses a displayForm of `key` beside a keyForm that preserves',
+     /displayForm == "key" and keyForm == "preserve"/.test(nimSrc));
+  // THE DERIVATION FOLDS THROUGH THE RULE AND NOWHERE ELSE. `shards.nim` has no
+  // `toLowerAscii` of its own: a fold written there would be right for hex and would
+  // destroy four of the eight members.
+  ck('shards.nim folds per encoding, through the shared rule',
+     /identifierPayload\(encoding, identifier\)/.test(shardsCode));
+  ck('…and holds no fold of its own',
+     !/toLowerAscii/.test(shardsCode) && !/toUpperAscii/.test(shardsCode));
 }
 
 test('the members are the shape table\'s rows, each naming the row it came from');
@@ -278,25 +422,58 @@ function shardsSrcForKinds() {
   return readFileSync(join(REPO, 'src', 'blocktracer', 'contract', 'shards.nim'), 'utf8');
 }
 
-test('exactly the expected consumers name the declaration');
+test('the boundary rule is one file, and both halves are held to it');
 {
-  // ── WHAT THIS ARM USED TO SAY, AND WHY IT SAYS SOMETHING ELSE ──────────────────────
+  // ── WHY THE RULE IS DATA AND NOT SPELLED HERE ───────────────────────────────────────
   //
-  // It asserted that NOTHING read `chains[<slug>].identifierEncoding`, which was true
-  // while only the declaration had landed. Shard derivation now reads it, so that form
-  // went red — which is what it was for — and it has been REPLACED rather than deleted,
-  // and replaced with an EQUALITY rather than a widened allowlist:
-  //
-  //   * every file that names the member is enumerated, with the reason it does
-  //   * the enumeration is compared for EQUALITY against a sweep, so an unexpected
-  //     consumer fails AND so does an expected one that stopped being one
-  //   * the per-directory population floors stay, so an emptied scan is not a green
-  //   * the size of each expected set is asserted, so it cannot drift upward one entry
-  //     at a time with the equality quietly edited to match
-  //
-  // An allowlist that grew whenever something new turned up in it would be a list nobody
-  // checks. This one cannot grow without a number beside it moving.
-  //
+  // It used to be spelled here AND in `tests/tidentifierencoding.nim`: the extensions, the
+  // pruned directories, the allowlists and both floors, twice, compared to nothing. The two
+  // halves agreed only because two independently-maintained copies happened to match — and
+  // one divergence (`redist/`) had already been found and fixed by hand. So the rule moved
+  // to `tools/chain/identifier-encoding-boundary.json` and both halves read it, for the
+  // reason the encoding set itself is data.
+  ck(`the boundary rule declares the format token this half knows — ${bnd.format}`,
+     bnd.format === BOUNDARY_FORMAT);
+  ck('…and the Nim half reads the SAME file, by path',
+     readFileSync(join(REPO, 'tests/tidentifierencoding.nim'), 'utf8')
+       .includes('identifier-encoding-boundary.json'));
+  // The rule has to SAY something: an empty extension list sweeps nothing and an empty
+  // sweep list asserts nothing, and both would be green.
+  ck(`the rule names the source extensions — [${bnd.sourceExtensions.join(', ')}]`,
+     Array.isArray(bnd.sourceExtensions) && bnd.sourceExtensions.length > 0);
+  ck(`…the directories that are not this repository's source — `
+     + `[${bnd.skipDirectories.join(', ')}]`,
+     Array.isArray(bnd.skipDirectories) && bnd.skipDirectories.length > 0);
+  ck(`…a population floor per top-level directory — `
+     + `[${bnd.floors.map((f) => `${f.top}>=${f.floor}`).join(', ')}]`,
+     Array.isArray(bnd.floors) && bnd.floors.length === 3
+     && bnd.floors.every((f) => typeof f.top === 'string' && Number.isInteger(f.floor)
+                                && f.floor > 0));
+  // TWO SWEEPS, AND THEY ARE TWO FACTS. A file may key an identifier without reading a
+  // registry row (the §5 hash index does, under a named global encoding) and may read the
+  // row without keying anything (the session pins it). One merged allowlist would let a new
+  // consumer of either seam be excused by the other's list.
+  ck(`…and two sweeps, the declaration and the case rule — `
+     + `[${bnd.sweeps.map((w) => w.id).join(', ')}]`,
+     bnd.sweeps.length === 2 && bnd.sweeps[0].id === 'declaration'
+     && bnd.sweeps[1].id === 'caseRule');
+  // EVERY expected entry carries the REASON it is one. An allowlist whose entries say
+  // nothing is a list nobody reviews.
+  const unexplained = [];
+  for (const w of bnd.sweeps) {
+    for (const top of Object.keys(w.expected)) {
+      for (const row of w.expected[top]) {
+        if (typeof row.path !== 'string' || typeof row.why !== 'string'
+            || row.why.length === 0) unexplained.push(`${w.id}:${row.path}`);
+      }
+    }
+  }
+  ck(`every expected consumer says why it is one — ${unexplained.length} unexplained`,
+     unexplained.length === 0);
+}
+
+test('exactly the expected files know about each half of the seam');
+{
   // ── WHY THE SWEEP, AND NOT ONLY THE NAMES ──────────────────────────────────────────
   //
   // Because naming was MEASURED leaking. Consumers planted one file over from two named
@@ -304,147 +481,97 @@ test('exactly the expected consumers name the declaration');
   // `tools/capture/lib/provenance.mjs` beside `entities.mjs`) once left every arm here
   // green while this suite printed a universal claim.
   //
-  // AND WHY THIS SUITE HAS ITS OWN, when `tests/tidentifierencoding.nim` sweeps the same
+  // AND WHY THIS SUITE HAS ONE when `tests/tidentifierencoding.nim` sweeps the same
   // population: the two are in different recipes. The Nim suite is in `just test`, which
   // takes ~37 minutes; this one is in `just chain-selftest`, the fast gate people actually
-  // run. The rule, the extensions and the floors are deliberately identical, so a
-  // disagreement between the two halves is a real disagreement and not a definition.
-  const MEMBER = 'identifierEncoding';
-  const CLIENT_EXPECTED = [
-    // The browser's search bootstrap, which reads the member out of the registry response
-    // it already fetches — Search-And-Routing.md §5's "two requests to resolve any hash on
-    // any chain" is only true if the client recomputes the producer's own path.
-    'client/searchboot/searchboot.nim',
-    // The explorer's reader and the two view models that build a sharded path.
-    'client/src/reader.nim',
-    'client/src/viewmodel/address_vm.nim',
-    'client/src/viewmodel/chain_vm.nim',
-  ];
-  const TOOLS_EXPECTED = [
-    // This suite, and still nothing else: the capture tooling follows the hash index.
-    'tools/chain/identifier-encoding-selftest.mjs',
-  ];
-  // Named as well as swept, so a file that STOPS EXISTING fails loudly instead of
-  // silently leaving the expected set.
-  for (const rel of [...CLIENT_EXPECTED, ...TOOLS_EXPECTED]) {
-    ck(`${rel} exists`, existsSync(join(REPO, rel)));
-  }
-  // …and the surfaces that must still NOT name it, named rather than swept for the same
-  // reason. `chain_registry_vm.nim` sits beside two files that do read it and does not,
-  // which is the interesting case: it renders the registry's chain list and has no path to
-  // derive.
-  for (const rel of ['tools/capture/lib/entities.mjs',
-                     'tools/chain/lib/refusal.mjs',
-                     'tools/chain/lib/snapshot-format.mjs',
-                     'client/src/viewmodel/chain_registry_vm.nim']) {
-    const src = readFileSync(join(REPO, rel), 'utf8');
-    ck(`${rel} does not name the declaration`, !src.includes(MEMBER));
-  }
-  const SOURCE_EXT = ['.nim', '.mjs', '.js', '.ts', '.sh'];
-  // Generated and vendored trees are not this repository's source. Pruned by
-  // directory rather than filtered by path so a `tools/capture/node_modules`
-  // that somebody has installed costs nothing here; the SET OF COUNTED FILES is
-  // the same either way, which is what the floors and the violation list read.
-  const SKIP_DIR = ['node_modules', 'dist', 'nimcache'];
-  // AND NEITHER IS A `nim js` OUTPUT SITTING NEXT TO ITS OWN SOURCE. `nim js`
-  // writes `foo.js` beside `foo.nim` unless told otherwise, and `.js` is on the
-  // list above — so a JS-backend test recipe perturbs both the population count
-  // and the equality below with a file that is a build artifact. This was
-  // MEASURED rather than anticipated: `client/tests/test_searchboot.js` reddened
-  // the client equality on the first run of the recipe that produces it.
-  //
-  // THAT WAS FIRST FIXED WITH A SAME-STEM RULE — a `.js` beside a `.nim` of the
-  // same name is the compiler's output — AND THE SAME-STEM RULE IS GONE. It is
-  // described here only so the next reader does not reinvent it, and the way it
-  // failed is the reason the population is now git's answer rather than a
-  // heuristic. It was measured against the one case it hit
-  // (`test_searchboot.js` beside `test_searchboot.nim`) and a bundle whose
-  // output is not named after its source walks straight past it:
-  // `client/Justfile`'s `search-bundle` compiles `searchboot/searchboot.nim` to
-  // `searchboot/search.js`, different stem, so `search.js` was swept as source and
-  // reddened the client equality for anyone who had ever built the bundle. It is
-  // gitignored (`.gitignore:73`), so a clean checkout and CI never saw it: a gate
-  // green where it is checked and red where it is used, which is the shape that
-  // teaches people to ignore an arm.
-  //
-  // Git already knows what is generated, because `.gitignore` is where that fact
-  // is written down and kept current by whoever adds the recipe. Tracked files
-  // PLUS untracked-and-not-ignored is the population — the second half matters, or
-  // a consumer written and not yet committed would not be caught, which is exactly
-  // when catching it is most useful. This is the shape `ci/test/client-sdk-boundary.sh`
-  // already uses for the same reason.
-  const gitLines = (args) => {
-    const r = spawnSync('git', ['-C', REPO, ...args], { encoding: 'utf8' });
-    if (r.status !== 0) {
-      throw new Error(`git ${args.join(' ')} failed (${r.status}): ${r.stderr}`);
+  // run. The rule is now ONE FILE both read, so a disagreement between the halves is a real
+  // disagreement and not a definition — and the Nim half additionally compares the two
+  // swept populations, which is the check a shared rule cannot make.
+  const counts = {};
+  for (const { top, floor } of bnd.floors) {
+    const swept = sweptSource(top);
+    counts[top] = swept.length;
+    ck(`${top}/: swept ${swept.length} source file(s), floor ${floor} — an emptied sweep is `
+       + `not a green`, swept.length >= floor);
+    for (const w of bnd.sweeps) {
+      const want = (w.expected[top] ?? []).map((r) => r.path).sort();
+      const naming = swept.filter((path) => {
+        const src = readFileSync(join(REPO, path), 'utf8');
+        return w.tokens.some((t) => src.includes(t));
+      });
+      // AN EQUALITY, NOT A SUBSET. An unexpected consumer fails it in one direction and an
+      // expected consumer that stopped being one fails it in the other, and the message
+      // prints both sides so the reader does not have to guess which happened.
+      ck(`${top}/ ${w.id}: the files naming [${w.tokens.join(', ')}] are exactly the `
+         + `expected ones — swept [${naming.join(', ')}] vs expected [${want.join(', ')}]`,
+         naming.length === want.length && naming.every((x, i) => x === want[i]));
     }
-    return r.stdout.split('\n').filter((l) => l.length > 0);
-  };
-  const inRepo = new Set([...gitLines(['ls-files']),
-                          ...gitLines(['ls-files', '--others', '--exclude-standard'])]);
-  const walk = (rel) => {
-    const out = [];
-    for (const e of readdirSync(join(REPO, rel), { withFileTypes: true })) {
-      if (SKIP_DIR.includes(e.name)) continue;
-      const child = `${rel}/${e.name}`;
-      if (e.isDirectory()) out.push(...walk(child));
-      else if (e.isFile()) out.push(child);
-    }
-    return out;
-  };
-  for (const [top, expected, floor] of [['client', CLIENT_EXPECTED, 80],
-                                        ['tools', TOOLS_EXPECTED, 100]]) {
-    let scanned = 0;
-    const naming = [];
-    for (const path of walk(top)) {
-      if (!SOURCE_EXT.some((x) => path.endsWith(x))) continue;
-      // Generated and vendored trees are not this repository's source.
-      if (path.includes('/node_modules/') || path.includes('/dist/')
-          || path.includes('/nimcache/')) continue;
-      if (!inRepo.has(path)) continue;
-      scanned++;
-      if (readFileSync(join(REPO, path), 'utf8').includes(MEMBER)) naming.push(path);
-    }
-    ck(`${top}/: swept ${scanned} source file(s), floor ${floor} — an emptied sweep is `
-       + `not a green`, scanned >= floor);
-    naming.sort();
-    const want = [...expected].sort();
-    // AN EQUALITY, NOT A SUBSET. An unexpected consumer fails it in one direction and an
-    // expected consumer that stopped being one fails it in the other, and the message
-    // prints both sides so the reader does not have to guess which happened.
-    ck(`${top}/: the files naming the member are exactly the expected ones — swept `
-       + `[${naming.join(', ')}] vs expected [${want.join(', ')}]`,
-       naming.length === want.length && naming.every((p, i) => p === want[i]));
   }
-  // THE SIZES, so the expected sets cannot drift upward one entry at a time with the
-  // equalities quietly edited to match. A number is a thing a reviewer sees move.
-  ck('four files under client/ are expected to name it', CLIENT_EXPECTED.length === 4);
-  ck('one file under tools/ is expected to, and it is this suite',
-     TOOLS_EXPECTED.length === 1
-     && TOOLS_EXPECTED[0] === 'tools/chain/identifier-encoding-selftest.mjs');
+  // Named as well as swept, so a file that STOPS EXISTING fails loudly instead of silently
+  // leaving the expected set.
+  const missing = [];
+  for (const w of bnd.sweeps) {
+    for (const top of Object.keys(w.expected)) {
+      for (const row of w.expected[top]) {
+        if (!existsSync(join(REPO, row.path))) missing.push(row.path);
+      }
+    }
+  }
+  ck(`every expected consumer exists — ${missing.length} missing`, missing.length === 0);
+  // The SIZES of the two expected sets, spelled out rather than derived, for the reason
+  // above: these are the numbers a diff shows moving.
+  const sizeOf = (id) => bnd.sweeps.find((w) => w.id === id).expected;
+  ck('nine files under src/ read the declaration', sizeOf('declaration').src.length === 9);
+  ck('four under client/, and one under tools/ — this suite',
+     sizeOf('declaration').client.length === 4
+     && sizeOf('declaration').tools.length === 1);
+  ck('six files under src/ read the case rule', sizeOf('caseRule').src.length === 6);
+  ck('one under client/ — the query canonicaliser — and one under tools/',
+     sizeOf('caseRule').client.length === 1 && sizeOf('caseRule').tools.length === 1);
+}
 
-  // ── AND THE HALF OF THE SEAM THAT IS STILL OPEN ──────────────────────────────────────
+test('the string-deriving sites are pinned, including the one that had no pin');
+{
+  // ── THE HALF OF THE SEAM THAT IS STILL OPEN, AND THE HALF THAT WAS INVISIBLE ────────
   //
   // A boundary check that only watched the closed half would report the seam shut. These
-  // two arms assert the string-deriving sites are UNCHANGED, and they are expected to go red
-  // in their turn — at which point whoever widened one reads this comment.
+  // pins assert what is still hex-shaped AND what must no longer be there, and they are
+  // expected to go red in their turn — at which point whoever moved one reads the reason
+  // recorded beside it in the boundary file.
   //
-  // The capture tooling's two literal `0x` filters over published directory entries. It is
-  // derivation-ADJACENT, which is why landing it here was a real option; it is deferred
-  // because what it enumerates is the tree the HASH INDEX keys, not the tree the derivation
-  // writes. A filter widened ahead of the index would enumerate a non-hex chain's entities
-  // and then fail to key them, which is a worse state than not seeing them.
-  const entities = readFileSync(join(REPO, 'tools/capture/lib/entities.mjs'), 'utf8');
-  const zeroX = (entities.match(/startsWith\("0x"\)/g) || []).length;
-  ck(`the capture tooling still filters on a literal \`0x\` at ${zeroX} site(s), `
-     + 'unchanged by this step, because it follows the hash index', zeroX === 2);
-  // The hash index itself: hex pairs parsed, case folded unconditionally. Published wire
-  // format, so a migration plus a compatibility window.
-  const hashshard = readFileSync(
-    join(REPO, 'src/blocktracer/contract/hashshard.nim'), 'utf8');
-  ck('the hash index still parses hex pairs and folds case unconditionally',
-     !hashshard.includes(MEMBER) && /parseHexInt/.test(hashshard)
-     && /toLowerAscii/.test(hashshard));
+  // THE `absent` HALF IS THE RESIDUAL THIS STEP CLOSED. Before it, both halves counted only
+  // `startsWith("0x")` in the capture tooling — so the three `slice(2, 6)` derivations in
+  // the same file, and a fourth added beside them, were invisible to both.
+  for (const pin of bnd.pins) {
+    const src = readFileSync(join(REPO, pin.file), 'utf8');
+    const code = codeOf(src);
+    for (const { needle, count } of pin.present) {
+      const n = occurrences(code, needle);
+      ck(`${pin.file}: \`${needle}\` appears ${n} time(s) in CODE, pinned at ${count}`,
+         n === count);
+    }
+    for (const { needle } of pin.absent) {
+      const n = occurrences(code, needle);
+      ck(`${pin.file}: \`${needle}\` is gone from CODE — ${n} occurrence(s)`, n === 0);
+    }
+  }
+  // AND THE PINS THEMSELVES SAY WHY, for the reason the allowlist entries do.
+  const unexplained = [];
+  for (const pin of bnd.pins) {
+    for (const row of [...pin.present, ...pin.absent]) {
+      if (typeof row.why !== 'string' || row.why.length === 0) {
+        unexplained.push(`${pin.file}:${row.needle}`);
+      }
+    }
+  }
+  ck(`every pin says why it is one — ${unexplained.length} unexplained`,
+     unexplained.length === 0);
+  // ANTI-VACUITY: a `pins` array that parsed to nothing would make both loops above run
+  // zero times and report success having measured nothing.
+  ck(`two files are pinned and both have present AND absent needles — `
+     + `[${bnd.pins.map((p) => p.file).join(', ')}]`,
+     bnd.pins.length === 2
+     && bnd.pins.every((p) => p.present.length > 0 && p.absent.length > 0));
 }
 
 test('MUTATIONS: each structural rule refuses on its own');
@@ -464,14 +591,14 @@ test('MUTATIONS: each structural rule refuses on its own');
   d = clone(); d.kinds = [];
   bite('an empty kind set is refused', only(d, 'kinds-empty'));
 
-  d = clone(); d.encodings.push({ id: 'hex', shapeRows: 'a second hex', shardKey: validRule() });
+  d = clone(); d.encodings.push({ id: 'hex', shapeRows: 'a second hex', shardKey: validRule(), case: validCase() });
   bite('a duplicated encoding member is refused — a set that states two things about one '
        + 'member cannot answer a membership question', only(d, 'encodings-duplicate'));
 
   d = clone(); d.kinds.push({ id: 'address', pathSites: 'a second address' });
   bite('a duplicated kind is refused', only(d, 'kinds-duplicate'));
 
-  d = clone(); d.encodings.push({ id: 'Base32', shapeRows: 'invented', shardKey: validRule() });
+  d = clone(); d.encodings.push({ id: 'Base32', shapeRows: 'invented', shardKey: validRule(), case: validCase() });
   bite('a member that is not a bare lowercase token is refused, because it is published '
        + 'verbatim as a registry value', only(d, 'encodings-not-a-token'));
 
@@ -479,7 +606,7 @@ test('MUTATIONS: each structural rule refuses on its own');
   bite('a kind with whitespace is refused, because it is a published object KEY',
        only(d, 'kinds-not-a-token'));
 
-  d = clone(); d.encodings.push({ id: 'base32', shardKey: validRule() });
+  d = clone(); d.encodings.push({ id: 'base32', shardKey: validRule(), case: validCase() });
   bite('a member naming no row of the shape table is refused — that is what makes the set '
        + 'reviewable against the spec rather than merely finite',
        only(d, 'encodings-no-provenance'));
@@ -487,7 +614,7 @@ test('MUTATIONS: each structural rule refuses on its own');
   d = clone(); d.kinds.push({ id: 'checkpoint' });
   bite('a kind naming no path site is refused', only(d, 'kinds-no-provenance'));
 
-  d = clone(); d.encodings.push({ id: '', shapeRows: 'nameless', shardKey: validRule() });
+  d = clone(); d.encodings.push({ id: '', shapeRows: 'nameless', shardKey: validRule(), case: validCase() });
   bite('a member with no id is refused', only(d, 'encodings-no-id'));
 
   // ── AND THE SHARD RULE'S OWN ARMS ───────────────────────────────────────────────────
@@ -520,6 +647,38 @@ test('MUTATIONS: each structural rule refuses on its own');
        + 'field says the separator is empty, and a silent default cannot be reviewed',
        only(d, 'encodings-bad-payload-rule'));
 
+  // ── AND THE CASE RULE'S OWN ARMS ────────────────────────────────────────────────────
+  //
+  // Six, because the rule has three fields and two CROSS-FIELD constraints, and the
+  // cross-field ones are where the defect this step removed would reappear: a member
+  // declaring that its case carries identity and then folding it away.
+  d = clone(); delete d.encodings[0].case;
+  bite('a member with no case rule is refused — lowercasing is the right key for hex and '
+       + 'destroys base58, and a member that does not say which it is cannot be keyed',
+       only(d, 'encodings-no-case'));
+
+  d = clone(); delete d.encodings[0].case.significant;
+  bite('a member that does not say whether its case is SIGNIFICANT is refused — absent is '
+       + 'not false, and false is a fold', only(d, 'encodings-no-significance'));
+
+  d = clone(); d.encodings[0].case.keyForm = 'upper';
+  bite('a keyForm outside {lower, preserve} is refused: it is a normalisation nothing in '
+       + 'this tree implements', only(d, 'encodings-bad-keyform'));
+
+  d = clone(); d.encodings[0].case.displayForm = 'raw';
+  bite('a displayForm outside {preserve, key} is refused',
+       only(d, 'encodings-bad-displayform'));
+
+  d = clone(); d.encodings[1].case.keyForm = 'lower';
+  bite('a CASE-SIGNIFICANT member that folds is refused — base58 lowercased is not a '
+       + 'normalised address, it is a different address that does not exist',
+       only(d, 'encodings-folds-a-significant-alphabet'));
+
+  d = clone(); d.encodings[1].case.displayForm = 'key';
+  bite('`displayForm: key` beside a keyForm that preserves is refused as a statement that '
+       + 'says nothing — a rule that reads as a decision while making none is worse than '
+       + 'an absent one', only(d, 'encodings-vacuous-displayform'));
+
   // AND THE CONTROL FOR THE MUTATION MACHINERY ITSELF: a deep copy that is NOT mutated
   // must still be clean. Without this, a `clone()` that silently returned a broken
   // document would make all ten arms above pass for the wrong reason.
@@ -528,12 +687,13 @@ test('MUTATIONS: each structural rule refuses on its own');
 }
 
 console.error('');
-if (asserted !== 74) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 74 — a case was added, removed or skipped.`);
+if (asserted !== 102) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 102 — a case was added, removed or skipped.`);
   failed++;
 } else {
   console.error(`assertion count: ${asserted} (as declared)`);
 }
 if (failed) { console.error(`FAIL — ${failed} problem(s)`); process.exit(1); }
-console.error('PASS — both halves read one closed set; shard derivation reads the '
-                + 'declaration and exactly the expected consumers name it');
+console.error('PASS — both halves read one closed set and one boundary rule; shard '
+                + 'derivation and case handling read the declaration, exactly the expected '
+                + 'consumers name each half, and the string-deriving sites are pinned');

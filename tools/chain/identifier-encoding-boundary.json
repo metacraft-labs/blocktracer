@@ -1,0 +1,186 @@
+{
+  "_comment": [
+    "THE BOUNDARY RULE, AS DATA, BECAUSE IT WAS WRITTEN TWICE AND NOTHING COMPARED THE COPIES.",
+    "",
+    "Two suites assert who may know about the identifier-encoding seam, deliberately, because",
+    "they run in different recipes: `tests/tidentifierencoding.nim` is in `just test`, which",
+    "takes about 37 minutes, and `tools/chain/identifier-encoding-selftest.mjs` is in",
+    "`just chain-selftest`, the fast gate people actually run. A boundary that only the slow",
+    "gate knew about would be a boundary nobody saw move.",
+    "",
+    "── WHY THE RULE IS HERE AND NOT IN EITHER OF THEM ────────────────────────────────────",
+    "",
+    "Because it was in BOTH of them. The source extensions, the pruned directory names, the",
+    "per-directory population floors and the allowlists were spelled out twice and compared to",
+    "nothing, and the two halves agreed only because two independently-maintained copies",
+    "happened to match. That is not a property, it is a coincidence with a maintenance cost,",
+    "and it had already broken once: the Nim half pruned `dist/` with an unanchored",
+    "`contains(\"dist/\")` while the JavaScript half pruned by exact directory NAME, so a single",
+    "`client/src/redist/x.mjs` put the two populations at 102 and 103. That was found by hand",
+    "and fixed by hand, which is exactly the failure mode a single source removes.",
+    "",
+    "So the rule is one file that both halves read, for the reason `identifier-encodings.json`,",
+    "`refusal-reasons.json` and `snapshot-format.json` beside it are data: a rule that has to",
+    "hold in two languages cannot live in one of them.",
+    "",
+    "── AND THE RULE BEING SHARED IS NOT ENOUGH, WHICH IS THE SECOND HALF ─────────────────",
+    "",
+    "The `redist/` divergence was NOT a disagreement about the rule. Both halves already agreed",
+    "that `dist/` is pruned; they disagreed about what `dist/` MEANS, in their own sweep code,",
+    "in two languages. Moving the words here would not have caught it.",
+    "",
+    "So the Nim half additionally runs the JavaScript half with `--emit-population` and requires",
+    "the two swept file LISTS to be identical, per top-level directory, as sets. That is a check",
+    "on the two IMPLEMENTATIONS rather than on the two configurations, and it is the one that",
+    "bites on a prune, a glob or a git-population rule that two languages read differently.",
+    "",
+    "── THE SWEEPS ────────────────────────────────────────────────────────────────────────",
+    "",
+    "Each sweep names the TOKENS whose appearance in a source file makes that file a consumer",
+    "of one half of the seam, and enumerates exactly which files may name them. The comparison",
+    "is an EQUALITY against a sweep of the whole tree, not a subset check: an unexpected",
+    "consumer fails it in one direction and an expected consumer that stopped being one fails",
+    "it in the other. The `count` beside each expected list is asserted too, so the list cannot",
+    "drift upward one entry at a time with the equality quietly edited to match — a number is a",
+    "thing a reviewer sees move.",
+    "",
+    "  declaration  who reads `chains[<slug>].identifierEncoding`, the registry member that",
+    "               says how a chain writes its identifiers. NAMING ALONE WAS MEASURED",
+    "               LEAKING, which is why the equality is against a sweep: consumers planted",
+    "               one file over from two named files (`client/src/viewmodel/chain_vm.nim`",
+    "               beside `chain_registry_vm.nim`, `tools/capture/lib/provenance.mjs` beside",
+    "               `entities.mjs`) once left every arm green while a universal claim printed.",
+    "  caseRule     who reads the PER-ENCODING CASE RULE — `identifierKeyForm`,",
+    "               `identifierDisplayForm`, `identifierPayload`. These are a separate sweep",
+    "               rather than more tokens on the first one because they are a separate",
+    "               fact: a file may key an identifier without ever reading a registry row",
+    "               (the §5 hash index does, under a named global encoding), and a file may",
+    "               read the row without keying anything (the session pins it). Folding them",
+    "               together would let one seam's new consumer be excused by the other's",
+    "               allowlist.",
+    "",
+    "── THE FLOORS ────────────────────────────────────────────────────────────────────────",
+    "",
+    "A sweep that found nothing would satisfy every equality above perfectly, because an empty",
+    "set equals an empty set. So each top-level directory carries a FLOOR on the number of",
+    "source files swept, per directory, so an emptied sweep of one cannot hide behind another.",
+    "",
+    "The floors are the contract; the COUNT is an observation each run prints. Both halves take",
+    "their population from git — tracked plus untracked-and-not-ignored — so it moves with the",
+    "working tree, and a number pinned here would go stale for anyone holding a scratch file.",
+    "(The Justfile header once pinned one and was stale within a day.)",
+    "",
+    "── WHY GIT DECIDES WHAT IS SOURCE ────────────────────────────────────────────────────",
+    "",
+    "`.gitignore` is where 'this is generated' is already written down, and it is kept current",
+    "by whoever adds the recipe. A same-stem heuristic — a `.js` beside a `.nim` of the same",
+    "name is `nim js` output — was tried, was measured against the one case it hit",
+    "(`client/tests/test_searchboot.js`), and walked straight past `client/Justfile`'s",
+    "`search-bundle`, which compiles `searchboot/searchboot.nim` to `searchboot/search.js`:",
+    "different stem, so `search.js` was swept as source and reddened the client equality for",
+    "anyone who had ever built the bundle, while a clean checkout and CI never saw it. A gate",
+    "green where it is checked and red where it is used is worse than one that is merely wrong.",
+    "",
+    "Tracked PLUS untracked-and-not-ignored is the population: the second half is what catches",
+    "a consumer that has been written and not yet committed, which is when catching it is most",
+    "useful. `ci/test/client-sdk-boundary.sh` derives its population the same way.",
+    "",
+    "── THE STRING-DERIVING SITES ─────────────────────────────────────────────────────────",
+    "",
+    "A boundary check that only watched the CLOSED half of the seam would report the seam shut.",
+    "`pins` states what is still hex-shaped and what must no longer be there, as counts over",
+    "CODE rather than over comments — counted over comments, a paragraph explaining a defect",
+    "reads as the defect. Each pin is expected to go red in its turn, at which point whoever",
+    "moved it reads the reason recorded beside it."
+  ],
+  "format": "blocktracer/identifier-encoding-boundary@1",
+  "sourceExtensions": [".nim", ".mjs", ".js", ".ts", ".sh"],
+  "skipDirectories": ["node_modules", "dist", "nimcache"],
+  "floors": [
+    { "top": "src", "floor": 25 },
+    { "top": "client", "floor": 80 },
+    { "top": "tools", "floor": 100 }
+  ],
+  "sweeps": [
+    {
+      "id": "declaration",
+      "tokens": ["identifierEncoding"],
+      "why": "who reads the registry member that says how a chain writes its identifiers",
+      "expected": {
+        "src": [
+          { "path": "src/blocktracer/chain/ingest.nim", "why": "registry PRODUCER — writes the member" },
+          { "path": "src/blocktracer/demo/generator.nim", "why": "registry PRODUCER — writes the member" },
+          { "path": "src/blocktracer/contract/identifier_encoding.nim", "why": "builds, validates and reads it, over the closed set" },
+          { "path": "src/blocktracer/contract/shards.nim", "why": "the ONE derivation, which takes the token as a parameter" },
+          { "path": "src/blocktracer_client/paths.nim", "why": "the path builders, which name the kind each segment comes from" },
+          { "path": "src/blocktracer_client_paths.nim", "why": "the SDK facade's own documentation of that signature" },
+          { "path": "src/blocktracer_client/session.nim", "why": "pins the chain's declaration like the generation" },
+          { "path": "src/blocktracer_client/entities.nim", "why": "hands the session's declaration to the paths" },
+          { "path": "src/blocktracer/validator.nim", "why": "reads the declaration out of the tree it is validating" }
+        ],
+        "client": [
+          { "path": "client/searchboot/searchboot.nim", "why": "the browser's search bootstrap, which recomputes the producer's path in a tab" },
+          { "path": "client/src/reader.nim", "why": "the explorer's reader" },
+          { "path": "client/src/viewmodel/address_vm.nim", "why": "builds a sharded path" },
+          { "path": "client/src/viewmodel/chain_vm.nim", "why": "builds a sharded path" }
+        ],
+        "tools": [
+          { "path": "tools/chain/identifier-encoding-selftest.mjs", "why": "the JavaScript half's selftest, and still nothing else: the capture tooling enumerates what was published rather than deriving it" }
+        ]
+      }
+    },
+    {
+      "id": "caseRule",
+      "tokens": ["identifierKeyForm", "identifierDisplayForm", "identifierPayload"],
+      "why": "who reads the per-encoding CASE rule — the step that replaced one global toLowerAscii",
+      "expected": {
+        "src": [
+          { "path": "src/blocktracer/contract/identifier_encoding.nim", "why": "reads the `case` rule out of the shared file and answers over it" },
+          { "path": "src/blocktracer/contract/shards.nim", "why": "folds per encoding before it slices, so a shard key is recomputable from either spelling" },
+          { "path": "src/blocktracer/contract/hashshard.nim", "why": "the §5 index's shard key and its hex-pair parser, under the named global `HashIndexEncoding`" },
+          { "path": "src/blocktracer_client/paths.nim", "why": "the object-name segment of every sharded path is the identifier's key form" },
+          { "path": "src/blocktracer_client/entities.nim", "why": "the SDK read answers with the DISPLAY form the tree states rather than echoing the caller's spelling back" },
+          { "path": "src/blocktracer/validator.nim", "why": "checks that a published tree states the key form in its paths and the display form in its bodies" }
+        ],
+        "client": [
+          { "path": "client/src/viewmodel/search_shapes.nim", "why": "canonicalises a hex query to the form the published index and object names are keyed by" }
+        ],
+        "tools": [
+          { "path": "tools/chain/identifier-encoding-selftest.mjs", "why": "the JavaScript half's selftest" }
+        ]
+      }
+    }
+  ],
+  "pins": [
+    {
+      "file": "src/blocktracer/contract/hashshard.nim",
+      "present": [
+        { "needle": "parseHexInt", "count": 1,
+          "why": "THE INDEX STILL PARSES HEX PAIRS, so a base58 or bech32 identifier has no representation in it at all. Published self-describing wire format: widening it is a migration of every published shard plus a compatibility window (Publishing-And-Caching.md §6.1, §6.2) and lands alone." },
+        { "needle": "HashIndexEncoding", "count": 3,
+          "why": "…and that assumption is NAMED rather than anonymous. §5's index path carries no chain segment, so a client resolving a bare query cannot know which chain's declaration to normalise with: this index's key rule has to be global. One greppable constant is what the migration will widen." },
+        { "needle": "toLowerAscii", "count": 1,
+          "why": "THE ONE REMAINING FOLD IN THIS MODULE, COUNTED RATHER THAN FORBIDDEN, because it is not a normalisation of anybody's identifier: `bytesToHex` renders STORED BYTES back into the index's key encoding, and lowercase hex IS that encoding rather than a decision about case. The fold that WAS a decision — `stripHex`, applied to every identifier of every encoding — is on the absent list below. Counting this one is what stops a second appearing beside it." }
+      ],
+      "absent": [
+        { "needle": "stripHex",
+          "why": "GONE, not kept as a wrapper. It folded case unconditionally for every encoding — right for hex, destroys base58 and base64url — and a correctly-named hex-assuming entry point one identifier away from every call site is reachable by habit and indistinguishable from a choice in a diff." }
+      ]
+    },
+    {
+      "file": "tools/capture/lib/entities.mjs",
+      "present": [
+        { "needle": "startsWith(\"0x\")", "count": 2,
+          "why": "the two literal `0x` filters over published directory ENTRIES. These enumerate the tree the hash index keys, so they genuinely follow the index: a filter widened ahead of the index would enumerate a non-hex chain's entities and then fail to key them, which is worse than not seeing them." },
+        { "needle": "indexShardedDir(join(", "count": 3,
+          "why": "the three former derivation sites, now enumerations. THE COUNT IS THE PIN: a fourth sharded path in this file either adds a fourth call here — which moves this number — or open-codes a slice, which the `absent` list below refuses. Before this, both halves counted only the `0x` filters, so a fourth `slice(2, 6)` was invisible to both." }
+      ],
+      "absent": [
+        { "needle": "slice(2,",
+          "why": "the open-coded hex shard rule, at three sites, building `/d/{chain}/tx/{shard}/`, `/d/{chain}/ts/{tsv}/{shard}/` and `/d/{chain}/g/{gen}/addr/{shard}/`. It DERIVED rather than enumerated, so the 'it follows the index' defence never covered it; it was also stricter than the function it duplicated, with neither the strip-only-if-present quirk nor the right-padding." },
+        { "needle": "identifierEncoding",
+          "why": "the tooling reads what was published rather than the declaration behind it, which is why it needs no JavaScript reader of the closed set." }
+      ]
+    }
+  ]
+}

@@ -229,6 +229,64 @@ proc encodingFor(v: var Validator, chain: string): ChainIdentifierEncoding =
   v.identifierEncodings[chain] = enc
   enc
 
+proc checkIdentifierForms(v: var Validator, chain, rel, kind, named: string,
+                          carried: string) =
+  ## **THE KEY FORM AND THE DISPLAY FORM, CHECKED WHERE THE TREE STATES BOTH.**
+  ##
+  ## Per-encoding case handling turns one rule into two published facts, and a
+  ## rule nothing measures is prose. So this asserts both, per object:
+  ##
+  ##   1. `named` — the identifier as it appears in the object's PATH — is its
+  ##      own key form. A producer that published `0xAbCd….json` under the shard
+  ##      `abcd` wrote a file no client can address, because a client folds
+  ##      before it derives. This bites on an uppercase hex object name and is
+  ##      the arm that would have caught the fold being applied to the shard and
+  ##      not to the name.
+  ##   2. `carried` — the identifier the object's BODY states — is the SAME
+  ##      identifier, i.e. its key form is the name. Differing in case where the
+  ##      encoding permits it is legal and is the whole point; differing in
+  ##      anything else means the object is about something other than its path.
+  ##   3. `carried` is its own display form. For `hex` that is vacuous by
+  ##      construction — the rule preserves, so every string is its own display
+  ##      form — and it is stated all the same, because for `bech32` and
+  ##      `bech32m` it is not: BIP-173 makes a mixed-case string invalid, so a
+  ##      published `Addr1Q…` is an address no reader may render. A check that
+  ##      is vacuous for the one encoding this tree publishes and biting for the
+  ##      four it is gated on is the shape this whole seam is: the point is that
+  ##      it is HERE when the first non-hex producer arrives, keyed off the
+  ##      declaration rather than off a token somebody remembered to add.
+  ##
+  ## An empty `carried` means the object states no identifier of its own and
+  ## rules 2 and 3 have nothing to be about; the object's own `need` checks are
+  ## what report a missing field, and reporting it twice from here would name the
+  ## wrong defect.
+  let enc = v.encodingFor(chain)
+  var key: string
+  try:
+    key = identifierKeyForm(enc, kind, named)
+  except ValueError as e:
+    # An omitted kind, or a token outside the closed set. Already reported
+    # against the registry by `encodingFor`; naming it once more per object
+    # would bury the walk's real findings.
+    v.err(rel, "cannot normalise a " & kind & " identifier for this chain: " &
+          e.msg)
+    return
+  if key != named:
+    v.err(rel, "the " & kind & " identifier in this object's path is '" & named &
+          "', whose key form is '" & key & "'. A sharded path is derived from " &
+          "and named by the KEY form, so this object is at an address no " &
+          "client computes: it folds before it derives.")
+  if carried.len == 0: return
+  if identifierKeyForm(enc, kind, carried) != key:
+    v.err(rel, "this object is published as " & kind & " '" & named &
+          "' and carries '" & carried & "'. Those are two identifiers, not two " &
+          "spellings of one: their key forms differ.")
+  let shown = identifierDisplayForm(enc, kind, carried)
+  if shown != carried:
+    v.err(rel, "this object carries the " & kind & " identifier '" & carried &
+          "', whose display form is '" & shown & "'. The body carries what a " &
+          "page renders, and this encoding's rule says that is not it.")
+
 proc checkExecTrace(v: var Validator, ctx: string, t: JsonNode,
                     chain, txHash: string, execIds: Table[string, string]) =
   v.mustBeOneOf(t, ctx, "availability", availabilities)
@@ -300,6 +358,26 @@ proc checkTransaction(v: var Validator, chain, txHash, gen, tsv: string) =
   # --- immutable TransactionFacts (§2.3) ---
   let frel = "d" / chain / "tx" / sh / txHash & ".json"
   let f = v.loadJson(frel)
+  # ── THE TWO FORMS, CHECKED ON THE REFERENCE AND ON THE BODY ────────────────
+  #
+  # OUTSIDE the `f != nil` guard on purpose. `txHash` is the identifier a
+  # published BLOCK listed, and its form is a fact about that reference whether
+  # or not the object it names is there — a block that referenced a transaction
+  # by a checksummed spelling would dangle AND be wrong, and reporting only the
+  # dangle would send the reader looking for a missing file.
+  #
+  # It is also what makes this walk's own path construction sound: `frel` is
+  # built from the raw `txHash`, so it agrees with `blocktracer_client/paths.nim`
+  # — which names the object by its key form — exactly when the reference is
+  # already in key form, which is what this asserts.
+  #
+  # `id` is a union and only its `hash` member is an encoded identifier —
+  # Substrate's `blockIndex` is a pair, which is why a kind may be omitted from a
+  # declaration at all — so a union of another kind carries nothing for the body
+  # half of this check to be about.
+  v.checkIdentifierForms(chain, frel, KindTransaction, txHash,
+                         (if f != nil and f{"id"}{"kind"}.getStr == "hash":
+                            f{"id"}{"hash"}.getStr else: ""))
   var execIds = initTable[string, string]()
   if f != nil:
     for field in ["chain", "id", "order", "outcome", "roles", "cost",
@@ -520,13 +598,22 @@ proc checkGeneration(v: var Validator, chain, gen: string) =
       let brel = "d" / chain / "block" / bh.getStr & ".json"
       let bd = v.loadJson(brel)
       if bd == nil: continue
+      v.checkIdentifierForms(chain, brel, KindBlock, bh.getStr,
+                             bd{"hash"}.getStr)
       for tx in bd{"transactions"}:
         v.checkTransaction(chain, tx.getStr, gen, tsv)
   # address lists -> segments
   for p in maps{"addr"}:
     let al = v.loadJson(p.getStr)
     if al == nil: continue
-    if "address" in al: v.walkedAddr.add al{"address"}.getStr
+    if "address" in al:
+      v.walkedAddr.add al{"address"}.getStr
+      # The published path names the key form; the body carries the display
+      # form. `p` is the object's own path, so the name is read out of the
+      # layout rather than recomputed — recomputing it here would compare the
+      # derivation to itself.
+      v.checkIdentifierForms(chain, p.getStr, KindAddress,
+                             p.getStr.splitFile.name, al{"address"}.getStr)
     for sp in al{"segments"}: discard v.loadJson(sp.getStr)
   # Optional render + search-index layers the sealed root enumerates (§2.9).
   v.checkRenderLayer(chain, root)

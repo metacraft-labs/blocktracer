@@ -32,6 +32,27 @@
 ## alphabet question to answer. The `block` kind is declared all the same, because
 ## a chain that numbers its blocks (`decimal`) is saying something true about them
 ## that a later consumer may need.
+##
+## ## BOTH segments of a sharded path are the identifier's KEY FORM
+##
+## The shard is derived from the key form and the object is NAMED by it, and the
+## two have to be the same normalisation or the pair does not address anything: a
+## client that folded for the shard and not for the name would compute
+## `/tx/abcd/0xAbCd….json`, which is a directory that exists holding a file that
+## does not. So each builder below asks `identifierKeyForm` for the name segment
+## and `shardKeyFor` — which folds by the same rule — for the shard.
+##
+## THE CONSEQUENCE IS THE POINT OF THE CASE RULE. An EIP-55 address and its
+## lowercase spelling are one account, and either spelling now resolves to the
+## one object the producer wrote. What is deliberately NOT folded is the
+## identifier a published object carries in its BODY — that is the DISPLAY form
+## (`identifierDisplayForm`), preserved for hex so the checksum riding in its
+## case survives, and folded for bech32 because a mixed-case bech32 string is not
+## an address. `src/blocktracer/validator.nim` checks both halves of that against
+## every tree it validates.
+##
+## For every chain this tree publishes the fold is a no-op — the identifiers are
+## lowercase hex, measured — so no published path moves.
 
 import std/strutils
 import ../blocktracer/contract/shards
@@ -43,6 +64,8 @@ export ChainIdentifierEncoding, encodingFor, declaredOrLegacy,
        parseChainIdentifierEncoding, identifierEncodingNode,
        isIdentifierEncoding, identifierEncodingList,
        KindTransaction, KindAddress, KindBlock, LegacyUndeclaredEncoding
+export identifierKeyForm, identifierDisplayForm, identifierPayload,
+       identifierCaseRule, IdentifierCaseRule
 
 proc registryPath*(contractVersion = ContractVersion): string =
   ## `/registry/chains.v{N}.json` — version in the name (§2.9).
@@ -60,35 +83,58 @@ proc summaryPath*(chain, generation: string): string =
 
 proc blockPath*(chain, blockHash: string): string =
   ## Content-addressed and generation-independent (§2).
+  ##
+  ## **IT DOES NOT KEY-FORM ITS IDENTIFIER, AND THAT IS A KNOWN GAP RATHER THAN A
+  ## RULING.** Every other path builder here folds by the chain's declared case
+  ## rule, so either spelling of a case-insensitive identifier resolves to the one
+  ## object the producer wrote. This one cannot, because it takes no
+  ## `ChainIdentifierEncoding` — it is not sharded, so there was never an alphabet
+  ## question for it to answer, and adding the parameter is a public signature
+  ## change with five call sites and its own review.
+  ##
+  ## The consequence is narrow and real: a client holding a block identifier in a
+  ## spelling the producer did not publish computes a path that does not exist,
+  ## where a transaction or an address in the same spelling resolves. Nothing in
+  ## the tree is in that state — `src/blocktracer/validator.nim` requires every
+  ## published block REFERENCE to be its own key form, so the identifier this is
+  ## called with is already folded whenever it came out of the tree — and the gap
+  ## is between what a CLIENT may arrive with and what this computes.
+  ##
+  ## Recorded here rather than quietly closed, for the reason the shared file
+  ## records the `aleo1…` row and `base64`'s unshardability: a widening done in
+  ## passing is a widening nobody reviewed.
   "d/" & chain & "/block/" & blockHash & ".json"
 
 proc txFactsPath*(chain, txHash: string,
                   enc: ChainIdentifierEncoding): string =
   ## The immutable facts (§2.3, §2.3b).
   "d/" & chain & "/tx/" & shardKeyFor(enc, KindTransaction, txHash) & "/" &
-    txHash & ".json"
+    identifierKeyForm(enc, KindTransaction, txHash) & ".json"
 
 proc txStatePath*(chain, generation, txHash: string,
                   enc: ChainIdentifierEncoding): string =
   ## Generation-scoped canonicality + finality (§2.3b).
   "d/" & chain & "/g/" & generation & "/txstate/" &
-    shardKeyFor(enc, KindTransaction, txHash) & "/" & txHash & ".json"
+    shardKeyFor(enc, KindTransaction, txHash) & "/" &
+    identifierKeyForm(enc, KindTransaction, txHash) & ".json"
 
 proc traceSelectionPath*(chain, traceSelectionVersion, txHash: string,
                          enc: ChainIdentifierEncoding): string =
   ## The versioned TraceSelection overlay (§2.3a).
   "d/" & chain & "/ts/" & traceSelectionVersion & "/" &
-    shardKeyFor(enc, KindTransaction, txHash) & "/" & txHash & ".json"
+    shardKeyFor(enc, KindTransaction, txHash) & "/" &
+    identifierKeyForm(enc, KindTransaction, txHash) & ".json"
 
 proc addressIndexPath*(chain, generation, address: string,
                        enc: ChainIdentifierEncoding): string =
   "d/" & chain & "/g/" & generation & "/addr/" &
-    shardKeyFor(enc, KindAddress, address) & "/" & address & ".json"
+    shardKeyFor(enc, KindAddress, address) & "/" &
+    identifierKeyForm(enc, KindAddress, address) & ".json"
 
 proc addressSegmentPath*(chain, address, segment: string,
                          enc: ChainIdentifierEncoding): string =
   "d/" & chain & "/seg/" & shardKeyFor(enc, KindAddress, address) & "/" &
-    address & "/" & segment & ".json"
+    identifierKeyForm(enc, KindAddress, address) & "/" & segment & ".json"
 
 proc traceArtifactDir*(traceArtifactId: string): string =
   ## `/t/{t0t1}/{t2t3}/{traceArtifactId}/` — Trace-Artifacts.md §3.

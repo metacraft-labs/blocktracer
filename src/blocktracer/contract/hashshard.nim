@@ -18,6 +18,16 @@
 ## re-exports everything here, so no existing importer learns that the split
 ## happened.
 ##
+## ## Nothing here decides case for itself any more
+##
+## `stripHex` is gone. It folded case unconditionally, for every encoding, which
+## is right for hex and destroys base58 and base64url; the fold now comes from
+## the per-member `case` rule in `tools/chain/identifier-encodings.json` through
+## `identifierPayload`, under the named constant `HashIndexEncoding`. For hex
+## that is byte-for-byte the same two steps, so nothing this module has published
+## moves — see `HashIndexEncoding` for why the index's key rule has to be global
+## rather than per chain, and for what is left for the migration.
+##
 ## Nothing here hashes anything. That is the whole property being preserved:
 ## §5's shard key is a **leading slice of the hash itself** ("sharded by a
 ## leading slice of the hash, so the client computes the shard path directly"),
@@ -25,6 +35,7 @@
 ## are normalised, hashed, and the low bits select a shard"), which is not.
 
 import std/[strutils, algorithm]
+import ./identifier_encoding
 
 # ---------------------------------------------------------------------------
 # Little-endian byte helpers. A published shard is a plain byte string.
@@ -163,18 +174,57 @@ proc hkName*(k: int): string =
   of hkAddress: "address"
   else: "unknown"
 
-proc stripHex*(h: string): string =
-  result = h.toLowerAscii
-  if result.startsWith("0x"): result = result[2 .. ^1]
+const HashIndexEncoding* = "hex"
+  ## **The encoding §5's global index is keyed in, NAMED rather than assumed.**
+  ##
+  ## There used to be a `stripHex` here, and it was two decisions wearing one
+  ## name: it stripped a `0x` prefix, and it applied `toLowerAscii` to every
+  ## identifier of every encoding. The fold was right for hex and destroys
+  ## base58 and base64url, which are case-significant, and it flattened the
+  ## bech32 uniform-case requirement and the EIP-55 display form into the same
+  ## unconditional call. It is GONE rather than kept as a wrapper, for the reason
+  ## `hexShard` was: a correctly-named hex-assuming entry point one identifier
+  ## away from every call site is reachable by habit, by autocomplete and by a
+  ## merge, and is indistinguishable from a considered choice in a diff.
+  ##
+  ## What replaced it is this constant plus `identifierPayload`, which reads the
+  ## per-member case rule out of `tools/chain/identifier-encodings.json`. For hex
+  ## that is the same two steps in the same order, so every byte this module has
+  ## ever published is unchanged; what moved is that the assumption is now one
+  ## greppable token instead of a fold nobody could see.
+  ##
+  ## **Why it is a constant and not a parameter, which is the interesting half.**
+  ## §5's index path is `/idx/hash/{version}/{prefix}.bin` and carries NO CHAIN
+  ## SEGMENT — that is what makes "two requests to resolve any hash on any chain"
+  ## true. A client resolving a bare query therefore does not yet know which
+  ## chain it will hit, so it cannot know which chain's declaration to normalise
+  ## with: this index's key rule has to be GLOBAL in a way a per-chain
+  ## declaration cannot be. Threading an encoding in here would produce a shard
+  ## path only the producer could compute.
+  ##
+  ## So the index stays hex-keyed, and widening it is the wire-format migration
+  ## that owns the question of what the chain-agnostic canonical form should be
+  ## (Publishing-And-Caching.md §6.1, §6.2). `hexToBytes` below is the other half
+  ## of that same assumption and is deliberately untouched here.
 
-proc hashPrefix*(hexHash: string, prefixLen: int): string =
-  ## The shard key: the leading `prefixLen` hex chars (§5, "sharded by a leading
-  ## slice of the hash", client computes the shard path directly).
-  let h = stripHex(hexHash)
+proc hashPrefix*(identifier: string, prefixLen: int): string =
+  ## The shard key: the leading `prefixLen` characters of the identifier's
+  ## payload in `HashIndexEncoding` (§5, "sharded by a leading slice of the
+  ## hash", client computes the shard path directly).
+  let h = identifierPayload(HashIndexEncoding, identifier)
   if h.len <= prefixLen: h else: h[0 ..< prefixLen]
 
 proc hexToBytes*(h: string): string =
-  var s = stripHex(h)
+  ## **The index's remaining hex assumption, and the one this step does not
+  ## touch.** It parses hex PAIRS, so a base58 or bech32 identifier has no
+  ## representation in the index at all — that is a published, self-describing
+  ## wire format and widening it is a migration of every published shard plus a
+  ## compatibility window, which lands alone.
+  ##
+  ## Its normalisation is no longer its own: it asks `identifierPayload` for the
+  ## same `HashIndexEncoding` the shard key uses, so the two cannot disagree
+  ## about what the payload of a stored hash is.
+  var s = identifierPayload(HashIndexEncoding, h)
   if s.len mod 2 == 1: s = s & "0"
   for i in countup(0, s.len - 2, 2):
     result.add chr(parseHexInt(s[i .. i+1]))
