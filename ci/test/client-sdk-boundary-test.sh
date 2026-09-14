@@ -114,7 +114,7 @@ EOF
 	cat >"${d}/src/blocktracer/contract/shards.nim" <<'EOF'
 import std/strutils
 
-func hexShard*(h: string): string = h.strip[0 .. 3]
+func shardKeyFor*(encoding, h: string): string = h.strip[0 .. 3]
 EOF
 
 	cat >"${d}/src/blocktracer/contract/version.nim" <<'EOF'
@@ -125,10 +125,10 @@ EOF
 import ../blocktracer/contract/shards
 import ../blocktracer/contract/version
 
-export hexShard
+export shardKeyFor
 
 proc txFactsPath*(chain, h: string): string =
-  "d/" & chain & "/tx/" & hexShard(h) & "/" & h & ".json"
+  "d/" & chain & "/tx/" & shardKeyFor("hex", h) & "/" & h & ".json"
 EOF
 
 	cat >"${d}/src/blocktracer_client_paths.nim" <<'EOF'

@@ -155,7 +155,8 @@ proc readReIncludedIn*(vm: ChainVM; txHash: string): string =
   if not vm.registry.hasSession.val: return ""
   let session = vm.registry.session.val
   let r = vm.store.getJson(
-    txStatePath(session.chain, session.generation, txHash))
+    txStatePath(session.chain, session.generation, txHash,
+                session.identifierEncoding))
   if not r.found or r.error.len > 0 or r.node.isNil: return ""
   if r.node.kind != JObject: return ""
   for key in ["reIncludedIn", "reincludedIn"]:

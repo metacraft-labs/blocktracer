@@ -216,7 +216,7 @@ suite "M12a — availability is data, and `absent` never becomes a failed fetch"
     # INDEPENDENT ORACLE: the reason is the producer's own string, read here
     # straight off disk.
     let raw = parseFile(demoDir / "d" / Chain / "ts" / "1" /
-                        hexShard(splitTx) / splitTx & ".json")
+                        shardKeyFor("hex", splitTx) / splitTx & ".json")
     var rawReason = ""
     for e in raw["executions"]:
       if e["selector"].getStr == "private": rawReason = e["reason"].getStr
@@ -277,7 +277,7 @@ suite "M12a — availability is data, and `absent` never becomes a failed fetch"
     let d = tmp("reasonless")
     discard generate(DemoConfig(outDir: d, seed: "sdk-seed",
                                 traceFixturePath: Fixture, traceSourcesDir: SourcesDir))
-    let op = d / "d" / Chain / "ts" / "1" / hexShard(splitTx) / splitTx & ".json"
+    let op = d / "d" / Chain / "ts" / "1" / shardKeyFor("hex", splitTx) / splitTx & ".json"
     var ov = parseFile(op)
     for e in ov["executions"]:
       if e["selector"].getStr == "private": e.delete("reason")
@@ -608,17 +608,17 @@ proc buildEvmTree(dir: string): tuple[chain, tx, blk, codeHash, bundleId: string
                           codeHash: codeHash, boundAt: blk)],
     executions: @[Execution(selector: "call", executionInputId: execId)],
     native: %*{"evm": {"type": 2}})
-  writeJsonNl(dir / "d" / chain / "tx" / hexShard(tx) / tx & ".json", facts.toJson)
+  writeJsonNl(dir / "d" / chain / "tx" / shardKeyFor("hex", tx) / tx & ".json", facts.toJson)
   writeJsonNl(dir / "d" / chain / "block" / blk & ".json",
     contractModel.BlockDetail(chain: chain, hash: blk, height: 19_000_000,
       parentHash: "0x00", transactions: @[tx]).toJson)
-  writeJsonNl(dir / "d" / chain / "g" / "1" / "txstate" / hexShard(tx) / tx & ".json",
+  writeJsonNl(dir / "d" / chain / "g" / "1" / "txstate" / shardKeyFor("hex", tx) / tx & ".json",
     %*{"chain": chain, "tx": tx, "canonical": true, "finality": "finalized"})
   let ov = contractModel.TraceSelection(chain: chain, tx: tx, hasSingle: true,
     singleTrace: ExecTrace(availability: taReady, bytes: readFile(Fixture).len,
       hasValidation: true,
       validation: ValidationSummary(status: vsMatch, strength: 2)))
-  writeJsonNl(dir / "d" / chain / "ts" / "1" / hexShard(tx) / tx & ".json", ov.toJson)
+  writeJsonNl(dir / "d" / chain / "ts" / "1" / shardKeyFor("hex", tx) / tx & ".json", ov.toJson)
 
   let tid = deriveTraceArtifactId(execId, recId, recBuild, profH, traceSchema)
   let sh = traceShards(tid)
@@ -660,7 +660,7 @@ proc buildEvmTree(dir: string): tuple[chain, tx, blk, codeHash, bundleId: string
   let summaryRel = "d" / chain / "g" / "1" / "summary.json"
   let heightRel = "d" / chain / "g" / "1" / "height" / "0.json"
   let blocksRel = "d" / chain / "g" / "1" / "blocks" / "0.json"
-  let txstateRel = "d" / chain / "g" / "1" / "txstate" / hexShard(tx) / tx & ".json"
+  let txstateRel = "d" / chain / "g" / "1" / "txstate" / shardKeyFor("hex", tx) / tx & ".json"
   writeJsonNl(dir / summaryRel, %*{"chain": chain, "generation": "1",
     "counters": {"blocks": 1, "transactions": 1}, "coverageMode": "eager",
     "stale": false})
@@ -745,7 +745,7 @@ proc groundTruthErrors(dir, chain, txHash: string, v: TransactionView): seq[stri
   ## Compare an SDK-produced view against the bytes on disk, parsed here with
   ## `std/json` and NOTHING from the package under test. A reader that drops a
   ## field, mis-parses a union or invents a default fails against this.
-  let facts = parseFile(dir / "d" / chain / "tx" / hexShard(txHash) /
+  let facts = parseFile(dir / "d" / chain / "tx" / shardKeyFor("hex", txHash) /
                         txHash & ".json")
   if v.facts.chain != facts["chain"].getStr:
     result.add "chain"
@@ -872,7 +872,7 @@ suite "M12a — the conformance suite does not use the reader as its own oracle"
     discard generate(DemoConfig(outDir: d, seed: "sdk-seed",
                                 traceFixturePath: Fixture, traceSourcesDir: SourcesDir))
     let txh = synthHash("sdk-seed", "tx", 0)
-    let op = d / "d" / Chain / "ts" / "1" / hexShard(txh) / txh & ".json"
+    let op = d / "d" / Chain / "ts" / "1" / shardKeyFor("hex", txh) / txh & ".json"
     var ov = parseFile(op)
     ov["trace"]["availability"] = %"ready"
     writeFile(op, ov.pretty & "\n")

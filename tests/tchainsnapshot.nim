@@ -51,8 +51,10 @@ import std/[unittest, os, json, strutils]
 
 import ../src/blocktracer/chain/ingest
 import ../src/blocktracer/chain/snapshot_format
-# `hexShard` — the overlay's object path is derived the way the contract derives it,
-# rather than a shard layout written out here. The tree already owns one spelling of it.
+# `shardKeyFor` — the overlay's object path is derived the way the contract derives it,
+# WITH THE ENCODING NAMED (`"hex"`), which is what these trees declare, rather than a
+# shard layout written out here. A test that spelled the shard itself would pass while
+# the producer keyed somewhere else.
 import ../src/blocktracer/contract/ids
 
 let
@@ -238,7 +240,7 @@ suite "the format token is a gate, and it says which shape it is gating":
       # sentence. §5.2 forbids a partial read, and "we accepted the token and
       # dropped the rows" would be one.
       let overlay = parseJson(readFile(outDir / "d" / "aztec-testnet" / "ts" / "1" /
-                                       hexShard("0xaa") / "0xaa.json"))
+                                       shardKeyFor("hex", "0xaa") / "0xaa.json"))
       ck overlay["trace"]["availability"].getStr == "absent"
       ck "no longer serves" in overlay["trace"]["reason"].getStr
       ck overlay["trace"]{"refusalReason"}.getStr.len == 0
@@ -295,7 +297,7 @@ suite "the format token is a gate, and it says which shape it is gating":
                                             generation: "1", scope: isFull))
       ck ing.transactions == 1
       let overlay = parseJson(readFile(outDir / "d" / "aztec-testnet" / "ts" / "1" /
-                                       hexShard("0xaa") / "0xaa.json"))
+                                       shardKeyFor("hex", "0xaa") / "0xaa.json"))
       ck overlay["trace"]["availability"].getStr == "absent"
       ck overlay["trace"]{"refusalReason"}.getStr.len == 0
 

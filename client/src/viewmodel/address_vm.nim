@@ -93,7 +93,8 @@ proc loadIndex*(vm: AddressVM; address: string) =
     return
   let session = vm.registry.session.val
   let r = vm.store.getJson(
-    addressIndexPath(session.chain, session.generation, address))
+    addressIndexPath(session.chain, session.generation, address,
+                     session.identifierEncoding))
   if not r.found:
     vm.indexFound.val = false
     vm.reason.val = address & " has no history in generation " & session.generation

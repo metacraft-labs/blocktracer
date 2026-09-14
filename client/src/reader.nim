@@ -498,8 +498,13 @@ proc chainInfo*(r: DataRoot, chain: string): ChainInfo =
 proc hasBlock*(r: DataRoot, chain, hash: string): bool =
   r.storeFor(chain).get(blockPath(chain, hash)).found
 
-proc hasTx*(r: DataRoot, chain, hash: string): bool =
-  r.storeFor(chain).get(txFactsPath(chain, hash)).found
+proc hasTx*(r: DataRoot, info: ChainInfo, hash: string): bool =
+  ## TAKES A `ChainInfo` AND NOT A BARE SLUG, because the object path is sharded
+  ## and the shard depends on how the chain writes its identifiers — which is a
+  ## fact about the OPEN chain (`info.session.identifierEncoding`, pinned from the
+  ## registry) rather than about its name. `hasBlock` beside it still takes a slug,
+  ## correctly: a block path is content-addressed and has no shard segment.
+  info.store.get(txFactsPath(info.slug, hash, info.session.identifierEncoding)).found
 
 proc readBlockDetail*(r: DataRoot, info: ChainInfo, hash: string): BlockDetail =
   let b = blockDetail(info.store, info.session, hash)
@@ -1067,7 +1072,9 @@ proc addressSegmentPaths*(r: DataRoot, info: ChainInfo,
                                                   paths: seq[string]] =
   ## The generation's segment list for an address. ONE read, whatever the
   ## length of the history.
-  let res = info.store.getJson(addressIndexPath(info.slug, info.generation, address))
+  let res = info.store.getJson(
+    addressIndexPath(info.slug, info.generation, address,
+                     info.session.identifierEncoding))
   if not res.found:
     return (false,
       address & " has no history in generation " & info.generation &
@@ -1159,7 +1166,8 @@ proc addressRows*(r: DataRoot, info: ChainInfo, v: AddressView): seq[TxRow] =
   ## The transactions of the segment this view is positioned on.
   if v.index < 0: return
   for h in v.segment.transactions:
-    if info.store.get(txFactsPath(info.slug, h)).found:
+    if info.store.get(txFactsPath(info.slug, h,
+                              info.session.identifierEncoding)).found:
       result.add txRow(r, info, h)
 
 proc codeHashesAt*(r: DataRoot, info: ChainInfo, address: string,

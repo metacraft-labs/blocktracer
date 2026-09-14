@@ -28,6 +28,9 @@ type
     errors*: seq[string]
     visited: HashSet[string]      ## files reached during the walk
     registry: Table[string, JsonNode]  ## chain -> registry entry
+    identifierEncodings: Table[string, ChainIdentifierEncoding]
+      ## chain -> how that chain DECLARES its identifiers, read out of the tree
+      ## under validation. See `encodingFor`.
     # Entities reached during the current generation's walk, so the render layer
     # (entry pages) and the /idx/** search indices can be checked for completeness:
     # every walked entity MUST have a page and MUST be resolvable in the hash index.
@@ -198,6 +201,34 @@ proc registryFor(v: var Validator, chain: string): JsonNode =
   v.registry[chain] = chains[chain]
   chains[chain]
 
+proc encodingFor(v: var Validator, chain: string): ChainIdentifierEncoding =
+  ## HOW THE TREE UNDER VALIDATION SAYS IT WRITES ITS IDENTIFIERS.
+  ##
+  ## Read from the tree's own registry rather than assumed, which is the whole
+  ## point of the validator here: it recomputes the shard path the way the
+  ## PUBLISHER declared, so a producer that keyed its objects one way and declared
+  ## another fails this walk with the object reported missing. A validator that
+  ## carried its own opinion of the encoding could not catch that at all — it
+  ## would agree with whichever producer shared its opinion.
+  ##
+  ## Cached per chain in `identifierEncodings` for `registryFor`'s reason: the
+  ## walk asks per transaction and per address.
+  ##
+  ## A registry that could not be read at all yields the compatibility layout, not
+  ## a crash: `registryFor` has already recorded the error, and a walk that threw
+  ## here would report one failure instead of the list this validator exists to
+  ## produce.
+  if chain in v.identifierEncodings: return v.identifierEncodings[chain]
+  let row = v.registryFor(chain)
+  var enc: ChainIdentifierEncoding
+  try:
+    enc = parseChainIdentifierEncoding(row)
+  except ValueError as e:
+    v.err("registry", "chain '" & chain & "': " & e.msg)
+    enc = parseChainIdentifierEncoding(nil)
+  v.identifierEncodings[chain] = enc
+  enc
+
 proc checkExecTrace(v: var Validator, ctx: string, t: JsonNode,
                     chain, txHash: string, execIds: Table[string, string]) =
   v.mustBeOneOf(t, ctx, "availability", availabilities)
@@ -265,7 +296,7 @@ proc checkExecTrace(v: var Validator, ctx: string, t: JsonNode,
 
 proc checkTransaction(v: var Validator, chain, txHash, gen, tsv: string) =
   v.walkedTx.add txHash
-  let sh = hexShard(txHash)
+  let sh = shardKeyFor(v.encodingFor(chain), KindTransaction, txHash)
   # --- immutable TransactionFacts (§2.3) ---
   let frel = "d" / chain / "tx" / sh / txHash & ".json"
   let f = v.loadJson(frel)
@@ -381,7 +412,9 @@ proc checkRenderLayer(v: var Validator, chain: string, root: JsonNode) =
     let rel = chain / "tx" / tx / "index.html"
     let d = v.checkEntryPage(rel, "/" & chain & "/tx/" & tx, "noindex,follow", "tx", tx)
     if d != nil:
-      let onDisk = v.loadJson("d" / chain / "tx" / hexShard(tx) / tx & ".json")
+      let onDisk = v.loadJson("d" / chain / "tx" /
+                              shardKeyFor(v.encodingFor(chain), KindTransaction, tx) /
+                              tx & ".json")
       if onDisk != nil and d{"facts"} != onDisk:
         v.err(rel, "inlined tx facts differ from the /d data plane (not a view)")
   for bh in v.walkedBlock:

@@ -168,13 +168,13 @@ proc buildTree(dir: string; o: TreeOpts): Tree =
     codeEdges: edges,
     executions: @[Execution(selector: "call", executionInputId: execId)],
     native: %*{"evm": {"type": 2}})
-  writeJsonNl(dir / "d" / chain / "tx" / hexShard(tx) / tx & ".json", facts.toJson)
+  writeJsonNl(dir / "d" / chain / "tx" / shardKeyFor("hex", tx) / tx & ".json", facts.toJson)
   writeJsonNl(dir / "d" / chain / "block" / blk & ".json",
     contractModel.BlockDetail(chain: chain, hash: blk, height: o.indexedHeight,
       parentHash: "0x00", transactions: @[tx]).toJson)
 
   let txstateRel = "d" / chain / "g" / o.generation / "txstate" /
-                   hexShard(tx) / tx & ".json"
+                   shardKeyFor("hex", tx) / tx & ".json"
   if o.txStatePublished:
     var st = %*{"chain": chain, "tx": tx, "canonical": o.txCanonical,
                 "finality": "finalized"}
@@ -192,7 +192,7 @@ proc buildTree(dir: string; o: TreeOpts): Tree =
     single.bytes = 0
   let ov = contractModel.TraceSelection(chain: chain, tx: tx, hasSingle: true,
                                         singleTrace: single)
-  writeJsonNl(dir / "d" / chain / "ts" / "1" / hexShard(tx) / tx & ".json",
+  writeJsonNl(dir / "d" / chain / "ts" / "1" / shardKeyFor("hex", tx) / tx & ".json",
               ov.toJson)
 
   let tid = deriveTraceArtifactId(execId, recId, recBuild, profH, traceSchema)
@@ -230,13 +230,13 @@ proc buildTree(dir: string; o: TreeOpts): Tree =
 
   # One address, one segment, referencing the transaction.
   let address = "0x1111" & repeat("0", 36)
-  let segRel = "d" / chain / "seg" / hexShard(address) / address /
+  let segRel = "d" / chain / "seg" / shardKeyFor("hex", address) / address /
                ($o.indexedHeight & "-" & $o.indexedHeight & ".json")
   writeJsonNl(dir / segRel, %*{"chain": chain, "address": address,
     "fromBlock": o.indexedHeight, "toBlock": o.indexedHeight,
     "transactions": [tx]})
   let addrRel = "d" / chain / "g" / o.generation / "addr" /
-                hexShard(address) / address & ".json"
+                shardKeyFor("hex", address) / address & ".json"
   writeJsonNl(dir / addrRel,
     %*{"chain": chain, "address": address, "segments": [segRel]})
 
@@ -614,7 +614,7 @@ suite "M12 — §14 row 2: object not found, with the chains checked":
 
   test "a malformed object is not 'not on this chain'":
     let t = buildTree(tmpDir("malformed"), defaultOpts())
-    writeFile(t.dir / "d" / t.chain / "tx" / hexShard(t.tx) / (t.tx & ".json"),
+    writeFile(t.dir / "d" / t.chain / "tx" / shardKeyFor("hex", t.tx) / (t.tx & ".json"),
               "{ this is not json")
     let l = openTree(t)
     l.tx.load(t.tx)

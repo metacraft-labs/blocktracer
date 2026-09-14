@@ -24,7 +24,7 @@
 ##
 ## Which leaves exactly one question: WHERE does the object live. The answer is
 ## `paths.nim` and it must not be answered twice. That module's own header
-## states the rule — "a second `hexShard` would be a second place for the layout
+## states the rule — "a second `shardKeyFor` would be a second place for the layout
 ## to drift, which is the failure Static-Site-Architecture.md §2.9 exists to
 ## prevent" — and a JavaScript reimplementation of `d/{chain}/tx/{shard}/{hash}.json`
 ## in `client/searchboot/` would be precisely that second place, in a second
@@ -39,8 +39,16 @@
 ## ## What a consumer gets, and what it does not
 ##
 ## Every path derivation in `blocktracer_client/paths` — `registryPath`,
-## `currentPath`, `blockPath`, `txFactsPath`, and the rest — plus `hexShard` and
-## `traceShards`, which `paths` re-exports from `blocktracer/contract/shards`.
+## `currentPath`, `blockPath`, `txFactsPath`, and the rest — plus `shardKeyFor` and
+## `traceShards`, which `paths` re-exports from `blocktracer/contract/shards`, and
+## the identifier-encoding vocabulary those signatures are written in
+## (`ChainIdentifierEncoding`, the three kind names, `declaredOrLegacy`).
+##
+## THE SHARDED DERIVATIONS TAKE THE CHAIN'S ENCODING AND HAVE NO DEFAULT. A
+## consumer has to say where its encoding came from, and for a browser the answer
+## is the registry it already fetched — see `client/searchboot/`, which reads
+## `chains[<slug>].identifierEncoding` out of that one response. A default of hex
+## here would have let every call site keep deciding the encoding for itself.
 ##
 ## It gets no reader, no store and no session. Computing a path is not fetching
 ## one: the consumer does its own I/O, which in a browser it must, because

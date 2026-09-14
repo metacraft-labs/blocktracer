@@ -593,6 +593,22 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     raise newException(ValueError,
       "the snapshot names no chain in provenance.chain; refusing to guess a slug")
 
+  # ---- how this chain writes its identifiers: ONE decision, both uses --------
+  #
+  # Built here, at the top, because it is used twice and must not be decided
+  # twice: the registry row below PUBLISHES it (`identifierEncodingNode`) and
+  # every sharded object path this producer writes DERIVES from it
+  # (`shardKeyFor`). One value doing both jobs is what makes it impossible for
+  # this producer to declare `hex` and key a path some other way — which is the
+  # failure the encoding-as-data seam exists to remove, and the reason the
+  # declaration and the derivation are not two variables here.
+  #
+  # `hex` is MEASURED for this chain and not assumed — `hexIdentifierEncoding`
+  # carries the counts and says where to re-run them.
+  let identifierEncoding = hexIdentifierEncoding()
+  let txEncoding = identifierEncoding.encodingFor(KindTransaction)
+  let addrEncoding = identifierEncoding.encodingFor(KindAddress)
+
   # ---- the artifact-resolution SIDECAR, if this capture has one -------------
   #
   # WHAT IT IS FOR. Every transaction in `client/fixtures/chain/` was captured by a runtime
@@ -979,7 +995,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     # and those two are different sentences that the page keeps apart.
     let replayed = outcome == "replayed" or outcome == "divergent"
     let reproduced = outcome == "replayed"
-    let sh = hexShard(txHash)
+    let sh = shardKeyFor(txEncoding, txHash)
     let blockHash = byHeight.getOrDefault(height, "")
     inc txCount
 
@@ -1711,24 +1727,28 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   for b in inventoryBuilds:
     let r = recorderInventory[b]
     recordersNode.add %*{"id": r.id, "build": r.build, "version": r.version}
-  # `identifierEncoding` IS DECLARED HERE AND READ BY NOBODY, WHICH IS THE POINT.
+  # `identifierEncoding` IS PUBLISHED HERE AND IS THE SAME VALUE THIS PRODUCER
+  # DERIVED ITS SHARD PATHS FROM — see `let identifierEncoding` at the top of
+  # this proc, which says why it is one variable and not two.
   #
   # It states which encoding this chain writes its identifiers in, per kind of
   # identifier, drawn from a closed set — `contract/identifier_encoding.nim`,
   # over the shared `tools/chain/identifier-encodings.json`. Configuration.md
   # §2.1 is the schema and §2.2 the additive rule that makes writing it safe.
   #
-  # Nothing consumes it. Shard derivation, the hash index, the client's local
-  # path recomputation and the capture tooling all still derive from the string,
-  # and the assumption they share is `0x` + hex. Widening them is separate work
-  # and the last of it rewrites a published wire format, so it needs a
-  # compatibility window (Publishing-And-Caching.md §6.1, §6.2) and must land on
-  # its own.
+  # WHAT A CONSUMER DOES WITH IT. Shard derivation takes it: the validator reads
+  # this row back and recomputes the paths below from it, and the client pins it
+  # on its session and recomputes the same paths in a browser, which is what
+  # makes Search-And-Routing.md §5's "two requests to resolve any hash on any
+  # chain" true for a chain that is not hex.
   #
-  # WHY THE DECLARATION GOES FIRST ANYWAY. Before a non-hex chain publishes, the
-  # key layout is a decision; afterwards it is a migration of every published
-  # shard, index and URL. So this is the cheap half, landed while it is still
-  # cheap, and the expensive half is left to decide nothing by accident.
+  # TWO SITES STILL DERIVE FROM THE STRING AND ARE LATER STEPS. The hash index
+  # (`contract/hashshard.nim`) parses hex pairs and lowercases unconditionally,
+  # and it is a published self-describing wire format — so widening it is a
+  # migration of every published shard plus a compatibility window
+  # (Publishing-And-Caching.md §6.1, §6.2) and must land on its own. The capture
+  # tooling filters published directory entries on a literal `0x`; it enumerates
+  # the tree the index keys, so it follows the index.
   #
   # `hex` is MEASURED for this chain, not assumed — see `hexIdentifierEncoding`.
   reg["chains"][chain] = %*{
@@ -1736,7 +1756,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     "recorders": recordersNode,
     "profile": {"name": pRef.name, "hash": pRef.hash},
     "traceSchema": traceSchema,
-    "identifierEncoding": hexIdentifierEncoding()}
+    "identifierEncoding": identifierEncoding.identifierEncodingNode()}
   cfg.writeJson(regRel, reg)
 
   # ---- address history -----------------------------------------------------
@@ -1748,13 +1768,14 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     heights.sort(SortOrder.Descending)
     var segRels: seq[string]
     for h in heights:
-      let rel = "d" / chain / "seg" / hexShard(address) / address /
+      let rel = "d" / chain / "seg" / shardKeyFor(addrEncoding, address) / address /
                 ($h & "-" & $h) & ".json"
       cfg.writeJson(rel, %*{"chain": chain, "address": address,
         "fromBlock": h, "toBlock": h,
         "transactions": addrTxsByHeight[address][h]})
       segRels.add rel
-    let rel = "d" / chain / "g" / gen / "addr" / hexShard(address) / address & ".json"
+    let rel = "d" / chain / "g" / gen / "addr" / shardKeyFor(addrEncoding, address) /
+              address & ".json"
     var segArray = newJArray()
     for s in segRels: segArray.add %s
     cfg.writeJson(rel, %*{"chain": chain, "address": address, "segments": segArray})
@@ -1779,7 +1800,8 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     let h = t["txHash"].getStr
     let height = t["blockNumber"].getInt
     if height < window.lo or height > window.hi: continue
-    txstateRels.add "d" / chain / "g" / gen / "txstate" / hexShard(h) / h & ".json"
+    txstateRels.add "d" / chain / "g" / gen / "txstate" / shardKeyFor(txEncoding, h) /
+                      h & ".json"
 
   # ---- summary, carrying the provenance ------------------------------------
   # THE PROVENANCE IS PUBLISHED DATA, not a template decision. Every page of this

@@ -62,7 +62,7 @@ suite "M5c — demo tree conformance":
   test "the Aztec private half is absent-with-reason, not a failed fetch":
     # txB is the private+public split at block 101, index 0.
     let h = "0x" & toLowerAscii($secureHash(seed & "|tx|1"))[0 .. 39]
-    let sh = hexShard(h)
+    let sh = shardKeyFor("hex", h)
     let ov = parseFile(outDir / "d" / DemoChain / "ts" / "1" / sh / h & ".json")
     check "executions" in ov
     var sawAbsent, sawReady = false
@@ -79,7 +79,7 @@ suite "M5c — demo tree conformance":
 
   test "immutable facts carry no mutable interpretation":
     let h = "0x" & toLowerAscii($secureHash(seed & "|tx|1"))[0 .. 39]
-    let facts = parseFile(outDir / "d" / DemoChain / "tx" / hexShard(h) / h & ".json")
+    let facts = parseFile(outDir / "d" / DemoChain / "tx" / shardKeyFor("hex", h) / h & ".json")
     for forbidden in ["trace", "validation", "finality", "canonical"]:
       check forbidden notin facts
 
@@ -87,8 +87,8 @@ suite "M5c — demo tree conformance":
     # txC divergent (block 101 idx1), txD onDemand (block 102 idx0)
     let hc = "0x" & toLowerAscii($secureHash(seed & "|tx|2"))[0 .. 39]
     let hd = "0x" & toLowerAscii($secureHash(seed & "|tx|3"))[0 .. 39]
-    let ovc = parseFile(outDir / "d" / DemoChain / "ts" / "1" / hexShard(hc) / hc & ".json")
-    let ovd = parseFile(outDir / "d" / DemoChain / "ts" / "1" / hexShard(hd) / hd & ".json")
+    let ovc = parseFile(outDir / "d" / DemoChain / "ts" / "1" / shardKeyFor("hex", hc) / hc & ".json")
+    let ovd = parseFile(outDir / "d" / DemoChain / "ts" / "1" / shardKeyFor("hex", hd) / hd & ".json")
     check ovc["trace"]["availability"].getStr == "divergent"
     check ovd["trace"]["availability"].getStr == "onDemand"
 
@@ -110,10 +110,10 @@ suite "M5c — demo tree conformance":
     nil
 
   proc factsFor(outDir, tx: string): JsonNode =
-    parseFile(outDir / "d" / DemoChain / "tx" / hexShard(tx) / tx & ".json")
+    parseFile(outDir / "d" / DemoChain / "tx" / shardKeyFor("hex", tx) / tx & ".json")
 
   proc overlayFor(outDir, tx: string): JsonNode =
-    parseFile(outDir / "d" / DemoChain / "ts" / "1" / hexShard(tx) / tx & ".json")
+    parseFile(outDir / "d" / DemoChain / "ts" / "1" / shardKeyFor("hex", tx) / tx & ".json")
 
   test "one transaction REVERTED, and its trace is published and undisputed":
     # `debugger--event-log`'s fifth entry kind. The pane appends `evRevert` off
@@ -426,17 +426,17 @@ suite "M5b — the contract names no producer":
       payloadTarget: "0x3333" & repeat("0", 36), logs: @[],
       codeEdges: @[], executions: @[Execution(selector: "call", executionInputId: execId)],
       native: %*{"evm": {"type": 2}})
-    writeJsonNl(d / "d" / chain / "tx" / hexShard(tx) / tx & ".json", facts.toJson)
+    writeJsonNl(d / "d" / chain / "tx" / shardKeyFor("hex", tx) / tx & ".json", facts.toJson)
     writeJsonNl(d / "d" / chain / "block" / blk & ".json",
       BlockDetail(chain: chain, hash: blk, height: 19_000_000,
         parentHash: "0x00", transactions: @[tx]).toJson)
-    writeJsonNl(d / "d" / chain / "g" / "1" / "txstate" / hexShard(tx) / tx & ".json",
+    writeJsonNl(d / "d" / chain / "g" / "1" / "txstate" / shardKeyFor("hex", tx) / tx & ".json",
       %*{"chain": chain, "tx": tx, "canonical": true, "finality": "finalized"})
     let ov = TraceSelection(chain: chain, tx: tx, hasSingle: true,
       singleTrace: ExecTrace(availability: taReady, bytes: readFile(fixture).len,
         hasValidation: true,
         validation: ValidationSummary(status: vsMatch, strength: 2)))
-    writeJsonNl(d / "d" / chain / "ts" / "1" / hexShard(tx) / tx & ".json", ov.toJson)
+    writeJsonNl(d / "d" / chain / "ts" / "1" / shardKeyFor("hex", tx) / tx & ".json", ov.toJson)
     # the derived artifact
     let tid = deriveTraceArtifactId(execId, recId, recBuild, profH, traceSchema)
     let sh = traceShards(tid)
@@ -459,7 +459,7 @@ suite "M5b — the contract names no producer":
     let summaryRel = "d" / chain / "g" / "1" / "summary.json"
     let heightRel = "d" / chain / "g" / "1" / "height" / "0.json"
     let blocksRel = "d" / chain / "g" / "1" / "blocks" / "0.json"
-    let txstateRel = "d" / chain / "g" / "1" / "txstate" / hexShard(tx) / tx & ".json"
+    let txstateRel = "d" / chain / "g" / "1" / "txstate" / shardKeyFor("hex", tx) / tx & ".json"
     writeJsonNl(d / summaryRel, %*{"chain": chain, "generation": "1",
       "counters": {"blocks": 1, "transactions": 1}, "coverageMode": "eager", "stale": false})
     writeJsonNl(d / heightRel, %*{"chain": chain, "epoch": 0, "heights": {"19000000": blk}})
@@ -509,7 +509,7 @@ suite "M5c — /idx search indices and HTML entry pages":
     let data = parseJson(payload)
     check data["kind"].getStr == "tx"
     check data["txHash"].getStr == h
-    let onDisk = parseFile(outDir / "d" / DemoChain / "tx" / hexShard(h) / h & ".json")
+    let onDisk = parseFile(outDir / "d" / DemoChain / "tx" / shardKeyFor("hex", h) / h & ".json")
     check data["facts"] == onDisk                        # a view, not a second truth
 
   test "the home page is the one index,follow page (§5 class I0)":
@@ -622,7 +622,7 @@ suite "M5b — malformed trees fail conformance":
     let d = freshDemo("neg-absent")
     # txB overlay (private+public) — drop the private reason.
     let h = "0x" & toLowerAscii($secureHash("neg" & "|tx|1"))[0 .. 39]
-    let ovp = d / "d" / DemoChain / "ts" / "1" / hexShard(h) / h & ".json"
+    let ovp = d / "d" / DemoChain / "ts" / "1" / shardKeyFor("hex", h) / h & ".json"
     var ov = parseFile(ovp)
     for e in ov["executions"]:
       if e["selector"].getStr == "private": e.delete("reason")

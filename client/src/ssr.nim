@@ -703,7 +703,7 @@ proc renderRoute*(r: DataRoot, path: string): tuple[status: int, body: string, c
       if hasBlock(r, parts[0], parts[2]):
         return (200, renderBlock(r, parts[0], parts[2]), "text/html")
     of "tx":
-      if hasTx(r, parts[0], parts[2]):
+      if hasTx(r, chainInfo(r, parts[0]), parts[2]):
         return (200, renderTx(r, parts[0], parts[2]), "text/html")
     of "address":
       let info = chainInfo(r, parts[0])
@@ -711,7 +711,8 @@ proc renderRoute*(r: DataRoot, path: string): tuple[status: int, body: string, c
         return (200, renderAddress(r, parts[0], parts[2], ""), "text/html")
     else: discard
   of 4:
-    if parts[1] == "tx" and parts[3] == "debug" and hasTx(r, parts[0], parts[2]):
+    if parts[1] == "tx" and parts[3] == "debug" and
+       hasTx(r, chainInfo(r, parts[0]), parts[2]):
       return (200, renderDebug(r, parts[0], parts[2]), "text/html")
     if parts[1] == "address" and parts[3] == "code":
       let info = chainInfo(r, parts[0])

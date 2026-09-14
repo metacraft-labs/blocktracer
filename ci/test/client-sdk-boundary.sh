@@ -133,16 +133,35 @@ DEEPLINK_INTERNAL_REL="src/blocktracer_client/deeplink.nim"
 # `d/{chain}/tx/{shard}/{hash}.json`, which is the second place for the layout
 # to drift that `paths.nim` exists to prevent.
 #
-# Unlike the deep link, this one carries three modules rather than one, and each
-# is named below rather than waved at. `paths` needs the sharding rule and the
-# contract version, both of which are pure and JS-safe; what it must NOT reach
-# is `blocktracer/contract/ids`, which is where `std/sha1` and therefore
+# Unlike the deep link, this one carries four modules rather than one, and each
+# is named below rather than waved at. `paths` needs the sharding rule, the
+# identifier-encoding vocabulary that rule is parameterised on, and the contract
+# version — all pure and JS-safe; what it must NOT reach is
+# `blocktracer/contract/ids`, which is where `std/sha1` and therefore
 # `std/endians` and therefore `copyMem` come in. The allowlist is the whole
 # point: it is short enough that adding to it is visible.
+#
+# `identifier_encoding.nim` WAS ADDED DELIBERATELY, and this is the note the
+# refusal message asks for. A sharded object path is derived from an identifier,
+# and how an identifier is written is a per-chain, per-kind fact the registry
+# publishes (`chains[<slug>].identifierEncoding`, Configuration.md §2.1) — so
+# `paths.nim`'s signatures are written in that vocabulary and `shards.nim` reads
+# each encoding's rule out of `tools/chain/identifier-encodings.json`. The
+# alternative was a table of per-encoding behaviour inside `shards.nim`, which is
+# a second place the layout could drift, in the one module whose whole purpose is
+# that there is not one.
+#
+# IT IS JS-SAFE, AND THAT WAS MEASURED RATHER THAN ARGUED. It imports `std/json`
+# for the compile-time `staticRead` of the closed set, which is exactly the kind
+# of import this check exists to catch — so the search bundle was built before and
+# after: `nim js` succeeds, and the validating path deliberately touches no
+# `JsonNode` (see `sortedDeclaration`, which records the 78 KB that routing it
+# through `newJObject` cost).
 PATHS_ENTRY_REL="src/blocktracer_client_paths.nim"
 PATHS_ENTRY_MODULE="blocktracer_client_paths"
 PATHS_INTERNAL_REL="src/blocktracer_client/paths.nim"
 PATHS_ALLOWED_RELS=(
+	"src/blocktracer/contract/identifier_encoding.nim"
 	"src/blocktracer/contract/shards.nim"
 	"src/blocktracer/contract/version.nim"
 )
@@ -883,6 +902,24 @@ elif [ ! -f "${PATHS_INTERNAL_REL}" ]; then
 	check_failed "paths-entry-present"
 	violation_detail "${PATHS_INTERNAL_REL} does not exist — the entry point re-exports nothing"
 else
+	# THE ALLOWLIST'S OWN SIZE, ASSERTED — because the comment beside
+	# `PATHS_ALLOWED_RELS` rests its whole case on "it is short enough that adding to
+	# it is visible", and until this check existed nothing made an addition visible.
+	# The list grew by one on 2026-09-14 (`identifier_encoding.nim`, for the reason
+	# written up there) and that growth was caught by a reviewer reading a diff,
+	# which is exactly the mechanism the two identifier-encoding boundary halves were
+	# rewritten to stop relying on: both of them assert the SIZE of their expected set
+	# for this reason. A list that may grow silently is a list nobody checks.
+	if [ "${#PATHS_ALLOWED_RELS[@]}" -eq 3 ]; then
+		check_ok "paths-allowlist-size — 3 contract modules, as named"
+	else
+		check_failed "paths-allowlist-size"
+		violation_detail "PATHS_ALLOWED_RELS holds ${#PATHS_ALLOWED_RELS[@]} entries; this check expects 3."
+		violation_detail "  Adding one is allowed and is meant to be deliberate: write the note the"
+		violation_detail "  refusal above asks for, say why the module is JS-safe (build the search"
+		violation_detail "  bundle before and after — that is how identifier_encoding.nim was cleared),"
+		violation_detail "  and update this number in the same commit so the growth is in the diff."
+	fi
 	paths_violations=0
 	saw_paths_internal=0
 	paths_closure=()

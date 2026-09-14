@@ -43,7 +43,7 @@ import blocktracer/chain/ingest
 # than against a restatement of its rules here — the same reasoning that makes
 # this suite build its trees with the real producers.
 import blocktracer/validator
-# `hexShard` and `recorderBuildHash` — suite 14 addresses overlay rows and
+# `shardKeyFor` and `recorderBuildHash` — suite 14 addresses overlay rows and
 # recomputes recorder builds the way the contract does, rather than hard-coding
 # a shard layout or a hash this repository already owns one spelling of.
 import blocktracer/contract/ids
@@ -3547,7 +3547,7 @@ suite "14 — one chain carries containers from two recorders, each filed as its
 
   proc overlayRecorderOf(tree, chain, txHash: string): JsonNode =
     ## The `recorder` an overlay row names, or nil where it names none.
-    let p = tree / "d" / chain / "ts" / "1" / hexShard(txHash) / (txHash & ".json")
+    let p = tree / "d" / chain / "ts" / "1" / shardKeyFor("hex", txHash) / (txHash & ".json")
     if not fileExists(p): return nil
     parseJson(readFile(p)){"trace"}{"recorder"}
 

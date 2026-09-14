@@ -98,7 +98,7 @@ proc transaction*(store: ObjectStore, session: ChainSession,
   ## Assemble the three layers. A missing txstate or overlay is recorded as
   ## absent-layer data, never as a failure of the transaction itself: the facts
   ## are permanent and the other two are scoped to things that move.
-  let f = store.getJson(txFactsPath(session.chain, txHash))
+  let f = store.getJson(txFactsPath(session.chain, txHash, session.identifierEncoding))
   if not f.found:
     return TransactionResult(outcome: roNotFound,
       reason: txHash & " is not in this tree")
@@ -111,14 +111,15 @@ proc transaction*(store: ObjectStore, session: ChainSession,
   except ContractDecodeError as e:
     return TransactionResult(outcome: roMalformed, reason: e.msg)
 
-  let st = store.getJson(txStatePath(session.chain, session.generation, txHash))
+  let st = store.getJson(txStatePath(session.chain, session.generation, txHash, session.identifierEncoding))
   if st.found and st.error.len == 0 and st.node.kind == JObject:
     v.hasState = true
     v.canonical = st.node{"canonical"}.getBool
     v.finality = st.node{"finality"}.getStr
 
   let ov = store.getJson(
-    traceSelectionPath(session.chain, session.traceSelectionVersion, txHash))
+    traceSelectionPath(session.chain, session.traceSelectionVersion, txHash,
+                       session.identifierEncoding))
   if ov.found and ov.error.len == 0:
     try:
       v.selection = decodeTraceSelection(ov.node)

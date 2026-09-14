@@ -243,6 +243,20 @@ const
     ## shard depth would publish a tree where half the shard names are wrong.
   nameShardBits = 1      ## low bits of the term hash that select a name shard (2 shards)
 
+proc demoIdentifierEncoding(): ChainIdentifierEncoding =
+  ## HOW THIS CHAIN WRITES ITS IDENTIFIERS — ONE DECISION FOR THIS PRODUCER.
+  ##
+  ## `writeRegistry` publishes it and `generate` derives every sharded object path
+  ## from it, and they are two procs, so the decision is a function rather than a
+  ## local: two `hexIdentifierEncoding()` calls in two procs would be two places
+  ## that could come to disagree, which is exactly what the registry member exists
+  ## to prevent. A change here moves the declaration and the keys together, or it
+  ## moves neither.
+  ##
+  ## `hex` is right for this chain for its own measured reason: `synthAddr` emits
+  ## `0x` + 40 lowercase hex and every synthetic hash here is the same shape.
+  hexIdentifierEncoding()
+
 proc recorderRef(): RecorderRef =
   RecorderRef(id: recorderId, build: recorderBuildHash(recorderId, recorderVersion),
               version: recorderVersion)
@@ -263,22 +277,22 @@ proc writeRegistry(cfg: DemoConfig) =
   var reg =
     if fileExists(path): parseJson(readFile(path))
     else: %*{"version": ContractVersion, "chains": {}}
-  # `identifierEncoding` — DECLARED, ADDITIVE, AND READ BY NOBODY. The same member
-  # `ingest.nim` writes, through the same closed set
+  # `identifierEncoding` — DECLARED, ADDITIVE, AND CONSUMED BY SHARD DERIVATION.
+  # The same member `ingest.nim` writes, through the same closed set
   # (`contract/identifier_encoding.nim` over
   # `tools/chain/identifier-encodings.json`), so the two producers cannot come to
   # disagree about which tokens exist. Configuration.md §2.1 is the schema, §2.2
-  # the additive rule. The comment at the other producer's write says why nothing
-  # consumes it yet and why the declaration lands before anything does.
+  # the additive rule.
   #
-  # `hex` is right for this chain too and for its own measured reason: `synthAddr`
-  # emits `0x` + 40 lowercase hex and every synthetic hash here is the same shape.
+  # IT IS `demoIdentifierEncoding()`, WHICH IS ALSO WHAT `generate` KEYS WITH —
+  # that function's doc says why this producer's declaration and its derivation
+  # have to be one decision.
   reg["chains"][chain] = %*{
     "recorder": {"id": recorderId, "build": recorderBuildHash(recorderId, recorderVersion),
                  "version": recorderVersion},
     "profile": {"name": profileName, "hash": profileHash(profileName)},
     "traceSchema": traceSchema,
-    "identifierEncoding": hexIdentifierEncoding()
+    "identifierEncoding": demoIdentifierEncoding().identifierEncodingNode()
   }
   cfg.writeJson("registry" / "chains.v" & $ContractVersion & ".json", reg)
 
@@ -897,6 +911,13 @@ proc generate*(cfg: DemoConfig): int =
   # newest-first walk. See `TourBlockHeight`.
   let heightList = (if tour.len > 0: @[TourBlockHeight] else: @[]) &
                    @[100, 101, 102] & cfg.extraBlocks
+  # THE SAME DECLARATION `writeRegistry` JUST PUBLISHED, used to derive every
+  # sharded object path below. One function answers for both — see
+  # `demoIdentifierEncoding` — so this tree cannot declare one encoding and key
+  # another.
+  let identifierEncoding = demoIdentifierEncoding()
+  let txEncoding = identifierEncoding.encodingFor(KindTransaction)
+  let addrEncoding = identifierEncoding.encodingFor(KindAddress)
   createDir cfg.outDir
   cfg.writeRegistry()
 
@@ -946,7 +967,7 @@ proc generate*(cfg: DemoConfig): int =
                   renderBlockPage(chain, b.hash, bdJson))
     hashEntries.add HashEntry(hexHash: b.hash, chain: chain, kind: hkBlock)
   for t in txs:
-    let sh = hexShard(t.hash)
+    let sh = shardKeyFor(txEncoding, t.hash)
     let factsJson = t.facts.toJson
     cfg.writeJson("d" / chain / "tx" / sh / t.hash & ".json", factsJson)
     var st = t.txstate
@@ -1033,7 +1054,7 @@ proc generate*(cfg: DemoConfig): int =
     for h in heights:
       let node = %*{"chain": chain, "address": address, "fromBlock": h,
                     "toBlock": h, "transactions": addrTxsByHeight[address][h]}
-      let rel = "d" / chain / "seg" / hexShard(address) / address /
+      let rel = "d" / chain / "seg" / shardKeyFor(addrEncoding, address) / address /
                 ($h & "-" & $h) & ".json"
       cfg.writeJson(rel, node)
       segRels.add rel
@@ -1054,7 +1075,8 @@ proc generate*(cfg: DemoConfig): int =
 
   var addrRels: seq[string]
   for a in addrSegs:
-    let rel = "d" / chain / "g" / gen / "addr" / hexShard(a.address) / a.address & ".json"
+    let rel = "d" / chain / "g" / gen / "addr" / shardKeyFor(addrEncoding, a.address) /
+              a.address & ".json"
     var segArray = newJArray()
     for s in a.segments: segArray.add %s
     let addrList = %*{"chain": chain, "address": a.address, "segments": segArray}
@@ -1065,7 +1087,8 @@ proc generate*(cfg: DemoConfig): int =
 
   var txstateRels: seq[string]
   for t in txs:
-    txstateRels.add "d" / chain / "g" / gen / "txstate" / hexShard(t.hash) / t.hash & ".json"
+    txstateRels.add "d" / chain / "g" / gen / "txstate" / shardKeyFor(txEncoding, t.hash) /
+                      t.hash & ".json"
 
   let summaryRel = "d" / chain / "g" / gen / "summary.json"
   # THE SYNTHETIC TREE SAYS SO IN ITS OWN SUMMARY. Once a second producer

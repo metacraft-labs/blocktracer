@@ -183,7 +183,7 @@ suite "2 — what the tree publishes agrees with the container beside it":
                      "tour.json")
     for r in rows:
       check r.tx.len > 0
-      check hasTx(root, DemoChainSlug, r.tx)
+      check hasTx(root, chainInfo(root, DemoChainSlug), r.tx)
       check r.title.len > 0
       check r.summary.len > 0
 

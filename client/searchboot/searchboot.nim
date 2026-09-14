@@ -165,7 +165,63 @@ type
     ## and the route to land on if it is there.
     chain*, kind*, objectPath*, route*: string
 
-func candidatesFor*(canonical: string; chains: openArray[string]):
+  ChainRef* = object
+    ## One published chain, as the browser needs it: its slug and how it writes
+    ## its identifiers.
+    ##
+    ## THE ENCODING IS READ FROM THE REGISTRY, not assumed, and this is the
+    ## reason the type exists. Search-And-Routing.md §5's promise — "two requests
+    ## to resolve any hash on any chain" — is only true if the client recomputes
+    ## the SAME object path the producer wrote. Before the registry carried the
+    ## encoding the browser had no way to do that for a chain that was not hex,
+    ## so a derivation the producer could do and the browser could not would have
+    ## left §5 false for every non-hex chain while every test passed.
+    ##
+    ## `registryChains` below reads it out of the same registry fetch that
+    ## enumerates the chains, so it costs no additional request.
+    slug*: string
+    encoding*: ChainIdentifierEncoding
+
+func chainRef*(slug, txEncodingToken: string): ChainRef =
+  ## One chain's reference, from the slug and the token the registry declared for
+  ## its TRANSACTION identifiers.
+  ##
+  ## An empty token is the §6.1 compatibility case — a registry published before
+  ## the member existed — and `declaredOrLegacy` is the one function in the tree
+  ## that decides what that means. It is NOT decided at the JavaScript boundary
+  ## below: that boundary carries bytes, and every rule about them is Nim's, which
+  ## is this module's own stated split.
+  ##
+  ## Only the transaction encoding is carried because only the transaction path is
+  ## sharded here: `blockPath` is content-addressed, so it has no shard segment and
+  ## no alphabet question, and this module builds no address path at all.
+  ChainRef(slug: slug,
+           encoding: chainIdentifierEncoding(
+             {KindTransaction: declaredOrLegacy(txEncodingToken)}))
+
+func parseChainRefs*(packed: string): seq[ChainRef] =
+  ## `slug:encoding,slug:encoding,…` from the JS boundary.
+  ##
+  ## A row with no `:` is a slug whose registry entry declared no encoding, which
+  ## is the compatibility case rather than a malformed row — an OLD registry is
+  ## exactly the input that produces it, and refusing to search a tree because it
+  ## predates a member would break §5.4's "search must never fail".
+  for row in packed.split(','):
+    if row.len == 0: continue
+    let i = row.find(':')
+    if i < 0: result.add chainRef(row, "")
+    else:
+      let slug = row[0 ..< i]
+      if slug.len == 0: continue
+      # A token the registry declared that this build does not know is NOT read
+      # as hex — `declaredOrLegacy` raises on it — so the chain is dropped from
+      # the fan-out rather than probed at a path we would be guessing. Dropping
+      # it is visible in the rendered "chains covered" list, which §14 requires
+      # a miss to name; guessing would have produced a confident 404.
+      try: result.add chainRef(slug, row[i + 1 .. ^1])
+      except ValueError: discard
+
+func candidatesFor*(canonical: string; chains: openArray[ChainRef]):
     seq[Candidate] =
   ## §4's direct path, enumerated. One entry per candidate MEANING per chain —
   ## §2's "a 64-hex string is both a plausible transaction hash and a plausible
@@ -173,16 +229,24 @@ func candidatesFor*(canonical: string; chains: openArray[string]):
   ##
   ## Pure, and that is the point: the browser fetches this list and nothing else,
   ## so "which requests does a search make" is answerable without running one.
+  ##
+  ## THE TRANSACTION PATH IS RECOMPUTED WITH THE CHAIN'S OWN ENCODING, through
+  ## the same `txFactsPath` the producer and the validator use. A chain whose
+  ## declared encoding cannot be a shard path segment — `base64`, whose alphabet
+  ## contains `/` — yields no candidate rather than a wrong one, and its block
+  ## candidate still stands, because a block path has no shard in it.
   if not isHashLike(shapesOf(canonical)): return
-  for chain in chains:
+  for c in chains:
+    try:
+      result.add Candidate(
+        chain: c.slug, kind: "transaction",
+        objectPath: "/" & txFactsPath(c.slug, canonical, c.encoding),
+        route: "/" & c.slug & "/tx/" & canonical & "/")
+    except ValueError: discard
     result.add Candidate(
-      chain: chain, kind: "transaction",
-      objectPath: "/" & txFactsPath(chain, canonical),
-      route: "/" & chain & "/tx/" & canonical & "/")
-    result.add Candidate(
-      chain: chain, kind: "block",
-      objectPath: "/" & blockPath(chain, canonical),
-      route: "/" & chain & "/block/" & canonical & "/")
+      chain: c.slug, kind: "block",
+      objectPath: "/" & blockPath(c.slug, canonical),
+      route: "/" & c.slug & "/block/" & canonical & "/")
 
 func encodeCandidates(cs: seq[Candidate]): string =
   ## The candidate list as JSON, for the one `importjs` boundary below.
@@ -215,11 +279,31 @@ proc registryChains(path: cstring; cb: proc(slugs: cstring)) {.importjs: """
   // the chain cards already in the DOM: those are a rendering of this file,
   // and a search that silently skipped a chain would still print a confident
   // "chains checked" list naming it.
+  //
+  // `slug:encoding,…` — the slug AND the encoding the row declares for its
+  // transaction identifiers (Configuration.md §2.1), because the object path
+  // this module recomputes is sharded and the shard depends on the alphabet.
+  // Reading it here costs no extra request: this fetch was already happening.
+  //
+  // THIS BOUNDARY DECIDES NOTHING. An absent member is passed on as an empty
+  // token and `parseChainRefs` resolves what that means; a present one is passed
+  // on verbatim, unvalidated, because the closed set lives on the Nim side. That
+  // is this module's standing split — the boundary carries bytes, the rules are
+  // Nim — and it is what keeps the browser from holding a second opinion about
+  // which encodings exist.
   fetch(path, { credentials: 'omit' })
     .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(j){
       var out = [];
-      if (j && j.chains) { for (var k in j.chains) out.push(k); }
+      if (j && j.chains) {
+        for (var k in j.chains) {
+          var row = j.chains[k];
+          var enc = (row && row.identifierEncoding &&
+                     typeof row.identifierEncoding.transaction === 'string')
+                    ? row.identifierEncoding.transaction : '';
+          out.push(k + ':' + enc);
+        }
+      }
       cb(out.join(','));
     })
     .catch(function(){ cb(''); });
@@ -455,7 +539,7 @@ proc renderNoQuery(slotId, state, message: cstring) {.importjs: """
     '"><div class="measure">' + msg + '</div></div>';
 })(#, #, #)""".}
 
-proc directPathFallback(canonical: string; chains: seq[string]) =
+proc directPathFallback(canonical: string; chains: seq[ChainRef]) =
   ## §5.4, unchanged and still here on purpose: "If the index is unavailable or
   ## a version is stale, the client falls back to probing configured chains
   ## directly. Slower and noisier, never wrong. **Search must never fail
@@ -520,9 +604,8 @@ proc boot(chainsCsv, packedMeta: cstring) =
               "was looked in — which is not the same as nothing being there."))
     return
 
-  var chains: seq[string]
-  for c in ($chainsCsv).split(','):
-    if c.len > 0: chains.add c
+  # The registry rows, slug AND declared transaction encoding — see `parseChainRefs`.
+  let chains = parseChainRefs($chainsCsv)
 
   let body = canonicalHexBody(raw)
 
@@ -540,7 +623,7 @@ proc boot(chainsCsv, packedMeta: cstring) =
   var covered = ""
   for i, c in chains:
     if i > 0: covered.add " · "
-    covered.add c
+    covered.add c.slug
   let coveredNote =
     if covered.len > 0: " Chains covered: " & covered & "."
     else: ""

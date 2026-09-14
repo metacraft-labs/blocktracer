@@ -122,7 +122,36 @@ preview-live: export-hydrated replay-engine
 
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
-test: test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-capability-tour test-instruction-listing test-scrub-queue test-selection-detail test-noir-frame-folding test-frame-identity-jump test-chain-origins
+test: test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-capability-tour test-instruction-listing test-scrub-queue test-selection-detail test-noir-frame-folding test-frame-identity-jump test-chain-origins test-searchboot
+
+# The browser's half of search, run without a browser: `nim js -r`, which is how
+# `searchboot.nim` can be tested at all. Its `importjs` boundary procs make the
+# module uncompilable on the C backend, so every other recipe here would have had
+# to skip it — and did. IT HAD NO TEST OF ANY KIND before this: the bundle
+# freshness gate checks that `search.js` is newer than its sources and the SDK
+# boundary lint checks which modules it may import, and neither runs one of its
+# rules.
+#
+# WHAT IT MEASURES IS NOT A NICETY. Search-And-Routing.md §5's promise is "two
+# requests to resolve any hash on any chain", and that is only true if the client
+# recomputes the SAME object path the producer wrote. Since the path is derived
+# from the chain's declared identifier encoding, a browser that could not read the
+# declaration would make §5 false for every chain that is not hex — silently, and
+# only in a tab. This recipe is what fails instead.
+#
+# `-o:` INTO `nimcache/`, WHICH IS NOT DECORATION. `nim js` drops its output beside
+# the source, and a `tests/test_searchboot.js` there is a `.js` file under
+# `client/` — which is exactly the extension the identifier-encoding boundary
+# sweeps count as source. It went red on the first run for that reason. Those
+# sweeps now take their population from git — tracked plus
+# untracked-and-not-ignored — so a `nimcache/` output is out of it either way and
+# this is belt and braces. Both are worth having: `-o:` is what keeps the working
+# tree honest for a reader, and git's answer is what keeps the sweep honest for a
+# bundle whose output is NOT named after its source (`searchboot/search.js`),
+# which a same-stem rule missed.
+test-searchboot:
+    nim js -r --hints:off --nimcache:nimcache/test_searchboot \
+      -o:nimcache/test_searchboot/test_searchboot.js tests/test_searchboot.nim
 
 # The static-export round-trip test: compile + run the real exporter into a
 # temp dir, then assert the three view types render for the demo entities and

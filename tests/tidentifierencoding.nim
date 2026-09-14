@@ -1,28 +1,34 @@
 ## The registry's per-chain identifier-encoding declaration — Configuration.md
 ## §2.1 (the schema) and §2.2 (the additive rule).
 ##
-## ## What this suite is about, and the one thing it is not about
+## ## What this suite is about
 ##
-## An identifier's encoding is now stated as DATA in the published registry
+## An identifier's encoding is stated as DATA in the published registry
 ## (`chains[<slug>].identifierEncoding`) rather than being inferred from the
-## string. **Nothing reads it.** Shard derivation, the hash index, the client's
-## local path recomputation and the capture tooling all still derive from the
-## string, and the assumption they share is `0x` + hex; widening them is separate
-## work whose last step rewrites a published wire format.
+## string, and **shard-path derivation reads it**: `contract/shards.nim` takes the
+## token as a parameter, the producers hand it the value they publish, and the
+## validator and the client read it back out of the row.
 ##
-## So the property under test here is NOT that something consumes the field. It
-## is the opposite, and it is the one §2.2 requires: a client built against the
-## schema **without** this member reads a registry carrying it and behaves
-## identically. Suite 4 measures that, and — because an equality that cannot fail
-## is not evidence — it measures three controls in the same run, each a change to
-## a member the same reader IS built for, each of which changes or refuses.
+## Two sites still derive from the string and are deliberately later steps — the
+## hash index (a published wire format, so a migration) and the capture tooling
+## (which enumerates the tree the index keys, so it follows the index).
 ##
-## Suite 5 states the boundary mechanically: the field is written at two sites and
-## read at none, over `src/` swept, nine named consumer-side files, and `client/`
-## and `tools/` swept behind a population floor. Those arms are expected to go RED
-## when a consumer is wired in, which is correct. The person adding the consumer
-## should move the site out of the boundary deliberately, not discover afterwards
-## that nothing noticed.
+## Suites 1–3 are the closed set, the refusals and the producers' round trip.
+##
+## Suite 4 is §2.2's additive rule, which did not stop mattering when a consumer
+## arrived: a client built against the schema **without** the member must still
+## read a registry carrying it and behave identically. Because an equality that
+## cannot fail is not evidence, it measures three controls in the same run, each a
+## change to a member the same reader IS built for, each of which changes or
+## refuses.
+##
+## Suite 5 states the boundary mechanically, as an EQUALITY between an enumerated
+## set of files and a swept one, behind the same population floors as before. It
+## used to assert that nothing read the member; that form went red when the
+## derivation landed, which is what it was for, and it was replaced rather than
+## widened. It also asserts that the two string-deriving sites are UNCHANGED, so
+## that a check watching the closed half of the seam cannot report the open half
+## as closed.
 ##
 ## ## NO MOCKS, and there are none to justify
 ##
@@ -36,7 +42,7 @@
 ## reason `tchainsnapshot.nim` gives: it is a snapshot nobody in this repository
 ## wrote.
 
-import std/[unittest, os, json, strutils, algorithm]
+import std/[unittest, os, json, strutils, algorithm, osproc, sets]
 
 import ../src/blocktracer_client
 import ../src/blocktracer/contract/identifier_encoding
@@ -489,122 +495,585 @@ suite "the additive rule: an older client reads it and behaves identically":
     removeDir tree
 
 # ───────────────────────────────────────────────────────────────────────────
-suite "the field is declared at two sites and read at none":
+suite "shard derivation takes the encoding as data":
+
+  # ── THE PUBLISHED HEX LAYOUT IS THE ACCEPTANCE CRITERION ──────────────────
+  #
+  # `shardKeyFor("hex", …)` has to be byte-for-byte what the function it replaced
+  # produced, because every shard path Aztec has published was derived that way
+  # and is still addressable (Publishing-And-Caching.md §6.1). The replaced
+  # function is restated here as an ORACLE — the literal three lines it was — so
+  # the equality is against the old algorithm rather than against a remembered
+  # description of it.
+  #
+  # JUSTIFYING THE ORACLE, since the workspace policy asks about stand-ins: this
+  # is not a mock of anything. It is the previous implementation, copied verbatim
+  # from `contract/shards.nim` as it stood at the parent commit, used as the
+  # reference an equivalence claim needs. Nothing under test calls it, and the
+  # whole-tree half of the same claim is measured elsewhere by publishing the
+  # Aztec captures before and after and diffing every object path and byte.
+
+  func oldHexShard(hashHex: string): string =
+    var h = hashHex
+    if h.startsWith("0x"): h = h[2 .. ^1]
+    if h.len < 4: h = h & repeat('0', 4 - h.len)
+    h[0 .. 3]
+
+  test "for hex it is exactly the algorithm it replaced, quirks included":
+    # A corpus that reaches both quirks and both lengths the captures contain.
+    let corpus = @[
+      "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "0x2b0f32c62a6d5b0a4e6a0b3c1d8e9f70112233445566778899aabbccddeeff00",
+      "0xdeadbeef", "0xdead", "0xdea", "0xd", "0x", "",
+      "deadbeefcafe",                       # no prefix at all
+      "0x0000dead",                         # leading zeroes are not special
+      "0xABCDEF0123",                       # uppercase is NOT normalised here
+      "0x1", "0x12", "0x123", "0x1234"]     # every length below and at the width
+    for id in corpus:
+      ck shardKeyFor("hex", id) == oldHexShard(id)
+    # …and the two quirks stated as their own assertions, so a reader can see
+    # WHICH properties the equality above is carrying.
+    ck shardKeyFor("hex", "0xdeadbeef") == "dead"      # the `0x` is stripped
+    ck shardKeyFor("hex", "deadbeef") == "dead"        # …only if present
+    ck shardKeyFor("hex", "0xd") == "d000"             # right-padded to 4
+    ck shardKeyFor("hex", "0x") == "0000"
+    ck shardKeyFor("hex", "").len == 4
+    # NOTHING IS LOWERCASED. Per-encoding case handling is a separate step, and
+    # this derivation must not pre-empt it: an EIP-55 address's checksum lives in
+    # its case, and base58 and base64url are case-significant outright.
+    ck shardKeyFor("hex", "0xABcd1234") == "ABcd"
+
+  test "every member of the closed set has a rule and derives one":
+    # A member with no rule would be a token a producer could declare and a chain
+    # could publish under, meeting the derivation for the first time in
+    # production. The build already refuses one; this refuses it behaviourally
+    # too, and covers the pathSafe member set in the same sweep.
+    var derived, refused: seq[string]
+    for token in identifierEncodingIds():
+      let rule = identifierEncodingRule(token)
+      ck rule.pad.len == 1
+      try:
+        let key = shardKeyFor(token, "0123456789abcdef")
+        ck key.len == ShardWidth
+        ck rule.pathSafe
+        derived.add token
+      except ValueError:
+        ck not rule.pathSafe
+        refused.add token
+    # SPELLED OUT RATHER THAN COUNTED: a count stays green when the unshardable
+    # member is a different one. `base64`'s alphabet contains `/`, which ends a
+    # path segment, so it is declarable and not shardable — recorded rather than
+    # closed, because choosing the path-safe re-encoding is not this repository's
+    # decision to make.
+    ck refused == @["base64"]
+    ck derived.len == identifierEncodingIds().len - 1
+
+  test "a token outside the closed set refuses rather than falling back to hex":
+    # The whole point. A derivation that met an unknown token and shrugged into
+    # hex would be the assumption this seam removed, reintroduced at the one place
+    # it cannot be seen.
+    for bogus in ["base32", "Hex", "HEX", "0x", "", "hex "]:
+      var raised = false
+      try: discard shardKeyFor(bogus, "0xdeadbeef")
+      except ValueError as e:
+        raised = true
+        ck e.msg.contains("not an identifier encoding")
+      ck raised
+
+  test "the non-hex encodings shard on their own alphabet, not on hex's":
+    # base58 (Solana) — whole string is payload, case preserved.
+    ck shardKeyFor("base58", "5KJvsngHeMpm884wtkJNzQGaCErckhHJBGFsvd3VyK5q") == "5KJv"
+    # base64url (TON) — `EQ`/`UQ` prefix is payload, not decoration.
+    ck shardKeyFor("base64url", "EQCcrOCzgnZKgVSNNjjOQhRRsRWaiMEB-4hPl-PtLoL8Mh1x") ==
+       "EQCc"
+    ck shardKeyFor("base64url", "UQCcrOCzgnZKgVSNNjjOQhRRsRWaiMEB-4hPl-PtLoL8Mh1x") ==
+       "UQCc"
+    # bech32 / bech32m — the payload begins after the LAST `1`, so a whole chain
+    # does not land in one bucket. THIS IS THE ARM THAT WOULD CATCH THE OBVIOUS
+    # WRONG ANSWER: sharding the raw string gives `addr` and `fuel` for every
+    # address on those chains.
+    ck shardKeyFor("bech32", "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jcacq5z") ==
+       "qx2f"
+    ck shardKeyFor("bech32m", "fuel1q9k7yfcp4hmrmj3xkqnwvlvmv6sfdqe2lgvkujgcwvn") ==
+       "q9k7"
+    ck not shardKeyFor("bech32", "addr1qx2fxv2umyhttkxyxp8").startsWith("addr")
+    ck not shardKeyFor("bech32m", "fuel1q9k7yfcp4hmrmj3xkqn").startsWith("fuel")
+    # ss58 (Substrate) — base58 alphabet, whole string is payload.
+    ck shardKeyFor("ss58", "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY") == "5Grw"
+    # decimal — a rule exists even though no sharded kind can be decimal today.
+    ck shardKeyFor("decimal", "12345") == "1234"
+    ck shardKeyFor("decimal", "7") == "7000"
+    # And the pad is the ALPHABET's zero digit, not `0`, which is not a base58 or
+    # a bech32 digit at all.
+    ck shardKeyFor("base58", "5K") == "5K11"
+    ck shardKeyFor("bech32", "addr1q") == "qqqq"
+    ck shardKeyFor("base64url", "EQ") == "EQAA"
+
+  test "a case-significant identifier keeps its case through derivation":
+    # Lowercasing is right for a hex key and DESTROYS base58 and base64url. The
+    # derivation slices and pads and normalises nothing, which is why it could
+    # land before per-encoding case handling did.
+    ck shardKeyFor("base58", "5KJvsngHeMpm884wtkJNzQGaCErckhHJBGFsvd3VyK5q") !=
+       shardKeyFor("base58", "5kjvsnghempm884wtkjnzqgacerckhhjbgfsvd3vyk5q")
+    ck shardKeyFor("base64url", "EQCcrOCz") == "EQCc"
+    ck shardKeyFor("base64url", "eqccrocz") == "eqcc"
+
+  test "traceShards is NOT encoding-parameterised, and the set says why":
+    # A trace artifact id is content-addressed by THIS pipeline, so no chain's
+    # declaration may re-address it. The shared file states the same ruling from
+    # the other end: `traceArtifactId` is deliberately not an identifier kind.
+    ck not isIdentifierKind("traceArtifactId")
+    ck not isIdentifierKind("codeHash")
+    ck not isIdentifierKind("bundleHash")
+    let tid = "abcd1234ef"
+    let sh = traceShards(tid)
+    ck sh.a == "ab"
+    ck sh.b == "cd"
+    # The signature carries no encoding, which is what stops a caller passing one.
+    ck readFile(RepoRoot / "src/blocktracer/contract/shards.nim").contains(
+      "func traceShards*(tid: string): tuple[a, b: string]")
+
+  test "an omitted kind refuses; an absent declaration is the §6.1 fallback":
+    # TWO DIFFERENT ABSENCES WITH TWO DIFFERENT ANSWERS, and conflating them is
+    # the defect this arm exists to catch.
+    #
+    # A row that declares `{address: ss58}` has SAID something about its
+    # transactions — that it cannot describe them as an encoded string, which is
+    # Substrate's `blockIndex` case — so asking for a transaction shard refuses.
+    let partial = chainIdentifierEncoding({"address": "ss58"})
+    ck partial.declared
+    ck partial.encodingFor(KindAddress) == "ss58"
+    var raised = false
+    try: discard partial.encodingFor(KindTransaction)
+    except ValueError as e:
+      raised = true
+      ck e.msg.contains("transaction")
+    ck raised
+
+    # A row with NO member at all is a tree published before the member existed,
+    # and its shard paths are hex and still addressable. That resolves, and says
+    # it was not declared.
+    let legacy = parseChainIdentifierEncoding(parseJson("""{"traceSchema":"x"}"""))
+    ck not legacy.declared
+    ck legacy.encodingFor(KindTransaction) == "hex"
+    ck legacy.encodingFor(KindAddress) == "hex"
+    ck LegacyUndeclaredEncoding == "hex"
+    # …and a declared row says so, which is what makes the two distinguishable.
+    let declared = parseChainIdentifierEncoding(
+      parseJson("""{"identifierEncoding":{"transaction":"hex"}}"""))
+    ck declared.declared
+    ck declared.encodingFor(KindTransaction) == "hex"
+
+    # A member that is PRESENT and wrong is refused rather than read as hex: the
+    # compatibility window is for absence, not for garbage.
+    for bad in ["""{"identifierEncoding":{"transaction":"base32"}}""",
+                """{"identifierEncoding":{"traceArtifactId":"hex"}}""",
+                """{"identifierEncoding":"hex"}""",
+                """{"identifierEncoding":{"transaction":7}}"""]:
+      var refused = false
+      try: discard parseChainIdentifierEncoding(parseJson(bad))
+      except ValueError: refused = true
+      ck refused
+
+# ───────────────────────────────────────────────────────────────────────────
+suite "the encoding has exactly one source: the registry row":
+
+  # The milestone's `test_the_encoding_has_exactly_one_source` and
+  # `test_non_hex_identifiers_round_trip_through_the_shard_path`, measured
+  # together because they are the same measurement from two directions: the
+  # PRODUCER's path and the CLIENT's recomputation of it have to move together
+  # when the declaration moves, and to agree when it does not.
+  #
+  # NO MOCKS. The producer is the real demo generator over a real temporary tree;
+  # the client is the real `openChain` + the real `paths.nim`, reading the real
+  # registry bytes off disk.
+
+  test "the client recomputes the producer's path, for hex, from the tree":
+    let tree = buildDemo("onesource-hex")
+    let slug = onlySlug(rawRegistry(tree))
+    let opened = openChain(localTree(tree), slug)
+    ck opened.outcome == ooOpened
+    ck opened.session.identifierEncoding.declared
+    ck opened.session.identifierEncoding.encodingFor(KindTransaction) == "hex"
+
+    # Every transaction the producer published, recomputed by the client and
+    # required to EXIST. A path that resolves is the only evidence that matters:
+    # comparing two strings both derived from one function would pass if the
+    # function were wrong.
+    var checked = 0
+    for path in walkDirRec(tree / "d" / slug / "tx", relative = true):
+      if not path.endsWith(".json"): continue
+      let txHash = path.splitFile.name
+      let rel = txFactsPath(slug, txHash, opened.session.identifierEncoding)
+      ck fileExists(tree / rel)
+      inc checked
+    # A FLOOR, because a walk that found no transaction would satisfy the loop
+    # above perfectly.
+    ck checked >= 4
+    removeDir tree
+
+  test "…and the derivation follows the declaration when the declaration moves":
+    # The control the milestone asks for: with the registry's declared encoding
+    # ALTERED, the client computes a different path — so the derivation is
+    # genuinely reading the row rather than agreeing with it by coincidence.
+    let tree = buildDemo("onesource-moved")
+    let slug = onlySlug(rawRegistry(tree))
+    let before = openChain(localTree(tree), slug)
+    ck before.outcome == ooOpened
+
+    var txHash = ""
+    for path in walkDirRec(tree / "d" / slug / "tx", relative = true):
+      if path.endsWith(".json"): txHash = path.splitFile.name
+    ck txHash.len > 0
+    let beforePath = txFactsPath(slug, txHash, before.session.identifierEncoding)
+    ck fileExists(tree / beforePath)
+
+    # `base58` over the same `0x`-prefixed string keys differently for a reason
+    # that is the whole seam: base58 has no `0x` to strip, so the `0x` is payload.
+    var reg = rawRegistry(tree)
+    reg["chains"][slug]["identifierEncoding"]["transaction"] = %"base58"
+    writeRegistry(tree, reg)
+    let after = openChain(localTree(tree), slug)
+    ck after.outcome == ooOpened
+    ck after.session.identifierEncoding.encodingFor(KindTransaction) == "base58"
+    let afterPath = txFactsPath(slug, txHash, after.session.identifierEncoding)
+    ck afterPath != beforePath
+    ck shardKeyFor("base58", txHash) == txHash[0 ..< 4]
+    # …and the object is NOT there, which is the point: a client that read the
+    # declaration honestly asks for the path the declaration implies, and a
+    # producer that declared one thing and keyed another is caught by exactly this.
+    ck not fileExists(tree / afterPath)
+    removeDir tree
+
+  test "a non-hex chain round-trips: producer derives, client recomputes":
+    # THE NON-HEX END TO END. The tree is built by the real producer and then its
+    # registry is re-declared as base58 and its sharded objects MOVED to the paths
+    # that declaration implies — which is exactly what a base58 producer would
+    # have written. The client then reads the registry and finds every one of them
+    # without being told anything.
+    #
+    # Moving the objects rather than adding a base58 chain to the generator is
+    # deliberate: a second synthetic chain would be a producer written for this
+    # test, and the thing under test is whether the CLIENT's recomputation follows
+    # the declaration. The identifiers are the real ones the producer minted.
+    let tree = buildDemo("roundtrip-b58")
+    let slug = onlySlug(rawRegistry(tree))
+    var reg = rawRegistry(tree)
+    reg["chains"][slug]["identifierEncoding"]["transaction"] = %"base58"
+    reg["chains"][slug]["identifierEncoding"]["address"] = %"base58"
+    writeRegistry(tree, reg)
+
+    let opened = openChain(localTree(tree), slug)
+    ck opened.outcome == ooOpened
+    let enc = opened.session.identifierEncoding
+    ck enc.encodingFor(KindTransaction) == "base58"
+    ck enc.encodingFor(KindAddress) == "base58"
+
+    # Re-shard the transaction facts the way a base58 producer would have.
+    var moved = 0
+    var hashes: seq[string]
+    for path in walkDirRec(tree / "d" / slug / "tx", relative = true):
+      if path.endsWith(".json"): hashes.add path.splitFile.name
+    ck hashes.len >= 4
+    for h in hashes:
+      let old = tree / "d" / slug / "tx" / shardKeyFor("hex", h) / (h & ".json")
+      let want = tree / txFactsPath(slug, h, enc)
+      ck fileExists(old)
+      ck old != want
+      createDir want.parentDir
+      moveFile(old, want)
+      inc moved
+    ck moved == hashes.len
+
+    # THE CLIENT'S OWN RECOMPUTATION, through the real SDK read rather than
+    # through a path comparison: `transaction` builds the path from the session
+    # and fetches it.
+    let store = localTree(tree)
+    for h in hashes:
+      let r = transaction(store, opened.session, h)
+      if r.outcome != roFound:
+        checkpoint("base58 round trip failed for " & h & ": " & $r.outcome)
+      ck r.outcome == roFound
+      ck r.view.hash == h
+    # CONTROL: the hex derivation of the same identifiers now resolves to
+    # nothing, so the successes above are attributable to the declaration rather
+    # than to both layouts happening to exist.
+    var hexStillThere = 0
+    for h in hashes:
+      if fileExists(tree / "d" / slug / "tx" / shardKeyFor("hex", h) /
+                    (h & ".json")): inc hexStillThere
+    ck hexStillThere == 0
+    removeDir tree
+
+  test "the validator reads the tree's declaration, not its own opinion":
+    # A validator holding an opinion about the encoding could not catch a producer
+    # that declared one thing and keyed another: it would agree with whichever of
+    # them shared its opinion. So the registry is re-declared WITHOUT moving the
+    # objects, and the walk must now report the transaction objects missing.
+    let tree = buildDemo("validator-reads")
+    ck validateTree(tree).len == 0
+    let slug = onlySlug(rawRegistry(tree))
+    var reg = rawRegistry(tree)
+    reg["chains"][slug]["identifierEncoding"]["transaction"] = %"base58"
+    writeRegistry(tree, reg)
+    let errs = validateTree(tree)
+    if errs.len == 0:
+      checkpoint("the validator did not notice the re-declared encoding")
+    ck errs.len > 0
+    var namedADanglingTx = false
+    for e in errs:
+      if e.contains("/tx/") and e.contains("dangling"): namedADanglingTx = true
+    ck namedADanglingTx
+    removeDir tree
+
+# ───────────────────────────────────────────────────────────────────────────
+suite "the boundary: who names the member, and who still derives from the string":
 
   # ── WHY A SOURCE SCAN IS THE ONLY WAY TO ASSERT THIS ──────────────────────
   #
-  # "Nothing reads it" is a claim about the whole tree, and no behavioural test
-  # can establish it: a reader that read the member and happened to agree with
-  # the old answer today would pass every arm above. The boundary is the
-  # deliverable here — the declaration lands alone precisely so the risky part
-  # lands alone later — so it is asserted as what it is.
+  # "Exactly these files know about the member" is a claim about the whole tree,
+  # and no behavioural test can establish it: a consumer that read the member and
+  # happened to agree with the old answer today would pass every arm above. The
+  # boundary IS the deliverable — the step that reaches the published hash index
+  # has to land alone, with a compatibility window — so it is asserted as what it
+  # is.
   #
-  # THESE ARMS ARE EXPECTED TO GO RED WHEN A CONSUMER IS WIRED IN. That is them
-  # working. Whoever adds the consumer moves its file out of the boundary
-  # deliberately, having read this comment, rather than finding out afterwards
-  # that nothing had been watching it.
+  # ── WHAT THESE ARMS USED TO SAY, AND WHY THEY SAY SOMETHING ELSE NOW ──────
   #
-  # THE SCAN IS BOTH NAMED AND SWEPT, because neither alone is enough. `src/` and
-  # the named list catch the sites the widening is going to reach and fail loudly
-  # if one of them stops existing; the sweep over `client/` and `tools/` catches
-  # the ones nobody thought to name. Naming alone was measured leaking: a consumer
-  # planted one file over from a named file passed every arm here. Sweeping alone
-  # is an empty-set green, so the sweep carries a population floor.
+  # They used to assert that NOTHING read `identifierEncoding`, which was true
+  # while only the declaration had landed. Shard-path derivation now reads it, so
+  # that form went red, which is what it was for. It has been REPLACED rather than
+  # deleted, and replaced with an EQUALITY rather than a widened allowlist:
+  #
+  #   * every file that names the member is enumerated, with the reason it does
+  #   * the enumeration is compared for EQUALITY against a sweep, so an
+  #     unexpected consumer fails AND so does an expected one that stopped
+  #   * the sweep keeps its per-directory population floors, so an emptied scan
+  #     is still not a green
+  #   * the size of each expected set is asserted, so it cannot drift upward one
+  #     entry at a time
+  #
+  # An allowlist that grew whenever something new appeared in it would be a list
+  # nobody checks. This one cannot grow without the number beside it changing.
+  #
+  # ── AND THE TWO SITES THAT STILL DERIVE FROM THE STRING ───────────────────
+  #
+  # The hash index and the capture tooling. Those are asserted to be UNCHANGED —
+  # still hex-shaped — because they are later steps and because a check that only
+  # watched the closed half of the seam would report the open half as closed. They
+  # are expected to go red in their turn.
 
-  const Member = "identifierEncoding"
+  const
+    Member = "identifierEncoding"
+    SourceExt = [".nim", ".mjs", ".js", ".ts", ".sh"]
 
-  test "the writers are the two registry producers and nothing else":
-    var writers: seq[string]
-    for rel in relFiles(RepoRoot / "src"):
-      if not rel.endsWith(".nim"): continue
-      if readFile(RepoRoot / "src" / rel).contains(Member):
-        writers.add "src/" & rel
-    writers.sort()
-    ck writers == @["src/blocktracer/chain/ingest.nim",
-                    "src/blocktracer/contract/identifier_encoding.nim",
-                    "src/blocktracer/demo/generator.nim"]
+    SrcExpected = [
+      # The two registry PRODUCERS, which write the member…
+      "src/blocktracer/chain/ingest.nim",
+      "src/blocktracer/demo/generator.nim",
+      # …the module that builds, validates and reads it, over the closed set…
+      "src/blocktracer/contract/identifier_encoding.nim",
+      # …the ONE derivation, which takes the token as a parameter…
+      "src/blocktracer/contract/shards.nim",
+      # …the path builders, which name the kind each segment comes from…
+      "src/blocktracer_client/paths.nim",
+      # …the SDK facade's own documentation of that signature…
+      "src/blocktracer_client_paths.nim",
+      # …the session, which pins the chain's declaration like the generation…
+      "src/blocktracer_client/session.nim",
+      # …the entity reader, which hands the session's declaration to the paths…
+      "src/blocktracer_client/entities.nim",
+      # …and the validator, which reads the declaration out of the tree it is
+      # validating rather than holding an opinion of its own.
+      "src/blocktracer/validator.nim"]
 
-  test "no consumer-side surface mentions it":
-    # The four derivation sites the widening will have to reach, plus the client
-    # and the capture tooling. Each is named rather than swept, so a directory
-    # that stopped existing cannot silently empty the check.
-    for rel in ["src/blocktracer/contract/shards.nim",
-                "src/blocktracer/contract/hashshard.nim",
-                "src/blocktracer_client/paths.nim",
-                "src/blocktracer_client/decode.nim",
-                "src/blocktracer_client/session.nim",
-                "client/src/viewmodel/chain_registry_vm.nim",
-                "client/searchboot/searchboot.nim",
-                "tools/capture/lib/entities.mjs",
-                "tools/dev/dump_recorder_provenance.nim"]:
-      ck fileExists(RepoRoot / rel)
-      ck not readFile(RepoRoot / rel).contains(Member)
+    ClientExpected = [
+      # The browser's search bootstrap, which reads the member out of the registry
+      # response it already fetches — Search-And-Routing.md §5's "two requests"
+      # is only true if the client recomputes the producer's path.
+      "client/searchboot/searchboot.nim",
+      # The explorer's reader and the two view models that build a sharded path.
+      "client/src/reader.nim",
+      "client/src/viewmodel/address_vm.nim",
+      "client/src/viewmodel/chain_vm.nim"]
 
-  test "…and no file under client/ or tools/ does either, SWEPT rather than named":
-    # The named list above is deliberate — a named file that stops existing fails
-    # loudly instead of emptying the check — but naming is not exhaustive, and the
-    # gap was MEASURED rather than imagined: a consumer planted in
-    # `client/src/viewmodel/chain_vm.nim`, next door to the named
-    # `chain_registry_vm.nim`, and one in `tools/capture/lib/provenance.mjs`, next
-    # door to the named `entities.mjs`, both landed with every other arm in this
-    # file green and with the JavaScript selftest still printing "nothing reads the
-    # declaration yet". `src/` was already swept by the arm above; these two trees
-    # were not, and they hold the client and the capture tooling — which are two of
-    # the four derivation sites the widening has to reach.
-    #
-    # WITH A FLOOR ON WHAT WAS VISITED, PER DIRECTORY. An exhaustive scan whose
-    # expected answer is "no file" is satisfied perfectly by scanning no files, so
-    # the population is asserted as well; per directory, so an emptied sweep of one
-    # cannot hide behind the other. That is the whole difference between this arm
-    # and the empty-set green it would otherwise be.
-    #
-    # ONE FILE MAY NAME THE MEMBER, and it is asserted to be exactly that one: the
-    # JavaScript half's selftest, whose own job is to check that nothing reads it.
-    const
-      Allowed = ["tools/chain/identifier-encoding-selftest.mjs"]
-      SourceExt = [".nim", ".mjs", ".js", ".ts", ".sh"]
-    var reading: seq[string]
-    for (top, floor) in [("client", 80), ("tools", 100)]:
-      var scanned = 0
-      for rel in relFiles(RepoRoot / top):
-        if rel.splitFile.ext notin SourceExt: continue
-        # Generated and vendored trees are not this repository's source.
-        if rel.contains("node_modules/") or rel.contains("dist/") or
-           rel.contains("nimcache/"): continue
-        inc scanned
-        let path = top & "/" & rel
-        if path in Allowed: continue
-        if readFile(RepoRoot / path).contains(Member):
-          reading.add path
+    ToolsExpected = [
+      # The JavaScript half's selftest, and still nothing else: the capture
+      # tooling follows the hash index, not the derivation.
+      "tools/chain/identifier-encoding-selftest.mjs"]
+
+  let inRepo = block:
+    ## The population is GIT'S ANSWER, not a heuristic over filenames.
+    ##
+    ## This used to prune generated output by a same-stem rule — a `.js` beside a
+    ## `.nim` of the same name is `nim js` output — which was measured against the
+    ## case it hit (`client/tests/test_searchboot.js`) and walks straight past a
+    ## bundle whose output is not named after its source. `client/Justfile`'s
+    ## `search-bundle` compiles `searchboot/searchboot.nim` to
+    ## `searchboot/search.js`: different stem, so `search.js` was swept as source
+    ## and FAILED THIS SUITE — and therefore `just test` — for anybody who had
+    ## built the bundle, while a clean checkout and CI never saw it because the
+    ## file is gitignored (`.gitignore:73`). A gate that is green where it is
+    ## checked and red where it is used is worse than one that is merely wrong.
+    ##
+    ## `.gitignore` is where "this is generated" is already written down, and it is
+    ## kept current by whoever adds the recipe. Tracked PLUS
+    ## untracked-and-not-ignored is the right population: the second half is what
+    ## catches a consumer that has been written and not yet committed, which is
+    ## when catching it is most useful. `ci/test/client-sdk-boundary.sh` derives
+    ## its population the same way and for the same reason.
+    var s = initHashSet[string]()
+    for args in [@["ls-files"], @["ls-files", "--others", "--exclude-standard"]]:
+      let (outp, code) = execCmdEx("git -C " & quoteShell(RepoRoot) & " " &
+                                   args.join(" "))
+      doAssert code == 0,
+        "git " & args.join(" ") & " failed in " & RepoRoot & " (exit " & $code &
+        "): " & outp & " — this suite's population is git's answer, and a sweep " &
+        "that cannot be enumerated must refuse rather than report an empty one."
+      for line in outp.splitLines:
+        if line.len > 0: s.incl line
+    s
+
+  proc isRepoSource(top, rel: string): bool =
+    ## Whether a swept path counts as this repository's source.
+    ##
+    ## THE DIRECTORY PRUNE IS SEGMENT-ANCHORED, and that is what makes it the same
+    ## rule the JavaScript half applies rather than merely the same list of names.
+    ## A bare `rel.contains("dist/")` also matches `redist/`, `subdist/` and every
+    ## other directory whose name happens to END in `dist` — while the JS half
+    ## prunes by exact directory NAME (`SKIP_DIR.includes(e.name)`) and tests its
+    ## paths for `/dist/`, so it does not. MEASURED: a single
+    ## `client/src/redist/x.mjs` put the two populations at 102 here and 103
+    ## there, and two halves that disagree about WHICH FILES they swept cannot be
+    ## compared — the whole point of the identical rule is that a disagreement
+    ## between them is a real disagreement. Anchoring both ends of each segment
+    ## closes it in the direction that keeps genuine source in the population.
+    if rel.splitFile.ext notin SourceExt: return false
+    let anchored = "/" & rel
+    if anchored.contains("/node_modules/") or anchored.contains("/dist/") or
+       anchored.contains("/nimcache/"): return false
+    (top & "/" & rel) in inRepo
+
+  proc namingFilesUnder(top: string): seq[string] =
+    ## Every source file under `top` that names the member, swept.
+    for rel in relFiles(RepoRoot / top):
+      if not isRepoSource(top, rel): continue
+      if readFile(RepoRoot / top / rel).contains(Member):
+        result.add top & "/" & rel
+    result.sort()
+
+  proc sweptCount(top: string): int =
+    for rel in relFiles(RepoRoot / top):
+      if isRepoSource(top, rel): inc result
+
+  test "under src/, exactly the enumerated producers and consumers name it":
+    let found = namingFilesUnder("src")
+    var want = @SrcExpected
+    want.sort()
+    if found != want:
+      checkpoint("swept: " & found.join(", "))
+      checkpoint("expected: " & want.join(", "))
+    ck found == want
+    # THE SIZE, so the list cannot grow an entry at a time with the equality
+    # above quietly updated to match. A number in the test is a number a reviewer
+    # sees move.
+    ck SrcExpected.len == 9
+    for rel in SrcExpected: ck fileExists(RepoRoot / rel)
+
+  test "under client/ and tools/, the same equality behind population floors":
+    # NAMING ALONE WAS MEASURED LEAKING, which is why the equality is against a
+    # sweep: a consumer planted in `client/src/viewmodel/chain_vm.nim`, next door
+    # to a named file, once landed with every arm in this file green. And SWEEPING
+    # ALONE is an empty-set green, which is why the population is asserted too —
+    # per directory, so an emptied sweep of one cannot hide behind the other.
+    for (top, expected, floor) in [("client", @ClientExpected, 80),
+                                   ("tools", @ToolsExpected, 100)]:
+      let scanned = sweptCount(top)
       if scanned < floor:
-        checkpoint(top & "/: swept " & $scanned & " source file(s), floor " & $floor &
-                   " — an emptied sweep is not a green")
+        checkpoint(top & "/: swept " & $scanned & " source file(s), floor " &
+                   $floor & " — an emptied sweep is not a green")
       ck scanned >= floor
-    if reading.len > 0:
-      checkpoint("these files read " & Member & ": " & reading.join(", "))
-    ck reading.len == 0
-    # …and the single allowance is real, so it is not quietly widening the arm.
+      let found = namingFilesUnder(top)
+      var want = expected
+      want.sort()
+      if found != want:
+        checkpoint(top & "/ swept: " & found.join(", "))
+        checkpoint(top & "/ expected: " & want.join(", "))
+      ck found == want
+    ck ClientExpected.len == 4
+    ck ToolsExpected.len == 1
+    for rel in @ClientExpected & @ToolsExpected: ck fileExists(RepoRoot / rel)
+
+  test "the producers publish the value they derive with, not a second one":
+    # A producer that called the declaration helper twice — once to publish and
+    # once to key — would be two decisions that could drift, and the drift would
+    # be invisible: the tree would validate against itself. Each producer names
+    # the declaration ONCE as the thing it publishes, and derives from a variable
+    # or a function rather than from a second call.
     #
-    # ITS LENGTH IS ASSERTED, because the paragraph above says "exactly that one" and
-    # nothing was holding it to that. An allowlist is a hole in a sweep, and the one
-    # thing a reader cannot see from the arm's verdict is how big the hole got: a
-    # second entry added here would exempt a real consumer and every other assertion
-    # in this test would stay green. The arms below check that each entry is REAL;
-    # this checks that there is one of them.
-    ck Allowed.len == 1
-    for rel in Allowed:
-      ck fileExists(RepoRoot / rel)
-      ck readFile(RepoRoot / rel).contains(Member)
+    # And neither spells the tokens itself: an inline object of tokens would be a
+    # second closed set, and the second one is always the one that goes stale.
+    # COUNTED OVER CODE AND NOT OVER COMMENTS. Both producers explain the
+    # one-decision rule in prose beside it, and a naive text count of
+    # `hexIdentifierEncoding()` therefore counts the explanation as a second
+    # decision — which would make the arm fail for saying the right thing.
+    proc codeOccurrences(src, needle: string): int =
+      for line in src.splitLines:
+        if line.strip.startsWith("#"): continue
+        result += line.count(needle)
 
-  test "the producers reach the set through the shared reader, not a literal":
-    # A producer spelling the tokens itself would be a second closed set, and the
-    # second one is always the one that goes stale. Both write the member as a
-    # CALL; neither contains an inline object of tokens.
-    for rel in ["src/blocktracer/chain/ingest.nim",
-                "src/blocktracer/demo/generator.nim"]:
-      let src = readFile(RepoRoot / rel)
-      ck src.contains("identifier_encoding")
-      ck src.contains("\"identifierEncoding\": hexIdentifierEncoding()")
-      ck not src.contains("\"identifierEncoding\": {")
+    let ingest = readFile(RepoRoot / "src/blocktracer/chain/ingest.nim")
+    ck ingest.contains("identifier_encoding")
+    ck ingest.contains("let identifierEncoding = hexIdentifierEncoding()")
+    ck ingest.contains(
+      "\"identifierEncoding\": identifierEncoding.identifierEncodingNode()")
+    ck not ingest.contains("\"identifierEncoding\": {")
+    ck codeOccurrences(ingest, "hexIdentifierEncoding()") == 1
+    # …and it derives from the variable, never from a fresh call.
+    ck codeOccurrences(ingest, "shardKeyFor(txEncoding,") >= 1
+    ck codeOccurrences(ingest, "shardKeyFor(addrEncoding,") >= 1
 
-expectCount(161)
+    let gen = readFile(RepoRoot / "src/blocktracer/demo/generator.nim")
+    ck gen.contains("identifier_encoding")
+    ck gen.contains(
+      "\"identifierEncoding\": demoIdentifierEncoding().identifierEncodingNode()")
+    ck not gen.contains("\"identifierEncoding\": {")
+    ck codeOccurrences(gen, "hexIdentifierEncoding()") == 1
+    ck codeOccurrences(gen, "shardKeyFor(txEncoding,") >= 1
+    ck codeOccurrences(gen, "shardKeyFor(addrEncoding,") >= 1
+
+  test "THE STRING-DERIVING SITES ARE STILL THERE, and are the ones named":
+    # The seam is half closed, and a boundary check that only watched the closed
+    # half would report it shut. These two are asserted to be UNCHANGED so that
+    # the day either one is widened, this arm goes red and its comment is read.
+    #
+    # The hash index: `hexToBytes` parses hex pairs, so a base58 or bech32
+    # identifier has no representation in it at all, and `stripHex` lowercases
+    # unconditionally, which destroys the case-significant encodings. It is a
+    # PUBLISHED self-describing wire format, so widening it is a migration of
+    # every published shard plus a compatibility window
+    # (Publishing-And-Caching.md §6.1, §6.2).
+    let hashshard = readFile(RepoRoot / "src/blocktracer/contract/hashshard.nim")
+    ck not hashshard.contains(Member)
+    ck hashshard.contains("parseHexInt")
+    ck hashshard.contains("toLowerAscii")
+
+    # The capture tooling: two literal `0x` filters over published directory
+    # entries. It enumerates the tree the hash index keys, so it follows the
+    # index rather than the derivation — a filter widened ahead of the index
+    # would enumerate entities the index cannot key.
+    let entities = readFile(RepoRoot / "tools/capture/lib/entities.mjs")
+    ck not entities.contains(Member)
+    ck entities.count("startsWith(\"0x\")") == 2
+
+  test "and the derivation itself holds no table of its own":
+    # `shards.nim` reads the per-encoding rule from the shared file through
+    # `identifierEncodingRule`. If it grew a `case` over the tokens instead, the
+    # set would be closed in the data and re-opened in the derivation.
+    let sh = readFile(RepoRoot / "src/blocktracer/contract/shards.nim")
+    ck sh.contains("identifierEncodingRule(encoding)")
+    for token in identifierEncodingIds():
+      if token == "hex": continue   # named in prose, as the published layout
+      ck not sh.contains("\"" & token & "\"")
+
+expectCount(343)

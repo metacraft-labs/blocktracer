@@ -451,7 +451,7 @@ jobs:
         run: node tools/chain/coverage-contiguity-selftest.mjs
 
       - name: Do both halves of the identifier-encoding set read one file?
-        # 50 assertions. `tools/chain/identifier-encodings.json` is the closed set
+        # 74 assertions. `tools/chain/identifier-encodings.json` is the closed set
         # of encodings a chain may DECLARE its identifiers in — Configuration.md
         # §2.1, §2.2, with every member traced to a row of Search-And-Routing.md
         # §2's shape table. The Nim half reads it with `staticRead`, so that half
@@ -461,18 +461,23 @@ jobs:
         # producers. A shared file whose JavaScript side nothing opens drifts
         # there undetected, so this step is the JavaScript read.
         #
-        # Ten of the arms are mutations, each breaking one structural rule and
-        # requiring that rule AND NO OTHER to fire, with an eleventh control over
-        # an unmutated deep copy — without which all ten would pass for the wrong
-        # reason if the copy were itself broken.
+        # Sixteen of the arms are mutations, each breaking one structural rule
+        # and requiring that rule AND NO OTHER to fire, with a control over an
+        # unmutated deep copy — without which they would all pass for the wrong
+        # reason if the copy were itself broken. Six of the sixteen are the
+        # per-member `shardKey` rule the file now carries: what each encoding
+        # implies for a path segment, read by `contract/shards.nim` so that the
+        # set and the behaviour of its members cannot disagree.
         #
-        # The last arms assert the BOUNDARY: nothing reads
-        # `chains[<slug>].identifierEncoding`, and the capture tooling still
-        # filters published directory entries on a literal `0x` at both of its
-        # two sites. That is deliberate — the declaration lands alone so the step
-        # that changes published key layout can land alone, with a compatibility
-        # window — and those arms are expected to go red the day a consumer is
-        # wired in.
+        # The last arms assert the BOUNDARY, as an EQUALITY: exactly the
+        # enumerated consumers name `chains[<slug>].identifierEncoding`, swept
+        # over `client/` and `tools/` behind per-directory population floors, so
+        # an unexpected consumer fails and so does an expected one that stopped.
+        # They also assert that the two sites which still derive from the string
+        # are UNCHANGED — the hash index (a published wire format, so a
+        # migration plus a compatibility window) and the capture tooling's two
+        # literal `0x` filters, which follow the index rather than the
+        # derivation. Those arms are expected to go red in their turn.
         #
         # Offline and toolchain-free like the seven above it: it reads files
         # already in this repository and runs `node`.

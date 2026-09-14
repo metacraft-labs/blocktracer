@@ -278,11 +278,11 @@ proc buildTree(dir: string; shape: TreeShape): tuple[dir, chain, tx: string] =
                           boundAt: blk)],
     executions: @[Execution(selector: "call", executionInputId: execId)],
     native: %*{"evm": {"type": 2}})
-  writeJsonNl(dir / "d" / Chain / "tx" / hexShard(tx) / tx & ".json", facts.toJson)
+  writeJsonNl(dir / "d" / Chain / "tx" / shardKeyFor("hex", tx) / tx & ".json", facts.toJson)
   writeJsonNl(dir / "d" / Chain / "block" / blk & ".json",
     contractModel.BlockDetail(chain: Chain, hash: blk, height: 19_000_000,
       parentHash: "0x00", transactions: @[tx]).toJson)
-  let txstateRel = "d" / Chain / "g" / "1" / "txstate" / hexShard(tx) / tx & ".json"
+  let txstateRel = "d" / Chain / "g" / "1" / "txstate" / shardKeyFor("hex", tx) / tx & ".json"
   writeJsonNl(dir / txstateRel,
     %*{"chain": Chain, "tx": tx, "canonical": true, "finality": "finalized"})
 
@@ -293,7 +293,7 @@ proc buildTree(dir: string; shape: TreeShape): tuple[dir, chain, tx: string] =
   if shape == tsStructurallyAbsent:
     single.reason = "this execution is private and has no observable call structure"
     single.bytes = 0
-  writeJsonNl(dir / "d" / Chain / "ts" / "1" / hexShard(tx) / tx & ".json",
+  writeJsonNl(dir / "d" / Chain / "ts" / "1" / shardKeyFor("hex", tx) / tx & ".json",
     contractModel.TraceSelection(chain: Chain, tx: tx, hasSingle: true,
                                  singleTrace: single).toJson)
 

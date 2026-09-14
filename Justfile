@@ -7,14 +7,25 @@
 # `tests/tidentifierencoding.nim` is the registry's per-chain identifier-encoding
 # declaration (Configuration.md §2.1, §2.2). It is HERE and not under `client/`
 # for the same reason the snapshot suite is: it drives both registry producers and
-# needs no explorer. Its subject is a member that **nothing reads** — the encoding
-# is declared as data so that shard derivation, the hash index, the client's local
-# path recomputation and the capture tooling can later take it from one place
-# instead of from the string — so the property it measures is §2.2's: a reader
-# built against the schema WITHOUT the member behaves identically with it, proven
-# against three controls that change a member the same reader does know. Its last
-# suite asserts the boundary itself, and is expected to go red the day a consumer
-# is wired in.
+# needs no explorer. Its subject is a member that **shard derivation reads**: the
+# encoding is declared as data and `contract/shards.nim` takes it as a parameter,
+# so the producers, the validator and the browser derive one way from one
+# declaration. Two sites still derive from the string and are later steps — the
+# hash index (a published wire format, so a migration plus a compatibility window)
+# and the capture tooling (which enumerates the tree the index keys, so it follows
+# the index).
+#
+# It still measures §2.2's additive rule, which did not stop mattering when a
+# consumer arrived: a reader built against the schema WITHOUT the member behaves
+# identically with it, proven against three controls that change a member the same
+# reader does know. It also measures the derivation end to end — the published hex
+# layout against the algorithm it replaced, a non-hex chain round-tripping from
+# producer to client, and the validator reading the tree's own declaration rather
+# than its own opinion. Its last suite asserts the boundary as an EQUALITY between
+# an enumerated set of consumers and a swept one, and asserts that the two
+# string-deriving sites are unchanged; it used to assert that nothing read the
+# member at all, went red when the derivation landed, and was replaced rather than
+# widened.
 #
 # `tests/tchainsnapshot.nim` is the reader's side of the producer seam: what
 # `ingestSnapshot` accepts, what it refuses BY NAME, and what it must not crash on.
@@ -25,6 +36,22 @@
 # fixture and all eight hand-written provenance literals in
 # `client/tests/test_chain_provenance.nim` carry the member, so the whole suite was
 # blind to it; the fixture here is the follower's own output, byte for byte.
+#
+# ── AND `test-searchboot`, WHICH IS THE ONLY GATE THE BROWSER'S RULES HAVE ─
+#
+# `client/searchboot/searchboot.nim` computes the object path a search fetches,
+# in a tab. It had NO test of any kind — the bundle-freshness gate checks that
+# `search.js` is newer than its sources and the SDK boundary lint checks which
+# modules it may import, and neither runs one of its rules — because its
+# `importjs` boundary makes it uncompilable on the C backend, so every suite here
+# had to skip it. `nim js -r` is how it is testable at all, and it takes seconds.
+#
+# It is in THIS recipe and not only under `client/` for the reason
+# `test-chain-provenance` is: Search-And-Routing.md §5's "two requests to resolve
+# any hash on any chain" is only true if the client recomputes the SAME object
+# path the producer wrote, and since that path is derived from the chain's
+# declared identifier encoding, a browser that could not read the declaration
+# would make §5 false for every non-hex chain — silently, and only in a tab.
 #
 # ── AND `test-chain-provenance`, WHICH TAKES ~37 MINUTES. LEAVE IT IN. ─────
 #
@@ -60,11 +87,12 @@ test:
     nim c -r --hints:off tests/tidentifierencoding.nim
     ci/test/client-sdk-boundary.sh
     ci/test/client-sdk-boundary-test.sh
+    cd client && just test-searchboot
     cd client && just test-chain-provenance
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# EIGHT suites — 98 + 19 + 24 + 24 + 57 + 222 + 33 + 50 = 527 counted assertions —
+# EIGHT suites — 98 + 19 + 24 + 24 + 57 + 222 + 33 + 74 = 551 counted assertions —
 # over the eight decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -86,20 +114,35 @@ test:
 # tooling — which still filters published directory entries on a literal `0x` — is
 # JavaScript and will have to agree with the producers. A shared file whose
 # JavaScript side nothing opens drifts there undetected, so the JavaScript read
-# happens now, as a test. It is a test and NOT a consumer: nothing reads
-# `chains[<slug>].identifierEncoding`, by design, because the step that changes
-# published key layout has to land on its own. Its last arm asserts that boundary
-# and is expected to go red the day a consumer is wired in.
+# happens now, as a test. The file also carries, per member, the `shardKey` rule
+# that member implies for a path segment, so the set and the behaviour of its
+# members cannot disagree; each of that rule's four fields has a mutation arm here.
 #
-# THAT ARM IS SWEPT AND FLOORED, and it is here rather than only in `just test`
-# because THIS is the fast gate. The suite's verdict line is a universal —
-# "nothing reads the declaration yet" — and it used to rest on five named files;
-# a consumer planted one file over from two of them passed every arm while that
-# sentence printed. It now walks `client/` and `tools/` whole, with the same
-# extension rule, the same exemption and the same per-directory floors (80 of
-# 101, 100 of 122) as `tests/tidentifierencoding.nim`, so the two halves sweep
-# one population and disagreeing means disagreeing rather than measuring
-# different things. The floors are what stop an emptied sweep reading as a green.
+# It is a test and NOT a consumer, still, and the reason narrowed rather than went
+# away: the derivation that now reads `chains[<slug>].identifierEncoding` is Nim,
+# compiled to both C and the JS backend from one source, so no JavaScript reader
+# was needed. The one JavaScript site that will read it is the capture tooling, and
+# it follows the HASH INDEX rather than the derivation — a `0x` filter widened
+# ahead of the index would enumerate a non-hex chain's entities and then fail to
+# key them.
+#
+# ITS BOUNDARY ARM IS AN EQUALITY, SWEPT AND FLOORED, and it is here rather than
+# only in `just test` because THIS is the fast gate. It used to assert that nothing
+# read the declaration, resting on five named files; a consumer planted one file
+# over from two of them passed every arm while that sentence printed. It now walks
+# `client/` and `tools/` whole and compares what it finds for EQUALITY against an
+# enumerated set of expected consumers — so an unexpected one fails it, and so does
+# an expected one that stopped — with the same extension rule and the same
+# per-directory floors (80 and 100) as `tests/tidentifierencoding.nim`,
+# so the two halves sweep one population and disagreeing means disagreeing rather
+# than measuring different things. The floor is named here and the POPULATION is
+# not, on purpose: both halves take their population from git — tracked plus
+# untracked-and-not-ignored — so it moves with the working tree, and a number
+# pinned in this comment would go stale for anyone holding a scratch file. The
+# floor is the contract; the count is an observation each run prints.
+# (It used to say "80 of 101, 100 of 122", and was stale by one within a day.)
+# The floors are what stop an emptied sweep reading as a green; the asserted set
+# SIZES are what stop the expected list growing one entry at a time.
 #
 # `coverage-contiguity-selftest` was added to a tool that had a `just` recipe,
 # NO test and NO caller. It is kept rather than dropped because a planned

@@ -27,6 +27,15 @@
 ## The registry's recorder pin is resolved once here too, for the same reason:
 ## `traceArtifactId` is derived from it (Trace-Artifacts.md §2.1), so a pin that
 ## moved mid-session would silently change which artifact a page addressed.
+##
+## And so is the chain's **identifier encoding** (Configuration.md §2.1), which
+## belongs here for exactly the generation's reason. Every sharded object path is
+## derived from it, so a session that re-read it per call could compute two
+## different paths for one identifier inside one render; and it is read from the
+## registry the session already fetches for the pin, so it costs no request. This
+## is the client's ONE place that answers "how does this chain write its
+## identifiers": `paths.nim` takes it as a parameter and never guesses, so a
+## consumer either has a session or has to say where else it got the encoding.
 
 import std/[algorithm, json]
 import ./store
@@ -50,6 +59,16 @@ type
     root*: GenerationRoot
     pin*: RecorderPin
     hasPin*: bool
+    identifierEncoding*: ChainIdentifierEncoding
+      ## How this chain writes its identifiers, per kind, from
+      ## `chains[<slug>].identifierEncoding` — the input to every sharded path
+      ## this session derives. Pinned for the session's life like the generation
+      ## and the recorder pin, and for the same reason.
+      ##
+      ## `identifierEncoding.declared == false` means the registry carried no
+      ## member, so the session is reading a tree published before it existed and
+      ## is deriving the §6.1 compatibility layout. That is a different fact from
+      ## a row declaring `hex` and is kept distinguishable on purpose.
     coverageMode*: string
     stale*: bool
     blockCount*: int
@@ -121,7 +140,13 @@ proc openChain*(store: ObjectStore, chain: string): OpenResult =
   if cur.error.len > 0:
     return openFailed(ooMalformed, cur.error)
 
-  var s = ChainSession(chain: chain)
+  # THE COMPATIBILITY LAYOUT UNTIL THE REGISTRY SAYS OTHERWISE. A tree may have
+  # no registry at all (the read below is conditional and has always been), and a
+  # session with an empty encoding would raise at its first sharded path rather
+  # than reading the tree the way the tree was written. `parseChainIdentifierEncoding`
+  # of an absent row is the same answer and is the one function that decides it.
+  var s = ChainSession(chain: chain,
+                       identifierEncoding: parseChainIdentifierEncoding(nil))
   let c = cur.node
   if c.kind != JObject or not c.hasKey("generation") or
      not c.hasKey("traceSelectionVersion"):
@@ -185,6 +210,26 @@ proc openChain*(store: ObjectStore, chain: string): OpenResult =
       # chain yet (no recorder exists for that VM). That is `unsupported`
       # availability at the overlay, not a broken session.
       s.hasPin = false
+    # THE ENCODING IS READ SEPARATELY FROM THE PIN, and not inside that `try`.
+    # A chain with no recorder still publishes sharded transaction and address
+    # objects, so a session that inherited the pin's failure here would fall
+    # back to the compatibility layout for a tree that had declared its
+    # encoding — and would then compute paths a different consumer of the same
+    # tree did not. The two facts are independent and are read independently.
+    if reg.node != nil and reg.node.kind == JObject and
+       reg.node.hasKey("chains") and reg.node["chains"].kind == JObject and
+       reg.node["chains"].hasKey(chain):
+      # A declaration this build cannot read is a MALFORMED tree rather than an
+      # old one: `parseChainIdentifierEncoding` raises only on a member that is
+      # present and wrong, and deriving keys from a row we could not parse is
+      # how a client asks for objects nobody wrote (Data-Contract.md §3 —
+      # refuse rather than misread).
+      try:
+        s.identifierEncoding =
+          parseChainIdentifierEncoding(reg.node["chains"][chain])
+      except ValueError as e:
+        return openFailed(ooMalformed,
+          registryPath(s.contractVersion) & ": " & e.msg)
 
   OpenResult(outcome: ooOpened, session: s)
 

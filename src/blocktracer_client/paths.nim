@@ -7,14 +7,42 @@
 ## `blocktracer/contract/ids.nim` holds it on the producer side.
 ##
 ## The sharding helpers are **imported from the contract**, not restated: a
-## second `hexShard` would be a second place for the layout to drift, which is
+## second `shardKeyFor` would be a second place for the layout to drift, which is
 ## the failure Static-Site-Architecture.md §2.9 exists to prevent.
+##
+## ## Every sharded path takes the chain's identifier encoding
+##
+## A shard segment is derived from an identifier, and how an identifier is
+## written is a property of the chain — published per kind in
+## `chains[<slug>].identifierEncoding` (Configuration.md §2.1). So the five
+## sharded builders below take a `ChainIdentifierEncoding` beside the chain slug,
+## and each names the KIND it is placing, because a chain may write its addresses
+## and its transaction hashes differently (TON does; Fuel does).
+##
+## THERE IS NO DEFAULT ARGUMENT, and that absence is the design. A default of hex
+## would let every call site that was not updated keep deciding the encoding for
+## itself, silently and correctly-looking, which is precisely the failure the
+## declaration exists to remove. A caller has to say where its encoding came
+## from, and the answer is always the registry: a session's (`openChain` reads it
+## once and pins it, like the generation), the validator's read of the tree it is
+## checking, or the producer's own declaration.
+##
+## `blockPath` takes none, because it is content-addressed rather than sharded —
+## the whole identifier is the segment, so there is nothing to slice and no
+## alphabet question to answer. The `block` kind is declared all the same, because
+## a chain that numbers its blocks (`decimal`) is saying something true about them
+## that a later consumer may need.
 
 import std/strutils
 import ../blocktracer/contract/shards
 import ../blocktracer/contract/version
 
-export hexShard, traceShards
+export shardKeyFor, traceShards, ShardWidth
+export ChainIdentifierEncoding, encodingFor, declaredOrLegacy,
+       hexIdentifierEncoding, chainIdentifierEncoding,
+       parseChainIdentifierEncoding, identifierEncodingNode,
+       isIdentifierEncoding, identifierEncodingList,
+       KindTransaction, KindAddress, KindBlock, LegacyUndeclaredEncoding
 
 proc registryPath*(contractVersion = ContractVersion): string =
   ## `/registry/chains.v{N}.json` — version in the name (§2.9).
@@ -34,27 +62,33 @@ proc blockPath*(chain, blockHash: string): string =
   ## Content-addressed and generation-independent (§2).
   "d/" & chain & "/block/" & blockHash & ".json"
 
-proc txFactsPath*(chain, txHash: string): string =
+proc txFactsPath*(chain, txHash: string,
+                  enc: ChainIdentifierEncoding): string =
   ## The immutable facts (§2.3, §2.3b).
-  "d/" & chain & "/tx/" & hexShard(txHash) & "/" & txHash & ".json"
+  "d/" & chain & "/tx/" & shardKeyFor(enc, KindTransaction, txHash) & "/" &
+    txHash & ".json"
 
-proc txStatePath*(chain, generation, txHash: string): string =
+proc txStatePath*(chain, generation, txHash: string,
+                  enc: ChainIdentifierEncoding): string =
   ## Generation-scoped canonicality + finality (§2.3b).
-  "d/" & chain & "/g/" & generation & "/txstate/" & hexShard(txHash) & "/" &
-    txHash & ".json"
+  "d/" & chain & "/g/" & generation & "/txstate/" &
+    shardKeyFor(enc, KindTransaction, txHash) & "/" & txHash & ".json"
 
-proc traceSelectionPath*(chain, traceSelectionVersion, txHash: string): string =
+proc traceSelectionPath*(chain, traceSelectionVersion, txHash: string,
+                         enc: ChainIdentifierEncoding): string =
   ## The versioned TraceSelection overlay (§2.3a).
-  "d/" & chain & "/ts/" & traceSelectionVersion & "/" & hexShard(txHash) & "/" &
-    txHash & ".json"
+  "d/" & chain & "/ts/" & traceSelectionVersion & "/" &
+    shardKeyFor(enc, KindTransaction, txHash) & "/" & txHash & ".json"
 
-proc addressIndexPath*(chain, generation, address: string): string =
-  "d/" & chain & "/g/" & generation & "/addr/" & hexShard(address) & "/" &
-    address & ".json"
+proc addressIndexPath*(chain, generation, address: string,
+                       enc: ChainIdentifierEncoding): string =
+  "d/" & chain & "/g/" & generation & "/addr/" &
+    shardKeyFor(enc, KindAddress, address) & "/" & address & ".json"
 
-proc addressSegmentPath*(chain, address, segment: string): string =
-  "d/" & chain & "/seg/" & hexShard(address) & "/" & address & "/" &
-    segment & ".json"
+proc addressSegmentPath*(chain, address, segment: string,
+                         enc: ChainIdentifierEncoding): string =
+  "d/" & chain & "/seg/" & shardKeyFor(enc, KindAddress, address) & "/" &
+    address & "/" & segment & ".json"
 
 proc traceArtifactDir*(traceArtifactId: string): string =
   ## `/t/{t0t1}/{t2t3}/{traceArtifactId}/` — Trace-Artifacts.md §3.

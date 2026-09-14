@@ -17,7 +17,7 @@
 import std/[sha1, strutils]
 
 import ./shards
-export shards   # `hexShard`, `traceShards` — see the note where they used to be
+export shards   # `shardKeyFor`, `traceShards` — see the note where they used to be
 
 const
   ContractTagTrace = "blocktracer/trace/v1"
@@ -83,5 +83,10 @@ proc contentHashSha1*(bytes: string): string =
 
 # --- path sharding (Static-Site-Architecture.md §2, Trace-Artifacts.md §3) ---
 #
-# Moved to `./shards` and re-exported: the browser needs `hexShard` and this
+# Moved to `./shards` and re-exported: the browser needs `shardKeyFor` and this
 # module's `std/sha1` does not compile on the JS backend. See shards.nim.
+#
+# `traceShards` STAYS UNPARAMETERISED while `shardKeyFor` took the chain's encoding
+# as data, and the asymmetry belongs here rather than only in shards.nim: a
+# `traceArtifactId` is derived by THIS module, from an execution input id and a
+# recorder pin, so its alphabet is this pipeline's and no chain has a say in it.
