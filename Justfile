@@ -53,6 +53,23 @@
 # declared identifier encoding, a browser that could not read the declaration
 # would make §5 false for every non-hex chain — silently, and only in a tab.
 #
+# ── AND `test-debug-route`, WHICH IS THE ONLY GATE A STATUS CODE HAS ───────
+#
+# `client/src/ssr.nim`'s `renderRoute` is where a URL becomes a 200 or a 404,
+# and that is what a visitor experiences. Nothing above this line drives it:
+# the suites above grade the contract, the publisher, the reader and the
+# browser's derivation, and every one of them asks a function for a path rather
+# than asking the router for a status.
+#
+# It is here for EXACTLY the reason `test-chain-provenance` is, one line down,
+# and it is the same gap: the suite is in `client/Justfile`'s `test:` aggregate
+# and CI's `debug-route` job runs that aggregate, so it was never dark — but it
+# was not in THIS recipe, the one the operator-mandated local gate is. When
+# `blockPath` began key-forming its identifier, the proof that `/{chain}/block/`,
+# `/{chain}/tx/` and `/{chain}/address/` now answer a mixed-case spelling
+# IDENTICALLY was written into that suite, and the repository's own stated
+# verdict command did not run it. ~9 minutes, compile included.
+#
 # ── AND `test-chain-provenance`, WHICH TAKES ~37 MINUTES. LEAVE IT IN. ─────
 #
 # It is the LAST recipe here and it is the slow one on purpose: everything
@@ -88,11 +105,12 @@ test:
     ci/test/client-sdk-boundary.sh
     ci/test/client-sdk-boundary-test.sh
     cd client && just test-searchboot
+    cd client && just test-debug-route
     cd client && just test-chain-provenance
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# NINE suites — 98 + 19 + 24 + 24 + 57 + 223 + 33 + 102 + 53 = 633 counted assertions —
+# NINE suites — 98 + 19 + 24 + 24 + 57 + 223 + 33 + 119 + 53 = 650 counted assertions —
 # over the nine decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -109,9 +127,10 @@ test:
 #
 # `object-set-selftest` GUARDS A BASELINE THAT IS A COUNT, and a count is the one
 # statistic a refactor can hold still while changing what it publishes. The
-# zero-regression acceptance criterion is 138,287 objects, and its own control says a tree with one
-# object renamed has the same count and must fail. So `object-set.mjs` publishes two
-# digests beside the count — over the key set, and over the key set bound to its
+# zero-regression acceptance criterion is 138,287 objects, and its own control
+# says a tree with one object renamed has the same count and must fail. So
+# `object-set.mjs` publishes two digests beside the count — over the key set,
+# and over the key set bound to its
 # content — and this suite is where each of them is watched moving: a rename (same
 # count, same bytes), a rewrite (same keys), and two objects SWAPPING contents,
 # where the count, the byte total and the key set are all three identical and only
@@ -1128,3 +1147,61 @@ build:
     nim c --hints:off -d:release -o:blocktracer-demo-gen src/blocktracer_demo_gen.nim
     nim c --hints:off -d:release -o:blocktracer-validate src/blocktracer_validate.nim
     nim c --hints:off -d:release -o:blocktracer-publish src/blocktracer_publish.nim
+
+# ── is the PUBLISHED KEY LAYOUT unchanged? ─────────────────────────────────
+#
+# `just byte-identity <ref>` builds both producers from `<ref>` AND from the
+# working tree, runs both over the same six committed captures, manifests every
+# published object with sha256, and reports the object count and the
+# differing-line count per tree and in total.
+#
+# IT TAKES A REF BECAUSE THE CLAIM IS ABOUT TWO BUILDS. "Every shard path this
+# project has published is still addressable" (Publishing-And-Caching.md §6.1,
+# §6.2) cannot be asserted by any test in this repository: a test compiled from
+# one tree can only see one of the two producers the claim compares. There is no
+# default ref, because a default of HEAD would compare the working tree to itself
+# whenever the change under review was already committed, and report zero for
+# that reason.
+#
+# WHY IT IS A RECIPE NOW. It was an operator procedure, and every reviewer
+# re-invented it from nothing — two trees, six captures, sha256 manifests, mutant
+# controls. The last one recorded that rebuilding it consumed most of the review.
+#
+# `just byte-identity-mutant <ref>` ADDS THE CONTROL, and the control is not
+# optional evidence: this diff has reported zero on every run it has ever had,
+# and a comparison that always reports zero is indistinguishable from one that
+# cannot fail. The mutant builds a third pair from a COPY of the working tree
+# with one field of `tools/chain/identifier-encodings.json` changed — `hex`'s
+# `stripPrefix`, emptied — and REQUIRES the differing-line count to be non-zero.
+# Nothing is mutated in this repository, so an interrupted run cannot leave it
+# modified.
+#
+# THE MUTANT IS NOT THE `case` RULE, AND THAT IS THE MEASUREMENT'S CONTENT
+# RATHER THAN A GAP IN IT. Every identifier in every committed capture is already
+# lowercase, so no mutation of the case rule can move a byte: measured, a mutant
+# of `identifierKeyForm` moves NOTHING at all, while the `stripPrefix` mutant
+# above moves 6,157 manifest lines and stops the demo producer dead. This diff is
+# live for the payload composition and SILENT ABOUT CASE BY CONSTRUCTION, which is
+# why the evidence for per-encoding case handling is
+# `tests/tidentifierencoding.nim` plus two compile-time refusals and not this.
+#
+# A DIFFERING LINE IS NOT AN OBJECT. An object whose PATH moved contributes two
+# lines (the old path leaves, the new one arrives) and an object whose BYTES moved
+# contributes two as well; only a tree the mutant could not publish at all
+# contributes one per object. So the mutant's 6,157 lines over 11,043 objects are
+# roughly 2,900 moved objects plus the 309 of a demo tree that refused. The line
+# count is what is reported because it is what `diff` can be held to without the
+# recipe interpreting it.
+#
+# It never contacts a chain. Both producers read committed captures off disk; the
+# live follower is neither built nor run, and running it would write into
+# `client/fixtures/chain/` — which is the thing being compared.
+#
+# Heavy: two full release builds of both producers plus twelve publishes. The
+# work directory defaults to `/build/byte-identity`; override with
+# `BYTE_IDENTITY_WORK` or `--work`.
+byte-identity REF:
+    tools/chain/byte-identity.sh --ref {{REF}}
+
+byte-identity-mutant REF:
+    tools/chain/byte-identity.sh --ref {{REF}} --mutant

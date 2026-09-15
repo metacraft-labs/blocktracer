@@ -58,6 +58,18 @@ suite "the registry's encoding reaches the browser's derivation":
     ck refs[0].encoding.encodingFor(KindTransaction) == "hex"
     ck refs[1].slug == "solana"
     ck refs[1].encoding.encodingFor(KindTransaction) == "base58"
+    # A ROW WITH ONE `:` DECLARES ONE KIND. The packed shape is
+    # `slug:txEncoding:blockEncoding`, and a row that stops after the transaction
+    # token is a registry that declared no block encoding — the §6.1 case for that
+    # kind alone, not for the row.
+    ck refs[0].encoding.encodingFor(KindBlock) == LegacyUndeclaredEncoding
+    ck refs[1].encoding.encodingFor(KindBlock) == "hex"
+    # …and a row that declares BOTH is read as both, per kind, which is what makes
+    # the block path follow the declaration rather than the transaction's.
+    let both = parseChainRefs("ton:base64:decimal")
+    ck both.len == 1
+    ck both[0].encoding.encodingFor(KindTransaction) == "base64"
+    ck both[0].encoding.encodingFor(KindBlock) == "decimal"
 
   test "a slug with NO encoding is the §6.1 compatibility case, not a bad row":
     # An OLD registry is exactly the input that produces this, and refusing to
@@ -101,7 +113,7 @@ suite "the browser recomputes the producer's object path, per encoding":
     # COMPARED AGAINST THE REAL DERIVATION, not against a string written here.
     ck cs[0].objectPath ==
        "/" & txFactsPath(Slug, Hash, refs[0].encoding)
-    ck cs[1].objectPath == "/" & blockPath(Slug, Hash)
+    ck cs[1].objectPath == "/" & blockPath(Slug, Hash, refs[0].encoding)
     # …and the shard is in it, which is the part that could silently go missing.
     ck cs[0].objectPath.contains("/tx/" & shardKeyFor("hex", Hash) & "/")
 
@@ -126,7 +138,11 @@ suite "the browser recomputes the producer's object path, per encoding":
     let cs = candidatesFor(Hash, refs)
     ck cs.len == 1
     ck cs[0].kind == "block"
-    ck cs[0].objectPath == "/" & blockPath(Slug, Hash)
+    ck cs[0].objectPath == "/" & blockPath(Slug, Hash, refs[0].encoding)
+    # …and the block encoding this row resolves to is the §6.1 fallback rather
+    # than `base64`: the packed row declared a transaction token and no block
+    # token, and each kind resolves on its own.
+    ck refs[0].encoding.encodingFor(KindBlock) == "hex"
 
   test "every chain in the fan-out uses ITS OWN declaration":
     # The failure this catches is one encoding leaking across the fan-out, which is
@@ -140,6 +156,36 @@ suite "the browser recomputes the producer's object path, per encoding":
     ck byChain.len == 2
     ck byChain[0][1].contains("/aztec/tx/2b0f/")
     ck byChain[1][1].contains("/solana/tx/0x2b/")
+
+  test "BOTH object paths key-form the identifier, and the block one is new":
+    # `blockPath` took no `ChainIdentifierEncoding` and therefore key-formed
+    # nothing, on the argument that a block path has no shard segment. That
+    # confused the alphabet question with the CASE question: the object is still
+    # NAMED by the identifier. While that was so, a query in a spelling the
+    # producer did not publish produced a transaction candidate that resolved and
+    # a block candidate that could not, on the same input — and one of the
+    # affected surfaces is a published SDK package.
+    #
+    # In production the query arrives already canonicalised (`canonicalHash`), so
+    # this is the direction that matters: a caller that has not canonicalised, or
+    # a chain whose declaration makes the fold a real one, gets the same answer.
+    let refs = parseChainRefs(Slug & ":hex:hex")
+    let shouted = "0x" & Hash[2 .. ^1].toUpperAscii
+    ck shouted != Hash
+    let lower = candidatesFor(Hash, refs)
+    let upper = candidatesFor(shouted, refs)
+    ck lower.len == 2
+    ck upper.len == 2
+    # BOTH KINDS THE SAME — this module builds two paths, not three; the address
+    # kind is the explorer's. One identifier, two spellings, one object path each,
+    # which is the property rather than two separate ones.
+    for i in 0 ..< 2:
+      ck upper[i].kind == lower[i].kind
+      ck upper[i].objectPath == lower[i].objectPath
+      ck not upper[i].objectPath.contains(shouted)
+    # …and the ROUTE still carries the caller's spelling, which is deliberate: the
+    # object path is what has to be recomputable, and a route is a human URL.
+    ck upper[1].route.contains(shouted)
 
   test "a non-hash query produces no candidates at all":
     # §2's remaining rows resolve by other mechanisms, and §14's rule is that "we
@@ -193,5 +239,5 @@ suite "the index path still works, and is unchanged by the encoding":
     ck m.prefixLen != ShardWidth
 
 echo "assertion count: ", asserted
-doAssert asserted == 57,
-  "assertion count is " & $asserted & ", expected 57 — a case was added or removed."
+doAssert asserted == 73,
+  "assertion count is " & $asserted & ", expected 73 — a case was added or removed."

@@ -758,17 +758,36 @@ proc hexIdentifierEncoding*(): ChainIdentifierEncoding =
   ## of every chain this tree publishes, and the only one either producer writes
   ## today.
   ##
-  ## MEASURED, NOT ASSUMED, and the measurement is stated so it can be re-run.
-  ## Every `0x`-hex literal in both committed Aztec captures is LOWERCASE:
-  ## `fixtures/chain-artifacts/aztec-testnet/` carries 386 distinct ones and
-  ## `tests/fixtures/chain-snapshots/aztec-mainnet-live/` 990, with **zero**
-  ## uppercase hex digits in either — transaction hashes, block hashes, contract
-  ## addresses, contract class ids and artifact hashes alike. Exactly two lengths
-  ## occur and both are hex: 66 (`0x` + 64, the field elements, which is every
-  ## identifier of the three declared kinds) and 42 (`0x` + 40 — `coinbase` and
-  ## `rollupAddress`, which are L1 addresses carried as block metadata and are not
-  ## path segments, so no kind declares them). The demo generator's synthetic
-  ## addresses are `0x` + 40 lowercase hex (`synthAddr`).
+  ## MEASURED, NOT ASSUMED — and THE DEFINITION IS PART OF THE MEASUREMENT,
+  ## because two different trees in this repository are called "the testnet
+  ## capture" and they differ by a factor of twenty-three. A count quoted without
+  ## its definition is a number that reproduces for whoever wrote it and for
+  ## nobody else; this one was quoted as "386 in the testnet capture" and a review
+  ## re-derived 9,000 from the other tree and recorded it as irreproducible.
+  ##
+  ## THE DEFINITION: distinct literals matching `0x[0-9a-fA-F]+`, over every file
+  ## in the named directory. Under it, and re-derivable per directory:
+  ##
+  ##   * `fixtures/chain-artifacts/aztec-testnet/` (the artifact capture, 17
+  ##     files) — **386**
+  ##   * `tests/fixtures/chain-snapshots/aztec-mainnet-live/` — **990**
+  ##   * `client/fixtures/chain/aztec/` — **8,006**
+  ##   * `client/fixtures/chain/aztec-testnet/` — **9,071** (its `snapshot.json`
+  ##     alone is 9,000, which is the figure the review re-derived)
+  ##   * `client/fixtures/chain/aztec-testnet-frames/` — **201**
+  ##
+  ## THE LOAD-BEARING HALF REPRODUCES EVERYWHERE and is what the `hex` declaration
+  ## rests on: in all five, **zero** `0x` literals in an identifier position carry
+  ## an uppercase hex digit. The only uppercase `0x` literals in the corpus at all
+  ## are three copies of `0xFFFFFFFF` inside published Noir SOURCE TEXT — a
+  ## numeric literal in a program, not an identifier, and not a path segment.
+  ##
+  ## Exactly two lengths occur among the identifiers and both are hex: 66 (`0x` +
+  ## 64, the field elements, which is every identifier of the three declared kinds)
+  ## and 42 (`0x` + 40 — `coinbase` and `rollupAddress`, which are L1 addresses
+  ## carried as block metadata and are not path segments, so no kind declares
+  ## them). The demo generator's synthetic addresses are `0x` + 40 lowercase hex
+  ## (`synthAddr`).
   ##
   ## So for the kinds this declaration speaks about there is no EIP-55 checksum
   ## riding in the case — they are field elements, not 20-byte accounts — and the

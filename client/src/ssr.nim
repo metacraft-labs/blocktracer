@@ -450,7 +450,7 @@ proc renderBlock*(r: DataRoot, chain, hash: string): string =
     "Block " & $detail.height & " on " & chain & " with " & $detail.transactions.len & " transactions.",
     blockPg.blockPage(chain, info, detail, txs,
                       nextBlockHash(r, info, detail.height),
-                      hasBlock(r, chain, detail.parentHash), d, note),
+                      hasBlock(r, info, detail.parentHash), d, note),
     robots = $routeClass("/" & chain & "/block/" & hash),
     canonical = SiteDomain & "/" & chain & "/block/" & hash,
     provenance = provenanceMarker(info))
@@ -669,6 +669,45 @@ proc sitemapRoutes*(r: DataRoot): seq[string] =
 
 proc renderRoute*(r: DataRoot, path: string): tuple[status: int, body: string, contentType: string] =
   ## Dispatch one clean-URL path to its renderer.
+  ##
+  ## ── A NON-KEY SPELLING NOW RESOLVES, AND THE PAGE STILL NAMES ITSELF AS THE
+  ##    CANONICAL ONE. RECORDED HERE, NOT CLOSED ──────────────────────────────
+  ##
+  ## Every entity branch below resolves its object through a builder that
+  ## KEY-FORMS the identifier, so `/{chain}/tx/0xABC…`, `/{chain}/block/0xABC…`
+  ## and `/{chain}/address/0xABC…` all return 200 against a tree that published
+  ## the folded spelling. That is the point of the case rule and it is tested at
+  ## this level (`client/tests/test_debug_route.nim`, all three kinds, with a
+  ## one-digit-different control that still 404s).
+  ##
+  ## What no renderer then does is key-form the URL it writes into
+  ## `<link rel="canonical">`. Each echoes the spelling it was CALLED with, at
+  ## FIVE sites — `renderBlock`, `renderAddress`, `renderAddressCode`,
+  ## `renderTx` and `renderDebug` — so N spellings of one page each answer 200
+  ## and each declares ITSELF canonical. That is precisely the duplicate a
+  ## canonical link exists to prevent, which `staticRoutes` above says in so
+  ## many words about segment URLs.
+  ##
+  ## NOT INHERITED, AND NOT WHOLLY NEW EITHER. Before per-encoding case handling
+  ## every kind was equally case-sensitive, a non-key spelling 404ed, and there
+  ## was no duplicate to declare. The transaction and address kinds acquired
+  ## this when they began folding; `blockPath` taking the declaration widened it
+  ## to the third. The surface is wider by one kind; the defect is the same one.
+  ##
+  ## WHY IT IS RECORDED AND NOT PATCHED HERE. The two candidate answers are
+  ## different decisions and neither is a rename. Emitting the KEY form in the
+  ## canonical link keeps every spelling a 200 and points them all at one URL;
+  ## REDIRECTING a non-key spelling is the stricter answer and is a router and
+  ## hosting-layer change, not an SSR one. SEO-And-Crawl-Budget.md §6 classes
+  ## these routes but does not choose between the two, and a canonical tag is
+  ## published content — so it wants the decision made rather than taken in
+  ## passing, which is the same argument that kept `blockPath` unwidened until
+  ## it had its own review.
+  ##
+  ## NOTHING THIS REPOSITORY PUBLISHES IS IN THE DUPLICATED STATE. `staticRoutes`
+  ## and `sitemapRoutes` enumerate from the tree, so every route exported or
+  ## submitted carries an identifier the producer wrote. A hand-typed or
+  ## externally-linked URL is what reaches the state above.
   let p = path.strip(chars = {'/'})
   if p.len == 0:
     return (200, renderHome(r), "text/html")
@@ -700,7 +739,7 @@ proc renderRoute*(r: DataRoot, path: string): tuple[status: int, body: string, c
   of 3:
     case parts[1]
     of "block":
-      if hasBlock(r, parts[0], parts[2]):
+      if hasBlock(r, chainInfo(r, parts[0]), parts[2]):
         return (200, renderBlock(r, parts[0], parts[2]), "text/html")
     of "tx":
       if hasTx(r, chainInfo(r, parts[0]), parts[2]):

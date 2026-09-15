@@ -17,7 +17,9 @@
 import std/[sha1, strutils]
 
 import ./shards
-export shards   # `shardKeyFor`, `traceShards` — see the note where they used to be
+export shards   # `shardKeyFor`, `traceShards` and the identifier-keyed path
+                # builders — see the note where they used to be, and
+                # `shards.nim`'s own header on why the builders are down there
 
 const
   ContractTagTrace = "blocktracer/trace/v1"

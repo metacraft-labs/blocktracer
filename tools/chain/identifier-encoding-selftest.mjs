@@ -396,30 +396,83 @@ test('the kinds are the ones that actually become path segments');
 {
   // The kind set is only defensible if it matches the module that builds every path this
   // package reads. Read that module rather than restating its conclusion.
+  //
+  // THAT MODULE IS `contract/shards.nim` AND NO LONGER `blocktracer_client/paths.nim`.
+  // The identifier-keyed builders moved down into the contract because the PRODUCERS
+  // could not reach them in the client SDK and were therefore building their sharded
+  // paths by hand — which, once `shardKeyFor` folded, wrote a folded shard beside a raw
+  // name. `paths.nim` re-exports them, and this arm checks the re-export too, because a
+  // builder that existed and was not exported would be a builder the browser cannot call.
+  const shards = shardsSrcForKinds();
   const paths = readFileSync(join(REPO, 'src', 'blocktracer_client', 'paths.nim'), 'utf8');
-  ck('paths.nim shards a transaction hash under the `transaction` kind',
-     /shardKeyFor\(enc, KindTransaction, txHash\)/.test(paths));
-  ck('paths.nim shards an address under the `address` kind',
-     /shardKeyFor\(enc, KindAddress, address\)/.test(paths));
-  ck('paths.nim builds a block path from a block hash',
-     /proc blockPath\*\(chain, blockHash: string\)/.test(paths));
-  // …and it takes the chain's declaration rather than assuming one. A DEFAULT ARGUMENT is
-  // what this arm is really watching for: with one, every call site that was not updated
-  // would keep deciding the encoding for itself, silently and correctly-looking.
-  ck('…and every sharded builder takes the chain\'s encoding, with no default',
-     (paths.match(/enc: ChainIdentifierEncoding\)/g) || []).length === 5
-     && !/enc: ChainIdentifierEncoding = /.test(paths));
+  ck('shards.nim shards a transaction hash under the `transaction` kind',
+     /shardKeyFor\(enc, KindTransaction, txHash\)/.test(shards));
+  ck('shards.nim shards an address under the `address` kind',
+     /shardKeyFor\(enc, KindAddress, address\)/.test(shards));
+  ck('shards.nim builds a block path, and it KEY-FORMS its identifier',
+     /func blockPath\*\(chain, blockHash: string,/.test(shards)
+     && /identifierKeyForm\(enc, KindBlock, blockHash\)/.test(shards));
+  // …and every one of them takes the chain's declaration rather than assuming one. A
+  // DEFAULT ARGUMENT is what this arm is really watching for: with one, every call site
+  // that was not updated would keep deciding the encoding for itself, silently and
+  // correctly-looking. SIX AND NOT FIVE since `blockPath` joined them: it has no shard
+  // segment, and the case question is not the alphabet question.
+  ck('…and all six builders take the chain\'s encoding, with no default',
+     (shards.match(/enc: ChainIdentifierEncoding\)/g) || []).length === 6
+     && !/enc: ChainIdentifierEncoding = /.test(shards));
+  ck('…and the client SDK re-exports them rather than restating them',
+     /^export blockPath, txFactsPath, txStatePath, traceSelectionPath,$/m.test(paths)
+     && !/^func txFactsPath\*/m.test(paths) && !/^proc txFactsPath\*/m.test(paths));
   // And it shards a trace artifact id by a DIFFERENT function, which is why that one is
   // not a kind: it is not a chain's identifier and is not derived from a chain's.
   ck('…and a trace artifact id is sharded by `traceShards`, not by the chain\'s encoding',
      /traceShards\(traceArtifactId\)/.test(paths));
   ck('…whose signature carries no encoding at all, so no caller can pass one',
-     /func traceShards\*\(tid: string\): tuple\[a, b: string\]/.test(shardsSrcForKinds()));
+     /func traceShards\*\(tid: string\): tuple\[a, b: string\]/.test(shards));
 }
 
 /** `shards.nim`, read once for the arm above. */
 function shardsSrcForKinds() {
   return readFileSync(join(REPO, 'src', 'blocktracer', 'contract', 'shards.nim'), 'utf8');
+}
+
+test('the producers build their paths with those builders, not by hand');
+{
+  // ── THE DEFECT THIS ARM EXISTS FOR, AND WHY IT IS IN THE FAST GATE ──────────────────
+  //
+  // Both producers used to build every sharded path by hand — `"d" / chain / "tx" /
+  // shardKeyFor(txEncoding, h) / h & ".json"` — because the builders lived in the client
+  // SDK, which is what READS what a producer wrote. The day `shardKeyFor` began folding
+  // per the declared case rule, those fourteen hand-built paths — twelve of them sharded
+  // — became HALF-FOLDED: a folded shard segment beside a RAW name segment. MEASURED on an uppercased `txHash`, the producer
+  // wrote `d/{chain}/tx/0a80/0x0A807E….json` and the client computed
+  // `.../0x0a807e….json` — a 404.
+  //
+  // It was found by a NULL MUTATION RESULT (no case mutation moved a published byte,
+  // because every committed identifier is lowercase) rather than by any check, which is
+  // why it gets one here as well as in `tests/tidentifierencoding.nim`: this is the gate
+  // people run, and a producer is where a wrong published path comes from.
+  //
+  // Counted over CODE, for the reason the pins are: both producers explain the rule in
+  // prose beside it, and a text count would read the explanation as the defect.
+  for (const rel of ['src/blocktracer/chain/ingest.nim',
+                     'src/blocktracer/demo/generator.nim']) {
+    const code = codeOf(readFileSync(join(REPO, rel), 'utf8'));
+    ck(`${rel} names the declaration once and derives every path from it`,
+       occurrences(code, 'let identifierEncoding = ') === 1);
+    // NO SHARD KEY IS TAKEN DIRECTLY. `shardKeyFor` in a producer is, by construction,
+    // one half of a two-segment path whose other half is written by hand.
+    ck(`${rel} takes no shard key of its own`,
+       occurrences(code, 'shardKeyFor(') === 0);
+    // …and it builds the paths through the contract's builders, which derive both
+    // segments from one expression.
+    for (const builder of ['blockPath(', 'txFactsPath(', 'txStatePath(',
+                           'traceSelectionPath(', 'addressIndexPath(',
+                           'addressSegmentPath(']) {
+      ck(`${rel} builds ${builder}…) through the shared builder`,
+         occurrences(code, builder) >= 1);
+    }
+  }
 }
 
 test('the boundary rule is one file, and both halves are held to it');
@@ -495,8 +548,16 @@ test('exactly the expected files know about each half of the seam');
        + `not a green`, swept.length >= floor);
     for (const w of bnd.sweeps) {
       const want = (w.expected[top] ?? []).map((r) => r.path).sort();
+      // OVER CODE AND NOT OVER THE WHOLE FILE. Matched over the whole file, this
+      // equality's REVERSE direction — "an expected consumer that stopped being one" —
+      // is inert for any entry whose doc comment still names the token, which was
+      // MEASURED at 14 of the 22 expected entries. Proof: reverting
+      // `client/src/viewmodel/search_shapes.nim` to its own unconditional `toLowerAscii`
+      // left nought code occurrences of all three `caseRule` tokens and one in a doc
+      // comment, and both halves stayed green; deleting the comment's mention too
+      // reddened both. `codeOf` is the same filter the pins have always used.
       const naming = swept.filter((path) => {
-        const src = readFileSync(join(REPO, path), 'utf8');
+        const src = codeOf(readFileSync(join(REPO, path), 'utf8'));
         return w.tokens.some((t) => src.includes(t));
       });
       // AN EQUALITY, NOT A SUBSET. An unexpected consumer fails it in one direction and an
@@ -521,7 +582,12 @@ test('exactly the expected files know about each half of the seam');
   // The SIZES of the two expected sets, spelled out rather than derived, for the reason
   // above: these are the numbers a diff shows moving.
   const sizeOf = (id) => bnd.sweeps.find((w) => w.id === id).expected;
-  ck('nine files under src/ read the declaration', sizeOf('declaration').src.length === 9);
+  // EIGHT AND NOT NINE: `src/blocktracer_client_paths.nim` left this set when the sweep
+  // started matching over CODE. Two lines of `import`/`export` under a sixty-line header,
+  // whose only mention of the member was in that header — documentation of
+  // `blocktracer_client/paths.nim`'s signature, not a second reader of the declaration,
+  // and the module it re-exports is in the set.
+  ck('eight files under src/ read the declaration', sizeOf('declaration').src.length === 8);
   ck('four under client/, and one under tools/ — this suite',
      sizeOf('declaration').client.length === 4
      && sizeOf('declaration').tools.length === 1);
@@ -687,8 +753,8 @@ test('MUTATIONS: each structural rule refuses on its own');
 }
 
 console.error('');
-if (asserted !== 102) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 102 — a case was added, removed or skipped.`);
+if (asserted !== 119) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 119 — a case was added, removed or skipped.`);
   failed++;
 } else {
   console.error(`assertion count: ${asserted} (as declared)`);

@@ -597,23 +597,47 @@ proc checkGeneration(v: var Validator, chain, gen: string) =
       v.walkedBlock.add bh.getStr
       let brel = "d" / chain / "block" / bh.getStr & ".json"
       let bd = v.loadJson(brel)
-      if bd == nil: continue
+      # ── OUTSIDE THE `bd == nil` GUARD, MIRRORING `checkTransaction` ──────────
+      #
+      # `bh` is the identifier a published BLOCK INDEX listed, and its form is a
+      # fact about that reference whether or not the object it names is there — a
+      # generation that referenced a block by a checksummed spelling would dangle
+      # AND be wrong, and reporting only the dangle sends the reader looking for a
+      # missing file. That argument was made at length on the transaction arm and
+      # this arm had it the other way round: MEASURED, the identical mutation gave
+      # 4 errors on a transaction reference (dangle plus `whose key form is …`) and
+      # 1 on a block reference (dangle only). So "every published block reference
+      # is its own key form" held only for references that RESOLVE — which is the
+      # arm `blockPath`'s old no-fold reasoning leant on.
+      #
+      # An absent object carries no body, so rules 2 and 3 have nothing to be
+      # about and `carried` is empty, which `checkIdentifierForms` documents.
       v.checkIdentifierForms(chain, brel, KindBlock, bh.getStr,
-                             bd{"hash"}.getStr)
+                             (if bd != nil: bd{"hash"}.getStr else: ""))
+      if bd == nil: continue
       for tx in bd{"transactions"}:
         v.checkTransaction(chain, tx.getStr, gen, tsv)
   # address lists -> segments
   for p in maps{"addr"}:
     let al = v.loadJson(p.getStr)
+    # ── OUTSIDE THE `al == nil` GUARD, FOR THE BLOCK ARM'S REASON ─────────────
+    #
+    # `p` is the path the generation root REFERENCES, so its name segment is a
+    # published reference to an address and its form is a fact about that
+    # reference whether or not the object resolves. It was inside both this guard
+    # and an `"address" in al` one, so a sealed root naming an address index in a
+    # non-key form got the dangle alone.
+    #
+    # The published path names the key form; the body carries the display form.
+    # `p` is the object's OWN path, so the name is read out of the layout rather
+    # than recomputed — recomputing it here would compare the derivation to
+    # itself.
+    v.checkIdentifierForms(chain, p.getStr, KindAddress,
+                           p.getStr.splitFile.name,
+                           (if al != nil: al{"address"}.getStr else: ""))
     if al == nil: continue
     if "address" in al:
       v.walkedAddr.add al{"address"}.getStr
-      # The published path names the key form; the body carries the display
-      # form. `p` is the object's own path, so the name is read out of the
-      # layout rather than recomputed — recomputing it here would compare the
-      # derivation to itself.
-      v.checkIdentifierForms(chain, p.getStr, KindAddress,
-                             p.getStr.splitFile.name, al{"address"}.getStr)
     for sp in al{"segments"}: discard v.loadJson(sp.getStr)
   # Optional render + search-index layers the sealed root enumerates (§2.9).
   v.checkRenderLayer(chain, root)

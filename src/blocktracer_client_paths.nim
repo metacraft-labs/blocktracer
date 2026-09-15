@@ -38,14 +38,19 @@
 ##
 ## ## What a consumer gets, and what it does not
 ##
-## Every path derivation in `blocktracer_client/paths` — `registryPath`,
+## Every path derivation `blocktracer_client/paths` exposes — `registryPath`,
 ## `currentPath`, `blockPath`, `txFactsPath`, and the rest — plus `shardKeyFor` and
-## `traceShards`, which `paths` re-exports from `blocktracer/contract/shards`, and
-## the identifier-encoding vocabulary those signatures are written in
-## (`ChainIdentifierEncoding`, the three kind names, `declaredOrLegacy`).
+## `traceShards`, and the identifier-encoding vocabulary those signatures are
+## written in (`ChainIdentifierEncoding`, the three kind names, `declaredOrLegacy`).
 ##
-## THE SHARDED DERIVATIONS TAKE THE CHAIN'S ENCODING AND HAVE NO DEFAULT. A
-## consumer has to say where its encoding came from, and for a browser the answer
+## The identifier-keyed builders and the sharding helpers come from
+## `blocktracer/contract/shards`, which `paths` re-exports; this module is a third
+## re-export of the same functions and holds no derivation of its own. That is the
+## point: the layout has one definition, and the producer, the validator, the
+## server-rendered explorer and a browser tab all reach it.
+##
+## THE IDENTIFIER-KEYED DERIVATIONS TAKE THE CHAIN'S ENCODING AND HAVE NO DEFAULT.
+## A consumer has to say where its encoding came from, and for a browser the answer
 ## is the registry it already fetched — see `client/searchboot/`, which reads
 ## `chains[<slug>].identifierEncoding` out of that one response. A default of hex
 ## here would have let every call site keep deciding the encoding for itself.
@@ -56,7 +61,7 @@
 ## shard and not for the name would ask for a file that is not there. What is
 ## deliberately NOT folded is the identifier a published object carries in its
 ## body: that is the DISPLAY form, which is what keeps an EIP-55 checksum alive.
-## The rule is per encoding and is `blocktracer_client/paths.nim`'s to explain.
+## The rule is per encoding and is `blocktracer/contract/shards.nim`'s to explain.
 ##
 ## It gets no reader, no store and no session. Computing a path is not fetching
 ## one: the consumer does its own I/O, which in a browser it must, because

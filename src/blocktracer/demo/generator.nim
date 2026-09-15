@@ -915,9 +915,12 @@ proc generate*(cfg: DemoConfig): int =
   # sharded object path below. One function answers for both — see
   # `demoIdentifierEncoding` — so this tree cannot declare one encoding and key
   # another.
+  #
+  # AND THE PATHS ARE BUILT BY THE FUNCTIONS THE CLIENT USES. Handing this value
+  # to `shardKeyFor` and then naming the object with the raw identifier is two
+  # decisions again, and it writes a folded shard beside an unfolded name; the
+  # builders in `contract/shards.nim` derive both segments from one expression.
   let identifierEncoding = demoIdentifierEncoding()
-  let txEncoding = identifierEncoding.encodingFor(KindTransaction)
-  let addrEncoding = identifierEncoding.encodingFor(KindAddress)
   createDir cfg.outDir
   cfg.writeRegistry()
 
@@ -962,19 +965,19 @@ proc generate*(cfg: DemoConfig): int =
     let bd = BlockDetail(chain: chain, hash: b.hash, height: b.height,
                          parentHash: b.parent, transactions: b.txs)
     let bdJson = bd.toJson
-    cfg.writeJson("d" / chain / "block" / b.hash & ".json", bdJson)
+    cfg.writeJson(blockPath(chain, b.hash, identifierEncoding), bdJson)
     cfg.writeText(chain / "block" / b.hash / "index.html",
                   renderBlockPage(chain, b.hash, bdJson))
     hashEntries.add HashEntry(hexHash: b.hash, chain: chain, kind: hkBlock)
   for t in txs:
-    let sh = shardKeyFor(txEncoding, t.hash)
     let factsJson = t.facts.toJson
-    cfg.writeJson("d" / chain / "tx" / sh / t.hash & ".json", factsJson)
+    cfg.writeJson(txFactsPath(chain, t.hash, identifierEncoding), factsJson)
     var st = t.txstate
     st["tx"] = %t.hash
-    cfg.writeJson("d" / chain / "g" / gen / "txstate" / sh / t.hash & ".json", st)
+    cfg.writeJson(txStatePath(chain, gen, t.hash, identifierEncoding), st)
     let ovJson = t.overlay.toJson
-    cfg.writeJson("d" / chain / "ts" / tsv / sh / t.hash & ".json", ovJson)
+    cfg.writeJson(traceSelectionPath(chain, tsv, t.hash, identifierEncoding),
+                  ovJson)
     if t.artifacts.len > 0:
       # Publish the source bundle for the code this transaction executed, then
       # name it from every one of that transaction's manifests. The bundle is
@@ -1054,8 +1057,8 @@ proc generate*(cfg: DemoConfig): int =
     for h in heights:
       let node = %*{"chain": chain, "address": address, "fromBlock": h,
                     "toBlock": h, "transactions": addrTxsByHeight[address][h]}
-      let rel = "d" / chain / "seg" / shardKeyFor(addrEncoding, address) / address /
-                ($h & "-" & $h) & ".json"
+      let rel = addressSegmentPath(chain, address, $h & "-" & $h,
+                                   identifierEncoding)
       cfg.writeJson(rel, node)
       segRels.add rel
       segNodes.add node
@@ -1075,8 +1078,7 @@ proc generate*(cfg: DemoConfig): int =
 
   var addrRels: seq[string]
   for a in addrSegs:
-    let rel = "d" / chain / "g" / gen / "addr" / shardKeyFor(addrEncoding, a.address) /
-              a.address & ".json"
+    let rel = addressIndexPath(chain, gen, a.address, identifierEncoding)
     var segArray = newJArray()
     for s in a.segments: segArray.add %s
     let addrList = %*{"chain": chain, "address": a.address, "segments": segArray}
@@ -1087,8 +1089,7 @@ proc generate*(cfg: DemoConfig): int =
 
   var txstateRels: seq[string]
   for t in txs:
-    txstateRels.add "d" / chain / "g" / gen / "txstate" / shardKeyFor(txEncoding, t.hash) /
-                      t.hash & ".json"
+    txstateRels.add txStatePath(chain, gen, t.hash, identifierEncoding)
 
   let summaryRel = "d" / chain / "g" / gen / "summary.json"
   # THE SYNTHETIC TREE SAYS SO IN ITS OWN SUMMARY. Once a second producer

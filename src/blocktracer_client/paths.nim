@@ -2,22 +2,42 @@
 ##
 ## "Resolves an entity to its object path (a pure function — no lookup)"
 ## ([Static-Site-Architecture.md](../../../codetracer-specs/BlockTracer/Static-Site-Architecture.md)
-## §5, first bullet). Every path this package reads is built here, so the
-## layout lives in one module on the consumer side exactly as
-## `blocktracer/contract/ids.nim` holds it on the producer side.
+## §5, first bullet). Every path this package reads is reached through this
+## module, so a consumer has one import to make and one place to look.
 ##
-## The sharding helpers are **imported from the contract**, not restated: a
-## second `shardKeyFor` would be a second place for the layout to drift, which is
-## the failure Static-Site-Architecture.md §2.9 exists to prevent.
+## Nothing here is restated from the contract: a second `shardKeyFor` — or a
+## second `/d/{chain}/tx/{shard}/{id}.json` — would be a second place for the
+## layout to drift, which is the failure Static-Site-Architecture.md §2.9 exists
+## to prevent. What this module HOLDS is the consumer-only layout; what it
+## RE-EXPORTS is everything the producer shares with it.
 ##
-## ## Every sharded path takes the chain's identifier encoding
+## ## THE IDENTIFIER-KEYED BUILDERS ARE NOT HERE. THEY ARE IN THE CONTRACT
+##
+## `blockPath`, `txFactsPath`, `txStatePath`, `traceSelectionPath`,
+## `addressIndexPath` and `addressSegmentPath` live in
+## `blocktracer/contract/shards.nim` and are RE-EXPORTED here, so every consumer
+## of this module sees them unchanged. They moved because the PRODUCERS could not
+## reach them here: `src/blocktracer/chain/ingest.nim` and
+## `src/blocktracer/demo/generator.nim` are producers, and this package is what
+## READS what a producer wrote — so they built their sharded paths by hand, at
+## fourteen sites, and when `shardKeyFor` started folding per the declared case
+## rule twelve of those acquired a folded shard beside a raw name. That module's
+## header carries the measurement and the reason the move is the fix rather than
+## fourteen edited call sites.
+##
+## What stays here is what no producer needs and what is not keyed by a chain's
+## identifier: the registry and `current.json` pointers, the generation objects,
+## the trace-artifact namespace (`traceShards`, which is deliberately NOT
+## encoding-parameterised) and the source-bundle layout.
+##
+## ## Every identifier-keyed path takes the chain's identifier encoding
 ##
 ## A shard segment is derived from an identifier, and how an identifier is
 ## written is a property of the chain — published per kind in
-## `chains[<slug>].identifierEncoding` (Configuration.md §2.1). So the five
-## sharded builders below take a `ChainIdentifierEncoding` beside the chain slug,
-## and each names the KIND it is placing, because a chain may write its addresses
-## and its transaction hashes differently (TON does; Fuel does).
+## `chains[<slug>].identifierEncoding` (Configuration.md §2.1). So all six
+## builders take a `ChainIdentifierEncoding` beside the chain slug, and each names
+## the KIND it is placing, because a chain may write its addresses and its
+## transaction hashes differently (TON does; Fuel does).
 ##
 ## THERE IS NO DEFAULT ARGUMENT, and that absence is the design. A default of hex
 ## would let every call site that was not updated keep deciding the encoding for
@@ -27,11 +47,11 @@
 ## once and pins it, like the generation), the validator's read of the tree it is
 ## checking, or the producer's own declaration.
 ##
-## `blockPath` takes none, because it is content-addressed rather than sharded —
-## the whole identifier is the segment, so there is nothing to slice and no
-## alphabet question to answer. The `block` kind is declared all the same, because
-## a chain that numbers its blocks (`decimal`) is saying something true about them
-## that a later consumer may need.
+## `blockPath` HAS NO SHARD SEGMENT AND STILL TAKES THE ENCODING. It is
+## content-addressed, so there is nothing to slice and no alphabet question — but
+## the CASE question is a different question from the alphabet question, and while
+## this one alone did not fold, `/tx/0xABC…` and `/address/0xABC…` resolved on
+## input that `/block/0xABC…` 404ed on.
 ##
 ## ## BOTH segments of a sharded path are the identifier's KEY FORM
 ##
@@ -39,8 +59,8 @@
 ## two have to be the same normalisation or the pair does not address anything: a
 ## client that folded for the shard and not for the name would compute
 ## `/tx/abcd/0xAbCd….json`, which is a directory that exists holding a file that
-## does not. So each builder below asks `identifierKeyForm` for the name segment
-## and `shardKeyFor` — which folds by the same rule — for the shard.
+## does not. So each builder asks `identifierKeyForm` for the name segment and
+## `shardKeyFor` — which folds by the same rule — for the shard.
 ##
 ## THE CONSEQUENCE IS THE POINT OF THE CASE RULE. An EIP-55 address and its
 ## lowercase spelling are one account, and either spelling now resolves to the
@@ -59,6 +79,8 @@ import ../blocktracer/contract/shards
 import ../blocktracer/contract/version
 
 export shardKeyFor, traceShards, ShardWidth
+export blockPath, txFactsPath, txStatePath, traceSelectionPath,
+       addressIndexPath, addressSegmentPath
 export ChainIdentifierEncoding, encodingFor, declaredOrLegacy,
        hexIdentifierEncoding, chainIdentifierEncoding,
        parseChainIdentifierEncoding, identifierEncodingNode,
@@ -80,61 +102,6 @@ proc generationRootPath*(chain, generation: string): string =
 
 proc summaryPath*(chain, generation: string): string =
   "d/" & chain & "/g/" & generation & "/summary.json"
-
-proc blockPath*(chain, blockHash: string): string =
-  ## Content-addressed and generation-independent (§2).
-  ##
-  ## **IT DOES NOT KEY-FORM ITS IDENTIFIER, AND THAT IS A KNOWN GAP RATHER THAN A
-  ## RULING.** Every other path builder here folds by the chain's declared case
-  ## rule, so either spelling of a case-insensitive identifier resolves to the one
-  ## object the producer wrote. This one cannot, because it takes no
-  ## `ChainIdentifierEncoding` — it is not sharded, so there was never an alphabet
-  ## question for it to answer, and adding the parameter is a public signature
-  ## change with five call sites and its own review.
-  ##
-  ## The consequence is narrow and real: a client holding a block identifier in a
-  ## spelling the producer did not publish computes a path that does not exist,
-  ## where a transaction or an address in the same spelling resolves. Nothing in
-  ## the tree is in that state — `src/blocktracer/validator.nim` requires every
-  ## published block REFERENCE to be its own key form, so the identifier this is
-  ## called with is already folded whenever it came out of the tree — and the gap
-  ## is between what a CLIENT may arrive with and what this computes.
-  ##
-  ## Recorded here rather than quietly closed, for the reason the shared file
-  ## records the `aleo1…` row and `base64`'s unshardability: a widening done in
-  ## passing is a widening nobody reviewed.
-  "d/" & chain & "/block/" & blockHash & ".json"
-
-proc txFactsPath*(chain, txHash: string,
-                  enc: ChainIdentifierEncoding): string =
-  ## The immutable facts (§2.3, §2.3b).
-  "d/" & chain & "/tx/" & shardKeyFor(enc, KindTransaction, txHash) & "/" &
-    identifierKeyForm(enc, KindTransaction, txHash) & ".json"
-
-proc txStatePath*(chain, generation, txHash: string,
-                  enc: ChainIdentifierEncoding): string =
-  ## Generation-scoped canonicality + finality (§2.3b).
-  "d/" & chain & "/g/" & generation & "/txstate/" &
-    shardKeyFor(enc, KindTransaction, txHash) & "/" &
-    identifierKeyForm(enc, KindTransaction, txHash) & ".json"
-
-proc traceSelectionPath*(chain, traceSelectionVersion, txHash: string,
-                         enc: ChainIdentifierEncoding): string =
-  ## The versioned TraceSelection overlay (§2.3a).
-  "d/" & chain & "/ts/" & traceSelectionVersion & "/" &
-    shardKeyFor(enc, KindTransaction, txHash) & "/" &
-    identifierKeyForm(enc, KindTransaction, txHash) & ".json"
-
-proc addressIndexPath*(chain, generation, address: string,
-                       enc: ChainIdentifierEncoding): string =
-  "d/" & chain & "/g/" & generation & "/addr/" &
-    shardKeyFor(enc, KindAddress, address) & "/" &
-    identifierKeyForm(enc, KindAddress, address) & ".json"
-
-proc addressSegmentPath*(chain, address, segment: string,
-                         enc: ChainIdentifierEncoding): string =
-  "d/" & chain & "/seg/" & shardKeyFor(enc, KindAddress, address) & "/" &
-    identifierKeyForm(enc, KindAddress, address) & "/" & segment & ".json"
 
 proc traceArtifactDir*(traceArtifactId: string): string =
   ## `/t/{t0t1}/{t2t3}/{traceArtifactId}/` — Trace-Artifacts.md §3.

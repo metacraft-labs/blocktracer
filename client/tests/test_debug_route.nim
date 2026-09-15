@@ -5031,5 +5031,94 @@ suite "/settings — the preset is chosen and every claimed key is listed":
     check "Enter" in DerivedKeys
     check " " in DerivedKeys
 
+suite "the three route kinds resolve identically on a mixed-case identifier":
+
+  # ── WHAT THIS IS ABOUT, AND WHY IT IS AN SSR TEST ─────────────────────────
+  #
+  # `blockPath` took no `ChainIdentifierEncoding` and therefore key-formed
+  # nothing, while `txFactsPath` and `addressIndexPath` beside it did. The
+  # argument was that a block path has no shard segment and so no alphabet
+  # question — which is true, and is not the question: the object is still NAMED
+  # by the identifier, so the path depends on the declared CASE rule either way.
+  #
+  # The consequence was a LIVE asymmetry on this surface. `/{chain}/tx/{id}/` and
+  # `/{chain}/address/{id}/` resolved for an identifier a visitor typed in a
+  # spelling the producer did not publish, and `/{chain}/block/{id}/` 404ed, on
+  # the same input. Before per-encoding case handling all three were equally
+  # case-sensitive, so the asymmetry was CREATED by widening two of the three.
+  #
+  # It is tested here because `renderRoute` is where a route becomes a status
+  # code, and a status code is what a visitor experiences. The three kinds are
+  # driven in ONE test so the claim is the symmetry rather than three separate
+  # facts, and each kind's lowercase spelling is driven in the same run as the
+  # control: without it, three 200s would be consistent with a router that
+  # ignored the identifier entirely.
+
+  let published = block:
+    ## One identifier of each kind, read out of the tree the producer wrote.
+    ## Read rather than constructed: an identifier this test invented would not be
+    ## in the tree, and every route would 404 for the wrong reason.
+    let cur = parseJson(readFile(workDir / "d" / Chain / "current.json"))
+    let gen = cur["generation"].getStr
+    var blockHash, txHash, address = ""
+    for p in walkDirRec(workDir / "d" / Chain / "block", relative = true):
+      if p.endsWith(".json"): blockHash = p.splitFile.name
+    for p in walkDirRec(workDir / "d" / Chain / "tx", relative = true):
+      if p.endsWith(".json"): txHash = p.splitFile.name
+    for p in walkDirRec(workDir / "d" / Chain / "g" / gen / "addr", relative = true):
+      if p.endsWith(".json"): address = p.splitFile.name
+    (blockHash: blockHash, txHash: txHash, address: address)
+
+  test "each kind has a real published identifier to be about":
+    # A FLOOR. A tree with no address index would make the address arm below pass
+    # by asking for nothing, which is the empty-set green this repository has
+    # found five times.
+    check published.blockHash.len > 0
+    check published.txHash.len > 0
+    check published.address.len > 0
+    # …and each is already its own key form, which is what the producer publishes.
+    for id in [published.blockHash, published.txHash, published.address]:
+      check id == id.toLowerAscii
+      check id.startsWith("0x")
+
+  test "an UPPERCASED spelling of each reaches the same page, with the same status":
+    for (kind, published) in [("block", published.blockHash),
+                              ("tx", published.txHash),
+                              ("address", published.address)]:
+      # PAYLOAD ONLY. The `0x` stays as the producer wrote it, so the one thing
+      # that moved is the case of the hex digits.
+      let shouted = "0x" & published[2 .. ^1].toUpperAscii
+      check shouted != published
+      let lower = renderRoute(root, "/" & Chain & "/" & kind & "/" & published)
+      let upper = renderRoute(root, "/" & Chain & "/" & kind & "/" & shouted)
+      # THE CONTROL, IN THE SAME RUN: the spelling the producer DID publish has to
+      # resolve, or a pair of matching 404s would read as symmetry.
+      if lower.status != 200:
+        checkpoint(kind & ": the published spelling did not resolve: " &
+                   $lower.status)
+      check lower.status == 200
+      if upper.status != 200:
+        checkpoint(kind & ": the uppercased spelling 404ed where its siblings " &
+                   "resolve — " & $upper.status & " for /" & Chain & "/" & kind &
+                   "/" & shouted)
+      check upper.status == 200
+      check upper.contentType == lower.contentType
+
+  test "…and a spelling that differs in a DIGIT still 404s, for all three":
+    # The other direction, which is what stops the arm above being "the router
+    # accepts anything". Differing in case is one identifier written two ways;
+    # differing in a digit is a different identifier, and it is not in this tree.
+    for (kind, published) in [("block", published.blockHash),
+                              ("tx", published.txHash),
+                              ("address", published.address)]:
+      let last = published[^1]
+      let other = published[0 ..< published.len - 1] &
+                  (if last == 'a': "b" else: "a")
+      check other != published
+      let r = renderRoute(root, "/" & Chain & "/" & kind & "/" & other)
+      if r.status == 200:
+        checkpoint(kind & ": a different identifier resolved: " & other)
+      check r.status != 200
+
 removeDir(workDir)
 removeDir(degradedDir)

@@ -96,10 +96,11 @@ func shardKeyFor*(encoding, identifier: string): string =
   ## and its lowercase spelling are one account, and a client that arrived with
   ## either has to compute the one shard the producer wrote. The only hex
   ## identifier whose key this moves relative to the replaced `hexShard` is one
-  ## carrying an uppercase digit — of which the committed captures contain none:
-  ## 386 distinct `0x`-hex literals in the testnet capture, 990 in the mainnet
-  ## one, zero uppercase in either, so the published Aztec layout is unmoved and
-  ## that was diffed rather than argued.
+  ## carrying an uppercase digit — of which the committed captures contain none.
+  ## `hexIdentifierEncoding` carries that measurement, with the definition it is
+  ## taken under and the per-capture counts, so it can be re-run rather than
+  ## quoted. The published Aztec layout is therefore unmoved, and that was diffed
+  ## rather than argued (`just byte-identity`).
   let rule = identifierEncodingRule(encoding)
   if not rule.pathSafe:
     raise newException(ValueError,
@@ -123,6 +124,93 @@ func shardKeyFor*(enc: ChainIdentifierEncoding, kind, identifier: string): strin
   ## sharded path for an identifier the registry declined to describe is not a
   ## path that can be recomputed.
   shardKeyFor(enc.encodingFor(kind), identifier)
+
+# ── THE PATHS WHOSE TWO SEGMENTS HAVE TO AGREE ──────────────────────────────
+#
+# THEY ARE HERE, IN THE CONTRACT, AND NOT ONLY IN THE CLIENT SDK — and the reason
+# is a defect that was found by a null mutation result rather than by a test.
+#
+# `blocktracer_client/paths.nim` held the only path builders in the tree, and it
+# is the CLIENT SDK: `src/blocktracer/chain/ingest.nim` and
+# `src/blocktracer/demo/generator.nim` are producers, and the SDK is what reads
+# what a producer wrote. `ci/test/client-sdk-boundary.sh` puts `demo/` and
+# `validator.nim` on the SDK's forbidden list for exactly that reason, and an
+# import in the other direction inverts the same relation. So each producer built
+# its sharded paths by hand — `"d" / chain / "tx" / shardKeyFor(txEncoding, h) /
+# h & ".json"` — and the day `shardKeyFor` started folding per the declared case
+# rule, those hand-built paths became HALF-FOLDED: a folded shard segment beside a
+# RAW name segment.
+#
+# MEASURED: ingesting a capture whose `txHash` carries an uppercase hex digit, the
+# producer wrote `d/{chain}/tx/0a80/0x0A807E….json` while the client computes
+# `d/{chain}/tx/0a80/0x0a807e….json` — a 404, and exactly the state
+# `blocktracer_client/paths.nim`'s own header names as the defect ("a directory
+# that exists holding a file that does not"). It was unreachable on today's
+# captures, because every identifier in every one of them is lowercase, and the
+# validator does catch it — but neither of those is the invariant `paths.nim`
+# asserted, which was tree-wide.
+#
+# PATCHING THE CALL SITES WOULD NOT HAVE REMOVED THE POSSIBILITY. There were
+# FOURTEEN of them across the two producers, twelve of them sharded and therefore
+# half-foldable; they rot (their line numbers moved twice during this change
+# alone); and the next producer writes a fifteenth. So the builders moved DOWN to the layer both
+# sides already depend on — this module, which is where `shardKeyFor` and
+# `identifierKeyForm` both are, and which compiles on the JS backend because
+# sharding is string slicing. `blocktracer_client/paths.nim` re-exports them, so
+# no consumer changed; the producers now call the same functions the client does,
+# and the shard and the name are derived from one expression that cannot disagree.
+
+func txFactsPath*(chain, txHash: string,
+                  enc: ChainIdentifierEncoding): string =
+  ## The immutable facts (Static-Site-Architecture.md §2.3, §2.3b).
+  "d/" & chain & "/tx/" & shardKeyFor(enc, KindTransaction, txHash) & "/" &
+    identifierKeyForm(enc, KindTransaction, txHash) & ".json"
+
+func txStatePath*(chain, generation, txHash: string,
+                  enc: ChainIdentifierEncoding): string =
+  ## Generation-scoped canonicality + finality (§2.3b).
+  "d/" & chain & "/g/" & generation & "/txstate/" &
+    shardKeyFor(enc, KindTransaction, txHash) & "/" &
+    identifierKeyForm(enc, KindTransaction, txHash) & ".json"
+
+func traceSelectionPath*(chain, traceSelectionVersion, txHash: string,
+                         enc: ChainIdentifierEncoding): string =
+  ## The versioned TraceSelection overlay (§2.3a).
+  "d/" & chain & "/ts/" & traceSelectionVersion & "/" &
+    shardKeyFor(enc, KindTransaction, txHash) & "/" &
+    identifierKeyForm(enc, KindTransaction, txHash) & ".json"
+
+func addressIndexPath*(chain, generation, address: string,
+                       enc: ChainIdentifierEncoding): string =
+  "d/" & chain & "/g/" & generation & "/addr/" &
+    shardKeyFor(enc, KindAddress, address) & "/" &
+    identifierKeyForm(enc, KindAddress, address) & ".json"
+
+func addressSegmentPath*(chain, address, segment: string,
+                         enc: ChainIdentifierEncoding): string =
+  "d/" & chain & "/seg/" & shardKeyFor(enc, KindAddress, address) & "/" &
+    identifierKeyForm(enc, KindAddress, address) & "/" & segment & ".json"
+
+func blockPath*(chain, blockHash: string,
+                enc: ChainIdentifierEncoding): string =
+  ## Content-addressed and generation-independent (§2) — and KEY-FORMED, like
+  ## every other identifier this module places in a path.
+  ##
+  ## IT TOOK NO ENCODING UNTIL NOW, AND THE GAP WAS LIVE. There is no shard
+  ## segment here, so for a while there looked to be no alphabet question to
+  ## answer — but the CASE question is not the alphabet question. With the other
+  ## five builders folding and this one not, `/tx/0xABC…` and `/address/0xABC…`
+  ## resolved while `/block/0xABC…` did not, on the same user input, on routes
+  ## served by `client/src/ssr.nim` and by a published SDK package. Before
+  ## per-encoding case handling all three were equally case-sensitive, so the
+  ## asymmetry was created by the widening and not inherited.
+  ##
+  ## The `block` kind was always in the closed set for exactly this reason: a
+  ## chain that numbers its blocks (`decimal`) says something true about them,
+  ## and `encodingFor` raises on a chain that declared the kind away rather than
+  ## inventing a key for it.
+  "d/" & chain & "/block/" &
+    identifierKeyForm(enc, KindBlock, blockHash) & ".json"
 
 func traceShards*(tid: string): tuple[a, b: string] =
   ## `/t/{tid[0:2]}/{tid[2:4]}/{tid}/` — Trace-Artifacts.md §3.

@@ -454,7 +454,7 @@ jobs:
         run: node tools/chain/coverage-contiguity-selftest.mjs
 
       - name: Do both halves of the identifier-encoding set read one file?
-        # 102 assertions. `tools/chain/identifier-encodings.json` is the closed
+        # 119 assertions. `tools/chain/identifier-encodings.json` is the closed
         # set of encodings a chain may DECLARE its identifiers in —
         # Configuration.md §2.1, §2.2, with every member traced to a row of
         # Search-And-Routing.md §2's shape table — and, per member, the two rules
@@ -483,6 +483,20 @@ jobs:
         # `tools/chain/identifier-encoding-boundary.json`, read by this half AND
         # by `tests/tidentifierencoding.nim`, because it used to be spelled out
         # in both and compared to nothing.
+        #
+        # THE SWEEP MATCHES OVER CODE, which is what makes the "stopped being a
+        # consumer" direction live at all. Matched over the whole file it was
+        # inert for 14 of the 22 expected entries — any entry whose doc comment
+        # still named the token — and that was measured by reverting
+        # `client/src/viewmodel/search_shapes.nim` to its own unconditional
+        # `toLowerAscii` and watching both halves stay green.
+        #
+        # AND IT CHECKS THE TWO PRODUCERS, which is where a wrong published path
+        # comes from: neither may take a shard key of its own, because a shard key
+        # in a producer is one half of a two-segment path whose other half it then
+        # writes by hand — which is how both came to write a folded shard beside a
+        # RAW object name. They build every identifier-keyed path through
+        # `contract/shards.nim`, which derives both segments from one expression.
         #
         # They also PIN the sites that still derive from the string, present and
         # absent, counted over CODE: the hash index still parses hex pairs under

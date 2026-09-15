@@ -495,15 +495,25 @@ proc chainInfo*(r: DataRoot, chain: string): ChainInfo =
 
 # ── blocks ───────────────────────────────────────────────────────────────
 
-proc hasBlock*(r: DataRoot, chain, hash: string): bool =
-  r.storeFor(chain).get(blockPath(chain, hash)).found
+proc hasBlock*(r: DataRoot, info: ChainInfo, hash: string): bool =
+  ## TAKES A `ChainInfo` AND NOT A BARE SLUG, for the reason `hasTx` below gives
+  ## and for one more that is specific to blocks.
+  ##
+  ## It used to take a slug, on the argument that a block path is
+  ## content-addressed and has no shard segment. That is true and it is not the
+  ## whole question: the object's NAME is the identifier's key form, so the path
+  ## depends on the chain's declared CASE rule even where it depends on no
+  ## alphabet. While this took a slug, `/{chain}/block/0xABC…` 404ed on a route
+  ## whose `/tx/` and `/address/` siblings resolved — created by the widening of
+  ## those two, not inherited.
+  info.store.get(blockPath(info.slug, hash,
+                           info.session.identifierEncoding)).found
 
 proc hasTx*(r: DataRoot, info: ChainInfo, hash: string): bool =
   ## TAKES A `ChainInfo` AND NOT A BARE SLUG, because the object path is sharded
   ## and the shard depends on how the chain writes its identifiers — which is a
   ## fact about the OPEN chain (`info.session.identifierEncoding`, pinned from the
-  ## registry) rather than about its name. `hasBlock` beside it still takes a slug,
-  ## correctly: a block path is content-addressed and has no shard segment.
+  ## registry) rather than about its name.
   info.store.get(txFactsPath(info.slug, hash, info.session.identifierEncoding)).found
 
 proc readBlockDetail*(r: DataRoot, info: ChainInfo, hash: string): BlockDetail =

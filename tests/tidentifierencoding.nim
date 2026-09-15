@@ -555,9 +555,11 @@ suite "shard derivation takes the encoding as data":
     # EVERY MEMBER IS LOWERCASE, and that is the point rather than an oversight:
     # the equality is against the algorithm `hexShard` was, and the ONE input on
     # which the two now differ is an uppercase hex digit, which is asserted
-    # separately below with the reason. The captures contain none — 386 distinct
-    # `0x`-hex literals in the testnet capture, 990 in the mainnet one, zero
-    # uppercase in either — so this corpus is the population that was published.
+    # separately below with the reason. The captures contain none — zero `0x`
+    # literals in an identifier position carry an uppercase hex digit, in all five
+    # committed captures; `hexIdentifierEncoding` carries the per-capture counts
+    # and the definition they are taken under, because "386 in the testnet
+    # capture" named neither and two trees here answer to that description.
     let corpus = @[
       "0x0000000000000000000000000000000000000000000000000000000000000000",
       "0x2b0f32c62a6d5b0a4e6a0b3c1d8e9f70112233445566778899aabbccddeeff00",
@@ -977,6 +979,188 @@ suite "case handling is stated per encoding, not applied globally":
     ck checked >= 4
     removeDir tree
 
+  test "…and so does a BLOCK spelling, which it could not before":
+    # THE THIRD ROUTE KIND, WHICH WAS ASYMMETRIC. `blockPath` took no
+    # `ChainIdentifierEncoding` and therefore key-formed nothing, on the argument
+    # that a block path has no shard segment — which confuses the alphabet question
+    # with the CASE question. The object is still NAMED by the identifier, so while
+    # this was the case an uppercased identifier reached the transaction object and
+    # the address object and 404ed on the block, on the same input, through a
+    # published SDK package. Before per-encoding case handling all three were
+    # equally case-sensitive, so the asymmetry was CREATED by widening two of them.
+    let tree = buildDemo("block-case-read")
+    let slug = onlySlug(rawRegistry(tree))
+    let opened = openChain(localTree(tree), slug)
+    ck opened.outcome == ooOpened
+    let store = localTree(tree)
+    var blocksChecked = 0
+    for path in walkDirRec(tree / "d" / slug / "block", relative = true):
+      if not path.endsWith(".json"): continue
+      let published = path.splitFile.name
+      let shouted = published.toUpperAscii
+      ck shouted != published
+      let r = blockDetail(store, opened.session, shouted)
+      if r.outcome != roFound:
+        checkpoint("uppercase block spelling did not resolve: " & shouted)
+      ck r.outcome == roFound
+      # …and the body answers with what the TREE says, not the spelling asked for.
+      ck r.detail.hash == published
+      inc blocksChecked
+    ck blocksChecked >= 3
+
+    # AND THE THREE KINDS BEHAVE IDENTICALLY, which is the property rather than
+    # three separate ones. One identifier, one uppercased spelling, three path
+    # builders, and each has to name the object the producer wrote.
+    let enc = opened.session.identifierEncoding
+    var blockHash = ""
+    for path in walkDirRec(tree / "d" / slug / "block", relative = true):
+      if path.endsWith(".json"): blockHash = path.splitFile.name
+    var txHash = ""
+    for path in walkDirRec(tree / "d" / slug / "tx", relative = true):
+      if path.endsWith(".json"): txHash = path.splitFile.name
+    var addrName = ""
+    let gen = opened.session.generation
+    for path in walkDirRec(tree / "d" / slug / "g" / gen / "addr", relative = true):
+      if path.endsWith(".json"): addrName = path.splitFile.name
+    ck blockHash.len > 0
+    ck txHash.len > 0
+    ck addrName.len > 0
+    ck blockPath(slug, blockHash.toUpperAscii, enc) ==
+       blockPath(slug, blockHash, enc)
+    ck txFactsPath(slug, txHash.toUpperAscii, enc) == txFactsPath(slug, txHash, enc)
+    ck addressIndexPath(slug, gen, addrName.toUpperAscii, enc) ==
+       addressIndexPath(slug, gen, addrName, enc)
+    # …and all three land on a file that is there, which a string equality alone
+    # would not establish.
+    ck fileExists(tree / blockPath(slug, blockHash.toUpperAscii, enc))
+    ck fileExists(tree / txFactsPath(slug, txHash.toUpperAscii, enc))
+    ck fileExists(tree / addressIndexPath(slug, gen, addrName.toUpperAscii, enc))
+    removeDir tree
+
+  test "THE PRODUCER CANNOT WRITE A PATH THE CLIENT CANNOT RECOMPUTE":
+    # ── THE ARM THAT FAILS ON THE PRE-FIX CODE, AND THE DEFECT IT IS ABOUT ────
+    #
+    # The producers took their shard from `shardKeyFor` — which folds, as of
+    # per-encoding case handling — and named the object with the RAW identifier.
+    # MEASURED before the fix: ingesting a capture whose `txHash` carries an
+    # uppercase hex digit wrote `d/{chain}/tx/0a80/0x0A807E….json` while the
+    # client computed `d/{chain}/tx/0a80/0x0a807e….json`. A folded directory
+    # holding an unfolded file: a 404, and exactly the state
+    # `blocktracer_client/paths.nim`'s header names as the defect.
+    #
+    # It was unreachable on today's captures — every identifier in every one of
+    # them is lowercase — so no behavioural test in this repository could see it,
+    # and the byte-identity diff is silent about case BY CONSTRUCTION. That is why
+    # this arm CONSTRUCTS the input: a real capture with one identifier
+    # uppercased, ingested by the real producer.
+    #
+    # NOT A MOCK AND NOT A FIXTURE. The subject is the committed mainnet capture —
+    # a snapshot nobody in this repository wrote — copied to a temporary directory
+    # with the CASE of one identifier changed and nothing else. A capture written
+    # for this test would be a producer's input invented by the test; this is the
+    # real input with one legal spelling substituted, which is what a chain
+    # publishing EIP-55 or a tool that shouted would hand the producer.
+    let snap = parseJson(readFile(LiveMainnet / "snapshot.json"))
+    ck snap["transactions"].len > 0
+    let rawHash = snap["transactions"][0]["txHash"].getStr
+    ck rawHash.startsWith("0x")
+    ck rawHash == rawHash.toLowerAscii    # the committed corpus, as measured
+    # SHOUTED, PAYLOAD ONLY. The `0x` stays lowercase so the only thing that moved
+    # is the case of hex digits — `0X` would also exercise the prefix strip and
+    # this arm is about the two SEGMENTS agreeing, not about the strip.
+    let shouted = "0x" & rawHash[2 .. ^1].toUpperAscii
+    ck shouted != rawHash
+    ck identifierKeyForm("hex", shouted) == rawHash
+
+    let stage = tmpDir("halffold-in")
+    for rel in relFiles(LiveMainnet):
+      let dst = stage / rel
+      createDir dst.parentDir
+      copyFile(LiveMainnet / rel, dst)
+    # EVERY OCCURRENCE, not only the transaction row's own `txHash`. A chain that
+    # writes its identifiers in this spelling writes them that way wherever it
+    # mentions them, and this capture mentions this one TWICE — once on the
+    # transaction and once in the block's list. Substituting only the first is a
+    # weaker input than a real chain provides, and it is the difference between a
+    # tree that validates and one that does not: measured, mutating the row alone
+    # gives 0 validator errors because the block still lists the folded spelling.
+    let stagedText = readFile(stage / "snapshot.json")
+    ck stagedText.count(rawHash) == 2
+    writeFile(stage / "snapshot.json", stagedText.replace(rawHash, shouted))
+
+    let tree = tmpDir("halffold-out")
+    discard ingestSnapshot(IngestConfig(outDir: tree, snapshotDir: stage))
+    let slug = onlySlug(rawRegistry(tree))
+    let opened = openChain(localTree(tree), slug)
+    ck opened.outcome == ooOpened
+    let enc = opened.session.identifierEncoding
+
+    # THE EQUALITY. What the producer WROTE, found by walking the tree, against
+    # what the client COMPUTES from the identifier the capture carried. Both are
+    # read rather than asserted as literals: a comparison of two calls to one
+    # function would pass with the function wrong.
+    var written: seq[string]
+    for path in walkDirRec(tree / "d" / slug / "tx", relative = true):
+      if path.endsWith(".json"):
+        written.add "d/" & slug & "/tx/" & path.replace('\\', '/')
+    ck written.len > 0
+    let computed = txFactsPath(slug, shouted, enc)
+    if computed notin written:
+      checkpoint("the client computes " & computed &
+                 " and the producer wrote none of: " & written.join(", "))
+    ck computed in written
+    # …and the file is actually there, which is the thing a 404 is about.
+    ck fileExists(tree / computed)
+    # BOTH SEGMENTS, stated separately, because half-folding is precisely the
+    # failure where one of them is right.
+    ck computed.contains("/tx/" & shardKeyFor("hex", shouted) & "/")
+    ck computed.endsWith("/" & rawHash & ".json")
+    ck not computed.contains(shouted)
+    # …and the whole SDK read resolves from the spelling the capture carried, not
+    # only from the folded one. This is the 404 the defect produced.
+    let store = localTree(tree)
+    let r = transaction(store, opened.session, shouted)
+    if r.outcome != roFound:
+      checkpoint("the shouted spelling did not resolve: " & $r.outcome)
+    ck r.outcome == roFound
+    # ── WHAT THIS ARM DELIBERATELY DOES NOT CLAIM, AND THE RESIDUAL IT PINS ───
+    #
+    # The producer's PATHS are now recomputable. Its published REFERENCES are a
+    # second question and are still the capture's own spelling: the block object's
+    # `transactions` list, the height map's block hashes and the `tx` member of the
+    # txstate body all carry whatever the capture carried, and
+    # `checkIdentifierForms` requires a published reference to be its own KEY form.
+    # So a capture carrying a non-key-form identifier produces a tree that the
+    # validator REFUSES rather than one that quietly resolves, which is the right
+    # failure and not the absence of one.
+    #
+    # It is not fixed here because it is not the same fix. Normalising a reference
+    # means deciding where the producer folds — at the point it reads the capture,
+    # which would discard an EIP-55 display form the contract says a body carries,
+    # or per site, which is the fourteen-call-sites shape this change just removed. That
+    # is an operator decision, and the residual is pinned here so it cannot be
+    # mistaken for a passing case.
+    let errs = validateTree(tree)
+    if errs.len == 0:
+      checkpoint("the validator accepted a tree republishing a non-key-form " &
+                 "reference; the residual below has been closed and this arm " &
+                 "needs rewriting rather than deleting")
+    ck errs.len > 0
+    var everyErrorIsAReference = true
+    var namedTheForm = false
+    for e in errs:
+      if e.contains("key form"): namedTheForm = true
+      if not (e.contains("key form") or e.contains("dangling")):
+        everyErrorIsAReference = false
+        checkpoint("unexpected validator error: " & e)
+    ck everyErrorIsAReference
+    ck namedTheForm
+    # …and EVERY error names the reference's spelling rather than the object's, so
+    # the tree the producer wrote is not among the things being complained about.
+    for e in errs: ck e.contains(shouted)
+    removeDir stage
+    removeDir tree
+
   test "the validator refuses a REFERENCE written in a form that is not the key":
     # The two forms are only a rule if something checks them, and this is the
     # direction that bites: a producer that referenced a transaction by its
@@ -1008,6 +1192,92 @@ suite "case handling is stated per encoding, not applied globally":
       checkpoint("the validator did not notice the reference's form: " & $errs)
     ck namedTheForm
     removeDir tree
+
+  test "…FOR ALL THREE KINDS, AND NOT ONLY WHERE THE OBJECT RESOLVES":
+    # ── THE ARM THAT FAILS ON THE PRE-FIX VALIDATOR ───────────────────────────
+    #
+    # `checkIdentifierForms` sat INSIDE `if bd == nil: continue` for blocks and
+    # inside `if al == nil: continue` for addresses, while the transaction arm
+    # deliberately sat OUTSIDE its guard with a comment arguing that outside is
+    # right — "reporting only the dangle would send the reader looking for a
+    # missing file". MEASURED with the identical mutation on both sides: a
+    # non-key-form TRANSACTION reference gave 4 errors (the dangle AND `whose key
+    # form is …`), a non-key-form BLOCK reference gave 1 (the dangle only).
+    #
+    # So "every published block reference is its own key form" — which is what
+    # `blockPath`'s old no-fold reasoning leant on — held only for references that
+    # RESOLVE, which is the population least in need of the check.
+    #
+    # Each kind is mutated in a SEPARATE tree, so a diagnosis cannot be supplied by
+    # another kind's mutation, and each requires BOTH errors: the dangle (the object
+    # is not where the reference says) and the form (the reference is wrong), which
+    # is the pair the transaction arm's comment argues for.
+    for kind in ["block", "address", "transaction"]:
+      let t = buildDemo("forms-" & kind)
+      ck validateTree(t).len == 0
+      let slug = onlySlug(rawRegistry(t))
+      let gen = parseJson(readFile(t / "d" / slug / "current.json"))["generation"].getStr
+      let rootRel = t / "d" / slug / "g" / gen / "root.json"
+      var root = parseJson(readFile(rootRel))
+
+      case kind
+      of "block":
+        # The generation's BLOCK INDEX lists block hashes. Uppercase one: the
+        # object it names is at the folded path, so it dangles, and the reference
+        # itself is not a key form.
+        let biRel = root["maps"]["blocks"][0].getStr
+        var bi = parseJson(readFile(t / biRel))
+        ck bi["blocks"].len > 0
+        var shouted = newJArray()
+        shouted.add %bi["blocks"][0].getStr.toUpperAscii
+        for i in 1 ..< bi["blocks"].len: shouted.add bi["blocks"][i]
+        bi["blocks"] = shouted
+        writeFile(t / biRel, bi.pretty & "\n")
+      of "address":
+        # The sealed root NAMES its address indices by path, and the name segment
+        # of that path is the identifier. Uppercase it in the root only — the
+        # object stays where the producer put it, so the reference dangles.
+        ck root["maps"]["addr"].len > 0
+        let was = root["maps"]["addr"][0].getStr
+        let parts = was.rsplit('/', 1)
+        ck parts.len == 2
+        var moved = newJArray()
+        moved.add %(parts[0] & "/" &
+                    parts[1].splitFile.name.toUpperAscii & ".json")
+        for i in 1 ..< root["maps"]["addr"].len: moved.add root["maps"]["addr"][i]
+        root["maps"]["addr"] = moved
+        writeFile(rootRel, root.pretty & "\n")
+      else:
+        # The control, in the same run and by the same mechanism: the arm that
+        # already worked. Without it, the two above could pass because the walk
+        # reports every reference rather than because the guards moved.
+        let biRel = root["maps"]["blocks"][0].getStr
+        let bi = parseJson(readFile(t / biRel))
+        let bh = bi["blocks"][0].getStr
+        let bAbs = t / "d" / slug / "block" / (bh & ".json")
+        var bd = parseJson(readFile(bAbs))
+        ck bd["transactions"].len > 0
+        var shouted = newJArray()
+        shouted.add %bd["transactions"][0].getStr.toUpperAscii
+        for i in 1 ..< bd["transactions"].len: shouted.add bd["transactions"][i]
+        bd["transactions"] = shouted
+        writeFile(bAbs, bd.pretty & "\n")
+
+      let errs = validateTree(t)
+      var namedTheForm, namedTheDangle = false
+      for e in errs:
+        if e.contains("key form") and e.contains(kind): namedTheForm = true
+        if e.contains("dangling") or e.contains("missing object"):
+          namedTheDangle = true
+      if not namedTheForm:
+        checkpoint(kind & ": the validator did not name the reference's form: " &
+                   errs.join(" | "))
+      ck namedTheForm
+      if not namedTheDangle:
+        checkpoint(kind & ": the validator did not report the dangle: " &
+                   errs.join(" | "))
+      ck namedTheDangle
+      removeDir t
 
   test "…and a body whose identifier is not the object's identifier":
     # The other direction. Differing in CASE where the encoding permits it is
@@ -1360,7 +1630,19 @@ suite "the boundary: who knows about each half of the seam":
         want.sort()
         var found: seq[string]
         for rel in swept:
-          let src = readFile(RepoRoot / rel)
+          # OVER CODE AND NOT OVER THE WHOLE FILE, for the reason the `pins` below
+          # already matched that way — and this half of the equality is why it
+          # matters more here than there. Matched over the whole file, the
+          # "expected consumer that stopped being one" direction is INERT for any
+          # entry whose doc comment still names the token, which was MEASURED at
+          # 14 of the 22 expected entries. The proof: reverting
+          # `client/src/viewmodel/search_shapes.nim` to its own unconditional
+          # `toLowerAscii` leaves nought code occurrences of all three `caseRule`
+          # tokens and one in a doc comment, and both halves stayed green — no
+          # behavioural test catches it either, because for lowercase hex the
+          # revert is byte-equivalent. Deleting the comment's mention as well
+          # reddened both, which is what proved the comment was what saved it.
+          let src = codeOf(readFile(RepoRoot / rel))
           for t in tokens:
             if src.contains(t): found.add rel; break
         # AN EQUALITY, NOT A SUBSET. An unexpected consumer fails it in one
@@ -1380,7 +1662,14 @@ suite "the boundary: who knows about each half of the seam":
       for w in bnd["sweeps"]:
         if w["id"].getStr == id: return w["expected"]{top}.len
       -1
-    ck expectedLen("declaration", "src") == 9
+    # 8 AND NOT 9: `src/blocktracer_client_paths.nim` left this set when the sweep
+    # started matching over CODE. It is two lines of `import`/`export` under a
+    # sixty-line header, and its only mention of the member was in that header —
+    # so it is DOCUMENTATION of `blocktracer_client/paths.nim`'s signature rather
+    # than a second reader of the declaration, and the module it re-exports is in
+    # the set. Should it ever grow code that reads the member, the sweep's forward
+    # direction reddens on it as an unexpected consumer.
+    ck expectedLen("declaration", "src") == 8
     ck expectedLen("declaration", "client") == 4
     ck expectedLen("declaration", "tools") == 1
     ck expectedLen("caseRule", "src") == 6
@@ -1420,9 +1709,6 @@ suite "the boundary: who knows about each half of the seam":
       "\"identifierEncoding\": identifierEncoding.identifierEncodingNode()")
     ck not ingest.contains("\"identifierEncoding\": {")
     ck codeOccurrences(ingest, "hexIdentifierEncoding()") == 1
-    # …and it derives from the variable, never from a fresh call.
-    ck codeOccurrences(ingest, "shardKeyFor(txEncoding,") >= 1
-    ck codeOccurrences(ingest, "shardKeyFor(addrEncoding,") >= 1
 
     let gen = readFile(RepoRoot / "src/blocktracer/demo/generator.nim")
     ck gen.contains("identifier_encoding")
@@ -1430,8 +1716,39 @@ suite "the boundary: who knows about each half of the seam":
       "\"identifierEncoding\": demoIdentifierEncoding().identifierEncodingNode()")
     ck not gen.contains("\"identifierEncoding\": {")
     ck codeOccurrences(gen, "hexIdentifierEncoding()") == 1
-    ck codeOccurrences(gen, "shardKeyFor(txEncoding,") >= 1
-    ck codeOccurrences(gen, "shardKeyFor(addrEncoding,") >= 1
+
+    # ── AND NEITHER TAKES A SHARD KEY OF ITS OWN ────────────────────────────
+    #
+    # This used to require the opposite — `shardKeyFor(txEncoding, …)` present at
+    # least once in each producer — and that requirement WAS the defect. A
+    # producer holding a shard key is, by construction, holding one half of a
+    # two-segment path whose other half it then writes by hand, and the day
+    # `shardKeyFor` began folding per the declared case rule, the twelve SHARDED
+    # sites among the fourteen hand-built paths became a FOLDED shard beside a
+    # RAW name. (Fourteen and twelve, not nine: seven sites in each producer, of
+    # which one per producer is the unsharded block path.) MEASURED on an
+    # uppercased `txHash`: the producer wrote
+    # `d/{chain}/tx/0a80/0x0A807E….json` while the client computed
+    # `d/{chain}/tx/0a80/0x0a807e….json`, a 404 — and every committed identifier
+    # being lowercase is the only reason no published byte was ever wrong.
+    #
+    # So the builders moved into `contract/shards.nim`, which a producer MAY
+    # import, and both producers now derive both segments from one expression.
+    # `blocktracer_client/paths.nim` re-exports them, so no consumer moved.
+    for rel in ["src/blocktracer/chain/ingest.nim",
+                "src/blocktracer/demo/generator.nim"]:
+      let src = readFile(RepoRoot / rel)
+      ck codeOccurrences(src, "shardKeyFor(") == 0
+      for builder in ["blockPath(", "txFactsPath(", "txStatePath(",
+                      "traceSelectionPath(", "addressIndexPath(",
+                      "addressSegmentPath("]:
+        ck codeOccurrences(src, builder) >= 1
+      # …and no hand-built sharded path is left beside them. These are the six
+      # literal prefixes the fourteen removed sites began with.
+      for handmade in ["\"d\" / chain / \"tx\"", "\"d\" / chain / \"ts\"",
+                       "\"d\" / chain / \"seg\"", "\"d\" / chain / \"block\"",
+                       "\"txstate\" /", "\"addr\" /"]:
+        ck codeOccurrences(src, handmade) == 0
 
   test "THE STRING-DERIVING SITES ARE PINNED, present AND absent":
     # The seam is nearly closed, and a boundary check that only watched the closed
@@ -1539,4 +1856,4 @@ suite "the boundary: who knows about each half of the seam":
       inc comparedTops
     ck comparedTops == 3
 
-expectCount(564)
+expectCount(639)

@@ -605,9 +605,13 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   #
   # `hex` is MEASURED for this chain and not assumed — `hexIdentifierEncoding`
   # carries the counts and says where to re-run them.
+  # AND EVERY PATH IS BUILT BY THE FUNCTIONS THE CLIENT USES, not by hand. That
+  # is the other half of "one decision": handing the same value to `shardKeyFor`
+  # and then naming the object with the RAW identifier is two decisions again,
+  # and it was measured writing `d/{chain}/tx/0a80/0x0A807E….json` — folded
+  # shard, unfolded name — for an uppercase `txHash`. `contract/shards.nim` holds
+  # the builders for exactly this reason; see its header.
   let identifierEncoding = hexIdentifierEncoding()
-  let txEncoding = identifierEncoding.encodingFor(KindTransaction)
-  let addrEncoding = identifierEncoding.encodingFor(KindAddress)
 
   # ---- the artifact-resolution SIDECAR, if this capture has one -------------
   #
@@ -941,7 +945,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   for b in blockRows:
     let bd = BlockDetail(chain: chain, hash: b.hash, height: b.height,
                          parentHash: b.parent, transactions: b.txs)
-    cfg.writeJson("d" / chain / "block" / b.hash & ".json", bd.toJson)
+    cfg.writeJson(blockPath(chain, b.hash, identifierEncoding), bd.toJson)
 
   # ---- transactions --------------------------------------------------------
   var txCount, withTrace, divergentCount, prunedCount, totalContainerBytes = 0
@@ -995,7 +999,6 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     # and those two are different sentences that the page keeps apart.
     let replayed = outcome == "replayed" or outcome == "divergent"
     let reproduced = outcome == "replayed"
-    let sh = shardKeyFor(txEncoding, txHash)
     let blockHash = byHeight.getOrDefault(height, "")
     inc txCount
 
@@ -1168,10 +1171,10 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       payloadRaw: "", payloadSelector: "", payloadTarget: "",
       logs: @[], codeEdges: codeEdges, executions: executions,
       native: native)
-    cfg.writeJson("d" / chain / "tx" / sh / txHash & ".json", facts.toJson)
+    cfg.writeJson(txFactsPath(chain, txHash, identifierEncoding), facts.toJson)
 
     # -- mutable per-generation state ---------------------------------------
-    cfg.writeJson("d" / chain / "g" / gen / "txstate" / sh / txHash & ".json",
+    cfg.writeJson(txStatePath(chain, gen, txHash, identifierEncoding),
       %*{"chain": chain, "tx": txHash, "canonical": true,
          "finality": (if height <= finalizedAt: "finalized" else: "pending")})
 
@@ -1705,7 +1708,8 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
 
     let overlay = TraceSelection(chain: chain, tx: txHash, executions: @[],
                                  hasSingle: true, singleTrace: et)
-    cfg.writeJson("d" / chain / "ts" / tsv / sh / txHash & ".json", overlay.toJson)
+    cfg.writeJson(traceSelectionPath(chain, tsv, txHash, identifierEncoding),
+                  overlay.toJson)
 
     for r in roles: participate(r.address, height, txHash)
 
@@ -1768,14 +1772,13 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     heights.sort(SortOrder.Descending)
     var segRels: seq[string]
     for h in heights:
-      let rel = "d" / chain / "seg" / shardKeyFor(addrEncoding, address) / address /
-                ($h & "-" & $h) & ".json"
+      let rel = addressSegmentPath(chain, address, $h & "-" & $h,
+                                   identifierEncoding)
       cfg.writeJson(rel, %*{"chain": chain, "address": address,
         "fromBlock": h, "toBlock": h,
         "transactions": addrTxsByHeight[address][h]})
       segRels.add rel
-    let rel = "d" / chain / "g" / gen / "addr" / shardKeyFor(addrEncoding, address) /
-              address & ".json"
+    let rel = addressIndexPath(chain, gen, address, identifierEncoding)
     var segArray = newJArray()
     for s in segRels: segArray.add %s
     cfg.writeJson(rel, %*{"chain": chain, "address": address, "segments": segArray})
@@ -1800,8 +1803,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     let h = t["txHash"].getStr
     let height = t["blockNumber"].getInt
     if height < window.lo or height > window.hi: continue
-    txstateRels.add "d" / chain / "g" / gen / "txstate" / shardKeyFor(txEncoding, h) /
-                      h & ".json"
+    txstateRels.add txStatePath(chain, gen, h, identifierEncoding)
 
   # ---- summary, carrying the provenance ------------------------------------
   # THE PROVENANCE IS PUBLISHED DATA, not a template decision. Every page of this

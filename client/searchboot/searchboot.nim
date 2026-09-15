@@ -182,9 +182,9 @@ type
     slug*: string
     encoding*: ChainIdentifierEncoding
 
-func chainRef*(slug, txEncodingToken: string): ChainRef =
-  ## One chain's reference, from the slug and the token the registry declared for
-  ## its TRANSACTION identifiers.
+func chainRef*(slug, txEncodingToken, blockEncodingToken: string): ChainRef =
+  ## One chain's reference, from the slug and the tokens the registry declared for
+  ## its TRANSACTION and BLOCK identifiers.
   ##
   ## An empty token is the §6.1 compatibility case — a registry published before
   ## the member existed — and `declaredOrLegacy` is the one function in the tree
@@ -192,33 +192,46 @@ func chainRef*(slug, txEncodingToken: string): ChainRef =
   ## below: that boundary carries bytes, and every rule about them is Nim's, which
   ## is this module's own stated split.
   ##
-  ## Only the transaction encoding is carried because only the transaction path is
-  ## sharded here: `blockPath` is content-addressed, so it has no shard segment and
-  ## no alphabet question, and this module builds no address path at all.
+  ## BOTH KINDS ARE CARRIED, AND THE BLOCK ONE IS THE LATE ARRIVAL. It was left
+  ## out on the argument that only the transaction path is sharded here, which
+  ## confused the alphabet question with the CASE question: `blockPath` has no
+  ## shard segment and its object is still NAMED by the identifier's key form, so
+  ## it needs the declaration too. While it did not have one, a query typed in a
+  ## spelling the producer did not publish produced a transaction candidate that
+  ## resolved and a block candidate that could not. The address kind is still
+  ## absent because this module builds no address path at all.
   ChainRef(slug: slug,
            encoding: chainIdentifierEncoding(
-             {KindTransaction: declaredOrLegacy(txEncodingToken)}))
+             {KindTransaction: declaredOrLegacy(txEncodingToken),
+              KindBlock: declaredOrLegacy(blockEncodingToken)}))
 
 func parseChainRefs*(packed: string): seq[ChainRef] =
-  ## `slug:encoding,slug:encoding,…` from the JS boundary.
+  ## `slug:txEncoding:blockEncoding,…` from the JS boundary.
   ##
-  ## A row with no `:` is a slug whose registry entry declared no encoding, which
-  ## is the compatibility case rather than a malformed row — an OLD registry is
-  ## exactly the input that produces it, and refusing to search a tree because it
-  ## predates a member would break §5.4's "search must never fail".
+  ## A row with no `:` is a slug whose registry entry declared no encoding, and a
+  ## row with one is a registry that declared a transaction encoding and no block
+  ## one. Both are the compatibility case rather than a malformed row — an OLD
+  ## registry is exactly the input that produces them, and refusing to search a
+  ## tree because it predates a member would break §5.4's "search must never
+  ## fail". Each MISSING field resolves on its own through `declaredOrLegacy`, so
+  ## a row that declares one kind and not the other is read as exactly that.
   for row in packed.split(','):
     if row.len == 0: continue
     let i = row.find(':')
-    if i < 0: result.add chainRef(row, "")
+    if i < 0: result.add chainRef(row, "", "")
     else:
       let slug = row[0 ..< i]
       if slug.len == 0: continue
+      let rest = row[i + 1 .. ^1]
+      let j = rest.find(':')
+      let txToken = if j < 0: rest else: rest[0 ..< j]
+      let blockToken = if j < 0: "" else: rest[j + 1 .. ^1]
       # A token the registry declared that this build does not know is NOT read
       # as hex — `declaredOrLegacy` raises on it — so the chain is dropped from
       # the fan-out rather than probed at a path we would be guessing. Dropping
       # it is visible in the rendered "chains covered" list, which §14 requires
       # a miss to name; guessing would have produced a confident 404.
-      try: result.add chainRef(slug, row[i + 1 .. ^1])
+      try: result.add chainRef(slug, txToken, blockToken)
       except ValueError: discard
 
 func candidatesFor*(canonical: string; chains: openArray[ChainRef]):
@@ -230,11 +243,31 @@ func candidatesFor*(canonical: string; chains: openArray[ChainRef]):
   ## Pure, and that is the point: the browser fetches this list and nothing else,
   ## so "which requests does a search make" is answerable without running one.
   ##
-  ## THE TRANSACTION PATH IS RECOMPUTED WITH THE CHAIN'S OWN ENCODING, through
-  ## the same `txFactsPath` the producer and the validator use. A chain whose
-  ## declared encoding cannot be a shard path segment — `base64`, whose alphabet
-  ## contains `/` — yields no candidate rather than a wrong one, and its block
-  ## candidate still stands, because a block path has no shard in it.
+  ## BOTH PATHS ARE RECOMPUTED WITH THE CHAIN'S OWN ENCODING, through the same
+  ## `txFactsPath` and `blockPath` the producer and the validator use. A chain
+  ## whose declared TRANSACTION encoding cannot be a shard path segment —
+  ## `base64`, whose alphabet contains `/` — yields no transaction candidate
+  ## rather than a wrong one, and its block candidate still stands, because a
+  ## block path has no shard in it.
+  ##
+  ## THE BLOCK ARM IS GUARDED TOO, and the two guards are separate for that
+  ## reason. `blockPath` cannot fail on a path-safety question, having no shard,
+  ## but it can fail on an OMITTED kind: `encodingFor` raises rather than
+  ## inventing a key for a kind a chain declared it cannot describe, and this
+  ## function takes any `ChainRef` — `ChainRef.encoding` is public, so a caller
+  ## may hand it a declaration that names only the transaction kind. One `try`
+  ## around both would have dropped a resolvable transaction candidate because
+  ## the block kind was missing.
+  ##
+  ## A PACKED ROW CANNOT REACH IT, AND THE DISTINCTION IS `declaredOrLegacy`'s
+  ## OWN. An ABSENT block token is the §6.1 compatibility case and resolves to
+  ## `LegacyUndeclaredEncoding`; an OMITTED KIND is a chain saying it cannot
+  ## describe one, and the two are not the same thing. `parseChainRefs` builds
+  ## every `ChainRef` through `chainRef`, which names BOTH kinds, so through the
+  ## boundary this guard is defensive rather than live — which is why
+  ## `test_searchboot` asserts that a row stopping after the transaction token
+  ## still YIELDS a block candidate, at the fallback encoding, rather than
+  ## asserting that it drops one.
   if not isHashLike(shapesOf(canonical)): return
   for c in chains:
     try:
@@ -243,10 +276,12 @@ func candidatesFor*(canonical: string; chains: openArray[ChainRef]):
         objectPath: "/" & txFactsPath(c.slug, canonical, c.encoding),
         route: "/" & c.slug & "/tx/" & canonical & "/")
     except ValueError: discard
-    result.add Candidate(
-      chain: c.slug, kind: "block",
-      objectPath: "/" & blockPath(c.slug, canonical),
-      route: "/" & c.slug & "/block/" & canonical & "/")
+    try:
+      result.add Candidate(
+        chain: c.slug, kind: "block",
+        objectPath: "/" & blockPath(c.slug, canonical, c.encoding),
+        route: "/" & c.slug & "/block/" & canonical & "/")
+    except ValueError: discard
 
 func encodeCandidates(cs: seq[Candidate]): string =
   ## The candidate list as JSON, for the one `importjs` boundary below.
@@ -280,17 +315,19 @@ proc registryChains(path: cstring; cb: proc(slugs: cstring)) {.importjs: """
   // and a search that silently skipped a chain would still print a confident
   // "chains checked" list naming it.
   //
-  // `slug:encoding,…` — the slug AND the encoding the row declares for its
-  // transaction identifiers (Configuration.md §2.1), because the object path
-  // this module recomputes is sharded and the shard depends on the alphabet.
-  // Reading it here costs no extra request: this fetch was already happening.
+  // `slug:txEncoding:blockEncoding,…` — the slug AND the encodings the row
+  // declares for the two kinds of identifier this module builds a path for
+  // (Configuration.md §2.1). The transaction path is sharded, so it depends on
+  // the alphabet; the block path is not sharded and its object is still NAMED by
+  // the identifier's key form, so it depends on the declared case rule. Reading
+  // both here costs no extra request: this fetch was already happening.
   //
   // THIS BOUNDARY DECIDES NOTHING. An absent member is passed on as an empty
-  // token and `parseChainRefs` resolves what that means; a present one is passed
-  // on verbatim, unvalidated, because the closed set lives on the Nim side. That
-  // is this module's standing split — the boundary carries bytes, the rules are
-  // Nim — and it is what keeps the browser from holding a second opinion about
-  // which encodings exist.
+  // token and `parseChainRefs` resolves what that means, per kind; a present one
+  // is passed on verbatim, unvalidated, because the closed set lives on the Nim
+  // side. That is this module's standing split — the boundary carries bytes, the
+  // rules are Nim — and it is what keeps the browser from holding a second
+  // opinion about which encodings exist.
   fetch(path, { credentials: 'omit' })
     .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(j){
@@ -298,10 +335,11 @@ proc registryChains(path: cstring; cb: proc(slugs: cstring)) {.importjs: """
       if (j && j.chains) {
         for (var k in j.chains) {
           var row = j.chains[k];
-          var enc = (row && row.identifierEncoding &&
-                     typeof row.identifierEncoding.transaction === 'string')
-                    ? row.identifierEncoding.transaction : '';
-          out.push(k + ':' + enc);
+          var decl = (row && row.identifierEncoding) ? row.identifierEncoding : null;
+          var tok = function(kind){
+            return (decl && typeof decl[kind] === 'string') ? decl[kind] : '';
+          };
+          out.push(k + ':' + tok('transaction') + ':' + tok('block'));
         }
       }
       cb(out.join(','));

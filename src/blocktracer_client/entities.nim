@@ -57,7 +57,8 @@ proc blockDetail*(store: ObjectStore, session: ChainSession,
   ## Block details are content-addressed and generation-independent (§2), so
   ## this read does not consult the pinned generation at all — and a reorg
   ## therefore does not invalidate it (§3.4).
-  let r = store.getJson(blockPath(session.chain, blockHash))
+  let r = store.getJson(blockPath(session.chain, blockHash,
+                                  session.identifierEncoding))
   if not r.found:
     return BlockResult(outcome: roNotFound, reason: blockHash & " is not in this tree")
   if r.error.len > 0:
