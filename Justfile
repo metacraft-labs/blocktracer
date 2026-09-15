@@ -92,8 +92,8 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# EIGHT suites — 98 + 19 + 24 + 24 + 57 + 222 + 33 + 102 = 579 counted assertions —
-# over the eight decisions the capture path makes that nothing else can check
+# NINE suites — 98 + 19 + 24 + 24 + 57 + 223 + 33 + 102 + 53 = 633 counted assertions —
+# over the nine decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
 # called frozen (`freeze-snapshot-selftest`), when a supervised watch is
@@ -102,8 +102,21 @@ test:
 # transaction file store returned is the body that was asked for
 # (`backfill-bodies-selftest`), WHY a transaction this pipeline did not
 # trace was declined (`refusal-selftest`), whether a range ledger's coverage
-# is actually contiguous (`coverage-contiguity-selftest`), and which encodings a
-# chain may DECLARE its identifiers in (`identifier-encoding-selftest`).
+# is actually contiguous (`coverage-contiguity-selftest`), which encodings a
+# chain may DECLARE its identifiers in (`identifier-encoding-selftest`), and
+# WHAT WAS ACTUALLY PUBLISHED, as a set of keys rather than as a total
+# (`object-set-selftest`).
+#
+# `object-set-selftest` GUARDS A BASELINE THAT IS A COUNT, and a count is the one
+# statistic a refactor can hold still while changing what it publishes. CPC-6's
+# acceptance criterion is 138,287 objects, and its own control says a tree with one
+# object renamed has the same count and must fail. So `object-set.mjs` publishes two
+# digests beside the count — over the key set, and over the key set bound to its
+# content — and this suite is where each of them is watched moving: a rename (same
+# count, same bytes), a rewrite (same keys), and two objects SWAPPING contents,
+# where the count, the byte total and the key set are all three identical and only
+# a path-bound digest can see it. It also refuses the empty-set pass in both
+# disguises, unaimed and aimed at an empty tree.
 #
 # `identifier-encoding-selftest` IS THE JAVASCRIPT HALF OF A FILE WHOSE OTHER HALF
 # IS NIM, and that is the whole reason it is a suite rather than a comment.
@@ -255,6 +268,17 @@ chain-selftest:
     node tools/chain/refusal-selftest.mjs
     node tools/chain/coverage-contiguity-selftest.mjs
     node tools/chain/identifier-encoding-selftest.mjs
+    node tools/chain/object-set-selftest.mjs
+
+# ── reading a published tree as a SET of objects ───────────────────────────
+#
+# `just object-set <tree-dir>` prints `blocktracer/published-object-set@1`: the
+# count, the byte total, a per-class breakdown and two digests. It is how the
+# CPC-6 zero-regression baseline is taken and how a later tree is compared
+# against it (`--expect tools/chain/measurements/published-object-set.json`).
+# It reads one directory, reaches no network and writes nothing unless asked.
+object-set TREE *ARGS:
+    node tools/chain/object-set.mjs {{TREE}} {{ARGS}}
 
 # ── bringing a pre-ING-3 capture into the closed set ───────────────────────
 #

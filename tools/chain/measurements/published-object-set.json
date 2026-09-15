@@ -1,0 +1,170 @@
+{
+ "format": "blocktracer/published-object-set@1",
+ "_comment": [
+  "THE CPC-6 OBJECT BASELINE, RE-TAKEN FROM THE TREE THE BACKFILL ACTUALLY PUBLISHED.",
+  "",
+  "Chain-Producer-Contract.milestones.org CPC-6 states three acceptance numbers and records",
+  "that one of them \u2014 138,287 objects \u2014 was `reported, record not located`, with the",
+  "instruction to re-take it before the refactor rather than carry it forward. This file is",
+  "that reading. It is NOT a re-run: the genesis-to-tip publish of 2026-09-10 left its tree",
+  "on disk beside its ledger, and this is a measurement of that tree, so it is the baseline",
+  "itself rather than a reconstruction of one.",
+  "",
+  "THE REPORTED NUMBER WAS RIGHT, AND IT WAS NOT UNRECORDED EITHER. The tree holds exactly",
+  "138,287 objects. The figure was already written down at `tools/chain/ingest-range.mjs`",
+  "line 549 \u2014 as a sentence in a comment, which is why a search for a measurement record",
+  "found nothing. A comment is not a baseline: nothing can be compared against it.",
+  "",
+  "A COUNT IS NOT A BASELINE EITHER, WHICH IS WHY THE DIGESTS ARE THE POINT. CPC-6's own",
+  "control says a tree with one object renamed has the same count and must fail. `pathDigest`",
+  "and `setDigest` are what fails; `tools/chain/object-set-selftest.mjs` R2 is that exact",
+  "control, and R4 is the harder one \u2014 two objects swapping contents, where the count, the",
+  "byte total and the key set are all identical.",
+  "",
+  "THE FULL MANIFEST IS NOT COMMITTED: it is 22.7 MB, 10.7 MB compressed. The per-class",
+  "digests below are the affordable substitute \u2014 a difference localises to an object class",
+  "without a re-run. Getting the individual objects needs `--manifest` on both trees.",
+  "",
+  "objects = blocks + 3 x transactions + 6, on the metadata-only path. 75,971 + 3 x 20,770",
+  "+ 6 = 138,287, and the class table below is that identity term by term. The three",
+  "per-transaction objects are `tx` (immutable facts), `ts` (the TraceSelection overlay) and",
+  "`g/{gen}/txstate`, all three written for every transaction including private-only, pruned",
+  "and refused ones. The six singletons are `registry/chains.v1.json`, `current.json`, and",
+  "the generation's `root.json`, `summary.json`, `height/0.json` and `blocks/0.json`."
+ ],
+ "measuredAt": "2026-09-15",
+ "measures": "the published tree written by the genesis-to-tip metadata backfill of 2026-09-10",
+ "tool": "tools/chain/object-set.mjs",
+ "chain": "aztec-testnet",
+ "objects": 138287,
+ "bytes": 69251727,
+ "pathDigest": "sha256:dc642cddf7187f0e861e9b5aafc0ca78e9fa74fcbd48a9041b3c3d3cb3bd8966",
+ "setDigest": "sha256:00c090d15bca63c64c2914ec7363753aedd00c63aa4f243636fa738a01f50048",
+ "classes": {
+  "d/{chain}/block/{blockHash}.json": {
+   "objects": 75971,
+   "bytes": 19643988,
+   "pathDigest": "sha256:77b589ea01def2ddc846a7f768e435e6815533219380148245912413af10d127",
+   "setDigest": "sha256:a793beaf4e6ad1990ee7d3bef9a2bf393cb4237e41d3c0f72f46022803b721d3"
+  },
+  "d/{chain}/current.json": {
+   "objects": 1,
+   "bytes": 339,
+   "pathDigest": "sha256:83795fa7adba669a2a8651558f3ede6865cfdbac9e3ccc1534d1e98933a237c3",
+   "setDigest": "sha256:136e9d83422fe5ae192e1449d84207c17b932118be3d55d0b05d03daed4a4889"
+  },
+  "d/{chain}/g/{gen}/blocks/**": {
+   "objects": 1,
+   "bytes": 5621917,
+   "pathDigest": "sha256:638b237f0a553ce67dc3b32161656503f8e9c1768dd77f9b66c62d5f1564bb88",
+   "setDigest": "sha256:aedb4de0cb3c95801a8bc40cabbdfe920b09683fb2464970543a396b8cb67109"
+  },
+  "d/{chain}/g/{gen}/height/**": {
+   "objects": 1,
+   "bytes": 6294551,
+   "pathDigest": "sha256:671eb662dbaadfdee0f5b7dc97dca634bcc5b876c6f18ee99031a24d99f3e773",
+   "setDigest": "sha256:0035c225e914638de7bc8e07e690af80d851577da7b0557266b96cc666051452"
+  },
+  "d/{chain}/g/{gen}/root.json": {
+   "objects": 1,
+   "bytes": 2617412,
+   "pathDigest": "sha256:4221bdfb66ffe39d24865ac083f86941182e4a3b01a5eded1993e53638071a20",
+   "setDigest": "sha256:0a68f10c9387528d323986f0e048d68ab94ebdfd1934d4c495d468888e6d7f12"
+  },
+  "d/{chain}/g/{gen}/summary.json": {
+   "objects": 1,
+   "bytes": 895,
+   "pathDigest": "sha256:b17d47e33dda1dfab2e7e65c9d619dd687d8c226b61153fc638c4243f9a484f2",
+   "setDigest": "sha256:317d0fbbb42d2be8ed3990d26a57a838fab4d5054c6cb99425e7b41a88622f81"
+  },
+  "d/{chain}/g/{gen}/txstate/{shard}/{txHash}.json": {
+   "objects": 20770,
+   "bytes": 3260890,
+   "pathDigest": "sha256:57934e41037c134476b51c4b53e898d655680d67bf8bb3af1e783db844cd5742",
+   "setDigest": "sha256:64c25415cac78f0bda22709d485913e83088038bfb917aaea97c67058d0941d0"
+  },
+  "d/{chain}/ts/{v}/{shard}/{txHash}.json": {
+   "objects": 20770,
+   "bytes": 9948263,
+   "pathDigest": "sha256:a47e8f04a914939c7112daee7e945fdbe0cadabc0ad301806fb3be2dd6590f75",
+   "setDigest": "sha256:7c46860e18a5082ca7abcae8f955e17bd2381ad7beff7e9dbd9c3549709dbe66"
+  },
+  "d/{chain}/tx/{shard}/{txHash}.json": {
+   "objects": 20770,
+   "bytes": 21862934,
+   "pathDigest": "sha256:921180c3b408eb8ff2a8228caca0e7d2272776451fae4e112aa37b5f2bdd0b58",
+   "setDigest": "sha256:8da1a6c270eb8e9e008dac350ce4e6fef42dc3c9825fe78dc558ecc8fb3a9cbd"
+  },
+  "registry/chains.v1.json": {
+   "objects": 1,
+   "bytes": 538,
+   "pathDigest": "sha256:4090f0b0db23095419aefe034082dea8851fca6cfef2ab4db3b4978599de7956",
+   "setDigest": "sha256:7b6410b08553f0fa090f38c762fa28572a09615eb0a321e07657c8c31879a169"
+  }
+ },
+ "population": {
+  "blocks": 75971,
+  "transactions": 20770,
+  "identity": "objects = blocks + 3*transactions + 6",
+  "check": 138287
+ },
+ "provenance": {
+  "kind": "a tree left on disk by the run that produced it, not a re-publish",
+  "branch": "bt/backfill-full (head 77b1d59), landed on dev in eac2c12",
+  "publishedFrom": {
+   "commit": "7fc17cc651f18213c88cd071a0fb6bb7149363a4",
+   "dirty": true,
+   "ingestBinDigest": "c3d4e262375b8f34",
+   "publishBinDigest": "451a6a33472cf46b"
+  },
+  "generation": "rcab127b14cf4",
+  "scope": "full",
+  "tracesPublished": 0,
+  "publishedWindow": {
+   "from": 1,
+   "to": 75971
+  },
+  "capturedAt": "2026-09-10T00:32:03.434Z",
+  "endpoint": "https://aztec-testnet.drpc.org",
+  "nodeVersion": "5.2.0",
+  "l1ChainId": 11155111,
+  "head": {
+   "height": 75971,
+   "hash": "0x159cd3c9013aa64aca2adc0c32ecd8a7ff7a2d49d24a2b9bbcc322a42ad88d52"
+  },
+  "finalized": {
+   "height": 75971,
+   "hash": "0x159cd3c9013aa64aca2adc0c32ecd8a7ff7a2d49d24a2b9bbcc322a42ad88d52"
+  },
+  "ledger": {
+   "format": "blocktracer/coverage-ledger@1",
+   "ranges": 152,
+   "blocksCovered": 75971,
+   "gaps": [],
+   "spans": [
+    [
+     1,
+     75971
+    ]
+   ],
+   "reVerifiedBy": "node tools/chain/coverage-contiguity.mjs <ledger> 1 75971 -> CONTIGUOUS WITH ZERO GAPS: YES, notServed 0, throttledOut 0"
+  }
+ },
+ "caveats": [
+  "THE PUBLISHING TREE WAS DIRTY. `lastPublishedCodeVersion` records commit 7fc17cc with",
+  "`dirty: true`, so the bytes that produced this tree are not exactly any commit. The",
+  "working tree evidently already carried the fix that landed as fd3d275 \u2014 `current.json`",
+  "here says `finalized.height: 75971`, and the defect fd3d275 fixes is a whole-history",
+  "publish writing `finalized: {height: 1}`. A post-refactor comparison against this",
+  "reading is therefore against a tree built from 7fc17cc-plus-uncommitted, not from a",
+  "nameable commit, and a difference traceable to those uncommitted bytes is a difference",
+  "to be explained rather than a regression.",
+  "",
+  "THE STATE DIRECTORY IS MACHINE-LOCAL and `.gitignore`d. This reading is committed",
+  "precisely because the tree it measures is not, and will not survive the machine.",
+  "",
+  "THIS IS THE METADATA-ONLY PATH: `tracesPublished` is 0, so no `t/**` trace objects,",
+  "no `src/**` source bundles and no `/idx/**` are in this set. A post-refactor run that",
+  "publishes traces is measuring a different thing and the counts are not comparable."
+ ]
+}
