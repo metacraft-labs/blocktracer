@@ -325,8 +325,11 @@ jobs:
 
       # ── the chain capture tooling, for this job's own stated reason ──────
       #
-      # Same hole, same shape. `tools/chain/`'s selftests — SIX of them now, 392
-      # counted assertions between them, re-read off a run on 2026-09-12 — were
+      # Same hole, same shape. `tools/chain/`'s selftests — NINE of them now, 633
+      # counted assertions between them, re-read off a run on 2026-09-15 (this
+      # sentence said SIX and 392 while eight steps ran 579: it is a fourth copy
+      # of the same numbers and the checker below reads the per-STEP counts, not
+      # this one) — were
       # referenced by nothing: not by
       # `just test`, not by any job here, and not by `ci-coverage.sh`, whose
       # enumeration reaches `ci/test/*.sh` and `client/Justfile` and nothing
@@ -392,7 +395,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 222 assertions, and the reason it is offline is the reason it
+        # ING-3, 223 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -493,6 +496,39 @@ jobs:
         # Offline and toolchain-free like the seven above it: it reads files
         # already in this repository and runs `node`.
         run: node tools/chain/identifier-encoding-selftest.mjs
+
+      - name: Is the published-object baseline about the SET, or only about the total?
+        # 53 assertions. The zero-regression baseline is stated as an exact
+        # object count — 138,287 — and a count is precisely the statistic a
+        # refactor can hold still while changing what is published. The milestone
+        # says so in its own control: a tree with one object renamed has the same
+        # count and must fail.
+        #
+        # So `tools/chain/object-set.mjs` publishes two digests beside the count,
+        # over the key set and over the key set BOUND to its content, plus the
+        # same pair per object class so a difference localises without a re-run.
+        # This step is where each of them is watched moving. R2 is the
+        # milestone's control verbatim — one object renamed, count and byte total
+        # both unmoved. R3 is its mirror, one object rewritten, where the key
+        # digest must hold STILL while the content digest moves, because an
+        # operator needs to know which of the two happened. R4 is the hard one:
+        # two objects swap contents, so the count, the byte total, the key set
+        # and even the multiset of content hashes are all identical, and only a
+        # digest that binds each hash to its path can see it.
+        #
+        # It also refuses the empty-set pass in both disguises — unaimed, and
+        # aimed at an empty tree — because "0 objects, digest of the empty
+        # stream" is a reading that compares equal to nothing and unequal to
+        # everything, and it looks like a tool that ran.
+        #
+        # One case is documented as WEAKER than it looks rather than quietly
+        # kept: R1.5 was written to prove the walk sorts and does not, because
+        # this filesystem returns directory entries in name order, so deleting
+        # the sort leaves it green. The comment above it says so.
+        #
+        # Offline and toolchain-free like the eight above it: it builds small
+        # trees in a temporary directory and runs `node`.
+        run: node tools/chain/object-set-selftest.mjs
 
   contract:
     runs-on: eph-linux-x64

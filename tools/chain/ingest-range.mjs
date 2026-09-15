@@ -547,6 +547,9 @@ async function fetchRange(nodeInfo, tip, finalized) {
   // The gate on the metadata-only path too, not only after a replay. Every row this function
   // writes is untraced by construction, so if the closed set can ever be open here it is open
   // for the whole chain — 138,287 objects were published from rows this branch produced.
+  // That figure now has a record rather than only this sentence:
+  // `tools/chain/measurements/published-object-set.json`, taken off the tree the
+  // genesis-to-tip run left on disk, with the key-set digests a count cannot carry.
   assertRefusalsAreClosed(snap.transactions);
   const tmp = `${p}.tmp`;
   writeFileSync(tmp, JSON.stringify(snap, null, 1) + '\n');
