@@ -3,7 +3,7 @@ name: ci-coverage-clock
 # THE CLOCK THAT MAKES A MAINLINE VERDICT EXIST.
 #
 # WHAT IT IS FOR. `ci.yml` collapses pushes to one run per branch and cancels
-# the superseded ones. On a saturated `eph-linux-x64` pool that setting does not
+# the superseded ones. On saturated self-hosted Linux x64 capacity that setting does not
 # gate the branch tip — it gates nothing, because the newest run is still
 # PENDING when the next push evicts it. Measured on `dev` on 2026-09-03: of the
 # last 25 `ci` runs, 21 cancelled, 3 failed, 0 successful, and no commit landed
@@ -117,7 +117,7 @@ jobs:
           # — is not what the branches do.
           #
           # THE COST ARGUMENT WAS RIGHT, AND IS ANSWERED BELOW RATHER THAN
-          # OVERRULED. A `ci` run really is TEN `eph-linux-x64` jobs since
+          # OVERRULED. A `ci` run really is TEN `[self-hosted, linux, x64]` jobs since
           # `journeys-bite` became a 4-way matrix (counted from the file, not
           # remembered: contract, client-sdk, visual-design-canary, viewmodels,
           # debug-route, journeys, journeys-bite×4). Three refs dispatched

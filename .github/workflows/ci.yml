@@ -87,8 +87,9 @@ on:
 
 # ONE RUN PER BRANCH. Superseded runs are cancelled.
 #
-# Six of the eight jobs below need the self-hosted `eph-linux-x64` pool, which
-# runs a handful of jobs at a time, and a full run takes 10-15 minutes. Work
+# Six of the eight jobs below need a self-hosted Linux x64 runner
+# (`[self-hosted, linux, x64]`), which runs a handful of jobs at a time, and a
+# full run takes 10-15 minutes. Work
 # lands on `dev` by direct push from several agents at once — measured on
 # 2026-09-01, five pushes inside twelve minutes. Without this block every one of
 # those pushes started a complete run and none of them stopped, so the queue
@@ -121,7 +122,7 @@ on:
 #
 # The mechanism, and it is not the one the paragraphs above assume. They assume
 # the newest run survives and the superseded ones die. On a SATURATED pool that
-# is false: six of the eight jobs here need `eph-linux-x64`, a full run is
+# is false: six of the eight jobs here need a self-hosted Linux x64 runner, a full run is
 # 10-15 minutes and `journeys` alone is bounded at 150, while pushes from
 # several agents land every few minutes. So the newest run is still PENDING —
 # it has not placed a single job on a runner — when the next push evicts it.
@@ -159,6 +160,55 @@ on:
 concurrency:
   group: ${{ github.event_name == 'workflow_dispatch' && format('ci-coverage-{0}', github.ref_name) || format('ci-{0}', github.ref) }}
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
+# ---------------------------------------------------------------------------
+#
+# WHY THE SELF-HOSTED JOBS SAY `[self-hosted, linux, x64]` AND NOT
+# `eph-linux-x64`.
+#
+# The fleet moved from hand-named ephemeral CLASSES to CAPABILITY LABELS: a job
+# asks for the minimum capabilities it needs and ANY runner advertising a
+# superset serves it. `metacraft-dev-guidelines` §"Capability-label taxonomy" is
+# authoritative, and its migration table maps this repository's one retired
+# class exactly: `eph-linux-x64` -> `[self-hosted, linux, x64]`, adding a
+# micro-arch level or a capability "only if the job needs it".
+#
+# None of the seven jobs below needs more than that, and each extra label would
+# cost availability for nothing:
+#
+#   * NOT `nixos`. Every one of them is checkout + `setup-nix` + `nix develop`,
+#     and `metacraft-labs/devops-modules/.github/setup-nix` INSTALLS Nix when
+#     the host has none (`DeterminateSystems/nix-installer-action`, gated on a
+#     `command -v nix` probe). Nix is a property this workflow provisions, not
+#     one it must select a host for. `nixos` is advertised only by the
+#     PERSISTENT hosts, so requiring it would exclude every ephemeral guest.
+#
+#   * NOT `gpu`. The capture jobs pin `--disable-gpu` in `CHROMIUM_ARGS`
+#     (`tools/capture/lib/determinism.mjs`) precisely so a hash does not depend
+#     on the host's renderer. Asking for a GPU would narrow the pool to make a
+#     deliberately software-rasterised job no more deterministic.
+#
+#   * NOT `x86-64-v3`. Nothing here is measured to need AVX2. The one job that
+#     does say `x86-64-v3` is `chain-follower-linux`, which says so for its own
+#     recorded reason.
+#
+# WHY THIS IS NOT COSMETIC. A `runs-on` that matches no runner DOES NOT FAIL —
+# it queues forever, invisibly, and never goes red. `eph-linux-x64` stopped
+# being served on 2026-09-14: the last job in this repository to get a runner
+# for it started 23:46:22Z that day, while `[self-hosted, linux, x64]` was
+# still placing jobs on `gpu-server-*` and `high-mem-server-*` hours later.
+# Everything merged after `d09416eb` sat undeployed for a week behind exactly
+# that silence. `tools/ci/check-runner-labels.mjs` now refuses the shape.
+#
+# NOTE FOR ANYONE DIAGNOSING THE NEXT ONE: a sweep of online runners' labels is
+# NOT how you tell a dead class from a live one.
+# `infra/docs/CI-Runner-Fleet-Status.md` §2 says so verbatim — the capability
+# pools are SCALE-TO-ZERO, so an idle class shows zero online runners as its
+# normal resting state. The decisive question is whether jobs for that label
+# set are STARTING (a non-empty `runner_name` on a recent job), not whether a
+# runner advertising it happens to be idle right now.
+#
+# ---------------------------------------------------------------------------
 
 jobs:
   # Does every suite this repository has actually run, on every branch it ships
@@ -322,6 +372,38 @@ jobs:
         # Those are the two ways the gate rots into a formality, and neither is
         # visible from inside the decision function.
         run: node tools/ci/deploy-gate-decide-selftest.mjs
+
+      - name: Can every `runs-on` in this repository actually be served?
+        # THE GATE FOR THE OUTAGE WITH NO SYMPTOM. A `runs-on` that matches no
+        # runner does not fail the job — it queues forever, the run stays
+        # yellow, and the only evidence is that the site quietly keeps serving
+        # an older commit. `eph-linux-x64` stopped being served on 2026-09-14
+        # and the `Deploy` for `a145e685` sat queued from 2026-09-15T10:03Z
+        # with no runner and no error, while every check in the repository
+        # stayed green. Five merged PRs never reached `blocktracer-dev`.
+        #
+        # This is deliberately the OFFLINE half of the check. An online sweep
+        # of runner labels cannot tell a dead class from a live one — the
+        # capability pools are scale-to-zero, so an idle class shows zero
+        # online runners as its normal resting state, and
+        # `infra/docs/CI-Runner-Fleet-Status.md` §2 names that sweep as a
+        # false-alarm generator by name. What IS decidable without the fleet:
+        # whether every label is in the published taxonomy, and whether some
+        # single runner class carries the whole requested set. Over-requesting
+        # queues forever exactly like a typo does, and both are caught here.
+        #
+        # `--online` exists for an operator with a token and ABORTS rather than
+        # passing when the API returns nothing; it is not run here, because a
+        # gate that needs org-admin credentials is a gate that gets disabled.
+        run: node tools/ci/check-runner-labels.mjs
+
+      - name: Does the runner-label gate bite?
+        # 29 arms. The two that carry the weight: the repository's REAL ci.yml
+        # is mutated back to `eph-linux-x64` and must be refused at all seven
+        # sites, and `checkOnline` over an empty runner list must ABORT rather
+        # than report success — this repository has been bitten before by a
+        # check that passed because it was looking at nothing.
+        run: node tools/ci/check-runner-labels-selftest.mjs
 
       # ── the chain capture tooling, for this job's own stated reason ──────
       #
@@ -545,7 +627,7 @@ jobs:
         run: node tools/chain/object-set-selftest.mjs
 
   contract:
-    runs-on: eph-linux-x64
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
 
@@ -577,7 +659,7 @@ jobs:
   # cheap half (bash + awk, no toolchain) and must not wait on a Nim build to
   # tell someone their import crossed the layer.
   client-sdk:
-    runs-on: eph-linux-x64
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
 
@@ -831,8 +913,8 @@ jobs:
   # A Nix runner, not ubuntu-latest + setup-node: the whole point is that the
   # browser build and the font set come from `tools/capture/capture-env.nix`
   # rather than from whatever the runner image happens to ship. The
-  # `metacraft-labs/devops-modules` setup + `eph-linux-x64` is the same pairing
-  # the Cloudflare Pages deploy uses.
+  # `metacraft-labs/devops-modules` setup + `[self-hosted, linux, x64]` is the
+  # same pairing the Cloudflare Pages deploy uses.
   #
   # WHAT THIS JOB ESTABLISHES, precisely: that two consecutive captures of the
   # canary set, in separate processes, inside the pinned environment, on
@@ -843,7 +925,7 @@ jobs:
   # `screenshots/canary/status.json` records the system, so a comparison across
   # two systems is visible as one rather than reported as a regression.
   visual-design-canary:
-    runs-on: eph-linux-x64
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
 
@@ -862,7 +944,7 @@ jobs:
         run: nix run .#capture-env -- --print-pin
 
       - name: Install the pinned Playwright npm package
-        # The eph-* runners carry no node/npm, so npm comes from the flake.
+        # The self-hosted runners carry no node/npm, so npm comes from the flake.
         # `npm ci` (lockfile-exact) and no browser download: the browsers come
         # from the store, and lib/pinned-env.mjs FAILS the environment if the
         # npm version and the bundle's version disagree.
@@ -906,8 +988,8 @@ jobs:
         # being in effect here, this goes red instead of the canary quietly
         # becoming a host measurement.
         #
-        # `nix run .#capture-env -- node`, NOT bare `node`: the eph-* runners
-        # carry no node at all, which is why the step above installs npm from
+        # `nix run .#capture-env -- node`, NOT bare `node`: the self-hosted
+        # runners carry no node at all, which is why the step above installs npm from
         # the flake. Written bare, this step died with `node: command not
         # found` (rc 127) — the job's own non-vacuity guard, unable to run.
         # Both scripts here are pure readers of files the steps before them
@@ -1090,7 +1172,7 @@ jobs:
   # with the real Embed SDK so the wire spellings the panes parse cannot drift
   # from the ones this layer emits.
   viewmodels:
-    runs-on: eph-linux-x64
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
 
@@ -1140,7 +1222,7 @@ jobs:
   # DESIGN_SYSTEM_SRC comes from the flake's pinned input. A second checkout
   # here would be a second pin for the same bytes.
   debug-route:
-    runs-on: eph-linux-x64
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
 
@@ -1277,7 +1359,7 @@ jobs:
   # claim. Sharing the runner would couple a screenshot baseline to a step
   # sequence.
   journeys:
-    runs-on: eph-linux-x64
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
 
@@ -1519,7 +1601,7 @@ jobs:
   # the claim about the suite is made by `journeys-combine` below, and only
   # there.
   journeys-bite:
-    runs-on: eph-linux-x64
+    runs-on: [self-hosted, linux, x64]
     strategy:
       fail-fast: false
       matrix:
@@ -1694,12 +1776,15 @@ jobs:
   # So the deployable half of this repository was ungated on its own platform,
   # and a change that broke it would have been found by the systemd unit.
   #
-  # WHY BARE METAL AND NOT `eph-linux-x64`. Two reasons, and the second is the
-  # load-bearing one:
+  # WHY A NAMED BARE-METAL CAPABILITY SET AND NOT THE BARE
+  # `[self-hosted, linux, x64]` the rest of this file uses. Two reasons, and the
+  # second is the load-bearing one:
   #
-  #   1. The 14-slot GARM ephemeral pool is routinely saturated (measured
-  #      2026-09-08: 14 of 14 busy or offline, behind a codetracer queue). The
-  #      bare-metal pool this targets had 5 of 8 runners idle at the same moment.
+  #   1. The GARM ephemeral pool is routinely saturated (measured 2026-09-08:
+  #      14 of 14 busy or offline, behind a codetracer queue). The bare-metal
+  #      hosts this targets had 5 of 8 runners idle at the same moment. A bare
+  #      `[self-hosted, linux, x64]` would let this job land on an ephemeral
+  #      guest, which is exactly what reason 2 is about.
   #   2. AN EPHEMERAL RUNNER HAS A COLD /nix/store EVERY TIME. This job's cost is
   #      almost entirely first-build cost — an offline `npm ci` of the replay
   #      driver and a wasm32 cargo build of the `.ct` writer. On a persistent

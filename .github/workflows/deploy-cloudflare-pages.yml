@@ -20,7 +20,7 @@ name: Deploy to Cloudflare Pages (reusable)
 #   uploading a plain, writable directory, so we dereference it into a clean
 #   staging dir first (`cp -rL result site && chmod -R u+w site`) and deploy
 #   THAT. This also sidesteps the two runner facts the sibling sites hit:
-#   `wrangler pages deploy` does not honour `.assetsignore`, and the eph-linux
+#   `wrangler pages deploy` does not honour `.assetsignore`, and the self-hosted
 #   Nix runners have no preinstalled node/npx — so we deploy a CLEAN dir with
 #   wrangler pinned by flake.lock (`nix develop .#ci`), never an ad-hoc npx.
 #
@@ -63,9 +63,23 @@ on:
         default: "default"
         type: string
       runner:
-        description: "Self-hosted runner label to run on."
+        # A JSON ARRAY, not a bare label. The fleet is targeted by CAPABILITY
+        # LABELS now (`metacraft-dev-guidelines` §"Capability-label taxonomy"),
+        # and a job asks for the minimum set it needs; the retired
+        # `eph-linux-x64` class maps to `[self-hosted, linux, x64]` by that
+        # document's own migration table.
+        #
+        # It has to travel as a JSON string because `workflow_call` inputs are
+        # scalars — there is no `type: array` — so the label ARRAY is encoded
+        # here and decoded at `runs-on` with `fromJSON`. Passing
+        # `"self-hosted,linux,x64"` as a plain string would NOT work: GitHub
+        # would read the whole comma-joined text as ONE label name, match no
+        # runner, and queue forever without ever going red.
+        description: >-
+          JSON array of capability labels to run on, e.g.
+          '["self-hosted","linux","x64"]'. Decoded with fromJSON at `runs-on`.
         required: false
-        default: "eph-linux-x64"
+        default: '["self-hosted", "linux", "x64"]'
         type: string
     secrets:
       CLOUDFLARE_API_TOKEN:
@@ -78,7 +92,7 @@ on:
 jobs:
   deploy:
     name: Deploy (${{ inputs.project-name }})
-    runs-on: ${{ inputs.runner }}
+    runs-on: ${{ fromJSON(inputs.runner) }}
     # Records a GitHub deployment per branch (live/staging/dev) or `preview` for
     # PRs. Attach protection rules (e.g. required reviewers on `live`) in the
     # repo's Settings -> Environments if desired.
@@ -478,7 +492,7 @@ jobs:
 
       - name: Deploy to Cloudflare Pages
         id: deploy
-        # The self-hosted eph-* runners are Nix runners with no preinstalled
+        # The self-hosted runners are Nix runners with no preinstalled
         # node/npx, so the npx-based cloudflare/pages-action and wrangler-action
         # both fail with `npx: command not found`. We do not preinstall software
         # on runners — we run wrangler from the repo's flake-pinned `.#ci`

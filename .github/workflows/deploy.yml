@@ -49,7 +49,7 @@ name: Deploy
 #     arms it, and clearing that variable disarms it with no commit and no
 #     deploy.
 #
-#   * IT MUST NOT BE STARVABLE. `ubuntu-latest`, never `eph-linux-x64`. A gate
+#   * IT MUST NOT BE STARVABLE. `ubuntu-latest`, never a self-hosted label set. A gate
 #     that queues behind the pool it is judging would be starved at exactly the
 #     moment it is needed — the argument `ci.yml`'s `deploy-gates` job and
 #     `deploy-requeue.yml` both make for themselves.
