@@ -202,11 +202,17 @@ for i in "${!dests[@]}"; do
 	# THIS: the hash is the pin, and the content-addressed URL is the thing that
 	# stops an unrelated release from ever reaching the assertion. The fallback
 	# only changes WHICH message you get when the engine has moved.
+	# `%{content_type}` goes to stdout (the body is already going to -o), so this
+	# costs nothing and buys the ONE reading that names the Pages fallback for
+	# what it is. It is empty for a `file://` base — which is what the selftest
+	# uses — so an empty value must never be read as a fault; see the pair of
+	# readings below.
 	from="${srcs[$i]}"
-	if ! curl -fsSL "${url}" -o "${out}"; then
+	ct=""
+	if ! ct="$(curl -fsSL "${url}" -o "${out}" -w '%{content_type}')"; then
 		fell_back=0
 		if [ "${muts[$i]}" = "immutable" ] && [ "${srcs[$i]}" != "${d}" ]; then
-			if curl -fsSL "${base}/${d}" -o "${out}"; then
+			if ct="$(curl -fsSL "${base}/${d}" -o "${out}" -w '%{content_type}')"; then
 				fell_back=1
 				from="${d} (fallback; ${srcs[$i]} is not served here)"
 				url="${base}/${d}"
@@ -237,6 +243,80 @@ for i in "${!dests[@]}"; do
 	# with an HTML error page would otherwise be reported only as a hash
 	# mismatch, and "expected 22acb8e1…, got 9f2c…" names neither this script
 	# nor that page.
+	#
+	# ── An HTML body is the ORDINARY stale-pin case, not an exotic one ────────
+	#
+	# The 404 branch above says a stale content-addressed path "most likely
+	# means the publisher has deployed a NEW engine", and it is right — but on
+	# a Cloudflare Pages origin it is UNREACHABLE, because Pages does not 404
+	# an unknown path. It answers 200 with the project's entry document. So
+	# `curl -fsSL` SUCCEEDS on a URL whose asset is gone, the fallback is never
+	# tried, and the run reaches the hash assertion instead, which reports
+	# "Suspect a proxy, a cache serving a different object under this name, or
+	# a truncated transfer" — all three of which are wrong.
+	#
+	# Measured against deploy run 35041777226 (2026-09-16): the pin of
+	# 2026-09-05 went stale when CodeTracer published `ed9aa650`, and
+	# `assets/db_backend.f28f99e30356aebd.js` answered 200 with 10,514 bytes of
+	# `text/html`. The publisher was healthy and serving a complete engine the
+	# whole time; only the message said otherwise.
+	#
+	# The check is OUTSIDE the `*.wasm` arm below, and that placement is the
+	# whole point: `pkg/db_backend.js` is 18 KB of glue, so the "too small to be
+	# the engine" and "no wasm magic" diagnoses cannot reach it. On the 2026-09-16
+	# failure the glue is the record that reports first — not because it is
+	# fetched first (`worker.js` is, and it passes: its name is mutable, so an
+	# upstream release does not move it), but because it is the first
+	# CONTENT-ADDRESSED record, and those are the ones a release invalidates.
+	#
+	# TWO INDEPENDENT READINGS, because they fail separately.
+	#
+	#   the declared type — `text/html` from an origin asked for `.js`/`.wasm`
+	#     is the direct statement of the fault, and it is what lets the message
+	#     below name the CAUSE instead of a symptom. Empty over `file://`, so it
+	#     cannot be the only reading.
+	#   the first 512 bytes — catches an origin that serves a page under a wrong
+	#     or absent content-type (a captive portal, a proxy, the selftest's
+	#     `file://` worlds), which the declared type would wave through.
+	#
+	# `<(…)`, not a pipe and not a herestring. A pipe would let `grep -q` EPIPE
+	# its upstream, which under `pipefail` turns a hit into a MISS; a herestring
+	# would push the wasm's first 512 bytes through a command substitution, and
+	# bash 5 both strips their NUL bytes and warns about it on stderr — once per
+	# successful deploy, which is how a log learns to be ignored.
+	served_html=""
+	case "${ct}" in
+	text/html | text/html\;*) served_html="the origin declared Content-Type: ${ct}" ;;
+	esac
+	if [ -z "${served_html}" ] && grep -qiF '<!doctype html' <(head -c 512 "${out}"); then
+		served_html="the body begins with an HTML doctype"
+	fi
+	if [ -n "${served_html}" ]; then
+		echo "fetch-engine.sh: ${url} answered with an HTML page, not ${d}." >&2
+		echo "    got: ${got_bytes} bytes; ${served_html}" >&2
+		echo "" >&2
+		if [ "${muts[$i]}" = "immutable" ]; then
+			echo "  ${srcs[$i]} is a CONTENT-ADDRESSED path, so this is not a network" >&2
+			echo "  fault and not a truncated transfer. The origin no longer has that" >&2
+			echo "  asset and served its entry document in its place — Cloudflare Pages" >&2
+			echo "  answers 200 for an unknown path rather than 404. That means the" >&2
+			echo "  publisher has deployed a NEW engine and this pin names bytes that" >&2
+			echo "  are no longer served." >&2
+			echo "" >&2
+			echo "  That is the pin working: this repository will not silently take a" >&2
+			echo "  different engine than the one it was measured against." >&2
+		else
+			echo "  ${srcs[$i]} is a mutable path, so the origin may simply not serve" >&2
+			echo "  this engine at all. Check that the base URL is a web-codetracer" >&2
+			echo "  deployment and not some other site." >&2
+		fi
+		echo "" >&2
+		echo "  remedy: just engine-pin-update   (re-pins, prints the diff to review" >&2
+		echo "                                    and commit), then reconcile" >&2
+		echo "          ReplayEngineWasmBytes in client/src/debugger/replay_engine.nim" >&2
+		fail "  pinned path: ${srcs[$i]}"
+	fi
+
 	case "${d}" in
 	*.wasm)
 		if [ "${got_bytes}" -lt 1000000 ]; then

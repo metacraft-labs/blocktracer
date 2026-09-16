@@ -524,8 +524,9 @@ for (const arm of arms) {
 //
 // `approxMegabytes` is reimplemented in JS because this file cannot run Nim,
 // and a mirror without a test is two implementations waiting to disagree.
-// These five numbers are real: the constant in replay_engine.nim as it now
-// stands (the pinned wasm), what that constant said before
+// These six numbers are real: the constant in replay_engine.nim as it now
+// stands (the pinned wasm, re-pinned 2026-09-16), the wasm pinned before that
+// until CodeTracer published `ed9aa650`, what that constant said before
 // `tools/deploy/engine-pin-selftest.mjs` reconciled it to the pin, the engine
 // blocktracer.org served on 2026-09-01, the engine web-codetracer published
 // that morning, and the older build the constant replaced.
@@ -535,7 +536,8 @@ for (const arm of arms) {
 // could never have caught the constant being wrong by 163,703 bytes. That is a
 // different claim and it has its own gate now.
 const mirror = [
-  [18_117_658, "18 MB", "ReplayEngineWasmBytes, as committed — the PINNED wasm"],
+  [18_096_653, "18 MB", "ReplayEngineWasmBytes, as committed — the PINNED wasm"],
+  [18_117_658, "18 MB", "the wasm pinned until CodeTracer published ed9aa650"],
   [18_281_361, "18 MB", "what that constant said before the pin reconciled it"],
   [18_284_951, "18 MB", "the engine blocktracer.org served on 2026-09-01"],
   [18_285_036, "18 MB", "the engine web-codetracer published at 08:27:55Z that day"],
@@ -553,7 +555,7 @@ for (const [bytes, want, why] of mirror) {
 }
 if (mirrorOk === mirror.length) {
   console.log(`  PASS  approxMegabytes mirrors the Nim, on ${mirror.length} pinned values ` +
-              `(three of them the real engine sizes this incident turned on)`);
+              `(the real engine sizes this incident turned on among them)`);
 }
 
 // And the reader that finds the constant, since F5 is worth nothing if it

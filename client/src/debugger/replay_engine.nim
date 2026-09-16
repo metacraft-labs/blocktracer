@@ -97,7 +97,7 @@ const HydrationBundle* {.strdefine: "hydrationBundle".} = ""
   ## which build the bundle first:
   ##   nim c -d:hydrationBundle=/assets/hydrate.js … src/static_export.nim
 
-const ReplayEngineWasmBytes* = 18_117_658
+const ReplayEngineWasmBytes* = 18_096_653
   ## The size of `pkg/db_backend_bg.wasm`, **as pinned**.
   ##
   ## ## It is no longer a measurement, and that is the fix
