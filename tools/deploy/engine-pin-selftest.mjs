@@ -24,12 +24,24 @@
 // So this file asserts two separate properties, because they fail separately:
 //
 //   THE FETCH IS A CHECK, NOT A NOTE.  Arms 1-9 run the real
-//   `fetch-engine.sh` against a synthetic origin over `file://` and demand it
-//   REFUSE every world in which the bytes are not the pinned ones — a changed
-//   wasm, a changed worker, a content-addressed path that 404s because the
-//   publisher moved on, a truncated transfer, and four malformed pins. The
-//   honest world must still pass, because a gate that reddens on a normal
-//   deploy is a gate that gets switched off.
+//   `fetch-engine.sh` against a synthetic origin and demand it REFUSE every
+//   world in which the bytes are not the pinned ones — a changed wasm, a
+//   changed worker, a content-addressed path the publisher no longer serves,
+//   a truncated transfer, and four malformed pins. The honest world must
+//   still pass, because a gate that reddens on a normal deploy is a gate that
+//   gets switched off.
+//
+//   A STALE PIN DOES NOT ARRIVE AS A 404, AND ARMS 5B/5C SAY SO.  This file
+//   and the script it drives were both written believing a vanished
+//   content-addressed path returns 404. Cloudflare Pages does not 404: it
+//   answers 200 with the project's entry document, so `curl -fsSL` succeeds
+//   on an asset that is gone and a status check calls it present. That is how
+//   deploy run 35041777226 came to be read as CodeTracer's publisher being
+//   broken when it was serving a complete engine under new names. The script
+//   now takes two readings ahead of the hash — the declared content-type and
+//   the body's first 512 bytes — and the two arms are separate because the
+//   readings are: 5B covers the body, 5C covers the content-type, and
+//   removing either leaves exactly one of them red.
 //
 //   THE THREE PLACES AGREE.  Arms R1-R5 read the REAL `engine-pin.txt`, the
 //   REAL Nim constant and the REAL deploy workflow, and assert they describe
@@ -44,8 +56,16 @@
 // https base. A gate that needs the publisher to be up to prove it can fail is
 // a gate that gets skipped — the reason `deploy-gates` exists as a
 // GitHub-hosted job in the first place.
+//
+// ONE EXCEPTION, AND IT IS STILL OFFLINE. Arm 5C binds a server on 127.0.0.1
+// and points the fetch at it. Nothing leaves the machine and no publisher
+// needs to be up. It exists because `file://` has no `Content-Type` — so the
+// content-type reading in `fetch-engine.sh` is a branch every other arm
+// leaves untaken, and an untaken branch in a guard is the failure mode this
+// suite was written about. If that server cannot bind, 5C FAILS; it does not
+// skip.
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync, readdirSync,
@@ -111,12 +131,14 @@ function world(root) {
   return { origin, pin, glueName, wasmName };
 }
 
-/** Run the real script against a `file://` base. Never throws: the arms are
- *  about the exit code and the message, and a thrown ExecException would hide
- *  both behind a stack. */
-function runFetch({ origin, pin, dest }) {
+/** Run the real script against a base — `file://<origin>` unless the world
+ *  names one, which arm 5c does because a `file://` fetch has no
+ *  `Content-Type` and so cannot exercise the reading that depends on it.
+ *  Never throws: the arms are about the exit code and the message, and a
+ *  thrown ExecException would hide both behind a stack. */
+function runFetch({ origin, pin, dest, base }) {
   try {
-    const out = execFileSync("bash", [FETCH, dest, `file://${origin}`], {
+    const out = execFileSync("bash", [FETCH, dest, base ?? `file://${origin}`], {
       env: { ...process.env, REPLAY_ENGINE_PIN: pin },
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
@@ -129,8 +151,9 @@ function runFetch({ origin, pin, dest }) {
 
 /** An arm that must REFUSE. Asserts the exit code, that the message names
  *  every phrase the arm was written to see, and that no half-copy survives. */
-function mustRefuse(name, { origin, pin, dest }, phrases) {
-  const r = runFetch({ origin, pin, dest });
+function mustRefuse(name, w, phrases) {
+  const { dest } = w;
+  const r = runFetch(w);
   if (r.code === 0) {
     bad(name, `fetch-engine.sh exited 0 and copied the engine anyway.\n${indent(r.out)}`);
     return;
@@ -269,6 +292,135 @@ console.log("");
   writeFileSync(join(w.origin, w.wasmName), page);
   mustRefuse("a page served as the wasm is diagnosed as a page",
     { ...w, dest: nextDest() }, [`is only ${page.length} bytes`, "~18 MB", "answered with a page"]);
+}
+
+// ── 5b. the stale pin on a Pages origin — 200 with the entry document ──────
+//
+// Arm 4 above covers a stale content-addressed path that 404s. Cloudflare
+// Pages NEVER 404s an unknown path: it answers 200 with the project's entry
+// document. So on the origin this repository actually fetches from, arm 4's
+// branch is unreachable, `curl -fsSL` succeeds on an asset that is gone, and
+// before this arm existed the run fell through to the hash mismatch and
+// reported "Suspect a proxy, a cache serving a different object under this
+// name, or a truncated transfer" — all three wrong.
+//
+// Measured: deploy run 35041777226 failed exactly this way. The pin of
+// 2026-09-05 went stale when CodeTracer published `ed9aa650`, and the reader
+// of that log concluded the UPSTREAM ARTEFACT SET WAS INCOMPLETE and that
+// CodeTracer's publisher was broken. It was not; it was serving a complete,
+// healthy engine under new names. A message that misroutes an investigation
+// to another repository costs more than the stale pin did.
+//
+// The GLUE is the subject, not the wasm: it is fetched first and so is the
+// file that actually reports. The wasm arm above would not have fired for it.
+{
+  const w = world(mkdtempSync(join(ROOT, "w5b-")));
+  const entryDoc = Buffer.from(
+    '<!DOCTYPE html>\n<meta charset="utf-8">\n<title>CodeTracer</title>\n' +
+    '<script type="application/json" id="codetracer-deployment">{"revision":"ed9aa650"}<\/script>\n');
+  writeFileSync(join(w.origin, w.glueName), entryDoc);
+  mustRefuse("a stale pin on a Pages origin is named as a new release, not as a proxy",
+    { ...w, dest: nextDest() }, [
+      "answered with an HTML page, not pkg/db_backend.js",
+      "CONTENT-ADDRESSED path",
+      "Cloudflare Pages",
+      "deployed a NEW engine",
+      "engine-pin-update",
+    ]);
+}
+
+// ── 5c. the Pages fallback itself, reproduced over a loopback socket ───────
+//
+// Arm 5b proves the BODY reading: an entry document that opens with a doctype
+// is caught whatever the origin claims it is. It cannot prove the other
+// reading, because a `file://` fetch has no `Content-Type` at all — so on the
+// `file://` worlds every arm above passes with the content-type branch never
+// once taken. An untaken branch in a guard is the guard this repository keeps
+// getting caught by, so this arm takes it.
+//
+// It is also the only arm that reproduces the 2026-09-16 failure AS IT
+// HAPPENED rather than by simulation: a real HTTP origin that answers 200 for
+// an unknown path with its entry document, which is what Cloudflare Pages
+// does and what `rmSync`-ing a file out of a `file://` world can only imitate
+// by turning into a 404 — a DIFFERENT branch of the script.
+//
+// THE ENTRY DOCUMENT HERE DELIBERATELY CARRIES NO DOCTYPE. If it had one, the
+// body reading would fire and this arm would pass while proving nothing about
+// the content-type reading it exists for. The phrase it demands —
+// "the origin declared Content-Type: text/html" — is emitted by that branch
+// and only by it.
+//
+// Loopback, not the network: it binds 127.0.0.1 and nothing leaves the
+// machine. If it cannot bind, the arm FAILS. A gate that quietly skips itself
+// when its fixture will not start is a gate that measures nothing.
+const PAGES_ORIGIN_SERVER = `
+import { createServer } from "node:http";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { join, normalize } from "node:path";
+const [origin, portFile] = process.argv.slice(2);
+const TYPES = { ".js": "application/javascript", ".wasm": "application/wasm" };
+// No doctype, on purpose — see arm 5c.
+const ENTRY = '<html><head><title>CodeTracer</title></head><body>app</body></html>';
+createServer((req, res) => {
+  const rel = normalize(decodeURIComponent((req.url || "/").split("?")[0])).replace(/^([.][.][/\\\\])+/, "");
+  const f = join(origin, rel);
+  if (f.startsWith(origin) && existsSync(f) && statSync(f).isFile()) {
+    const ext = f.slice(f.lastIndexOf("."));
+    res.writeHead(200, { "content-type": TYPES[ext] || "application/octet-stream" });
+    res.end(readFileSync(f));
+    return;
+  }
+  // The behaviour under test: 200 and the entry document, never a 404.
+  res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+  res.end(ENTRY);
+}).listen(0, "127.0.0.1", function () { writeFileSync(portFile, String(this.address().port)); });
+`;
+
+const sleepSync = (ms) => {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+};
+
+{
+  const name = "a 200 text/html answer is named by its Content-Type, not left to the body";
+  const w = world(mkdtempSync(join(ROOT, "w5c-")));
+  // The release moved the glue: its content-addressed name is no longer served.
+  rmSync(join(w.origin, w.glueName));
+
+  const srvPath = join(ROOT, "pages-origin.mjs");
+  const portFile = join(ROOT, "w5c.port");
+  writeFileSync(srvPath, PAGES_ORIGIN_SERVER);
+  const child = spawn(process.execPath, [srvPath, w.origin, portFile],
+    { stdio: ["ignore", "ignore", "pipe"] });
+  let stderr = "";
+  child.stderr.on("data", (c) => { stderr += c.toString(); });
+
+  let port = null;
+  for (let i = 0; i < 200 && port === null; i++) {
+    if (existsSync(portFile)) {
+      const t = readFileSync(portFile, "utf8").trim();
+      if (t) port = t;
+    }
+    if (port === null) sleepSync(25);
+  }
+
+  try {
+    if (port === null) {
+      bad(name, `the loopback origin never reported a port within 5s, so this arm exercised ` +
+        `NOTHING. It is failed rather than skipped on purpose: the content-type reading in ` +
+        `fetch-engine.sh has no other arm, and a skipped fixture would leave it unproven ` +
+        `while the suite stayed green.${stderr ? `\n${indent(stderr)}` : ""}`);
+    } else {
+      mustRefuse(name, { ...w, base: `http://127.0.0.1:${port}`, dest: nextDest() }, [
+        "answered with an HTML page, not pkg/db_backend.js",
+        "the origin declared Content-Type: text/html",
+        "CONTENT-ADDRESSED path",
+        "deployed a NEW engine",
+        "engine-pin-update",
+      ]);
+    }
+  } finally {
+    child.kill();
+  }
 }
 
 // ── 6-9. a pin that cannot be trusted is not a pin ─────────────────────────

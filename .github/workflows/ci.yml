@@ -312,15 +312,25 @@ jobs:
         # hashes, so two agents an hour apart got two engines and both manifests
         # were faithful.
         #
-        # Nine arms drive the real `fetch-engine.sh` against a synthetic origin
-        # over `file://` and demand a refusal for each way the bytes can be
-        # wrong — including the one that will actually happen, a
-        # content-addressed path that 404s because CodeTracer released. Five
-        # more assert that the pin, `ReplayEngineWasmBytes` and this workflow's
-        # own three literal paths describe ONE artefact; R3 was red when it was
-        # written, at 18281361 against a pinned 18117658.
+        # Thirteen arms drive the real `fetch-engine.sh` against a synthetic
+        # origin and demand a refusal for each way the bytes can be wrong —
+        # including the one that DOES happen, a content-addressed path
+        # CodeTracer no longer serves because it released. Five more assert
+        # that the pin, `ReplayEngineWasmBytes` and this workflow's own three
+        # literal paths describe ONE artefact; R3 was red when it was written,
+        # at 18281361 against a pinned 18117658.
         #
-        # Offline, node-and-bash only, for this job's stated reason.
+        # THAT CASE DOES NOT ARRIVE AS A 404. This step's comment used to say
+        # it did, and so did the script. Cloudflare Pages answers 200 with its
+        # entry document for any unknown path, so a stale pin fetches a 10 KB
+        # HTML page under the name `db_backend.js` and `curl -fsSL` reports
+        # success. Deploy run 35041777226 was misread as CodeTracer's
+        # publisher being broken on the strength of it. Arms 5B and 5C hold
+        # the two readings that now catch it.
+        #
+        # Offline, node-and-bash only, for this job's stated reason. 5C binds
+        # 127.0.0.1 — nothing leaves the runner, and it fails rather than
+        # skips if it cannot.
         run: node tools/deploy/engine-pin-selftest.mjs
 
       - name: Does the freshness question get asked? (existence standing in for currency)
