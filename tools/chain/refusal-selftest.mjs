@@ -1425,14 +1425,35 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   //
   // `ci.yml` runs each of these suites as its own step, and every step's comment
   // states that suite's assertion count — in two phrasings, `N assertions` and `N
-  // arms`. That is a THIRD copy of the eight numbers, it is read by nobody, and it
-  // went stale the moment two of the suites grew: the copies in the Justfile header
-  // were caught by the arms above and CI's were not caught by anything. The register
-  // this repository already keeps of that failure lists three occasions; this is the
-  // same one in a second file.
+  // arms`. That is a THIRD copy of the nine numbers, it was read by nobody until this
+  // arm, and it went stale the moment two of the suites grew: the copies in the Justfile
+  // header were caught by the arms above and CI's were not caught by anything. The
+  // register this repository already keeps of that failure lists three occasions; this is
+  // the same one in a second file.
+  //
+  // THERE WAS A FOURTH COPY, AND IT IS GONE. A summary sentence above the first of these
+  // steps stated the suite count and their sum. It was deleted rather than corrected on
+  // 2026-09-16, and NO VALUE OF IT IS TRANSCRIBED HERE — not even as a quotation of the
+  // line that was removed. An earlier draft of this comment did quote one, and the number
+  // it quoted was one the line had never held: a figure that came out of a review, went
+  // into a brief, and was written into the tree twice without anybody re-reading the file
+  // it claimed to quote. Three hands, one number, each trusting the previous quotation.
+  // So: GIT IS THE HISTORY, and it is one command —
+  //   git log -p -S'counted assertions' -- .github/workflows/ci.yml
+  // — which reports every commit that changed the figure, with 4db3414 the last that
+  // carried the line. A quotation in a comment is the fifth copy of the thing this arm
+  // exists to stop having copies of.
+  //
+  // WHY DELETING IT COST NOTHING: this checker structurally could not see that copy, and
+  // for two independent reasons. It bounds each step's comment to that step's own
+  // `- name:`…`run:` block, and a sentence BETWEEN steps is in no such block. And the
+  // shape matched below wants the number adjacent to the noun (`N assertions` / `N arms`),
+  // while that sentence put a word between the two — so it would not have matched even
+  // inside a block. A copy this checker cannot reach can only ever go stale unobserved.
+  // Do not reintroduce a total there.
   //
   // A STEP WITH NO NUMBER, OR WITH TWO, IS A FAILURE AND NOT A SKIP. A checker that
-  // quietly passed over the steps it could not read would score seven of eight and
+  // quietly passed over the steps it could not read would score eight of nine and
   // report eight, which is the shape the `declared` array above exists to refuse.
   const ci = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
   const ciLines = ci.split('\n');

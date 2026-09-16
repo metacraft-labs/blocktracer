@@ -120,58 +120,219 @@
     "moved it reads the reason recorded beside it."
   ],
   "format": "blocktracer/identifier-encoding-boundary@1",
-  "sourceExtensions": [".nim", ".mjs", ".js", ".ts", ".sh"],
-  "skipDirectories": ["node_modules", "dist", "nimcache"],
+  "sourceExtensions": [
+    ".nim",
+    ".mjs",
+    ".js",
+    ".ts",
+    ".sh"
+  ],
+  "skipDirectories": [
+    "node_modules",
+    "dist",
+    "nimcache"
+  ],
   "floors": [
-    { "top": "src", "floor": 25 },
-    { "top": "client", "floor": 80 },
-    { "top": "tools", "floor": 100 }
+    {
+      "top": "src",
+      "floor": 25
+    },
+    {
+      "top": "client",
+      "floor": 80
+    },
+    {
+      "top": "tools",
+      "floor": 100
+    }
   ],
   "sweeps": [
     {
       "id": "declaration",
-      "tokens": ["identifierEncoding"],
+      "tokens": [
+        "identifierEncoding"
+      ],
       "why": "who reads the registry member that says how a chain writes its identifiers",
       "expected": {
         "src": [
-          { "path": "src/blocktracer/chain/ingest.nim", "why": "registry PRODUCER — writes the member" },
-          { "path": "src/blocktracer/demo/generator.nim", "why": "registry PRODUCER — writes the member" },
-          { "path": "src/blocktracer/contract/identifier_encoding.nim", "why": "builds, validates and reads it, over the closed set" },
-          { "path": "src/blocktracer/contract/shards.nim", "why": "the ONE derivation, which takes the token as a parameter, and the six identifier-keyed path builders that derive both segments of a path from it" },
-          { "path": "src/blocktracer_client/paths.nim", "why": "the SDK's path facade, which re-exports the builders and the vocabulary their signatures are written in" },
-          { "path": "src/blocktracer_client/session.nim", "why": "pins the chain's declaration like the generation" },
-          { "path": "src/blocktracer_client/entities.nim", "why": "hands the session's declaration to the paths" },
-          { "path": "src/blocktracer/validator.nim", "why": "reads the declaration out of the tree it is validating" }
+          {
+            "path": "src/blocktracer/chain/ingest.nim",
+            "why": "registry PRODUCER — writes the member"
+          },
+          {
+            "path": "src/blocktracer/contract/hashshard.nim",
+            "why": "joined this set when the index stopped being hex-only: it reads the shard rule back through `identifierEncodingRule` to reconstruct a format-1 entry's `0x`, which format 1 physically cannot store"
+          },
+          {
+            "path": "src/blocktracer/contract/identifier_encoding.nim",
+            "why": "builds, validates and reads it, over the closed set"
+          },
+          {
+            "path": "src/blocktracer/contract/shards.nim",
+            "why": "the ONE derivation, which takes the token as a parameter, and the six identifier-keyed path builders that derive both segments of a path from it"
+          },
+          {
+            "path": "src/blocktracer/demo/generator.nim",
+            "why": "registry PRODUCER — writes the member"
+          },
+          {
+            "path": "src/blocktracer/validator.nim",
+            "why": "reads the declaration out of the tree it is validating"
+          },
+          {
+            "path": "src/blocktracer_client/entities.nim",
+            "why": "hands the session's declaration to the paths"
+          },
+          {
+            "path": "src/blocktracer_client/paths.nim",
+            "why": "the SDK's path facade, which re-exports the builders and the vocabulary their signatures are written in"
+          },
+          {
+            "path": "src/blocktracer_client/session.nim",
+            "why": "pins the chain's declaration like the generation"
+          }
         ],
         "client": [
-          { "path": "client/searchboot/searchboot.nim", "why": "the browser's search bootstrap, which recomputes the producer's path in a tab" },
-          { "path": "client/src/reader.nim", "why": "the explorer's reader" },
-          { "path": "client/src/viewmodel/address_vm.nim", "why": "builds a sharded path" },
-          { "path": "client/src/viewmodel/chain_vm.nim", "why": "builds a sharded path" }
+          {
+            "path": "client/searchboot/searchboot.nim",
+            "why": "the browser's search bootstrap, which recomputes the producer's path in a tab"
+          },
+          {
+            "path": "client/src/reader.nim",
+            "why": "the explorer's reader"
+          },
+          {
+            "path": "client/src/ssr.nim",
+            "why": "`staticRoutes` places identifiers in ROUTES, which are key positions, while the lists it reads them from are object BODIES carrying display forms — so it needs the chain's declaration to key-form them"
+          },
+          {
+            "path": "client/src/static_export.nim",
+            "why": "the global index's one writer: it reads each chain's declaration back out of the tree it is exporting, so the index is keyed by what the producer published rather than by what this file assumes"
+          },
+          {
+            "path": "client/src/viewmodel/address_vm.nim",
+            "why": "builds a sharded path"
+          },
+          {
+            "path": "client/src/viewmodel/chain_vm.nim",
+            "why": "builds a sharded path"
+          },
+          {
+            "path": "client/src/viewmodel/search_shapes.nim",
+            "why": "reads the ENCODING SET rather than a chain's row, and that is the point: §5's index path has no chain segment, so the browser derives an index key from the query's SHAPE — `identifierEncodingsMatching` over the shared file's `shapes` rule — with no registry in hand at all"
+          }
         ],
         "tools": [
-          { "path": "tools/chain/identifier-encoding-selftest.mjs", "why": "the JavaScript half's selftest, and still nothing else: the capture tooling enumerates what was published rather than deriving it" }
+          {
+            "path": "tools/chain/identifier-encoding-selftest.mjs",
+            "why": "the JavaScript half's selftest, and still nothing else: the capture tooling enumerates what was published rather than deriving it"
+          }
         ]
       }
     },
     {
       "id": "caseRule",
-      "tokens": ["identifierKeyForm", "identifierDisplayForm", "identifierPayload"],
+      "tokens": [
+        "identifierKeyForm",
+        "identifierDisplayForm",
+        "identifierPayload"
+      ],
       "why": "who reads the per-encoding CASE rule — the step that replaced one global toLowerAscii",
       "expected": {
         "src": [
-          { "path": "src/blocktracer/contract/identifier_encoding.nim", "why": "reads the `case` rule out of the shared file and answers over it" },
-          { "path": "src/blocktracer/contract/shards.nim", "why": "folds per encoding before it slices, so a shard key is recomputable from either spelling — and names every path object by the same key form, which is what stops a producer writing a folded shard beside a raw name" },
-          { "path": "src/blocktracer/contract/hashshard.nim", "why": "the §5 index's shard key and its hex-pair parser, under the named global `HashIndexEncoding`" },
-          { "path": "src/blocktracer_client/paths.nim", "why": "the object-name segment of every sharded path is the identifier's key form" },
-          { "path": "src/blocktracer_client/entities.nim", "why": "the SDK read answers with the DISPLAY form the tree states rather than echoing the caller's spelling back" },
-          { "path": "src/blocktracer/validator.nim", "why": "checks that a published tree states the key form in its paths and the display form in its bodies" }
+          {
+            "path": "src/blocktracer/contract/identifier_encoding.nim",
+            "why": "reads the `case` rule out of the shared file and answers over it"
+          },
+          {
+            "path": "src/blocktracer/contract/shards.nim",
+            "why": "folds per encoding before it slices, so a shard key is recomputable from either spelling — and names every path object by the same key form, which is what stops a producer writing a folded shard beside a raw name"
+          },
+          {
+            "path": "src/blocktracer/contract/hashshard.nim",
+            "why": "the §5 index's shard key and format 1's payload, both through `identifierPayload` — so the index and the object tree cannot disagree about where an identifier's payload starts or how its case folds"
+          },
+          {
+            "path": "src/blocktracer_client/paths.nim",
+            "why": "the object-name segment of every sharded path is the identifier's key form"
+          },
+          {
+            "path": "src/blocktracer_client/entities.nim",
+            "why": "the SDK read answers with the DISPLAY form the tree states rather than echoing the caller's spelling back"
+          },
+          {
+            "path": "src/blocktracer/validator.nim",
+            "why": "checks that a published tree states the key form in its paths and the display form in its bodies"
+          }
         ],
         "client": [
-          { "path": "client/src/viewmodel/search_shapes.nim", "why": "canonicalises a hex query to the form the published index and object names are keyed by" }
+          {
+            "path": "client/searchboot/searchboot.nim",
+            "why": "computes the query's payload in a tab, to match a shard's entries against it — the browser half of §5's `the client computes the shard path directly`"
+          },
+          {
+            "path": "client/src/ssr.nim",
+            "why": "key-forms every identifier it turns into a route, which is the residual that made a display-form URL out of a body-carried identifier"
+          },
+          {
+            "path": "client/src/viewmodel/search_shapes.nim",
+            "why": "canonicalises a hex query to the form the published index and object names are keyed by"
+          }
         ],
         "tools": [
-          { "path": "tools/chain/identifier-encoding-selftest.mjs", "why": "the JavaScript half's selftest" }
+          {
+            "path": "tools/chain/identifier-encoding-selftest.mjs",
+            "why": "the JavaScript half's selftest"
+          }
+        ]
+      }
+    },
+    {
+      "id": "indexKey",
+      "tokens": [
+        "identifierEncodingsMatching",
+        "identifierIndexKey",
+        "hashPrefix"
+      ],
+      "why": "who derives a §5 HASH INDEX KEY. This sweep did not exist while the index was hex-only, because there was nothing per-encoding to derive: `hashPrefix` took one string and a constant said it was hex. Now the producer keys from the chain's declared encoding and the client keys from the query's SHAPE, and the two have to meet on one shard — so the set of files that may compute an index key is as load-bearing as the set that may compute a shard PATH, and is swept the same way.",
+      "expected": {
+        "src": [
+          {
+            "path": "src/blocktracer/contract/identifier_encoding.nim",
+            "why": "reads the `shapes` and `alphabet` rules out of the shared file and answers over them — the recognition rule and the refusal both live here, so neither is a table in a consumer"
+          },
+          {
+            "path": "src/blocktracer/contract/hashshard.nim",
+            "why": "the codec: `hashPrefix` is the shard key and `identifierIndexKey` is what every entry is stored and compared under"
+          },
+          {
+            "path": "src/blocktracer/demo/generator.nim",
+            "why": "a producer — keys its own generation-scoped index from the declaration it publishes, so it cannot declare one encoding and key another"
+          },
+          {
+            "path": "src/blocktracer/validator.nim",
+            "why": "reproduces the CLIENT's computation to check coverage, which is why it keys through `hashPrefix` here while quoting references verbatim everywhere else (see the exemption block above `checkTransaction`)"
+          }
+        ],
+        "client": [
+          {
+            "path": "client/src/viewmodel/search_shapes.nim",
+            "why": "§2's classification, which became a DERIVATION SITE when the index started keying per shape: `shapesOf` decides whether a query reaches the index and `indexProbesOf` decides which shardS it computes — PLURAL, because one query can be admissible under two rows with two payloads and the client fetches both (§5.6). A row it declines to recognise, or a reading it drops, is a false absence under §5.0a and not a missing feature."
+          },
+          {
+            "path": "client/searchboot/searchboot.nim",
+            "why": "the browser half — computes the shard path in a tab from the query alone, which is the whole of §5's `the client computes the shard path directly`"
+          },
+          {
+            "path": "client/src/static_export.nim",
+            "why": "the GLOBAL index's one writer: the only place that has seen every chain, and the only place that may write `/idx/hash/**`"
+          }
+        ],
+        "tools": [
+          {
+            "path": "tools/chain/identifier-encoding-selftest.mjs",
+            "why": "this suite"
+          }
         ]
       }
     }
@@ -180,31 +341,66 @@
     {
       "file": "src/blocktracer/contract/hashshard.nim",
       "present": [
-        { "needle": "parseHexInt", "count": 1,
-          "why": "THE INDEX STILL PARSES HEX PAIRS, so a base58 or bech32 identifier has no representation in it at all. Published self-describing wire format: widening it is a migration of every published shard plus a compatibility window (Publishing-And-Caching.md §6.1, §6.2) and lands alone." },
-        { "needle": "HashIndexEncoding", "count": 3,
-          "why": "…and that assumption is NAMED rather than anonymous. §5's index path carries no chain segment, so a client resolving a bare query cannot know which chain's declaration to normalise with: this index's key rule has to be global. One greppable constant is what the migration will widen." },
-        { "needle": "toLowerAscii", "count": 1,
-          "why": "THE ONE REMAINING FOLD IN THIS MODULE, COUNTED RATHER THAN FORBIDDEN, because it is not a normalisation of anybody's identifier: `bytesToHex` renders STORED BYTES back into the index's key encoding, and lowercase hex IS that encoding rather than a decision about case. The fold that WAS a decision — `stripHex`, applied to every identifier of every encoding — is on the absent list below. Counting this one is what stops a second appearing beside it." }
+        {
+          "needle": "hexUnits",
+          "count": 7,
+          "why": "FORMAT 1's DECODED-BYTE UNIT, AND THE ONLY THING LEFT THAT KNOWS WHAT HEX IS. It is private and reachable only after `identifierIndexKey` has already refused anything the `hex` alphabet does not admit, which is what turned the replaced `hexToBytes`'s unhandled `parseHexInt` crash into a refusal that names the encoding, the identifier and the offending character. THE COUNT IS THE PIN: format 2 must not grow a decoded-byte path, because decoding is the one thing the client cannot do without knowing the chain."
+        },
+        {
+          "needle": "HashIndexLegacyEncoding",
+          "count": 7,
+          "why": "…and the one encoding a FORMAT-1 shard can hold, NAMED rather than assumed. It was `HashIndexEncoding` and described the whole index; it now describes one of two published formats, because the index keys per identifier SHAPE and a shape is derivable from the query string alone (Search-And-Routing.md §5). A hex-shaped constant that still claimed to describe the index would be the assumption the rename removed."
+        },
+        {
+          "needle": "toLowerAscii",
+          "count": 1,
+          "why": "THE ONE REMAINING FOLD IN THIS MODULE, COUNTED RATHER THAN FORBIDDEN, because it is not a normalisation of anybody's identifier: `bytesToHex` renders format-1's STORED BYTES back into hex, and lowercase hex IS that format's alphabet rather than a decision about case. Counting it is what stops a second appearing beside it."
+        },
+        {
+          "needle": "identifierIndexKey",
+          "count": 6,
+          "why": "the refusal, and every path that reaches the hex-pair parser. An entry keyed from a string its declared alphabet does not admit is a hit that navigates to a 404, which §5 forbids outright. THE COUNT WENT 5 -> 6 BECAUSE THE MUTANT FOUND THE GAP: format 1's arm called `hexUnits` directly while only format 2 keyed through here, so `just byte-identity-mutant` still killed the demo producer with `invalid hex integer: 0x` — the exact crash this step replaced."
+        },
+        {
+          "needle": "parseHexInt",
+          "count": 1,
+          "why": "THE HEX PARSER, STILL HERE AND NOW UNREACHABLE WITH A NON-HEX DIGIT. Format 1 stores decoded pairs, so it has to parse them — but the public `hexToBytes` that took any string is on the absent list, and the private `hexUnits` that replaced it runs only after `identifierIndexKey` has refused by name. The count is the pin: a SECOND `parseHexInt` would be a second place deciding what an identifier is, without the refusal in front of it."
+        }
       ],
       "absent": [
-        { "needle": "stripHex",
-          "why": "GONE, not kept as a wrapper. It folded case unconditionally for every encoding — right for hex, destroys base58 and base64url — and a correctly-named hex-assuming entry point one identifier away from every call site is reachable by habit and indistinguishable from a choice in a diff." }
+        {
+          "needle": "stripHex",
+          "why": "GONE, not kept as a wrapper. It folded case unconditionally for every encoding — right for hex, destroys base58 and base64url — and a correctly-named hex-assuming entry point one identifier away from every call site is reachable by habit and indistinguishable from a choice in a diff."
+        },
+        {
+          "needle": "hexToBytes",
+          "why": "GONE, for the same reason and with more force. It was PUBLIC, took any string, and reached `parseHexInt` on it — so four of the eight members of the closed set had no representation in the index at all, and anything it could not parse KILLED the producer with an unhandled ValueError naming a string function. `identifierIndexKey` refuses by name instead, and `hexUnits` above is private."
+        }
       ]
     },
     {
       "file": "tools/capture/lib/entities.mjs",
       "present": [
-        { "needle": "startsWith(\"0x\")", "count": 2,
-          "why": "the two literal `0x` filters over published directory ENTRIES. These enumerate the tree the hash index keys, so they genuinely follow the index: a filter widened ahead of the index would enumerate a non-hex chain's entities and then fail to key them, which is worse than not seeing them." },
-        { "needle": "indexShardedDir(join(", "count": 3,
-          "why": "the three former derivation sites, now enumerations. THE COUNT IS THE PIN: a fourth sharded path in this file either adds a fourth call here — which moves this number — or open-codes a slice, which the `absent` list below refuses. Before this, both halves counted only the `0x` filters, so a fourth `slice(2, 6)` was invisible to both." }
+        {
+          "needle": "startsWith(\"0x\")",
+          "count": 2,
+          "why": "the two literal `0x` filters over published directory ENTRIES. These enumerate the tree the hash index keys, so they genuinely follow the index: a filter widened ahead of the index would enumerate a non-hex chain's entities and then fail to key them, which is worse than not seeing them."
+        },
+        {
+          "needle": "indexShardedDir(join(",
+          "count": 3,
+          "why": "the three former derivation sites, now enumerations. THE COUNT IS THE PIN: a fourth sharded path in this file either adds a fourth call here — which moves this number — or open-codes a slice, which the `absent` list below refuses. Before this, both halves counted only the `0x` filters, so a fourth `slice(2, 6)` was invisible to both."
+        }
       ],
       "absent": [
-        { "needle": "slice(2,",
-          "why": "the open-coded hex shard rule, at three sites, building `/d/{chain}/tx/{shard}/`, `/d/{chain}/ts/{tsv}/{shard}/` and `/d/{chain}/g/{gen}/addr/{shard}/`. It DERIVED rather than enumerated, so the 'it follows the index' defence never covered it; it was also stricter than the function it duplicated, with neither the strip-only-if-present quirk nor the right-padding." },
-        { "needle": "identifierEncoding",
-          "why": "the tooling reads what was published rather than the declaration behind it, which is why it needs no JavaScript reader of the closed set." }
+        {
+          "needle": "slice(2,",
+          "why": "the open-coded hex shard rule, at three sites, building `/d/{chain}/tx/{shard}/`, `/d/{chain}/ts/{tsv}/{shard}/` and `/d/{chain}/g/{gen}/addr/{shard}/`. It DERIVED rather than enumerated, so the 'it follows the index' defence never covered it; it was also stricter than the function it duplicated, with neither the strip-only-if-present quirk nor the right-padding."
+        },
+        {
+          "needle": "identifierEncoding",
+          "why": "the tooling reads what was published rather than the declaration behind it, which is why it needs no JavaScript reader of the closed set."
+        }
       ]
     }
   ]

@@ -407,20 +407,41 @@ jobs:
 
       # ── the chain capture tooling, for this job's own stated reason ──────
       #
-      # Same hole, same shape. `tools/chain/`'s selftests — NINE of them now, 633
-      # counted assertions between them, re-read off a run on 2026-09-15 (this
-      # sentence said SIX and 392 while eight steps ran 579: it is a fourth copy
-      # of the same numbers and the checker below reads the per-STEP counts, not
-      # this one) — were
-      # referenced by nothing: not by
-      # `just test`, not by any job here, and not by `ci-coverage.sh`, whose
-      # enumeration reaches `ci/test/*.sh` and `client/Justfile` and nothing
-      # under `tools/`. They cover decisions that CANNOT be rechecked after
-      # the fact, because a capture is unrepeatable: an Aztec transaction body
-      # is hard-deleted about half an hour after it lands, so a rule that
-      # misfiles a catch does not cost a retry, it costs the transaction.
+      # Same hole, same shape. `tools/chain/`'s selftests were referenced by
+      # nothing: not by `just test`, not by any job here, and not by
+      # `ci-coverage.sh`, whose enumeration reaches `ci/test/*.sh` and
+      # `client/Justfile` and nothing under `tools/`. They cover decisions that
+      # CANNOT be rechecked after the fact, because a capture is unrepeatable:
+      # an Aztec transaction body is hard-deleted about half an hour after it
+      # lands, so a rule that misfiles a catch does not cost a retry, it costs
+      # the transaction.
       #
-      # All six are offline and toolchain-free, which is why they belong in
+      # NO SUITE COUNT AND NO TOTAL IS STATED HERE, DELIBERATELY — AND THE DRIFT
+      # HISTORY IS NOT RESTATED HERE EITHER. This sentence used to carry a fourth
+      # hand-maintained copy of the per-suite numbers and their sum. It was
+      # DELETED rather than corrected on 2026-09-16, and the values it held on the
+      # way there are deliberately not transcribed: a drift narrative in prose is
+      # one more hand-written copy of the same arithmetic, needing the same
+      # maintenance, and ending that was the whole point of deleting the line.
+      # GIT HOLDS THE HISTORY, and it is one command —
+      #   git log -p -S'counted assertions' -- .github/workflows/ci.yml
+      # — which reports every commit that changed the figure. 4db3414 is the last
+      # commit that carried the line; read the value there rather than believing
+      # a copy of it, including any copy in a review or a brief.
+      #
+      # IT WAS NEVER READ, which is why deleting it costs no coverage, and there
+      # are two independent mechanical reasons — either alone was enough.
+      # `refusal-selftest.mjs` bounds each step's comment to that step's own
+      # `- name:`…`run:` block, so a total sitting BETWEEN steps is outside every
+      # block it inspects. And the shape it matches is `N assertions` / `N arms`,
+      # with the number adjacent to the noun; the phrasing this sentence used put
+      # a word between the two, so it could not have matched even inside a block.
+      #
+      # The copies that ARE checked are the Justfile header's arithmetic and each
+      # step's own count, both compared against the counts the suites themselves
+      # print. A number here could only ever go stale unobserved.
+      #
+      # They are all offline and toolchain-free, which is why they belong in
       # THIS job rather than behind the Nix runner.
       - name: Does the replay verdict rule bite? (which outcome a driver run is)
         # 98 assertions over twelve cases of recorded driver output. The three
@@ -536,30 +557,35 @@ jobs:
         run: node tools/chain/coverage-contiguity-selftest.mjs
 
       - name: Do both halves of the identifier-encoding set read one file?
-        # 119 assertions. `tools/chain/identifier-encodings.json` is the closed
+        # 153 assertions. `tools/chain/identifier-encodings.json` is the closed
         # set of encodings a chain may DECLARE its identifiers in —
         # Configuration.md §2.1, §2.2, with every member traced to a row of
         # Search-And-Routing.md §2's shape table — and, per member, the two rules
         # that declaration implies: `shardKey`, where a path segment's payload
-        # starts, and `case`, how case is handled. The Nim half reads it with
+        # starts (with the `alphabet` an identifier may be WRITTEN in, which is
+        # what lets the §5 index refuse one it cannot key rather than crash on
+        # it), `case`, how case is handled, and `shapes`, how a member is
+        # RECOGNISED from a query string alone. The Nim half reads it with
         # `staticRead`, so that half fails the BUILD on a malformed file; the
         # JavaScript half has no such backstop, so this step is the JavaScript
         # read. A shared file whose JavaScript side nothing opens drifts there
         # undetected.
         #
-        # Twenty-two of the arms are mutations, each breaking one structural rule
+        # Thirty of the arms are mutations, each breaking one structural rule
         # and requiring that rule AND NO OTHER to fire, with a control over an
         # unmutated deep copy — without which they would all pass for the wrong
         # reason if the copy were itself broken. Six are the `shardKey` rule and
-        # six are the `case` rule, including its two CROSS-FIELD constraints: a
+        # six are the `case` rule, three are the `alphabet` (including the one
+        # nothing had ever checked: that a member's pad is a digit of its own
+        # alphabet) and five are the `shapes` rule, including its two CROSS-FIELD constraints: a
         # member may not declare that its case carries identity and then fold it
         # away, and may not say its display form is its key form beside a key
         # form that preserves. One normalisation applied to every encoding is the
         # silently-wrong outcome that rule exists to prevent.
         #
-        # The last arms assert the BOUNDARY, as an EQUALITY, over TWO sweeps —
-        # who reads `chains[<slug>].identifierEncoding` and who reads the case
-        # rule — across `src/`, `client/` and `tools/` behind per-directory
+        # The last arms assert the BOUNDARY, as an EQUALITY, over THREE sweeps —
+        # who reads `chains[<slug>].identifierEncoding`, who reads the case rule,
+        # and who derives a §5 INDEX KEY — across `src/`, `client/` and `tools/` behind per-directory
         # population floors, so an unexpected consumer fails and so does an
         # expected one that stopped. The rule they sweep with is
         # `tools/chain/identifier-encoding-boundary.json`, read by this half AND
@@ -581,9 +607,12 @@ jobs:
         # `contract/shards.nim`, which derives both segments from one expression.
         #
         # They also PIN the sites that still derive from the string, present and
-        # absent, counted over CODE: the hash index still parses hex pairs under
-        # the named `HashIndexEncoding` (a published wire format, so a migration
-        # plus a compatibility window) and has no `stripHex` left; the capture
+        # absent, counted over CODE: the hash index's public hex-pair parser is
+        # GONE — `identifierIndexKey` refuses by name where it used to crash on
+        # an unhandled `parseHexInt` — and what is left is a private `hexUnits`
+        # that only the still-published format 1 reaches, under the renamed
+        # `HashIndexLegacyEncoding`; there is no `stripHex` and no `hexToBytes`
+        # left; the capture
         # tooling keeps its two literal `0x` filters over directory ENTRIES and
         # has no `slice(2,` derivation left. The absent half is new — before it,
         # both halves counted only the filters, so a fourth open-coded shard rule

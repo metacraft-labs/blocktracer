@@ -968,7 +968,8 @@ proc generate*(cfg: DemoConfig): int =
     cfg.writeJson(blockPath(chain, b.hash, identifierEncoding), bdJson)
     cfg.writeText(chain / "block" / b.hash / "index.html",
                   renderBlockPage(chain, b.hash, bdJson))
-    hashEntries.add HashEntry(hexHash: b.hash, chain: chain, kind: hkBlock)
+    hashEntries.add HashEntry(encoding: identifierEncoding.encodingFor(KindBlock),
+                              identifier: b.hash, chain: chain, kind: hkBlock)
   for t in txs:
     let factsJson = t.facts.toJson
     cfg.writeJson(txFactsPath(chain, t.hash, identifierEncoding), factsJson)
@@ -1000,7 +1001,8 @@ proc generate*(cfg: DemoConfig): int =
                           codeHash, bundleId, a.truncated)
     cfg.writeText(chain / "tx" / t.hash / "index.html",
                   renderTxPage(chain, t.hash, factsJson, st, ovJson))
-    hashEntries.add HashEntry(hexHash: t.hash, chain: chain, kind: hkTx)
+    hashEntries.add HashEntry(encoding: identifierEncoding.encodingFor(KindTransaction),
+                              identifier: t.hash, chain: chain, kind: hkTx)
 
   # ---- Address history: every participating address, segmented by block ------
   #
@@ -1063,7 +1065,8 @@ proc generate*(cfg: DemoConfig): int =
       segRels.add rel
       segNodes.add node
     addrSegs.add (address, segRels, segNodes)
-    hashEntries.add HashEntry(hexHash: address, chain: chain, kind: hkAddress)
+    hashEntries.add HashEntry(encoding: identifierEncoding.encodingFor(KindAddress),
+                              identifier: address, chain: chain, kind: hkAddress)
 
   # Generation-scoped derived maps.
   let heightRel = "d" / chain / "g" / gen / "height" / "0.json"
@@ -1151,7 +1154,7 @@ proc generate*(cfg: DemoConfig): int =
   # fetch without knowing the chain (§5). Emit one `.bin` per occupied prefix.
   var byPrefix = initTable[string, seq[HashEntry]]()
   for e in hashEntries:
-    byPrefix.mgetOrPut(hashPrefix(e.hexHash, hashPrefixLen), @[]).add e
+    byPrefix.mgetOrPut(hashPrefix(e.encoding, e.identifier, hashPrefixLen), @[]).add e
   var hashShardPrefixes: seq[string]
   for p in byPrefix.keys: hashShardPrefixes.add p
   hashShardPrefixes.sort()

@@ -85,7 +85,9 @@ type
   IndexHit* = object
     chain*: string
     kind*: int
-    hexHash*: string
+    identifier*: string
+      ## The identifier AS PUBLISHED, in key form — the route's id segment. It
+      ## was `hexHash` and carried no `0x`, which every consumer then put back.
     route*: string
 
 func parseMeta*(packed: string): IndexMeta =
@@ -119,18 +121,181 @@ func minPrefixLen*(m: IndexMeta): int =
   ## defect this route has already shipped once.
   m.prefixLen
 
-func shardFor*(m: IndexMeta; hexBody: string): string =
+func shardFor*(m: IndexMeta; encoding, identifier: string): string =
   ## The shard a query falls in — §5's "the client computes the shard path
   ## directly". "" when the query is too short to select one.
-  if hexBody.len < m.prefixLen: "" else: hexBody[0 ..< m.prefixLen]
+  ##
+  ## **THROUGH `hashPrefix`, WHICH IS THE PRODUCER'S OWN DERIVATION**, rather
+  ## than slicing here. It sliced here for one revision and the boundary sweep
+  ## caught it: this module held `payload[0 ..< m.prefixLen]` while the exporter
+  ## held `identifierPayload(enc, id)[0 ..< prefixLen]`, which are the same
+  ## expression written twice — and the second one is the whole thing
+  ## `contract/shards.nim`'s header calls "a second place for the layout to
+  ## drift". The two would have agreed until the day one of them learned
+  ## something about an alphabet the other did not.
+  ##
+  ## What stays HERE is the only part that is the client's own question: a query
+  ## shorter than the published depth selects no shard at all, and §5.0a makes
+  ## that a distinct outcome from a miss — "say the minimum, and say it was not
+  ## attempted".
+  if identifierPayload(encoding, identifier).len < m.prefixLen: ""
+  else: hashPrefix(encoding, identifier, m.prefixLen)
 
 func shardIsPublished*(m: IndexMeta; shard: string): bool =
   for s in m.shards:
     if s == shard: return true
   false
 
-func hitsFor*(shardBytes, hexBody: string): seq[IndexHit] =
-  ## Every entry in a decoded shard whose hash begins with `hexBody`.
+type
+  ShardRequest* = object
+    ## One index fetch a lookup will make: the shard, the path it is at, and
+    ## every payload the query implies INSIDE it.
+    ##
+    ## `readings` is a seq because two distinct probes can share a shard — two
+    ## payloads, one file — and scanning the fetched bytes with both costs
+    ## nothing while fetching twice would cost a request and a duplicated hit
+    ## list. It carries the ENCODINGS beside each payload because `hitsFor`
+    ## compares both: a payload-only match returns objects of another encoding as
+    ## answers to this query, which is a false presence that navigates.
+    ##
+    ## **`encodings` IS A SET AND NOT ONE ENCODING, and the singular was a false
+    ## ABSENCE.** A payload is reachable under every encoding the query's shape
+    ## admits for it, and `indexProbesOf` collapses those into ONE request
+    ## deliberately — one payload is one shard. Scanning the bytes under only one
+    ## member of the set excluded a producer that had declared any of the others,
+    ## from a file the client had already fetched. Every member is scanned; the
+    ## cost is a comparison per entry per member and not a request.
+    shard*, path*: string
+    readings*: seq[tuple[encodings: seq[string], payload: string]]
+
+  IndexPlan* = object
+    ## **EVERY REQUEST A LOOKUP WILL MAKE, COMPUTED BEFORE ANY IS MADE** — so
+    ## "which requests does a search issue" is answerable without issuing one.
+    ## That is `candidatesFor`'s stated virtue for §5.4's fallback, and the index
+    ## arm had no equivalent while it made exactly one request and therefore had
+    ## nothing to plan. It makes one PER DISTINCT PAYLOAD now (see
+    ## `indexProbesOf`), so the count is a thing §5's request arithmetic has to
+    ## be able to state and a test has to be able to read.
+    requests*: seq[ShardRequest]
+    tooShort*: int
+      ## Probes whose payload is below the published shard depth. §5.0a's fourth
+      ## outcome: nothing was looked in, which is not a miss.
+    unpublished*: int
+      ## Probes whose shard was never written. §5's index is exact over every
+      ## published chain, so this IS an answer — at zero further requests.
+    longestPayload*: int
+      ## The most favourable payload length the query yields, for the "you typed
+      ## N" half of the too-short message.
+
+func indexPlanFor*(m: IndexMeta; probes: seq[IndexProbe]): IndexPlan =
+  ## The plan, from the descriptor and the probes. Pure: no fetch, no DOM.
+  for p in probes:
+    if p.payload.len > result.longestPayload:
+      result.longestPayload = p.payload.len
+    if p.payload.len < m.minPrefixLen:
+      inc result.tooShort
+      continue
+    let shard = m.shardFor(p.encoding, p.identifier)
+    if not m.shardIsPublished(shard):
+      inc result.unpublished
+      continue
+    var at = -1
+    for i, r in result.requests:
+      if r.shard == shard: at = i; break
+    let reading = (encodings: p.encodings, payload: p.payload)
+    if at < 0:
+      result.requests.add ShardRequest(
+        shard: shard,
+        path: "/idx/hash/" & m.version & "/" & shard & ".bin",
+        readings: @[reading])
+    elif reading notin result.requests[at].readings:
+      result.requests[at].readings.add reading
+
+func shownFor*(raw: string; probes: seq[IndexProbe]): string =
+  ## What the visitor is shown their query back as.
+  ##
+  ## One identifier when every PROBE agrees on it, which is every unambiguous
+  ## query — hex (with its `0x` restored), base58, bech32 with its
+  ## human-readable part intact, SS58. The query AS TYPED when the probes do not
+  ## agree, because an ambiguous string has no single canonical spelling and
+  ## choosing one would be `keys[0]` again, moved into the rendering: `addr1qqq…`
+  ## read as base58 and read as bech32 are two different identifiers, and showing
+  ## either one as "the" identifier tells the visitor something the deployment
+  ## does not know.
+  ##
+  ## ## The agreement is over PROBES, not over READINGS — and for 42 queries those are not the same question
+  ##
+  ## Read the paragraph above as a claim about READINGS and it is false, so it is
+  ## deliberately not written that way. `indexProbesOf` deduplicates by PAYLOAD,
+  ## and two readings with different identifiers can share one payload — so they
+  ## collapse into a single probe, this loop finds one identifier, "every probe
+  ## agrees" is satisfied, and the disagreement is never visible to the check.
+  ##
+  ## Measured over `sweepCandidates()`'s 53,935 strings: **42** queries where the
+  ## readings disagree and this function nevertheless returns a canonical form
+  ## rather than the query as typed — `hex`×`base58` 24 and `hex`×`ss58` 18.
+  ##
+  ## **THESE ARE NOT THE 42 `indexProbesOf`'s DOCSTRING ACCOUNTS FOR, AND THE TWO
+  ## SETS ARE DISJOINT — measured overlap 0.** An earlier revision of this note
+  ## called them "those same 42". They are two halves of ONE 84-strong population —
+  ## the bare-hex queries whose readings disagree — split by how many DISTINCT
+  ## PAYLOADS those readings carry:
+  ## * **two distinct payloads**: dedup cannot collapse them, two probes survive,
+  ##   two shards are yielded. Those are `indexProbesOf`'s 42, the 462 − 420 gap.
+  ##   For every one of them the loop below sees two differing identifiers and
+  ##   returns the query as typed, which is the right answer — they are not this
+  ##   defect and never were.
+  ## * **one shared payload**: dedup collapses the two readings into a single
+  ##   probe, the loop sees one identifier, and a canonical form is shown for a
+  ##   query typed another way. Those are the 42 THIS note is about.
+  ##
+  ## The exclusion is structural rather than incidental: this function returns a
+  ## canonical form only when ONE probe survives, and a query is in the other 42
+  ## only when TWO do. Both halves happen to split 24/18 over the same two
+  ## families, which is why "the same 42" read plausibly and was still wrong.
+  ## Widening the probe, as described below, moves THIS half; it has nothing to do
+  ## on the other, which needs no fix.
+  ##
+  ## A WORKED MEMBER OF THIS HALF, the one-payload one:
+  ## `shownFor(repeat("a", 43), indexProbesOf(repeat("a", 43)))` returns `0xaaa…`
+  ## — the hex spelling — to someone who typed a
+  ## well-formed 43-character base58 address: `a`×43 matches `base58`, whose
+  ## payload equals folded `hex`'s, so the group collapses to `hex` and the hex
+  ## spelling is what gets shown.
+  ##
+  ## ## WHY THE RENDERING IS NOT CHANGED HERE
+  ##
+  ## Because which of the two is right is a DESIGN question and not a defect with
+  ## one correct answer: showing `0xaaa…` asserts a reading the deployment has not
+  ## established, showing the query as typed drops the `0x` restoration that every
+  ## genuinely-unambiguous hex query depends on, and showing both needs a shape
+  ## for "two identifiers" that the visitor-facing layer does not currently have.
+  ## Deferring it is the right call; asserting it away was not.
+  ##
+  ## ## WHAT CLOSES IT: `IndexProbe` IS ONE FIELD SHORT
+  ##
+  ## The probe carries `payload` and the full `encodings` SET but a single
+  ## `identifier`, and that asymmetry is the whole root cause. The closing shape
+  ## is `identifiers: seq[string]`, for exactly the reason `encodings` became a
+  ## seq: dedup must collapse the REQUEST without collapsing what the request is
+  ## then said to be about. With it, this function asks "do the identifiers
+  ## disagree" directly instead of inferring it from probe count.
+  ##
+  ## This milestone has now produced THREE consumers of that one missing field, in
+  ## three waves — which shard is fetched (`keys[0]`), what the fetched bytes are
+  ## scanned under (`encoding` vs `encodings`), and what the visitor is told (this
+  ## function). Two were closed by widening the probe. Naming the third here, in
+  ## the shape that closes it, is so the next wave widens the probe rather than
+  ## discovering a fourth instance of the same collapse.
+  if probes.len == 0: return raw.strip
+  for p in probes:
+    if p.identifier != probes[0].identifier: return raw.strip
+  probes[0].identifier
+
+func hitsFor*(shardBytes: string; encodings: seq[string];
+              payload: string): seq[IndexHit] =
+  ## Every entry in a decoded shard whose PAYLOAD begins with `payload` AND whose
+  ## encoding is one of `encodings`.
   ##
   ## THIS IS THE WHOLE OF PREFIX SEARCH, and it is four lines because §5's
   ## shard is already the right shape for it: "sharded by a leading slice of
@@ -144,19 +309,79 @@ func hitsFor*(shardBytes, hexBody: string): seq[IndexHit] =
   ## implementing it. What it does not do is bend the spec's guarantees: an
   ## exact query still resolves exactly, and a prefix answer is presented as
   ## candidates rather than as a resolution.
+  ## MATCHED ON THE PAYLOAD AND NOT ON THE STORED STRING, which is what makes
+  ## a bech32 fragment work at all: `addr1qxy…`'s payload is `qxy…`, the shard
+  ## was chosen from that, and matching the stored key form would compare a
+  ## fragment against a human-readable part it does not contain.
+  ##
+  ## AND THE ROUTE IS THE STORED IDENTIFIER, not `"0x" & …`. That prefix used to
+  ## be re-added here, in a module that could not see an encoding; a format-2
+  ## entry carries its whole key form and a format-1 entry has the `0x` put back
+  ## by the decoder, so both arrive ready to be a route segment.
+  ##
+  ## ## AND THE ENTRY'S ENCODING MUST BE ONE THE QUERY ADMITS. That is what
+  ## `encodings` is for, and without it this function returned objects of an
+  ## INADMISSIBLE encoding as answers to the query — a false PRESENCE, and one
+  ## that navigates.
+  ##
+  ## **IT IS A SET, AND THE SINGULAR WAS A FALSE ABSENCE OF THE SAME CLASS.** The
+  ## parameter was one string, and the probe supplying it had been deduplicated by
+  ## payload — so where two encodings shared a payload, the caller passed whichever
+  ## one came first in `encodings[]` and this function excluded the other. That is
+  ## the whole of the second defect: the filter was right to compare the encoding
+  ## and wrong about how many there were to compare against.
+  ##
+  ## Measured, on a shard holding one Aztec hex transaction
+  ## `0xaccedeabab…`: the §5.0a fragment query `addr1accede` classifies as bech32
+  ## (`addr1` + a 6-character data part, which is bech32's declared minimum),
+  ## its payload is `accede`, its shard is `ac` — the hex entry's shard — and the
+  ## scan returned **that transaction, as the single hit**. A single hit
+  ## NAVIGATES, so a visitor looking for a Cardano address landed on an Aztec
+  ## transaction page with no indication that the two readings were different.
+  ##
+  ## It is reachable rather than theoretical because the alphabets overlap:
+  ## bech32's data charset and hex's digits share fourteen characters —
+  ## `0 2 3 4 5 6 7 8 9 a c d e f`, bech32 excluding `1` and `b` — so any bech32
+  ## payload drawn from that intersection is also a well-formed hex payload, and
+  ## a payload-only comparison cannot tell them apart. Comparing the encoding
+  ## costs one field that every format-2 entry already carries and that the
+  ## format-1 decoder supplies as `hex`.
+  ##
+  ## IT COSTS NO REACHABILITY ONLY BECAUSE `encodings` IS THE WHOLE ADMITTED SET,
+  ## and the previous wording of this paragraph asserted the conclusion while the
+  ## premise was false. It read "a probe's encoding is one the query's shape
+  ## admits" — but the probe carried the FIRST admitted encoding, the rest having
+  ## been dropped by payload dedup before this function could see them, so the
+  ## filter excluded encodings the query did admit. With the full set the argument
+  ## holds as stated: a producer's encoding is the one its chain declared, and
+  ## where that is outside this set the identifier was never admissible under the
+  ## client's classification in the first place — §5.0a's separate "a row
+  ## `shapesOf` declines to recognise" condition, which this filter does not
+  ## create. That is now a CHECKED property rather than a claimed one: the
+  ## (shard, encoding) invariant in `tests/tcontract.nim` fails if any admitted
+  ## (shard, encoding) pair is unreachable by the probe set.
   let dec = decodeHashShard(shardBytes)
   if dec.err.len > 0: return
   for e in dec.entries:
-    if e.hexHash.startsWith(hexBody):
-      result.add IndexHit(chain: e.chain, kind: e.kind, hexHash: e.hexHash,
-                          route: routeFor(e.chain, e.kind, "0x" & e.hexHash))
+    if e.encoding in encodings and e.entryPayload.startsWith(payload):
+      result.add IndexHit(chain: e.chain, kind: e.kind, identifier: e.identifier,
+                          route: routeFor(e.chain, e.kind, e.identifier))
+
+func hitsFor*(shardBytes, encoding, payload: string): seq[IndexHit] =
+  ## One-encoding spelling of the above, for a caller that has exactly one — the
+  ## §5.0a control assertions in `client/tests/test_searchboot.nim`, which name a
+  ## single encoding on purpose to pin that the filter excludes the others.
+  ##
+  ## NOT FOR THE SCAN PATH. `indexPlanFor`'s readings carry the admitted SET, and
+  ## a scan that reaches for this overload is reintroducing the false absence.
+  hitsFor(shardBytes, @[encoding], payload)
 
 func encodeHits(hs: seq[IndexHit]): string =
   result = "["
   for i, h in hs:
     if i > 0: result.add ","
     result.add "{\"chain\":\"" & h.chain & "\",\"kind\":\"" & hkName(h.kind) &
-      "\",\"hash\":\"0x" & h.hexHash & "\",\"route\":\"" & h.route & "\"}"
+      "\",\"hash\":\"" & h.identifier & "\",\"route\":\"" & h.route & "\"}"
   result.add "]"
 
 type
@@ -357,6 +582,32 @@ proc indexMeta(path: cstring; cb: proc(packed: cstring)) {.importjs: """
     .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(j){
       if (!j || !j.prefixLen) { cb(''); return; }
+      // PREFER THE WIDEST VERSION THIS DESCRIPTOR OFFERS, and fall back to the
+      // top-level fields when it offers only one.
+      //
+      // `versions` and `preferredVersion` are §6.1 ADDITIVE fields: a descriptor
+      // that carries neither is a hex-only index, and the top-level
+      // `indexVersion`/`prefixLen`/`shards` are exactly what they have always
+      // been. A client built before those fields existed ignores them and reads
+      // the hex index, which is the whole compatibility window — see
+      // `HashIndexVersionAll` in `contract/hashshard.nim`.
+      //
+      // The CHOICE is here and the RULES are Nim's, which is this module's
+      // split: this picks one of several published descriptors and hands its
+      // three fields over; nothing about a shard, a prefix or an encoding is
+      // decided on this side.
+      var v = null;
+      if (j.preferredVersion && Array.isArray(j.versions)) {
+        for (var i = 0; i < j.versions.length; i++) {
+          if (j.versions[i] && j.versions[i].version === j.preferredVersion) {
+            v = j.versions[i]; break;
+          }
+        }
+      }
+      if (v && v.prefixLen) {
+        cb([v.version, v.prefixLen, (v.shards || []).join(',')].join('|'));
+        return;
+      }
       cb([j.indexVersion || '1', j.prefixLen, (j.shards || []).join(',')].join('|'));
     })
     .catch(function(){ cb(''); });
@@ -577,7 +828,8 @@ proc renderNoQuery(slotId, state, message: cstring) {.importjs: """
     '"><div class="measure">' + msg + '</div></div>';
 })(#, #, #)""".}
 
-proc directPathFallback(canonical: string; chains: seq[ChainRef]) =
+proc directPathFallback(ids: seq[string]; shown: string;
+                        chains: seq[ChainRef]) =
   ## §5.4, unchanged and still here on purpose: "If the index is unavailable or
   ## a version is stale, the client falls back to probing configured chains
   ## directly. Slower and noisier, never wrong. **Search must never fail
@@ -588,9 +840,23 @@ proc directPathFallback(canonical: string; chains: seq[ChainRef]) =
   ## probing for a prefix. A build with no index therefore keeps exact search
   ## and loses prefix search, which is the correct degradation — the one thing
   ## it must not do is answer a prefix query with "not found".
-  runCandidates(cstring(ResultSlotId),
-                cstring(encodeCandidates(candidatesFor(canonical, chains))),
-                cstring(canonical))
+  ##
+  ## **IT TAKES EVERY SPELLING THE QUERY IMPLIES, NOT ONE.** It took one, and
+  ## that was the index arm's `keys[0]` defect wearing the fallback's clothes: an
+  ## ambiguous string is two identifiers — `addr1qqq…` read as base58 keeps its
+  ## case, read as bech32 it is folded — and probing only the first would have
+  ## made the degraded path narrower than the indexed one. Candidates are unioned
+  ## by object path, so a query whose spellings coincide costs exactly what it
+  ## used to.
+  var cs: seq[Candidate] = @[]
+  for id in ids:
+    for c in candidatesFor(id, chains):
+      var dup = false
+      for e in cs:
+        if e.objectPath == c.objectPath: dup = true; break
+      if not dup: cs.add c
+  runCandidates(cstring(ResultSlotId), cstring(encodeCandidates(cs)),
+                cstring(shown))
 
 proc boot(chainsCsv, packedMeta: cstring) =
   let raw = $rawQuery()
@@ -645,7 +911,65 @@ proc boot(chainsCsv, packedMeta: cstring) =
   # The registry rows, slug AND declared transaction encoding — see `parseChainRefs`.
   let chains = parseChainRefs($chainsCsv)
 
-  let body = canonicalHexBody(raw)
+  # ── THE INDEX KEYS, DERIVED FROM THE QUERY ALONE ────────────────────────────
+  #
+  # §5's index path has no chain segment, so this is the whole of the client's
+  # derivation: `indexProbesOf` returns every DISTINCT (encoding, identifier,
+  # payload) the query's SHAPE admits, and each payload is a shard key. It used
+  # to be `canonicalHexBody(raw)` — one hex body, no encoding — which is why a
+  # base58 or bech32 query never reached this line at all.
+  #
+  # EVERY PROBE IS FETCHED. THE FIRST ONE WAS NOT ENOUGH AND WAS NEVER SAFE.
+  # This line took `keys[0]` under the claim that every member a single query
+  # matches yields the same payload, so any one of them selects the right shard.
+  # That claim is FALSE over the table as declared — `addr1` + 38 `q`s is a
+  # 43-character string in base58's band, written in base58's alphabet, carrying
+  # bech32's `addr1` prefix; both members are `pathSafe`, the payloads are the
+  # whole string and the part after the last `1`, and the shards are `addr` and
+  # `qqqq`. A producer that declared bech32 wrote `qqqq`, so the first key
+  # reported an identifier that is right there as absent. §5.0a forbids exactly
+  # that. `indexProbesOf`'s header carries the measurement and the second,
+  # independent reason the rule was unsafe even where it held: `keys[0]` is a
+  # fact about the ORDER of a JSON array.
+  #
+  # What it costs is a third request on an ambiguous query — never more than
+  # three over the table as declared, and never more than two on any identifier
+  # this tree publishes. §5's own bullet is restated to say so.
+  let probes = indexProbesOf(raw)
+  if probes.len == 0:
+    # `isHashLike` said this query has a shape the index can address, and the
+    # key derivation then produced nothing. The only way that happens today is a
+    # member whose alphabet cannot be a path segment (`base64`, which contains
+    # `/`), matched with nothing else — so say that, rather than "not found".
+    renderNoQuery(cstring(ResultSlotId), "unsupported",
+      cstring("That looks like an identifier this deployment cannot address: " &
+              "its encoding has no shard path, so nothing was looked in. That " &
+              "is not the same as nothing being there."))
+    return
+  # WHAT THE VISITOR IS SHOWN IS THE IDENTIFIER, NOT THE PAYLOAD. These two are
+  # the same string for base58 and differ for hex (`0x`) and bech32 (the
+  # human-readable part), and the messages below used to rebuild the hex case by
+  # hand — `"0x" & body` — which would have shown a Cardano address back to its
+  # owner with `addr1` missing. `shownFor` says what an AMBIGUOUS query is shown
+  # as, which is the query itself.
+  let shown = shownFor(raw, probes)
+  # ── §5.4's FALLBACK HAS TO BE ABLE TO SPELL THE QUERY TOO ───────────────────
+  #
+  # "If the index is unavailable or a version is stale, the client falls back to
+  # probing configured chains directly… **Search must never fail because an index
+  # did not load.**" The fallback computes an object path, so it needs the KEY
+  # FORM — and it was being handed `canonical`, which is `canonicalHash`'s
+  # hex-only answer and is EMPTY for every non-hex query. So the moment a base58
+  # query started reaching the index at all, its degraded path would have
+  # rendered nothing while reporting nothing: the exact false-silence §5.4 exists
+  # to forbid, newly reachable and introduced by this change.
+  #
+  # For a hex query this IS `canonical` — `indexKeysOf` returns
+  # `canonicalHash(q)` on that branch — so nothing about the hex path moves. For
+  # an ambiguous one it is EVERY spelling, for `directPathFallback`'s reason.
+  var resolvable: seq[string] = @[]
+  for p in probes:
+    if p.identifier notin resolvable: resolvable.add p.identifier
 
   # §14 requires a miss to name what was tried. A query that is ALSO a decimal
   # was resolved only as hex, and saying "no result" without saying that would
@@ -674,58 +998,108 @@ proc boot(chainsCsv, packedMeta: cstring) =
 
   # ---- §5: the index first -------------------------------------------------
   if meta.prefixLen > 0:
-    if body.len < meta.minPrefixLen:
-      # NOT a miss, and the difference is the whole point. Nothing was looked
-      # in, because a prefix shorter than the shard depth selects no shard.
-      # Rendering this as "no result" would be a false absence claim about
-      # every object that does begin with it — the defect this route already
-      # shipped once, at a different layer.
-      #
-      # The number comes from the published descriptor, so it stays right when
-      # §5.3's arithmetic deepens the index.
-      renderNoQuery(cstring(ResultSlotId), "tooshort",
-        cstring("Too short to look up. The published index is sharded on " &
-                "the first <b>" & $meta.minPrefixLen & "</b> hex digits, " &
-                "so a search needs at least that many — you typed " &
-                $body.len & ". Nothing was checked, which is not the same " &
-                "as nothing being there."))
-      return
+    # THE WHOLE REQUEST LIST, COMPUTED BEFORE ANY REQUEST IS MADE. One fetch per
+    # distinct shard the query's probes select — one for every unambiguous query
+    # and two for the ambiguous ones `indexProbesOf` documents.
+    let plan = indexPlanFor(meta, probes)
 
-    let shard = meta.shardFor(body)
-    if not meta.shardIsPublished(shard):
+    if plan.requests.len == 0:
+      # THE ORDER OF THESE TWO BRANCHES IS THE §5.0a RULE, NOT A PREFERENCE.
+      # "Nothing was looked in" outranks "nothing is there": if ANY reading of
+      # the query was too short to select a shard, the deployment has not looked
+      # everywhere it could, and a definite-absence claim would be false about
+      # the reading it skipped. So `tooShort` is tested first, and `notfound` is
+      # reached only when EVERY probe's shard was definitively never written.
+      #
+      # The mixed case is unreachable at today's depth and is handled anyway: two
+      # probes require a query admissible under two rows, which needs 43
+      # characters or more, so both payloads are at least 37 — far above a
+      # `prefixLen` of 2. It is written this way because the depth moves (§5.3)
+      # and the wrong order would become reachable silently.
+      if plan.tooShort > 0:
+        # NOT a miss, and the difference is the whole point. Nothing was looked
+        # in, because a prefix shorter than the shard depth selects no shard.
+        # Rendering this as "no result" would be a false absence claim about
+        # every object that does begin with it — the defect this route already
+        # shipped once, at a different layer.
+        #
+        # The number comes from the published descriptor, so it stays right when
+        # §5.3's arithmetic deepens the index. "You typed N" is the LONGEST
+        # payload the query yields, because that is the reading closest to being
+        # answerable and quoting a shorter one would understate what the visitor
+        # has.
+        renderNoQuery(cstring(ResultSlotId), "tooshort",
+          cstring("Too short to look up. The published index is sharded on " &
+                  "the first <b>" & $meta.minPrefixLen & "</b> characters of " &
+                  "an identifier's payload, so a search needs at least that " &
+                  "many — you typed " & $plan.longestPayload & ". Nothing was " &
+                  "checked, which is not the same as nothing being there."))
+        return
       # Zero further requests, and a DEFINITE answer: §5's index is exact over
       # every published chain, so a prefix whose shard was never written is a
-      # prefix nothing begins with.
+      # prefix nothing begins with. EVERY probe has to have said so to get here —
+      # one unpublished shard out of two is not an absence, it is the other shard
+      # still being worth fetching, which is `plan.requests` being non-empty and
+      # this branch not being reached at all.
       renderNoQuery(cstring(ResultSlotId), "notfound",
-        cstring("No published entity begins with <span class=\"mono\">0x" &
-                body & "</span>. The hash index covers every chain this " &
+        cstring("No published entity begins with <span class=\"mono\">" &
+                shown & "</span>. The hash index covers every chain this " &
                 "deployment publishes, and has no shard for that prefix — " &
                 "so this is an answer, not a gap." & coveredNote & decimalNote))
       return
 
-    fetchShardHex(cstring("/idx/hash/" & meta.version & "/" & shard & ".bin"),
-                  proc(hex: cstring) =
-      let bytes = bytesFromHex($hex)
-      if bytes.len == 0:
-        # §5.4: "Search must never fail because an index did not load." The
-        # shard was named by the descriptor and did not arrive, so fall back to
-        # probing — slower and noisier, never wrong.
-        directPathFallback(canonical, chains)
+    # ── THE FAN-OUT ───────────────────────────────────────────────────────────
+    #
+    # `pending` is the arrival counter and `finish` runs once, when the last
+    # shard is in. It is a COUNTER rather than a chain of nested callbacks
+    # because the requests are independent — §5's shards share no state — and
+    # serialising them would have turned the one extra request an ambiguous
+    # query costs into an extra ROUND TRIP, which is the axis §5.2 says matters.
+    var pending = plan.requests.len
+    var hits: seq[IndexHit] = @[]
+    var failed = 0
+
+    proc finish() =
+      if hits.len > 0:
+        # ONE MATCH NAVIGATES; TWO OR MORE DISAMBIGUATE. Whether the query was a
+        # whole hash or a fragment does not enter into it — see `renderHits` for
+        # why the count, not the form, is what "unambiguous" means here. A hit is
+        # definite, so it is rendered even if a sibling shard failed to arrive.
+        renderHits(cstring(ResultSlotId), cstring(encodeHits(hits)),
+                   cstring(shown))
         return
-      let hits = hitsFor(bytes, body)
-      if hits.len == 0:
-        renderNoQuery(cstring(ResultSlotId), "notfound",
-          cstring("No result for <span class=\"mono\">0x" & body &
-                  "</span>. Checked the hash index shard for that prefix, " &
-                  "which covers every chain this deployment publishes. If " &
-                  "this is from a chain BlockTracer does not cover yet, it " &
-                  "will not be here." & coveredNote & decimalNote))
+      if failed > 0:
+        # §5.4: "Search must never fail because an index did not load." A shard
+        # the descriptor named did not arrive and nothing was found in the ones
+        # that did, so the emptiness is not attributable to the index — fall back
+        # to probing. Slower and noisier, never wrong.
+        directPathFallback(resolvable, shown, chains)
         return
-      # ONE MATCH NAVIGATES; TWO OR MORE DISAMBIGUATE. Whether the query was a
-      # whole hash or a fragment does not enter into it — see `renderHits` for
-      # why the count, not the form, is what "unambiguous" means here.
-      renderHits(cstring(ResultSlotId), cstring(encodeHits(hits)),
-                 cstring("0x" & body)))
+      renderNoQuery(cstring(ResultSlotId), "notfound",
+        cstring("No result for <span class=\"mono\">" & shown &
+                "</span>. Checked " & $plan.requests.len & " hash index " &
+                (if plan.requests.len == 1: "shard" else: "shards") &
+                " for that prefix, which cover every chain this deployment " &
+                "publishes. If this is from a chain BlockTracer does not " &
+                "cover yet, it will not be here." & coveredNote & decimalNote))
+
+    proc fire(req: ShardRequest) =
+      fetchShardHex(cstring(req.path), proc(hex: cstring) =
+        let bytes = bytesFromHex($hex)
+        if bytes.len == 0:
+          inc failed
+        else:
+          for reading in req.readings:
+            for h in hitsFor(bytes, reading.encodings, reading.payload):
+              var dup = false
+              for e in hits:
+                if e.route == h.route: dup = true; break
+              if not dup: hits.add h
+        dec pending
+        if pending == 0: finish())
+
+    for req in plan.requests:
+      fire(req)
     return
 
   # ---- §5.4: no index; probe the chains directly ---------------------------
@@ -735,7 +1109,7 @@ proc boot(chainsCsv, packedMeta: cstring) =
               "so nothing was checked. That is a different answer from " &
               "“not found”."))
     return
-  directPathFallback(canonical, chains)
+  directPathFallback(resolvable, shown, chains)
 
 when isMainModule:
   registryChains(cstring("/" & registryPath()),

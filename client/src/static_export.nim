@@ -22,6 +22,7 @@
 
 import std/[os, strutils, times, algorithm, sets, tables, json]
 import blocktracer/contract/hashshard   # §5's shard codec + its published depth
+import blocktracer/contract/identifier_encoding  # each chain's declared encoding — the index keys with it
 import blocktracer/demo/generator
 import blocktracer/chain/ingest
 import ssr
@@ -207,7 +208,7 @@ proc installHydrationBundle() =
   echo "  + hydration bundle: " & HydrationBundle & " (" &
     $(getFileSize(built) div 1024) & " KB)"
 
-proc buildGlobalHashIndex(routes: seq[string]) =
+proc buildGlobalHashIndex(root: DataRoot, routes: seq[string]) =
   ## §5's global hash index — "which chains hold this hash, and as what kind of
   ## entity?" — built over EVERY published chain, from the same route
   ## enumeration that decides which pages exist.
@@ -238,7 +239,30 @@ proc buildGlobalHashIndex(routes: seq[string]) =
   ## already produced to decide which pages to render, so the index covers
   ## exactly what the site publishes, by construction rather than by a second
   ## walk that could disagree with the first.
+  # THE DECLARATION IS READ ONCE PER CHAIN AND CACHED, not per route. There are
+  # tens of thousands of routes and a handful of chains, and `chainInfo` opens
+  # the chain — a `readBlockDetail`-shaped cost — so asking it per route would
+  # make the index build quadratic in the thing it is enumerating.
+  var encodingOfChain = initTable[string, ChainIdentifierEncoding]()
+  proc indexEncodingOf(chain: string, kind: int): string =
+    ## The token THIS CHAIN declared for this KIND of identifier, out of the tree
+    ## being exported.
+    ##
+    ## Through `encodingFor`, which raises on a kind the chain declared it cannot
+    ## describe — Substrate's `blockIndex` transaction identity is the case that
+    ## forces it. Indexing such an entity under a guessed encoding is how the
+    ## index comes to hold a key nothing can recompute, so it is refused and
+    ## counted by the caller.
+    if chain notin encodingOfChain:
+      encodingOfChain[chain] = chainInfo(root, chain).session.identifierEncoding
+    let kindId = identifierKindOf(kind)
+    if kindId.len == 0:
+      raise newException(ValueError,
+        "hash-index kind code " & $kind & " names no identifier kind")
+    encodingOfChain[chain].encodingFor(kindId)
+
   var entries: seq[HashEntry]
+  var refused: seq[string]
   var seen = initHashSet[string]()
   for route in routes:
     # `/{chain}/{kind}/{id}` — and nothing longer. `/tx/{h}/debug` is the same
@@ -252,7 +276,41 @@ proc buildGlobalHashIndex(routes: seq[string]) =
     let key = chain & "/" & $kind & "/" & id
     if key in seen: continue
     seen.incl key
-    entries.add HashEntry(hexHash: id, chain: chain, kind: kind)
+    # ── THE ENCODING COMES FROM THE CHAIN'S OWN REGISTRY ROW ─────────────────
+    #
+    # Read back out of the tree being exported, through the one reader — so this
+    # builder holds no opinion about how any chain writes its identifiers, and a
+    # chain that declared `base58` is indexed as base58 without this file
+    # learning what base58 is.
+    #
+    # A REFUSAL IS COUNTED AND NAMED, NOT SWALLOWED. `identifierIndexKey` raises
+    # on an identifier its declared alphabet does not admit, and `encodingFor`
+    # raises on a kind the chain declared it cannot describe. Both are producer
+    # bugs, and the old code had neither: it reached `parseHexInt` and KILLED the
+    # export with a stack trace naming a string function. Dropping them silently
+    # would be worse than the crash, though, because §5's index is exact and a
+    # missing entry is a confident false absence (§5.0a) — so they are reported,
+    # loudly, and the count is published in the descriptor.
+    let encoding = try:
+        indexEncodingOf(chain, kind)
+      except ValueError as e:
+        refused.add route & ": " & e.msg
+        continue
+    try:
+      discard identifierIndexKey(encoding, id)
+    except ValueError as e:
+      refused.add route & ": " & e.msg
+      continue
+    entries.add HashEntry(encoding: encoding, identifier: id,
+                          chain: chain, kind: kind)
+
+  if refused.len > 0:
+    stderr.writeLine "  ! global hash index: " & $refused.len &
+      " route(s) could not be keyed and are NOT in the index:"
+    for r in refused: stderr.writeLine "      " & r
+    stderr.writeLine "    An entity the index omits is reported ABSENT by a " &
+      "prefix search (Search-And-Routing §5.0a), not merely unfound, so this " &
+      "is a defect in the publishing chain rather than a degraded index."
 
   if entries.len == 0:
     # Nothing published has a hash. Emitting an empty index would publish a
@@ -261,20 +319,54 @@ proc buildGlobalHashIndex(routes: seq[string]) =
     echo "  ! global hash index: no hash-addressable routes; not published"
     return
 
-  var byPrefix = initTable[string, seq[HashEntry]]()
+  # ── THE TWO PUBLISHED VERSIONS, AND WHY BOTH ────────────────────────────────
+  #
+  # Publishing-And-Caching §6.1: "a breaking change increments the schema version
+  # and is published ALONGSIDE the old version until the release that reads it is
+  # fully rolled out". §5 already puts a `{version}` segment in the index path, so
+  # the alongside needs no new mechanism — it is two directories.
+  #
+  #   /idx/hash/1/   the HEX entries only, in format 1 — byte-for-byte what this
+  #                  project has always published, and exactly as complete as the
+  #                  questions an old client can put to it (that client's
+  #                  `shapesOf` classified every non-hex string as `qsText`, so it
+  #                  never asked the index about one).
+  #   /idx/hash/2/   EVERY entry, in format 2, with a per-entry encoding tag.
+  #
+  # AND V2 IS WRITTEN ONLY WHEN IT HAS SOMETHING TO SAY. On a hex-only deployment
+  # — which is every chain this tree publishes today — it would be a re-encoding
+  # of v1 at a second path, doubling the object count for no reader. So the
+  # ordinary build emits exactly what it emitted before, which is also what keeps
+  # `just byte-identity` at zero rather than at "zero plus some new files".
+  var hexEntries: seq[HashEntry]
   for e in entries:
-    byPrefix.mgetOrPut(hashPrefix(e.hexHash, HashShardPrefixLen), @[]).add e
-  var prefixes: seq[string]
-  for p in byPrefix.keys: prefixes.add p
-  prefixes.sort()
+    if e.encoding == HashIndexLegacyEncoding: hexEntries.add e
+  let needV2 = hexEntries.len != entries.len
 
-  var largest = 0
-  for p in prefixes:
-    let bytes = encodeHashShard(byPrefix[p], HashShardPrefixLen)
-    if bytes.len > largest: largest = bytes.len
-    let rel = "idx" / "hash" / HashIndexVersion / p & ".bin"
-    ensureDir(parentDir(OutputDir / rel))
-    writeFile(OutputDir / rel, bytes)
+  proc writeVersion(ver: string, es: seq[HashEntry]):
+      tuple[prefixes: seq[string], largest: int] =
+    var byPrefix = initTable[string, seq[HashEntry]]()
+    for e in es:
+      byPrefix.mgetOrPut(hashPrefix(e.encoding, e.identifier, HashShardPrefixLen),
+                         @[]).add e
+    for p in byPrefix.keys: result.prefixes.add p
+    result.prefixes.sort()
+    for p in result.prefixes:
+      let bytes = encodeHashShard(byPrefix[p], HashShardPrefixLen)
+      if bytes.len > result.largest: result.largest = bytes.len
+      let rel = "idx" / "hash" / ver / p & ".bin"
+      ensureDir(parentDir(OutputDir / rel))
+      writeFile(OutputDir / rel, bytes)
+
+  let v1 = writeVersion(HashIndexVersion, hexEntries)
+  let prefixes = v1.prefixes
+  let largest = v1.largest
+  var v2prefixes: seq[string]
+  var v2largest = 0
+  if needV2:
+    let v2 = writeVersion(HashIndexVersionAll, entries)
+    v2prefixes = v2.prefixes
+    v2largest = v2.largest
 
   # THE DESCRIPTOR, which the spec does not define and the client cannot work
   # without.
@@ -294,18 +386,75 @@ proc buildGlobalHashIndex(routes: seq[string]) =
   # `client/searchboot/` reads it as: it derives the minimum usable prefix
   # length from this number and never hardcodes one. `shards` lets a query for
   # an unoccupied prefix be answered definitively with ZERO requests.
-  var shardsJson = newJArray()
-  for p in prefixes: shardsJson.add %p
-  writeFile(OutputDir / "idx" / "hash" / "meta.json", pretty(%*{
+  #
+  # THE TOP-LEVEL FIELDS DESCRIBE VERSION 1 AND KEEP THEIR MEANING EXACTLY.
+  # §6.1's other rule — "data schemas are additive only within a schema version;
+  # new fields are ignored by older clients" — is what makes the window work from
+  # this end: an old client reads `indexVersion`, `prefixLen` and `shards` and
+  # gets the hex index it has always got, and never learns v2 exists. The
+  # `versions` array is the additive field a new client reads instead, and it
+  # describes each published version SEPARATELY because the two do not share a
+  # shard list, a largest-shard size, or — in general — a depth.
+  #
+  # DEPTH IS PER VERSION AND NOT GLOBAL, which is the part §5.3's arithmetic
+  # forces once the index is not single-alphabet. "Shard depth follows
+  # arithmetically from the total entry count" assumes a character carries a
+  # fixed amount of key space, and it does not across alphabets: two hex
+  # characters select one of 256 shards, two base58 characters one of 3,364.
+  # A single published `prefixLen` could not size both, so each version carries
+  # its own — and `entryCountByEncoding` is published beside it so §5.3's
+  # recomputation can actually be RUN by a reader rather than estimated.
+  proc shardsArray(ps: seq[string]): JsonNode =
+    result = newJArray()
+    for p in ps: result.add %p
+  var byEncoding = initTable[string, int]()
+  for e in entries: byEncoding[e.encoding] = byEncoding.getOrDefault(e.encoding) + 1
+  var encCounts = newJObject()
+  var encNames: seq[string]
+  for k in byEncoding.keys: encNames.add k
+  encNames.sort()
+  for k in encNames: encCounts[k] = %byEncoding[k]
+
+  var versions = newJArray()
+  versions.add %*{
+    "version": HashIndexVersion, "format": HashFmtHexBytes,
+    "prefixLen": HashShardPrefixLen, "encodings": [%HashIndexLegacyEncoding],
+    "shardCount": prefixes.len, "entryCount": hexEntries.len,
+    "largestShardBytes": largest, "shards": shardsArray(prefixes)}
+  if needV2:
+    var allEncodings = newJArray()
+    for k in encNames: allEncodings.add %k
+    versions.add %*{
+      "version": HashIndexVersionAll, "format": HashFmtKeyForm,
+      "prefixLen": HashShardPrefixLen, "encodings": allEncodings,
+      "shardCount": v2prefixes.len, "entryCount": entries.len,
+      "largestShardBytes": v2largest, "shards": shardsArray(v2prefixes)}
+
+  var meta = %*{
     "indexVersion": HashIndexVersion,
     "prefixLen": HashShardPrefixLen,
     "shardCount": prefixes.len,
-    "entryCount": entries.len,
+    "entryCount": hexEntries.len,
     "largestShardBytes": largest,
-    "shards": shardsJson}))
-  echo "  + global hash index: " & $entries.len & " entries over " &
-    $prefixes.len & " shards (prefixLen " & $HashShardPrefixLen &
-    ", largest " & $largest & " B)"
+    "shards": shardsArray(prefixes)}
+  # ADDITIVE, AND ONLY WHEN THERE IS A SECOND VERSION. A `versions` array that
+  # described one version would be a second, redundant statement of the six
+  # fields above — two places for the same fact, which is the drift every other
+  # part of this seam was spent removing. It appears exactly when it says
+  # something the top-level fields cannot.
+  if needV2:
+    meta["versions"] = versions
+    meta["entryCountByEncoding"] = encCounts
+    meta["preferredVersion"] = %HashIndexVersionAll
+  writeFile(OutputDir / "idx" / "hash" / "meta.json", pretty(meta))
+  echo "  + global hash index: " & $hexEntries.len & " entries over " &
+    $prefixes.len & " shards (v" & HashIndexVersion & ", prefixLen " &
+    $HashShardPrefixLen & ", largest " & $largest & " B)"
+  if needV2:
+    echo "  + global hash index: " & $entries.len & " entries over " &
+      $v2prefixes.len & " shards (v" & HashIndexVersionAll & ", all encodings, " &
+      "largest " & $v2largest & " B) — published alongside v" & HashIndexVersion &
+      " per Publishing-And-Caching §6.1"
 
 proc installSearchBundle() =
   ## Put the built search bundle where `/search` says it is — or fail.
@@ -595,7 +744,7 @@ proc exportSite() =
   # §5's global hash index, over the routes just rendered. After the render
   # loop because it is built from the same enumeration: whatever got a page is
   # what the index claims to cover, and neither can drift from the other.
-  buildGlobalHashIndex(routes)
+  buildGlobalHashIndex(root, routes)
 
   # The not-found body, at the file a static host serves for an unmatched path.
   #

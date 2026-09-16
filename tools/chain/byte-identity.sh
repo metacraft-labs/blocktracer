@@ -335,11 +335,54 @@ if [ "$MUTANT" -eq 1 ]; then
   say "       the shard rule moves. The zero above is therefore a measurement."
 fi
 
+# ── WHAT THIS RUN DID NOT COVER, MEASURED ON THIS RUN ────────────────────────────────
+#
+# A zero is only as informative as the set it is a zero over, and this comparison's set
+# is "what the two PRODUCERS write" — `blocktracer_chain_ingest` and
+# `blocktracer_demo_gen`. Search-And-Routing.md §5's GLOBAL hash index is not written by
+# either: `buildGlobalHashIndex` lives in `client/src/static_export.nim` and runs during
+# the site export, which this recipe does not run. So the headline artifact of the
+# per-shape widening sits OUTSIDE this recipe's zero, and a reader who took the zero for
+# tree-wide coverage would be wrong about exactly the thing under review.
+#
+# It is counted rather than described, because a note goes stale and a count does not: if
+# a producer starts writing the descriptor, or format 2, this census says so on the next
+# run without anybody editing this comment.
+index_census() {
+  local side="$1" row name n meta=0 v2=0 total=0
+  printf '  %-24s %10s %10s %10s\n' tree 'idx/hash' 'format 2' descriptor
+  for row in $TREES; do
+    name="$(echo "$row" | cut -d: -f1)"
+    n=$(grep -c ' \./idx/hash/' "$WORK/manifest-$side-$name.txt" || true)
+    local m v
+    m=$(grep -c ' \./idx/hash/meta\.json$' "$WORK/manifest-$side-$name.txt" || true)
+    v=$(grep -c ' \./idx/hash/2/' "$WORK/manifest-$side-$name.txt" || true)
+    printf '  %-24s %10d %10d %10d\n' "$name" "$n" "$v" "$m"
+    total=$((total + n)); meta=$((meta + m)); v2=$((v2 + v))
+  done
+  printf '  %-24s %10d %10d %10d\n' TOTAL "$total" "$v2" "$meta"
+  INDEX_OBJECTS=$total; INDEX_META=$meta; INDEX_V2=$v2
+}
+
+step "SCOPE — the §5 index objects this comparison actually saw"
+index_census after
+say ""
+say "  READ THIS BEFORE READING THE ZERO BELOW. The two producers write format-1 shards"
+say "  only, and only the demo tree writes any: $INDEX_OBJECTS index object(s) of"
+say "  $BASE_OBJECTS, $INDEX_V2 in format 2, $INDEX_META descriptor(s). §5's GLOBAL hash"
+say "  index — every chain in one keyspace, plus /idx/hash/meta.json and, where a"
+say "  non-hex chain exists, /idx/hash/2/ — is built by \`buildGlobalHashIndex\` in"
+say "  client/src/static_export.nim during the SITE EXPORT, which this recipe does not"
+say "  run. Its reproducibility is therefore NOT among the facts the verdict below"
+say "  asserts. Closing that needs the exporter built and run on both sides (operator"
+say "  question: it roughly doubles a recipe that is already two release builds)."
+
 say ""
 if [ "$BASE_DIFF" -eq 0 ]; then
   say "PASS — $BASE_OBJECTS objects across $(echo "$TREES" | grep -c .) trees, 0 differing"
-  say "       manifest lines. Every path and every byte the producers publish is what"
-  say "       $BEFORE_SHA published (Publishing-And-Caching.md §6.1, §6.2)."
+  say "       manifest lines. Every path and every byte THE TWO PRODUCERS publish is what"
+  say "       $BEFORE_SHA published (Publishing-And-Caching.md §6.1, §6.2). The exporter's"
+  say "       global §5 index is outside this set — see SCOPE above."
   exit 0
 fi
 say "DIFFERS — $BASE_DIFF differing manifest line(s) of $BASE_OBJECTS objects. The"

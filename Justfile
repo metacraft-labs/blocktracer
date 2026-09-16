@@ -97,6 +97,30 @@
 # one whole — the thing that makes a gate worth having is that nobody had to
 # decide to run the expensive part.
 test:
+    # WHICH TOOLCHAIN THIS RAN ON, printed FIRST and on purpose. Every suite below
+    # is `--hints:off`, so without this line a full log contains no evidence of the
+    # compiler that produced it — and the distinction is not academic: an ambient
+    # Nim 2.2.4 is on `PATH` outside the devshell while the devshell pins 2.2.10,
+    # the two compile different trees, and a green log from the wrong one proves
+    # nothing about what ships. `Chain-*` milestone notes define their OK-line
+    # totals — the per-assertion lines a Nim `unittest` suite prints — as "counted
+    # in a log that also states the compiler version"; before this line that
+    # definition named evidence this recipe could not produce, and a verification
+    # step nobody can perform is a definition that defeats itself.
+    #
+    # AND THAT TOKEN IS DESCRIBED RATHER THAN SPELLED, ON PURPOSE. `just` echoes a
+    # recipe's comment lines as it runs them, so a comment in this body containing
+    # the bracketed OK token VERBATIM adds itself to any total taken by grepping a
+    # run's output: the comment written to make the figure verifiable would inflate
+    # the figure by one. It happened — this block is the one that did it. The echo
+    # goes to stderr rather than stdout, so the inflation appears only when the
+    # streams are merged, which is exactly how a `2>&1 | grep -c` measurement is
+    # taken. Do not write the literal token anywhere in this recipe.
+    #
+    # NOT PIPED THROUGH `head`: the pipeline's status would be `head`'s, so a
+    # missing or broken `nim` would read as a pass on the one line whose whole job
+    # is to say which `nim` this is. The extra banner lines are the cost of that.
+    nim --version
     nim c -r --hints:off tests/tcontract.nim
     nim c -r --hints:off tests/tpublish.nim
     nim c -r --hints:off tests/tclientsdk.nim
@@ -110,7 +134,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# NINE suites — 98 + 19 + 24 + 24 + 57 + 223 + 33 + 119 + 53 = 650 counted assertions —
+# NINE suites — 98 + 19 + 24 + 24 + 57 + 223 + 33 + 153 + 53 = 684 counted assertions —
 # over the nine decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -269,7 +293,7 @@ test:
 # was found dead, and all of them were in it: the only evidence they could go
 # red was that someone had once watched them.
 #
-# All eight are OFFLINE and toolchain-free — plain node plus bash, a mock node
+# All NINE are OFFLINE and toolchain-free — plain node plus bash, a mock node
 # for the freeze gate, a mock node AND a mock file store for the body verifier,
 # recorded driver output for the replay rule, for the
 # fold suite an event stream reconstructed from the committed sidecars rather
@@ -1192,6 +1216,19 @@ build:
 # roughly 2,900 moved objects plus the 309 of a demo tree that refused. The line
 # count is what is reported because it is what `diff` can be held to without the
 # recipe interpreting it.
+#
+# IT DOES NOT COVER §5's GLOBAL HASH INDEX, AND THE RUN SAYS SO ON EVERY RUN.
+# The set this zero is a zero over is "what the two PRODUCERS write". The global
+# index is written by `buildGlobalHashIndex` in `client/src/static_export.nim`
+# during the SITE EXPORT, which this recipe does not run — so the headline
+# artifact of the per-shape widening sits outside its own zero. Measured at
+# a145e68 and re-measured unchanged against the merged `dev` 4db3414: 51 of
+# 11,043 objects are index objects, ALL under `idx/hash/1/` and ALL in the demo
+# tree, 0 in format 2, and there is NO `idx/hash/meta.json` in any tree. The recipe now prints that census as a SCOPE block before its verdict
+# rather than leaving it to a reader to discover, because a note goes stale and a
+# count taken on the run does not. Closing the gap needs the exporter built and
+# run on both sides, which roughly doubles a recipe that is already two release
+# builds; it is an open operator question rather than a silent omission.
 #
 # It never contacts a chain. Both producers read committed captures off disk; the
 # live follower is neither built nor run, and running it would write into

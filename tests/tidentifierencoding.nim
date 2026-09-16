@@ -905,20 +905,26 @@ suite "case handling is stated per encoding, not applied globally":
     ck identifierPayload("bech32", "Addr1Qx2f") == "qx2f"
     ck identifierPayload("bech32m", "fuel1q9k7") == "q9k7"
 
-  test "the §5 hash index folds by the declared rule, under a NAMED encoding":
-    # The index's key encoding is a constant rather than a parameter, and the
-    # reason is in the module: §5's index path carries no chain segment, so a
-    # client resolving a bare query cannot know which chain's declaration to
-    # normalise with. What changed is that the fold is no longer the module's
-    # own: it comes from the same `case` rule the derivation reads.
-    ck HashIndexEncoding == "hex"
-    ck hashPrefix("0xABCDEF01", 2) == "ab"
-    ck hashPrefix("0xabcdef01", 2) == "ab"
-    ck hashPrefix("abcdef01", 2) == "ab"
-    ck hashPrefix("0XABCDEF01", 2) == "ab"
+  test "the §5 hash index folds by the declared rule, per identifier SHAPE":
+    # The index's key encoding used to be a CONSTANT, on the argument that §5's
+    # index path carries no chain segment so a client resolving a bare query
+    # cannot know which chain's declaration to normalise with. That half is still
+    # true; what it missed is that a client does not need the chain. It needs the
+    # query's SHAPE, which §2's table supplies from the string alone — so the
+    # encoding is a parameter now, and the constant that remains names only the
+    # one encoding a FORMAT-1 shard can hold.
+    ck HashIndexLegacyEncoding == "hex"
+    ck hashPrefix("hex", "0xABCDEF01", 2) == "ab"
+    ck hashPrefix("hex", "0xabcdef01", 2) == "ab"
+    ck hashPrefix("hex", "abcdef01", 2) == "ab"
+    ck hashPrefix("hex", "0XABCDEF01", 2) == "ab"
     # …and it agrees with the derivation about what a payload is, which is what
     # stops the index and the object tree keying one identifier two ways.
-    ck hashPrefix("0xABCDEF01", 4) == shardKeyFor("hex", "0xABCDEF01")
+    ck hashPrefix("hex", "0xABCDEF01", 4) == shardKeyFor("hex", "0xABCDEF01")
+    # …and the same agreement holds for a member whose payload is NOT the whole
+    # string, which is where a second implementation would have shown up.
+    ck hashPrefix("bech32", "Addr1Qx2fZZ", 4) ==
+       shardKeyFor("bech32", "Addr1Qx2fZZ")
 
   test "BOTH segments of a sharded path are the key form":
     # The shard and the object NAME. A builder that folded one and not the other
@@ -1596,14 +1602,16 @@ suite "the boundary: who knows about each half of the seam":
     ck bnd{"sourceExtensions"}.len > 0
     ck bnd{"skipDirectories"}.len > 0
     ck bnd{"floors"}.len == 3
-    # TWO SWEEPS, AND THEY ARE TWO FACTS. A file may key an identifier without
-    # reading a registry row (the §5 index does, under a named global encoding)
-    # and may read the row without keying anything (the session pins it). One
-    # merged allowlist would let a new consumer of either seam be excused by the
-    # other's list.
-    ck bnd{"sweeps"}.len == 2
+    # THREE SWEEPS, AND THEY ARE THREE FACTS. A file may key an identifier
+    # without reading a registry row, may read the row without keying anything
+    # (the session pins it), and may derive a §5 INDEX key without doing either —
+    # that third one arrived when the index stopped being hex-only and started
+    # keying per identifier SHAPE, which needs no registry at all. One merged
+    # allowlist would let a new consumer of any seam be excused by another's.
+    ck bnd{"sweeps"}.len == 3
     ck bnd["sweeps"][0]["id"].getStr == "declaration"
     ck bnd["sweeps"][1]["id"].getStr == "caseRule"
+    ck bnd["sweeps"][2]["id"].getStr == "indexKey"
     # …and the JavaScript half reads the same file, by path.
     ck readFile(RepoRoot / "tools/chain/identifier-encoding-selftest.mjs").contains(
       "identifier-encoding-boundary.json")
@@ -1669,12 +1677,21 @@ suite "the boundary: who knows about each half of the seam":
     # than a second reader of the declaration, and the module it re-exports is in
     # the set. Should it ever grow code that reads the member, the sweep's forward
     # direction reddens on it as an unexpected consumer.
-    ck expectedLen("declaration", "src") == 8
-    ck expectedLen("declaration", "client") == 4
+    # …and it is 9 AGAIN, for a different file: `contract/hashshard.nim` joined
+    # when the index stopped being hex-only and started reading the shard rule
+    # back to reconstruct a format-1 entry's `0x`, which format 1 cannot store.
+    ck expectedLen("declaration", "src") == 9
+    ck expectedLen("declaration", "client") == 7
     ck expectedLen("declaration", "tools") == 1
     ck expectedLen("caseRule", "src") == 6
-    ck expectedLen("caseRule", "client") == 1
+    ck expectedLen("caseRule", "client") == 3
     ck expectedLen("caseRule", "tools") == 1
+    # THE THIRD SWEEP. A file may derive a §5 INDEX key without reading a
+    # registry row at all — that is the whole point of keying per identifier
+    # SHAPE — so its population is asserted separately from the other two.
+    ck expectedLen("indexKey", "src") == 4
+    ck expectedLen("indexKey", "client") == 3
+    ck expectedLen("indexKey", "tools") == 1
     # EVERY expected entry carries the REASON it is one. An allowlist whose
     # entries say nothing is a list nobody reviews.
     var unexplained: seq[string]
@@ -1780,7 +1797,12 @@ suite "the boundary: who knows about each half of the seam":
     # ANTI-VACUITY: a `pins` array that parsed to nothing would make both loops
     # above run zero times and report success having measured nothing.
     ck bnd["pins"].len == 2
-    ck checkedPins == 8
+    # 11 AND NOT 8: the hash-index pin grew. `hexToBytes` joined `stripHex` on
+    # the ABSENT list, and the private `hexUnits` that replaced it is pinned by
+    # COUNT alongside `identifierIndexKey` and `parseHexInt` — because the
+    # byte-identity mutant proved a count is exactly what catches a path that
+    # slips in FRONT of the refusal rather than behind it.
+    ck checkedPins == 11
     # AND EVERY PIN SAYS WHY, for the reason the allowlist entries do.
     var unexplained: seq[string]
     for pin in bnd["pins"]:
@@ -1856,4 +1878,4 @@ suite "the boundary: who knows about each half of the seam":
       inc comparedTops
     ck comparedTops == 3
 
-expectCount(639)
+expectCount(664)

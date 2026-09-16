@@ -8,8 +8,9 @@
 ##   - M5b test_contract_conformance_fixture_validates (negative cases)
 ##   - M5b test_both_producers_satisfy_one_contract (demo + a hand-built EVM tree)
 
-import std/[unittest, os, json, strutils, algorithm, sha1, sequtils]
+import std/[unittest, os, json, strutils, algorithm, sha1, sequtils, tables, sets]
 import ../src/blocktracer/contract/[model, version, ids, searchidx, entrypage]
+import ../client/src/viewmodel/search_shapes
 import ../src/blocktracer/validator
 import ../src/blocktracer/demo/generator
 
@@ -523,9 +524,10 @@ suite "M5c — /idx search indices and HTML entry pages":
     let ver = hi["version"].getStr
     let pfx = hi["prefixLen"].getInt
     proc resolves(hexHash: string, kind: int): bool =
-      let shard = outDir / "idx" / "hash" / ver / hashPrefix(hexHash, pfx) & ".bin"
+      let shard = outDir / "idx" / "hash" / ver /
+        hashPrefix("hex", hexHash, pfx) & ".bin"
       if not fileExists(shard): return false
-      for e in lookupHash(readFile(shard), hexHash):
+      for e in lookupHash(readFile(shard), "hex", hexHash):
         if e.chain == DemoChain and e.kind == kind: return true
       false
     check resolves(synthHash(seed, "tx", 0), hkTx)
@@ -576,7 +578,7 @@ suite "M5c — the new /idx + entry-page assertions bite":
   test "deleting a declared hash-index shard fails":
     let d = freshIdx("bite-hashdel")
     let h = synthHash("bite", "tx", 0)
-    removeFile(d / "idx" / "hash" / "1" / hashPrefix(h, 2) & ".bin")
+    removeFile(d / "idx" / "hash" / "1" / hashPrefix("hex", h, 2) & ".bin")
     check validateTree(d).len > 0
 
   test "corrupting a hash-index shard's bytes fails":
@@ -737,3 +739,791 @@ suite "contract version wiring":
   test "the artifact-schema constant is in lock-step with version.nim":
     check ArtifactSchemaVersion == 1
     check ContractVersion == 1
+
+# ═══════════════════════════════════════════════════════════════════════════
+# The §5 hash index, once it stopped being hex-only.
+#
+# NO MOCKS ARE USED IN THIS SUITE AND NONE ARE JUSTIFIED, because none are
+# needed: every arm below runs the real codec over real values, and the arms
+# that need a non-hex chain build one out of `HashEntry`s directly — which is
+# the producers' own input type, not a stand-in for it. The one thing that is
+# constructed rather than captured is the base58/bech32 IDENTIFIERS, and those
+# are literals of the alphabets `tools/chain/identifier-encodings.json`
+# declares, not fixtures of a chain this tree does not yet publish.
+# ═══════════════════════════════════════════════════════════════════════════
+
+suite "§5 hash index — keying per identifier shape":
+
+  # Two real-shaped non-hex identifiers, spelled out so the arms below read as
+  # the alphabets they are. The Solana address is 44 base58 characters; the
+  # Cardano address is a bech32 string whose payload begins after its last `1`.
+  const SolAddr = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+  const AdaAddr = "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer" &
+                  "3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgse35a3x"
+  const HexHash = "0x" & repeat("ab", 32)
+
+  test "the shard key is the payload's leading slice, in the identifier's own alphabet":
+    # hex strips `0x`; bech32 begins after the LAST `1`, which is what stops a
+    # whole chain of `addr1…` landing in one bucket.
+    check hashPrefix("hex", HexHash, 2) == "ab"
+    check hashPrefix("base58", SolAddr, 2) == "9W"
+    check hashPrefix("bech32", AdaAddr, 2) == AdaAddr[AdaAddr.rfind("1") + 1 .. ^1][0 .. 1]
+    # …and it is the SAME payload the object tree's shard derivation slices, so
+    # the index and the object layout cannot disagree about where one starts.
+    check hashPrefix("bech32", AdaAddr, 4) == shardKeyFor("bech32", AdaAddr)
+
+  test "a hex identifier's shard key is byte-for-byte what it always was":
+    # The one property `just byte-identity` is the tree-wide form of.
+    for n in [1, 2, 4]:
+      check hashPrefix("hex", HexHash, n) ==
+        identifierPayload("hex", HexHash)[0 ..< n]
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # THE SWEEP. Read this before changing anything below it.
+  #
+  # WHY IT IS A SWEEP AND NOT A LIST OF LITERALS. §5's consumption rule needs the
+  # property "every member a single query matches yields the same payload", and
+  # that property is FALSE over the table as declared — 420 of 53,935 candidates
+  # yield two distinct payloads (see "§5.5's old claim is FALSE" below). A handful
+  # of hand-picked identifiers cannot find that out: the only realistic non-hex
+  # identifier anyone reaches for is a 103-character Cardano address, and it could
+  # not collide for TWO independent reasons — 103 is outside base58's 43–44 and
+  # 87–88 bands, and the string contains `0` and `l`, two of the four digits
+  # base58's alphabet deliberately excludes. An arm built from such literals would
+  # assert the property and be evidence of nothing.
+  #
+  # NO EARLIER VERSION OF THIS FILE CONTAINED SUCH AN ARM, and an earlier draft of
+  # this comment said one "used to sit here". It did not. The whole index-key
+  # derivation is new in this change: at `a145e68`, and equally at the merged
+  # `dev` this work now sits on (`4db3414`, which touches only CI and carries
+  # these two files unchanged — verified by diffing both refs),
+  # `client/src/viewmodel/search_shapes.nim` is 219 lines
+  # with no `IndexProbe`, no `indexProbesOf` and no `indexKeysOf`, `hashPrefix`
+  # takes no encoding, and neither this file nor that one contains the phrase
+  # "same payload". The six-literal arm, the `keys[0]` consumption rule and the
+  # payload-dedup rule that replaced it are all intermediate states of ONE
+  # uncommitted change. Describing any of them as "the pre-fix code" invites a
+  # reader to `git show` a state that does not exist, so this file does not.
+  #
+  # What follows generates candidates FROM THE DECLARED TABLE: every member's
+  # prefixes × every character of its alphabet × every length up to a bound
+  # derived from the widest band, plus deterministic mixed-alphabet fills. The
+  # bound is derived rather than written down so that widening a band cannot
+  # silently outrun the sweep.
+  #
+  # AND THE PROPERTY IT PINS IS A DIFFERENT ONE, because the old one is false
+  # and is not being restored. See `indexProbesOf`: the client fetches EVERY
+  # distinct payload, so what has to be true is that the probe set REACHES every
+  # (SHARD, ENCODING) pair a producer could have written — which is a property of
+  # the derivation and not of the table's current contents.
+  #
+  # THE PAIR, NOT THE SHARD. Reaching the shard is necessary and not sufficient,
+  # because the fetched bytes are then scanned under an encoding and `hitsFor`
+  # compares it for equality. A shards-only invariant is green on all 216 queries
+  # where two admitted encodings share one payload — see that arm's header.
+  # ═════════════════════════════════════════════════════════════════════════
+
+  proc sweepCandidates(): seq[string] =
+    var seen = initHashSet[string]()
+    var widestPayload, longestPrefix = 0
+    for e in IdentifierEncodings:
+      for r in e.shapes:
+        if r.maxPayload > widestPayload: widestPayload = r.maxPayload
+        for p in r.prefixes:
+          if p.len > longestPrefix: longestPrefix = p.len
+    # Two past the widest reachable identifier: a candidate one character over
+    # every band is what proves the band's upper edge is the edge.
+    let top = widestPayload + longestPrefix + 2
+    for e in IdentifierEncodings:
+      if e.shapes.len == 0: continue
+      var prefixes = @[""]
+      for r in e.shapes:
+        for p in r.prefixes:
+          if p notin prefixes: prefixes.add p
+      let alpha = e.shardKey.alphabet
+      for p in prefixes:
+        for c in alpha:
+          var s = p
+          for n in 1 .. top:
+            s.add c
+            if s notin seen: seen.incl s; result.add s
+        # MIXED FILLS, because a uniform one cannot reach a string whose
+        # alphabet membership depends on WHICH characters it drew: a bech32
+        # payload containing `0` or `l` is not writable in base58, and a sweep
+        # of single-character repeats would report every such length clean.
+        for seed in 1 .. 4:
+          var st = uint32(seed * 7919 + 12345)
+          var s = p
+          for n in 1 .. top:
+            st = st * 1664525'u32 + 1013904223'u32
+            s.add alpha[int(st shr 16) mod alpha.len]
+            if s notin seen: seen.incl s; result.add s
+
+  # `let`, not `const`: evaluating a hundred thousand strings in the
+  # compile-time VM costs minutes and buys nothing — the sweep is run, not baked.
+  let Sweep = sweepCandidates()
+
+  test "the sweep covers the closed set's bands and alphabets, not six literals":
+    # The generator is derived from the table, so its SIZE is a fact about the
+    # table and worth stating: if a member is dropped the count falls, and if a
+    # band is widened it rises. It is checked as a floor rather than an equality
+    # because a member added to the closed set must not turn this arm red for
+    # being bigger than it was.
+    check Sweep.len > 50_000
+    # Every member with shapes is REACHED — a generator that quietly produced
+    # nothing for an encoding would satisfy every "must not contain" assertion
+    # below it, which is the trap `Verification-Harness-Traps.md` names first.
+    var reached: seq[string] = @[]
+    for q in Sweep:
+      for enc in identifierEncodingsMatching(q):
+        if enc notin reached: reached.add enc
+    for e in IdentifierEncodings:
+      if e.shapes.len == 0:
+        check e.id notin reached          # `decimal` declares none, on purpose
+      else:
+        check e.id in reached
+
+  test "§5.5's old claim is FALSE, and this is the census that says so":
+    # "every member a single query matches yields the SAME payload… §2's rows
+    # for those are mutually exclusive with every other row" — the sentence the
+    # client's `keys[0]` rested on. Swept, it fails. The arm records WHERE, so a
+    # reader can re-derive §5.5's replacement text rather than trust it.
+    var overlapping = 0
+    var pairs = initCountTable[string]()
+    var maxPayloads = 1
+    for q in Sweep:
+      var safe: seq[string] = @[]
+      var payloads: seq[string] = @[]
+      for enc in identifierEncodingsMatching(q):
+        if not identifierEncodingRule(enc).pathSafe: continue
+        safe.add enc
+        let p = identifierPayload(enc, q)
+        if p notin payloads: payloads.add p
+      if payloads.len > 1:
+        inc overlapping
+        pairs.inc safe.join("+")
+        if payloads.len > maxPayloads: maxPayloads = payloads.len
+    check overlapping > 0
+    # PRINTED, NOT MERELY COMPUTED — and that distinction was a defect here until
+    # 2026-09-16. Two docstrings said these figures were "printed by `just test`'s
+    # `tcontract` arm", and they were not: `unittest` shows a value only when a
+    # `check` FAILS, so a green run printed none of them and a reader following
+    # that instruction to re-derive the number got an empty grep. Measured on the
+    # log before this line existed: 0 occurrences of `420`, `462` or `53,935`.
+    # A figure documented as re-derivable from a run has to actually be in the run.
+    echo "  sweep: ", Sweep.len, " candidates; ", overlapping,
+         " with >1 distinct payload over pathSafe MATCHES; pairs: ", $pairs
+    # TWO pairs, and the second one is not the one the defect was reported
+    # against: `bech32`×`ss58` is the same mechanism at SS58's 46–48 band as
+    # `bech32`×`base58` is at base58's 43–44 and 87–88.
+    check "base58+bech32" in pairs
+    check "bech32+ss58" in pairs
+    # …AND THE COST BOUND §5's request arithmetic now rests on. Two distinct
+    # payloads is two shards is one extra request. A table edit that made it
+    # three would turn this red, which is the point: §5's bullet says "at most
+    # three requests", and that number has to be re-derivable.
+    check maxPayloads == 2
+
+  test "a BARE hex string is also an SS58 account, and the hex arm dropped it":
+    # THE THIRD FAMILY, AND IT IS NOT IN §2's TABLE — which is why the arm above
+    # cannot see it and why nothing in the spec's wording covers it.
+    # `identifierEncodingsMatching` never returns `hex` here: §2's hex rows carry
+    # a `0x` prefix and this string has none. It is `hexBodyOf`'s MEASURED
+    # EXTENSION — a bare hash, accepted above `BareHexFloor` — that makes the
+    # string a hex query at all, and `indexKeysOf` used to `return` on that arm,
+    # discarding every other reading before `indexProbesOf` could see it.
+    #
+    # The hex digits are a subset of base58's and SS58's alphabets, hex folds
+    # case and both of those preserve it, so the two payloads differ in case and
+    # the two shards are different directories.
+    for (q, other) in [("A".repeat(46), "ss58"), ("A".repeat(43), "base58"),
+                       ("A".repeat(44), "base58")]:
+      check identifierEncodingsMatching(q) == @[other] or
+            identifierEncodingsMatching(q) == @[other, "base64"]
+      let probes = indexProbesOf(q)
+      check probes.len == 2
+      check probes[0].encoding == "hex"
+      check probes[1].encoding == other
+      # Folded against preserved — the same 46 characters in two cases, which
+      # `Threat-Model` §11 is explicit are not one identifier.
+      check probes[0].payload == toLowerAscii(q)
+      check probes[1].payload == q
+      check probes[0].payload != probes[1].payload
+
+  test "the ambiguity census, by family and by cost":
+    # WHAT AN AMBIGUOUS QUERY COSTS, re-derivable rather than remembered. §5's
+    # first bullet is a request count, so the number of distinct shards a query
+    # can imply is a number the spec has to be able to state — and this is where
+    # it is measured. Four families, one extra request at most.
+    var fams = initCountTable[string]()
+    var maxProbes = 1
+    var ambiguous = 0
+    for q in Sweep:
+      let probes = indexProbesOf(q)
+      if probes.len <= 1: continue
+      inc ambiguous
+      if probes.len > maxProbes: maxProbes = probes.len
+      fams.inc probes.mapIt(it.encoding).join("+")
+    # THE COST HALF OF THIS ARM'S SUBJECT, against the declared bound rather than
+    # against a `2` written here. Note what this arm can and cannot see: its
+    # population is `sweepCandidates`, which cannot reach a three-payload query at
+    # all (see the cross-alphabet header below), so this assertion passing is
+    # evidence about the GENERATOR. The cross arm is where the bound is tested
+    # against a population that could falsify it.
+    # PRINTED for the reason the arm above prints its census: `ambiguous` is the
+    # **462** that `indexProbesOf`'s docstring and §5.3's histogram both cite, and
+    # it is a DIFFERENT population from the arm above's 420 — probes include the
+    # bare-hex arm, pathSafe matches do not. The two were stated as one number for
+    # a while, which is the defect that made this line worth adding.
+    echo "  probes: ", Sweep.len, " candidates; ", ambiguous,
+         " imply >1 distinct payload (= >1 shard = one extra request); max ",
+         maxProbes, "; families: ", $fams
+    check maxProbes == MaxDistinctPayloadsPerQuery
+    check ambiguous > 0
+    # The two §2-table families…
+    check "base58+bech32" in fams
+    check "bech32+ss58" in fams
+    # …and the two the bare-hex extension adds, which are this repository's own
+    # and are in no version of §2.
+    check "hex+base58" in fams
+    check "hex+ss58" in fams
+    # Nothing else — OVER THIS GENERATOR, which is a weaker statement than it
+    # reads as. See the cross-alphabet arm below: filling a prefix from another
+    # encoding's alphabet, or in another case, reaches two further families. This
+    # count is the census of what `sweepCandidates` can emit and is pinned at that.
+    check fams.len == 4
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # THE CROSS-ALPHABET, MIXED-CASE SWEEP — because the bound asserted above is
+  # TRUE BY CONSTRUCTION OF THE GENERATOR AND NOT BY MEASUREMENT.
+  #
+  # `sweepCandidates` fills a candidate carrying encoding *E*'s prefix from *E's
+  # OWN alphabet* (`let alpha = e.shardKey.alphabet`, inside the `for e in
+  # IdentifierEncodings` loop). It never crosses one encoding's prefix with
+  # another's alphabet, and it never varies case. Both omissions bound what it
+  # can conclude:
+  #
+  #   - bech32's and bech32m's alphabet is ALL-LOWERCASE, so every
+  #     bech32-matching candidate it emits is all-lowercase. hex's fold is then a
+  #     no-op, and hex's payload is character-identical to base58's and ss58's —
+  #     so the generator cannot produce a string where hex, a base58-family
+  #     reading AND a bech32 reading are three DIFFERENT payloads.
+  #   - an hrp is only ever filled from its own charset, so `FUEL1…` — base58
+  #     accepts `L` and rejects `l` — is unreachable, and with it every overlap
+  #     that needs a case-varied hrp.
+  #
+  # So the bound asserted above is a property of the generator. What it guards
+  # is §5.3's request arithmetic, which is a claim about the world.
+  #
+  # THE CONCRETE COUNTEREXAMPLE, executed rather than argued: adding one
+  # plausible additive row to bech32 — `bc1`, Bitcoin segwit, whose hrp is
+  # spellable in hex because `b`, `c` and `1` are all hex digits — makes
+  # `BC1` + `2`×40 imply THREE distinct payloads, and `sweepCandidates` still
+  # reports 2. Re-measured 2026-09-16 with the row temporarily added to the shared
+  # file and both sweeps recompiled against it:
+  #
+  #   own-alphabet sweep   53,935 -> 58,539 candidates, maxProbes 2 (UNCHANGED)
+  #                        probe families 4 -> 5 (`hex+bech32` is the new one)
+  #   cross-alphabet sweep 223,670 -> 251,748 candidates, maxProbes 2 -> 3
+  #                        worst = BC1 + `2`×40, exactly the string below
+  #
+  # READ THE TWO ARMS' REACTIONS TOGETHER, because that is the reason this number
+  # is now named. In the arm ABOVE — whose title is "by family AND by cost" — the
+  # COST assertion stays green while the FAMILY census (`fams.len == 4`) reddens:
+  # it reports a change in the family list while the bound it also claims to
+  # measure has moved underneath it unremarked. In THIS arm the bound assertion is
+  # the one that reddens. Against a bare `== 2` both reds read as "the client
+  # regressed"; against `MaxDistinctPayloadsPerQuery` they read as what they are —
+  # the table grew, so the declared bound and §5.3's sentence must move with it.
+  #
+  #   q = BC12222222222222222222222222222222222222222   (43)
+  #     hex     payload = bc1222…  (43)  <- folds
+  #     base58  payload = BC1222…  (43)  <- preserves
+  #     bech32  payload = 222…     (40)  <- after the last `1`
+  #
+  # THE BOUND IS STILL 2 AND STILL ABOUT REQUESTS. The (shard, encoding) fix
+  # below widens what a fetched shard is SCANNED under; it does not change how
+  # many shards are fetched, because the dedup that produces one request per
+  # distinct payload is unchanged. So §5.3's arithmetic rests on the same number
+  # it did — this arm is what measures it over a population that could have
+  # falsified it.
+  # ═════════════════════════════════════════════════════════════════════════
+
+  proc caseVariants(s: string): seq[string] =
+    ## As typed, folded, raised, and alternating — the fourth because BIP-173
+    ## makes a MIXED-case bech32 string invalid while base58 and SS58 treat case
+    ## as identity, so a mixed spelling is exactly where the two rules disagree.
+    result = @[s, s.toLowerAscii, s.toUpperAscii]
+    var alt = ""
+    for i, c in s:
+      alt.add (if i mod 2 == 0: c.toUpperAscii else: c.toLowerAscii)
+    result.add alt
+
+  proc crossCandidates(): seq[string] =
+    ## Every declared prefix × every declared alphabet × four case variants —
+    ## the cross product `sweepCandidates` does not take.
+    var seen = initHashSet[string]()
+    var widestPayload, longestPrefix = 0
+    var prefixes = @[""]
+    var alphabets: seq[string] = @[]
+    for e in IdentifierEncodings:
+      for r in e.shapes:
+        if r.maxPayload > widestPayload: widestPayload = r.maxPayload
+        for p in r.prefixes:
+          if p.len > longestPrefix: longestPrefix = p.len
+          if p notin prefixes: prefixes.add p
+      if e.shapes.len > 0 and e.shardKey.alphabet notin alphabets:
+        alphabets.add e.shardKey.alphabet
+    let top = widestPayload + longestPrefix + 2
+    for p in prefixes:
+      for alpha in alphabets:
+        for c in alpha:
+          var s = p
+          for n in 1 .. top:
+            s.add c
+            for v in caseVariants(s):
+              if v notin seen: seen.incl v; result.add v
+        for seed in 1 .. 4:
+          var st = uint32(seed * 7919 + 12345)
+          var s = p
+          for n in 1 .. top:
+            st = st * 1664525'u32 + 1013904223'u32
+            s.add alpha[int(st shr 16) mod alpha.len]
+            for v in caseVariants(s):
+              if v notin seen: seen.incl v; result.add v
+
+  let Cross = crossCandidates()
+
+  test "the request bound survives a CROSS-ALPHABET, MIXED-CASE sweep":
+    # ── EVERY FIGURE THIS ARM STATES IS ONE CONSTANT, ASSERTED AS AN EQUALITY, AND
+    # ECHOED, for exactly the reason the sibling arm below spells out at
+    # `PairsChecked`. It did not used to be. All four numbers lived in PROSE over
+    # guards that were nowhere near them — `> 200_000` under a stated 223,670,
+    # `> 20_000` under 22,976, a bare `> 0`, and bare membership for 124 and 93 —
+    # so nothing compared a stated measurement to the measurement and nothing
+    # printed either. Every one of them could have drifted by thousands while this
+    # arm went on reporting success, which is the stale-figure shape this campaign
+    # has now hit three times in three files.
+    #
+    # An equality reddens when the closed set grows. That is the intended cost: a
+    # new row legitimately moves these counts, and being told to re-read them is
+    # the point. A floor absorbs the growth and keeps asserting a figure nobody
+    # re-measured. Re-measured 2026-09-16 under Nim 2.2.10.
+    const
+      CrossCandidates = 223_670    # the population, on the table as declared
+      MixedCaseBech32 = 22_976     # …of which reach a mixed-case bech32 reading
+      FoldedVsPreserved = 84       # …which are hex in one reading and
+                                   #   base58-family in another, DIFFERENT payload
+      CrossBase58Bech32m = 124     # the two families the own-alphabet generator
+      CrossBech32mSs58 = 93        #   cannot see; both need a case-varied hrp
+    # The population `sweepCandidates` cannot emit, and the bound re-measured over
+    # it.
+    echo "    cross-alphabet candidates: ", Cross.len
+    check Cross.len == CrossCandidates
+    # NOT VACUOUS, and this is the assertion that says so. A cross sweep that
+    # reached no mixed-case bech32 string would satisfy the bound below for the
+    # same reason the generator above does, and would be the trap
+    # `Verification-Harness-Traps.md` names first: a sweep whose population is
+    # empty in exactly the region it was written to cover.
+    var mixedCaseBech = 0
+    for q in Cross:
+      if "bech32" in identifierEncodingsMatching(q) and q != q.toLowerAscii:
+        inc mixedCaseBech
+    echo "    …reaching a mixed-case bech32 reading: ", mixedCaseBech
+    check mixedCaseBech == MixedCaseBech32
+    # …and it reaches strings that are hex in one reading and base58-family in
+    # another with a DIFFERENT payload, which is the shape a three-payload query
+    # would have to have. THE `> 0` HERE WAS THE WEAKEST GUARD IN THE FILE: this
+    # population is the whole reason the arm exists, and one witness satisfied it.
+    var foldedAgainstPreserved = 0
+    for q in Cross:
+      if canonicalHash(q).len == 0: continue
+      for enc in identifierEncodingsMatching(q):
+        if not identifierEncodingRule(enc).pathSafe: continue
+        if identifierPayload(enc, q) != identifierPayload("hex", q):
+          inc foldedAgainstPreserved
+          break
+    echo "    …hex-folded against a preserved payload: ", foldedAgainstPreserved
+    check foldedAgainstPreserved == FoldedVsPreserved
+    # THE BOUND. One request per distinct payload; §5.3 spends at most one extra.
+    var maxProbes = 1
+    var worst = ""
+    for q in Cross:
+      let n = indexProbesOf(q).len
+      if n > maxProbes: maxProbes = n; worst = q
+    # THE BOUND, against the one declared number rather than a literal. This is
+    # the arm whose population CAN reach 3 — measured, by adding a `bc1` row and
+    # re-running: this reports 3 and the own-alphabet arm still reports 2. Before
+    # this read `MaxDistinctPayloadsPerQuery`, that measurement reddened a `== 2`
+    # written here, which reads as "the client regressed" when what actually
+    # happened is that the table grew and the spec's arithmetic moved with it.
+    # Now the row and this number move together, in one place, deliberately.
+    check maxProbes == MaxDistinctPayloadsPerQuery
+    check worst.len > 0
+    # THE TWO FAMILIES THE GENERATOR ABOVE CANNOT SEE, named so that this arm
+    # reports rather than merely passes. Both need a case-varied hrp: `FUEL1…` is
+    # writable in base58 (`L` is in the alphabet, `l` is one of the four digits it
+    # excludes) and folds to a bech32m string.
+    var fams = initCountTable[string]()
+    for q in Cross:
+      var safe: seq[string] = @[]
+      var payloads: seq[string] = @[]
+      for enc in identifierEncodingsMatching(q):
+        if not identifierEncodingRule(enc).pathSafe: continue
+        safe.add enc
+        let p = identifierPayload(enc, q)
+        if p notin payloads: payloads.add p
+      if payloads.len > 1: fams.inc safe.join("+")
+    # ECHOED WHOLE, not just the two that are asserted. Membership was all this
+    # used to check, so a family that collapsed from 124 witnesses to 1 passed
+    # identically — and the other two families this table holds were neither
+    # asserted nor printed, so a reader had no way to see them at all.
+    #
+    # READ BEFORE ORDERING, and not with `CountTable.sort`: that sort permutes the
+    # table's slots in place without rehashing, so every later `[]` on it is
+    # undefined. The pairs are copied out into a seq and THAT is ordered.
+    let base58Bech32m = fams["base58+bech32m"]
+    let bech32mSs58 = fams["bech32m+ss58"]
+    var famRows: seq[(int, string)] = @[]
+    for fam, n in fams: famRows.add (n, fam)
+    famRows.sort(Descending)
+    for (n, fam) in famRows: echo "    cross family ", fam, ": ", n
+    check base58Bech32m == CrossBase58Bech32m
+    check bech32mSs58 == CrossBech32mSs58
+
+  test "the probe set REACHES every (shard, encoding) a producer could have written":
+    # THE REPLACEMENT INVARIANT, and the one the design now rests on. For every
+    # candidate and every pathSafe member it matches, the shard that member
+    # implies is one of the shards `indexProbesOf` will fetch. A producer keyed
+    # by its chain's DECLARED encoding; the client does not know the chain; so
+    # unless the client's probe set covers every admissible reading, some
+    # producer's shard is one the client never asks for — §5.0a's false absence.
+    #
+    # **IT COMPARED SHARDS ONLY, AND THAT IS WHY IT DID NOT CATCH THE SECOND
+    # FALSE ABSENCE.** Reaching the shard is necessary and NOT sufficient: the
+    # client also has to scan the bytes it fetched under the encoding the
+    # producer declared, because `hitsFor` compares the entry's encoding for
+    # equality. `indexProbesOf` deduplicates by payload, so where two admitted
+    # encodings shared one payload the probe used to carry only the first by JSON
+    # DECLARATION ORDER — and this arm returned `true` on exactly those queries
+    # while "does any probe carry the producer's encoding" returned `false`. The
+    # shard was fetched, the entry was in it, and the answer was still "absent".
+    #
+    # So the unit of the invariant is the PAIR. 0 pairs unreachable after the fix,
+    # and 216 queries unreachable before it — `base64url`+`ss58` 174,
+    # `hex`+`base58` 24, `hex`+`ss58` 18.
+    #
+    # THE SIZE OF THE POPULATION IS PINNED AS A CONSTANT AND NOT RESTATED IN THIS
+    # PROSE, and that is deliberate. This sentence used to carry the figure as
+    # words — "15,975 (shard, encoding) pairs checked" — over an assertion that
+    # read `checked > 15_000`. The true count was 19,256, so the stated
+    # measurement was wrong by 3,281 and the floor beneath it was 4,256 short of
+    # the value it was guarding: it could not have caught the error at any point,
+    # and the number drifted precisely because nothing compared it to the run.
+    # There is now ONE copy of the figure — `PairsChecked` below — and the
+    # assertion is an EQUALITY against it, so a divergence between the stated
+    # measurement and the measurement is the failure rather than the silence.
+    #
+    # An equality is right here even though it reddens when the closed set grows:
+    # a new row legitimately moves this count, and being told to re-read it is the
+    # intended cost. A floor would absorb the growth and go on asserting a figure
+    # nobody had re-measured, which is the failure this arm has now had twice.
+    const PairsChecked = 19_256
+    #
+    # `shardOnly` IS KEPT AND ASSERTED SEPARATELY, rather than deleted as
+    # subsumed, because the two can fail independently and a reader who sees only
+    # the pair count cannot tell which half moved: a derivation that stopped
+    # emitting a payload fails both, and one that stopped carrying an encoding
+    # fails only the pair.
+    var checked = 0
+    var unreachableShard: seq[string] = @[]
+    var unreachablePair: seq[string] = @[]
+    for q in Sweep:
+      let probes = indexProbesOf(q)
+      # EVERY ENCODING A PRODUCER COULD HAVE DECLARED FOR THIS STRING, which is
+      # the table's matches PLUS the bare-hex extension. `identifierEncodingsMatching`
+      # does not return `hex` for a string with no `0x` — §2's hex rows carry the
+      # prefix — so enumerating it alone would have left the hex half of the two
+      # bare-hex families out of the invariant that is supposed to cover them.
+      var declarable: seq[string] = @[]
+      if canonicalHash(q).len > 0: declarable.add "hex"
+      for enc in identifierEncodingsMatching(q):
+        if enc notin declarable: declarable.add enc
+      for enc in declarable:
+        if not identifierEncodingRule(enc).pathSafe: continue
+        inc checked
+        let want = hashPrefix(enc, q, HashShardPrefixLen)
+        var shardReached = false
+        var pairReached = false
+        for p in probes:
+          if hashPrefix(p.encoding, p.identifier, HashShardPrefixLen) == want:
+            shardReached = true
+            # …and the fetched bytes are scanned under this encoding too.
+            if enc in p.encodings: pairReached = true
+        if not shardReached and q notin unreachableShard: unreachableShard.add q
+        if not pairReached and q notin unreachablePair: unreachablePair.add q
+    # PRINTED, so the equality below can be re-derived from a green log instead of
+    # only from a red one. This is the figure the header used to state as words.
+    echo "  pairs: ", checked, " (shard, encoding) pairs checked over ",
+         Sweep.len, " candidates; unreachable shard ", unreachableShard.len,
+         ", unreachable pair ", unreachablePair.len
+    check checked == PairsChecked
+    check unreachableShard.len == 0
+    # THE STRENGTHENED HALF. This is the assertion that goes red on the code as it
+    # stood before the payload-dedup fix, with 216 witnesses.
+    check unreachablePair.len == 0
+
+  test "the `addr1…` family reaches BOTH shards — the witness that was missed":
+    # The exact strings the review executed, named rather than generated, so
+    # this arm reads as the defect report it closes. Each is 43/44/87 characters
+    # of base58's alphabet AND a bech32 string with an `addr1`/`stake1` human-
+    # readable part, and both members are `pathSafe`, so neither is skipped.
+    for q in ["addr1" & repeat("q", 38),      # 43 — base58's lower band
+              "addr1" & repeat("q", 39),      # 44 — base58's upper band
+              "addr1" & repeat("q", 82),      # 87 — base58's signature band
+              "stake1" & repeat("q", 38),     # 44
+              "addr1" & repeat("q", 41),      # 46 — SS58's band
+              "stake1" & repeat("q", 42)]:    # 48 — SS58's band
+      let matches = identifierEncodingsMatching(q)
+      check "bech32" in matches
+      check matches.len >= 2
+      # Two probes, two payloads, two shards. The pre-fix client took the first
+      # and asked ONE of them.
+      let probes = indexProbesOf(q)
+      check probes.len == 2
+      var shards: seq[string] = @[]
+      for p in probes:
+        let s = hashPrefix(p.encoding, p.identifier, ShardWidth)
+        if s notin shards: shards.add s
+      check shards.len == 2
+      # The bech32 reading — the one a Cardano producer would have written — is
+      # among them, and it is NOT the one declaration order puts first.
+      var bechShard = ""
+      for p in probes:
+        if p.encoding == "bech32":
+          bechShard = hashPrefix(p.encoding, p.identifier, ShardWidth)
+      check bechShard.len > 0
+      check bechShard in shards
+      # …and so is the WHOLE-STRING reading, which is the human-readable part
+      # keyed as though it were payload: `addr`, `stak`.
+      check q[0 ..< ShardWidth] in shards
+      check bechShard != q[0 ..< ShardWidth]
+    # WHICH ONE `keys[0]` WOULD HAVE PICKED DEPENDS ON DECLARATION ORDER, which
+    # is the second and independent reason the rule was unsafe. `base58`
+    # precedes `bech32` in the shared file and `bech32` precedes `ss58`, so the
+    # pre-fix client asked `addr` for the base58-band witnesses and `qqqq` for
+    # the SS58-band ones — missing the other one each time, for a reason that is
+    # a fact about the order of a JSON array and nothing else.
+    check indexProbesOf("addr1" & repeat("q", 38))[0].encoding == "base58"
+    check indexProbesOf("addr1" & repeat("q", 41))[0].encoding == "bech32"
+
+  test "an unambiguous query still costs exactly one shard":
+    # The other half of the cost claim, and the reason option (a) was affordable:
+    # NOTHING realistically shaped is ambiguous. Nine identifiers, one per member
+    # of the closed set that has a realistic spelling, each yielding one probe.
+    for q in [HexHash, "0x" & repeat("ab", 20), SolAddr, AdaAddr,
+              "stake1uyehkck0lajq8gldd8dk2x2mwm8fnvlqpnvgfvj4pnflkdgkm4y9m",
+              "5VERv8NsvbmPmDwPAP2FBQ2QSfmvsFbbLpMqZvnTwsL9VJNRQvKPGqGcmsxRTgcbGGnTA8JvHqHPmmWMPWDvbRXX",
+              "fuel1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+              "EQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqB2N",
+              "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"]:
+      check indexProbesOf(q).len == 1
+
+  test "a 44-character string matches base58 AND base64, and §2 says both":
+    let ms = identifierEncodingsMatching(SolAddr)
+    check "base58" in ms
+    check "base64" in ms
+    # base64's alphabet contains `/`, so it has no shard — and skipping it must
+    # not cost the base58 candidate, which is the one the producer wrote.
+    check not identifierEncodingRule("base64").pathSafe
+
+  test "a base58 and a bech32 identifier round-trip through a shard":
+    let entries = @[
+      HashEntry(encoding: "hex", identifier: HexHash, chain: "aztec", kind: hkTx),
+      HashEntry(encoding: "base58", identifier: SolAddr, chain: "solana",
+                kind: hkAddress),
+      HashEntry(encoding: "bech32", identifier: AdaAddr, chain: "cardano",
+                kind: hkAddress)]
+    let bytes = encodeHashShard(entries, 2)
+    let dec = decodeHashShard(bytes)
+    check dec.err.len == 0
+    check dec.fmt == HashFmtKeyForm          # a non-hex entry forces format 2
+    check dec.entries.len == 3
+    # Every identifier comes back EXACTLY as published — including bech32's
+    # human-readable part, which a payload-only entry would have lost.
+    var byChain = initTable[string, HashEntry]()
+    for e in dec.entries: byChain[e.chain] = e
+    check byChain["solana"].identifier == SolAddr
+    check byChain["solana"].encoding == "base58"
+    check byChain["cardano"].identifier == AdaAddr
+    check byChain["cardano"].encoding == "bech32"
+    check byChain["aztec"].identifier == HexHash
+    # …and the route is reconstructible, which is what "retrievable" means.
+    check routeFor(byChain["cardano"].chain, byChain["cardano"].kind,
+                   byChain["cardano"].identifier) ==
+          "/cardano/address/" & AdaAddr & "/"
+    # Exact lookup finds each one under its own encoding.
+    check lookupHash(bytes, "base58", SolAddr).len == 1
+    check lookupHash(bytes, "bech32", AdaAddr).len == 1
+    check lookupHash(bytes, "hex", HexHash).len == 1
+
+  test "the CLIENT recomputes the producer's shard from the query alone":
+    # §5: "a derivation the producer can do and the browser cannot is not done."
+    # The producer keys from the CHAIN's declared encoding; the client keys from
+    # the QUERY's shape, with no registry in hand. They must land on one shard.
+    for (declared, id) in [("base58", SolAddr), ("bech32", AdaAddr),
+                           ("hex", HexHash)]:
+      let producerShard = hashPrefix(declared, id, 2)
+      let keys = indexKeysOf(id)
+      check keys.len > 0
+      var reached = false
+      for k in keys:
+        if hashPrefix(k.encoding, k.identifier, 2) == producerShard: reached = true
+      check reached
+
+  test "an all-hex shard is still format 1, and its bytes have not moved":
+    let entries = @[
+      HashEntry(encoding: "hex", identifier: HexHash, chain: "aztec", kind: hkTx),
+      HashEntry(encoding: "hex", identifier: "0x" & repeat("ab", 20),
+                chain: "aztec", kind: hkAddress)]
+    check entries.shardIsAllHex
+    let bytes = encodeHashShard(entries, 2)
+    check ord(bytes[4]) == HashFmtHexBytes
+    let dec = decodeHashShard(bytes)
+    check dec.err.len == 0
+    check dec.fmt == HashFmtHexBytes
+    # Format 1 cannot store the `0x` — it stores decoded pairs — so the decoder
+    # puts it back rather than leaving every caller to.
+    for e in dec.entries:
+      check e.encoding == "hex"
+      check e.identifier.startsWith("0x")
+    check lookupHash(bytes, "hex", HexHash).len == 1
+
+  test "a client that reads only format 1 REFUSES a format-2 shard by name":
+    # §6.1: "a client encountering an unknown major version renders a 'please
+    # reload' state rather than misinterpreting". The decoder's half of that is
+    # a message naming what arrived — which is why v2 lives at its own
+    # `{version}` path and never inside `/idx/hash/1/`.
+    let v2 = encodeHashShard(@[
+      HashEntry(encoding: "base58", identifier: SolAddr, chain: "solana",
+                kind: hkAddress)], 2)
+    var tampered = v2
+    tampered[4] = chr(99)                       # a format neither build knows
+    let dec = decodeHashShard(tampered)
+    check dec.err.len > 0
+    check "unsupported hash-index format 99" in dec.err
+
+  test "a non-hex identifier REFUSES BY NAME instead of crashing a producer":
+    # The replaced `hexToBytes` reached `parseHexInt` and raised an unhandled
+    # `ValueError` — measured as `parseHexInt: invalid hex integer: 0x`, which
+    # names a string function and nothing else. The refusal names the encoding,
+    # the identifier, the offending character and the alphabet.
+    var msg = ""
+    try:
+      discard identifierIndexKey("hex", "0xZZZZ")
+    except ValueError as e:
+      msg = e.msg
+    check msg.len > 0
+    check "'0xZZZZ'" in msg
+    check "'hex'" in msg
+    check "'z'" in msg                          # the offending character, folded
+    check "0123456789abcdef" in msg             # the alphabet that admits digits
+    check "parseHexInt" notin msg
+
+  test "…and so does an identifier whose declared separator is missing":
+    var msg = ""
+    try:
+      discard identifierIndexKey("bech32", "addrqqqqqq")
+    except ValueError as e:
+      msg = e.msg
+    check msg.len > 0
+    check "separator" in msg
+
+  test "a base58 identifier declared as hex is refused, not silently keyed":
+    # The realistic producer bug: a registry row declaring the wrong encoding
+    # for a kind. Keying it anyway publishes an entry nothing can recompute.
+    var msg = ""
+    try:
+      discard identifierIndexKey("hex", SolAddr)
+    except ValueError as e:
+      msg = e.msg
+    check msg.len > 0
+    check "registry row declares the wrong encoding" in msg
+
+  test "`decimal` is deliberately not recognised from a bare string (§3's budget)":
+    # A block number is answered by local inference at ZERO requests (§8).
+    # Recognising it here would route it to the index and cost a fetch.
+    check identifierEncodingsMatching("68231").len == 0
+    check indexKeysOf("68231").len == 0
+    check qsDecimal in shapesOf("68231")
+
+  test "the shared file's shape rule and the hex reader agree about every 0x query":
+    # `hexBodyOf` implements a measured extension of §2 that the data cannot
+    # express (a bare hash above `BareHexFloor`, and a bare number refused). The
+    # two must still agree wherever the user wrote the prefix.
+    for body in ["ab", "abcd", repeat("ab", 20), repeat("ab", 32), "0"]:
+      check identifierEncodingsMatching("0x" & body) == @["hex"]
+      check hexBodyOf("0x" & body) == body
+
+  test "a non-hex query is hash-like now and was NOT before — the window's basis":
+    # The compatibility window rests on this: a client built before the widening
+    # classified every non-hex string as `qsText`, so it never asked the index
+    # about one, so the hex-only `/idx/hash/1/` was complete for every question
+    # it could be asked. `qsEncodedId` is what changed.
+    check qsEncodedId in shapesOf(SolAddr)
+    check qsEncodedId in shapesOf(AdaAddr)
+    check isHashLike(shapesOf(SolAddr))
+    # …and the hex shapes are untouched, which is the other half.
+    check shapesOf(HexHash) == {qsHash32}
+    check qsEncodedId notin shapesOf(HexHash)
+    check qsText in shapesOf("a plain name")
+
+  test "FORMAT 1's encode path refuses too, and does not reach parseHexInt":
+    # THE GAP THE MUTANT FOUND, PINNED SO IT CANNOT COME BACK. For one revision
+    # only the format-2 arm keyed through `identifierIndexKey`; format 1 called
+    # the hex parser directly. So `just byte-identity-mutant` still killed the
+    # demo producer with `invalid hex integer: 0x` — the exact crash this whole
+    # step replaced, surviving on the one path left in FRONT of the parser.
+    #
+    # The shard below is all-`hex` by declaration, so it takes the format-1 arm,
+    # and its identifier is not writable in hex.
+    var msg = ""
+    try:
+      discard encodeHashShard(@[HashEntry(encoding: "hex", identifier: "0xQQQQ",
+                                          chain: "c", kind: hkTx)], 2)
+    except ValueError as e:
+      msg = e.msg
+    check msg.len > 0
+    check "invalid hex integer" notin msg       # NOT the parser's message
+    check "identifier encoding 'hex'" in msg
+    check "0123456789abcdef" in msg
+
+  test "an SS58 identifier round-trips too — the third row the milestone names":
+    # SS58 is base58 of a network prefix plus the account bytes, so its payload
+    # rule is base58's and its shard is the leading slice of the whole string.
+    # Named separately because the deliverable names all three, and because its
+    # length band is the one that distinguishes it from a Solana address.
+    const Ss58 = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+    check Ss58.len == 48
+    check identifierEncodingsMatching(Ss58) == @["ss58"]
+    check hashPrefix("ss58", Ss58, 2) == "5G"      # case PRESERVED, not folded
+    let bytes = encodeHashShard(@[HashEntry(encoding: "ss58", identifier: Ss58,
+                                            chain: "polkadot", kind: hkAddress)], 2)
+    let dec = decodeHashShard(bytes)
+    check dec.err.len == 0
+    check dec.entries[0].identifier == Ss58
+    check dec.entries[0].encoding == "ss58"
+    check lookupHash(bytes, "ss58", Ss58).len == 1
+    # …and the client reaches the same shard from the query alone. ONE probe,
+    # because a 48-character SS58 account is not admissible under any other
+    # path-safe row — which is checked rather than assumed, since the whole
+    # point of §5.6 is that some queries are admissible under two.
+    let probes = indexProbesOf(Ss58)
+    check probes.len == 1
+    check hashPrefix(probes[0].encoding, probes[0].identifier, 2) == "5G"
+
+  test "an identifier kind code maps to the kind a registry row declares":
+    check identifierKindOf(hkTx) == KindTransaction
+    check identifierKindOf(hkBlock) == KindBlock
+    check identifierKindOf(hkAddress) == KindAddress
+    check identifierKindOf(0) == ""

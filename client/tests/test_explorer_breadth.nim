@@ -34,13 +34,16 @@
 ## Debug-affordance scanner over a row whose action cell is empty. All three of
 ## those are defects this milestone actually had.
 
-import std/[unittest, os, strutils, osproc, sets, tables]
+import std/[unittest, os, strutils, osproc, sets, tables, json]
 
 import ../src/ssr
 import ../src/reader
 import ../src/viewutil
 import ../src/components/degraded
 import ../src/components/tables as viewTables
+# The shard rule, from the one module that holds it — a test that recomputed the
+# published layout by hand would be the second derivation this suite is about.
+import blocktracer/contract/shards
 
 const Chain = "demo"
 
@@ -262,6 +265,75 @@ proc blockedOriginStore(dir: string, log: OriginLog): ObjectStore =
       log.refused.add path
       return ObjectResponse(found: false)
     inner.get(path))
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NO MOCKS. The tree below is the real exporter's output, mutated ON DISK in one
+# field — a block body's transaction reference, respelled in a case the producer
+# did not write. That is not a stand-in for a chain whose display form differs
+# from its key form; it is exactly the byte such a chain would publish, and it is
+# the only way to exercise the rule before such a chain exists. `blockedOrigin`
+# above is the suite's one test double and carries its own justification there.
+# ═══════════════════════════════════════════════════════════════════════════
+
+suite "routes are KEY forms, not the DISPLAY forms their bodies carry":
+  # ── THE RESIDUAL THIS CLOSES ───────────────────────────────────────────────
+  #
+  # `staticRoutes` reads transaction hashes out of a published BLOCK BODY and
+  # block hashes out of a published BLOCK INDEX. A body carries the DISPLAY form
+  # — that is the whole point of the two forms being separate — while a route,
+  # a path segment and a §5 index key are all KEY positions.
+  #
+  # A no-op for every chain published today, because `hex`'s two forms coincide
+  # for a field element. But the first chain whose forms differ gets its ENTIRE
+  # static export at spellings the producer never wrote: the page renders at
+  # `/eth/tx/0xAbC…`, the object sits at `d/eth/tx/…/0xabc….json`, and the hash
+  # index is built from THIS ENUMERATION, so a correctly-spelled query would miss
+  # an entity that is right there.
+  #
+  # Unreachable on the committed corpus, which is why it is provoked rather than
+  # observed: every identifier in every capture is lowercase (measured, and the
+  # measurement is in `hexIdentifierEncoding`'s doc comment with its definition).
+  let caseWork = getTempDir() / ("blocktracer-m9-case-" & $getCurrentProcessId())
+  removeDir(caseWork)
+  createDir(caseWork)
+
+  test "an upper-cased transaction reference in a block body still routes to the object":
+    # Copy the exported data plane, then respell ONE reference.
+    copyDir(dist / "d", caseWork / "d")
+    copyDir(dist / "registry", caseWork / "registry")
+    let cur = parseJson(readFile(caseWork / "d" / Chain / "current.json"))
+    let gen = cur{"generation"}.getStr
+    let root = parseJson(readFile(
+      caseWork / "d" / Chain / "g" / gen / "root.json"))
+    var blockRel = ""
+    for p in root{"maps"}{"blocks"}: blockRel = p.getStr
+    check blockRel.len > 0
+    let bi = parseJson(readFile(caseWork / blockRel))
+    var blockHash = ""
+    for b in bi{"blocks"}: blockHash = b.getStr
+    check blockHash.len > 0
+    let brel = caseWork / "d" / Chain / "block" / blockHash & ".json"
+    var bd = parseJson(readFile(brel))
+    let original = bd{"transactions"}[0].getStr
+    # `0x` + UPPERCASE hex: a legal spelling of the same transaction, and the
+    # spelling an EIP-55 producer would put in a body.
+    let shouted = "0x" & original[2 .. ^1].toUpperAscii
+    check shouted != original
+    var txs = newJArray()
+    for i, t in bd["transactions"].getElems:
+      txs.add (if i == 0: %shouted else: t)
+    bd["transactions"] = txs
+    writeFile(brel, bd.pretty)
+
+    let mutated = newDataRoot(caseWork)
+    let mutatedRoutes = staticRoutes(mutated)
+    # THE ASSERTION: the route carries the KEY form, not the body's spelling.
+    check ("/" & Chain & "/tx/" & original) in mutatedRoutes
+    check ("/" & Chain & "/tx/" & shouted) notin mutatedRoutes
+    # …and the object the route names is the one on disk, which is the point:
+    # a route at the shouted spelling would have been a page for a 404.
+    check fileExists(caseWork / "d" / Chain / "tx" /
+                     shardKeyFor("hex", original) / original & ".json")
 
 suite "M9 — e2e_explorer_renders_from_published_files_only":
   let plain = newDataRoot(dist)

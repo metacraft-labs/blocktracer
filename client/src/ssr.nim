@@ -8,6 +8,10 @@
 import std/[options, strutils]
 import reader
 import viewutil
+# THE TWO FORMS. `staticRoutes` places identifiers in ROUTES, which are KEY
+# positions, while the lists it reads them from are object BODIES, which carry
+# DISPLAY forms — see the note at the enumeration itself.
+import blocktracer/contract/identifier_encoding
 import debugger/demo_session
 import debugger/source_document
 import debugger/session_view
@@ -641,10 +645,31 @@ proc staticRoutes*(r: DataRoot): seq[string] =
     while tp.hasMore:
       result.add txsFromUrl(chain, tp.nextFrom)
       tp = txsFrom(r, info, tp.nextFrom)
+    # ── EVERY IDENTIFIER THAT BECOMES A ROUTE IS KEY-FORMED HERE ─────────────
+    #
+    # `blockHashes` and `bd.transactions` read identifiers out of published
+    # OBJECT BODIES, and a body carries the DISPLAY form — that is the whole
+    # point of the two forms being separate, and `identifier-encodings.json`
+    # states it outright: "DISPLAY FORM: the identifier a published object
+    # carries in its body… KEY FORM: every path segment and every index key…
+    # and the route `/{chain}/{kind}/{id}/`".
+    #
+    # So these two lists are the one place in the tree where a display form was
+    # being spelled straight into a key position. A no-op for every chain
+    # published today, because `hex`'s two forms coincide for a field element —
+    # but the first chain whose forms differ gets its ENTIRE static export at
+    # spellings the producer never wrote: the page is rendered at
+    # `/eth/tx/0xAbC…`, the object sits at `d/eth/tx/…/0xabc….json`, and the
+    # §5 hash index is built from THIS LIST, so the index would key the display
+    # form too and a correctly-spelled query would miss an entity that is right
+    # there. Fixing it here fixes all three at once, because all three read this
+    # enumeration.
+    let enc = info.session.identifierEncoding
     for h in blockHashes(r, info):
-      result.add "/" & chain & "/block/" & h
+      result.add "/" & chain & "/block/" & identifierKeyForm(enc, KindBlock, h)
       let bd = readBlockDetail(r, info, h)
       for txh in bd.transactions:
+        let txh = identifierKeyForm(enc, KindTransaction, txh)
         result.add "/" & chain & "/tx/" & txh
         # Page-Descriptions §8: the explicit full-viewport route and the deep
         # link target. Enumerated for EVERY transaction, not only the ones with
@@ -652,7 +677,15 @@ proc staticRoutes*(r: DataRoot): seq[string] =
         # states this route renders — "the metadata, with the reason stated" —
         # and a 404 there would be a different, worse answer.
         result.add "/" & chain & "/tx/" & txh & "/debug"
-    for address in addressesInGeneration(r, info):
+    for rawAddress in addressesInGeneration(r, info):
+      # Key-formed for the reason above, and stated separately because the
+      # address list has a second source: it is read from the generation root's
+      # `addr` paths, whose file NAMES are already key forms, so today this is a
+      # no-op twice over. `identifierKeyForm` is idempotent — it folds case and
+      # touches nothing else — so applying it to a value that is already a key
+      # form is safe, which is what lets every route site say the rule out loud
+      # instead of tracking which of its inputs happens to be normalised.
+      let address = identifierKeyForm(enc, KindAddress, rawAddress)
       result.add addressUrl(chain, address)
       result.add addressCodeUrl(chain, address)
       let listed = addressSegmentPaths(r, info, address)

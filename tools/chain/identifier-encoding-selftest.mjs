@@ -211,6 +211,48 @@ function problems(d) {
     for (const f of ['stripPrefix', 'payloadAfterLast']) {
       if (typeof sk[f] !== 'string') out.push('encodings-bad-payload-rule');
     }
+    // THE ALPHABET, which is what lets the §5 index REFUSE an identifier it cannot key
+    // rather than crash on it. A member with no alphabet admits every string, so the
+    // refusal never fires; a repeated digit is an alphabet whose size is not its
+    // cardinality; and a pad outside its own alphabet right-pads a short identifier into
+    // a shard name no identifier of that encoding could produce — which is the very
+    // defect the per-encoding pad was added to prevent, and nothing checked it held.
+    if (typeof sk.alphabet !== 'string' || sk.alphabet.length === 0) {
+      out.push('encodings-no-alphabet');
+    } else {
+      if (new Set(sk.alphabet).size !== sk.alphabet.length) {
+        out.push('encodings-repeated-alphabet-digit');
+      }
+      if (typeof sk.pad === 'string' && sk.pad.length === 1
+          && !sk.alphabet.includes(sk.pad)) {
+        out.push('encodings-pad-outside-alphabet');
+      }
+    }
+  }
+  // ── THE SHAPE RULE: HOW A MEMBER IS RECOGNISED FROM A QUERY STRING ALONE ─────────────
+  //
+  // §5's index has no chain segment, so it keys per SHAPE — which turned §2's shape table
+  // from search UX into a derivation site. ABSENT IS NOT EMPTY: an empty list is
+  // `decimal`'s deliberate answer (a number is §3's local inference at zero requests), and
+  // an absent one is nobody having answered.
+  for (const row of Array.isArray(d?.encodings) ? d.encodings : []) {
+    if (!Array.isArray(row?.shapes)) { out.push('encodings-no-shapes'); continue; }
+    for (const sh of row.shapes) {
+      if (typeof sh?.row !== 'string' || sh.row.length === 0) {
+        out.push('encodings-shape-no-row');
+      }
+      // A range that admits nothing is a §2 row this build cannot recognise; one that
+      // admits the empty payload would key every query at once.
+      if (!Number.isInteger(sh?.minPayload) || !Number.isInteger(sh?.maxPayload)
+          || sh.minPayload <= 0 || sh.maxPayload < sh.minPayload) {
+        out.push('encodings-shape-bad-range');
+      }
+      if (!Array.isArray(sh?.prefixes)) out.push('encodings-shape-bad-prefixes');
+      else if (sh.prefixes.some((x) => typeof x !== 'string' || x.length === 0)) {
+        // An empty prefix matches everything, which an empty prefix LIST already says.
+        out.push('encodings-shape-empty-prefix');
+      }
+    }
   }
   // ── THE CASE RULE, WHICH IS A DIFFERENT QUESTION FROM WHERE THE PAYLOAD STARTS ───────
   //
@@ -248,7 +290,11 @@ function problems(d) {
 }
 const clone = () => JSON.parse(raw);
 /** A well-formed shardKey, so a mutation that adds a ROW tests one rule and not two. */
-const validRule = () => ({ stripPrefix: '', payloadAfterLast: '', pad: 'x', pathSafe: true });
+const validRule = () => ({ stripPrefix: '', payloadAfterLast: '', pad: 'x',
+                           alphabet: 'xyz', pathSafe: true });
+/** …and a well-formed `shapes`, for `validCase`'s reason: a row added to test the SHAPE of
+ *  the set must not also be missing a shape rule. */
+const validShapes = () => [{ row: 'a test row', prefixes: [], minPayload: 1, maxPayload: 8 }];
 /** …and a well-formed `case`, for the same reason: a row added to test the SHAPE of the set
  *  must not also be missing a case rule, or the mutation would report two problems and the
  *  `only()` comparison below could not say which rule refused. */
@@ -502,14 +548,16 @@ test('the boundary rule is one file, and both halves are held to it');
      Array.isArray(bnd.floors) && bnd.floors.length === 3
      && bnd.floors.every((f) => typeof f.top === 'string' && Number.isInteger(f.floor)
                                 && f.floor > 0));
-  // TWO SWEEPS, AND THEY ARE TWO FACTS. A file may key an identifier without reading a
-  // registry row (the §5 hash index does, under a named global encoding) and may read the
-  // row without keying anything (the session pins it). One merged allowlist would let a new
-  // consumer of either seam be excused by the other's list.
-  ck(`…and two sweeps, the declaration and the case rule — `
+  // THREE SWEEPS, AND THEY ARE THREE FACTS. A file may key an identifier without reading a
+  // registry row, may read the row without keying anything (the session pins it), and may
+  // derive a §5 INDEX key without doing either — that third one arrived when the index
+  // stopped being hex-only and started keying per identifier SHAPE, which is derivable
+  // from a query string with no registry in hand at all. One merged allowlist would let a
+  // new consumer of any seam be excused by another's list.
+  ck(`…and three sweeps, the declaration, the case rule and the index key — `
      + `[${bnd.sweeps.map((w) => w.id).join(', ')}]`,
-     bnd.sweeps.length === 2 && bnd.sweeps[0].id === 'declaration'
-     && bnd.sweeps[1].id === 'caseRule');
+     bnd.sweeps.length === 3 && bnd.sweeps[0].id === 'declaration'
+     && bnd.sweeps[1].id === 'caseRule' && bnd.sweeps[2].id === 'indexKey');
   // EVERY expected entry carries the REASON it is one. An allowlist whose entries say
   // nothing is a list nobody reviews.
   const unexplained = [];
@@ -587,13 +635,172 @@ test('exactly the expected files know about each half of the seam');
   // whose only mention of the member was in that header — documentation of
   // `blocktracer_client/paths.nim`'s signature, not a second reader of the declaration,
   // and the module it re-exports is in the set.
-  ck('eight files under src/ read the declaration', sizeOf('declaration').src.length === 8);
-  ck('four under client/, and one under tools/ — this suite',
-     sizeOf('declaration').client.length === 4
+  ck('nine files under src/ read the declaration', sizeOf('declaration').src.length === 9);
+  ck('seven under client/, and one under tools/ — this suite',
+     sizeOf('declaration').client.length === 7
      && sizeOf('declaration').tools.length === 1);
   ck('six files under src/ read the case rule', sizeOf('caseRule').src.length === 6);
-  ck('one under client/ — the query canonicaliser — and one under tools/',
-     sizeOf('caseRule').client.length === 1 && sizeOf('caseRule').tools.length === 1);
+  ck('three under client/ — the query canonicaliser, the route enumerator and the '
+     + 'browser bundle — and one under tools/',
+     sizeOf('caseRule').client.length === 3 && sizeOf('caseRule').tools.length === 1);
+  // THE THIRD SWEEP, AND WHY IT DID NOT EXIST BEFORE. While the §5 index was hex-only
+  // there was nothing per-encoding to derive: `hashPrefix` took one string and a constant
+  // said it was hex. Now the producer keys from the chain's declaration and the client
+  // keys from the query's SHAPE, and the two have to meet on one shard — so the set of
+  // files that may compute an index KEY is as load-bearing as the set that may compute a
+  // shard PATH.
+  ck('four files under src/ derive a §5 index key', sizeOf('indexKey').src.length === 4);
+  ck('three under client/ — the classifier, the browser bundle and the index\'s one '
+     + 'writer — and one under tools/',
+     sizeOf('indexKey').client.length === 3 && sizeOf('indexKey').tools.length === 1);
+}
+
+test('the §5 index key is ONE derivation, reached from both sides');
+{
+  // ── WHY THIS ARM EXISTS AT ALL ────────────────────────────────────────────────────────
+  //
+  // The index keys per identifier SHAPE, which means the PRODUCER derives a shard from the
+  // chain's declared encoding and the CLIENT derives the same shard from the query string
+  // alone. Those are two different inputs reaching one answer, and there is no test that
+  // can run both halves together in this file — so what is checked here is the weaker,
+  // structural claim that neither half holds a derivation of its own.
+  const hs = codeOf(readFileSync(join(REPO, 'src', 'blocktracer', 'contract',
+                                      'hashshard.nim'), 'utf8'));
+  ck('hashPrefix slices `identifierPayload` rather than the identifier',
+     /proc hashPrefix\*[\s\S]{0,400}?identifierPayload\(encoding, identifier\)/.test(hs));
+  ck('…and it takes the encoding as a PARAMETER, so it is not hex-shaped',
+     /proc hashPrefix\*\(encoding, identifier: string, prefixLen: int\)/.test(hs));
+  // THE REFUSAL, which is what replaced an unhandled `parseHexInt`. A codec that stored an
+  // identifier without going through it would store a key nothing can recompute.
+  ck('every stored entry is keyed through identifierIndexKey',
+     occurrences(hs, 'identifierIndexKey') >= 4);
+  ck('…and the public hex-pair parser is gone', !hs.includes('hexToBytes'));
+
+  const shp = codeOf(readFileSync(join(REPO, 'client', 'src', 'viewmodel',
+                                       'search_shapes.nim'), 'utf8'));
+  ck('the client derives its candidate encodings from the shared table',
+     shp.includes('identifierEncodingsMatching'));
+  ck('…and skips a member whose alphabet cannot be a path segment rather than raising',
+     /pathSafe/.test(shp));
+  // A 44-character string is base58 AND base64 (§2 lists both), so a client that raised on
+  // the unshardable one would drop the candidate the producer actually wrote.
+  ck('…and the two halves agree that base64 is the unshardable member',
+     JSON.parse(raw).encodings.filter((e) => e.shardKey.pathSafe === false)
+       .map((e) => e.id).join(',') === 'base64');
+}
+
+test('SEVERAL SHAPES CAN BE SEVERAL PAYLOADS — the overlap, re-derived in JavaScript');
+{
+  // ── WHY THIS ARM EXISTS, AND WHY IT IS ANALYTIC RATHER THAN ENUMERATIVE ───────────────
+  //
+  // This file used to state, in the shared table's own header, that "every member a single
+  // query matches yields the SAME payload, and therefore the same shard… §2's rows for
+  // [hex, bech32, bech32m] are mutually exclusive with every other row". The browser
+  // consumed that sentence by taking the FIRST of several index keys. **It is false**, and
+  // the Nim suite now sweeps 53,935 generated strings to say so.
+  //
+  // What is done HERE is deliberately a DIFFERENT derivation of the same fact, because two
+  // implementations agreeing is the only thing that makes either one evidence. The Nim half
+  // ENUMERATES candidates; this half SOLVES the bands. A member whose payload is the whole
+  // string and a member whose payload starts after a prefix overlap exactly when some
+  // admissible payload length of the second, plus its human-readable part, lands inside a
+  // band of the first, and the characters involved are writable in both alphabets. No
+  // string is generated; the answer comes out of the declaration.
+  // PATH-SAFE MEMBERS ONLY, and that restriction is the consumption rule rather than a
+  // convenience: `base64` contains `/`, has no shard path, and yields no probe — so a
+  // `base64`-vs-`bech32m` band overlap is real in the table and costs no request. It is
+  // counted in the `hidden` tally below instead, because the day the path-safe
+  // re-encoding question this file defers is answered, it stops being hidden.
+  const encs = doc.encodings.filter((e) => e.shapes.length > 0
+                                        && e.shardKey.pathSafe === true);
+  const hidden = doc.encodings.filter((e) => e.shapes.length > 0
+                                          && e.shardKey.pathSafe === false)
+    .map((e) => e.id);
+  ck('exactly one declared member has shapes and no shard path, so exactly one overlap '
+     + 'family is invisible to the client rather than absent from the table',
+     hidden.join(',') === 'base64');
+  const whole = encs.filter((e) => !e.shardKey.stripPrefix && !e.shardKey.payloadAfterLast);
+  const split = encs.filter((e) => e.shardKey.stripPrefix || e.shardKey.payloadAfterLast);
+  const subsetOf = (alphabet, chars) => [...chars].every((c) => alphabet.includes(c));
+  const sharesADigit = (a, b) => [...a].some((c) => b.includes(c));
+
+  const families = [];
+  for (const sp of split) {
+    for (const rs of sp.shapes) {
+      // The human-readable part a witness would carry. An empty prefix list means the
+      // member is recognised without one, and then there is nothing to be written in a
+      // second alphabet — `hex`'s `0x` is a prefix and `0` is in no base58 alphabet, which
+      // is exactly why hex does not appear below.
+      for (const hrp of (rs.prefixes.length ? rs.prefixes : [''])) {
+        for (const w of whole) {
+          if (w.id === sp.id) continue;
+          if (!subsetOf(w.shardKey.alphabet, hrp)) continue;
+          if (!sharesADigit(sp.shardKey.alphabet, w.shardKey.alphabet)) continue;
+          for (const rw of w.shapes) {
+            // `w`'s OWN prefix rule has to admit a string that starts with `hrp`. Leaving
+            // this out over-approximates and it showed: without it the solver reported
+            // `base64url`x`bech32` and `base64url`x`hex`, neither of which exists — a TON
+            // address is recognised by `EQ`/`UQ`/`kQ` and no string beginning `addr1` or
+            // `0x` carries one. An over-approximating checker reports a defect that is not
+            // there, which costs exactly as much reader time as missing one.
+            if (rw.prefixes.length
+                && !rw.prefixes.some((q) => hrp.startsWith(q))) continue;
+            // A payload length of `sp` that makes the WHOLE string a valid `w`.
+            const lo = Math.max(rs.minPayload, rw.minPayload - hrp.length);
+            const hi = Math.min(rs.maxPayload, rw.maxPayload - hrp.length);
+            if (lo > hi) continue;
+            const key = [w.id, sp.id].sort().join('x');
+            if (!families.includes(key)) families.push(key);
+          }
+        }
+      }
+    }
+  }
+  families.sort();
+  ck('the old claim is FALSE and this half computes it independently: at least one pair '
+     + 'of §2 rows admits ONE string with TWO payloads', families.length > 0);
+  ck('…and the pairs are exactly base58xbech32 and bech32xss58 — the second one was not '
+     + 'in the defect report, and is the same mechanism at SS58\'s 46-48 band',
+     families.join(', ') === 'base58xbech32, bech32xss58');
+  // A WITNESS, CONSTRUCTED FROM THE TABLE, so the pair above is not an arithmetic
+  // curiosity: `addr1` + 38 of bech32's zero digit is 43 characters, which is inside
+  // base58's lower band, and every character of it is a base58 digit.
+  const bech = doc.encodings.find((e) => e.id === 'bech32');
+  const b58 = doc.encodings.find((e) => e.id === 'base58');
+  const witness = 'addr1' + bech.shardKey.pad.repeat(38);
+  ck('a witness is constructible from the declaration alone: `addr1` + 38 pad digits',
+     witness.length === 43 && bech.shapes[0].prefixes.includes('addr1'));
+  ck('…it is admissible as base58 — right length band, every character a base58 digit',
+     witness.length >= b58.shapes[0].minPayload
+     && witness.length <= b58.shapes[0].maxPayload
+     && subsetOf(b58.shardKey.alphabet, witness));
+  ck('…and as bech32, whose payload is the 38 characters after the last `1`',
+     witness.slice(witness.lastIndexOf('1') + 1).length >= bech.shapes[0].minPayload);
+  ck('…and BOTH members are pathSafe, so neither is skipped and the client must ask both',
+     bech.shardKey.pathSafe === true && b58.shardKey.pathSafe === true);
+
+  // ── AND THE CONSUMPTION RULE, WHICH IS THE PART THAT WAS ACTUALLY WRONG ───────────────
+  //
+  // Source-shape pins, so each ABSENCE is paired with a PRESENCE: a scan that matched
+  // nothing would satisfy every "must not contain" on its own, which is the first trap in
+  // Verification-Harness-Traps.md.
+  const shp2 = codeOf(readFileSync(join(REPO, 'client', 'src', 'viewmodel',
+                                        'search_shapes.nim'), 'utf8'));
+  const boot = codeOf(readFileSync(join(REPO, 'client', 'searchboot',
+                                        'searchboot.nim'), 'utf8'));
+  ck('the client exposes a DEDUPLICATED PROBE SET rather than a list to pick from',
+     /func indexProbesOf\*/.test(shp2));
+  ck('…the browser consumes it, and consumes no single key: `indexProbesOf(raw)` present, '
+     + '`keys[0]` absent', boot.includes('indexProbesOf(raw)')
+     && !boot.includes('keys[0]'));
+  ck('…every probe becomes a request: the plan is a LIST of shard fetches',
+     /func indexPlanFor\*/.test(boot) && boot.includes('for req in plan.requests'));
+  // THE HEX ARM'S EARLY RETURN was a false absence of its own — a bare uppercase hex
+  // string is also an SS58 account, and `return @[…]` discarded that reading before the
+  // probe set could hold it.
+  ck('…and the hex arm ADDS a key rather than returning one',
+     /if hex\.len > 0: result\.add /.test(shp2)
+     && !/if hex\.len > 0: return @\[/.test(shp2));
 }
 
 test('the string-deriving sites are pinned, including the one that had no pin');
@@ -657,14 +864,14 @@ test('MUTATIONS: each structural rule refuses on its own');
   d = clone(); d.kinds = [];
   bite('an empty kind set is refused', only(d, 'kinds-empty'));
 
-  d = clone(); d.encodings.push({ id: 'hex', shapeRows: 'a second hex', shardKey: validRule(), case: validCase() });
+  d = clone(); d.encodings.push({ id: 'hex', shapeRows: 'a second hex', shardKey: validRule(), case: validCase(), shapes: validShapes() });
   bite('a duplicated encoding member is refused — a set that states two things about one '
        + 'member cannot answer a membership question', only(d, 'encodings-duplicate'));
 
   d = clone(); d.kinds.push({ id: 'address', pathSites: 'a second address' });
   bite('a duplicated kind is refused', only(d, 'kinds-duplicate'));
 
-  d = clone(); d.encodings.push({ id: 'Base32', shapeRows: 'invented', shardKey: validRule(), case: validCase() });
+  d = clone(); d.encodings.push({ id: 'Base32', shapeRows: 'invented', shardKey: validRule(), case: validCase(), shapes: validShapes() });
   bite('a member that is not a bare lowercase token is refused, because it is published '
        + 'verbatim as a registry value', only(d, 'encodings-not-a-token'));
 
@@ -672,7 +879,7 @@ test('MUTATIONS: each structural rule refuses on its own');
   bite('a kind with whitespace is refused, because it is a published object KEY',
        only(d, 'kinds-not-a-token'));
 
-  d = clone(); d.encodings.push({ id: 'base32', shardKey: validRule(), case: validCase() });
+  d = clone(); d.encodings.push({ id: 'base32', shardKey: validRule(), case: validCase(), shapes: validShapes() });
   bite('a member naming no row of the shape table is refused — that is what makes the set '
        + 'reviewable against the spec rather than merely finite',
        only(d, 'encodings-no-provenance'));
@@ -680,7 +887,7 @@ test('MUTATIONS: each structural rule refuses on its own');
   d = clone(); d.kinds.push({ id: 'checkpoint' });
   bite('a kind naming no path site is refused', only(d, 'kinds-no-provenance'));
 
-  d = clone(); d.encodings.push({ id: '', shapeRows: 'nameless', shardKey: validRule(), case: validCase() });
+  d = clone(); d.encodings.push({ id: '', shapeRows: 'nameless', shardKey: validRule(), case: validCase(), shapes: validShapes() });
   bite('a member with no id is refused', only(d, 'encodings-no-id'));
 
   // ── AND THE SHARD RULE'S OWN ARMS ───────────────────────────────────────────────────
@@ -712,6 +919,49 @@ test('MUTATIONS: each structural rule refuses on its own');
   bite('an absent payloadAfterLast is refused rather than read as "no separator" — the '
        + 'field says the separator is empty, and a silent default cannot be reviewed',
        only(d, 'encodings-bad-payload-rule'));
+
+  d = clone(); delete d.encodings[0].shardKey.alphabet;
+  bite('a member with no alphabet is refused — the §5 index refuses an identifier its '
+       + 'alphabet does not admit BY NAME, and an empty alphabet admits everything, so '
+       + 'the refusal would never fire', only(d, 'encodings-no-alphabet'));
+
+  d = clone(); d.encodings[0].shardKey.alphabet = '0123456789abcdeff';
+  bite('a repeated digit in an alphabet is refused — an alphabet whose size is not its '
+       + 'cardinality says two things about one character while every membership check '
+       + 'still passes', only(d, 'encodings-repeated-alphabet-digit'));
+
+  d = clone(); d.encodings[0].shardKey.pad = 'z';
+  bite('a pad outside its own alphabet is refused — it right-pads a short identifier into '
+       + 'a shard name no identifier of that encoding could produce, which is the defect '
+       + 'the per-encoding pad was ADDED to prevent and nothing checked',
+       only(d, 'encodings-pad-outside-alphabet'));
+
+  // ── AND THE SHAPE RULE'S OWN ARMS ───────────────────────────────────────────────────
+  //
+  // §2's table became a DERIVATION SITE when the index started keying per shape, so its
+  // machine-readable form gets arms like every other rule here.
+  d = clone(); delete d.encodings[0].shapes;
+  bite('a member with no shapes list is refused — ABSENT is not EMPTY, and empty is '
+       + '`decimal`\'s deliberate answer rather than an omission',
+       only(d, 'encodings-no-shapes'));
+
+  d = clone(); d.encodings[0].shapes[0].row = '';
+  bite('a shape naming no row of §2 is refused, for the reason a member naming no '
+       + 'shapeRows is', only(d, 'encodings-shape-no-row'));
+
+  d = clone(); d.encodings[0].shapes[0].minPayload = 0;
+  bite('a shape admitting an EMPTY payload is refused — it would key every query at once',
+       only(d, 'encodings-shape-bad-range'));
+
+  d = clone(); d.encodings[0].shapes[0].maxPayload = 0;
+  bite('a shape whose range admits nothing is refused — it is a row of §2 this build '
+       + 'cannot recognise, which is a false absence rather than a missing feature',
+       only(d, 'encodings-shape-bad-range'));
+
+  d = clone(); d.encodings[0].shapes[0].prefixes = [''];
+  bite('an empty prefix inside a shape is refused — it matches everything, which an empty '
+       + 'prefix LIST already says, so it reads as a restriction while imposing none',
+       only(d, 'encodings-shape-empty-prefix'));
 
   // ── AND THE CASE RULE'S OWN ARMS ────────────────────────────────────────────────────
   //
@@ -753,8 +1003,8 @@ test('MUTATIONS: each structural rule refuses on its own');
 }
 
 console.error('');
-if (asserted !== 119) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 119 — a case was added, removed or skipped.`);
+if (asserted !== 153) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 153 — a case was added, removed or skipped.`);
   failed++;
 } else {
   console.error(`assertion count: ${asserted} (as declared)`);

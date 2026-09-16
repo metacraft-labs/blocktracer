@@ -47,19 +47,25 @@
 ## from `tools/chain/identifier-encodings.json`, so it holds no table of its own
 ## either.
 ##
-## **One site still derives from the string, and it is the last and most
-## expensive step.** The hash index (`contract/hashshard.nim`) still PARSES HEX
-## PAIRS in `hexToBytes`, so a base58 or bech32 identifier has no representation
-## in it at all. It is a published, self-describing wire format, so widening it
-## is a migration of every published shard plus a compatibility window. What that
-## module no longer does is decide case for itself: its key encoding is the named
-## constant `HashIndexEncoding` and its fold comes from the `case` rule here, so
-## the remaining assumption is one greppable token rather than a `toLowerAscii`
-## nobody could see. It is `hex` because §5's index path carries no chain
-## segment — a client resolving a bare query does not yet know which chain it
-## will hit — so that index's key rule has to be global in a way a per-chain
-## declaration cannot be, and choosing the chain-agnostic canonical form is the
-## migration's own decision rather than a fold this step may quietly make.
+## **The last site that derived from the string was the hash index, and it no
+## longer does.** `contract/hashshard.nim` held a `hexToBytes` that PARSED HEX
+## PAIRS, so a base58 or bech32 identifier had no representation in the index at
+## all, and on anything it could not parse it raised an unhandled `parseHexInt`
+## that killed the producer. `identifierIndexKey` below replaced it: it reads the
+## per-member `alphabet` rule and REFUSES BY NAME.
+##
+## **That index keys per identifier SHAPE, not per chain, and the reason is the
+## path.** §5's index path carries no chain segment — which is what makes "two
+## requests to resolve any hash on any chain" true — so a client resolving a bare
+## query does not know which chain it will hit and cannot read that chain's
+## declaration. It does know the query's SHAPE, which is Search-And-Routing §2's
+## table and is derivable from the string alone; `identifierEncodingsMatching`
+## below is that derivation, over the shared file's `shapes` rule. The producer
+## keys with the encoding its chain declared, the client keys with each encoding
+## its query's shapes imply, and the two meet because both slice the same
+## `identifierPayload`. The stored bytes are a published wire format, so widening
+## them was VERSIONED rather than mutated (Publishing-And-Caching.md §6.1, and
+## Search-And-Routing.md §5.5).
 ##
 ## **The capture tooling no longer derives anything.** `entities.mjs` used to
 ## open-code this module's hex rule outright, at three sites (`t.hash.slice(2,
@@ -140,6 +146,17 @@ type
     stripPrefix*: string
     payloadAfterLast*: string
     pad*: string
+    alphabet*: string
+      ## Every character an identifier of this member may be written in, IN KEY
+      ## FORM — so `hex` lists only the lowercase digits, because the case rule
+      ## folds before the alphabet is consulted.
+      ##
+      ## It is data for the reason every other field here is data: the §5 hash
+      ## index has to REFUSE an identifier it cannot key, by name, and the
+      ## alternative was a table of per-alphabet character sets inside
+      ## `contract/hashshard.nim` — a second place deciding what an identifier
+      ## of a given encoding may look like. `identifierIndexKey` is the one
+      ## consumer.
     pathSafe*: bool
 
   IdentifierCaseRule* = object
@@ -157,6 +174,22 @@ type
     keyForm*: string
     displayForm*: string
 
+  IdentifierShapeRule* = object
+    ## One row of Search-And-Routing.md §2's shape table, machine-readable — how
+    ## a member is recognised from a QUERY STRING ALONE.
+    ##
+    ## It is data, and in this file rather than in the client, because §5's index
+    ## path carries no chain segment: a client resolving a bare query cannot use
+    ## the per-chain declaration to key it, so the index keys per SHAPE, and
+    ## recognition stopped being search UX and became a derivation site. Every
+    ## other derivation site in this seam reads its rule from the shared file.
+    row*: string
+      ## The §2 row this is, quoted, so the set is reviewable against the spec.
+    prefixes*: seq[string]
+      ## Literal prefixes the identifier must carry, or empty for none.
+    minPayload*, maxPayload*: int
+      ## The payload length range, in characters of this member's own alphabet.
+
   IdentifierEncoding* = object
     ## One member of the closed set of encodings, as the shared file states it.
     id*: string
@@ -164,6 +197,11 @@ type
       ## The rows of Search-And-Routing.md §2's shape table this member comes
       ## from. Carried so the set's provenance is checkable by reading, in the
       ## same way `RefusalReason.condition` carries a member's.
+    shapes*: seq[IdentifierShapeRule]
+      ## The same rows, machine-readable. May be EMPTY, and `decimal`'s is: a
+      ## bare number is answered by §3's local inference at zero requests, so
+      ## recognising it as an index key would cost a fetch for an answer that
+      ## needs none. Empty is a statement, not an omission.
     shardKey*: ShardKeyRule
     caseRule*: IdentifierCaseRule
 
@@ -271,6 +309,39 @@ proc parseIdentifierEncodings(): tuple[kinds: seq[IdentifierKind],
         "', and a pad is exactly one character: the alphabet's zero digit. It " &
         "right-pads an identifier shorter than a shard segment, so a pad of " &
         "none could not widen one and a pad of several would overshoot.")
+    # EVERY MEMBER MUST DECLARE ITS ALPHABET, and the absence fails the BUILD for
+    # the reason the pad's does. The index REFUSES an identifier it cannot key —
+    # that refusal is the whole of the `hexToBytes` crash's replacement — and a
+    # member with no alphabet is a member every identifier is writable in, which
+    # turns the refusal into a no-op that reports nothing.
+    let alphabet = sk{"alphabet"}.getStr
+    if alphabet.len == 0:
+      raise newException(ValueError,
+        "identifier encoding '" & id & "' declares no alphabet. The §5 hash " &
+        "index refuses an identifier that is not writable in its declared " &
+        "alphabet, by name; a member with an empty alphabet would admit every " &
+        "string and the refusal would never fire.")
+    var seenChar: set[char]
+    for c in alphabet:
+      if c in seenChar:
+        raise newException(ValueError,
+          "identifier encoding '" & id & "' lists '" & $c & "' twice in its " &
+          "alphabet. A repeated digit is an alphabet whose size is not its " &
+          "cardinality, and every membership check would still pass while the " &
+          "file said two things about one character.")
+      seenChar.incl c
+    # THE PAD MUST BE A DIGIT OF THE ALPHABET IT PADS. The per-encoding pad
+    # exists because `0` is not a digit of base58, of bech32 or of base64 — a pad
+    # outside the alphabet names a shard directory that no identifier could ever
+    # produce, which is exactly the defect the field was added to fix, and
+    # nothing checked that the fix held.
+    if pad[0] notin seenChar:
+      raise newException(ValueError,
+        "identifier encoding '" & id & "' pads with '" & pad & "', which is " &
+        "not a digit of its own alphabet (" & alphabet & "). A pad outside the " &
+        "alphabet right-pads a short identifier into a shard name that no " &
+        "identifier of this encoding could produce, which is the defect the " &
+        "per-encoding pad was added to prevent.")
     if sk{"pathSafe"}.kind != JBool:
       raise newException(ValueError,
         "identifier encoding '" & id & "' does not say whether it is " &
@@ -337,11 +408,57 @@ proc parseIdentifierEncodings(): tuple[kinds: seq[IdentifierKind],
         "display form is FOLDED — bech32, where a mixed-case string is not an " &
         "address at all — and a rule that reads as a decision while making none " &
         "is worse than the absent one the arm above refuses.")
+    # EVERY MEMBER MUST CARRY A `shapes` LIST, and an ABSENT one is not an empty
+    # one. Absent means nobody answered; empty means "this member is not
+    # recognised from a bare string", which is `decimal`'s deliberate answer and
+    # is a different fact. A reader that treated the two alike would let a member
+    # silently drop out of the client's index-key derivation.
+    let shp = e{"shapes"}
+    if shp == nil or shp.kind != JArray:
+      raise newException(ValueError,
+        "identifier encoding '" & id & "' carries no shapes list. Every member " &
+        "has to say how it is recognised from a query string alone, because " &
+        "Search-And-Routing.md §5's index has no chain segment and therefore " &
+        "keys per SHAPE. An EMPTY list is a legal answer — `decimal` gives it, " &
+        "since a number is resolved by §3's local inference at zero requests — " &
+        "but an absent one is nobody having answered.")
+    var shapes: seq[IdentifierShapeRule]
+    for s in shp.getElems:
+      let row = s{"row"}.getStr
+      if row.len == 0:
+        raise newException(ValueError,
+          "identifier encoding '" & id & "' declares a shape with no `row`. " &
+          "Every shape quotes the row of §2's table it implements, for the " &
+          "reason every member names its `shapeRows`: it is what makes the set " &
+          "reviewable against the spec rather than merely finite.")
+      let lo = s{"minPayload"}.getInt
+      let hi = s{"maxPayload"}.getInt
+      if lo <= 0 or hi < lo:
+        raise newException(ValueError,
+          "identifier encoding '" & id & "' declares a shape with payload " &
+          "range " & $lo & ".." & $hi & ", which admits nothing or admits an " &
+          "empty payload. A shape that matches no string is a row of §2 this " &
+          "build cannot recognise, and one that matches the empty string would " &
+          "key every query at once.")
+      var prefixes: seq[string]
+      for pfx in s{"prefixes"}.getElems:
+        let v = pfx.getStr
+        if v.len == 0:
+          raise newException(ValueError,
+            "identifier encoding '" & id & "' declares an empty prefix in a " &
+            "shape. An empty prefix matches everything, which is what an empty " &
+            "PREFIX LIST already says — spelling it as a member instead makes " &
+            "a rule that reads as a restriction while imposing none.")
+        prefixes.add v
+      shapes.add IdentifierShapeRule(row: row, prefixes: prefixes,
+                                     minPayload: lo, maxPayload: hi)
     seenEncodings.add id
     result.encodings.add IdentifierEncoding(id: id, shapeRows: rows,
+      shapes: shapes,
       shardKey: ShardKeyRule(stripPrefix: sk{"stripPrefix"}.getStr,
                              payloadAfterLast: sk{"payloadAfterLast"}.getStr,
                              pad: pad,
+                             alphabet: alphabet,
                              pathSafe: sk{"pathSafe"}.getBool),
       caseRule: IdentifierCaseRule(significant: cs{"significant"}.getBool,
                                    keyForm: keyForm,
@@ -359,6 +476,36 @@ const
     ## The closed set of kinds, in the order the shared file lists it.
   IdentifierEncodings* = parsed.encodings
     ## The closed set of encodings, in the order the shared file lists it.
+
+const
+  MaxDistinctPayloadsPerQuery* = 2
+    ## **The most distinct payloads any one query can imply over the table as
+    ## DECLARED — which is the most index shards a single search can cost.**
+    ##
+    ## One probe per distinct payload, one request per probe, so this is
+    ## Search-And-Routing §5.3's request arithmetic in one number: an ambiguous
+    ## query costs this many index shards plus the data object, and every other
+    ## query costs one plus the data object.
+    ##
+    ## **IT IS A MEASURED PROPERTY OF THE TABLE, NOT A STRUCTURAL LAW, AND THAT IS
+    ## WHY IT IS DECLARED HERE RATHER THAN COMPUTED.** Computing it from
+    ## `IdentifierEncodings` would make every assertion about it vacuous — a
+    ## measurement compared against itself. Declared, it is a claim the sweeps in
+    ## `tests/tcontract.nim` falsify or confirm, and adding a row to the shared
+    ## file moves exactly one number here and one sentence in §5.3.
+    ##
+    ## THE BOUND IS EMPIRICAL, demonstrated rather than asserted: add a `bc1` row
+    ## to `bech32` — Bitcoin segwit, a live prospect, whose human-readable part is
+    ## spellable in hex because `b`, `c` and `1` are all hex digits — and
+    ## `BC1` + `2`×40 implies THREE distinct payloads (hex folds it, base58
+    ## preserves it, bech32 takes the part after the last `1`). Measured with the
+    ## row temporarily added: the cross-alphabet sweep reports 3 while the
+    ## own-alphabet generator still reports 2, because that generator fills a
+    ## prefix only from its own encoding's alphabet and never varies case.
+    ##
+    ## So a `bc1` row is not a table edit: it is this constant, §5.3's sentence,
+    ## and the family censuses that cite it — which is the whole reason the number
+    ## has a name instead of being a `2` written at each site.
 
 const
   KindTransaction* = "transaction"
@@ -530,6 +677,166 @@ func identifierPayload*(encoding, identifier: string): string =
   if rule.payloadAfterLast.len > 0:
     let i = result.rfind(rule.payloadAfterLast)
     if i >= 0: result = result[i + rule.payloadAfterLast.len .. ^1]
+
+func matchesShape(rule: IdentifierShapeRule, enc: IdentifierEncoding,
+                  identifier, payload: string): bool =
+  ## Does one §2 row admit this string? Prefix, then payload length, then
+  ## alphabet — in that order, because the prefix is what tells the later two
+  ## which part of the string is payload at all.
+  if rule.prefixes.len > 0:
+    var carried = false
+    for p in rule.prefixes:
+      if identifier.startsWith(p): carried = true; break
+    if not carried: return false
+  if payload.len < rule.minPayload or payload.len > rule.maxPayload:
+    return false
+  for c in payload:
+    if c notin enc.shardKey.alphabet: return false
+  true
+
+func identifierEncodingsMatching*(identifier: string): seq[string] =
+  ## **Every encoding a bare query string could be written in** — the client's
+  ## half of the §5 index key, derived from the string ALONE.
+  ##
+  ## ## Why this exists, and why it is not `parseChainIdentifierEncoding`
+  ##
+  ## §5's index path is `/idx/hash/{version}/{prefix}.bin` and carries NO CHAIN
+  ## SEGMENT — that is precisely what makes "two requests to resolve any hash on
+  ## any chain" true. A client resolving a bare query therefore does not yet know
+  ## which chain it will hit and cannot read that chain's declaration. What it
+  ## can do is read the query's SHAPE, which is what §2's table is for, and that
+  ## is derivable from the string with no tree, no registry and no request.
+  ##
+  ## The PRODUCER keys by the chain's declared encoding; the CLIENT keys by each
+  ## shape its query matches. They meet because both slice the same
+  ## `identifierPayload`, so the shard the producer wrote is a shard the client
+  ## computes.
+  ##
+  ## ## Several matches are normal and §2 says so
+  ##
+  ## "A single input may match several shapes; all matches are carried forward."
+  ## A 44-character base58 string is also a valid base64 string and §2 lists
+  ## both. Where those readings share a payload they share a shard and cost one
+  ## request; **WHERE THEY DO NOT, THEY ARE TWO SHARDS**, and the caller has to
+  ## fetch both. This comment used to say they always shared one — "a property of
+  ## the current table rather than a theorem" — and it was false of the table it
+  ## was describing: `addr1` + 38 `q`s is admissible as base58 (whole string) and
+  ## as bech32 (after the last `1`). `indexProbesOf` is the consumption rule that
+  ## does not need the claim; Search-And-Routing §5.6 carries the census.
+  ##
+  ## Members are returned in the shared file's order, deduplicated, and a member
+  ## with no shapes (`decimal`) is never returned: a number is §3's local
+  ## inference at zero requests, not an index lookup.
+  ##
+  ## **THE ORDER IS A FACT ABOUT A JSON ARRAY AND CARRIES NO PRECEDENCE.** It is
+  ## stable so that output is deterministic, and that is all it is for. A caller
+  ## that treats the first element as the answer has made the shared file's sort
+  ## order load-bearing, which is the second half of the defect §5.6 records.
+  if identifier.len == 0: return
+  for e in IdentifierEncodings:
+    if e.shapes.len == 0: continue
+    let payload = identifierPayload(e.id, identifier)
+    if payload.len == 0: continue
+    # A DECLARED SEPARATOR THAT IS ABSENT IS NOT A MATCH. Without this,
+    # `identifierPayload` returns the whole string when the separator does not
+    # occur, and any all-data-charset string would match bech32 — keying it in a
+    # shard no correctly-formed address of that chain is in.
+    if e.shardKey.payloadAfterLast.len > 0 and
+       not identifierKeyForm(e.id, identifier).contains(e.shardKey.payloadAfterLast):
+      continue
+    for rule in e.shapes:
+      if rule.matchesShape(e, identifierKeyForm(e.id, identifier), payload):
+        result.add e.id
+        break
+
+func identifierIndexKey*(encoding, identifier: string): string =
+  ## **The form the §5 hash index STORES and keys an identifier by** — its key
+  ## form, checked against its declared alphabet, or a REFUSAL THAT NAMES THE
+  ## PROBLEM.
+  ##
+  ## ## Why this exists at all, and what it replaced
+  ##
+  ## `contract/hashshard.nim` used to hold a `hexToBytes` that parsed the
+  ## identifier as HEX PAIRS with `parseHexInt`. Two things were wrong with it
+  ## and they are different in kind. It could not represent a base58 or bech32
+  ## identifier at all — there are no hex pairs in `addr1qxy…` — so four of the
+  ## eight members of the closed set had no entry in the global index. And on
+  ## anything it could not parse it did not refuse: `parseHexInt` raises an
+  ## UNHANDLED `ValueError`, so the producer DIED. Measured: with `hex`'s
+  ## `stripPrefix` emptied, the demo producer stopped on
+  ## `parseHexInt: invalid hex integer: 0x` — a stack trace naming a string
+  ## function, from which nothing says which identifier, which chain, which
+  ## encoding, or that an encoding was even involved.
+  ##
+  ## **So the replacement refuses BY NAME.** It says the encoding token, the
+  ## identifier, the offending character and its position, and the alphabet that
+  ## admits characters — which is the difference between a crash a reader has to
+  ## reproduce under a debugger and a message that contains its own diagnosis.
+  ##
+  ## ## Why it returns the KEY FORM and not the payload
+  ##
+  ## The index keys by the payload — that is `hashPrefix`'s job, and it is the
+  ## shard key. But a shard ENTRY has to be able to name a route, and the payload
+  ## cannot: `bech32`'s payload begins after the last `1`, so `addr1qxy…`'s
+  ## payload is `qxy…` and the human-readable part is GONE. An entry storing only
+  ## the payload would resolve a Cardano address to `/cardano/address/qxy…/`,
+  ## which is not an address and not a page. So the entry stores the whole key
+  ## form and the SHARD KEY is derived from it, which is one derivation rather
+  ## than two stored fields that could disagree.
+  ##
+  ## ## What it does not do
+  ##
+  ## It does not validate a checksum — not EIP-55's, not bech32's, not SS58's
+  ## blake2b. The shared file's closing section says why that is deliberately out
+  ## of scope: it needs hash functions `contract/` does not have and the JS
+  ## backend would have to grow. The claim here is the weaker, checkable one —
+  ## that every character is a digit of the alphabet the chain declared — which
+  ## is exactly enough to key an identifier and to refuse one that cannot be.
+  let rule = identifierEncodingRule(encoding)
+  result = identifierKeyForm(encoding, identifier)
+  if result.len == 0:
+    raise newException(ValueError,
+      "an empty identifier cannot be keyed in the §5 hash index (encoding '" &
+      encoding & "'). An empty key would shard to the pad character and claim " &
+      "a route with no identifier in it, which is a hit that navigates nowhere.")
+  # ── WHAT THE ALPHABET DESCRIBES IS THE PAYLOAD, AND ONLY THE PAYLOAD ────────
+  #
+  # Not the whole identifier, and the difference is `bech32`. A bech32 string is
+  # `<hrp>1<data>` and the declared alphabet is BIP-173's DATA charset, which
+  # excludes `1` precisely so the separator is unambiguous — so checking the
+  # whole of `addr1qxy…` against it would refuse every valid Cardano address at
+  # its own separator. `hex`'s `0x` is the same shape of problem one step
+  # smaller. Both are already answered by the two fields that say where the
+  # payload begins, so the check runs on what they return.
+  let payload = identifierPayload(encoding, identifier)
+  # A DECLARED SEPARATOR THAT IS ABSENT IS A REFUSAL AND NOT A WHOLE-STRING
+  # PAYLOAD. `identifierPayload` leaves the string alone when the separator does
+  # not occur, which is right for a slice and wrong for a key: `addrqxy…` would
+  # then key as if the hrp were data, land in a different shard from every other
+  # address on its chain, and resolve to nothing.
+  if rule.payloadAfterLast.len > 0 and not result.contains(rule.payloadAfterLast):
+    raise newException(ValueError,
+      "'" & identifier & "' carries no '" & rule.payloadAfterLast &
+      "' separator, and identifier encoding '" & encoding & "' places its " &
+      "payload after the last one. Keying the whole string instead would put " &
+      "it in a different shard from every correctly-formed identifier on its " &
+      "chain, and resolve to nothing; refusing says so.")
+  if payload.len == 0:
+    raise newException(ValueError,
+      "'" & identifier & "' has an empty payload under identifier encoding '" &
+      encoding & "', so there is nothing for the §5 hash index to key it by.")
+  for i, c in payload:
+    if c notin rule.alphabet:
+      raise newException(ValueError,
+        "'" & identifier & "' is not writable in identifier encoding '" &
+        encoding & "': character '" & $c & "' at position " & $i &
+        " of its payload ('" & payload & "') is not one of that encoding's " &
+        "digits (" & rule.alphabet & "). The §5 hash index refuses it rather " &
+        "than storing a key nothing can recompute — an entry keyed from a " &
+        "string the alphabet does not admit is a hit that navigates to a 404, " &
+        "which is the one outcome Search-And-Routing.md §5 forbids outright. " &
+        "If the identifier is right, the chain's registry row declares the " &
+        "wrong encoding for its kind.")
 
 func declaredOrLegacy*(token: string): string =
   ## The encoding to derive with, given what a registry row declared.

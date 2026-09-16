@@ -232,15 +232,48 @@ formats live in one place each — `src/blocktracer/contract/searchidx.nim` (the
 
 ### D4 — The global hash index `/idx/hash/{version}/{prefix}.bin`
 
-**Decision.** A binary shard per occupied hash prefix. The shard key is the leading
-`prefixLen` hex chars of the 0x-stripped hash (`prefixLen = 2` for the demo). Each
-shard is a self-describing little-endian structure: magic `BThx`, format byte,
-`prefixLen`, stored-hash width, a per-shard chain dictionary, then entries sorted by
-hash bytes, each `[hash][chainIdx u8][kind u8]` with `kind ∈ {tx, block, address}`. A
-hash claimed by several `(chain, kind)` pairs gets one entry each. The demo stores the
+**Decision.** A binary shard per occupied prefix. The shard key is the leading
+`prefixLen` characters of the identifier's **payload, in its own alphabet** — which for
+hex is the 0x-stripped, lowercased hash, byte-for-byte what it has always been
+(`prefixLen = 2` for the demo). The index keys per identifier **shape**, not per chain:
+§5's path carries no chain segment, so a client resolving a bare query cannot read a
+chain's declared encoding, but it can read the query's shape, and a shape is derivable
+from the string alone.
+
+**And one query can have two shapes with two payloads, so the client fetches two shards.**
+This is Search-And-Routing §5.6 and it is stated here because it is the only part of the
+index's key rule a reader of this document could get wrong: the shard key is a function of
+the *payload*, not of the string, and §2's rows do not partition the strings. `addr1` +
+38 `q`s is 43 characters — inside base58's 43–44 band, written entirely in base58's
+alphabet — and also a bech32 string whose data part begins after the last `1`. The two
+payloads are the whole string and the 38 characters, so the two shards are `addr` and
+`qqqq`, and a client that picked one would report an object that is right there as absent.
+`indexProbesOf` returns one probe per distinct payload and every one is fetched; measured
+over the closed set as declared, that is at most two, so a lookup costs at most three
+requests and an unambiguous one still costs two.
+
+**Two published formats**, both self-describing, both little-endian, both starting
+`BThx` + a format byte:
+
+- **Format 1** — `prefixLen`, stored-hash width, a chain dictionary, then entries sorted
+  by hash bytes, each `[hash][chainIdx u8][kind u8]`. Everything in it is hex by
+  construction; there is no encoding tag. This is unchanged and is still written.
+- **Format 2** — `prefixLen`, stored-key width, a chain dictionary **and an encoding
+  dictionary**, then entries sorted by key form, each
+  `[keyForm][chainIdx u8][encodingIdx u8][kind u8]`. The stored value is the
+  identifier's **key form as characters**, NUL-padded, not decoded bytes: decoding is the
+  one thing a client that does not know the chain cannot do, and an entry must be able to
+  name a route, which a payload cannot (bech32's payload drops its human-readable part).
+
+A shard's format follows its **contents** — all-hex is format 1 — and the two live at
+different `{version}` path segments, published alongside each other per
+Publishing-And-Caching §6.1. `/idx/hash/2/` is written only when a non-hex entry exists,
+so a hex-only deployment publishes exactly what it published before. See
+Search-And-Routing §5.5.
+
+A hash claimed by several `(chain, kind)` pairs gets one entry each. The demo stores the
 **full** hash for an exact, collision-free answer; the production builder truncates to
-the arithmetically-chosen width. The index `version` is `"1"`, independent of the
-contract version.
+the arithmetically-chosen width.
 
 **Spec basis.** Search-And-Routing §5: the path `/idx/hash/{version}/{prefix}.bin`,
 "sharded by a leading slice of the hash," "an **exact map** from hash to `(chain,
@@ -252,6 +285,11 @@ full hash in the demo is a conformant, stricter choice. The spec says shard dept
 "should be recomputed rather than fixed" (§5.3); `prefixLen` is therefore **recorded
 in the generation root** (see D6) rather than hard-coded into the path, which is the
 one point §5 leaves implicit and which a client must know to compute the shard path.
+Depth is stated **per published version** rather than once, because §5.3's arithmetic
+assumes a character carries fixed key space and it does not across alphabets: two hex
+characters select one of 256 shards, two base58 characters one of 3,364. The descriptor
+publishes per-encoding entry counts beside it so that recomputation can be run rather
+than estimated.
 
 ### D5 — Name shards `/idx/{chain}/names/{shard}.bin` + `meta.json`
 

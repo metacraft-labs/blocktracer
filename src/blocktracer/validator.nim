@@ -352,8 +352,54 @@ proc checkExecTrace(v: var Validator, ctx: string, t: JsonNode,
     v.checkContainerAndManifest(tid, txHash, chain, execInputId, overlayBytes,
                                 rec{"build"}.getStr)
 
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║ THE VALIDATOR IS EXEMPT FROM "BUILD EVERY PATH WITH THE PATH BUILDERS",   ║
+# ║ AND THE EXEMPTION IS DELIBERATE, NARROW, AND STATED HERE BECAUSE NOTHING  ║
+# ║ ELSE IN THIS FILE SAID SO.                                                ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+#
+# `contract/shards.nim` moved the six path builders down precisely so that no
+# caller would ever again pair a FOLDED shard segment with a RAW name segment —
+# the half-folded construction that made the producer write
+# `d/{chain}/tx/0a80/0x0A807E….json` while the client computed
+# `…/0x0a807e….json`, a 404. Every producer and every consumer now calls
+# `txFactsPath`, `blockPath` and their siblings.
+#
+# THIS FILE STILL BUILDS THOSE PATHS BY HAND, on purpose, and the half-folded
+# shape is the point rather than an oversight:
+#
+#   * `checkTransaction` below computes `shardKeyFor(…)` — which FOLDS — beside a
+#     RAW `txHash` name segment, and `checkGeneration` open-codes
+#     `d/{chain}/block/{raw}.json` while `blockPath` now key-forms.
+#   * `txHash` and `bh` are the identifiers a published BLOCK and a published
+#     BLOCK INDEX actually listed. The validator's job is to report what the tree
+#     SAYS, and folding the reference before resolving it would make a
+#     non-key-form reference RESOLVE — the object is there, under its key form —
+#     and the tree would validate while carrying a reference no client could
+#     follow. The diagnosis would be destroyed by the very normalisation that is
+#     correct everywhere else.
+#   * MEASURED, and this is what makes it a rule rather than a preference: the
+#     identical mutation gives 4 errors on a transaction reference (the dangle
+#     plus `whose key form is …`) and 1 on a block reference (the dangle alone) —
+#     see `checkGeneration`'s note. Both are errors. Under the builders, both
+#     would be silence.
+#
+# SO THE RULE HERE IS THE INVERSE OF THE RULE ELSEWHERE: a path this file builds
+# to CHECK a reference is built from the reference AS WRITTEN, and
+# `checkIdentifierForms` is what separately asserts that the reference was in key
+# form. A future reader who "fixes" these call sites to use the builders will
+# make every one of those assertions unreachable and every test still pass.
+#
+# WHAT IS NOT EXEMPT: anything this file derives in order to ASK A QUESTION of
+# its own rather than to follow a reference. `assertHashResolves` keys the §5
+# index through `hashPrefix` and the chain's declared encoding, because there it
+# is the client's computation being reproduced, not the tree's claim being
+# quoted.
+
 proc checkTransaction(v: var Validator, chain, txHash, gen, tsv: string) =
   v.walkedTx.add txHash
+  # Folded shard, RAW name — see the exemption above. Not a bug, and not to be
+  # replaced with `txFactsPath`.
   let sh = shardKeyFor(v.encodingFor(chain), KindTransaction, txHash)
   # --- immutable TransactionFacts (§2.3) ---
   let frel = "d" / chain / "tx" / sh / txHash & ".json"
@@ -507,17 +553,29 @@ proc checkRenderLayer(v: var Validator, chain: string, root: JsonNode) =
       "/" & chain & "/address/" & a, "noindex,follow", "address", a)
 
 proc assertHashResolves(v: var Validator, shards: Table[string, string],
-                        prefixLen: int, hexHash, chain: string, kind: int) =
-  let prefix = hashPrefix(hexHash, prefixLen)
+                        prefixLen: int, identifier, chain: string, kind: int) =
+  ## Is this entity resolvable through the §5 index?
+  ##
+  ## THE ENCODING COMES FROM THE CHAIN'S OWN DECLARATION, read back out of the
+  ## tree under validation — the same value the producer keyed with. A validator
+  ## that assumed hex here would pass a base58 chain's tree by looking in a shard
+  ## the producer never wrote and reporting the miss as the producer's.
+  let encoding = try:
+      v.encodingFor(chain).encodingFor(identifierKindOf(kind))
+    except ValueError as e:
+      v.err("idx/hash", "cannot key " & hkName(kind) & " " & identifier &
+            " on chain " & chain & ": " & e.msg)
+      return
+  let prefix = hashPrefix(encoding, identifier, prefixLen)
   if prefix notin shards:
-    v.err("idx/hash", "no shard covers " & hkName(kind) & " " & hexHash)
+    v.err("idx/hash", "no shard covers " & hkName(kind) & " " & identifier)
     return
   var hit = false
-  for e in lookupHash(shards[prefix], hexHash):
+  for e in lookupHash(shards[prefix], encoding, identifier):
     if e.chain == chain and e.kind == kind: hit = true
   if not hit:
     v.err("idx/hash", "hash index does not resolve " & hkName(kind) & " " &
-          hexHash & " on chain " & chain)
+          identifier & " on chain " & chain)
 
 proc checkSearchIndices(v: var Validator, chain: string, root: JsonNode) =
   let idx = root{"idx"}
@@ -595,6 +653,10 @@ proc checkGeneration(v: var Validator, chain, gen: string) =
     if bi == nil: continue
     for bh in bi{"blocks"}:
       v.walkedBlock.add bh.getStr
+      # Open-coded rather than `blockPath`, which now key-forms — see the
+      # exemption block above `checkTransaction`. `bh` is what the block index
+      # WROTE, and resolving its key form instead would make a mis-spelled
+      # reference resolve and delete the diagnosis.
       let brel = "d" / chain / "block" / bh.getStr & ".json"
       let bd = v.loadJson(brel)
       # ── OUTSIDE THE `bd == nil` GUARD, MIRRORING `checkTransaction` ──────────
