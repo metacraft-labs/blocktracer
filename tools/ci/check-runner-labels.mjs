@@ -336,8 +336,9 @@ export function checkLabelSet(labels) {
   for (const l of folded) {
     if (RETIRED.has(l)) {
       problems.push(
-        `'${l}' is a RETIRED runner class, not a label any runner still advertises. ` +
-        `Use ${RETIRED.get(l)}. A runs-on that matches nothing does not fail — it queues forever.`,
+        `'${l}' is a RETIRED runner class. Use ${RETIRED.get(l)}. These names survive only as ` +
+        `transitional pool aliases and are withdrawn as repos migrate (RC5); a runs-on naming one ` +
+        `after its withdrawal does not fail — it queues forever.`,
       );
       continue;
     }
@@ -391,7 +392,9 @@ export function checkSites(sites, fileTexts = new Map()) {
       if (RETIRED.has(one)) {
         findings.push({ where, raw: s.raw, problems: [
           `'${one}' is a RETIRED runner class. Use ${RETIRED.get(one)}. ` +
-          `It is served by nothing, and a runs-on that matches nothing queues forever without going red.`,
+          `These names survive only as transitional pool aliases and are withdrawn as repos migrate ` +
+          `(RC5) — some already are: '${one === "eph-linux-x64" ? one : "eph-linux-x64"}' stopped being served on 2026-09-14. ` +
+          `When an alias goes, a runs-on naming it does not go red — it queues forever.`,
         ] });
         continue;
       }
