@@ -49,12 +49,12 @@
   ],
   "upstream": "metacraft-labs/codetracer",
   "branch": "dev",
-  "commit": "8d1c84a85034a739804914a33f2f55329b5f051a",
+  "commit": "af70456c981ea8e3c8de2534cdee16eca5550efd",
   "files": [
     {
       "path": "src/frontend/viewmodel/viewmodels/flow_layout.nim",
       "local": "frontend/viewmodel/viewmodels/flow_layout.nim",
-      "sha256": "b089e9a6acc06d0a3f4772e0e387c9df93b22f889ebed3fa9c8749ef167a1147"
+      "sha256": "db6d4d40d123a6e6ab50d97a80ffad14d438f0ec857287834b7b908fe74893e9"
     },
     {
       "path": "src/frontend/ui/flow_loop_math.nim",

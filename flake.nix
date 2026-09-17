@@ -114,7 +114,9 @@
     # with `XDG_CACHE_HOME=$(mktemp -d) nix flake lock --update-input codetracer`
     # and the two agree.
     codetracer = {
-      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=8d1c84a85034a739804914a33f2f55329b5f051a&submodules=0";
+      # KEEP IN LOCK-STEP with `ci/embed-sdk-pin.env`'s `CODETRACER_REF`, which
+      # carries the reason this value moved and the four gates it survived.
+      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=af70456c981ea8e3c8de2534cdee16eca5550efd&submodules=0";
       flake = false;
     };
 

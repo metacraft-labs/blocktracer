@@ -20,18 +20,18 @@
     "codetracer": {
       "flake": false,
       "locked": {
-        "lastModified": 1787967127,
-        "narHash": "sha256-ce3EtVQdz6vqLgSDKrm/NWZTL8NzHGkDWHKiAinT298=",
+        "lastModified": 1789630716,
+        "narHash": "sha256-XdRtZBbCDgWbnlDj2p17BqJxX9F1Yvu5Yo+pkxma1cI=",
         "ref": "refs/heads/dev",
-        "rev": "8d1c84a85034a739804914a33f2f55329b5f051a",
-        "revCount": 3696,
+        "rev": "af70456c981ea8e3c8de2534cdee16eca5550efd",
+        "revCount": 4543,
         "submodules": false,
         "type": "git",
         "url": "https://github.com/metacraft-labs/codetracer"
       },
       "original": {
         "ref": "refs/heads/dev",
-        "rev": "8d1c84a85034a739804914a33f2f55329b5f051a",
+        "rev": "af70456c981ea8e3c8de2534cdee16eca5550efd",
         "submodules": false,
         "type": "git",
         "url": "https://github.com/metacraft-labs/codetracer"

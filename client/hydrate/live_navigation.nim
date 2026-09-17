@@ -37,10 +37,20 @@
 ## the sole writer of `store.calltrace.lines` — has no caller here outside
 ## `tests/tdebugpanes.nim`.
 ##
-## The event log fails one step further along: the SDK does parse `ct/event-load`
+## The event log failed one step further along: the SDK parsed `ct/event-load`
 ## into `applyMarkerRowsResponse`, which writes `vm.markerRows`, while
 ## `projectEventLog` reads `vm.eventRows` — a different signal, written only by
-## `appendLiveDebuggerStop`, which is also called only by tests.
+## `appendLiveDebuggerStop`, which was also called only by tests.
+##
+## THAT HALF IS FIXED UPSTREAM as of `af70456c9`. `EventLogVM`'s own auto-load
+## effect now routes its `ct/event-load` reply through
+## `ReplayDataStore.applyEventLogResponse`, and `vm.eventRows` is an ALIAS of
+## `store.eventLog.rows` rather than a second signal. What is still missing
+## there — and is why this module has not shrunk to nothing — is a subscriber:
+## nothing in `src/frontend/viewmodel/` registers a handler for the
+## `ct/updated-events` EVENT, which is the shape this consumer receives. So the
+## subscription stays here and the DECODE moved to the store; see
+## `positionedEvents`.
 ##
 ## This is the third instance of one shape. `live_locals` was written for the
 ## first: "the pinned store's `requestLocals` throws the answer away through a
@@ -186,36 +196,35 @@ proc callLinesOf*(body: JsonNode): seq[CallLine] =
 # dropped here, at the one place that knows the tick, rather than being rendered
 # and then specially handled by every consumer.
 
-proc eventRowOf(node: JsonNode; index: int): EventLogRow =
-  EventLogRow(
-    eventId: uint64(max(0, node{"rrEventId"}.getBiggestInt(0))),
-    eventIndex: index,
-    kindId: node{"kind"}.getInt(0),
-    # `kindOf` in `session_project` reads this as free text and maps it onto the
-    # chain reading. `semanticKind` is the engine's own word for the row;
-    # `metadata` is its `ct.*` marker and is the fallback so a row always has
-    # something to be classified by.
-    kind: block:
-      let sk = node{"semanticKind"}.getStr("")
-      if sk.len > 0: sk else: node{"metadata"}.getStr(""),
-    file: node{"highLevelPath"}.getStr(""),
-    line: node{"highLevelLine"}.getInt(0),
-    value: node{"content"}.getStr(""),
-    rrTicks: uint64(max(0, node{"directLocationRRTicks"}.getBiggestInt(0))),
-    maxRRTicks: uint64(max(0, node{"maxRRTicks"}.getBiggestInt(0))),
-    sourceGeneration: node{"sourceGeneration"}.getInt(0),
-    sourceDigest: node{"sourceDigest"}.getStr(""))
-
-proc eventRowsOf*(body: JsonNode): seq[EventLogRow] =
-  ## The rows that name a position. See the note above on why the others are
-  ## dropped rather than rendered.
+proc positionedEvents*(body: JsonNode): JsonNode =
+  ## The subset of a `ct/updated-events` body whose rows name a position.
+  ##
+  ## A FILTER AND NOT A DECODE, which is the whole point of this proc existing
+  ## beside a store that owns the decode. The two jobs used to be one here, and
+  ## the decode half was a second copy of a mapping the Embed SDK now has —
+  ## `replay_data_store.eventLogRowsFromJson`, whose own doc names the bare
+  ## array this event carries as one of the three envelopes it reads. The
+  ## filter half has no equivalent there and should not: *which* rows a
+  ## NAVIGATION region may offer is a property of this pane, not of the wire.
+  ## The desktop's event log deliberately shows rows that name no position —
+  ## every `stdout` line is one — so a store that dropped them would be wrong
+  ## for its other three consumers to serve this one.
+  ##
+  ## Returns a `JsonNode` rather than `seq[EventLogRow]` so that the SDK's
+  ## decoder is the only thing in the path that ever reads a key of this
+  ## payload. A filter that returned rows would have had to decode to filter.
+  result = newJArray()
   if body == nil or body.kind != JArray: return
-  var kept = 0
   for node in body:
     if node.kind != JObject: continue
     if node{"directLocationRRTicks"}.getBiggestInt(-1) < 0: continue
-    result.add eventRowOf(node, kept)
-    inc kept
+    result.add node
+
+proc eventRowsOf*(body: JsonNode): seq[EventLogRow] =
+  ## The rows that name a position, decoded by the SDK. See the note above on
+  ## why the others are dropped rather than rendered, and `positionedEvents` on
+  ## why the decode is not done here.
+  eventLogRowsFromJson(positionedEvents(body))
 
 # ---------------------------------------------------------------------------
 # Applying
@@ -247,9 +256,15 @@ proc applyEvents*(feed: NavigationFeed; body: JsonNode) =
   ##
   ## `appendLiveDebuggerStop` is the SDK's documented per-row writer and it
   ## deduplicates on identity, so replaying a section the engine re-sends adds
-  ## nothing. It is used rather than a bulk setter because there is no public
-  ## bulk setter for `eventRows` — `markerRows`, which the SDK's own parser
-  ## writes, is a different signal that `projectEventLog` does not read.
+  ## nothing.
+  ##
+  ## RETAINED DELIBERATELY over the bulk `applyEventLogResponse` the store now
+  ## also offers, and the reason is a semantic difference and not inertia: the
+  ## bulk applier REPLACES the window, and this pane's `projectEventLog` pages
+  ## `vm.eventRows` locally — it treats the signal as the whole log, not as one
+  ## window. A `ct/updated-events` echo that carried a later section would then
+  ## empty every page before it. Append-with-dedup is what "the log so far"
+  ## means, and it is the same call as before; only what fills `rows` changed.
   if feed == nil or feed.eventLog == nil: return
   let rows = eventRowsOf(body)
   feed.sawEvents = true

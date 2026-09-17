@@ -1246,3 +1246,262 @@ suite "M8b — omniscience follows a live session":
 
       s.close()
       dispose()
+
+# ---------------------------------------------------------------------------
+# M8c — the event log's decode is the SDK's, and the filter is ours
+# ---------------------------------------------------------------------------
+#
+# WHY THIS SUITE EXISTS
+#
+# `live_navigation.applyEvents` is the only thing in this repository that turns
+# a live `ct/updated-events` payload into rows a visitor can click, and until
+# `positionedEvents` landed it did so with a SECOND COPY of a mapping the Embed
+# SDK owns (`replay_data_store.eventLogRowFromJson`, whose own doc names the
+# bare array this event carries as one of the three envelopes it reads). Nothing
+# in Nim covered it at all: the only coverage was `tools/journeys/09-a-jump-
+# moves-the-position`, which needs a deployed page and a real engine, so the
+# decode was validated by reading production captures by hand.
+#
+# Two claims, and they pull in opposite directions, which is why both are here:
+#
+#   1. THE DECODE IS NOT OURS. Every field a visitor sees on an event row must
+#      come out of the SDK's decoder. A copy that agreed today is exactly what
+#      was there before, and it drifted the moment the SDK grew a spelling it
+#      did not have (`rrEventId` absent -> fall back to the tick; the copy fell
+#      back to 0 and collapsed every such row into one under append-dedup).
+#
+#   2. THE FILTER IS OURS. A row that cannot name a position is not a
+#      NAVIGATION row, and the SDK must not learn that: its other three
+#      consumers render exactly such rows on purpose — every `stdout` line is
+#      one. So `directLocationRRTicks < 0` is dropped HERE and nowhere else.
+#
+# THE BODY BELOW IS THE WIRE, NOT A CONVENIENCE. Field names, nesting and the
+# `-1` tick are the ones `live_navigation`'s header records off a real
+# `aztec-testnet` session; `ct.mapping-rung` is an annotation about the
+# recording as a whole and is the row that must not appear.
+#
+# THE EXPECTATIONS ARE WRITTEN OUT, NOT COMPUTED. Nothing below calls
+# `eventRowsOf`, `positionedEvents` or the SDK's decoder to decide what it
+# should have got — an oracle that called the loader it was checking is the
+# failure this campaign already met once. Every expected string, line and tick
+# is a literal read off the body by eye.
+
+const UpdatedEventsBody = """[
+  {"rrEventId": 0, "kind": 8, "semanticKind": "ct.mapping-rung",
+   "metadata": "ct.mapping-rung", "content": "rung 3: instruction level",
+   "directLocationRRTicks": -1, "highLevelPath": "", "highLevelLine": 0,
+   "maxRRTicks": 344},
+  {"rrEventId": 11, "kind": 1, "semanticKind": "Call",
+   "metadata": "ct.call", "content": "enqueued-call-0",
+   "directLocationRRTicks": 0, "highLevelPath": "src/main.nr",
+   "highLevelLine": 12, "maxRRTicks": 344,
+   "sourceGeneration": 1, "sourceDigest": "d1"},
+  {"rrEventId": 12, "kind": 2, "semanticKind": "Write",
+   "metadata": "ct.storage-write", "content": "balance 10000 -> 9900",
+   "directLocationRRTicks": 128, "highLevelPath": "src/shield.nr",
+   "highLevelLine": 5, "maxRRTicks": 344,
+   "sourceGeneration": 1, "sourceDigest": "d1"},
+  {"kind": 0, "semanticKind": "", "metadata": "ct.stdout", "stdout": true,
+   "content": "shield online", "directLocationRRTicks": 200,
+   "highLevelPath": "src/shield.nr", "highLevelLine": 9, "maxRRTicks": 344},
+  {"rrEventId": 14, "kind": 3, "semanticKind": "Revert",
+   "metadata": "ct.revert", "content": "constraint not satisfied",
+   "directLocationRRTicks": 344, "highLevelPath": "src/main.nr",
+   "highLevelLine": 35, "maxRRTicks": 344}
+]"""
+
+const RungContent = "rung 3: instruction level"
+  ## The one row that must never reach a pane, named by its CONTENT. An
+  ## assertion on the COUNT would be cleared by any four rows — including four
+  ## wrong ones, or the rung row plus three of the four real ones.
+
+suite "M8c — a live ct/updated-events body, decoded by the SDK and filtered here":
+
+  test "every field on screen came out of the SDK's decoder, on the real wire shape":
+    createRoot proc(dispose: proc()) =
+      let s = openSession()
+      s.store.setSourceAvailability(savVerified)
+      s.store.setSessionMode(completedReplay)
+
+      # THE SUBSCRIPTION PATH, not a direct call to `applyEvents`. This is what
+      # `withLiveNavigation` registered on the decorated backend, so the suite
+      # exercises the handler the browser runs rather than the proc beneath it.
+      s.navigation.handleEvent(%*{
+        "event": UpdatedEventsEvent,
+        "body": parseJson(UpdatedEventsBody)})
+
+      check s.navigation.sawEvents
+      # Ours produced four; the rung row is not one of them.
+      check s.navigation.eventRowsWritten == 4
+
+      let pane = projectEventLog(s.eventLog)
+      check pane.rows.len == 4
+
+      # ── the rows, value by value ─────────────────────────────────────────
+      # `label` is `file & ":" & line` and `step` is the tick: between them
+      # they pin the two fields the SDK's decoder reads under names this
+      # consumer's old copy read under different ones, and `detail` pins
+      # `content`. A row that decoded to the right SHAPE with the wrong
+      # numbers fails here; a count would not notice.
+      check pane.rows[0].kind == evCall
+      check pane.rows[0].label == "src/main.nr:12"
+      check pane.rows[0].step == 0
+      check pane.rows[0].detail == "enqueued-call-0"
+
+      check pane.rows[1].kind == evStorageWrite
+      check pane.rows[1].label == "src/shield.nr:5"
+      check pane.rows[1].step == 128
+      check pane.rows[1].detail == "balance 10000 -> 9900"
+
+      # THE ROW THE OLD COPY GOT WRONG, TWICE OVER. It carries no
+      # `semanticKind`, so the copy fell back to `metadata` — `"ct.stdout"`,
+      # which `kindOf` does not recognise and classified as `evEvent`. The
+      # SDK's `eventKindLabel` reads the `stdout` flag the copy never looked at
+      # and answers `"stdout"`, which `kindOf` DOES recognise. The glyph a
+      # visitor sees changes because of this line.
+      check pane.rows[2].kind == evOutput
+      check pane.rows[2].label == "src/shield.nr:9"
+      check pane.rows[2].step == 200
+      check pane.rows[2].detail == "shield online"
+
+      check pane.rows[3].kind == evRevert
+      check pane.rows[3].label == "src/main.nr:35"
+      check pane.rows[3].step == 344
+      check pane.rows[3].detail == "constraint not satisfied"
+
+      # ── and the annotation row is absent, by its own content ─────────────
+      for r in pane.rows:
+        check r.detail != RungContent
+        check r.label != ":0"
+
+      # ── the same claims, read off the markup a visitor is served ─────────
+      let html = panes.renderEventLog(pane)
+      check RungContent notin html
+      check "balance 10000 -&gt; 9900" in html or "balance 10000 -> 9900" in html
+      check "evrow k-storageWrite" in html
+      check "evrow k-output" in html
+      check "evrow k-revert" in html
+      check "evrow k-call" in html
+      # THE JUMP TARGET, which is what the whole pane is for. `data-step` is
+      # the tick `gotoTicks` is sent; a row whose tick decoded to 0 would be
+      # an inert row that looks live, which is the defect `live_navigation`
+      # exists to remove.
+      check "data-step=\"128\"" in html
+      check "data-step=\"344\"" in html
+
+      s.close()
+      dispose()
+
+  test "the rung row is dropped BEFORE the decoder, and nothing else is":
+    ## `positionedEvents` is the filter on its own, asserted as a filter: what
+    ## it returns is the SUBSET of the input nodes, unchanged. If it ever
+    ## started decoding, or dropped a row for any reason other than the tick,
+    ## this is where it shows.
+    let body = parseJson(UpdatedEventsBody)
+    let kept = positionedEvents(body)
+    check kept.kind == JArray
+    check kept.len == 4
+    # Untouched nodes, not rebuilt ones: the `metadata` key the SDK's decoder
+    # never reads is still there, which a decode-and-re-encode would have lost.
+    check kept[0]{"metadata"}.getStr("") == "ct.call"
+    check kept[3]{"metadata"}.getStr("") == "ct.revert"
+    for node in kept:
+      check node{"directLocationRRTicks"}.getBiggestInt(-1) >= 0
+      check node{"content"}.getStr("") != RungContent
+    # And a body that is not an array at all is four rows of nothing rather
+    # than a crash — the engine's `ct/updated-events` has been seen carrying an
+    # object envelope on other routes.
+    check positionedEvents(newJObject()).len == 0
+    check positionedEvents(nil).len == 0
+
+  test "MUTATION BITE: a decoder that ignored the tick would put an inert row on screen":
+    ## The demonstration, as a value rather than as a claim. Feeding the SAME
+    ## body through the SDK's decoder WITHOUT this module's filter is exactly
+    ## what a migration that "just used the store" would have shipped, and it
+    ## produces a fifth row whose `data-step` is 0 — a clickable navigation row
+    ## that jumps to the start of the recording whatever a visitor clicks.
+    createRoot proc(dispose: proc()) =
+      let s = openSession()
+      let unfiltered = eventLogRowsFromJson(parseJson(UpdatedEventsBody))
+      check unfiltered.len == 5                      # the rung row survived
+      var rungRows = 0
+      for row in unfiltered:
+        if row.value == RungContent:
+          inc rungRows
+          # It decodes to a POSITIONLESS row that still looks like a target.
+          check row.rrTicks == 0'u64
+          check row.file == ""
+          check row.line == 0
+      check rungRows == 1
+
+      # What the pane would then show. Driven through the same writer
+      # `applyEvents` uses, so the difference is the filter and only the filter.
+      s.eventLog.setPageSize(EventLogPageRows)
+      for row in unfiltered:
+        s.eventLog.appendLiveDebuggerStop(row)
+      let pane = projectEventLog(s.eventLog)
+      check pane.rows.len == 5
+      var inert = 0
+      for r in pane.rows:
+        if r.detail == RungContent:
+          inc inert
+          check r.step == 0
+          check r.label == ":0"
+      check inert == 1
+      check RungContent in panes.renderEventLog(pane)
+
+      s.close()
+      dispose()
+
+  test "THE OTHER ROUTE: EventLogVM's own ct/event-load reply reaches the same pane":
+    ## THE INTERACTION THE PIN BUMP OPENS, pinned down rather than assumed.
+    ##
+    ## `live_navigation` filters the `ct/updated-events` EVENT. It is not the
+    ## only producer any more: since `af70456c9`, `EventLogVM`'s own auto-load
+    ## effect sends `ct/event-load` and routes the REPLY through
+    ## `ReplayDataStore.applyEventLogResponse`, which decodes and writes the
+    ## same `store.eventLog.rows` — and `positionedEvents` does not sit in
+    ## front of it. If the engine answers that request with rows, a payload
+    ## this repository never inspected reaches the pane.
+    ##
+    ## Two things are asserted and they are different claims:
+    ##   * the reply route is LIVE (the request is sent and its rows land), so
+    ##     the arm below is not vacuous; and
+    ##   * the rung row arrives UNFILTERED on it, which is the finding.
+    ##
+    ## Left as a RECORD rather than fixed here: the fix is not local. The bulk
+    ## applier is the store's and the effect is the VM's, so a consumer cannot
+    ## interpose without either a row predicate on the store or a way to own
+    ## the request. Both are shared-surface decisions.
+    createRoot proc(dispose: proc()) =
+      let mock = newMockBackendService(autoRespond = true)
+      # The engine's answer to the request the VM issues for itself. Enqueued
+      # BEFORE the session exists, because the effect fires on creation.
+      for _ in 0 .. 3:
+        mock.expect("ct/event-load",
+                    %*{"body": {"events": parseJson(UpdatedEventsBody)}})
+      let s = openLiveSession(mock.toBackendService(), sourceIsPublished = true)
+      s.store.setSessionMode(completedReplay)
+      # A position, so the effect's `hasDebuggerPosition` arm fires again.
+      s.store.updateDebuggerPosition(128'u64, file = "src/shield.nr", line = 5)
+
+      check mock.findCommand("ct/event-load").isSome
+
+      let pane = projectEventLog(s.eventLog)
+      var rung = 0
+      for r in pane.rows:
+        if r.detail == RungContent: inc rung
+
+      # The reply route is live: its rows are on screen at all.
+      var positioned = 0
+      for r in pane.rows:
+        if r.detail == "constraint not satisfied": inc positioned
+      check positioned == 1
+
+      # AND THE FINDING. Stated as the value it is, so that a later change
+      # which closes the hole turns this into a red line naming the fact that
+      # changed rather than into silence.
+      check rung == 1
+
+      s.close()
+      dispose()
