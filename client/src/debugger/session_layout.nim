@@ -3,13 +3,14 @@
 ##
 ## ## Why this module exists rather than a call to `defaultReplayLayout()`
 ##
-## `layout_model.nim` beside this file is a **byte-verbatim vendored copy** of
-## CodeTracer's `src/frontend/headless_app/layout_model.nim`, guarded by
-## `ci/test/layout-model-vendor.sh` — a hash manifest plus a probe that imports
+## `vendor/frontend/headless_app/layout_model.nim` is a **byte-verbatim vendored
+## copy** of CodeTracer's `src/frontend/headless_app/layout_model.nim`, guarded
+## by `ci/test/layout-model-vendor.sh` — a hash manifest, a check that the
+## manifest's commit equals `ci/embed-sdk-pin.env`'s, and a probe that imports
 ## both modules and compares `defaultReplayLayout()`, `allPanes`, `visiblePanes`,
-## the enum spellings and `validate`. Editing it to change BlockTracer's
-## arrangement would fail that check, correctly: the copy's whole value is that
-## it cannot drift.
+## the enum spellings, `LayoutSchemaVersion` and `validate`. Editing it to change
+## BlockTracer's arrangement would fail that check, correctly: the copy's whole
+## value is that it cannot drift.
 ##
 ## The alternative — changing CodeTracer's model upstream and re-vendoring —
 ## would move the **desktop app's** default layout and its pane naming as a side
@@ -55,7 +56,7 @@
 ## to avoid, and the transaction page is where an aggregate `State` would belong
 ## if we ever add one.
 
-import ./layout_model
+import ./vendor/frontend/headless_app/layout_model
 
 const ControlsArePlacedInTheBar* = paneDebugControls
   ## The one pane of `ReplayCorePanes` that `blockTracerReplayLayout()` does

@@ -61,13 +61,26 @@ The first clause is no longer true and the second was never as strong as it
 sounded. `client/src/debugger/session_layout.blockTracerReplayLayout()` now
 composes BlockTracer's own tree, so placement is an agreement again rather than
 a consequence. What is still consumed by construction is the **model**:
-`client/src/debugger/layout_model.nim` is a byte-verbatim vendored copy guarded
-by `ci/test/layout-model-vendor.sh`, so `PaneKind`, its wire spellings,
-`LayoutNodeKind`, `weight`, `activeIndex` and `validate` cannot drift, and
-`components/debugger.paneBody` is total over the enum — a pane added upstream is
-a compile error here rather than a blank region. The primitives are the
-desktop's; the composition is ours, which is what
+`client/src/debugger/vendor/frontend/headless_app/layout_model.nim` is a
+byte-verbatim vendored copy guarded by `ci/test/layout-model-vendor.sh`, so
+`PaneKind`, its wire spellings, `LayoutNodeKind`, `weight`, `activeIndex` and
+`validate` cannot drift, and `components/debugger.paneBody` is total over the
+enum — a pane added upstream is a compile error here rather than a blank region.
+The primitives are the desktop's; the composition is ours, which is what
 `CodeTracer-Embed-SDK.md` §3.2 row 1 puts on the consumer's side of the line.
+
+**That totality is not a theory — it has now fired.** The re-vendor of
+2026-09-17 brought CodeTracer's PLAT-16 pane additions (`fileTree`,
+`buildOutput`) and the build stopped, exactly as the `case`'s doc comment says
+it should. Both are desktop-shell surfaces — a project tree and a build log —
+and BlockTracer serves one recorded transaction, so it has neither a project nor
+a build; they are named as panes this site does not place rather than swept into
+an `else`, so the next pane CodeTracer adds still stops a build and still gets a
+decision. The same re-vendor moved the layout schema from v1 to v3 and it
+changed nothing a visitor sees: the exported tree was byte-identical over all
+931 files, because the debug route walks `blockTracerReplayLayout()` and nothing
+in shipping code calls `saveLayout`, calls `validate`, or reads
+`LayoutSchemaVersion`.
 
 The "identical by construction" claim was also weaker than it read even when it
 was true, because `defaultReplayLayout()` is **not the arrangement the desktop

@@ -49,7 +49,7 @@ import std/[json, sets, strutils, tables, unittest]
 
 import codetracer_embed
 
-import ../client/src/debugger/layout_model
+import ../client/src/debugger/vendor/frontend/headless_app/layout_model
 import ../client/src/debugger/session_view
 import ../client/src/debugger/source_document
 import ../client/src/debugger/source_island

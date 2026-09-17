@@ -61,7 +61,7 @@ import isonim/dsl/ui
 import ./icons
 import ./shortcut_list
 import ../debugger/flow_view
-import ../debugger/layout_model
+import ../debugger/vendor/frontend/headless_app/layout_model
 import ../debugger/replay_engine
 import ../debugger/session_view
 import ../debugger/keymap
@@ -2281,10 +2281,18 @@ proc paneBody(kind: PaneKind; s: DebugSessionView): string =
   of paneEventLog: renderEventLog(s.eventLog)
   of paneDebugControls: renderControls(s.controls)
   of paneFlow, paneTimeline, paneSearch, panePointList, paneScratchpad,
-     paneShell:
-    # Not placed by `defaultReplayLayout`, so unreachable today. Rendered as a
-    # named, empty pane rather than left to `else: discard`, because the point
+     paneShell, paneFileTree, paneBuildOutput:
+    # Not placed by `blockTracerReplayLayout`, so unreachable today. Rendered as
+    # a named, empty pane rather than left to `else: discard`, because the point
     # of the model's closed enum is that an unplaced pane is visible.
+    #
+    # `paneFileTree` and `paneBuildOutput` are CodeTracer's PLAT-16 additions,
+    # and they arrived here as a COMPILE ERROR on the re-vendor — which is this
+    # `case` working as its doc comment says it should. Both are desktop-shell
+    # surfaces (a project tree, a build log); BlockTracer serves one recorded
+    # transaction and has neither a project nor a build, so neither is placed.
+    # They are listed rather than swept into an `else` so that the NEXT pane
+    # CodeTracer adds still stops a build here and gets a decision.
     paneNote("The " & $kind & " pane is not part of BlockTracer's session.")
 
 proc paneClass*(kind: PaneKind): string =

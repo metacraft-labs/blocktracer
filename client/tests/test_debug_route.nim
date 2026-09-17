@@ -25,7 +25,7 @@ import std/[unittest, os, json, strutils, tables, sets, sequtils]
 import ../src/ssr
 import ../src/reader
 import ../src/viewutil
-import ../src/debugger/layout_model
+import ../src/debugger/vendor/frontend/headless_app/layout_model
 import ../src/debugger/session_layout
 import ../src/debugger/session_view
 import ../src/debugger/keymap

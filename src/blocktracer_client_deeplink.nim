@@ -25,7 +25,7 @@
 ##     changes — and the drift would be invisible, because both would land
 ##     *somewhere*.
 ##   * **Vendor a copy.** A copy with a hash manifest is what
-##     `client/src/debugger/layout_model.nim` does for a type it cannot import
+##     `client/src/debugger/vendor/**` does for types it cannot import
 ##     across a repository boundary. There is no repository boundary here; the
 ##     module is three directories away and compiles fine.
 ##

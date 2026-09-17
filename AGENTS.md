@@ -97,7 +97,7 @@ is now a presentation projection over the SDK, not a second reader.
 | `just debug-panes` | `tests/tdebugpanes.nim` — the debug route's five pane renderers over the Embed SDK's OWN `EditorVM`/`CalltraceVM`/`StateVM`/`EventLogVM`/`DebugControlsVM`, driven through `MockBackendService`. Needs the Embed SDK |
 | `just noir-engine-dap` | **The engine seam.** CodeTracer's Noir DAP tests — `noir_flow_dap_test.rs`, `origin_noir_dap_test.rs` and the `noir-space-ship` GUI journey — ported to `tests/e2e/noir_engine_dap.nim` and run against the PUBLISHED wasm32 replay engine in a Node worker, over `fixtures/trace/noir_space_ship/zk_shields.ct`, through the same `WorkerBackendService` `client/hydrate/` drives. The only lane here that opens a real replay session. Every check names an artefact (a position, a frame count, a value, a loop iteration) and never a `success: true` — Verification-Harness-Traps §2's worked example is this exact protocol. Positions are cross-checked against `client/fixtures/demo-session/flow.json`, which `ct-print` derived from the same container bytes, so the engine is measured against the container's own reading of itself. **rc 124 = a request the engine never answered**, which is not a slow test but a dropped one |
 | `just noir-engine-dap-test` | its self-test: each mutation arm verified to redden the check written for it (a kill by a different check is a MISS), plus `expect-observed` — the control a suite whose deliverable is failures needs, proving every red check goes green on the engine's own values and is not stuck red |
-| `just layout-vendor` | BOTH vendored copies of CodeTracer modules — `headless_app/layout_model.nim` (the pane arrangement) and `viewmodel/viewmodels/flow_layout.nim` + `ui/flow_loop_math.nim` (the Omniscience layout arithmetic) — still hash to their manifests and still agree with upstream on every observable, plus the self-tests that drive every failure path. The flow manifest's commit must EQUAL `ci/embed-sdk-pin.env`, because those two files are inside the tree the pin names and `client/hydrate/` compiles against it |
+| `just layout-vendor` | BOTH vendored copies of CodeTracer modules — `headless_app/layout_model.nim` + `common/contributed_pane_id.nim` (the pane arrangement and its id grammar) and `viewmodel/viewmodels/flow_layout.nim` + `ui/flow_loop_math.nim` (the Omniscience layout arithmetic) — still hash to their manifests and still agree with upstream on every observable, plus the self-tests that drive every failure path. **BOTH manifests' commits must EQUAL `ci/embed-sdk-pin.env`**, and both checks assert it, because part B of each compares the copy against `$CODETRACER_SRC` — which IS that pin. A manifest pinned anywhere else makes part B unanswerable: it reddens on every SDK bump whether or not the module moved. That was the live state of the layout-model gate until 2026-09-17, when it was pinned to the module's own mainline (`eb1776ea`) and was a blocking step of the `viewmodels` job, i.e. red by construction |
 
 **`just noir-engine-dap` and `just noir-engine-dap-test` RUN NOWHERE IN CI, on
 purpose, and that is written down.** They are recorded in
@@ -470,7 +470,8 @@ Layout under **`client/src/`**:
 | `reader.nim`, `viewutil.nim` | Chain-data loading + view helpers. `viewutil.txMetadataRows` is the ONE producer of the transaction's facts — the tx page's overview grid and the debugger's metadata pane both render it (§7.1: "from one source", and they "cannot be allowed to diverge") |
 | `pages/*.nim` | `home`, `chains`, `chain`, `blocklist`, `blockview`, `txs`, `tx`, `debug`, `address`, `code`, `search`, `settings`, `about`, `notfound` |
 | `components/*.nim` | `layout` (both shells), `styles`, `debugger_css`, `nav`, `footer`, `tables` (the shared `<TransactionsTable>`), `pager` (the cursor pager — §2.2 rules out ordinal pages, so there are no page numbers anywhere), `degraded` (the ONE `case` over `ChainDegradation` in the explorer: §14's treatments, rendered from the enum `viewmodel/chain_degradation.nim` resolves), `debugger` (the pane renderers + the LayoutNode walk) |
-| `debugger/*.nim` | The debug route's renderer-free layer: `layout_model.nim` (a VENDORED copy of CodeTracer's — see `layout_model.vendor.json` and `ci/test/layout-model-vendor.sh`), `session_view.nim` (what a pane renders), `source_document.nim` (the static source renderer's input), `demo_session.nim` (the static tree's producer), `flow_view.nim` (**omniscience** — recorded values placed against the source, over the vendored `vendor/frontend/**` layout arithmetic), `demo_flow.nim` (the static tree's flow window, extracted from the REAL `zk_shields.ct` by `client/fixtures/demo-session/extract-flow.mjs`) |
+| `debugger/*.nim` | The debug route's renderer-free layer: `session_layout.nim` (BlockTracer's OWN arrangement, `blockTracerReplayLayout()` — the debug route walks THIS, not CodeTracer's `defaultReplayLayout()`), `session_view.nim` (what a pane renders), `source_document.nim` (the static source renderer's input), `demo_session.nim` (the static tree's producer), `flow_view.nim` (**omniscience** — recorded values placed against the source), `demo_flow.nim` (the static tree's flow window, extracted from the REAL `zk_shields.ct` by `client/fixtures/demo-session/extract-flow.mjs`) |
+| `debugger/vendor/**` | ONE vendor tree, shaped like CodeTracer's `src/`, holding four byte-verbatim copies under two manifests: `frontend/headless_app/layout_model.nim` + `common/contributed_pane_id.nim` (`layout_model.vendor.json`) and `frontend/viewmodel/viewmodels/flow_layout.nim` + `frontend/ui/flow_loop_math.nim` (`flow_layout.vendor.json`). The directory MIRRORS upstream's depth so every copy stays byte-identical — the alternative is editing one import path, and a copy with one edit in it is a copy whose hash can no longer be compared to anything. Guarded by `just layout-vendor`. **They are copies because `client/src` compiles with NO CodeTracer source on the Nim path at all** — measured 2026-09-17: with `CODETRACER_SRC` unset, `cd client && just export` renders all 348 pages and both `nim js` bundles. That is what makes `client/hydrate/build.sh` exit 3 a *valid* outcome rather than a broken build. Availability was never the constraint: `flake.nix` has carried a pinned `codetracer` input since hydration landed |
 | `design_system/tokens.nim` | Design-system tokens |
 
 **Route table** (`client/src/ssr.nim`) — routes are **data-derived** (one per
@@ -509,9 +510,21 @@ submitted.
 The debug route is the **product register**: `components/layout.debugLayout`
 sets `<html data-register="debugger">` and drops the nav and the footer, and the
 token layer keys density and default theme off that one attribute. Its pane
-arrangement is not written here — `renderLayout` walks CodeTracer's
-`defaultReplayLayout()`, mapping `weight` to a flex-fraction class and `stack`
-to `:target` tabs, so the whole session is navigable with scripting off.
+arrangement is **BlockTracer's own** — `renderLayout` walks
+`session_layout.blockTracerReplayLayout()`, mapping `weight` to a flex-fraction
+class and `stack` to `:target` tabs, so the whole session is navigable with
+scripting off.
+
+**It is NOT `defaultReplayLayout()`, and that sentence stood here long enough to
+be believed.** CodeTracer's default is the desktop's: controls as a full-width
+band above everything, Editor/State/Event Log, four panes plus a stack.
+BlockTracer's is one row of four panes with the controls in the identity bar and
+Call Trace / Event Log as one tabbed region — `session_layout.nim` writes down
+each of the three decisions and why. `defaultReplayLayout()` is called in
+exactly two places in this repository, both tests, and one of them
+(`test_debug_route.nim`) asserts the two arrangements DIFFER. The distinction is
+load-bearing whenever the vendored model moves: a change to upstream's default
+is not a change to what this site arranges.
 
 `staticRoutes` enumerates the concrete URLs to pre-render from the chain data;
 `renderRoute` dispatches by pattern (unknown → 404). **To add a page kind, add a

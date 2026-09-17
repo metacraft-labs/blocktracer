@@ -712,17 +712,26 @@ debug-panes:
 # self-test drives every failure path, so neither check is one nobody has seen
 # say no.
 #
-# Two of them, and they are vendored for the same reason and pinned to
-# different things:
+# Two manifests over ONE vendor tree, `client/src/debugger/vendor/`, which
+# mirrors CodeTracer's `src/` so every copy stays byte-identical to upstream
+# rather than needing an edited import path:
 #
-#   * `headless_app/layout_model.nim` — the pane arrangement. NOT in the Embed
-#     SDK's tree, so it tracks its own module's mainline.
+#   * `headless_app/layout_model.nim` + `common/contributed_pane_id.nim` — the
+#     pane arrangement and the contributed-pane grammar it imports.
 #   * `viewmodel/viewmodels/flow_layout.nim` + `ui/flow_loop_math.nim` — the
-#     Omniscience layout arithmetic. INSIDE the tree `ci/embed-sdk-pin.env`
-#     names, so its manifest commit must equal that pin and the check says so:
-#     the static export and the hydration bundle place inline values with this
-#     one arithmetic, and two commits would be two versions of it laying out
-#     one page.
+#     Omniscience layout arithmetic.
+#
+# BOTH manifests are pinned to `ci/embed-sdk-pin.env`'s CODETRACER_REF, and both
+# checks assert it. That is not decoration: part B of each check compares the
+# copy against `$CODETRACER_SRC`, which IS that pin, so a manifest naming any
+# other commit asks a question with no passable answer. The layout model was
+# pinned to its own module's mainline until 2026-09-17 and its gate was red by
+# construction on every SDK bump for exactly that reason — see the header of
+# `ci/test/layout-model-vendor.sh`.
+#
+# For the flow arithmetic the pin carries a second meaning: the static export
+# and the hydration bundle place inline values with this one arithmetic, and
+# two commits would be two versions of it laying out one page.
 layout-vendor:
     ci/test/layout-model-vendor.sh --require
     ci/test/layout-model-vendor-test.sh
