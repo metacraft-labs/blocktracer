@@ -21,6 +21,15 @@
 #
 # Only then is the kit run, over a template that was copied out with it.
 #
+# ── AND THE FOURTH ABSENCE, ADDED 2026-09-17: NO SPECIFICATION EITHER ─────────
+#
+# The three above are about the machine. This one is about the documents, and it
+# was the gap a recorder team actually fell into: the README named three files
+# that the release does not ship and told a recipient to look a rule id up "in the
+# blocktracer repository". Arm 6 takes a real refusal, reads the rule id the kit
+# printed, and resolves it against the contract the release carries — in the
+# sandbox, where there is no checkout to fall back on.
+#
 # ── AND THE CONTROL THAT MAKES A GREEN MEAN SOMETHING ─────────────────────────
 #
 # The last arm runs the same command with the fixture removed. A harness that
@@ -231,7 +240,50 @@ else
 	report_fail "a relative subject produced no usable path" "${rel_out}"
 fi
 
-# ── 6. THE CONTROL: no fixture is not a pass ──────────────────────────────────
+# ── 6. THE CONTRACT TRAVELS WITH THE ARTIFACT, AND IS RESOLVABLE IN THERE ─────
+#
+# The README told a recipient that a rule id could be looked up in
+# `tools/chain/snapshot-contract.json` "in the blocktracer repository" — the one
+# thing this kit exists so that they do not have. "Compiled into the binary" is
+# true and is not the same as travelling with you: somebody holding
+# `S5-COUNTS-ROWS` and a tarball had no file to resolve it against, and
+# `prestateStrategy`'s closed set lived in a spec document the release omits.
+#
+# SO THE ARM IS A RESOLUTION AND NOT A FILE LISTING. It takes a real refusal
+# inside the sandbox, reads the rule id the kit itself printed, and requires that
+# id to be found in the shipped contract file — which is the thing a recipient
+# actually does. A `[ -f ... ]` check would pass over three empty files.
+for f in snapshot-contract.json snapshot-format.json refusal-reasons.json; do
+	if [ -s "${kit}/contract/${f}" ]; then
+		report_pass "the release carries contract/${f} ($(wc -c <"${kit}/contract/${f}") bytes)"
+	else
+		report_fail "the release does not carry a non-empty contract/${f}" \
+			"a recipient holding a rule id, a format token or a refusalReason has nothing to resolve it against"
+	fi
+done
+cited="$(printf '%s\n' "${rel_out}" | grep -m1 '^  rule: ' | sed 's/^  rule: //' | cut -d' ' -f1)"
+if [ -n "${cited}" ] && [ "${cited#(}" = "${cited}" ]; then
+	report_pass "the refusal in arm 5 cited a rule id (${cited})"
+else
+	report_fail "the refusal in arm 5 cited no rule id, so the resolution below has no subject" \
+		"${rel_out}"
+fi
+# READ WITH A SHELL BUILT-IN, because the sandbox's PATH holds the kit's own bin
+# and nothing else — `grep` is not in there, and a probe that cannot run reads
+# exactly like one that measured nothing (§32's family, and arm 3 above hit the
+# same thing with `ls` and `wc` and says so). `$(<file)` and `[[ == *…* ]]` are
+# both bash built-ins, and `sandbox_shell` is resolved bash by construction.
+if [ -n "${cited}" ] && in_sandbox "
+  doc=\"\$(<'${kit}/contract/snapshot-contract.json')\"
+  [ -n \"\$doc\" ] || exit 3
+  [[ \"\$doc\" == *'\"${cited}\"'* ]]"; then
+	report_pass "…and that id RESOLVES in the shipped contract, inside the sandbox, with no checkout"
+else
+	report_fail "the id the kit printed cannot be resolved against the contract it ships" \
+		"cited: ${cited}"
+fi
+
+# ── 7. THE CONTROL: no fixture is not a pass ──────────────────────────────────
 out="$(in_sandbox "blocktracer-conformance --snapshot '${kit}/template/not-a-tree'" 2>&1)"
 rc=$?
 if [ "${rc}" -ne 0 ] && printf '%s' "${out}" | grep -q 'no snapshot tree at'; then
@@ -243,8 +295,8 @@ fi
 echo
 echo "conformance-kit-sandbox: $((pass + fail)) check(s), ${fail} failing"
 [ "${fail}" -eq 0 ] || exit 1
-[ "${pass}" -ge 13 ] || {
-	echo "conformance-kit-sandbox: only ${pass} arm(s) ran; at least 13 are expected." >&2
+[ "${pass}" -ge 18 ] || {
+	echo "conformance-kit-sandbox: only ${pass} arm(s) ran; at least 18 are expected." >&2
 	echo "  A suite that lost its arms reports zero failures, which is the shape of" >&2
 	echo "  green this file exists to refuse." >&2
 	exit 1

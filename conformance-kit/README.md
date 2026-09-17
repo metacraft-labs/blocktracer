@@ -15,6 +15,7 @@ conformance-kit/
   template/
     minimal/              the FLOOR: every required member, nothing else
     complete/             EVERY member, and every availability state a snapshot reaches
+  contract/               (in a release) the contract as DATA — see "Resolving a rule id"
 ```
 
 and, in a release, three binaries beside them:
@@ -40,11 +41,31 @@ It reaches no network, needs no checkout and needs no Nim toolchain: the contrac
 is compiled into the binary, and every file it opens is under the directory you
 named or the directory it publishes into.
 
+## The three phases, because the order is not the one you expect
+
+The command prints this legend before it runs, and it is here too because the
+ordering has misled a recorder team already:
+
+| phase | reads | stops at | names |
+| ----- | ----- | -------- | ----- |
+| `[1/3] snapshot` | **your snapshot**, through the reader | the **first** refusal | the §5.2c rule **and** the path |
+| `[2/3] producer` | the tree `[1/3]` **published** | nothing — collects every finding | the path |
+| `[3/3] consumer` | the same published tree, through the client SDK | nothing — collects every finding | the path |
+
+Two consequences, both of which look like the tool misbehaving and are not:
+
+- **A green `[1/3]` is not a green tree.** It means your snapshot was
+  *ingestible*. `[1/3] snapshot OK` followed by `[2/3] producer REFUSED` is the
+  normal shape of a first run.
+- **The error count can go UP as you fix things.** Phase 1 stops at its first
+  refusal — it is the reader, and a reader that carried on would be reading a
+  tree it had already refused — while phases 2 and 3 report everything they find.
+  So one error becoming twenty-four means you got *further*, and the twenty-four
+  were always there.
+
 ## What a failure tells you
 
-Every refusal names the **rule** of `Data-Contract.md` §5 it enforces and the
-**path** of the offending file. *Invalid tree* is not a report anyone can act on;
-this is:
+*Invalid tree* is not a report anyone can act on; this is:
 
 ```text
 [1/3] snapshot   REFUSED
@@ -57,12 +78,33 @@ REFUSED (Data-Contract.md §5):
         of the rows beside them and must equal their lengths…
 ```
 
-The rule id is the key you grep §5 for. The full set of them is in
-`tools/chain/snapshot-contract.json` in the `blocktracer` repository, which is §5 in
-machine-readable form and what both the reader and this kit read — the same file,
-compiled into the binary you just ran. It states every rule id, the section it
-belongs to, and the sentence it enforces, so you can resolve a citation without
-holding §5 itself.
+**Every refusal names the path of the offending file. Only `[1/3]` names a
+rule**, and the reason is not an omission: §5.2c's rules are the rules of the
+*snapshot* contract, which is what phase 1 enforces. Phases 2 and 3 enforce the
+*published-tree* contract, which §5.2c does not state rules for, so they say so
+in place of a rule id rather than inventing one. `Data-Contract.md` §5.5 carries
+the same sentence.
+
+## Resolving a rule id
+
+The rule id is the key you grep §5 for — and you should not need §5 to resolve
+it. A release ships the contract as data beside the binaries:
+
+```text
+contract/snapshot-contract.json   every rule id, its section, and the sentence it
+                                  enforces; the member census; the closed set of
+                                  prestate strategies
+contract/snapshot-format.json     the readable `format` tokens, what each requires,
+                                  and the closed set of `outcome` tokens in the
+                                  three populations they partition
+contract/refusal-reasons.json     the closed set of `refusalReason` members, each
+                                  with its durability and the condition it means
+```
+
+These are the *same files* the binary reads — they are compiled into it — so they
+cannot disagree with the verdict you just got. They are copied in as well because
+compiled in is not the same as travelling with you: a recipient holding
+`S5-COUNTS-ROWS` and no checkout previously had nothing to look it up in.
 
 ## The template, and how to read it
 
@@ -107,6 +149,13 @@ A few shapes look odd on purpose:
   member is shown only one way;
 - `minimal/` and `complete/` use different chain slugs, because a slug another
   producer already published is refused rather than resolved (`S5-CHAIN-UNIQUE`).
+  **That rule cannot fire inside this kit, and saying so is part of teaching it.**
+  Each run publishes into an empty directory of its own — a `--out` you name must
+  be empty or absent, and the temporary one is cleared — so there is never a
+  second producer's tree beside yours for a slug to collide with. The rule is
+  about the site this tree is eventually published into. What the two slugs
+  demonstrate here is the *shape* a conforming producer writes, not a refusal you
+  can reproduce with the kit.
 
 ## The template cannot quietly fall behind the contract
 
@@ -132,14 +181,31 @@ trace" button, and `unsupported` says no recorder exists for this VM. The reader
 constructs neither, and `tests/tchainsnapshot.nim` asserts that it does not, so this
 is a measured gap rather than a claim about coverage.
 
+## Before you write identifiers: the case constraint
+
+**This tree is read as though every chain wrote `hex` identifiers, and `hex`
+folds case.** If your chain's identifiers are case-significant — base58,
+base58check, base64url or SS58, which is Solana, Sui, TON, Cardano, Tezos and
+Cosmos — the published objects are keyed by a *lowercased* form of what you
+wrote, and `[2/3]` refuses the tree by name.
+
+Lowercasing your identifiers makes the run green and is the **wrong repair**: it
+produces a tree whose transaction hashes do not exist on your chain. The seam
+below this is already per-encoding and correct; what is missing is any member
+through which a snapshot can *declare* its chain's encoding. `Data-Contract.md`
+§5.6 states the whole of it and records it as an open blocker rather than a rule
+you can satisfy. Tell us which chain you are recording before you start.
+
 ## The two documents this file names
 
 `Data-Contract.md` and `Trace-Artifacts.md` are BlockTracer's specifications. They are
 named here, not linked: this README travels inside a released artifact, and a relative
 link out of it resolves only in a checkout that has both repositories side by side —
 which is exactly the checkout this kit exists so that you do not need. What travels
-with you instead is `tools/chain/snapshot-contract.json`, §5 in machine-readable form,
-compiled into the binary; ask us for the documents if you want the prose.
+with you instead is the `contract/` directory beside these binaries — the same three
+data files the binary reads — so a rule id, a `format` token, an `outcome` token, a
+`refusalReason` and a `prestateStrategy` all resolve without the prose. Ask us for the
+documents if you want the arguments behind them.
 
 ## If the kit is wrong
 

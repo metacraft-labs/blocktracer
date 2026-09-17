@@ -93,13 +93,29 @@ proc namedPath(msg, snapshotDir, outDir: string): string =
     if underTree and tok.len > best.len: best = tok
   best
 
-proc report(kind, msg, snapshotDir, outDir: string) =
+proc report(kind, msg, snapshotDir, outDir: string, knownPath = "",
+            citesRules = true) =
+  ## `knownPath` is a path the CALLER already holds, and it outranks the scan.
+  ##
+  ## THE SCAN IS A LAST RESORT AND WAS ONCE THE ONLY RESORT. It looks for a token
+  ## in the sentence that exists on disk, which is the one thing a DANGLING
+  ## REFERENCE — "this file is referenced and is not there" — can never satisfy.
+  ## That is the commonest finding check 2 produces, so the commonest
+  ## producer-side failure reported no path at all. Check 2's findings now arrive
+  ## structured (`validator.ValidationFinding`) and hand their own path in here.
+  ## Check 1's refusals are strings raised by the reader and still go through the
+  ## scan, which is sound for them: a rule refusal names a file the reader has
+  ## just opened.
   let rule = citedRule(msg)
-  let path = namedPath(msg, snapshotDir, outDir)
+  let path = if knownPath.len > 0: knownPath
+             else: namedPath(msg, snapshotDir, outDir)
   stderr.writeLine kind & ":"
   stderr.writeLine "  rule: " &
     (if rule.len > 0: rule & " (" & sectionOf(rule) & ")"
-     else: "(this refusal cites no rule the contract states)")
+     elif citesRules: "(this refusal cites no rule the contract states, which is " &
+       "a defect in the refusal rather than in your tree)"
+     else: "(this check enforces the PUBLISHED-tree contract, whose rules §5.2c " &
+       "does not state — Data-Contract.md §5.5 says which check names what)")
   stderr.writeLine "  path: " &
     (if path.len > 0: path
      else: "(this refusal names no file in the tree under test)")
@@ -212,6 +228,31 @@ proc main() =
   echo "published: " & published
   echo "contract:  " & $ContractVersion
   echo ""
+  # ── WHAT THE THREE PHASES CHECK, BEFORE ANY OF THEM RUNS ────────────────────
+  #
+  # `[1/3] snapshot OK` followed by `[2/3] producer REFUSED` is the worst
+  # ordering a producer can be given, and it was given without explanation: the
+  # first line reads as a verdict on the tree that was written, so a green one
+  # followed by twenty-four failures reads as the tool changing its mind. It is
+  # not. Check 1 is the only one that reads the snapshot at all; checks 2 and 3
+  # read the tree check 1 PUBLISHED, so a green [1/3] means "this snapshot could
+  # be ingested", never "this snapshot is conforming".
+  #
+  # The count going UP as errors are fixed has the same cause and is equally
+  # alarming without this: check 1 stops at its FIRST refusal, because it is the
+  # reader and a reader that carried on would be reading a tree it had already
+  # refused. Checks 2 and 3 collect ALL of their findings. So a tree that was
+  # failing at [1/3] with one message and now fails at [2/3] with twenty-four has
+  # got FURTHER, and the twenty-four were always there.
+  echo "  [1/3] snapshot   your tree, through the reader — Data-Contract.md §5."
+  echo "                   Stops at the FIRST refusal and names the §5.2c rule."
+  echo "  [2/3] producer   the tree [1/3] published, against the published-tree"
+  echo "                   contract. Collects EVERY finding; names paths, not §5 rules."
+  echo "  [3/3] consumer   the same published tree, read end to end through the"
+  echo "                   client SDK. Collects every finding."
+  echo "  A green [1/3] is not a green tree: it means the snapshot was INGESTIBLE."
+  echo "  A count that rises as you fix things means you reached a later phase."
+  echo ""
 
   var failed = false
 
@@ -230,13 +271,23 @@ proc main() =
 
   if not failed:
     # ── 2. published -> verdict, producer side ────────────────────────────────
-    let errs = validateTree(published)
+    let errs = validateTreeFindings(published)
     if errs.len == 0:
       echo "[2/3] producer   OK  " & published & " conforms to contract version " &
         $ContractVersion
     else:
       echo "[2/3] producer   REFUSED  " & $errs.len & " conformance error(s)"
-      for e in errs: report("PRODUCER-SIDE", e, snapshotDir, published)
+      for e in errs:
+        # THE PATH COMES FROM THE FINDING, NOT FROM A SCAN OF ITS SENTENCE. Every
+        # one of these carries the tree-relative path it is about as a field, and
+        # the file is `findingFile` of it — which is what makes a DANGLING
+        # reference name a path, the one case the scan structurally cannot.
+        let p = e.findingFile
+        report("PRODUCER-SIDE", e.errorLine, snapshotDir, published,
+               knownPath = (if p.len == 0: ""
+                            elif p.isAbsolute: p
+                            else: published / p),
+               citesRules = false)
       failed = true
 
     # ── 3. published -> verdict, consumer side ────────────────────────────────
@@ -247,7 +298,8 @@ proc main() =
         " traces=" & $r.tracesResolved & " replayable=" & $r.tracesReplayable
     else:
       echo "[3/3] consumer   REFUSED  " & $r.errors.len & " conformance error(s)"
-      for e in r.errors: report("CONSUMER-SIDE", e, snapshotDir, published)
+      for e in r.errors:
+        report("CONSUMER-SIDE", e, snapshotDir, published, citesRules = false)
       failed = true
 
   if temporary and not keep: removeDir published

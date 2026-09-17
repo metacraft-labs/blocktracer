@@ -717,8 +717,64 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         "a block row in " & snapPath & " carries no `" & missing & "`" &
         (if b{"number"} != nil: " (number " & $b{"number"}.getInt & ")" else: "") &
         ". " & ruleStatement("S5-ROW-MEMBERS-REQUIRED"))
+  # ── `blocks` IS NEWEST FIRST, WHICH §5.2 HAS SAID SINCE IT WAS WRITTEN ──────
+  #
+  # …and which nothing enforced until 2026-09-17. §5.2's table says "the
+  # enumerated blocks, newest first"; §5.2b's census row for `blocks` said only
+  # "the enumerated blocks", the qualifier having been dropped in transcription;
+  # and no rule ranged over the order at all. A producer that enumerated its
+  # range ascending — which is the order every node API answers in — published a
+  # tree whose block list was the reverse of the one the contract promised, and
+  # every check in this repository was green on it.
+  #
+  # NON-STRICT, AND THAT IS DELIBERATE. The comparison is `<=` on the
+  # predecessor's height rather than `<`: two entries at one height are a chain
+  # with more than one block at a height, which is a reorg artefact a producer is
+  # entitled to publish, and refusing it would be this rule deciding a question
+  # about somebody else's chain. What it refuses is an ASCENDING pair, which is
+  # the one thing "newest first" rules out.
+  block blockOrder:
+    var prev = high(int)
+    for b in snap["blocks"]:
+      let n = b["number"].getInt
+      if n > prev:
+        raise newException(ValueError,
+          RuleBlocksOrder &
+          "the snapshot at " & snapPath & " enumerates block " & $n &
+          " after block " & $prev & ", so `blocks` is not newest first. " &
+          ruleStatement("S5-BLOCKS-ORDER"))
+      prev = n
   for t in snap["transactions"]:
-    let traced = isTracedSnapshotOutcome(t{"outcome"}.getStr)
+    # ── THE OUTCOME IS A CLOSED SET, AND THE FOURTH BUCKET IS WHY ────────────
+    #
+    # `snapshot-format.json` states three populations and §5.2 calls them
+    # "disjoint by construction". The build asserts DISJOINTNESS — an outcome in
+    # two populations fails it — and nothing asserted EXHAUSTIVENESS, so a token
+    # in none of the three was in no population at all. Every rule that ranges
+    # over a population then declines to fire for it, silently, while the rules
+    # that range over every row go on firing: measured from outside by a reader
+    # who had only §5, a row with `outcome: "no-public-execution"` and no
+    # `refusalReason` ingested CLEAN on `@2`, and the SAME row without a
+    # `reason` was refused by `S5-REASON-REQUIRED`. Two rules disagreeing about
+    # one row.
+    #
+    # IT IS CHECKED HERE, BEFORE THE ROW-MEMBER PASS, because `traced` below is
+    # derived from the outcome: a pass that read an unrecognised token and then
+    # decided which members to require of the row has already acted on it.
+    let outcomeToken = t{"outcome"}.getStr
+    if not isKnownSnapshotOutcome(outcomeToken):
+      raise newException(ValueError,
+        RuleOutcomeClosed &
+        "a transaction row in " & snapPath &
+        (if t{"txHash"} != nil: " (" & shortHash(t{"txHash"}.getStr) & ")" else: "") &
+        " states outcome '" & outcomeToken &
+        "', which is in none of the three populations (" & snapshotOutcomeList() &
+        "). " & ruleStatement("S5-OUTCOME-CLOSED") &
+        " Decide which of the three statements this row makes and use that " &
+        "population's token, or add the token to " &
+        "tools/chain/snapshot-format.json's `outcomes` deliberately, in the " &
+        "population it belongs to, and say in Data-Contract.md §5.2 what it means.")
+    let traced = isTracedSnapshotOutcome(outcomeToken)
     let missing = missingBracketMember(t, TransactionRequired, traced)
     if missing.len > 0:
       raise newException(ValueError,
@@ -1275,6 +1331,23 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         "transaction " & shortHash(txHash) & " in block " & $height & " of " & snapPath &
         " carries a `cost` that is not an array. " &
         ruleStatement("S5-COST-VECTOR"))
+    # ── AND AN EMPTY VECTOR IS NOT A CLEAN ONE ──────────────────────────────
+    #
+    # The loop below is the whole of this rule's force and it RANGES OVER
+    # ENTRIES, so a vector with no entries satisfied it vacuously — in the one
+    # seam §5.3 argues at length that the reader must supply nothing for. A row
+    # with `cost: []` publishes a transaction page stating no cost at all, which
+    # is indistinguishable from a producer that forgot to write one, and the
+    # reader may not tell them apart because it has no default to fall back on.
+    # That is the same argument §5.2 makes about an empty `reason`.
+    if costNode.len == 0:
+      raise newException(ValueError,
+        RuleCostVector &
+        "transaction " & shortHash(txHash) & " in block " & $height & " of " & snapPath &
+        " carries an EMPTY `cost` vector. " & ruleStatement("S5-COST-VECTOR") &
+        " A transaction that was genuinely free in every dimension states that " &
+        "dimension with a figure of zero; the reader supplies no entry, so an " &
+        "empty vector and a forgotten one publish the same page.")
     for c in costNode:
       if c.kind != JObject or c{"name"} == nil or c{"used"} == nil or
          c{"name"}.getStr.len == 0:
@@ -1575,6 +1648,23 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           "the snapshot's container for " & txHash & " at " &
           (cfg.snapshotDir / t["container"].getStr) &
           " is empty; refusing to publish a manifest naming a zero-byte trace")
+      # ── `containerBytes` IS A MEASUREMENT, AND IT WAS CHECKED BY NOBODY ─────
+      #
+      # The row's figure is republished on the overlay row verbatim — it is the
+      # `bytes` a client shows before it fetches — and until 2026-09-17 the only
+      # thing that compared it to the file was the PUBLISHED-tree validator, one
+      # whole check later, citing no rule because there was none to cite. So a
+      # producer whose tally was stale learned about it from a sentence with
+      # nothing in it to look up. The container's bytes are in hand on the line
+      # above, so this is the place the comparison belongs: §5.2's argument for
+      # `counts` one level down, on a row rather than on a snapshot.
+      if ctBytes.len != t["containerBytes"].getInt:
+        raise newException(ValueError,
+          RuleContainerBytes &
+          "transaction " & shortHash(txHash) & " in block " & $height & " of " & snapPath &
+          " states containerBytes " & $t["containerBytes"].getInt & " and its container at " &
+          (cfg.snapshotDir / t["container"].getStr) & " is " & $ctBytes.len &
+          " bytes. " & ruleStatement("S5-CONTAINER-BYTES"))
       cfg.writeBytes(dir / "trace.ct", ctBytes)
 
       # ---- the source bundles, when the recording measured itself as source

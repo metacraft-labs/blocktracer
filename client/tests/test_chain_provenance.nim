@@ -1078,7 +1078,11 @@ suite "6 — a watched snapshot says something true about both ends":
     # The range must cover `txBlock`: a fixture whose transaction falls outside the
     # blocks it publishes exercises the "no transaction settled at all" arm instead
     # of the one the case is named for, and passes for the wrong reason.
-    for n in min(txBlock, tip - 3) .. tip:
+    # NEWEST FIRST, because Data-Contract.md §5.2 says `blocks` is and
+    # `S5-BLOCKS-ORDER` enforces it. These fixtures enumerated ASCENDING — the
+    # order every node API answers in, and the reason the rule was worth adding —
+    # and nothing could see it until the rule existed.
+    for n in countdown(tip, min(txBlock, tip - 3)):
       var b = %*{"number": n, "hash": "0x" & align($n, 40, '0'),
                  "timestamp": FixtureBlockTime + n * 36, "totalManaUsed": "0x0",
                  "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
@@ -1393,7 +1397,7 @@ suite "8 — a curated chain publishes only transactions that open":
     # rather than work around.
     writeFile(dest / "ct" / (recorded & ".ct"), repeat('x', 4096))
     var blocks = newJArray()
-    for n in 100 .. 120:
+    for n in countdown(120, 100):            # newest first — §5.2, S5-BLOCKS-ORDER
       var b = %*{"number": n, "hash": "0x" & align($n, 40, '0'),
                  "timestamp": FixtureBlockTime + n * 36, "totalManaUsed": "0x0",
                  "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",
@@ -1648,7 +1652,7 @@ suite "8 — a curated chain publishes only transactions that open":
     createDir(dest / "ct")
     let pruned = "0x" & repeat('7', 40)
     var blocks = newJArray()
-    for n in 100 .. 160:
+    for n in countdown(160, 100):            # newest first — §5.2, S5-BLOCKS-ORDER
       var b = %*{"number": n, "hash": "0x" & align($n, 40, '0'),
                  "timestamp": FixtureBlockTime + n * 36, "totalManaUsed": "0x0",
                  "coinbase": "0x" & repeat('1', 40), "feePerL2Gas": "0x1",

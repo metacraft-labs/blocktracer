@@ -134,7 +134,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TEN suites — 98 + 19 + 24 + 24 + 57 + 228 + 33 + 153 + 53 + 91 = 780 counted assertions —
+# TEN suites — 98 + 19 + 24 + 24 + 57 + 229 + 33 + 153 + 53 + 91 = 781 counted assertions —
 # over the ten decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -838,17 +838,49 @@ conformance dir="conformance-kit/template/complete":
 # built by somebody — and `-d:release` is what makes the result a shipped artifact
 # rather than a debug build of a working tree.
 #
-# `ci/test/conformance-kit-sandbox.sh` is the arm that proves the three negatives,
-# by running this artifact somewhere all three are absent.
+# `ci/test/conformance-kit-sandbox.sh` is the arm that proves the negatives, by
+# running this artifact somewhere they all hold — 18 checks, of which the last
+# five are the FOURTH absence: no specification either. A refusal taken inside
+# the sandbox has its rule id resolved against `contract/snapshot-contract.json`
+# as shipped, which is what a recipient with a tarball and no checkout does.
+#
+# STAGING OUTSIDE THE CHECKOUT IS AN OPERATOR PROCEDURE, not a gate: it needs the
+# toolchain and a full `-d:release` build of three binaries, so putting it in the
+# sandbox script would double that script's cost for a property one command
+# demonstrates. `just conformance-kit-release /some/abs/path` is that command, and
+# it was measured rc 0 on 2026-09-17 into a directory outside this repository.
+#
+# `out` MAY BE ANYWHERE, AND UNTIL 2026-09-17 IT COULD NOT BE. Every path here was
+# built as `$(pwd)/{{out}}`, so an absolute argument produced `/repo//tmp/kit` and
+# a relative one could only land inside the checkout — which means there was no
+# invocation of this recipe that staged the artifact OUTSIDE the repository, while
+# the artifact's whole claim is that it needs no checkout. `realpath -m` resolves
+# either spelling to one absolute path (`-m` because the directory does not exist
+# yet), and the `rm -rf` that follows is why the resolution has to happen before
+# anything is deleted rather than inside a `cp`.
+#
+# THE CONTRACT TRAVELS WITH IT. The README told a recorder team that a rule id
+# could be resolved against `tools/chain/snapshot-contract.json` "in the
+# blocktracer repository" — the one thing the kit exists so that they do not have.
+# "Compiled into the binary" is true and is not the same as "travelling with you":
+# a recipient holding `S5-COUNTS-ROWS` had no file to look it up in, and
+# `prestateStrategy`'s closed set lived in a spec document the release omits. The
+# three data files the reader itself reads are copied in beside the binaries.
 conformance-kit-release out="conformance-kit-release":
-    rm -rf {{out}}
-    mkdir -p {{out}}/bin
-    nim c -d:release --hints:off --out:$(pwd)/{{out}}/bin/blocktracer-conformance src/blocktracer_conformance.nim
-    nim c -d:release --hints:off --out:$(pwd)/{{out}}/bin/blocktracer-validate src/blocktracer_validate.nim
-    nim c -d:release --hints:off --out:$(pwd)/{{out}}/bin/blocktracer-client-conformance src/blocktracer_client_conformance.nim
-    cp -r conformance-kit/template {{out}}/template
-    cp conformance-kit/README.md {{out}}/README.md
-    @echo "conformance kit staged in {{out}}/ — run {{out}}/bin/blocktracer-conformance --snapshot {{out}}/template/complete"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out="$(realpath -m '{{out}}')"
+    rm -rf "$out"
+    mkdir -p "$out/bin" "$out/contract"
+    nim c -d:release --hints:off --out:"$out/bin/blocktracer-conformance" src/blocktracer_conformance.nim
+    nim c -d:release --hints:off --out:"$out/bin/blocktracer-validate" src/blocktracer_validate.nim
+    nim c -d:release --hints:off --out:"$out/bin/blocktracer-client-conformance" src/blocktracer_client_conformance.nim
+    cp -r conformance-kit/template "$out/template"
+    cp conformance-kit/README.md "$out/README.md"
+    cp tools/chain/snapshot-contract.json "$out/contract/snapshot-contract.json"
+    cp tools/chain/snapshot-format.json "$out/contract/snapshot-format.json"
+    cp tools/chain/refusal-reasons.json "$out/contract/refusal-reasons.json"
+    echo "conformance kit staged in $out/ — run $out/bin/blocktracer-conformance --snapshot $out/template/complete"
 
 # Prove the released artifact needs no toolchain, no checkout and no network.
 conformance-kit-sandbox:

@@ -90,6 +90,10 @@
       "section": "§5.2",
       "statement": "On `@2`, `counts.accountedFor` ranges over traced, untraced and chain-absent and equals `counts.transactions`."
     },
+    "S5-BLOCKS-ORDER": {
+      "section": "§5.2",
+      "statement": "`blocks` is newest first: every entry's height is at most its predecessor's. §5.2 has stated the order since it was written and nothing enforced it, so a producer that enumerated oldest-first published a tree whose order was the opposite of the one the contract promised."
+    },
     "S5-RECORDER-LABEL-UNIQUE": {
       "section": "§5.2",
       "statement": "Two recorder commits in one snapshot that shorten to one version label are refused; the label is what the build hash is derived from."
@@ -97,6 +101,10 @@
     "S5-CONTAINER-NONEMPTY": {
       "section": "§5.1",
       "statement": "A row that names a container must name one with bytes in it."
+    },
+    "S5-CONTAINER-BYTES": {
+      "section": "§5.2",
+      "statement": "`containerBytes` is a measurement of the container the row names and must equal its size on disk; it is republished on the overlay row, so a figure that does not is a published number about a file nobody measured."
     },
     "S5-REASON-REQUIRED": {
       "section": "§5.2",
@@ -114,9 +122,13 @@
       "section": "§5.2",
       "statement": "A chain-absent row carries the sentence and NOT the member; the closed set is a set of things this pipeline did."
     },
+    "S5-OUTCOME-CLOSED": {
+      "section": "§5.2",
+      "statement": "`transactions[].outcome` is drawn from a closed set, verbatim; a value outside it is refused naming the whole set, because §5.2's three populations are disjoint BY CONSTRUCTION only if every outcome belongs to one of them — an unrecognised token is a fourth, unpoliced bucket in which the rules that range over the populations silently do not fire."
+    },
     "S5-BUNDLE-REQUIRED": {
       "section": "§5.4",
-      "statement": "A recording that claims source level, or that carries positions, is refused without a source bundle beside it."
+      "statement": "A recording that claims source level, or one whose positions were computed post-hoc, is refused without a source bundle beside it. A recording that merely CARRIES a position stream is not: it is refused only when a bundle file is present beside it and holds no bundle. This statement said \"or that carries positions\" until 2026-09-17 and that disjunct was one the reader never enforced — the shipped template's own second row carries a position stream and no bundle, and conforms."
     },
     "S5-BUNDLE-KEYED": {
       "section": "§5.4",
@@ -180,7 +192,7 @@
     },
     "S5-COST-VECTOR": {
       "section": "§5.3",
-      "statement": "A row's cost is a VECTOR the producer states, and every entry names itself and carries a figure; the reader supplies no name, unit or token, because a cost the reader named is a page that looks right and states the wrong cost."
+      "statement": "A row's cost is a VECTOR the producer states, and every entry names itself and carries a figure; the reader supplies no name, unit or token, because a cost the reader named is a page that looks right and states the wrong cost. The vector carries at least one entry: a rule that ranges over entries is vacuously clean on zero of them, and an empty vector publishes a transaction page with no cost at all — indistinguishable from a producer that forgot, in the one seam this contract supplies no default for."
     },
     "S5-EXECUTIONS-NAMED": {
       "section": "§5.3",
@@ -824,14 +836,63 @@
       "`snapshot-contract-selftest.mjs` §12 holds three things about each: that it is NOT",
       "in the consumed census, that the named writer really writes it, and that the reader",
       "does not read it. A member that became consumed would fail all three rather than",
-      "sitting here as a stale note."
+      "sitting here as a stale note.",
+      "",
+      "THE LIST WAS ONE MEMBER LONG UNTIL 2026-09-17 AND `recount.mjs` WRITES THIRTEEN.",
+      "`captureSessions` was recorded because a self-test had made it load-bearing; the other",
+      "twelve were in exactly the same position — written by our producer, opened by no",
+      "reader, named by no section — and their only distinction was that nothing had tripped",
+      "over them yet. Two of them had already been WRONGLY promoted by §5.2's prose, which",
+      "called `counts.privateOnly` and the per-reason `counts.refusals` block required while",
+      "the census named neither and neither conformance-kit template carried them: a",
+      "hand-authored tree written from §5 alone was conforming and non-conforming at once,",
+      "depending on which half of the document you read. Recording the whole set is what",
+      "stops the next one being discovered the same way."
     ],
-    "memberNames": ["snapshot.counts.captureSessions"],
+    "memberNames": [
+      "snapshot.counts.captureSessions",
+      "snapshot.counts.blocksWithTransactions",
+      "snapshot.counts.bodyRetained",
+      "snapshot.counts.replayed",
+      "snapshot.counts.divergent",
+      "snapshot.counts.refused",
+      "snapshot.counts.pruned",
+      "snapshot.counts.tracesPublished",
+      "snapshot.counts.refusals",
+      "snapshot.counts.refusalsTotal",
+      "snapshot.counts.refusalsUnclassified",
+      "snapshot.counts.privateOnly",
+      "snapshot.counts.untraced"
+    ],
     "memberWrittenBy": {
-      "snapshot.counts.captureSessions": "tools/chain/lib/recount.mjs"
+      "snapshot.counts.captureSessions": "tools/chain/lib/recount.mjs",
+      "snapshot.counts.blocksWithTransactions": "tools/chain/lib/recount.mjs",
+      "snapshot.counts.bodyRetained": "tools/chain/lib/recount.mjs",
+      "snapshot.counts.replayed": "tools/chain/lib/recount.mjs",
+      "snapshot.counts.divergent": "tools/chain/lib/recount.mjs",
+      "snapshot.counts.refused": "tools/chain/lib/recount.mjs",
+      "snapshot.counts.pruned": "tools/chain/lib/recount.mjs",
+      "snapshot.counts.tracesPublished": "tools/chain/lib/recount.mjs",
+      "snapshot.counts.refusals": "tools/chain/lib/recount.mjs",
+      "snapshot.counts.refusalsTotal": "tools/chain/lib/recount.mjs",
+      "snapshot.counts.refusalsUnclassified": "tools/chain/lib/recount.mjs",
+      "snapshot.counts.privateOnly": "tools/chain/lib/recount.mjs",
+      "snapshot.counts.untraced": "tools/chain/lib/recount.mjs"
     },
     "memberHolds": {
-      "snapshot.counts.captureSessions": "how many supervised watch sessions contributed to this capture, or `null` when the `captures` member is not countable. Optional: §5 names no such member, no reader opens it, and a snapshot without it is conforming. `tools/chain/refusal-selftest.mjs` requires it of THIS repository's captures and of nothing else."
+      "snapshot.counts.captureSessions": "how many supervised watch sessions contributed to this capture, or `null` when the `captures` member is not countable. Optional: §5 names no such member, no reader opens it, and a snapshot without it is conforming. `tools/chain/refusal-selftest.mjs` requires it of THIS repository's captures and of nothing else.",
+      "snapshot.counts.blocksWithTransactions": "how many of the enumerated blocks settled at least one transaction. Optional: no reader opens it, and a snapshot without it is conforming.",
+      "snapshot.counts.bodyRetained": "how many rows recorded the node still serving their body at capture. Optional: no reader opens it, and a snapshot without it is conforming.",
+      "snapshot.counts.replayed": "how many rows carry the `replayed` outcome. Optional: no reader opens it, and a snapshot without it is conforming.",
+      "snapshot.counts.divergent": "how many rows carry the `divergent` outcome. Optional: no reader opens it, and a snapshot without it is conforming.",
+      "snapshot.counts.refused": "how many rows carry the `refused` outcome. Optional: no reader opens it, and a snapshot without it is conforming.",
+      "snapshot.counts.pruned": "how many rows carry the `pruned` outcome. Optional: no reader opens it, and a snapshot without it is conforming.",
+      "snapshot.counts.tracesPublished": "`replayed` plus `divergent` — the traced population's size. Optional: no reader opens it, and a snapshot without it is conforming.",
+      "snapshot.counts.refusals": "the per-reason tally of untraced rows, keyed by `refusalReason`. §5.2's prose called this required until 2026-09-17; the census never named it, no reader opens it, and neither conformance-kit template carries it. Optional, like every member here.",
+      "snapshot.counts.refusalsTotal": "how many untraced rows carry a classified `refusalReason`. Optional: no reader opens it, and a snapshot without it is conforming.",
+      "snapshot.counts.refusalsUnclassified": "how many untraced rows carry none. Optional: no reader opens it, and a snapshot without it is conforming.",
+      "snapshot.counts.privateOnly": "how many rows are chain-absent. §5.2's prose called this required until 2026-09-17, on the same mistake `refusals` was made by, and for the same reason it is optional: the census never named it and no reader opens it.",
+      "snapshot.counts.untraced": "the untraced population's size. Optional: no reader opens it, and a snapshot without it is conforming."
     }
   }
 }

@@ -298,6 +298,22 @@ const CONDITIONS = Object.freeze({
   // it there would trade a false permanence for a false availability. `not-attempted`
   // means the run did not look; this means the run looked and was not answered.
   'body-source-could-not-be-asked': 'body-source-unreachable',
+  // ── AND THE ONE THAT IS NOT ABOUT ACQUISITION AT ALL ─────────────────────────────────
+  //
+  // Every condition above is something that happened to an ACQUISITION — a body, a state,
+  // an artifact, a run's own budget, somebody else's host. This one is about the recorder:
+  // the execution reached an opcode, a precompile, a host function or a syscall it does not
+  // implement, so there was never going to be a container however well the acquisition went.
+  //
+  // It exists because the first recorder team to write a snapshot against Data-Contract.md
+  // §5 alone had nowhere to put it and was forced into `runtime-refused`, whose condition
+  // asserts that the replay runtime DECLINED BY NAME — and a recorder that never started the
+  // execution has established no such thing. §5.2a's own argument about `pruned` is the same
+  // shape: a one-clause observation mapped onto a two-clause claim.
+  //
+  // The narrative should name the instruction. The member says a capability is missing; only
+  // the sentence can say which one, and the sentence is what a transaction page shows.
+  'recorder-does-not-implement-instruction': 'instruction-unimplemented',
   // Resolved through REASON_FOR_RUNTIME_CLASS by the class the runtime named.
   'runtime-named-refusal': null,
 });

@@ -201,6 +201,19 @@ function untracedRowOfEveryReason() {
                 storeReason: 'The file store answered HTTP 503 for this key, which is '
                   + 'neither a body nor a denial that it holds one.',
                 where: 'selftest' }) });
+  // 9. instruction-unimplemented — the recorder, not the acquisition. Every member above is
+  //    about something that had to be FETCHED; this one is about a capability the recorder
+  //    does not have, which is why `runtime-refused` was the wrong home for it: that member
+  //    asserts the runtime declined by name, and a recorder that never started the execution
+  //    has established nothing of the kind.
+  rows.push({ txHash: '0x09', blockNumber: 106, txIndexInBlock: 0, outcome: 'refused',
+              ...classifyRefusal({ condition: 'recorder-does-not-implement-instruction',
+                                   where: 'selftest',
+                                   narrative: 'This execution reached an instruction this '
+                                     + 'recorder does not implement, so no trace was '
+                                     + 'written for it. The chain published the execution '
+                                     + 'and the body was served; what is missing is on '
+                                     + 'our side.' }) });
   return rows;
 }
 
@@ -817,12 +830,14 @@ test('the committed captures are inside the closed set');
      + 'capture ever asked the file store — the member needs both of its clauses',
      !seen.has('body-unavailable'));
   // The members real data has NOT reached are named rather than left implicit: a set whose
-  // unreached members are invisible is a set nobody can ask questions about. FIVE now —
-  // `body-unavailable` joined them when the 912 rows that were claiming it were shown to
-  // have established only half its condition.
-  ck('five members are not yet reached by any committed capture, and that is stated '
+  // unreached members are invisible is a set nobody can ask questions about. FIVE became
+  // SIX on 2026-09-17 — `body-unavailable` joined them when the 912 rows that were claiming
+  // it were shown to have established only half its condition, and `instruction-unimplemented`
+  // joined them on arrival: no chain this repository has captured has a recorder with a
+  // capability gap to report, so its production count here is zero and is asserted as zero.
+  ck('six members are not yet reached by any committed capture, and that is stated '
      + `rather than silent: ${REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).join(', ')}`,
-     REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).length === 5);
+     REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).length === 6);
 }
 
 // ── the version policy, and the four store outcomes that are not one fact ───────────────
@@ -1687,7 +1702,12 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //       snapshot was simply not in the corpus every sweep here reads while all six arms
 //       stayed green. The list is now compared to `git ls-files`, and a git that cannot
 //       answer is a failure rather than a comparison against nothing.
-expectCount(228);
+//   +1  the NINTH member of the closed set, `instruction-unimplemented`. The set's per-member
+//       arm is a loop over `REFUSAL_REASON_IDS`, so a member adds exactly one assertion —
+//       the row that reaches it is built through `classifyRefusal` like every other, and the
+//       unreached-member count widened from five to six because no chain captured here has a
+//       recorder with a capability gap to report.
+expectCount(229);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

@@ -24,9 +24,43 @@ import ./chain/refusal_reasons
 import ./chain/contract_rules
 
 type
+  ValidationFinding* = object
+    ## One producer-side finding, with its context kept SEPARATE from its sentence.
+    ##
+    ## ── WHY THIS TYPE EXISTS, AND IT IS A DEFECT REPORT ─────────────────────
+    ##
+    ## `Data-Contract.md` §5.5 promised that "every refusal names the §5.2c rule it
+    ## enforces and the path of the offending file". For the reader that is true —
+    ## `chain/contract_rules.nim` puts both in the message. For THIS check it was
+    ## false in both halves, and a cold reader writing a recorder against §5 alone
+    ## hit thirty-odd of them: every one printed
+    ## `rule: (this refusal cites no rule the contract states)` and usually
+    ## `path: (this refusal names no file in the tree under test)` beside it.
+    ##
+    ## The path half was recoverable and is recovered here. `err(ctx, msg)` has
+    ## always been given the tree-relative path as its first argument and has
+    ## always thrown it away by concatenating — and `blocktracer-conformance`
+    ## then tried to find it again by SCANNING the sentence for a token that
+    ## exists on disk, which is exactly the one case a dangling reference cannot
+    ## satisfy. So the commonest producer-side finding there is, "this file is
+    ## referenced and not there", reported no path at all.
+    ##
+    ## THE RULE HALF IS NOT RECOVERABLE AND IS NOT FAKED, and this type carries no
+    ## `rule` field for that reason. This check enforces
+    ## `Static-Site-Architecture.md`'s PUBLISHED-tree contract; §5.2c's rules are
+    ## the SNAPSHOT contract's, and `snapshot-contract-selftest.mjs` §3 requires
+    ## every one of them to be cited from a refusal in the reader — so inventing
+    ## ids here would either fail that check or move rules out of the reader they
+    ## belong to. Where a §5 rule genuinely existed the fix was the other
+    ## direction: `containerBytes` was checked HERE, citing nothing, and is now
+    ## checked by the reader citing `S5-CONTAINER-BYTES`, which runs first. §5.5
+    ## states in those words which of the three checks names a rule.
+    context*: string  ## the tree-relative path, sometimes with a `.member` suffix
+    message*: string  ## the sentence, without the context
+
   Validator* = object
     root*: string                 ## filesystem path to the published tree root
-    errors*: seq[string]
+    findings*: seq[ValidationFinding]
     visited: HashSet[string]      ## files reached during the walk
     registry: Table[string, JsonNode]  ## chain -> registry entry
     identifierEncodings: Table[string, ChainIdentifierEncoding]
@@ -45,7 +79,32 @@ const
   validationStatuses = ["match", "divergent", "unchecked"]
 
 proc err(v: var Validator, ctx, msg: string) =
-  v.errors.add ctx & ": " & msg
+  ## ONE RECORDING SITE, AND THE RENDERING IS DERIVED FROM IT. `errorLine` below
+  ## is the only place the two parts are joined, so the string form and the
+  ## structured form cannot disagree about what this finding says — which is the
+  ## failure a second formatter beside a structured error is. The line it
+  ## produces is byte-for-byte what this proc used to `add` directly.
+  v.findings.add ValidationFinding(context: ctx, message: msg)
+
+proc errorLine*(f: ValidationFinding): string =
+  ## The one-line rendering. `validateTree` is this over every finding.
+  f.context & ": " & f.message
+
+proc findingFile*(f: ValidationFinding): string =
+  ## The FILE this finding is about, out of its context.
+  ##
+  ## A context is either a tree-relative path (`d/x/tx/ab/0x….json`) or that path
+  ## with the member it is about appended (`…json.order`), which is more than a
+  ## path and is deliberately kept: it says which member without making the
+  ## reader search the sentence. This trims to the file, so a caller that wants
+  ## to open something has something to open. A context that names no file at all
+  ## — `registry`, `idx` — yields "", which is reported as naming none rather
+  ## than rendered as a blank.
+  const dot = ".json"
+  let i = f.context.rfind(dot)
+  if i >= 0: return f.context[0 ..< i + dot.len]
+  if '/' in f.context: return f.context
+  ""
 
 proc loadJson(v: var Validator, rel: string): JsonNode =
   ## Load a tree-relative file, recording it as reached (walkability).
@@ -301,9 +360,13 @@ proc checkIdentifierForms(v: var Validator, chain, rel, kind, named: string,
   ## what report a missing field, and reporting it twice from here would name the
   ## wrong defect.
   let enc = v.encodingFor(chain)
-  var key: string
+  var key, token: string
   try:
     key = identifierKeyForm(enc, kind, named)
+    # The token this chain declared for THIS kind, resolved once. Reached only
+    # after the call above has succeeded, so the raise `encodingFor` makes on an
+    # omitted kind is already handled below rather than escaping from here.
+    token = enc.encodingFor(kind)
   except ValueError as e:
     # An omitted kind, or a token outside the closed set. Already reported
     # against the registry by `encodingFor`; naming it once more per object
@@ -312,10 +375,38 @@ proc checkIdentifierForms(v: var Validator, chain, rel, kind, named: string,
           e.msg)
     return
   if key != named:
+    # ── THE SENTENCE A PRODUCER READS WHEN IT WROTE CANONICAL IDENTIFIERS ─────
+    #
+    # This message used to say only that the path was wrong, and it was the
+    # message a cold reader writing a Tezos recorder against §5 alone hit about
+    # THIRTY TIMES for a snapshot that was right: real Tezos operation hashes are
+    # base58check and carry both cases, the reader ingests every chain as `hex`
+    # (`chain/ingest.nim`, one hard-coded `hexIdentifierEncoding()`, with no
+    # member of §5.2b's census through which a producer could say otherwise), and
+    # `hex`'s declared case rule FOLDS. So the tree was keyed by a form the
+    # producer never wrote, and the only way to make the walk green was to
+    # lowercase the chain's identifiers — which produces a tree whose transaction
+    # hashes do not exist on the chain.
+    #
+    # The diagnosis is therefore not "you spelled the path wrong", and saying so
+    # sent thirty refusals' worth of a recorder team at the wrong repair. The
+    # constraint as it actually stands is stated instead, in the words a producer
+    # can act on, and Data-Contract.md §5.6 carries the whole of it.
     v.err(rel, "the " & kind & " identifier in this object's path is '" & named &
           "', whose key form is '" & key & "'. A sharded path is derived from " &
           "and named by the KEY form, so this object is at an address no " &
-          "client computes: it folds before it derives.")
+          "client computes: it folds before it derives. THE KEY FORM IS A " &
+          "PER-ENCODING RULE, and this tree declares the '" & token &
+          "' encoding for a " & kind & ", whose case rule is keyForm=" &
+          identifierCaseRule(token).keyForm &
+          ". If your chain writes case-SIGNIFICANT identifiers (base58, " &
+          "base58check, base64url, ss58 — Solana, Sui, TON, Cardano, Tezos, " &
+          "Cosmos), lowercasing them to satisfy this is the WRONG repair: it " &
+          "produces a tree whose identifiers do not exist on your chain. " &
+          "Data-Contract.md §5.6 states what a producer can and cannot express " &
+          "here today, and names the open blocker: a snapshot has no member " &
+          "with which to declare its chain's identifier encoding, so every " &
+          "snapshot is read as 'hex' and hex folds.")
   if carried.len == 0: return
   if identifierKeyForm(enc, kind, carried) != key:
     v.err(rel, "this object is published as " & kind & " '" & named &
@@ -770,13 +861,25 @@ proc checkGeneration(v: var Validator, chain, gen: string) =
   v.checkRenderLayer(chain, root)
   v.checkSearchIndices(chain, root)
 
-proc validateTree*(root: string): seq[string] =
-  ## Validate a published tree rooted at `root`. Returns the list of conformance
-  ## errors — empty means the tree conforms to contract version `ContractVersion`.
+proc validateTreeFindings*(root: string): seq[ValidationFinding] =
+  ## Validate a published tree rooted at `root`. Returns the findings — empty
+  ## means the tree conforms to contract version `ContractVersion`.
+  ##
+  ## THE STRUCTURED ENTRY POINT, and `validateTree` below is this one rendered.
+  ## A caller that wants to report the offending FILE takes it from
+  ## `findingFile` rather than looking for it in the sentence: a dangling
+  ## reference names a path that is not on disk, which is precisely the case a
+  ## scan over "tokens that exist" cannot find, and it is the commonest finding
+  ## this check produces.
   var v = Validator(root: root, visited: initHashSet[string]())
   let crel = "d"  # discover chains under /d
   if not dirExists(root / crel):
-    return @["no /d data plane found under " & root]
+    # THE CONTEXT IS THE ROOT ITSELF, which is the file this finding is about as
+    # nearly as one exists: the tree has no data plane, so no object inside it
+    # can be named. It used to be a bare sentence with no context at all, which
+    # rendered as a finding `blocktracer-conformance` reported as naming no file.
+    return @[ValidationFinding(context: root / "d",
+                               message: "no /d data plane found under " & root)]
   for chainDir in walkDir(root / crel):
     if chainDir.kind != pcDir: continue
     let chain = extractFilename(chainDir.path)
@@ -787,4 +890,12 @@ proc validateTree*(root: string): seq[string] =
     let gen = cur{"generation"}.getStr
     if gen.len > 0:
       v.checkGeneration(chain, gen)
-  v.errors
+  v.findings
+
+proc validateTree*(root: string): seq[string] =
+  ## Validate a published tree rooted at `root`. Returns the list of conformance
+  ## errors — empty means the tree conforms to contract version `ContractVersion`.
+  ##
+  ## Defined as `validateTreeFindings` rendered, so there is ONE walk and one
+  ## sentence per finding rather than two implementations that can drift.
+  for f in validateTreeFindings(root): result.add f.errorLine

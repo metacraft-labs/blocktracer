@@ -73,7 +73,8 @@
    "prestate-unavailable": 0,
    "runtime-refused": 1,
    "no-container-written": 0,
-   "not-attempted": 836
+   "not-attempted": 836,
+   "instruction-unimplemented": 0
   },
   "refusalsTotal": 841,
   "refusalsUnclassified": 0,

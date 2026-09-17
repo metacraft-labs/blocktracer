@@ -482,6 +482,33 @@ proc violate(id, dir: string): string =
     doc["counts"]["transactions"] = %(doc["transactions"].len + 1)
   of "S5-COUNTS-RECONCILE":
     doc["counts"]["accountedFor"] = %(doc["transactions"].len + 1)
+  of "S5-BLOCKS-ORDER":
+    # THE FIRST TWO ENTRIES SWAPPED, which is one ascending pair and nothing
+    # else. Reversing the array would also be a violation and would be a much
+    # bigger edit — every pair ascending — and "one edit" is what makes the
+    # citation attributable. The heights are untouched, so the counts still
+    # reconcile and the block bodies are still the ones the rows name.
+    var swapped = newJArray()
+    swapped.add doc["blocks"][1]
+    swapped.add doc["blocks"][0]
+    for i in 2 ..< doc["blocks"].len: swapped.add doc["blocks"][i]
+    doc["blocks"] = swapped
+  of "S5-CONTAINER-BYTES":
+    # A FIGURE THAT IS WRONG RATHER THAN ABSENT. `containerBytes` is required of
+    # a traced row and taken by an unguarded subscript, so deleting it reaches
+    # the generated row-member rule; what this rule owns is a figure that does
+    # not measure the file beside it. `+ 1` rather than a round number, so the
+    # subject cannot pass by coincidence on a container that happens to be that
+    # size.
+    let row = firstOutcome(doc, "replayed")
+    row["containerBytes"] = %(row["containerBytes"].getInt + 1)
+  of "S5-OUTCOME-CLOSED":
+    # THE FOURTH BUCKET, PLANTED. `no-public-execution` is the token a recorder
+    # team reached for from outside — a chain-independent name for the fact
+    # `private-only` names in Aztec's vocabulary — and it is the token that
+    # ingested clean before this rule existed. It is used here deliberately:
+    # the subject is the exact string that was measured getting through.
+    firstOutcome(doc, "private-only")["outcome"] = %"no-public-execution"
   of "S5-RECORDER-LABEL-UNIQUE":
     doc["provenance"]["runtimeCommit"] = %"0123456789aaaaaa"
     firstOutcome(doc, "replayed")["recordedBy"] = %"0123456789bbbbbb"
@@ -659,8 +686,10 @@ proc prepareTree(id, outDir: string) =
 const RuleCases = [
   "S5-SNAPSHOT-PRESENT", "S5-FORMAT-UNKNOWN", "S5-CHAIN-NAMED", "S5-CHAIN-UNIQUE",
   "S5-MEMBERS-REQUIRED", "S5-ROW-MEMBERS-REQUIRED", "S5-COUNTS-PRESENT", "S5-COUNTS-ROWS", "S5-COUNTS-RECONCILE",
-  "S5-RECORDER-LABEL-UNIQUE", "S5-CONTAINER-NONEMPTY", "S5-REASON-REQUIRED",
+  "S5-BLOCKS-ORDER",
+  "S5-RECORDER-LABEL-UNIQUE", "S5-CONTAINER-NONEMPTY", "S5-CONTAINER-BYTES", "S5-REASON-REQUIRED",
   "S5-REFUSALREASON-REQUIRED", "S5-REFUSALREASON-CLOSED", "S5-REFUSALREASON-FORBIDDEN",
+  "S5-OUTCOME-CLOSED",
   "S5-BUNDLE-REQUIRED", "S5-BUNDLE-KEYED", "S5-BUNDLE-NONEMPTY",
   "S5-INSTRUCTIONS-AGREE", "S5-POSITIONS-AGREE", "S5-POSITIONS-COLUMNS",
   "S5-CALLTRACE-AGREE", "S5-CALLTRACE-FRAMES", "S5-CALLTRACE-FOLD-NONEMPTY",
@@ -787,7 +816,13 @@ suite "a refusal names the §5 rule it enforces, and the repaired snapshot inges
     ck cite("S5-BUNDLE-REQUIRED").startsWith("[§5.4 S5-BUNDLE-REQUIRED]")
     ck cite("S5-REFUSALREASON-REQUIRED").startsWith("[§5.2a S5-REFUSALREASON-REQUIRED]")
 
-  expectCount(151)
+  # 151 → 163: three rules added (S5-BLOCKS-ORDER, S5-CONTAINER-BYTES,
+  # S5-OUTCOME-CLOSED), and each rule contributes exactly FOUR assertions — the
+  # citation, the path, the repaired control, and the `ruleStatement` lookup in
+  # the last test. 3 × 4 = 12. The case-list test's own arms are three regardless
+  # of how many rules there are, which is why it is an equality rather than a
+  # count.
+  expectCount(163)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  THE VERSION REFUSAL IS THE SAME STATEMENT IN BOTH HALVES OF THE CONTRACT

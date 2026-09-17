@@ -148,6 +148,36 @@ proc snapshotRequiresRefusalReason*(token: string): bool =
   ## whose only difference a reader does not act on is a label.
   token in SnapshotFormat.mandatoryRefusalReason
 
+proc isKnownSnapshotOutcome*(outcome: string): bool =
+  ## Is this outcome a member of ANY of the three populations?
+  ##
+  ## THE FOURTH BUCKET, AND WHY IT HAD TO BE CLOSED. §5.2 says the three
+  ## populations are "disjoint by construction", and the build above proves
+  ## disjointness — no outcome may appear in two. What nothing proved is
+  ## EXHAUSTIVENESS, and the two are different claims: a token in none of the
+  ## three is in no population at all, so every rule that ranges over a
+  ## population silently declines to fire for it while the rules that range over
+  ## every row go on firing. Measured, from outside, by a reader who had only §5:
+  ## a row with `outcome: "no-public-execution"`, a `reason` and no
+  ## `refusalReason` ingested CLEAN on `@2` — refused by `S5-REASON-REQUIRED`
+  ## when the sentence was removed, so the reader did classify it (as untraced,
+  ## for the container's purposes) while `S5-REFUSALREASON-REQUIRED` did not fire
+  ## for the same row. Two rules disagreeing about one row is the shape of the
+  ## defect, and `S5-OUTCOME-CLOSED` is the rule that removes the bucket.
+  outcome in SnapshotFormat.traced or outcome in SnapshotFormat.untraced or
+    outcome in SnapshotFormat.chainAbsent
+
+proc snapshotOutcomeList*(): string =
+  ## Every outcome, grouped by the population it belongs to, for a refusal.
+  ##
+  ## GROUPED RATHER THAN FLAT, because the grouping is the answer a producer
+  ## needs: the fix for an unlisted token is to decide which of the three
+  ## statements the row is making, and a flat list of seven words does not say
+  ## that any of them are three statements.
+  "traced: " & SnapshotFormat.traced.join(", ") &
+    "; untraced: " & SnapshotFormat.untraced.join(", ") &
+    "; chain-absent: " & SnapshotFormat.chainAbsent.join(", ")
+
 proc isUntracedSnapshotOutcome*(outcome: string): bool =
   outcome in SnapshotFormat.untraced
 
