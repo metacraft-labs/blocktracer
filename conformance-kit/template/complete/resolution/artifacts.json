@@ -1,0 +1,71 @@
+{
+  "format": "blocktracer/artifact-resolution@1",
+  "chain": "example-chain",
+  "measuredAt": "2026-01-01T01:00:00.000Z",
+  "measuredBy": {
+    "runtimeCommit": "4444444444444444444444444444444444444444"
+  },
+  "transactions": [
+    {
+      "txHash": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "artifacts": [
+        {
+          "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "resolved": true,
+          "origin": "example-registry"
+        },
+        {
+          "contractClassId": "0xc2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+          "corroboration": "single-distributor"
+        }
+      ],
+      "positions": {
+        "schema": "example-positions/1",
+        "steps": 4,
+        "pathId": [
+          0,
+          0,
+          1,
+          1
+        ],
+        "line": [
+          1,
+          2,
+          1,
+          2
+        ],
+        "column": [
+          3,
+          3,
+          3,
+          3
+        ],
+        "paths": [
+          "src/main.example",
+          "src/lib.example"
+        ],
+        "positioned": 4,
+        "artifactRung": 3
+      }
+    },
+    {
+      "txHash": "0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+      "positions": {
+        "schema": "example-positions/1",
+        "steps": 1,
+        "pathId": [
+          0
+        ],
+        "line": [
+          1
+        ],
+        "column": [
+          1
+        ]
+      }
+    },
+    {
+      "txHash": "0xc3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"
+    }
+  ]
+}

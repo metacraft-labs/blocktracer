@@ -342,7 +342,10 @@ proc parseIdentifierEncodings(): tuple[kinds: seq[IdentifierKind],
         "alphabet right-pads a short identifier into a shard name that no " &
         "identifier of this encoding could produce, which is the defect the " &
         "per-encoding pad was added to prevent.")
-    if sk{"pathSafe"}.kind != JBool:
+    # `== nil` FIRST: `{}` answers a nil node for an absent key and `.kind` on one
+    # is a segfault, so without the short-circuit the refusal below could never be
+    # reached by the very input it is written about.
+    if sk{"pathSafe"} == nil or sk{"pathSafe"}.kind != JBool:
       raise newException(ValueError,
         "identifier encoding '" & id & "' does not say whether it is " &
         "pathSafe. Absent is not false: a member that forgot to answer would " &
@@ -363,7 +366,7 @@ proc parseIdentifierEncodings(): tuple[kinds: seq[IdentifierKind],
         "case-significant; bech32 requires a uniform case rather than an " &
         "arbitrary one; and an EIP-55 hex address carries its checksum in its " &
         "case. A member that does not say which of those it is cannot be keyed.")
-    if cs{"significant"}.kind != JBool:
+    if cs{"significant"} == nil or cs{"significant"}.kind != JBool:
       raise newException(ValueError,
         "identifier encoding '" & id & "' does not say whether its case is " &
         "SIGNIFICANT. Absent is not false: a member that forgot to answer would " &

@@ -383,7 +383,8 @@ proc assertSlugAvailable*(outDir, slug, claimantKind: string) =
   raise newException(ValueError,
     RuleChainUnique &
     "the slug '" & slug & "' is already published in this tree by a '" & incumbent &
-    "' chain, and a '" & claimantKind & "' chain is claiming it. Two chains at one " &
+    "' chain (see " & (outDir / "d" / slug / "current.json") & "), and a '" &
+    claimantKind & "' chain is claiming it. Two chains at one " &
     "slug would overwrite each other's blocks and make real and generated data " &
     "indistinguishable in a URL. Give one of them a different slug.")
 
@@ -595,8 +596,8 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   if not isReadableSnapshotFormat(snapFormat):
     raise newException(ValueError,
       RuleFormatUnknown &
-      "unsupported chain snapshot format '" & snapFormat &
-      "'; this build reads " & readableSnapshotFormatList() &
+      "unsupported chain snapshot format '" & snapFormat & "' in " & snapPath &
+      "; this build reads " & readableSnapshotFormatList() &
       ". Refused by name rather than read in part — a snapshot half-read against " &
       "the wrong schema publishes a chain that never existed. An older tree is " &
       "brought forward with tools/chain/migrate-refusal-reasons.mjs.")
@@ -706,7 +707,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     if missing.len > 0:
       raise newException(ValueError,
         RuleRowMembersRequired &
-        "the snapshot's `window` carries no `" & missing & "`. " &
+        "the `window` in " & snapPath & " carries no `" & missing & "`. " &
         ruleStatement("S5-ROW-MEMBERS-REQUIRED"))
   for b in snap["blocks"]:
     let missing = missingBracketMember(b, BlockRequired, false)
@@ -744,7 +745,8 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   if chain.len == 0:
     raise newException(ValueError,
       RuleChainNamed &
-      "the snapshot names no chain in provenance.chain; refusing to guess a slug")
+      "the snapshot at " & snapPath & " names no chain in provenance.chain; " &
+      "refusing to guess a slug")
 
   # ── WHO RECORDED THIS, AND IN WHAT SCHEMA — STATED, NOT ASSUMED ─────────────
   #
@@ -767,7 +769,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   if recorderId.len == 0 or traceSchema.len == 0:
     raise newException(ValueError,
       RuleRecorderStated &
-      "the snapshot for chain '" & chain & "' states " &
+      "the snapshot for chain '" & chain & "' at " & snapPath & " states " &
       (if recNode == nil: "no `provenance.recorder` at all"
        elif recorderId.len == 0 and traceSchema.len == 0:
          "a `provenance.recorder` with neither an `id` nor a `traceSchema`"
@@ -791,15 +793,16 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   if prestateStrategy.len == 0:
     raise newException(ValueError,
       RulePrestateStated &
-      "the snapshot for chain '" & chain &
-      "' states no `provenance.prestateStrategy`. " &
+      "the snapshot for chain '" & chain & "' at " & snapPath &
+      " states no `provenance.prestateStrategy`. " &
       ruleStatement("S5-PRESTATE-STATED") &
       " The accepted set is " & prestateStrategyList() & ".")
   if not isPrestateStrategy(prestateStrategy):
     raise newException(ValueError,
       RulePrestateClosed &
-      "the snapshot for chain '" & chain & "' states prestateStrategy '" &
-      prestateStrategy & "', which is not in the closed set (" &
+      "the snapshot for chain '" & chain & "' at " & snapPath &
+      " states prestateStrategy '" & prestateStrategy &
+      "', which is not in the closed set (" &
       prestateStrategyList() & "). " & ruleStatement("S5-PRESTATE-CLOSED") &
       " Add a row to Chain-Support-Matrix.md §1.4 saying what the strategy MEANS, " &
       "and the token to tools/chain/snapshot-contract.json beside it.")
@@ -881,7 +884,21 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         chain & "'; refusing to attach one chain's resolution to another's transactions")
     postHocMeasuredAt = side{"measuredAt"}.getStr
     postHocResolver = side{"measuredBy"}{"runtimeCommit"}.getStr
-    for e in side{"transactions"}:
+    # ── THE ROWS IT ANSWERS ABOUT, WHICH §5.2b MARKS OPTIONAL ────────────────
+    #
+    # GUARDED, BECAUSE ITERATING A NIL `JsonNode` SEGFAULTS. This was
+    # `for e in side{"transactions"}`, and `{}` answers a NIL node for an absent
+    # key — `items` then dereferences it and the process DIES. A sidecar that
+    # carries only the two members this contract requires of it, which §5.2b says
+    # is conforming, killed the reader: not a refusal, not a `KeyError`, a
+    # segfault. It is the fourth member of one family — a member the contract
+    # marks optional, reached by the one form that cannot survive its absence —
+    # after `provenance.l1ChainId` (a `KeyError`), `execSelectors[-1]` (an
+    # `IndexDefect`, which is not even catchable) and the position stream's
+    # `positioned`/`paths` (a nil stored into `%*` and dereferenced by `toPretty`).
+    let answered = side{"transactions"}
+    for e in (if answered != nil and answered.kind == JArray: answered
+              else: newJArray()):
       let h = e{"txHash"}.getStr
       let arts = e{"artifacts"}
       # `null` is the tool's own "this run did not finish asking" and stays unanswered here,
@@ -1002,7 +1019,8 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     if v in labelOwner and labelOwner[v] != commit:
       raise newException(ValueError,
         RuleRecorderLabelUnique &
-        "this snapshot names two recorder commits that shorten to the same " &
+        "the snapshot at " & snapPath &
+        " names two recorder commits that shorten to the same " &
         "version label '" & v & "': " & labelOwner[v] & " and " & commit &
         ". The label is what `recorderBuildHash` hashes, so publishing both " &
         "would file two builds' containers under one recorder. Lengthen " &
@@ -1254,7 +1272,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     if costNode.kind != JArray:
       raise newException(ValueError,
         RuleCostVector &
-        "transaction " & shortHash(txHash) & " in block " & $height &
+        "transaction " & shortHash(txHash) & " in block " & $height & " of " & snapPath &
         " carries a `cost` that is not an array. " &
         ruleStatement("S5-COST-VECTOR"))
     for c in costNode:
@@ -1263,7 +1281,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         raise newException(ValueError,
           RuleCostVector &
           "a cost entry of transaction " & shortHash(txHash) & " in block " &
-          $height & " states " &
+          $height & " of " & snapPath & " states " &
           (if c.kind != JObject: "something that is not an object"
            elif c{"name"} == nil or c{"name"}.getStr.len == 0: "no `name`"
            else: "no `used`") & ". " & ruleStatement("S5-COST-VECTOR"))
@@ -1384,7 +1402,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     if execNode.kind != JArray or execNode.len == 0:
       raise newException(ValueError,
         RuleExecutionsNamed &
-        "transaction " & shortHash(txHash) & " in block " & $height &
+        "transaction " & shortHash(txHash) & " in block " & $height & " of " & snapPath &
         " carries " & (if execNode.kind != JArray: "an `executions` that is not an array"
                        else: "an empty `executions`") & ". " &
         ruleStatement("S5-EXECUTIONS-NAMED"))
@@ -1394,7 +1412,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         raise newException(ValueError,
           RuleExecutionsNamed &
           "an execution of transaction " & shortHash(txHash) & " in block " &
-          $height & " states no `selector`. " &
+          $height & " of " & snapPath & " states no `selector`. " &
           ruleStatement("S5-EXECUTIONS-NAMED"))
       execSelectors.add sel
       execReasons.add e{"reason"}.getStr
@@ -1406,7 +1424,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       if tracedAt >= 0:
         raise newException(ValueError,
           RuleExecutionsOneTraced &
-          "transaction " & shortHash(txHash) & " in block " & $height &
+          "transaction " & shortHash(txHash) & " in block " & $height & " of " & snapPath &
           " leaves both '" & execSelectors[tracedAt] & "' and '" &
           execSelectors[k] & "' without a `reason` of their own. " &
           ruleStatement("S5-EXECUTIONS-ONE-TRACED"))
@@ -1414,7 +1432,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     if replayed and tracedAt < 0:
       raise newException(ValueError,
         RuleExecutionsOneTraced &
-        "transaction " & shortHash(txHash) & " in block " & $height &
+        "transaction " & shortHash(txHash) & " in block " & $height & " of " & snapPath &
         " carries a container and every one of its " & $execSelectors.len &
         " execution(s) states its own `reason`, so nothing names the execution " &
         "the container is a recording of. " &
@@ -1554,8 +1572,9 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       if ctBytes.len == 0:
         raise newException(ValueError,
           RuleContainerNonEmpty &
-          "the snapshot's container for " & txHash & " is empty; refusing to " &
-          "publish a manifest naming a zero-byte trace")
+          "the snapshot's container for " & txHash & " at " &
+          (cfg.snapshotDir / t["container"].getStr) &
+          " is empty; refusing to publish a manifest naming a zero-byte trace")
       cfg.writeBytes(dir / "trace.ct", ctBytes)
 
       # ---- the source bundles, when the recording measured itself as source
@@ -1675,6 +1694,11 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # existed.
       var posSource: JsonNode = nil
       var posIsPostHoc = true
+      # THE FILE THE STREAM CAME FROM, carried beside it so a refusal about the
+      # stream can name the file a producer has to open. There are two sources and
+      # they are different files; a refusal that named neither left a producer
+      # grepping for a transaction hash across the tree.
+      var posPath = ""
       # The row names the file, as it does for its container and its source bundle;
       # §5.1's default is the fallback, so a capture written before the row carried
       # the key still resolves and its bytes are unchanged.
@@ -1684,8 +1708,10 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       if fileExists(capturedPosPath):
         posSource = parseJson(readFile(capturedPosPath))
         posIsPostHoc = posSource{"measuredPostHoc"}.getBool
+        posPath = capturedPosPath
       elif txHash in postHocPositions:
         posSource = postHocPositions[txHash]
+        posPath = sidecarPath
 
       # …AND IT REQUIRES A POSITION STREAM, not merely a non-zero count. The
       # count says the RECORDING placed steps; it does not say this tree can
@@ -1716,14 +1742,14 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           raise newException(ValueError,
             RuleBundleRequired &
             why & " and this snapshot carries no source bundle for it (looked for " &
-            srcRel & "); refusing to publish positions with no text to put behind " &
+            srcPath & "); refusing to publish positions with no text to put behind " &
             "them, which would put the debugger's source pane on a file it cannot fetch")
         let srcDoc = parseJson(readFile(srcPath))
         let bundleList = srcDoc{"bundles"}
         if bundleList == nil or bundleList.kind != JArray or bundleList.len == 0:
           raise newException(ValueError,
             RuleBundleRequired &
-            why & " and its source bundle file " & srcRel & " carries no bundle; " &
+            why & " and its source bundle file " & srcPath & " carries no bundle; " &
             "refusing to publish positions with no text to put behind them, which " &
             "would put the debugger's source pane on a file it cannot fetch")
         for b in bundleList:
@@ -1731,7 +1757,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           if codeHash.len == 0:
             raise newException(ValueError,
               RuleBundleKeyed &
-              "a source bundle for " & txHash & " in " & srcRel & " names no " &
+              "a source bundle for " & txHash & " in " & srcPath & " names no " &
               "codeHash; a bundle is keyed by contract class id and one " &
               "without a key cannot be reached from a manifest")
           # THE KEYS ARE THE DRIVER'S, BYTE FOR BYTE. They are the absolute
@@ -1747,7 +1773,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
             raise newException(ValueError,
               RuleBundleNonEmpty &
               "the source bundle for code hash " & codeHash & " of " & txHash &
-              " in " & srcRel & " carries no files; refusing to publish an " &
+              " in " & srcPath & " carries no files; refusing to publish an " &
               "empty bundle a manifest would then recommend")
           # WHAT THE CHAIN PROVED AND WHAT IT DID NOT, published beside the
           # text. `artifactHash` is the chain's commitment to the artifact and
@@ -1819,7 +1845,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         if carried != declared:
           raise newException(ValueError,
             RuleInstructionsAgree &
-            "the instruction listing for " & txHash & " holds " & $carried &
+            "the instruction listing for " & txHash & " at " & insFile & " holds " & $carried &
             " steps and the recording declares " & $declared &
             "; refusing to publish a listing the position cannot be located in")
         cfg.writeJson(dir / "instructions.json", ins)
@@ -1855,7 +1881,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         if posSchema.len == 0:
           raise newException(ValueError,
             RulePositionsSchema &
-            "the source positions for " & txHash & " state no `schema`. " &
+            "the source positions for " & txHash & " at " & posPath & " state no `schema`. " &
             ruleStatement("S5-POSITIONS-SCHEMA"))
         let carried = pos{"steps"}.getInt(-1)
         let declared = t["recording"]["steps"].getInt
@@ -1865,7 +1891,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         if carried != declared:
           raise newException(ValueError,
             RulePositionsAgree &
-            "the source positions for " & txHash & " hold " & $carried &
+            "the source positions for " & txHash & " at " & posPath & " hold " & $carried &
             " steps and the recording declares " & $declared &
             "; refusing to publish positions the steps cannot be located in")
         for col in ["pathId", "line", "column"]:
@@ -1873,7 +1899,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           if a == nil or a.kind != JArray or a.len != declared:
             raise newException(ValueError,
               RulePositionsColumns &
-              "the source positions for " & txHash & " carry a '" & col &
+              "the source positions for " & txHash & " at " & posPath & " carry a '" & col &
               "' column of " & (if a == nil: "nothing" else: $a.len) &
               " against " & $declared & " steps; a partial column would mark " &
               "rows it was never measured for")
@@ -1881,7 +1907,17 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           "schema": posSchema,
           "tx": txHash,
           "steps": carried,
-          "positioned": pos{"positioned"},
+          # `orNull`, NOT A BARE `{}`. §5.2b marks `positioned` and `paths` optional,
+          # and a `{}` subscript answers a NIL node for an absent key — which `%*`
+          # will happily store and `toPretty` then dereferences. So a stream that
+          # omitted either member SEGFAULTED the reader: not a refusal, not a
+          # KeyError, a dead process. It is the third member of a family this seam
+          # has now produced three times — a member the contract marks optional,
+          # reached by the one form that cannot survive its absence — and the other
+          # two were `provenance.l1ChainId` (a `KeyError`) and `execSelectors[-1]`
+          # (an `IndexDefect`, which is not even catchable). The three required
+          # columns below are checked for nil directly above, so they cannot be one.
+          "positioned": orNull(pos{"positioned"}),
           # THE ARTIFACT'S RUNG BESIDE THE RECORDING'S, because they differ here and the
           # difference is the whole finding: the artifact maps every pc it keys, and this
           # recording walks 22 the artifact does not key.
@@ -1889,10 +1925,18 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           "measuredPostHoc": posIsPostHoc,
           "measuredAt": (if posIsPostHoc and postHocMeasuredAt.len > 0:
                            %postHocMeasuredAt else: newJNull()),
-          "paths": pos{"paths"},
-          "pathId": pos{"pathId"},
-          "line": pos{"line"},
-          "column": pos{"column"}})
+          "paths": orNull(pos{"paths"}),
+          # `orNull` ON THE THREE REQUIRED COLUMNS TOO, and not because they can be
+          # nil here — the loop 30 lines above RAISES when any of the three is absent,
+          # not an array, or the wrong length, so a nil cannot reach this construction
+          # and `orNull` of a non-nil node is the node. It is the uniform form because
+          # the rule is a SHAPE rule: a bare `{}` in a `%*` value position is the
+          # nil-access family, `tools/chain/lib/reader-contract.mjs` bans it over
+          # `src/**/*.nim`, and a ban with three sites reading "this one is fine, we
+          # checked" is a ban with three places to be wrong about that later.
+          "pathId": orNull(pos{"pathId"}),
+          "line": orNull(pos{"line"}),
+          "column": orNull(pos{"column"})})
 
       # ---- CALL FRAMES: what called what ------------------------------------
       #
@@ -1926,7 +1970,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         if carriedFrames != declaredCalls + 1:
           raise newException(ValueError,
             RuleCallTraceAgree &
-            "the call trace for " & txHash & " holds " & $carriedFrames &
+            "the call trace for " & txHash & " at " & ctFile & " holds " & $carriedFrames &
             " frame(s) and the recording declares callsOpened=" &
             $declaredCalls & "; refusing to publish a call trace the " &
             "manifest's own frame count contradicts")
@@ -1934,7 +1978,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         if arr == nil or arr.kind != JArray or arr.len != carriedFrames:
           raise newException(ValueError,
             RuleCallTraceFrames &
-            "the call trace for " & txHash & " declares " & $carriedFrames &
+            "the call trace for " & txHash & " at " & ctFile & " declares " & $carriedFrames &
             " frame(s) and carries " &
             (if arr == nil: "no" else: $arr.len) & " of them")
         # THE FOLD MARKS ARE REFUSED ON THE SAME TERMS AS THE FRAME COUNT, and
@@ -1959,7 +2003,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           if f{"hiddenDescendants"}.getInt(0) <= 0:
             raise newException(ValueError,
               RuleCallTraceFoldNonEmpty &
-              "the call trace for " & txHash & " marks frame '" &
+              "the call trace for " & txHash & " at " & ctFile & " marks frame '" &
               f{"name"}.getStr & "' folded while claiming " &
               $f{"hiddenDescendants"}.getInt(0) & " descendant(s); refusing to " &
               "publish a closed row with nothing behind it")
@@ -1968,7 +2012,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         if markedFolded != declaredFolded or markedSteps != declaredSteps:
           raise newException(ValueError,
             RuleCallTraceFoldTally &
-            "the call trace for " & txHash & " declares foldedFrames=" &
+            "the call trace for " & txHash & " at " & ctFile & " declares foldedFrames=" &
             $declaredFolded & " foldedSteps=" & $declaredSteps &
             " and its frames carry " & $markedFolded & " / " & $markedSteps &
             "; refusing to publish a summary the rows contradict")
@@ -1980,7 +2024,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         if markedSteps > recSteps:
           raise newException(ValueError,
             RuleCallTraceFoldBound &
-            "the call trace for " & txHash & " folds " & $markedSteps &
+            "the call trace for " & txHash & " at " & ctFile & " folds " & $markedSteps &
             " step(s) out of a recording that has " & $recSteps)
         cfg.writeJson(dir / "calltrace.json", cf)
 
@@ -2062,7 +2106,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       if requireRefusalReason and rr.len == 0 and isUntracedSnapshotOutcome(outcome):
         raise newException(ValueError,
           RuleRefusalReasonRequired &
-          "transaction " & shortHash(txHash) & " in block " & $height &
+          "transaction " & shortHash(txHash) & " in block " & $height & " of " & snapPath &
           " has untraced outcome '" & outcome & "' and carries no refusalReason. " &
           snapFormat & " requires one on every untraced row — that requirement is " &
           "the whole difference between it and blocktracer/chain-snapshot@1, and " &
@@ -2083,14 +2127,14 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       if rr.len > 0 and isChainAbsentSnapshotOutcome(outcome):
         raise newException(ValueError,
           RuleRefusalReasonForbidden &
-          "transaction " & shortHash(txHash) & " in block " & $height &
+          "transaction " & shortHash(txHash) & " in block " & $height & " of " & snapPath &
           " has chain-absent outcome '" & outcome & "' and carries refusalReason '" &
           rr & "'. " & ruleStatement("S5-REFUSALREASON-FORBIDDEN"))
       if rr.len > 0:
         if not isRefusalReason(rr):
           raise newException(ValueError,
             RuleRefusalReasonClosed &
-            "transaction " & shortHash(txHash) & " in block " & $height &
+            "transaction " & shortHash(txHash) & " in block " & $height & " of " & snapPath &
             " carries refusalReason '" & rr & "', which is not in the closed " &
             "set (" & refusalReasonList() & "). A reason outside the set is a " &
             "failure of this pipeline, not a free-text fallback: add it to " &
@@ -2122,7 +2166,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       if why.len == 0:
         raise newException(ValueError,
           RuleReasonRequired &
-          "transaction " & shortHash(txHash) & " in block " & $height &
+          "transaction " & shortHash(txHash) & " in block " & $height & " of " & snapPath &
           " has outcome '" & outcome & "' and carries no `reason`. " &
           ruleStatement("S5-REASON-REQUIRED") &
           " A generic sentence written here would be this pipeline's words over " &

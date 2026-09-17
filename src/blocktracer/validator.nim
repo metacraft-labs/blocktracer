@@ -617,6 +617,25 @@ proc assertHashResolves(v: var Validator, shards: Table[string, string],
     v.err("idx/hash", "hash index does not resolve " & hkName(kind) & " " &
           identifier & " on chain " & chain)
 
+# ── EVERY ARRAY THIS WALK ITERATES IS TAKEN WITH `getElems` ───────────────────
+#
+# `for x in node{"k"}` ITERATES A NIL `JsonNode` WHEN THE KEY IS ABSENT, and `items`
+# on a nil node does not raise — it SEGFAULTS. So a published tree whose generation
+# root carried `maps` but no `maps.height` KILLED this validator rather than being
+# walked or reported, and a dead process is the least actionable report there is.
+# Reproduced by deleting that one member from a conforming tree: exit 139, no
+# finding, no output at all.
+#
+# `getElems` answers the empty sequence for an absent key, which is also the right
+# READING of it: an absent array and an empty one say the same thing here, and both
+# are shapes a producer legitimately writes — a generation with no height epochs, a
+# chain with no address lists, a block that settled no transaction. A finding would
+# be wrong as well as noisy.
+#
+# It matters more than it did, because this validator is now SHIPPED: the recorder
+# conformance kit hands it to people whose trees are malformed by definition, which
+# is what they are running it to find out.
+
 proc checkSearchIndices(v: var Validator, chain: string, root: JsonNode) =
   let idx = root{"idx"}
   if idx == nil: return   # no search indices in this generation
@@ -628,7 +647,7 @@ proc checkSearchIndices(v: var Validator, chain: string, root: JsonNode) =
     let ver = hi{"version"}.getStr("1")
     let prefixLen = hi{"prefixLen"}.getInt(2)
     var shards = initTable[string, string]()
-    for pn in hi{"shards"}:
+    for pn in hi{"shards"}.getElems:
       let prefix = pn.getStr
       let (data, ok) = v.loadBytes("idx" / "hash" / ver / prefix & ".bin")
       if not ok: continue
@@ -645,12 +664,12 @@ proc checkSearchIndices(v: var Validator, chain: string, root: JsonNode) =
     for h in v.walkedBlock: v.assertHashResolves(shards, prefixLen, h, chain, hkBlock)
     for h in v.walkedAddr: v.assertHashResolves(shards, prefixLen, h, chain, hkAddress)
   # --- §6 name shards ---
-  for mp in idx{"names"}:
+  for mp in idx{"names"}.getElems:
     let meta = v.loadJson(mp.getStr)
     if meta == nil: continue
     for f in ["shardBits", "shardCount", "shards"]: discard v.need(meta, mp.getStr, f)
     let shardBits = meta{"shardBits"}.getInt(0)
-    for sp in meta{"shards"}:
+    for sp in meta{"shards"}.getElems:
       let (data, ok) = v.loadBytes(sp.getStr)
       if not ok: continue
       let dec = decodeNameShard(data)
@@ -692,12 +711,12 @@ proc checkGeneration(v: var Validator, chain, gen: string) =
     return
   discard v.loadJson(maps{"summary"}.getStr)
   # height epochs
-  for p in maps{"height"}: discard v.loadJson(p.getStr)
+  for p in maps{"height"}.getElems: discard v.loadJson(p.getStr)
   # block indices -> block details -> transactions
-  for p in maps{"blocks"}:
+  for p in maps{"blocks"}.getElems:
     let bi = v.loadJson(p.getStr)
     if bi == nil: continue
-    for bh in bi{"blocks"}:
+    for bh in bi{"blocks"}.getElems:
       v.walkedBlock.add bh.getStr
       # Open-coded rather than `blockPath`, which now key-forms — see the
       # exemption block above `checkTransaction`. `bh` is what the block index
@@ -723,10 +742,10 @@ proc checkGeneration(v: var Validator, chain, gen: string) =
       v.checkIdentifierForms(chain, brel, KindBlock, bh.getStr,
                              (if bd != nil: bd{"hash"}.getStr else: ""))
       if bd == nil: continue
-      for tx in bd{"transactions"}:
+      for tx in bd{"transactions"}.getElems:
         v.checkTransaction(chain, tx.getStr, gen, tsv)
   # address lists -> segments
-  for p in maps{"addr"}:
+  for p in maps{"addr"}.getElems:
     let al = v.loadJson(p.getStr)
     # ── OUTSIDE THE `al == nil` GUARD, FOR THE BLOCK ARM'S REASON ─────────────
     #
@@ -746,7 +765,7 @@ proc checkGeneration(v: var Validator, chain, gen: string) =
     if al == nil: continue
     if "address" in al:
       v.walkedAddr.add al{"address"}.getStr
-    for sp in al{"segments"}: discard v.loadJson(sp.getStr)
+    for sp in al{"segments"}.getElems: discard v.loadJson(sp.getStr)
   # Optional render + search-index layers the sealed root enumerates (§2.9).
   v.checkRenderLayer(chain, root)
   v.checkSearchIndices(chain, root)

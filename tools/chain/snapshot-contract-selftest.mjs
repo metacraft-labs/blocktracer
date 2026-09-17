@@ -51,11 +51,12 @@
 // The mutation arms in §6 are copies of those real files with one edit, which is the
 // opposite of a mock: the point is that the thing under test is the shipping artifact.
 
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { extractReaderContract, flatten, readerShapeViolations, pathDefaultLiterals,
-         chainVocabularyLiterals, REQUIRED, OPTIONAL } from './lib/reader-contract.mjs';
+         chainVocabularyLiterals, nilAccessViolations, NIL_ACCESS_SHAPES,
+         REQUIRED, OPTIONAL } from './lib/reader-contract.mjs';
 import { RECORDER, PRESTATE_STRATEGY, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
          costVectorForRow, executionsForRow } from './lib/producer-facts.mjs';
 
@@ -732,6 +733,386 @@ test('§10 the lift is faithful: the producer states exactly what the reader use
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════
+//  §11 — THE FIXTURE TEMPLATE IS DRIVEN FROM THE CENSUS, SO IT CANNOT QUIETLY FALL BEHIND
+// ═══════════════════════════════════════════════════════════════════════════════════════
+//
+// `conformance-kit/template/` is what a recorder for a chain nobody has run yet copies:
+// conforming trees in §5.1's layout, with every required member present and every optional
+// one shown both present and absent. A template maintained BESIDE the census is a second
+// document, and the failure mode is silent — a member added to §5 that the template never
+// exercises leaves a recorder writing against an example that is short of the contract, and
+// nothing goes red. So the population is the census itself, and this is the arm that
+// reddens.
+//
+// The two directions are different failures and both are checked:
+//   * a census member no template tree exercises — the template has fallen behind §5;
+//   * a template member the census does not name — a typo, or a member somebody invented.
+//
+// WHAT "SHOWN ABSENT" MEANS, STATED RATHER THAN ASSUMED. A member is shown absent when some
+// template tree does not carry it at that path: either an instance of its container lacks
+// it, or that tree has no instance of the container at all. The second half is not a
+// weakening — a tree with no `captures` IS the shape a reader must cope with — and the
+// first is recorded separately below, because an instance-level witness is the stronger one
+// and the count of them is worth watching.
+const TEMPLATE = join(root, 'conformance-kit', 'template');
+
+/** Walk one template tree against the census; per container, the member sets it carries. */
+function templateInstances(treeDir, contractDoc) {
+  const instances = new Map();   // containerId -> [Set<memberName>]
+  const record = (id, node) => {
+    if (!instances.has(id)) instances.set(id, []);
+    instances.get(id).push(new Set(Object.keys(node)));
+  };
+  const childId = (id, m) =>
+    contractDoc.containers[`${id}.${m}[]`] ? `${id}.${m}[]`
+    : contractDoc.containers[`${id}.${m}`] ? `${id}.${m}` : null;
+  // §5.1's resolution, read out of the census: the row names the file, and a row that
+  // names none resolves to the stated default. A `defaultPath` that is a file is the
+  // snapshot's own sidecar; one that is a directory is a row's, keyed by the row's key.
+  //
+  // A STATED RESIDUAL, because half of this is a SECOND implementation of a rule the
+  // reader already implements, and the whole point of the census is that a rule has one
+  // place. What was closed: the row KEY is no longer hardcoded here — it is
+  // `snapshot.transactions[].rowKey` in the census, so a chain whose rows are keyed by
+  // something other than `txHash` moves this walk by moving the contract. What was NOT
+  // closed: the resolution RULE itself — named member wins, else the default; a default
+  // that is a file is the snapshot's and one that is a directory is a row's — is spelled
+  // both here and in `ingest.nim`. It cannot be derived from the data as the data stands,
+  // and it lives in the TEST rather than in the shipped kit, so a drift shows up as this
+  // suite going red rather than as a recorder being misled. It is a second place for a
+  // rule to be wrong, and that is recorded rather than argued away.
+  const rowKeyMember = contractDoc.containers['snapshot.transactions[]'].rowKey;
+  const sidecarPath = (treeDir, named, defaultPath, rowKey) => {
+    if (typeof named === 'string' && named.length > 0) return join(treeDir, named);
+    if (!defaultPath) return null;
+    return defaultPath.endsWith('.json')
+      ? join(treeDir, defaultPath)
+      : join(treeDir, defaultPath, `${rowKey}.json`);
+  };
+  const visit = (id, node, txHash) => {
+    if (node === null || typeof node !== 'object' || Array.isArray(node)) return;
+    record(id, node);
+    const body = contractDoc.containers[id];
+    if (!body) return;
+    const hash = id === 'snapshot.transactions[]' ? node[rowKeyMember] : txHash;
+    for (const [m, v] of Object.entries(node)) {
+      const cid = childId(id, m);
+      if (cid) {
+        if (Array.isArray(v)) { for (const e of v) visit(cid, e, hash); }
+        else visit(cid, v, hash);
+      }
+    }
+    // the sidecars this container names, whether by a member of its own or by default
+    for (const [sid, sbody] of Object.entries(contractDoc.containers)) {
+      if (!sid.startsWith('sidecar:') || !sbody.namedBy) continue;
+      const owner = sbody.namedBy.slice(0, sbody.namedBy.lastIndexOf('.'));
+      if (owner !== id) continue;
+      const member = sbody.namedBy.slice(sbody.namedBy.lastIndexOf('.') + 1);
+      const p = sidecarPath(treeDir, node[member], sbody.defaultPath, hash);
+      if (p && existsSync(p)) visit(sid, JSON.parse(readFileSync(p, 'utf8')), hash);
+    }
+  };
+  visit('snapshot', JSON.parse(readFileSync(join(treeDir, 'snapshot.json'), 'utf8')), null);
+  return instances;
+}
+
+/** The whole coverage rule, as ONE function, so the control arms call the same rule. */
+function templateCoverage(trees, contractDoc) {
+  const perTree = trees.map((t) => templateInstances(t, contractDoc));
+  const spec = censusMembers(contractDoc);
+  const missing = [];        // a census member no tree exercises
+  const neverAbsent = [];    // an optional member no tree shows absent
+  const unknown = new Set(); // a template member the census does not name
+  let instanceWitnessed = 0;
+  let instances = 0;
+  for (const per of perTree) {
+    for (const [id, sets] of per) {
+      instances += sets.length;
+      for (const set of sets) {
+        for (const m of set) if (!spec.has(`${id}.${m}`)) unknown.add(`${id}.${m}`);
+      }
+    }
+  }
+  for (const [key, e] of spec) {
+    const { id, m } = e;
+    let present = 0, total = 0, treeWithout = 0, lackingInstance = 0;
+    for (const per of perTree) {
+      const sets = per.get(id) ?? [];
+      if (sets.length === 0) { treeWithout++; continue; }
+      for (const set of sets) {
+        total++;
+        if (set.has(m)) present++; else lackingInstance++;
+      }
+    }
+    if (present === 0) { missing.push(`${key} (${total} instance(s) across the template)`); continue; }
+    // A member the CONTRACT can require of one row and not another — `container` on a
+    // traced row, `refusalReason` on an untraced one — has to be shown both ways too, or
+    // the template only ever demonstrates one side of the condition.
+    const mayBeAbsent = e.required !== true || Boolean(e.onRows);
+    if (lackingInstance > 0) instanceWitnessed++;
+    if (mayBeAbsent && lackingInstance === 0 && treeWithout === 0) neverAbsent.push(key);
+  }
+  return { missing, neverAbsent, unknown: [...unknown], instanceWitnessed, instances,
+           census: spec.size };
+}
+
+test('§11 the fixture template exercises the whole census, and the check is shown able to fail');
+{
+  const trees = readdirSync(TEMPLATE)
+    .map((n) => join(TEMPLATE, n))
+    .filter((p) => statSync(p).isDirectory() && existsSync(join(p, 'snapshot.json')))
+    .sort();
+  // ANTI-VACUITY FIRST. Every arm below reports a set difference, and a template with no
+  // trees in it makes all of them empty — the shape of green a coverage check must not be
+  // able to reach.
+  ck(`the template ships at least two snapshot trees — ${trees.length}`, trees.length >= 2);
+  const cov = templateCoverage(trees, contract);
+  ck(`the walk reaches at least 60 container instances — ${cov.instances}`,
+     cov.instances >= 60);
+  ck(`…over the whole census — ${cov.census} member(s)`, cov.census >= 100);
+  ck(`every member §5 names is exercised by the template — ${cov.missing.length} missing`
+     + (cov.missing.length ? `: ${cov.missing.slice(0, 6).join('; ')}` : ''),
+     cov.missing.length === 0);
+  ck(`every member a conforming tree may omit is shown absent — ${cov.neverAbsent.length}`
+     + (cov.neverAbsent.length ? `: ${cov.neverAbsent.slice(0, 6).join('; ')}` : ''),
+     cov.neverAbsent.length === 0);
+  ck(`the template invents no member the census does not name — ${cov.unknown.length}`
+     + (cov.unknown.length ? `: ${cov.unknown.slice(0, 6).join('; ')}` : ''),
+     cov.unknown.length === 0);
+  // The stronger witness, counted rather than assumed: a container instance that carries
+  // the member beside one that does not. A template that only ever showed absence by
+  // leaving a whole container out would satisfy the arm above and teach a producer
+  // nothing about which members of a container it may omit.
+  ck(`at least 40 members are shown absent by an INSTANCE that lacks them — `
+     + `${cov.instanceWitnessed}`, cov.instanceWitnessed >= 40);
+
+  // ── AND THE README'S FIGURES, BECAUSE IT SHIPS TO PEOPLE WHO CANNOT CHECK THEM ──────
+  //
+  // `conformance-kit/README.md` is copied into the released artifact and read by recorder
+  // teams who have neither this repository nor §5. It tells them which members they may
+  // leave out, and it used to tell them that EVERY member appears present in one tree and
+  // absent in the other — false of the 52 the contract requires of every container, which
+  // appear in both and could not do otherwise. The corrected sentence carries four counts,
+  // and a count in an outward-facing document that nothing derives is a count that goes
+  // stale in a direction nobody here will notice.
+  {
+    const readme = readFileSync(join(root, 'conformance-kit', 'README.md'), 'utf8');
+    const spec = censusMembers(contract);
+    let everywhere = 0, onRows = 0, optional = 0;
+    for (const [, e] of spec) {
+      if (e.required === true && !e.onRows) everywhere++;
+      else if (e.required === true) onRows++;
+      else optional++;
+    }
+    const flat = readme.replace(/\s+/g, ' ');
+    const figures = [[spec.size, 'the census size'], [everywhere, 'required everywhere'],
+                     [onRows, 'required on some rows'], [optional, 'optional'],
+                     [onRows + optional, 'shown both ways']];
+    const stale = figures.filter(([n]) => !new RegExp(`\\b${n}\\b`).test(flat));
+    ck(`the kit README's census figures are the census's — ${figures.map(([n, w]) => `${n} ${w}`).join(', ')}`
+       + (stale.length ? `; NOT IN THE README: ${stale.map(([n, w]) => `${n} (${w})`).join(', ')}` : ''),
+       stale.length === 0);
+  }
+
+  // ── AND THE CONTROLS, EACH PLANTED IN A COPY, EACH CAUGHT BY THE ARM FOR IT ──────────
+  //
+  // Planted in memory against a copy of the census, never against the files on disk: the
+  // subjects are the shipping template and the shipping census, and a control that edited
+  // either would be a test that damages what it measures.
+  {
+    // 1. a member ARRIVES in §5 and the template does not exercise it
+    const grown = JSON.parse(JSON.stringify(contract));
+    grown.containers['snapshot.window'].members.blocksAhead =
+      { required: true, access: 'required', holds: 'a member the template has never seen' };
+    const after = templateCoverage(trees, grown);
+    ck('a member added to §5 that the template does not exercise is reported — '
+       + `${after.missing.length}`,
+       after.missing.length === 1 && after.missing[0].startsWith('snapshot.window.blocksAhead'));
+  }
+  {
+    // 2. a member the template happens to carry EVERYWHERE, made optional
+    const forced = JSON.parse(JSON.stringify(contract));
+    forced.containers['snapshot.provenance'].members.chain.required = false;
+    const after = templateCoverage(trees, forced);
+    ck('an optional member the template never shows absent is reported — '
+       + `${after.neverAbsent.length}`,
+       after.neverAbsent.includes('snapshot.provenance.chain'));
+  }
+  {
+    // 3. a member the census does NOT name, arriving in the template
+    const shrunk = JSON.parse(JSON.stringify(contract));
+    delete shrunk.containers['snapshot.provenance'].members.label;
+    const after = templateCoverage(trees, shrunk);
+    ck('a template member the census does not name is reported — '
+       + `${after.unknown.length}`,
+       after.unknown.includes('snapshot.provenance.label'));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+test('§12 the members a producer here writes and no reader consumes are RECORDED as such');
+{
+  // WHY THIS SECTION EXISTS, AND IT IS A DEFECT REPORT RATHER THAN A CATEGORY. §2 above
+  // compares the census to the reader for EQUALITY, so a member our producer writes that
+  // no reader opens CANNOT be in the census — it would fail the "the census names a member
+  // nothing consumes" direction. Until 2026-09-17 that meant such a member was recorded
+  // NOWHERE: `counts.captureSessions` is written by `lib/recount.mjs`, read by nothing, and
+  // absent from this file entirely, while `refusal-selftest.mjs` required it of every
+  // snapshot this repository commits. The first snapshot ever written here from §5 ALONE —
+  // the conformance kit's template — therefore failed a rule §5 does not state, which is
+  // precisely the "the reader is the specification" failure this census exists to remove.
+  //
+  // So they are recorded, and the three arms below are what keep the record honest.
+  const pi = contract.producerInternal;
+  ck(`the census records the producer-internal MEMBERS as well as the paths — `
+     + `${pi.memberNames.length}`,
+     Array.isArray(pi.memberNames) && pi.memberNames.length >= 1
+     && pi.memberNames.every((m) => typeof pi.memberHolds[m] === 'string'
+                                    && pi.memberHolds[m].length > 20));
+
+  // 1. NOT IN THE CONSUMED CENSUS. This is the whole reason they cannot be recorded as
+  //    ordinary members, so it is asserted rather than assumed — a member that became
+  //    consumed must move, not sit here as a stale note.
+  const census = censusMembers(contract);
+  const alsoCensused = pi.memberNames.filter((m) => census.has(m));
+  ck(`…and none of them is in the consumed census, which is why they need their own record `
+     + `— ${alsoCensused.length}`, alsoCensused.length === 0);
+
+  // 2. THE NAMED WRITER REALLY WRITES IT. A `writtenBy` nobody checked is the same shape as
+  //    the census before §2: two hands writing one list. The leaf name has to appear in the
+  //    file that claims to write it.
+  const notWritten = pi.memberNames.filter((m) => {
+    const by = pi.memberWrittenBy[m];
+    if (by === null) return false;           // the convention above: no instance in this tree
+    if (!existsSync(join(root, by))) return true;
+    return !readFileSync(join(root, by), 'utf8').includes(m.slice(m.lastIndexOf('.') + 1));
+  });
+  ck(`…and every one with a named writer is spelled in that file — ${notWritten.length}`
+     + (notWritten.length ? `: ${notWritten.join(', ')}` : ''), notWritten.length === 0);
+
+  // 3. AND THE READER DOES NOT READ IT. The claim "producer-internal" is about the reader,
+  //    so it is measured against the reader, by the same walk §2 uses rather than by a grep.
+  const consumedAnyway = pi.memberNames.filter((m) => live.seen.has(m));
+  ck(`…and the reader consumes none of them — ${consumedAnyway.length}`,
+     consumedAnyway.length === 0);
+
+  // 4. SHOWN ABLE TO FAIL. A member moved INTO the census must be reported by arm 1, or the
+  //    record and the census can disagree silently in the one direction that matters.
+  const promoted = JSON.parse(JSON.stringify(contract));
+  promoted.containers['snapshot.counts'].members.captureSessions =
+    { required: false, access: 'optional', holds: 'promoted by a control' };
+  const promotedCensus = censusMembers(promoted);
+  ck('control: the same member added to the census IS reported as being in both places',
+     pi.memberNames.some((m) => promotedCensus.has(m)));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+test('§13 no optional member in src/ is reached by a form that cannot survive its absence');
+{
+  // THE FAMILY, AND WHY IT GETS A GATE RATHER THAN A FIFTH FIX. Seven defects across three
+  // milestones, one shape: a member this census marks OPTIONAL, reached by the one access
+  // form that cannot survive its absence. Two raised (`KeyError`, `IndexDefect`) and three
+  // SEGFAULTED — including one in the producer-side validator, which is a binary a recorder
+  // team runs, where it printed no finding at all. Every one was found by pointing a fixture
+  // at the code, and none of them could have been found by reading it: the committed
+  // captures all carry the member, so every arm in the repository ran over trees on which
+  // the defect is unreachable. A source-shape ban does not need an input that reaches the
+  // line, which is exactly why it is the right instrument here.
+  //
+  // WHAT IT COVERS AND WHAT IT PROVABLY DOES NOT is stated in the census
+  // (`nilAccess.shapes` and `nilAccess.notCovered`) and in `lib/reader-contract.mjs`'s own
+  // header, and the misses are PLANTED below rather than described.
+  const ban = contract.nilAccess;
+  ck(`the ban names its shapes and its misses in the census — `
+     + `${Object.keys(ban.shapes).length} shape(s), ${ban.notCovered.length} stated miss(es)`,
+     Object.keys(ban.shapes).length === NIL_ACCESS_SHAPES.length
+     && NIL_ACCESS_SHAPES.every((s) => typeof ban.shapes[s] === 'string')
+     && ban.notCovered.length >= 4);
+
+  // THE SCOPE IS DERIVED FROM THE TREE, NOT LISTED. `chainVocabulary.scope` is a list and
+  // was OUTGROWN once — a new module beside the reader was scanned by nothing while the
+  // suite reported rc 0. A root plus a walk cannot be outgrown: a file that exists is in.
+  const walkNim = (d) => readdirSync(d).flatMap((n) => {
+    const p = join(d, n);
+    return statSync(p).isDirectory() ? walkNim(p)
+         : (n.endsWith(ban.fileSuffix) ? [p] : []);
+  });
+  const files = walkNim(join(root, ban.scopeRoot)).sort();
+  ck(`it ranges over every ${ban.fileSuffix} under ${ban.scopeRoot}/, derived rather than `
+     + `listed — ${files.length} file(s)`, files.length >= ban.minFiles);
+
+  const violations = [];
+  for (const f of files) {
+    for (const v of nilAccessViolations(readFileSync(f, 'utf8'))) {
+      violations.push(`${f.slice(root.length)}:${v.line} ${v.shape} ${v.expr}`);
+    }
+  }
+  ck(`no file in scope reaches an optional member unsafely — ${violations.length}`,
+     violations.length === 0);
+  if (violations.length) console.error(`    ${violations.join('\n    ')}`);
+
+  // …AND THERE IS NO EXEMPTION LIST, which is the arm that says the green above is a
+  // property of the code rather than of a list of forgiven lines. The only thing the rule
+  // forgives is a nil TEST on the same expression, and that is a rule, not a name.
+  ck('…and the ban carries no exemption list — no file, line or symbol is forgiven',
+     !('exempt' in ban) && !('allow' in ban) && !('ignore' in ban));
+
+  // ── EACH SHAPE, PLANTED, WITH THE FORM IT IS STATED TO CATCH ────────────────────────
+  //
+  // A lint whose population is zero and whose failure has never been observed is
+  // `return true` with a comment on it. Planted in memory against a copy of the reader's
+  // text; the file on disk is never touched.
+  const PLANTS = [
+    ['nil-iteration',   '  for e in side{"transactions"}:\n    discard e'],
+    ['nil-iteration',   '  for m, e in body{"members"}:\n    discard e'],
+    ['nil-json-value',  '  let x = %*{\n    "paths": pos{"paths"}}'],
+    ['nil-dereference', '  if pos{"paths"}.len == 0: discard'],
+    ['nil-dereference', '  if pos{"paths"}.kind != JArray: discard'],
+    ['nil-dereference', '  let x = pos{"paths"}[0]'],
+  ];
+  const missed = PLANTS.filter(([shape, code]) =>
+    !nilAccessViolations(`${readerSrc}\n${code}\n`).some((v) => v.shape === shape));
+  ck(`each shape is caught when planted — ${PLANTS.length - missed.length} of ${PLANTS.length}`
+     + (missed.length ? `; missed ${missed.map((p) => p[0]).join(', ')}` : ''),
+     missed.length === 0);
+
+  // THE GUARD RULE IS A RULE AND NOT A HOLE. The admissible form has to be admitted — a ban
+  // that fired on `if x{"k"} == nil or x{"k"}.kind != JArray:` would be a ban nobody could
+  // satisfy, and the repair it pushes people towards has to be green.
+  const GUARDED = [
+    '  if vocab{"terms"} == nil or vocab{"terms"}.kind != JArray: discard',
+    '  if isNil(vocab{"terms"}) or vocab{"terms"}.len == 0: discard',
+    '  if vocab{"terms"} == nil:\n    discard\n  elif vocab{"terms"}.len == 0: discard',
+  ];
+  const falsePositives = GUARDED.filter((code) =>
+    nilAccessViolations(`${readerSrc}\n${code}\n`)
+      .some((v) => v.shape === 'nil-dereference'));
+  ck(`…and a nil test on the same expression is ADMITTED — ${falsePositives.length} false `
+     + 'positive(s) over the three guarded spellings', falsePositives.length === 0);
+
+  // ── AND THE MISSES, PLANTED AND ASSERTED MISSED ─────────────────────────────────────
+  //
+  // "Banned outright" about a regex that is not banned outright is the failure this library
+  // has already made once, with three spellings walked past a nine-shape ban that documented
+  // itself as covering them. So the forms this ban does NOT catch are measured here rather
+  // than left to be discovered: a residual that is asserted is a residual, one that is only
+  // described is a hope. Each of these is in `nilAccess.notCovered`.
+  const MISSES = [
+    ['a KeyError on an optional member', '  let x = prov["l1ChainId"]'],
+    ['an integer index onto a producer sequence', '  let x = execSelectors[tracedAt]'],
+    ['a {} result bound to a name first', '  let y = side{"transactions"}\n  for e in y:\n    discard e'],
+    ['…and the same, in a %* value position', '  let y = pos{"paths"}\n  let x = %*{"paths": y}'],
+  ];
+  const caughtAnyway = MISSES.filter(([, code]) =>
+    nilAccessViolations(`${readerSrc}\n${code}\n`).length
+    > nilAccessViolations(`${readerSrc}\n`).length);
+  ck(`…and the four forms it does NOT catch are asserted MISSED, not described — `
+     + `${MISSES.length - caughtAnyway.length} of ${MISSES.length} missed`
+     + (caughtAnyway.length ? `; unexpectedly caught ${caughtAnyway.map((x) => x[0]).join(', ')}` : ''),
+     caughtAnyway.length === 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
 test('§7 the census is well formed');
 {
   ck(`it declares the format this build reads`,
@@ -758,8 +1139,8 @@ test('§7 the census is well formed');
 }
 
 console.error(`\nassertion count: ${asserted} (as declared)`);
-if (asserted !== 68) {
-  console.error(`snapshot-contract-selftest: asserted ${asserted}, declared 68`);
+if (asserted !== 91) {
+  console.error(`snapshot-contract-selftest: asserted ${asserted}, declared 91`);
   process.exit(1);
 }
 if (failed) {

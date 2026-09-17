@@ -3673,10 +3673,19 @@ suite "14 — one chain carries containers from two recorders, each filed as its
     viaRecordedByTx = recorded[1]
     # (a) a `captures[]` entry — the follower's own contemporaneous note of
     #     which build was running when it caught this transaction.
+    var attributed = 0
     for c in mixedDoc["captures"]:
-      for y in c{"yielded"}:
+      # `.getElems`. §5.2b marks `captures[].yielded` OPTIONAL — `ingest.nim`
+      # guards it explicitly for that reason — and `for y in c{"yielded"}`
+      # iterates a nil `JsonNode` when it is absent, which is a segfault rather
+      # than a failing test. The counter below keeps the empty answer visible.
+      for y in c{"yielded"}.getElems:
         if y{"txHash"}.getStr == viaCapturesTx:
           c["runtimeCommit"] = %FramesCommit
+          inc attributed
+    doAssert attributed > 0,
+      "no `captures[].yielded` entry names " & viaCapturesTx & ", so this suite " &
+      "would be asserting about an attribution it never planted"
     # (b) the row's own `recordedBy` — what a recorder running outside the
     #     follower has to be able to say for itself.
     for t in mixedDoc["transactions"]:

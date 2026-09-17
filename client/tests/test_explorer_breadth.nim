@@ -306,11 +306,14 @@ suite "routes are KEY forms, not the DISPLAY forms their bodies carry":
     let root = parseJson(readFile(
       caseWork / "d" / Chain / "g" / gen / "root.json"))
     var blockRel = ""
-    for p in root{"maps"}{"blocks"}: blockRel = p.getStr
+    # `.getElems` on both: `{}` answers a NIL node for an absent key and
+    # `for x in nil` segfaults. The `len > 0` checks below are what keep the
+    # empty answer from reading as a pass.
+    for p in root{"maps"}{"blocks"}.getElems: blockRel = p.getStr
     check blockRel.len > 0
     let bi = parseJson(readFile(caseWork / blockRel))
     var blockHash = ""
-    for b in bi{"blocks"}: blockHash = b.getStr
+    for b in bi{"blocks"}.getElems: blockHash = b.getStr
     check blockHash.len > 0
     let brel = caseWork / "d" / Chain / "block" / blockHash & ".json"
     var bd = parseJson(readFile(brel))

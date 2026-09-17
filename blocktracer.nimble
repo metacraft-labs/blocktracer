@@ -7,7 +7,8 @@ license        = "MIT"
 srcDir         = "src"
 installExt     = @["nim"]
 bin            = @["blocktracer_demo_gen", "blocktracer_validate", "blocktracer_publish",
-                   "blocktracer_chain_ingest"]
+                   "blocktracer_chain_ingest", "blocktracer_client_conformance",
+                   "blocktracer_conformance"]
 namedBin["blocktracer_demo_gen"] = "blocktracer-demo-gen"
 namedBin["blocktracer_validate"] = "blocktracer-validate"
 namedBin["blocktracer_publish"] = "blocktracer-publish"
@@ -15,6 +16,17 @@ namedBin["blocktracer_publish"] = "blocktracer-publish"
 # callers were a whole-site build and a diff harness, neither of which can ingest a
 # named block range and report what it produced.
 namedBin["blocktracer_chain_ingest"] = "blocktracer-chain-ingest"
+
+# The CONSUMER side of the seam, packaged the way the producer side already was.
+# `consumerConformance` was a library proc whose only callers were in
+# `tests/tclientsdk.nim`, so "can a consumer read this tree?" was a question only
+# somebody with this repository built could ask — while "is this tree well-formed?"
+# has had a command since M5b.
+namedBin["blocktracer_client_conformance"] = "blocktracer-client-conformance"
+# The conformance kit's one command. It takes a chain-snapshot tree, ingests it, and
+# runs both of the checks above over what that produced. It restates no rule: each of
+# its three steps IS one of the existing entry points.
+namedBin["blocktracer_conformance"] = "blocktracer-conformance"
 
 # Requires
 

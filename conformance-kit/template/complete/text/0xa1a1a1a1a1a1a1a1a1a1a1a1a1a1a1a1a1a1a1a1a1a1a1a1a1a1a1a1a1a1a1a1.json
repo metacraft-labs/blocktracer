@@ -1,0 +1,26 @@
+{
+  "bundles": [
+    {
+      "codeHash": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "files": {
+        "src/main.example": "fn main() {\n  helper()\n}\n"
+      },
+      "origin": "example-registry",
+      "artifactHash": "0xa7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+      "debugDigest": "0xd9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9",
+      "shape": "module",
+      "corroboration": "corroborated",
+      "agreeingDistributors": [
+        "example-distributor-a",
+        "example-distributor-b"
+      ],
+      "language": "example-lang"
+    },
+    {
+      "codeHash": "0xc2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+      "files": {
+        "src/lib.example": "fn helper() {}\n"
+      }
+    }
+  ]
+}

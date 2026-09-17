@@ -200,12 +200,23 @@
           # preinstalled. So the gate was green in CI and structurally red
           # locally, for a reason that had nothing to do with its subject — and
           # local testing is the operative gate here. The environments now agree.
+          #
+          # `bubblewrap` is here for the same reason, one gate over:
+          # `ci/test/conformance-kit-sandbox.sh` proves the recorder conformance
+          # kit reaches a verdict with no toolchain, no checkout and no network,
+          # and it CONSTRUCTS all three absences rather than asserting them —
+          # an empty tmpfs over the checkout, a network namespace with only
+          # loopback, and a PATH holding nothing but the kit's own bin. Absent
+          # `bwrap` it REFUSES rather than skipping, because a claim about three
+          # absences that were never made is not a measurement. Pinned here so
+          # the gate does not depend on a registry fetch at run time.
           buildInputs = (with pkgs; [
             nim
             nimble
             just
             (python3.withPackages (ps: [ ps.pyyaml ]))
             wrangler
+            bubblewrap
           ]) ++ [ followerNodejs ];
         });
 

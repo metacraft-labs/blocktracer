@@ -1,0 +1,53 @@
+{
+  "format": "blocktracer/chain-snapshot@2",
+  "provenance": {
+    "chain": "example-floor",
+    "recorder": {
+      "id": "example-recorder",
+      "traceSchema": "example-trace/v1"
+    },
+    "prestateStrategy": "self-contained"
+  },
+  "window": {
+    "tip": 1000,
+    "finalized": 1000,
+    "blocks": 1
+  },
+  "counts": {
+    "blocks": 1,
+    "transactions": 1,
+    "accountedFor": 1
+  },
+  "blocks": [
+    {
+      "number": 1000,
+      "hash": "0xb0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0",
+      "parentArchiveRoot": "0xb9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9",
+      "transactions": [
+        "0xf1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1"
+      ]
+    }
+  ],
+  "transactions": [
+    {
+      "txHash": "0xf1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1",
+      "blockNumber": 1000,
+      "txIndexInBlock": 0,
+      "outcome": "not-attempted",
+      "revertCode": 0,
+      "reason": "This run enumerated the transaction and stopped before tracing it. Nothing about the transaction or about the chain declined it; the run did.",
+      "refusalReason": "not-attempted",
+      "cost": [
+        {
+          "name": "compute",
+          "used": "0"
+        }
+      ],
+      "executions": [
+        {
+          "selector": "main"
+        }
+      ]
+    }
+  ]
+}

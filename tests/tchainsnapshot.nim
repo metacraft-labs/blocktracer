@@ -69,6 +69,10 @@ import ../src/blocktracer/validator
 # shard layout written out here. A test that spelled the shard itself would pass while
 # the producer keyed somewhere else.
 import ../src/blocktracer/contract/ids
+# The CONSUMER side of the seam, because the control below is about all three
+# checks rather than about the reader alone.
+import ../src/blocktracer_client/store
+import ../src/blocktracer_client/conformance
 
 let
   fixtureRoot = currentSourcePath().parentDir / "fixtures" / "chain-snapshots"
@@ -87,6 +91,16 @@ template expectCount(expected: int) =
   if asserted != expected:
     checkpoint("assertion count is " & $asserted & ", expected " & $expected)
   check asserted == expected
+
+proc ruleIdsIn(text: string): seq[string] =
+  ## Every §5 rule id this text cites, in the order the contract states them.
+  ##
+  ## ONE PREDICATE, USED BY BOTH THE ASSERTION AND ITS CONTROL. "A failure names
+  ## the rule" and "a clean run names none" are the two directions of one
+  ## question, and writing them as two pieces of code lets the control agree with
+  ## itself while the rule is broken.
+  for id in contractRuleIds():
+    if ("[" in text) and ((" " & id & "]") in text): result.add id
 
 proc tempOut(tag: string): string =
   result = getTempDir() / ("bt-chainsnap-" & tag & "-" & $getCurrentProcessId())
@@ -431,11 +445,20 @@ const PositionedTx =
   ## The one row in this capture with a position stream and a source bundle, so
   ## the §5.4 source and position rules have a subject that reaches them.
 
-proc violate(id, dir: string) =
-  ## Apply EXACTLY ONE violation of rule `id` to a pristine copy of the capture.
+proc violate(id, dir: string): string =
+  ## Apply EXACTLY ONE violation of rule `id` to a pristine copy of the capture,
+  ## and return the snapshot-relative path of the file that now carries it.
+  ##
+  ## THE PATH IS RETURNED BY THE PERTURBATION ITSELF rather than looked up in a
+  ## table beside it. "The refusal names the offending path" is only checkable
+  ## against the file the violation was actually written into, and a second list
+  ## saying where each rule's subject lives is a second document that goes stale
+  ## the first time a case moves — the same failure the case list above is an
+  ## equality to prevent, one level down.
   let sp = dir / "snapshot.json"
   var doc = parseJson(readFile(sp))
   var wrote = true
+  result = "snapshot.json"
   case id
   of "S5-SNAPSHOT-PRESENT":
     removeFile sp
@@ -446,6 +469,7 @@ proc violate(id, dir: string) =
     doc["provenance"].delete("chain")
   of "S5-CHAIN-UNIQUE":
     wrote = false                      # staged in the output tree, not the input
+    result = ""                        # …so the offending path is not in this tree
   of "S5-MEMBERS-REQUIRED":
     doc.delete("window")
   of "S5-ROW-MEMBERS-REQUIRED":
@@ -462,7 +486,8 @@ proc violate(id, dir: string) =
     doc["provenance"]["runtimeCommit"] = %"0123456789aaaaaa"
     firstOutcome(doc, "replayed")["recordedBy"] = %"0123456789bbbbbb"
   of "S5-CONTAINER-NONEMPTY":
-    writeFile(dir / firstOutcome(doc, "replayed")["container"].getStr, "")
+    result = firstOutcome(doc, "replayed")["container"].getStr
+    writeFile(dir / result, "")
     wrote = false
   of "S5-REASON-REQUIRED":
     firstOutcome(doc, "private-only").delete("reason")
@@ -490,30 +515,35 @@ proc violate(id, dir: string) =
     var b = parseJson(readFile(p))
     b["bundles"] = newJArray()
     writeFile(p, $b)
+    result = relativePath(p, dir)
     wrote = false
   of "S5-BUNDLE-KEYED":
     let p = dir / "sources" / (PositionedTx & ".json")
     var b = parseJson(readFile(p))
     b["bundles"][0].delete("codeHash")
     writeFile(p, $b)
+    result = relativePath(p, dir)
     wrote = false
   of "S5-BUNDLE-NONEMPTY":
     let p = dir / "sources" / (PositionedTx & ".json")
     var b = parseJson(readFile(p))
     b["bundles"][0]["files"] = newJObject()
     writeFile(p, $b)
+    result = relativePath(p, dir)
     wrote = false
   of "S5-INSTRUCTIONS-AGREE":
     let p = dir / "instructions" / (PositionedTx & ".json")
     var n = parseJson(readFile(p))
     n["steps"] = %(n["steps"].getInt - 1)
     writeFile(p, $n)
+    result = relativePath(p, dir)
     wrote = false
   of "S5-POSITIONS-AGREE":
     let p = dir / "positions" / (PositionedTx & ".json")
     var n = parseJson(readFile(p))
     n["steps"] = %(n["steps"].getInt - 1)
     writeFile(p, $n)
+    result = relativePath(p, dir)
     wrote = false
   of "S5-POSITIONS-COLUMNS":
     let p = dir / "positions" / (PositionedTx & ".json")
@@ -522,12 +552,14 @@ proc violate(id, dir: string) =
     for i in 1 ..< n["line"].len: shorter.add n["line"][i]
     n["line"] = shorter
     writeFile(p, $n)
+    result = relativePath(p, dir)
     wrote = false
   of "S5-CALLTRACE-AGREE":
     let p = dir / "calltrace" / (PositionedTx & ".json")
     var n = parseJson(readFile(p))
     n["frames"] = %(n["frames"].getInt + 1)
     writeFile(p, $n)
+    result = relativePath(p, dir)
     wrote = false
   of "S5-CALLTRACE-FRAMES":
     # `frames` still equals `callsOpened + 1`, so the rule above is satisfied and
@@ -538,18 +570,21 @@ proc violate(id, dir: string) =
     for i in 1 ..< n["frame"].len: shorter.add n["frame"][i]
     n["frame"] = shorter
     writeFile(p, $n)
+    result = relativePath(p, dir)
     wrote = false
   of "S5-CALLTRACE-FOLD-NONEMPTY":
     let p = dir / "calltrace" / (PositionedTx & ".json")
     var n = parseJson(readFile(p))
     n["frame"][0]["foldedBy"] = %"a rule that closed an empty subtree"
     writeFile(p, $n)
+    result = relativePath(p, dir)
     wrote = false
   of "S5-CALLTRACE-FOLD-TALLY":
     let p = dir / "calltrace" / (PositionedTx & ".json")
     var n = parseJson(readFile(p))
     n["foldedFrames"] = %0
     writeFile(p, $n)
+    result = relativePath(p, dir)
     wrote = false
   of "S5-CALLTRACE-FOLD-BOUND":
     # The tally stays TRUE of the rows — only the bound is broken, so the rule
@@ -563,14 +598,17 @@ proc violate(id, dir: string) =
       steps += 5000
     n["foldedSteps"] = %steps
     writeFile(p, $n)
+    result = relativePath(p, dir)
     wrote = false
   of "S5-SIDECAR-FORMAT-UNKNOWN":
-    writeFile(dir / "artifact-resolution.json", $(%*{
+    result = "artifact-resolution.json"
+    writeFile(dir / result, $(%*{
       "format": "blocktracer/artifact-resolution@9",
       "chain": "aztec-testnet-frames", "transactions": []}))
     wrote = false
   of "S5-SIDECAR-CHAIN":
-    writeFile(dir / "artifact-resolution.json", $(%*{
+    result = "artifact-resolution.json"
+    writeFile(dir / result, $(%*{
       "format": "blocktracer/artifact-resolution@1",
       "chain": "some-other-chain", "transactions": []}))
     wrote = false
@@ -602,6 +640,7 @@ proc violate(id, dir: string) =
     var n = parseJson(readFile(p))
     n.delete("schema")
     writeFile(p, $n)
+    result = relativePath(p, dir)
     wrote = false
   else:
     doAssert false, "no violation is written for rule " & id
@@ -652,14 +691,19 @@ suite "a refusal names the §5 rule it enforces, and the repaired snapshot inges
     ck stated.len == RuleCases.len
     ck stated.len >= 28
 
-  test "each violation is refused CITING ITS OWN RULE, and the repair ingests":
+  test "each violation is refused CITING ITS OWN RULE AND NAMING THE OFFENDING PATH":
+    # `Invalid tree` is not a report a recorder team can act on, and neither is a
+    # rule id on its own: a producer holding a tree of files needs to know WHICH
+    # FILE to open. Both halves are asserted here, per rule, and the path is the
+    # one the perturbation returned — so a refusal that named some other file in
+    # the tree would fail this rather than satisfy it.
     for id in RuleCases:
       let want = cite(id)
       # ── the violation ─────────────────────────────────────────────────────
       let badIn = tempOut("rule-in-" & id.toLowerAscii)
       let badOut = tempOut("rule-out-" & id.toLowerAscii)
       copyCapture(badIn)
-      violate(id, badIn)
+      let where = violate(id, badIn)
       prepareTree(id, badOut)
       var said = ""
       try:
@@ -671,6 +715,17 @@ suite "a refusal names the §5 rule it enforces, and the repaired snapshot inges
         checkpoint(id & ": expected a refusal citing " & want & ", got: " &
                    (if said.len == 0: "(no refusal at all)" else: said))
       ck want in said
+      # ── …AND THE PATH ─────────────────────────────────────────────────────
+      # One rule's subject is not in the snapshot tree at all: a slug already
+      # published by another producer is a fact about the OUTPUT tree, so that is
+      # the file its refusal has to name.
+      let wantPath =
+        if where.len == 0: badOut / "d" / "aztec-testnet-frames" / "current.json"
+        else: badIn / where
+      if wantPath notin said:
+        checkpoint(id & ": the refusal names no path, or not " & wantPath &
+                   ", got: " & said)
+      ck wantPath in said
       removeDir badIn
       removeDir badOut
 
@@ -693,6 +748,37 @@ suite "a refusal names the §5 rule it enforces, and the repaired snapshot inges
       removeDir okIn
       removeDir okOut
 
+  test "CONTROL: a conforming tree produces NO rule id at all, from any of the three checks":
+    # Without this the arm above is satisfied by a harness that prints every rule
+    # every time. The predicate is `ruleIdsIn`, which is the SAME function the arm
+    # above uses — two copies of one predicate let a control agree with itself
+    # while the rule is broken.
+    let okIn = tempOut("clean-in")
+    let okOut = tempOut("clean-out")
+    defer:
+      removeDir okIn
+      removeDir okOut
+    copyCapture(okIn)
+    var said = ""
+    try:
+      discard ingestSnapshot(IngestConfig(outDir: okOut, snapshotDir: okIn,
+                                          generation: "1", scope: isFull))
+    except CatchableError as e:
+      said = e.msg
+    # every word the three checks say about this tree, in one string
+    var everything = said
+    for e in validateTree(okOut): everything.add " " & e
+    let report = consumerConformance(localTree(okOut))
+    for e in report.errors: everything.add " " & e
+    let ids = ruleIdsIn(everything)
+    if ids.len > 0: checkpoint("a conforming tree named: " & ids.join(", "))
+    ck ids.len == 0
+    ck said.len == 0
+    ck report.ok
+    # ANTI-VACUITY: the same predicate over a refusal finds exactly one id, so the
+    # zero above is a measurement rather than a predicate that never matches.
+    ck ruleIdsIn(cite("S5-COUNTS-ROWS") & "anything at all") == @["S5-COUNTS-ROWS"]
+
   test "a citation is a lookup, not decoration — the id resolves to §5's own sentence":
     for id in RuleCases:
       ck ruleStatement(id).len > 0
@@ -701,7 +787,7 @@ suite "a refusal names the §5 rule it enforces, and the repaired snapshot inges
     ck cite("S5-BUNDLE-REQUIRED").startsWith("[§5.4 S5-BUNDLE-REQUIRED]")
     ck cite("S5-REFUSALREASON-REQUIRED").startsWith("[§5.2a S5-REFUSALREASON-REQUIRED]")
 
-  expectCount(112)
+  expectCount(151)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  THE VERSION REFUSAL IS THE SAME STATEMENT IN BOTH HALVES OF THE CONTRACT
@@ -1382,3 +1468,276 @@ suite "a non-default execution partition publishes both selectors":
     ck "executes off-chain" in overlay["trace"]["reason"].getStr
 
   expectCount(39)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  THE SHIPPED CONFORMANCE TEMPLATE, DRIVEN THROUGH ALL THREE CHECKS
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# `conformance-kit/template/` is what a recorder for a chain nobody here has run
+# copies. Its claim is that a tree built from it ingests, validates and can be
+# read end to end by a consumer — and a template that claimed that and did not
+# would be worse than none, because a producer would spend their time looking for
+# their own mistake.
+#
+# So the template is a SUBJECT here, not documentation: every tree it ships is
+# driven through the real `ingestSnapshot`, the real `validateTree` and the real
+# `consumerConformance`, and the population is the directory rather than a list —
+# a tree added to the template that nothing exercises is the same silent gap this
+# whole seam exists to close.
+#
+# NO MOCKS. Three real entry points, real files, a real temporary directory.
+
+let templateRoot = currentSourcePath().parentDir.parentDir /
+                   "conformance-kit" / "template"
+
+proc templateTrees(): seq[string] =
+  ## Every tree the kit ships, found by walking the directory rather than listed.
+  if not dirExists(templateRoot): return
+  for kind, path in walkDir(templateRoot):
+    if kind == pcDir and fileExists(path / "snapshot.json"): result.add path
+  result.sort()
+
+doAssert templateTrees().len >= 2,
+  "conformance-kit/template ships fewer than two snapshot trees. This suite " &
+  "REFUSES rather than skips: every arm below is a statement about the shipped " &
+  "template, and an empty population makes all of them vacuously true."
+
+proc availabilitiesOf(outDir, chain: string): seq[string] =
+  ## Every `availability` the published overlays carry, in BOTH overlay shapes.
+  ##
+  ## §2.3b admits two — `trace` for a transaction with one execution, `executions`
+  ## for one with several — and a sweep that knew only the first would report the
+  ## all-absent list overlay as no availability at all, which is the exact shape
+  ## this template was built to carry.
+  for path in walkDirRec(outDir / "d" / chain / "ts"):
+    if not path.endsWith(".json"): continue
+    let o = parseJson(readFile(path))
+    if o{"trace"} != nil: result.add o["trace"]{"availability"}.getStr
+    # GUARDED: `for e in o{"executions"}` iterates a NIL node on the single-trace
+    # shape, and `items` on a nil `JsonNode` segfaults. That is the same defect
+    # this suite found in the reader, hit here while writing the sweep for it.
+    let ex = o{"executions"}
+    if ex != nil and ex.kind == JArray:
+      for e in ex: result.add e{"availability"}.getStr
+  result.sort()
+
+suite "the shipped conformance template passes all three checks, and every state it expresses is accepted":
+  asserted = 0
+
+  test "every template tree ingests, validates, and a consumer can read it":
+    for tree in templateTrees():
+      let outDir = tempOut("tmpl-" & tree.extractFilename)
+      defer: removeDir outDir
+      var refused = ""
+      var chain = ""
+      try:
+        chain = ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: tree,
+                                            generation: "1", scope: isFull)).chain
+      except CatchableError as e:
+        refused = e.msg
+      if refused.len > 0: checkpoint(tree & " was refused: " & refused)
+      ck refused.len == 0
+      # CHECK 2 — the producer-side validator, the same call `blocktracer-validate`
+      # has wrapped since M5b.
+      let errs = validateTree(outDir)
+      if errs.len > 0: checkpoint(tree & " producer-side: " & errs.join("; "))
+      ck errs.len == 0
+      # CHECK 3 — the consumer-side report, the same call
+      # `blocktracer-client-conformance` wraps.
+      let report = consumerConformance(localTree(outDir), chain)
+      if not report.ok: checkpoint(tree & " consumer-side: " & report.errors.join("; "))
+      ck report.ok
+      # ANTI-VACUITY. Both checks report what they found wrong, so a walk that
+      # reached nothing reports nothing wrong. The floors are what make the two
+      # `len == 0` above measurements rather than the absence of work.
+      ck report.blocksChecked >= 1
+      ck report.transactionsChecked >= 1
+
+  test "CONTROL: one required member deleted from the PUBLISHED tree fails both existing checks":
+    # The two checks above read a PUBLISHED tree, so the control that shows them
+    # biting has to be at that level. A required member deleted from the SNAPSHOT
+    # is refused one step earlier — by the reader, naming its rule — and the arm
+    # for that is the rule table above; it would prove nothing about these two,
+    # because with the ingest refused there is no tree for them to read.
+    let tree = templateRoot / "complete"
+    let outDir = tempOut("tmpl-ctl")
+    defer: removeDir outDir
+    let chain = ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: tree,
+                                            generation: "1", scope: isFull)).chain
+    ck validateTree(outDir).len == 0                  # green before the edit
+    ck consumerConformance(localTree(outDir), chain).ok
+    # `traceArtifactId` is a required member of every published trace manifest, and
+    # it is the one both checks reach independently: the validator requires the
+    # field, and the consumer DERIVES the address and compares it to the manifest's
+    # own claim. Deleting it is one edit that both must notice.
+    var edited = 0
+    for path in walkDirRec(outDir / "t"):
+      if not path.endsWith("manifest.json"): continue
+      var m = parseJson(readFile(path))
+      if m{"traceArtifactId"} == nil: continue
+      m.delete("traceArtifactId")
+      writeFile(path, pretty(m, 1))
+      inc edited
+      break
+    ck edited == 1                                     # the perturbation landed
+    let afterProducer = validateTree(outDir)
+    let afterConsumer = consumerConformance(localTree(outDir), chain)
+    if afterProducer.len == 0: checkpoint("the producer-side validator did not notice")
+    if afterConsumer.ok: checkpoint("the consumer-side report did not notice")
+    ck afterProducer.len > 0
+    ck not afterConsumer.ok
+
+  test "every availability state the snapshot seam reaches is published, and accepted":
+    # Trace-Artifacts.md §6's vocabulary has FIVE states. A snapshot reaches three
+    # of them and the template carries all three: a recording that reproduced the
+    # block's effects (`ready`), one that did not (`divergent`), and an execution
+    # with no recording at all (`absent`) — in both of its kinds, one this pipeline
+    # declined and one the chain never published.
+    let outDir = tempOut("tmpl-avail")
+    defer: removeDir outDir
+    let chain = ingestSnapshot(IngestConfig(outDir: outDir,
+                                            snapshotDir: templateRoot / "complete",
+                                            generation: "1", scope: isFull)).chain
+    let seen = availabilitiesOf(outDir, chain).deduplicate.sorted
+    checkpoint("the template publishes: " & seen.join(", "))
+    ck seen == @["absent", "divergent", "ready"]
+    # …AND THE CONSUMER ACCEPTS EVERY ONE. `checkTrace` has a branch per state and
+    # errs in most of them, so "accepted" is a claim about the report rather than
+    # about the enum.
+    let report = consumerConformance(localTree(outDir), chain)
+    ck report.ok
+    ck report.tracesResolved == 7          # six rows, one of which names two executions
+    ck report.tracesReplayable == 3        # the two `ready` and the one `divergent`
+
+    # ── THE TWO STATES A SNAPSHOT CANNOT REACH, MEASURED RATHER THAN DESCRIBED ──
+    #
+    # `onDemand` offers a "Generate trace" button and `unsupported` says no recorder
+    # exists for this VM. Both are decisions of the PUBLISHER, and neither is a fact
+    # a capture carries: the reader constructs neither, anywhere, and the template
+    # therefore cannot express them. That is a gap in what a snapshot can say, and
+    # it is asserted here so it stays measured — a template that claimed the whole
+    # vocabulary would be claiming coverage it does not have.
+    let root = currentSourcePath().parentDir.parentDir
+    let readerSrc = root / "src" / "blocktracer" / "chain" / "ingest.nim"
+    let enumSrc = root / "src" / "blocktracer_client" / "entities.nim"
+    # PER TOKEN, NOT OVER BOTH AT ONCE, and the difference is the whole arm. This
+    # was one `mentions >= 1` over the two tokens combined, and only ONE of them is
+    # mentioned in the reader at all — so half of the anti-vacuity check was
+    # satisfied by the other half, and a typo in either token would have gone on
+    # reporting "the reader never constructs it" forever.
+    var constructions, mentions: array[2, int]
+    const Tokens = ["taOnDemand", "taUnsupported"]
+    for line in lines(readerSrc):
+      for i, token in Tokens:
+        if token notin line: continue
+        inc mentions[i]
+        if not line.strip.startsWith("#"): inc constructions[i]
+    for i, token in Tokens:
+      checkpoint(token & ": " & $mentions[i] & " mention(s), " &
+                 $constructions[i] & " construction(s) in the reader")
+      ck constructions[i] == 0             # the reader never builds this state
+    # AND THE VACUITY IS STATED RATHER THAN PAPERED OVER. `taOnDemand` is mentioned
+    # in the reader — in a comment — so its zero is a measurement about a token the
+    # scan demonstrably sees. `taUnsupported` is mentioned NOWHERE in the reader, so
+    # its zero is a statement about an absence and is indistinguishable, on its own,
+    # from a misspelled token name. The arm below is what distinguishes them: both
+    # tokens are real values of the availability enum, read out of the file that
+    # declares it, so a typo fails here rather than passing above.
+    ck mentions[0] >= 1                    # taOnDemand: the scan sees this token
+    ck mentions[1] == 0                    # taUnsupported: VACUOUS, and said so
+    let enumText = readFile(enumSrc)
+    for token in Tokens:
+      ck token in enumText                 # …and neither token is a typo
+
+  test "a sidecar carrying only its required members ingests, rather than killing the reader":
+    # THE DEFECT THIS TEMPLATE FOUND. §5.2b marks `artifact-resolution.transactions`
+    # OPTIONAL, and the reader reached it with `for e in side{"transactions"}` —
+    # `{}` answers a nil node for an absent key and `items` on a nil `JsonNode`
+    # SEGFAULTS. So a sidecar carrying only the two members the contract requires
+    # of it killed the process: not a refusal, not a catchable error.
+    let dir = tempOut("sidecar-bare-in")
+    let outDir = tempOut("sidecar-bare-out")
+    defer:
+      removeDir dir
+      removeDir outDir
+    copyDir(templateRoot / "complete", dir)
+    let sidecar = dir / "resolution" / "artifacts.json"
+    var side = parseJson(readFile(sidecar))
+    side.delete("transactions")
+    side.delete("measuredAt")
+    side.delete("measuredBy")
+    writeFile(sidecar, pretty(side, 1))
+    ck parseJson(readFile(sidecar)).len == 2       # the perturbation landed: format + chain
+    var refused = ""
+    try:
+      discard ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: dir,
+                                          generation: "1", scope: isFull))
+    except CatchableError as e:
+      refused = e.msg
+    if refused.len > 0: checkpoint("refused: " & refused)
+    ck refused.len == 0
+
+  test "a generation root that omits a `maps` member is WALKED, not crashed on":
+    # `for p in maps{"height"}` iterated a NIL `JsonNode` when the member was
+    # absent, and `items` on a nil node does not raise — it SEGFAULTS. So a
+    # published tree short of one optional array KILLED the producer-side
+    # validator this kit ships, rather than being walked or reported. Measured
+    # against the shipped binary before the repair: exit 139, no finding, no
+    # output.
+    #
+    # An absent array and an empty one say the same thing here, and a producer
+    # legitimately writes either — a generation with no height epochs, a chain
+    # with no address lists, a block that settled no transaction. So the repair
+    # reads it as empty rather than inventing a finding.
+    #
+    # This arm can only observe the REPAIRED behaviour: against the unrepaired
+    # validator the whole test binary dies and reports nothing at all, which is
+    # itself the loudest possible regression signal.
+    let outDir = tempOut("maps-absent")
+    defer: removeDir outDir
+    let chain = ingestSnapshot(IngestConfig(outDir: outDir,
+                                            snapshotDir: templateRoot / "complete",
+                                            generation: "1", scope: isFull)).chain
+    ck validateTree(outDir).len == 0
+    let rootPath = outDir / "d" / chain / "g" / "1" / "root.json"
+    var root = parseJson(readFile(rootPath))
+    ck root["maps"]{"height"} != nil          # the perturbation has something to take
+    root["maps"].delete("height")
+    writeFile(rootPath, pretty(root, 1))
+    ck parseJson(readFile(rootPath))["maps"]{"height"} == nil   # …and it landed
+    ck validateTree(outDir).len == 0          # it RETURNS, which is the whole claim
+  test "CONTROL: an absent execution with no stated reason is rejected":
+    # The pair that proves the vocabulary is CHECKED and not merely stored. `absent`
+    # is data with a reason, never a failed fetch — so the one shape that must not
+    # pass is an absence with nothing said about it.
+    let outDir = tempOut("tmpl-noreason")
+    defer: removeDir outDir
+    let chain = ingestSnapshot(IngestConfig(outDir: outDir,
+                                            snapshotDir: templateRoot / "complete",
+                                            generation: "1", scope: isFull)).chain
+    ck consumerConformance(localTree(outDir), chain).ok    # green before the edit
+    var stripped = 0
+    for path in walkDirRec(outDir / "d" / chain / "ts"):
+      if not path.endsWith(".json"): continue
+      var o = parseJson(readFile(path))
+      if o{"trace"} == nil: continue
+      if o["trace"]{"availability"}.getStr != "absent": continue
+      o["trace"]["reason"] = %""
+      writeFile(path, pretty(o, 1))
+      inc stripped
+      break
+    ck stripped == 1                                       # the perturbation landed
+    var rejected = false
+    var how = ""
+    try:
+      let after = consumerConformance(localTree(outDir), chain)
+      rejected = not after.ok
+      how = after.errors.join("; ")
+    except CatchableError as e:
+      rejected = true                                      # the decoder refused it
+      how = e.msg
+    if not rejected: checkpoint("a reasonless `absent` execution was accepted")
+    checkpoint("rejected as: " & how)
+    ck rejected
+
+  expectCount(34)

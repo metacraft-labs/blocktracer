@@ -1,0 +1,29 @@
+{
+  "schema": "example-positions/1",
+  "steps": 4,
+  "pathId": [
+    0,
+    0,
+    1,
+    1
+  ],
+  "line": [
+    1,
+    2,
+    1,
+    2
+  ],
+  "column": [
+    3,
+    3,
+    3,
+    3
+  ],
+  "paths": [
+    "src/main.example",
+    "src/lib.example"
+  ],
+  "positioned": 4,
+  "artifactRung": 3,
+  "measuredPostHoc": false
+}

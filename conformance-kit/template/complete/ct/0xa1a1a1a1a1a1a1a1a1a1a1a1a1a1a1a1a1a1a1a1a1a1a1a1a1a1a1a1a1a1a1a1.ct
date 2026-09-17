@@ -1,0 +1,2 @@
+example container placeholder for 0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1
+A recorder writes its own trace container here. Nothing in the contract reads these bytes: they are copied verbatim and hashed.

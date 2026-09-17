@@ -40,9 +40,42 @@
 ## contract states where this goes when you do not say" and "the reader happens to
 ## look there" is the difference between a published format and a habit.
 
-import std/[json, strutils]
+import std/[json, strutils, tables]
 
 const snapshotContractJson = staticRead("../../../tools/chain/snapshot-contract.json")
+
+# ── READING THIS FILE'S ARRAYS AND OBJECTS, WITHOUT THE SHAPE THAT KILLS ───────
+#
+# `doc{"k"}` answers a NIL `JsonNode` for an absent key, and `for x in <nil>` does
+# not raise — `items` dereferences it and the process dies. Every walk below went
+# through that shape, and at COMPILE time it means the compiler segfaults with no
+# sentence about which member of the contract was missing.
+#
+# `getElems` alone is not the fix either: it answers the EMPTY sequence, so a
+# contract that lost a member would silently produce an empty vocabulary, an empty
+# strategy set or an empty census — which is the one input every "must not contain"
+# check written over them reports success on. So absence REFUSES here, by name, and
+# the walk takes the elements from an accessor that cannot be handed a nil.
+#
+# This is the nil-access family the ban in `tools/chain/lib/reader-contract.mjs`
+# refuses over `src/**/*.nim`: a member reached by the one access form that cannot
+# survive its absence.
+
+proc requiredElems(node: JsonNode, what: string): seq[JsonNode] =
+  if node == nil or node.kind != JArray:
+    raise newException(ValueError,
+      "tools/chain/snapshot-contract.json states no `" & what & "` array. A half-read " &
+      "contract is no contract: an absent member read as an empty one makes every " &
+      "check written over it pass by having nothing to look at.")
+  node.getElems
+
+proc requiredFields(node: JsonNode, what: string): OrderedTable[string, JsonNode] =
+  if node == nil or node.kind != JObject:
+    raise newException(ValueError,
+      "tools/chain/snapshot-contract.json states no `" & what & "` object. A half-read " &
+      "contract is no contract: an absent member read as an empty one makes every " &
+      "check written over it pass by having nothing to look at.")
+  node.getFields
 
 type
   ContractRule* = object
@@ -109,7 +142,7 @@ proc parseRules(): seq[ContractRule] =
       "tools/chain/snapshot-contract.json states no `chainVocabulary.terms`. An " &
       "empty vocabulary is a scan that matches nothing, which satisfies every " &
       "\"must not contain\" check written over it.")
-  for term in vocab{"terms"}:
+  for term in requiredElems(vocab{"terms"}, "chainVocabulary.terms"):
     if term{"term"}.getStr.len == 0 or term{"kind"}.getStr.len == 0:
       raise newException(ValueError,
         "tools/chain/snapshot-contract.json: a `chainVocabulary.terms` entry states " &
@@ -126,7 +159,8 @@ const ContractRules* = parseRules()
 
 proc parsePrestateStrategies(): seq[string] =
   let doc = parseJson(snapshotContractJson)
-  for tok in doc{"prestateStrategies"}{"tokens"}: result.add tok.getStr
+  for tok in requiredElems(doc{"prestateStrategies"}{"tokens"},
+                           "prestateStrategies.tokens"): result.add tok.getStr
 
 const PrestateStrategies* = parsePrestateStrategies()
   ## Chain-Support-Matrix.md §1.4's closed set, verbatim. The reader draws
@@ -153,6 +187,14 @@ proc cite*(id: string): string =
 proc ruleStatement*(id: string): string =
   for r in ContractRules:
     if r.id == id: return r.statement
+  ""
+
+proc sectionOf*(id: string): string =
+  ## The section of Data-Contract.md a rule id sends a reader to. `cite` carries it
+  ## inside the refusal's own prefix; this is the same field for a caller that has
+  ## the id and wants to say where to look without re-parsing a message.
+  for r in ContractRules:
+    if r.id == id: return r.section
   ""
 
 proc contractRuleIds*(): seq[string] =
@@ -252,7 +294,7 @@ proc censusRequired(container: string, recurse, bracketOnly: bool): seq[BracketR
   proc walk(id, prefix: string, tracedOnly: bool, acc: var seq[BracketRequired]) =
     let body = containers{id}
     if body == nil: return
-    for m, e in body{"members"}:
+    for m, e in requiredFields(body{"members"}, id & ".members"):
       let isTraced = tracedOnly or e{"onRows"}.getStr == "traced only"
       let dotted = if prefix.len == 0: m else: prefix & "." & m
       if e{"required"}.getBool and (not bracketOnly or e{"access"}.getStr == "required"):

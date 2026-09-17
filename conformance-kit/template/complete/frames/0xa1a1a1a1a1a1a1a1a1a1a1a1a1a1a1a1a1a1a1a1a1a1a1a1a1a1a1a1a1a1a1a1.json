@@ -1,0 +1,19 @@
+{
+  "frames": 3,
+  "frame": [
+    {
+      "name": "<toplevel>"
+    },
+    {
+      "name": "entry",
+      "foldedBy": "example-fold-rule",
+      "hiddenSteps": 2,
+      "hiddenDescendants": 1
+    },
+    {
+      "name": "inner"
+    }
+  ],
+  "foldedFrames": 1,
+  "foldedSteps": 2
+}

@@ -17,6 +17,12 @@ nimcache/
 /src/blocktracer_demo_gen
 /src/blocktracer_validate
 /src/blocktracer_publish
+# The conformance kit's two commands, built the same way by `just conformance`
+# and `just client-conformance`.
+/src/blocktracer_client_conformance
+/src/blocktracer_conformance
+/blocktracer-client-conformance
+/blocktracer-conformance
 *.exe
 
 # Compiled test binaries (`nim c -r tests/foo.nim` drops a `tests/foo` next to it)
@@ -160,3 +166,9 @@ nimcache/
 # up, which for this particular fixture would mean publishing `<btprobe>` on a
 # real deploy.
 /client/fixtures/chain/.hostile-gate/
+
+# The recorder conformance kit, STAGED as a released artifact by
+# `just conformance-kit-release`: three built binaries plus a copy of the
+# template. A build output, not a source, and the template it copies is the
+# committed one under conformance-kit/.
+/conformance-kit-release/

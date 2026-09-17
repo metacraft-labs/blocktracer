@@ -331,17 +331,22 @@ suite "5 — the counts are READ FROM THE CONTAINER, never recomputed here":
     ck doc{"frames"}.getInt == foldedPane.frames.len
     ck doc{"foldedSteps"}.getInt == 28
     var i = 0
-    for f in doc{"frame"}:
+    # `.getElems`, NOT a bare `{}`. `frame` is optional in this schema and
+    # `for x in node{"k"}` iterates a NIL `JsonNode` when the key is absent —
+    # `items` on one is a segfault, not a refusal. `getElems` answers the empty
+    # sequence, and the arm below is what stops that emptiness being a pass.
+    for f in doc{"frame"}.getElems:
       ck f{"hiddenSteps"}.getInt(0) == foldedPane.frames[i].hiddenSteps
       ck f{"hiddenDescendants"}.getInt(0) == foldedPane.frames[i].hiddenDescendants
       inc i
+    ck i == foldedPane.frames.len          # …and it ran over every frame
 
   test "MUTATION BITE: a different number in the file is a different number on the row":
     # THE PROOF THAT THE VIEW IS READING AND NOT DERIVING. If `hiddenSteps` were
     # recomputed from the loaded rows this would render `22` no matter what the
     # file said, and the assertion above would be measuring nothing.
     var doc = parseJson(readFile(NoirDir / "calltrace" / (Tx & ".json")))
-    for f in doc{"frame"}:
+    for f in doc{"frame"}.getElems:
       if f{"foldedBy"}.getStr("").len > 0:
         f["hiddenSteps"] = %*(9991)
         f["hiddenDescendants"] = %*(7)
@@ -361,7 +366,7 @@ suite "5 — the counts are READ FROM THE CONTAINER, never recomputed here":
     # assertion above had to be a mutation rather than an equality.
     ck foldedPane.frames.filterIt(it.foldedBy.len > 0).len == 2
 
-  test "COUNTED": ck asserted == 99
+  test "COUNTED": ck asserted == 100
 
 suite "6 — a nine-deep tree is drawn deep, not flat":
   asserted = 0

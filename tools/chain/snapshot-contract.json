@@ -288,7 +288,9 @@
       "src/blocktracer/chain/contract_rules.nim",
       "src/blocktracer/chain/refusal_reasons.nim",
       "src/blocktracer/chain/snapshot_format.nim",
-      "src/blocktracer_chain_ingest.nim"
+      "src/blocktracer_chain_ingest.nim",
+      "src/blocktracer_conformance.nim",
+      "src/blocktracer_client_conformance.nim"
     ],
     "terms": [
       {"term": "aztec", "kind": "chain"},
@@ -454,6 +456,8 @@
 
     "snapshot.transactions[]": {
       "section": "§5.2",
+      "_rowKeyComment": "the member that names a row's sidecars under §5.1's default directories. Stated here because a resolver that hardcoded it would be a second place for §5.1's rule to drift.",
+      "rowKey": "txHash",
       "members": {
         "txHash": {"required": true, "access": "required", "holds": "the transaction's identifier"},
         "blockNumber": {"required": true, "access": "required", "holds": "the height of the block that settled it"},
@@ -742,6 +746,41 @@
     }
   },
 
+  "_nilAccessComment": [
+    "THE BAN OVER THE FAMILY THAT HAS NOW PRODUCED SEVEN DEFECTS IN THREE MILESTONES:",
+    "a member this census marks OPTIONAL, reached by the one access form that cannot",
+    "survive its absence. `provenance.l1ChainId` (a `KeyError`), `execSelectors[-1]` (an",
+    "`IndexDefect`, which is not catchable), the position stream's `positioned`/`paths`,",
+    "`artifact-resolution.transactions` and the producer-side validator's `maps.height`",
+    "and eight siblings (three segfaults).",
+    "",
+    "The SCOPE is here rather than in the caller for the reason `chainVocabulary.scope`",
+    "is: a scan whose subject lives in a script's habit is a scan whose subject can",
+    "shrink without anything going red. It is stated as a ROOT rather than as a file",
+    "list, and `snapshot-contract-selftest.mjs` §13 derives the files from the tree under",
+    "it — so a new module is in the ban the moment it exists, which a list cannot do.",
+    "",
+    "`shapes` names what is refused and `notCovered` names what is NOT, measured. The",
+    "second list is the load-bearing one: this library has already written `banned",
+    "outright` about a regex that was not."
+  ],
+  "nilAccess": {
+    "scopeRoot": "src",
+    "fileSuffix": ".nim",
+    "minFiles": 30,
+    "shapes": {
+      "nil-iteration": "`for x in node{\"k\"}` — `items` on the nil node `{}` answers for an absent key dereferences it. `node{\"k\"}.getElems` answers the empty sequence.",
+      "nil-json-value": "`\"k\": node{\"m\"}` in a `%*` construction — `%*` stores the nil and `pretty` dereferences it later. `orNull(node{\"m\"})` is the form.",
+      "nil-dereference": "`node{\"k\"}.len`, `.kind`, `.items`, `[…]` and the rest of `std/json`'s non-nil-tolerant operations, applied directly to a `{}` result. Admissible only when the identical expression is nil-tested first, which Nim's short-circuiting `or` makes safe."
+    },
+    "notCovered": [
+      "`node[\"k\"]` on an optional member — the `KeyError` half of the same family. `[]` is also the correct form for a REQUIRED member, so a token ban on it is unsatisfiable; the reader's half is covered by the census equality check in §2 and nothing else in `src/` is covered at all.",
+      "`xs[i]` and `xs[^1]` on a producer-supplied sequence — the `IndexDefect` half. Not a `{}` shape and not scanned.",
+      "a `{}` result bound to a name first (`let x = node{\"k\"}` then `for e in x:`). The widest hole, left open deliberately: closing it needs local dataflow and a rule that guessed would fire on the GUARDED form, which is the repair this ban exists to encourage. Asserted MISSED in §13's attack table.",
+      "anything outside `src/` — `client/`, `tools/` and the test suites are not in scope today. Eleven `nil-iteration` sites were measured outside it on 2026-09-17; the five in `client/tests/` were repaired, the six in `tests/` were not."
+    ]
+  },
+
   "producerInternal": {
     "_comment": [
       "§5.4's boundary, stated as NAMES so the claim is checkable rather than a category:",
@@ -767,6 +806,32 @@
       "lease.json": null,
       ".lock": null
     },
-    "ledgerFormat": "blocktracer/coverage-ledger@1"
+    "ledgerFormat": "blocktracer/coverage-ledger@1",
+
+    "_membersComment": [
+      "AND THE SAME BOUNDARY ONE LEVEL DOWN: a MEMBER a producer here writes into a",
+      "snapshot that no reader consumes and §5 therefore does not name. The census above",
+      "is the consumed set and is compared to the reader for EQUALITY in both directions,",
+      "so such a member cannot live in it — and until 2026-09-17 that meant it lived",
+      "nowhere at all, which is how `counts.captureSessions` came to be required of every",
+      "committed snapshot by a self-test while being absent from this file entirely. A",
+      "hand-authored snapshot written from §5 alone then failed a rule §5 does not state.",
+      "",
+      "So they are recorded here, OPTIONAL by construction: a conforming producer may omit",
+      "every one of them, and the only thing asserted about them is that ours writes them.",
+      "`writtenBy` follows the same convention as the path list above — the file that",
+      "writes it, or `null` for a member this tree has no producer for — and",
+      "`snapshot-contract-selftest.mjs` §12 holds three things about each: that it is NOT",
+      "in the consumed census, that the named writer really writes it, and that the reader",
+      "does not read it. A member that became consumed would fail all three rather than",
+      "sitting here as a stale note."
+    ],
+    "memberNames": ["snapshot.counts.captureSessions"],
+    "memberWrittenBy": {
+      "snapshot.counts.captureSessions": "tools/chain/lib/recount.mjs"
+    },
+    "memberHolds": {
+      "snapshot.counts.captureSessions": "how many supervised watch sessions contributed to this capture, or `null` when the `captures` member is not countable. Optional: §5 names no such member, no reader opens it, and a snapshot without it is conforming. `tools/chain/refusal-selftest.mjs` requires it of THIS repository's captures and of nothing else."
+    }
   }
 }

@@ -508,7 +508,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 224 assertions, and the reason it is offline is the reason it
+        # ING-3, 228 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -666,7 +666,7 @@ jobs:
         run: node tools/chain/object-set-selftest.mjs
 
       - name: Do the reader and the document a producer writes against name the same members?
-        # 68 assertions. The seam's producer half is a DOCUMENT (Data-Contract.md
+        # 91 assertions. The seam's producer half is a DOCUMENT (Data-Contract.md
         # §5) and a READER (`src/blocktracer/chain/ingest.nim`), and until this
         # suite the only thing holding the two together was that somebody had read
         # both and agreed with themselves. What that produced, measured: §5 named
@@ -735,6 +735,28 @@ jobs:
           nix develop .#ci --command bash -c '
             nim c -r --hints:off src/blocktracer_demo_gen.nim --out:demo-site-2'
           diff -r demo-site demo-site-2
+
+      - name: Does the conformance kit reach a verdict with no toolchain, no checkout and no network?
+        # 10 checks. A recorder for a chain nobody here has run answers "does my
+        # tree validate?" from a RELEASED ARTIFACT — three binaries and a fixture
+        # template — and the three things they must not need are a Nim toolchain,
+        # a checkout of this repository and a network. The artifact is built here,
+        # by us, because both of the existing checks it wraps are our code; what
+        # is under test is what a recorder team is handed.
+        #
+        # ALL THREE ABSENCES ARE CONSTRUCTED RATHER THAN ASSERTED, which is the
+        # whole reason this is a step and not a sentence in a README: "it needs no
+        # network" is trivially satisfied by code that never tried, so the sandbox
+        # arm carries a probe expected to FAIL inside it and a control outside it
+        # expected to succeed, for each of the three. The last arm runs the same
+        # command with the fixture removed and requires a MISSING-FIXTURE refusal,
+        # so a green cannot be the absence of work.
+        #
+        # `bwrap` comes from `.#ci` (flake.nix pins it for this gate). Absent it
+        # the script exits 2 rather than skipping.
+        run: |
+          nix develop .#ci --command just conformance-kit-release
+          nix develop .#ci --command ci/test/conformance-kit-sandbox.sh
 
   # M12a — @blocktracer/client. Its own job, because the boundary guard is the
   # cheap half (bash + awk, no toolchain) and must not wait on a Nim build to

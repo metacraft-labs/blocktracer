@@ -574,6 +574,136 @@ export function readerShapeViolations(text) {
   return out;
 }
 
+// ── THE NIL-ACCESS BAN ─────────────────────────────────────────────────────────────────
+//
+// ONE FAMILY, SEVEN INSTANCES, THREE MILESTONES, AND NOTHING THAT COULD SEE IT COMING.
+// Every one has the same shape: *a member the contract marks OPTIONAL, reached by the one
+// access form that cannot survive its absence.*
+//
+//   * `provenance.l1ChainId` — `prov["l1ChainId"]`, a `KeyError`;
+//   * `execSelectors[tracedAt]` with `tracedAt` = -1 — an `IndexDefect`, which is not even
+//     a `CatchableError` and so escapes every refusal path there is;
+//   * the position stream's `positioned` and `paths` — a nil `JsonNode` stored into a `%*`
+//     literal and dereferenced by `toPretty`: a SEGFAULT;
+//   * `artifact-resolution.transactions` — `for e in side{"transactions"}`, `items` on a
+//     nil node: a SEGFAULT;
+//   * the producer-side validator's `maps.height` and eight siblings — the same shape
+//     again, in the binary a recorder team runs: a SEGFAULT, with no finding printed.
+//
+// Each was found by pointing a fixture at the code. None was found by reading it, and none
+// of them could be: the committed captures all carried the member, so every arm in the
+// repository ran over trees on which the defect is unreachable. That is what a source-shape
+// ban is for — it is a statement about the CODE, not about the corpus, so it does not need
+// an input that reaches the line.
+//
+// WHAT THE THREE SHAPES ARE. `node{"k"}` answers a NIL `JsonNode` for an absent key —
+// that is the whole point of it, and it is why the census reads a `{}` as "optional". Nim's
+// `std/json` then splits into accessors that tolerate that nil (`getStr`, `getInt`,
+// `getElems`, `getFields`, `getBool`, and `{}` itself) and operations that dereference it
+// without checking (`len`, `kind`, `items`/`pairs`, `[]`, and `%*` storage followed by
+// `pretty`). The first set is the contract's own reading of an optional member. The second
+// set applied DIRECTLY to a `{}` result is the family above, every time.
+//
+// WHAT IT PROVABLY DOES NOT COVER, measured rather than described, because "banned
+// outright" about a regex that is not is a mistake this library has already made once:
+//
+//   * THE `KeyError` HALF. `node["k"]` on an optional member is the same family and this
+//     ban cannot see it: `[]` is also the correct form for a REQUIRED member, so a token
+//     ban on it is unsatisfiable. That half is covered for the reader — and only for the
+//     reader — by the census equality check in §2, where the access form IS the statement
+//     and both sides are compared. Everywhere else in `src/` it is uncovered.
+//   * THE `IndexDefect` HALF. An integer index onto a producer-supplied sequence
+//     (`xs[i]`, `xs[^1]`) is not a `{}` shape at all and is not scanned here.
+//   * A `{}` RESULT BOUND TO A NAME FIRST. `let x = n{"k"}` then `for e in x:` or
+//     `%*{"a": x}` evades every rule below, because the rules are written over the
+//     subscript's own syntax. This is the widest hole and it is left open deliberately:
+//     closing it needs local dataflow, and a rule that guessed would fire on the GUARDED
+//     form — `let answered = side{"transactions"}` followed by a nil test — which is the
+//     repair this ban exists to encourage. Asserted MISSED in the suite's attack table
+//     rather than left unmentioned.
+//   * ANYTHING OUTSIDE `src/`. The scope is data (`nilAccess.scopeRoot` in the census) and
+//     the suite derives the file set from the tree, so it cannot shrink unnoticed; but
+//     `client/`, `tools/` and the tests are not in it today.
+//
+// THE ONE ADMISSIBLE FORM IS A NIL TEST ON THE SAME EXPRESSION, and it is a RULE rather
+// than an exemption list: a dereference is allowed when the identical subscript expression
+// is compared to nil, or passed to `isNil`, earlier in the same boolean chain — which is
+// how Nim's short-circuiting `or` makes `if x{"k"} == nil or x{"k"}.kind != JArray:` safe.
+// No file, line or symbol is exempt.
+
+/** the `std/json` operations that DEREFERENCE the node rather than checking it for nil */
+const NIL_UNSAFE_ACCESSORS =
+  'len|kind|items|pairs|mitems|mpairs|elems|fields|str|num|fnum|bval|add|delete|hasKey';
+
+/** a dotted name followed by one or more `{"literal"}` subscripts — the optional-member read */
+const OPTIONAL_READ = '[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*(?:\\s*\\{\\s*"[^"]*"\\s*\\})+';
+
+/** the shapes this ban refuses, named, so a suite can assert the set rather than a count */
+export const NIL_ACCESS_SHAPES = Object.freeze([
+  'nil-iteration', 'nil-json-value', 'nil-dereference',
+]);
+
+/** is `expr` nil-tested anywhere in `window` (the text that runs before the access)? */
+function nilTested(window, expr) {
+  const lit = expr.replace(/\s+/g, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const flat = window.replace(/\s+/g, '');
+  return new RegExp(`${lit}(?:==|!=)nil`).test(flat)
+      || new RegExp(`isNil\\(${lit}\\)`).test(flat)
+      || new RegExp(`${lit}\\.isNil`).test(flat);
+}
+
+/**
+ * Every occurrence in `text` of the nil-access family: an optional-member read (`{}`)
+ * reached by a form that dereferences the nil it answers.
+ *
+ * @returns {{shape:string, line:number, expr:string, text:string}[]} one entry per occurrence
+ */
+export function nilAccessViolations(text) {
+  const lines = text.split('\n');
+  const out = [];
+  const hit = (shape, i, expr, s) =>
+    out.push({ shape, line: i + 1, expr, text: s.trim().slice(0, 100) });
+
+  // the two preceding non-blank code lines plus the part of this line to the left of the
+  // access — a guard has to RUN before the dereference to be a guard
+  const guardWindow = (i, upto) => {
+    const before = [];
+    for (let j = i - 1; j >= 0 && before.length < 2; j--) {
+      if (lines[j].trim() === '') continue;
+      before.unshift(stripComment(lines[j]));
+    }
+    return `${before.join('\n')}\n${upto}`;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*#/.test(lines[i])) continue;
+    const s = stripComment(lines[i]);
+
+    // 1. ITERATION. `for x in n{"k"}:` — `items` on the nil node is a dead process, and
+    //    `n{"k"}.getElems` answers the empty sequence, which is also the right READING:
+    //    an absent array and an empty one say the same thing to a consumer.
+    const it = new RegExp(`\\bfor\\s+[^:]*?\\bin\\s+(${OPTIONAL_READ})\\s*:`).exec(s);
+    if (it) hit('nil-iteration', i, it[1].replace(/\s+/g, ''), s);
+
+    // 2. JSON-VALUE POSITION. `"k": n{"m"},` inside a `%*` literal. `%*` stores the nil
+    //    happily and `pretty` dereferences it later, from a stack that names `json.nim`
+    //    and never mentions the snapshot that was short a key. `orNull(…)` is the form.
+    const jv = new RegExp(`"[^"]*"\\s*:\\s*(${OPTIONAL_READ})\\s*[,)}\\]]*\\s*$`).exec(s);
+    if (jv) hit('nil-json-value', i, jv[1].replace(/\s+/g, ''), s);
+
+    // 3. DIRECT DEREFERENCE. `n{"k"}.len`, `n{"k"}.kind`, `n{"k"}[…]` — admissible only
+    //    when the same expression was nil-tested first.
+    const re = new RegExp(`(${OPTIONAL_READ})\\s*(?:\\.(?:${NIL_UNSAFE_ACCESSORS})\\b|\\[)`, 'g');
+    let m;
+    while ((m = re.exec(s)) !== null) {
+      const expr = m[1].replace(/\s+/g, '');
+      if (nilTested(guardWindow(i, s.slice(0, m.index)), expr)) continue;
+      hit('nil-dereference', i, expr, s);
+    }
+  }
+  return out;
+}
+
 /**
  * Every place `text` spells one of §5.1's path DEFAULTS as a literal in a PATH position —
  * an operand of the `/` join — rather than taking it from the census.

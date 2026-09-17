@@ -84,14 +84,36 @@ const threw = (fn) => { try { fn(); return null; } catch (e) { return e; } };
  *  `tests/fixtures/chain-snapshots/`, and a sweep aimed at one directory cannot report on a
  *  file in another. The `existsSync` arm on this list is what makes the list fail LOUDLY
  *  when a file moves, rather than quietly shrinking the population — which is the failure
- *  mode a glob has and a list does not. */
-const ALL_COMMITTED_SNAPSHOTS = Object.freeze([
+ *  mode a glob has and a list does not.
+ *
+ *  AND IT IS NOT ONE POPULATION, WHICH IS THE CORRECTION OF 2026-09-17. Until the
+ *  conformance kit shipped, every snapshot this repository committed was one this
+ *  repository's own producers had WRITTEN, so "every committed snapshot" and "every capture
+ *  we took" were the same set and no rule below had to say which one it meant.
+ *  `conformance-kit/template/` broke that: its two trees are hand-authored demonstrations of
+ *  §5, written to be exactly what a third-party recorder may write, and one rule below —
+ *  the `counts.captureSessions` sweep — is about a PRODUCER-INTERNAL member that §5 does not
+ *  name and no reader consumes. Requiring it of the templates would have made §5 an
+ *  incomplete statement of the contract, which is the failure the member census exists to
+ *  remove. So
+ *  the two sets are separate and each rule says which one it ranges over. */
+const KIT_TEMPLATE_SNAPSHOTS = Object.freeze([
+  'conformance-kit/template/complete/snapshot.json',
+  'conformance-kit/template/minimal/snapshot.json',
+]);
+
+/** the snapshots a producer IN THIS REPOSITORY wrote — the captures */
+const OWN_CAPTURE_SNAPSHOTS = Object.freeze([
   'client/fixtures/chain/aztec/snapshot.json',
   'client/fixtures/chain/aztec-testnet/snapshot.json',
   'client/fixtures/chain/aztec-testnet-frames/snapshot.json',
   'client/fixtures/noir-frames/snapshot.json',
   'fixtures/chain-artifacts/aztec-testnet/snapshot.json',
   'tests/fixtures/chain-snapshots/aztec-mainnet-live/snapshot.json',
+]);
+
+const ALL_COMMITTED_SNAPSHOTS = Object.freeze([
+  ...OWN_CAPTURE_SNAPSHOTS, ...KIT_TEMPLATE_SNAPSHOTS,
 ]);
 
 /** The three of those the migration tool must not promote. See the hold-out test below. */
@@ -964,7 +986,29 @@ test('no committed row claims a permanent body loss the store was never asked ab
   const root = new URL('../../', import.meta.url).pathname;
   const all = ALL_COMMITTED_SNAPSHOTS.map((p) => join(root, p));
   ck(`the corpus is the whole tree's — ${all.length} snapshot(s), and every one exists`,
-     all.length === 6 && all.every((p) => existsSync(p)));
+     all.length === 8 && all.every((p) => existsSync(p)));
+
+  // ── AND IT IS A PARTITION, STATED, SO THE SCOPED RULE BELOW CANNOT WIDEN BACK ──────
+  //
+  // One rule in this file — the `counts.captureSessions` sweep — ranges over the CAPTURES
+  // rather than over every committed snapshot, because that member is producer-internal
+  // and §5 does not name it. A scope is only a scope if it cannot move quietly, so: the
+  // two lists partition this one, the exempt half is exactly the kit's template trees
+  // (derived from the path, not from membership of a list), and both sizes are asserted.
+  // Dropping a capture into `conformance-kit/` to dodge a rule moves both numbers.
+  const kitPrefix = 'conformance-kit/';
+  ck(`the corpus splits into ${OWN_CAPTURE_SNAPSHOTS.length} capture(s) this repository's `
+     + `own producers wrote and ${KIT_TEMPLATE_SNAPSHOTS.length} hand-authored kit `
+     + `template(s), and the two make up the whole of it`,
+     OWN_CAPTURE_SNAPSHOTS.length === 6 && KIT_TEMPLATE_SNAPSHOTS.length === 2
+     && OWN_CAPTURE_SNAPSHOTS.length + KIT_TEMPLATE_SNAPSHOTS.length
+        === ALL_COMMITTED_SNAPSHOTS.length);
+  ck('…and the exempt half is exactly what lives under conformance-kit/, so the exemption '
+     + 'is a PATH rule rather than a membership list somebody can add a capture to',
+     KIT_TEMPLATE_SNAPSHOTS.every((p) => p.startsWith(kitPrefix))
+     && OWN_CAPTURE_SNAPSHOTS.every((p) => !p.startsWith(kitPrefix))
+     && ALL_COMMITTED_SNAPSHOTS.filter((p) => p.startsWith(kitPrefix)).length
+        === KIT_TEMPLATE_SNAPSHOTS.length);
 
   // ── AND THE LIST IS THE WHOLE TREE'S, WHICH THE `existsSync` ARM CANNOT SAY ────────
   //
@@ -1289,19 +1333,49 @@ test('a `captures` that cannot be counted publishes `null`, and the key SURVIVES
      + 'value the reverted line and this one agree on, stated so the split is visible',
      roundTrip({ ...base, captures: [] }).captureSessions === 0);
 
-  // 4. AND THE COMMITTED TREE IS ASKED THE SAME QUESTION. The arms above run over rows this
-  //    file built; this is the population.
+  // 4. AND THIS REPOSITORY'S OWN CAPTURES ARE ASKED THE SAME QUESTION. The arms above run
+  //    over rows this file built; this is the population.
+  //
+  //    SCOPED TO THE CAPTURES, AND THE SCOPE IS THE POINT RATHER THAN A CONVENIENCE.
+  //    `captureSessions` is written by `tools/chain/lib/recount.mjs` and read by NOTHING:
+  //    it is not in §5's census, no reader consumes it, and `snapshot-contract.json`
+  //    records it as producer-internal. So it is a rule about OUR producer's output, not
+  //    about a conforming snapshot — and when this sweep first ranged over every committed
+  //    snapshot it failed the conformance kit's own template trees, which are hand-authored
+  //    to be exactly what §5 asks for and nothing more. That direction of failure is worse
+  //    than it looks: a gate that requires a member §5 does not name makes §5 an incomplete
+  //    statement of the contract, which is the defect the member census exists to remove. The rule is
+  //    right, its subject was wrong, and the subject is now said out loud.
   const root = new URL('../../', import.meta.url).pathname;
   const missing = [];
-  for (const p of ALL_COMMITTED_SNAPSHOTS) {
+  for (const p of OWN_CAPTURE_SNAPSHOTS) {
     const s = JSON.parse(readFileSync(join(root, p), 'utf8'));
     if (s.counts === undefined) continue;   // `@1` subjects predate the tally — §5.2 scopes
                                             // the reconciliation to `@2`.
     if (!Object.prototype.hasOwnProperty.call(s.counts, 'captureSessions')) missing.push(p);
   }
-  ck('every committed snapshot that publishes a `counts` publishes a `captureSessions` in '
-     + 'it, present rather than dropped', missing.length === 0);
+  ck('every capture THIS REPOSITORY\'S OWN PRODUCERS wrote that publishes a `counts` '
+     + 'publishes a `captureSessions` in it, present rather than dropped — a hand-authored '
+     + `snapshot is not asked for a member §5 does not name (${OWN_CAPTURE_SNAPSHOTS.length} `
+     + `capture(s), ${KIT_TEMPLATE_SNAPSHOTS.length} template(s) out of scope)`,
+     missing.length === 0);
   if (missing.length) console.error(`    ${missing.join('\n    ')}`);
+
+  // …AND THE SCOPE IS NOT VACUOUS. A population of zero satisfies "none is missing", and a
+  // scoping edit is exactly the change that can empty one. Measured here: how many of the
+  // captures actually reach the arm above, and that the exempt trees really are short of
+  // the member — so the exemption is doing work rather than covering nothing.
+  const inScope = OWN_CAPTURE_SNAPSHOTS
+    .filter((p) => JSON.parse(readFileSync(join(root, p), 'utf8')).counts !== undefined);
+  ck(`…and that sweep has subjects — ${inScope.length} of ${OWN_CAPTURE_SNAPSHOTS.length} `
+     + 'captures publish a `counts` and are therefore asked', inScope.length >= 3);
+  const templatesCarrying = KIT_TEMPLATE_SNAPSHOTS.filter((p) => {
+    const c = JSON.parse(readFileSync(join(root, p), 'utf8')).counts;
+    return c !== undefined && Object.prototype.hasOwnProperty.call(c, 'captureSessions');
+  });
+  ck('…and the exempted template trees are short of the member, so the exemption is what '
+     + `keeps them conforming rather than a no-op — ${templatesCarrying.length} of `
+     + `${KIT_TEMPLATE_SNAPSHOTS.length} carry it`, templatesCarrying.length === 0);
 }
 
 test('the recipe\'s declared assertion total is the one the suites declare');
@@ -1613,7 +1687,7 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //       snapshot was simply not in the corpus every sweep here reads while all six arms
 //       stayed green. The list is now compared to `git ls-files`, and a git that cannot
 //       answer is a failure rather than a comparison against nothing.
-expectCount(224);
+expectCount(228);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

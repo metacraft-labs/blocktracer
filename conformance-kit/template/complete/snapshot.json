@@ -1,0 +1,267 @@
+{
+  "format": "blocktracer/chain-snapshot@2",
+  "provenance": {
+    "chain": "example-chain",
+    "label": "Example chain, complete template",
+    "runtimeCommit": "1111111111111111111111111111111111111111",
+    "endpoint": "https://node.example.invalid",
+    "capturedAt": "2026-01-01T00:00:00.000Z",
+    "nodeVersion": "0.1.0",
+    "l1ChainId": 1,
+    "recorder": {
+      "id": "example-recorder",
+      "traceSchema": "example-trace/v1"
+    },
+    "prestateStrategy": "self-contained"
+  },
+  "window": {
+    "tip": 1002,
+    "finalized": 1001,
+    "blocks": 3
+  },
+  "counts": {
+    "blocks": 3,
+    "transactions": 6,
+    "accountedFor": 6
+  },
+  "blocks": [
+    {
+      "number": 1002,
+      "hash": "0x1313131313131313131313131313131313131313131313131313131313131313",
+      "parentArchiveRoot": "0x1212121212121212121212121212121212121212121212121212121212121212",
+      "timestamp": 1767225600,
+      "transactions": [
+        "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+      ]
+    },
+    {
+      "number": 1001,
+      "hash": "0x1212121212121212121212121212121212121212121212121212121212121212",
+      "parentArchiveRoot": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "transactions": [
+        "0xc3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+        "0xd4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4"
+      ]
+    },
+    {
+      "number": 1000,
+      "hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "parentArchiveRoot": "0x1010101010101010101010101010101010101010101010101010101010101010",
+      "transactions": [
+        "0xe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5",
+        "0xf6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6"
+      ]
+    }
+  ],
+  "captures": [
+    {
+      "runtimeCommit": "2222222222222222222222222222222222222222",
+      "yielded": [
+        {
+          "txHash": "0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+        }
+      ]
+    }
+  ],
+  "artifactResolution": "resolution/artifacts.json",
+  "transactions": [
+    {
+      "txHash": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "blockNumber": 1002,
+      "txIndexInBlock": 0,
+      "outcome": "replayed",
+      "revertCode": 0,
+      "container": "ct/0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1.ct",
+      "containerBytes": 229,
+      "effects": {
+        "matched": 3,
+        "mismatched": 0,
+        "reproduced": true
+      },
+      "recording": {
+        "steps": 4,
+        "callsOpened": 2,
+        "sourceLevel": true,
+        "stepsPositioned": 4,
+        "stepsUnpositioned": 0,
+        "declaredRung": 3,
+        "contractRungs": [
+          {
+            "codeHash": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+            "rung": 3
+          }
+        ]
+      },
+      "recordedBy": "3333333333333333333333333333333333333333",
+      "cost": [
+        {
+          "name": "compute",
+          "used": "21000",
+          "limit": "50000",
+          "price": "7",
+          "unit": "step",
+          "token": "EXAMPLE",
+          "refundable": true
+        },
+        {
+          "name": "storage",
+          "used": "128"
+        }
+      ],
+      "executions": [
+        {
+          "selector": "main"
+        }
+      ],
+      "sourceBundles": "text/0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1.json",
+      "instructions": "listing/0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1.json",
+      "positions": "coords/0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1.json",
+      "callTrace": "frames/0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1.json",
+      "artifacts": [
+        {
+          "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "resolved": true,
+          "origin": "example-registry"
+        },
+        {
+          "contractClassId": "0xc2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+          "corroboration": "single-distributor"
+        }
+      ],
+      "bodyRetained": true,
+      "effectVisible": true,
+      "instructionsExecuted": 4,
+      "hydrationRounds": 1,
+      "preStateReadAt": 1001,
+      "roots": [
+        {
+          "tree": "state",
+          "resident": "0x7171717171717171717171717171717171717171717171717171717171717171",
+          "chain": "0x7272727272727272727272727272727272727272727272727272727272727272",
+          "agrees": true
+        }
+      ],
+      "rootsAnyAgree": true
+    },
+    {
+      "txHash": "0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+      "blockNumber": 1002,
+      "txIndexInBlock": 1,
+      "outcome": "replayed",
+      "revertCode": 0,
+      "container": "ct/0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2.ct",
+      "containerBytes": 229,
+      "effects": {
+        "matched": 1,
+        "mismatched": 0
+      },
+      "recording": {
+        "steps": 1
+      },
+      "cost": [
+        {
+          "name": "compute",
+          "used": "4200"
+        }
+      ],
+      "executions": [
+        {
+          "selector": "main"
+        }
+      ]
+    },
+    {
+      "txHash": "0xc3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+      "blockNumber": 1001,
+      "txIndexInBlock": 0,
+      "outcome": "divergent",
+      "revertCode": 0,
+      "container": "ct/0xc3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3.ct",
+      "containerBytes": 229,
+      "effects": {
+        "matched": 1,
+        "mismatched": 2
+      },
+      "recording": {
+        "steps": 2
+      },
+      "cost": [
+        {
+          "name": "compute",
+          "used": "9000"
+        }
+      ],
+      "executions": [
+        {
+          "selector": "main"
+        }
+      ]
+    },
+    {
+      "txHash": "0xd4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4",
+      "blockNumber": 1001,
+      "txIndexInBlock": 1,
+      "outcome": "refused",
+      "revertCode": 0,
+      "reason": "The replay runtime declined this transaction by name. The class it raised travels beside this sentence so the specific condition is recoverable from the row.",
+      "refusalReason": "runtime-refused",
+      "refusal": "ExampleRuntimeRefusal",
+      "cost": [
+        {
+          "name": "compute",
+          "used": "0"
+        }
+      ],
+      "executions": [
+        {
+          "selector": "main"
+        }
+      ]
+    },
+    {
+      "txHash": "0xe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5",
+      "blockNumber": 1000,
+      "txIndexInBlock": 0,
+      "outcome": "not-attempted",
+      "revertCode": 0,
+      "reason": "The run stopped before it reached this transaction. Nothing about the transaction or about the chain declined it.",
+      "refusalReason": "not-attempted",
+      "cost": [
+        {
+          "name": "compute",
+          "used": "0"
+        }
+      ],
+      "executions": [
+        {
+          "selector": "first",
+          "reason": "The run's budget ran out before this execution was replayed."
+        },
+        {
+          "selector": "second",
+          "reason": "This execution needs the state the one before it left, and this run did not replay that one."
+        }
+      ]
+    },
+    {
+      "txHash": "0xf6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6",
+      "blockNumber": 1000,
+      "txIndexInBlock": 1,
+      "outcome": "private-only",
+      "revertCode": 0,
+      "reason": "This transaction has no public execution to trace. What the chain published for it is the effect of a proof carried out elsewhere, so there is no bytecode and no execution to re-run. Nothing declined it.",
+      "cost": [
+        {
+          "name": "compute",
+          "used": "1500"
+        }
+      ],
+      "executions": [
+        {
+          "selector": "public"
+        }
+      ]
+    }
+  ]
+}

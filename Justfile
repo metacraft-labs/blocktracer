@@ -134,7 +134,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TEN suites — 98 + 19 + 24 + 24 + 57 + 224 + 33 + 153 + 53 + 68 = 753 counted assertions —
+# TEN suites — 98 + 19 + 24 + 24 + 57 + 228 + 33 + 153 + 53 + 91 = 780 counted assertions —
 # over the ten decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -809,6 +809,50 @@ validate dir="demo-site":
 
 # Generate a demo tree and validate it (the M5c end-to-end check).
 demo: (demo-gen) (validate)
+
+# Report what a CONSUMER could not do with a published tree (the other end of M5b's
+# seam). `validate` above asks whether the tree is well formed; this asks whether the
+# client SDK can render it end to end without knowing who produced it.
+client-conformance dir="demo-site":
+    nim c -r --hints:off src/blocktracer_client_conformance.nim {{dir}}
+
+# ── the recorder conformance kit ────────────────────────────────────────────
+#
+# One command over a `blocktracer/chain-snapshot@…` tree: ingest it, then run the
+# producer-side validator and the consumer-side conformance report over what that
+# produced. Three checks, none of which restates a rule — each is an existing entry
+# point, and the §5 rules are `tools/chain/snapshot-contract.json`, read by the
+# reader at compile time.
+#
+# The default subject is the shipped template, so `just conformance` with no
+# argument is the kit checking itself.
+conformance dir="conformance-kit/template/complete":
+    nim c -r --hints:off src/blocktracer_conformance.nim --snapshot {{dir}}
+
+# Build the kit as a RELEASED ARTIFACT: the three binaries, the template and the
+# README, in one directory that carries no path back to this checkout.
+#
+# THIS IS WHAT A RECORDER TEAM GETS, and the three things they must not need are
+# a Nim toolchain, a repository checkout and a network. The binaries are built
+# HERE, by us — both existing checks are BlockTracer code, so BlockTracer has to be
+# built by somebody — and `-d:release` is what makes the result a shipped artifact
+# rather than a debug build of a working tree.
+#
+# `ci/test/conformance-kit-sandbox.sh` is the arm that proves the three negatives,
+# by running this artifact somewhere all three are absent.
+conformance-kit-release out="conformance-kit-release":
+    rm -rf {{out}}
+    mkdir -p {{out}}/bin
+    nim c -d:release --hints:off --out:$(pwd)/{{out}}/bin/blocktracer-conformance src/blocktracer_conformance.nim
+    nim c -d:release --hints:off --out:$(pwd)/{{out}}/bin/blocktracer-validate src/blocktracer_validate.nim
+    nim c -d:release --hints:off --out:$(pwd)/{{out}}/bin/blocktracer-client-conformance src/blocktracer_client_conformance.nim
+    cp -r conformance-kit/template {{out}}/template
+    cp conformance-kit/README.md {{out}}/README.md
+    @echo "conformance kit staged in {{out}}/ — run {{out}}/bin/blocktracer-conformance --snapshot {{out}}/template/complete"
+
+# Prove the released artifact needs no toolchain, no checkout and no network.
+conformance-kit-sandbox:
+    ci/test/conformance-kit-sandbox.sh
 
 # Publish a generated tree into a local object-store directory (M8 delta publisher).
 # Idempotent + resumable: re-run to upload only new objects and flip current.json.

@@ -1,0 +1,13 @@
+{
+  "schema": "example-positions/1",
+  "steps": 1,
+  "pathId": [
+    0
+  ],
+  "line": [
+    1
+  ],
+  "column": [
+    1
+  ]
+}
